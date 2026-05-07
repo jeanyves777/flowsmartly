@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Bot,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -20,6 +21,7 @@ import {
   Loader2,
   Mail,
   MoreHorizontal,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -47,6 +49,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { ChatPanel } from "@/components/ai-assistant/chat-panel";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import type { TaskCategory } from "@/lib/strategy/categories";
@@ -55,6 +59,7 @@ import { cn } from "@/lib/utils/cn";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 type TaskPriority = "HIGH" | "MEDIUM" | "LOW";
 type ViewMode = "plan" | "automations" | "sync";
+type Timeframe = "1_MONTH" | "3_MONTHS" | "6_MONTHS";
 
 interface MatchedActivity {
   activityType: string;
@@ -78,10 +83,11 @@ interface StrategyTask {
   completedAt: string | null;
   sortOrder: number;
   autoCompleted: boolean;
-  progress: number;
-  matchedActivities: string;
+  progress?: number;
+  matchedActivities?: string | null;
   automationStatus?: string;
   automationId?: string | null;
+  aiSuggested?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -162,6 +168,44 @@ interface AutomationDraft {
   strategyTaskId: string;
 }
 
+interface StrategyBuilderDraft {
+  goals: string;
+  timeframe: Timeframe;
+  focusAreas: TaskCategory[];
+  platforms: string[];
+  additionalContext: string;
+  competitorInfo: string;
+  budget: string;
+}
+
+interface AutomationBuilderDraft {
+  selectedTaskIds: string[];
+  frequency: Frequency;
+  dayOfWeek: number;
+  time: string;
+  aiTone: string;
+  platforms: string[];
+  includeMedia: boolean;
+  mediaType: "image" | "video";
+  mediaStyle: string;
+  endDate: string;
+  customPrompt: string;
+}
+
+interface BrandSnapshot {
+  name: string;
+  logo?: string;
+  tagline?: string;
+  industry?: string;
+  niche?: string;
+  targetAudience?: string;
+  voiceTone?: string;
+  uniqueValue?: string;
+  products: string[];
+  keywords: string[];
+  handles: Record<string, string>;
+}
+
 const STATUS_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
   { id: "TODO", label: "To do", tone: "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/20" },
   { id: "IN_PROGRESS", label: "In progress", tone: "border-sky-200 bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/20" },
@@ -191,6 +235,36 @@ const PLATFORM_OPTIONS = [
   { id: "tiktok", label: "TikTok" },
   { id: "youtube", label: "YouTube" },
 ];
+
+const STRATEGY_PLATFORM_OPTIONS = [
+  "Instagram",
+  "Facebook",
+  "Twitter/X",
+  "LinkedIn",
+  "TikTok",
+  "YouTube",
+  "Blog",
+  "Email",
+];
+
+const TIMEFRAME_OPTIONS: Array<{ value: Timeframe; label: string }> = [
+  { value: "1_MONTH", label: "1 month" },
+  { value: "3_MONTHS", label: "3 months" },
+  { value: "6_MONTHS", label: "6 months" },
+];
+
+const TONE_OPTIONS = ["professional", "friendly", "confident", "educational", "playful"];
+
+const AUTOMATABLE_CATEGORIES: TaskCategory[] = ["content", "social", "email"];
+
+const BRAND_HANDLE_PLATFORM: Record<string, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  twitter: "Twitter/X",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+};
 
 const DEFAULT_TASK: TaskDraft = {
   title: "",
@@ -224,6 +298,30 @@ const DEFAULT_AUTOMATION: AutomationDraft = {
   strategyTaskId: "",
 };
 
+const DEFAULT_STRATEGY_BUILDER: StrategyBuilderDraft = {
+  goals: "",
+  timeframe: "3_MONTHS",
+  focusAreas: ["content", "social", "ads", "email", "analytics"],
+  platforms: ["Instagram", "Facebook", "LinkedIn", "Email"],
+  additionalContext: "",
+  competitorInfo: "",
+  budget: "",
+};
+
+const DEFAULT_AUTOMATION_BUILDER: AutomationBuilderDraft = {
+  selectedTaskIds: [],
+  frequency: "WEEKLY",
+  dayOfWeek: 1,
+  time: "09:00",
+  aiTone: "professional",
+  platforms: ["feed"],
+  includeMedia: false,
+  mediaType: "image",
+  mediaStyle: "",
+  endDate: DEFAULT_AUTOMATION.endDate,
+  customPrompt: "",
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "No date";
   return new Date(value).toLocaleDateString("en-US", {
@@ -254,13 +352,61 @@ function formatTimeAgo(value?: string | null) {
   return `${days}d ago`;
 }
 
-function parseMatches(raw: string): MatchedActivity[] {
+function parseMatches(raw?: string | null): MatchedActivity[] {
   try {
     const parsed = JSON.parse(raw || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return toStringArray(parsed);
+    } catch {
+      return value.trim() ? [value.trim()] : [];
+    }
+  }
+  return [];
+}
+
+function isTaskAutomatable(task: StrategyTask) {
+  return AUTOMATABLE_CATEGORIES.includes(normalizeTaskCategory(task.category));
+}
+
+function taskProgress(task: StrategyTask) {
+  return Math.min(100, Math.max(0, task.progress ?? 0));
+}
+
+function buildBrandGoal(brand: BrandSnapshot | null) {
+  if (!brand) {
+    return "Build a complete marketing strategy from my saved brand identity. Prioritize brand awareness, lead generation, content cadence, email follow-up, and automation-ready tasks.";
+  }
+
+  const details = [
+    brand.industry ? `Industry: ${brand.industry}` : null,
+    brand.niche ? `Niche: ${brand.niche}` : null,
+    brand.targetAudience ? `Audience: ${brand.targetAudience}` : null,
+    brand.uniqueValue ? `Unique value: ${brand.uniqueValue}` : null,
+    brand.products.length ? `Offerings: ${brand.products.slice(0, 4).join(", ")}` : null,
+    brand.keywords.length ? `Themes: ${brand.keywords.slice(0, 6).join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `Build a complete marketing strategy for ${brand.name} from the saved brand identity. Create practical content, social, email, ads, analytics, and automation-ready tasks.${details ? `\n\n${details}` : ""}`;
+}
+
+function getDefaultAutomationEndDate() {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 3);
+  return d.toISOString().slice(0, 10);
 }
 
 function scheduleLabel(automation: Automation) {
@@ -321,8 +467,17 @@ export default function StrategyAutomationPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
   const [inspectorMode, setInspectorMode] = useState<"summary" | "task" | "automation">("summary");
+  const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
+  const [automationBuilderOpen, setAutomationBuilderOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(DEFAULT_TASK);
   const [automationDraft, setAutomationDraft] = useState<AutomationDraft>(DEFAULT_AUTOMATION);
+  const [strategyBuilder, setStrategyBuilder] = useState<StrategyBuilderDraft>(DEFAULT_STRATEGY_BUILDER);
+  const [automationBuilder, setAutomationBuilder] = useState<AutomationBuilderDraft>(DEFAULT_AUTOMATION_BUILDER);
+  const [brand, setBrand] = useState<BrandSnapshot | null>(null);
+  const [brandLoading, setBrandLoading] = useState(true);
+  const [generatingStrategy, setGeneratingStrategy] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState("90-day content operating plan");
 
   const loadData = useCallback(async () => {
@@ -359,6 +514,52 @@ export default function StrategyAutomationPage() {
   }, [loadData]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setBrandLoading(true);
+      try {
+        const res = await fetch("/api/brand");
+        const data = await res.json();
+        const b = data.data?.brandKit;
+        if (!cancelled && data.success && b) {
+          const nextBrand: BrandSnapshot = {
+            name: b.name || "Saved brand",
+            logo: b.iconLogo || b.logo || undefined,
+            tagline: b.tagline || undefined,
+            industry: b.industry || undefined,
+            niche: b.niche || undefined,
+            targetAudience: b.targetAudience || undefined,
+            voiceTone: b.voiceTone || undefined,
+            uniqueValue: b.uniqueValue || undefined,
+            products: toStringArray(b.products),
+            keywords: toStringArray(b.keywords),
+            handles: typeof b.handles === "object" && b.handles ? b.handles : {},
+          };
+          setBrand(nextBrand);
+          const recommendedPlatforms = Object.entries(nextBrand.handles)
+            .filter(([, value]) => value)
+            .map(([key]) => BRAND_HANDLE_PLATFORM[key])
+            .filter(Boolean);
+          if (recommendedPlatforms.length > 0) {
+            setStrategyBuilder((draft) => ({
+              ...draft,
+              platforms: [...new Set([...draft.platforms, ...recommendedPlatforms])],
+            }));
+          }
+        }
+      } catch {
+        if (!cancelled) setBrand(null);
+      } finally {
+        if (!cancelled) setBrandLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const nextView = searchParams.get("view");
     if (nextView === "automations") setView("automations");
   }, [searchParams]);
@@ -381,16 +582,23 @@ export default function StrategyAutomationPage() {
   const readyToAutomate = useMemo(
     () =>
       tasks.filter((task) => {
-        const category = normalizeTaskCategory(task.category);
         return (
           task.status !== "DONE" &&
           !task.automationId &&
           task.automationStatus !== "AUTOMATED" &&
-          ["content", "social", "email"].includes(category)
+          isTaskAutomatable(task)
         );
       }),
     [tasks]
   );
+
+  const activeBrandPlatforms = useMemo(() => {
+    if (!brand?.handles) return [];
+    return Object.entries(brand.handles)
+      .filter(([, value]) => value)
+      .map(([key]) => BRAND_HANDLE_PLATFORM[key])
+      .filter(Boolean);
+  }, [brand]);
 
   const syncLog = useMemo(
     () =>
@@ -411,6 +619,7 @@ export default function StrategyAutomationPage() {
     setSelectedAutomationId(null);
     setInspectorMode("task");
     setTaskDraft(taskToDraft(task));
+    setWorkspacePanelOpen(true);
   };
 
   const openNewTask = (status: TaskStatus = "TODO") => {
@@ -418,6 +627,7 @@ export default function StrategyAutomationPage() {
     setSelectedTaskId(null);
     setInspectorMode("task");
     setTaskDraft({ ...DEFAULT_TASK, status });
+    setWorkspacePanelOpen(true);
   };
 
   const openAutomation = (automation: Automation) => {
@@ -425,6 +635,7 @@ export default function StrategyAutomationPage() {
     setSelectedTaskId(null);
     setInspectorMode("automation");
     setAutomationDraft(automationToDraft(automation));
+    setWorkspacePanelOpen(true);
   };
 
   const openNewAutomation = (task?: StrategyTask) => {
@@ -442,14 +653,38 @@ export default function StrategyAutomationPage() {
     setInspectorMode("automation");
     setAutomationDraft(base);
     setView("automations");
+    setWorkspacePanelOpen(true);
   };
 
   const closeInspector = () => {
     setSelectedTaskId(null);
     setSelectedAutomationId(null);
     setInspectorMode("summary");
+    setWorkspacePanelOpen(false);
     setTaskDraft(DEFAULT_TASK);
     setAutomationDraft(DEFAULT_AUTOMATION);
+  };
+
+  const openStrategyBuilder = () => {
+    setStrategyBuilder((draft) => ({
+      ...draft,
+      platforms: draft.platforms.length
+        ? draft.platforms
+        : activeBrandPlatforms.length
+        ? activeBrandPlatforms
+        : DEFAULT_STRATEGY_BUILDER.platforms,
+    }));
+    setStrategyBuilderOpen(true);
+  };
+
+  const openAutomationBuilder = () => {
+    setAutomationBuilder((draft) => ({
+      ...draft,
+      selectedTaskIds: readyToAutomate.map((task) => task.id),
+      endDate: draft.endDate || getDefaultAutomationEndDate(),
+    }));
+    setAutomationBuilderOpen(true);
+    setView("automations");
   };
 
   const createStrategy = async () => {
@@ -498,6 +733,182 @@ export default function StrategyAutomationPage() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const toggleStrategyFocus = (category: TaskCategory) => {
+    setStrategyBuilder((draft) => ({
+      ...draft,
+      focusAreas: draft.focusAreas.includes(category)
+        ? draft.focusAreas.filter((item) => item !== category)
+        : [...draft.focusAreas, category],
+    }));
+  };
+
+  const toggleStrategyPlatform = (platform: string) => {
+    setStrategyBuilder((draft) => ({
+      ...draft,
+      platforms: draft.platforms.includes(platform)
+        ? draft.platforms.filter((item) => item !== platform)
+        : [...draft.platforms, platform],
+    }));
+  };
+
+  const toggleAutomationTask = (taskId: string) => {
+    setAutomationBuilder((draft) => ({
+      ...draft,
+      selectedTaskIds: draft.selectedTaskIds.includes(taskId)
+        ? draft.selectedTaskIds.filter((id) => id !== taskId)
+        : [...draft.selectedTaskIds, taskId],
+    }));
+  };
+
+  const toggleAutomationPlatform = (platform: string) => {
+    setAutomationBuilder((draft) => ({
+      ...draft,
+      platforms: draft.platforms.includes(platform)
+        ? draft.platforms.filter((item) => item !== platform)
+        : [...draft.platforms, platform],
+    }));
+  };
+
+  const createAutomationsForTasks = async (
+    sourceStrategy: Strategy,
+    candidateTasks: StrategyTask[],
+    options: AutomationBuilderDraft,
+    successTitle = "Automations launched"
+  ) => {
+    const selectedTasks = candidateTasks.filter(
+      (task) =>
+        options.selectedTaskIds.includes(task.id) &&
+        task.status !== "DONE" &&
+        !task.automationId &&
+        task.automationStatus !== "AUTOMATED" &&
+        isTaskAutomatable(task)
+    );
+
+    if (selectedTasks.length === 0) {
+      toast({
+        title: "No ready items",
+        description: "Select content, social, or email plan items that are not already automated.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (options.platforms.length === 0) {
+      toast({
+        title: "Select at least one channel",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setSaving(true);
+    try {
+      const taskConfigs = selectedTasks.map((task) => ({
+        taskId: task.id,
+        enabled: true,
+        includeMedia: options.includeMedia,
+        mediaType: options.mediaType,
+        mediaStyle: options.mediaStyle,
+        frequency: options.frequency,
+        dayOfWeek: options.dayOfWeek,
+        time: options.time,
+        customPrompt: [options.customPrompt, task.title, task.description]
+          .filter(Boolean)
+          .join("\n\n"),
+      }));
+
+      const res = await fetch("/api/content/strategy/automate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: sourceStrategy.id,
+          taskConfigs,
+          globalTone: options.aiTone,
+          globalEndDate: options.endDate,
+          platforms: options.platforms,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automations were not launched");
+      await loadData();
+      setView("automations");
+      setAutomationBuilderOpen(false);
+      toast({
+        title: successTitle,
+        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected`,
+      });
+      return true;
+    } catch (err) {
+      toast({
+        title: "Automations were not launched",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generateStrategyFromBrand = async (automateAfterGenerate = false) => {
+    if (strategyBuilder.focusAreas.length === 0) {
+      toast({ title: "Select at least one focus area", variant: "destructive" });
+      return;
+    }
+
+    const goals = strategyBuilder.goals.trim() || buildBrandGoal(brand);
+    setGeneratingStrategy(true);
+    try {
+      const res = await fetch("/api/content/strategy/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goals,
+          timeframe: strategyBuilder.timeframe,
+          focusAreas: strategyBuilder.focusAreas,
+          platforms: strategyBuilder.platforms.length ? strategyBuilder.platforms : undefined,
+          additionalContext: strategyBuilder.additionalContext || undefined,
+          competitorInfo: strategyBuilder.competitorInfo || undefined,
+          budget: strategyBuilder.budget || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Strategy generation failed");
+
+      const generatedStrategy = json.data.strategy as Strategy;
+      setStrategy(generatedStrategy);
+      setStrategyBuilderOpen(false);
+      toast({
+        title: "Strategy generated",
+        description: `${generatedStrategy.tasks?.length || 0} plan items created from the saved brand identity.`,
+      });
+
+      if (automateAfterGenerate) {
+        const generatedTasks = (generatedStrategy.tasks || []).filter(isTaskAutomatable);
+        await createAutomationsForTasks(
+          generatedStrategy,
+          generatedTasks,
+          {
+            ...automationBuilder,
+            selectedTaskIds: generatedTasks.map((task) => task.id),
+            endDate: automationBuilder.endDate || getDefaultAutomationEndDate(),
+          },
+          "Strategy and automations launched"
+        );
+      } else {
+        await loadData();
+      }
+    } catch (err) {
+      toast({
+        title: "Strategy was not generated",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingStrategy(false);
     }
   };
 
@@ -651,16 +1062,22 @@ export default function StrategyAutomationPage() {
     }
   };
 
-  const deleteAutomation = async () => {
-    if (!automationDraft.id) return;
+  const deleteAutomationById = async (automationId: string, automationName?: string) => {
+    const confirmed =
+      typeof window === "undefined" ||
+      window.confirm(`Delete automation${automationName ? ` "${automationName}"` : ""}?`);
+    if (!confirmed) return;
+
     setSaving(true);
     try {
-      const res = await fetch(`/api/content/automation?id=${automationDraft.id}`, {
+      const res = await fetch(`/api/content/automation?id=${automationId}`, {
         method: "DELETE",
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error?.message || "Automation was not deleted");
-      closeInspector();
+      if (selectedAutomationId === automationId) {
+        closeInspector();
+      }
       await loadData();
       toast({ title: "Automation removed" });
     } catch (err) {
@@ -672,6 +1089,11 @@ export default function StrategyAutomationPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteAutomation = async () => {
+    if (!automationDraft.id) return;
+    await deleteAutomationById(automationDraft.id, automationDraft.name);
   };
 
   const runAutomation = async (automation: Automation) => {
@@ -697,52 +1119,24 @@ export default function StrategyAutomationPage() {
 
   const launchReadyTasks = async () => {
     if (!strategy || readyToAutomate.length === 0) return;
-    setSaving(true);
-    try {
-      const taskConfigs = readyToAutomate.map((task) => ({
-        taskId: task.id,
-        enabled: true,
+    await createAutomationsForTasks(
+      strategy,
+      readyToAutomate,
+      {
+        ...automationBuilder,
+        selectedTaskIds: readyToAutomate.map((task) => task.id),
         includeMedia: false,
         mediaType: "image",
         mediaStyle: "",
         frequency: "WEEKLY",
         dayOfWeek: 1,
         time: "09:00",
-        customPrompt: [task.title, task.description].filter(Boolean).join("\n"),
-      }));
-      const endDate = (() => {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 3);
-        return d.toISOString().slice(0, 10);
-      })();
-      const res = await fetch("/api/content/strategy/automate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategyId: strategy.id,
-          taskConfigs,
-          globalTone: "professional",
-          globalEndDate: endDate,
-          platforms: ["feed"],
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automations were not launched");
-      await loadData();
-      setView("automations");
-      toast({
-        title: "Automations launched",
-        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected`,
-      });
-    } catch (err) {
-      toast({
-        title: "Automations were not launched",
-        description: err instanceof Error ? err.message : "Please try again",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
+        aiTone: "professional",
+        platforms: ["feed"],
+        endDate: getDefaultAutomationEndDate(),
+        customPrompt: "",
+      }
+    );
   };
 
   const renderTaskCard = (task: StrategyTask) => {
@@ -808,13 +1202,13 @@ export default function StrategyAutomationPage() {
 
         <div className="mt-3 space-y-1">
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>{task.progress}% complete</span>
+            <span>{taskProgress(task)}% complete</span>
             <span>{matches.length} match{matches.length === 1 ? "" : "es"}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-brand-500 transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, task.progress))}%` }}
+              style={{ width: `${taskProgress(task)}%` }}
             />
           </div>
         </div>
@@ -889,101 +1283,151 @@ export default function StrategyAutomationPage() {
   );
 
   const renderAutomationView = () => (
-    <div className="grid gap-3 xl:grid-cols-2">
-      {automations.map((automation) => {
-        const linkedTask = automation.strategyTaskId
-          ? tasks.find((task) => task.id === automation.strategyTaskId)
-          : null;
-        const isSelected = selectedAutomationId === automation.id;
-        return (
-          <Card
-            key={automation.id}
-            className={cn(
-              "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
-              isSelected && "border-brand-500 ring-2 ring-brand-500/20"
-            )}
-            onClick={() => openAutomation(automation)}
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 rounded-xl border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Automation controls</p>
+          <p className="text-xs text-muted-foreground">
+            {readyToAutomate.length} plan item{readyToAutomate.length === 1 ? "" : "s"} ready for AI flows
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={openAutomationBuilder}
+            disabled={readyToAutomate.length === 0}
+            className="bg-brand-500 text-white hover:bg-brand-600"
           >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
-                      <Zap className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold">{automation.name}</p>
-                      <p className="text-xs text-muted-foreground">{scheduleLabel(automation)}</p>
+            <Sparkles className="mr-2 h-4 w-4" />
+            AI build flows
+          </Button>
+          <Button variant="outline" onClick={() => openNewAutomation()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Manual flow
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        {automations.map((automation) => {
+          const linkedTask = automation.strategyTaskId
+            ? tasks.find((task) => task.id === automation.strategyTaskId)
+            : null;
+          const isSelected = selectedAutomationId === automation.id;
+          return (
+            <Card
+              key={automation.id}
+              className={cn(
+                "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md",
+                isSelected && "border-brand-500 ring-2 ring-brand-500/20"
+              )}
+              onClick={() => openAutomation(automation)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
+                        <Zap className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{automation.name}</p>
+                        <p className="text-xs text-muted-foreground">{scheduleLabel(automation)}</p>
+                      </div>
                     </div>
                   </div>
+                  <Switch
+                    checked={automation.enabled}
+                    onCheckedChange={(checked) => toggleAutomation(automation, checked)}
+                    onClick={(event) => event.stopPropagation()}
+                  />
                 </div>
-                <Switch
-                  checked={automation.enabled}
-                  onCheckedChange={(checked) => toggleAutomation(automation, checked)}
-                  onClick={(event) => event.stopPropagation()}
-                />
-              </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <p className="font-semibold">{automation.totalGenerated}</p>
-                  <p className="text-muted-foreground">Posts</p>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg border bg-muted/30 p-2">
+                    <p className="font-semibold">{automation.totalGenerated}</p>
+                    <p className="text-muted-foreground">Posts</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-2">
+                    <p className="font-semibold">{automation.totalCreditsSpent}</p>
+                    <p className="text-muted-foreground">Credits</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-2">
+                    <p className="font-semibold">{automation.platforms.length}</p>
+                    <p className="text-muted-foreground">Channels</p>
+                  </div>
                 </div>
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <p className="font-semibold">{automation.totalCreditsSpent}</p>
-                  <p className="text-muted-foreground">Credits</p>
-                </div>
-                <div className="rounded-lg border bg-muted/30 p-2">
-                  <p className="font-semibold">{automation.platforms.length}</p>
-                  <p className="text-muted-foreground">Channels</p>
-                </div>
-              </div>
 
-              {linkedTask && (
-                <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs text-emerald-700 dark:text-emerald-300">
-                  Connected to {linkedTask.title}
+                {linkedTask && (
+                  <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs text-emerald-700 dark:text-emerald-300">
+                    Connected to {linkedTask.title}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    Last run: {formatTimeAgo(automation.lastTriggered)}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openAutomation(automation);
+                      }}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        runAutomation(automation);
+                      }}
+                      disabled={runningId === automation.id}
+                    >
+                      {runningId === automation.id ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Play className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Run
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteAutomationById(automation.id, automation.name);
+                      }}
+                      disabled={saving}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          );
+        })}
 
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  Last run: {formatTimeAgo(automation.lastTriggered)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    runAutomation(automation);
-                  }}
-                  disabled={runningId === automation.id}
-                >
-                  {runningId === automation.id ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Play className="mr-1.5 h-3.5 w-3.5" />
-                  )}
-                  Run
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-
-      {automations.length === 0 && (
-        <button
-          onClick={() => openNewAutomation()}
-          className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center hover:border-brand-500/40"
-        >
-          <Zap className="mx-auto mb-3 h-8 w-8 text-brand-500" />
-          <p className="font-semibold">Create the first automation</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Connect plan items to recurring content flows.
-          </p>
-        </button>
-      )}
+        {automations.length === 0 && (
+          <button
+            onClick={openAutomationBuilder}
+            className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center hover:border-brand-500/40"
+          >
+            <Zap className="mx-auto mb-3 h-8 w-8 text-brand-500" />
+            <p className="font-semibold">Create the first automation</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Connect plan items to recurring content flows.
+            </p>
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -1356,6 +1800,464 @@ export default function StrategyAutomationPage() {
     );
   };
 
+  const renderStrategyBuilderPanel = () => (
+    <div className="space-y-4">
+      <div className="rounded-xl border bg-muted/30 p-3">
+        {brandLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-brand-500" />
+            Loading brand identity
+          </div>
+        ) : brand ? (
+          <div className="flex items-start gap-3">
+            {brand.logo ? (
+              <img
+                src={brand.logo}
+                alt={brand.name}
+                className="h-11 w-11 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
+                {brand.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{brand.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {[brand.industry, brand.niche, brand.voiceTone].filter(Boolean).join(" / ") || "Saved brand identity"}
+              </p>
+              {(brand.targetAudience || brand.uniqueValue) && (
+                <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                  {brand.targetAudience || brand.uniqueValue}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" />
+            <div>
+              <p className="font-medium">No brand identity found</p>
+              <p className="text-xs text-muted-foreground">FlowAI can still build from your goal.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Goal</Label>
+        <Textarea
+          value={strategyBuilder.goals}
+          onChange={(event) =>
+            setStrategyBuilder((draft) => ({ ...draft, goals: event.target.value }))
+          }
+          placeholder={brand ? `Build a plan for ${brand.name}` : "Build a plan from my brand identity"}
+          className="min-h-[105px]"
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {TIMEFRAME_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            onClick={() =>
+              setStrategyBuilder((draft) => ({ ...draft, timeframe: option.value }))
+            }
+            className={cn(
+              "rounded-lg border px-3 py-2 text-sm font-medium",
+              strategyBuilder.timeframe === option.value
+                ? "border-brand-500 bg-brand-500 text-white"
+                : "bg-background hover:bg-muted"
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Focus areas</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(CATEGORY_CONFIG).map(([key, config]) => {
+            const category = key as TaskCategory;
+            const Icon = config.icon;
+            const selected = strategyBuilder.focusAreas.includes(category);
+            return (
+              <button
+                key={category}
+                onClick={() => toggleStrategyFocus(category)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm",
+                  selected
+                    ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
+                    : "bg-background hover:bg-muted"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {config.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Platforms</Label>
+        <div className="flex flex-wrap gap-2">
+          {STRATEGY_PLATFORM_OPTIONS.map((platform) => {
+            const selected = strategyBuilder.platforms.includes(platform);
+            return (
+              <button
+                key={platform}
+                onClick={() => toggleStrategyPlatform(platform)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  selected
+                    ? "border-brand-500 bg-brand-500 text-white"
+                    : "bg-background text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {platform}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Competitors</Label>
+          <Input
+            value={strategyBuilder.competitorInfo}
+            onChange={(event) =>
+              setStrategyBuilder((draft) => ({ ...draft, competitorInfo: event.target.value }))
+            }
+            placeholder="Competitors or market"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Budget</Label>
+          <Input
+            value={strategyBuilder.budget}
+            onChange={(event) =>
+              setStrategyBuilder((draft) => ({ ...draft, budget: event.target.value }))
+            }
+            placeholder="Organic, $500/month..."
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Extra context</Label>
+        <Textarea
+          value={strategyBuilder.additionalContext}
+          onChange={(event) =>
+            setStrategyBuilder((draft) => ({ ...draft, additionalContext: event.target.value }))
+          }
+          placeholder="Launches, offers, seasonal pushes, locations, or constraints"
+          className="min-h-[80px]"
+        />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button
+          onClick={() => generateStrategyFromBrand(false)}
+          disabled={generatingStrategy || strategyBuilder.focusAreas.length === 0}
+          className="bg-brand-500 text-white hover:bg-brand-600"
+        >
+          {generatingStrategy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+          Build from brand
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => generateStrategyFromBrand(true)}
+          disabled={generatingStrategy || strategyBuilder.focusAreas.length === 0}
+        >
+          {generatingStrategy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+          Build + automate
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderAutomationBuilderPanel = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/30 p-3">
+        <div>
+          <p className="text-sm font-semibold">Ready plan items</p>
+          <p className="text-xs text-muted-foreground">
+            {automationBuilder.selectedTaskIds.length}/{readyToAutomate.length} selected
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setAutomationBuilder((draft) => ({
+                ...draft,
+                selectedTaskIds: readyToAutomate.map((task) => task.id),
+              }))
+            }
+            disabled={readyToAutomate.length === 0}
+          >
+            All
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setAutomationBuilder((draft) => ({ ...draft, selectedTaskIds: [] }))}
+            disabled={readyToAutomate.length === 0}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      <div className="max-h-52 space-y-2 overflow-y-auto rounded-xl border p-2">
+        {readyToAutomate.length > 0 ? (
+          readyToAutomate.map((task) => {
+            const category = normalizeTaskCategory(task.category);
+            const selected = automationBuilder.selectedTaskIds.includes(task.id);
+            return (
+              <button
+                key={task.id}
+                onClick={() => toggleAutomationTask(task.id)}
+                className={cn(
+                  "flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left",
+                  selected
+                    ? "border-brand-500 bg-brand-500/10"
+                    : "bg-background hover:bg-muted"
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px]",
+                    selected ? "border-brand-500 bg-brand-500 text-white" : "bg-background"
+                  )}
+                >
+                  {selected && <CheckCircle2 className="h-3 w-3" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{task.title}</span>
+                  <span className="block text-xs capitalize text-muted-foreground">{category}</span>
+                </span>
+              </button>
+            );
+          })
+        ) : (
+          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+            Add content, social, or email items that are not already automated.
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Frequency</Label>
+          <Select
+            value={automationBuilder.frequency}
+            onValueChange={(value) =>
+              setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
+            }
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="DAILY">Daily</SelectItem>
+              <SelectItem value="WEEKLY">Weekly</SelectItem>
+              <SelectItem value="MONTHLY">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Time</Label>
+          <Input
+            type="time"
+            value={automationBuilder.time}
+            onChange={(event) =>
+              setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
+            }
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Tone</Label>
+          <Select
+            value={automationBuilder.aiTone}
+            onValueChange={(value) =>
+              setAutomationBuilder((draft) => ({ ...draft, aiTone: value }))
+            }
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TONE_OPTIONS.map((tone) => (
+                <SelectItem key={tone} value={tone} className="capitalize">
+                  {tone}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>End</Label>
+          <Input
+            type="date"
+            value={automationBuilder.endDate}
+            onChange={(event) =>
+              setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
+            }
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Channels</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {PLATFORM_OPTIONS.map((platform) => {
+            const selected = automationBuilder.platforms.includes(platform.id);
+            return (
+              <button
+                key={platform.id}
+                onClick={() => toggleAutomationPlatform(platform.id)}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-left text-xs",
+                  selected
+                    ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
+                    : "bg-background hover:bg-muted"
+                )}
+              >
+                {platform.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-xl border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Media</p>
+            <p className="text-xs text-muted-foreground">Optional image or video per run.</p>
+          </div>
+          <Switch
+            checked={automationBuilder.includeMedia}
+            onCheckedChange={(checked) =>
+              setAutomationBuilder((draft) => ({ ...draft, includeMedia: checked }))
+            }
+          />
+        </div>
+        {automationBuilder.includeMedia && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Select
+              value={automationBuilder.mediaType}
+              onValueChange={(value) =>
+                setAutomationBuilder((draft) => ({ ...draft, mediaType: value as "image" | "video" }))
+              }
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="image">Image</SelectItem>
+                <SelectItem value="video">Video</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={automationBuilder.mediaStyle}
+              onChange={(event) =>
+                setAutomationBuilder((draft) => ({ ...draft, mediaStyle: event.target.value }))
+              }
+              placeholder="Style"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>FlowAI direction</Label>
+        <Textarea
+          value={automationBuilder.customPrompt}
+          onChange={(event) =>
+            setAutomationBuilder((draft) => ({ ...draft, customPrompt: event.target.value }))
+          }
+          placeholder="Optional guidance to apply to every selected item"
+          className="min-h-[90px]"
+        />
+      </div>
+
+      <Button
+        onClick={() => strategy && createAutomationsForTasks(strategy, readyToAutomate, automationBuilder)}
+        disabled={
+          !strategy ||
+          saving ||
+          automationBuilder.selectedTaskIds.length === 0 ||
+          automationBuilder.platforms.length === 0
+        }
+        className="w-full bg-brand-500 text-white hover:bg-brand-600"
+      >
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+        Create AI automations
+      </Button>
+    </div>
+  );
+
+  const renderFloatingPanels = () => (
+    <>
+      <FloatingPanel
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        title="FlowAI"
+        description="Claude-powered content and strategy assistant"
+        icon={<Bot className="h-4 w-4" />}
+        defaultSize={{ width: 470, height: 680 }}
+        defaultPosition={{ x: 24, y: 92 }}
+        contentClassName="p-2"
+      >
+        <ChatPanel onClose={() => setAssistantOpen(false)} />
+      </FloatingPanel>
+
+      <FloatingPanel
+        open={strategyBuilderOpen}
+        onOpenChange={setStrategyBuilderOpen}
+        title="AI Strategy Builder"
+        description="Brand identity to plan in one click"
+        icon={<Sparkles className="h-4 w-4" />}
+        defaultSize={{ width: 560, height: 720 }}
+        defaultPosition={{ x: 92, y: 86 }}
+      >
+        {renderStrategyBuilderPanel()}
+      </FloatingPanel>
+
+      <FloatingPanel
+        open={automationBuilderOpen}
+        onOpenChange={setAutomationBuilderOpen}
+        title="AI Automation Builder"
+        description="Turn strategy items into recurring flows"
+        icon={<Zap className="h-4 w-4" />}
+        defaultSize={{ width: 540, height: 720 }}
+        defaultPosition={{ x: 150, y: 104 }}
+      >
+        {renderAutomationBuilderPanel()}
+      </FloatingPanel>
+
+      <FloatingPanel
+        open={workspacePanelOpen && inspectorMode !== "summary"}
+        onOpenChange={(open) => {
+          if (!open) closeInspector();
+          else setWorkspacePanelOpen(true);
+        }}
+        title={inspectorMode === "task" ? "Plan Item" : "Automation Form"}
+        description={inspectorMode === "task" ? "Plan item controls" : "Automation controls"}
+        icon={inspectorMode === "task" ? <Target className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+        defaultSize={{ width: 500, height: 680 }}
+        defaultPosition={{ x: 220, y: 96 }}
+        contentClassName="p-0"
+      >
+        {renderInspector()}
+      </FloatingPanel>
+    </>
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[620px] items-center justify-center rounded-2xl border bg-card">
@@ -1384,49 +2286,60 @@ export default function StrategyAutomationPage() {
 
   if (!strategy) {
     return (
-      <div className="grid min-h-[620px] place-items-center rounded-2xl border bg-card p-6">
-        <div className="w-full max-w-xl rounded-2xl border bg-background p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-brand-500/10 p-3 text-brand-600">
-              <Target className="h-5 w-5" />
+      <>
+        <div className="grid min-h-[620px] place-items-center rounded-2xl border bg-card p-6">
+          <div className="w-full max-w-xl rounded-2xl border bg-background p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-brand-500/10 p-3 text-brand-600">
+                <Target className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold">Create the operating plan</p>
+                <p className="text-sm text-muted-foreground">
+                  Strategy items and automations live in one workspace.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold">Create the operating plan</p>
-              <p className="text-sm text-muted-foreground">
-                Strategy items and automations now live in one workspace.
-              </p>
+            <div className="mt-5 flex gap-2">
+              <Input
+                value={newStrategyName}
+                onChange={(event) => setNewStrategyName(event.target.value)}
+                placeholder="Plan name"
+              />
+              <Button onClick={createStrategy} disabled={saving} className="bg-brand-500 text-white hover:bg-brand-600">
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                Create
+              </Button>
             </div>
-          </div>
-          <div className="mt-5 flex gap-2">
-            <Input
-              value={newStrategyName}
-              onChange={(event) => setNewStrategyName(event.target.value)}
-              placeholder="Plan name"
-            />
-            <Button onClick={createStrategy} disabled={saving} className="bg-brand-500 text-white hover:bg-brand-600">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-              Create
-            </Button>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-sm">
-            <Link href="/content/strategy/generate" className="text-brand-600 hover:underline">
-              Generate with FlowAI
-            </Link>
-            <Link href="/content/schedule" className="text-muted-foreground hover:text-foreground">
-              Open calendar
-            </Link>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <Button onClick={openStrategyBuilder} variant="outline" className="justify-start">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Build with FlowAI
+              </Button>
+              <Button onClick={() => setAssistantOpen(true)} variant="ghost" className="justify-start">
+                <Bot className="mr-2 h-4 w-4" />
+                AI assistant
+              </Button>
+            </div>
+            <div className="mt-3 flex items-center justify-end text-sm">
+              <Link href="/content/schedule" className="text-muted-foreground hover:text-foreground">
+                Open calendar
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+        {renderFloatingPanels()}
+      </>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="overflow-hidden rounded-2xl border bg-card shadow-sm"
-    >
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+      >
       <div className="flex flex-col gap-3 border-b bg-background/95 p-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2">
@@ -1444,6 +2357,14 @@ export default function StrategyAutomationPage() {
           </SegmentedButton>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setAssistantOpen(true)}>
+            <Bot className="mr-2 h-4 w-4" />
+            FlowAI
+          </Button>
+          <Button variant="outline" onClick={openStrategyBuilder}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            AI strategy
+          </Button>
           <Button variant="outline" onClick={syncNow} disabled={syncing}>
             {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Sync
@@ -1457,12 +2378,12 @@ export default function StrategyAutomationPage() {
             Automation
           </Button>
           <Button
-            onClick={launchReadyTasks}
+            onClick={openAutomationBuilder}
             disabled={saving || readyToAutomate.length === 0}
             className="bg-brand-500 text-white hover:bg-brand-600"
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            Auto-sync {readyToAutomate.length || ""}
+            AI automate {readyToAutomate.length || ""}
           </Button>
         </div>
       </div>
@@ -1482,30 +2403,22 @@ export default function StrategyAutomationPage() {
         </main>
 
         <aside className="border-t bg-muted/20 p-4 xl:border-l xl:border-t-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${inspectorMode}-${selectedTaskId || "task-new"}-${selectedAutomationId || "automation-new"}-${view}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-            >
-              {inspectorMode !== "summary" ? (
-                renderInspector()
-              ) : (
-                <WorkspaceSummary
-                  strategy={strategy}
-                  readyToAutomate={readyToAutomate}
-                  onNewTask={() => openNewTask()}
-                  onNewAutomation={() => openNewAutomation()}
-                  onLaunchReady={launchReadyTasks}
-                  saving={saving}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
+          <WorkspaceSummary
+            strategy={strategy}
+            readyToAutomate={readyToAutomate}
+            onNewTask={() => openNewTask()}
+            onNewAutomation={() => openNewAutomation()}
+            onOpenAssistant={() => setAssistantOpen(true)}
+            onOpenStrategyBuilder={openStrategyBuilder}
+            onOpenAutomationBuilder={openAutomationBuilder}
+            onLaunchReady={launchReadyTasks}
+            saving={saving}
+          />
         </aside>
       </div>
-    </motion.div>
+      </motion.div>
+      {renderFloatingPanels()}
+    </>
   );
 }
 
@@ -1602,6 +2515,9 @@ function WorkspaceSummary({
   readyToAutomate,
   onNewTask,
   onNewAutomation,
+  onOpenAssistant,
+  onOpenStrategyBuilder,
+  onOpenAutomationBuilder,
   onLaunchReady,
   saving,
 }: {
@@ -1609,6 +2525,9 @@ function WorkspaceSummary({
   readyToAutomate: StrategyTask[];
   onNewTask: () => void;
   onNewAutomation: () => void;
+  onOpenAssistant: () => void;
+  onOpenStrategyBuilder: () => void;
+  onOpenAutomationBuilder: () => void;
   onLaunchReady: () => void;
   saving: boolean;
 }) {
@@ -1627,6 +2546,14 @@ function WorkspaceSummary({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <Button onClick={onOpenAssistant} variant="outline" className="w-full justify-start">
+            <Bot className="mr-2 h-4 w-4" />
+            FlowAI assistant
+          </Button>
+          <Button onClick={onOpenStrategyBuilder} variant="outline" className="w-full justify-start">
+            <Sparkles className="mr-2 h-4 w-4" />
+            AI build strategy
+          </Button>
           <Button onClick={onNewTask} variant="outline" className="w-full justify-start">
             <Plus className="mr-2 h-4 w-4" />
             Add plan item
@@ -1636,12 +2563,21 @@ function WorkspaceSummary({
             Add automation
           </Button>
           <Button
-            onClick={onLaunchReady}
+            onClick={onOpenAutomationBuilder}
             disabled={saving || readyToAutomate.length === 0}
             className="w-full justify-start bg-brand-500 text-white hover:bg-brand-600"
           >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Connect ready items
+            AI automate ready items
+          </Button>
+          <Button
+            onClick={onLaunchReady}
+            disabled={saving || readyToAutomate.length === 0}
+            variant="ghost"
+            className="w-full justify-start"
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            Quick connect ready items
           </Button>
           <Link href="/content/strategy/reports">
             <Button variant="ghost" className="w-full justify-start">
@@ -1668,7 +2604,7 @@ function WorkspaceSummary({
                   <Badge variant="outline">{formatShortDate(task.dueDate)}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {task.progress}% complete
+                  {taskProgress(task)}% complete
                 </p>
               </div>
             ))
