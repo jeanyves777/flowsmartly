@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Target, CheckCircle2, Clock, Activity, ListOrdered, FileText, Trophy, Star, Zap, Award, Rocket, Flame, Calendar, Share2, Sparkles, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Target, CheckCircle2, Clock, Activity, ListOrdered, FileText, Trophy, Star, Zap, Award, Rocket, Flame, Calendar, Share2, Sparkles, TrendingUp, TrendingDown, BarChart3, Send } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -187,6 +187,7 @@ export default function MonthlyReportPage({
   const [error, setError] = useState<string | null>(null);
   const [sharingMilestone, setSharingMilestone] = useState<string | null>(null);
   const [sharingScore, setSharingScore] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   // Resolve the async params
@@ -289,6 +290,34 @@ export default function MonthlyReportPage({
       });
     } finally {
       setSharingScore(false);
+    }
+  };
+
+  const handleSendReportEmail = async () => {
+    if (!parsed) return;
+    try {
+      setSendingEmail(true);
+      const res = await fetch("/api/content/strategy/score/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: parsed.month, year: parsed.year }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Report email failed");
+      }
+      toast({
+        title: "Report email sent",
+        description: `Sent to ${data.data.sentTo}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Report email was not sent",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -416,6 +445,19 @@ export default function MonthlyReportPage({
         </div>
 
         <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            onClick={handleSendReportEmail}
+            disabled={sendingEmail}
+            className="mr-1"
+          >
+            {sendingEmail ? (
+              <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            Email report
+          </Button>
           {prevMonth && (
             <Link href={`/content/strategy/reports/${toMonthParam(prevMonth.year, prevMonth.month)}`}>
               <Button variant="ghost" size="icon" title={`${MONTH_NAMES[prevMonth.month - 1]} ${prevMonth.year}`}>

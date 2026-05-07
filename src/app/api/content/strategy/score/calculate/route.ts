@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import {
   calculateStrategyScore,
@@ -22,17 +23,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate for previous month
+    const body = (await request.json().catch(() => ({}))) as {
+      month?: number | string;
+      year?: number | string;
+      userId?: string;
+      userEmail?: string;
+    };
+
+    const requestedMonth = Number(body.month);
+    const requestedYear = Number(body.year);
+    const hasRequestedPeriod =
+      Number.isInteger(requestedMonth) &&
+      requestedMonth >= 1 &&
+      requestedMonth <= 12 &&
+      Number.isInteger(requestedYear) &&
+      requestedYear >= 2020 &&
+      requestedYear <= 2100;
+
+    // Calculate for the requested period when testing, otherwise previous month.
     const now = new Date();
-    const targetMonth = now.getMonth() === 0 ? 12 : now.getMonth(); // Previous month (1-12)
-    const targetYear =
-      now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const targetMonth = hasRequestedPeriod
+      ? requestedMonth
+      : now.getMonth() === 0
+        ? 12
+        : now.getMonth(); // Previous month (1-12)
+    const targetYear = hasRequestedPeriod
+      ? requestedYear
+      : now.getMonth() === 0
+        ? now.getFullYear() - 1
+        : now.getFullYear();
     const periodStart = new Date(targetYear, targetMonth - 1, 1);
     const periodEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
+    const strategyWhere: Prisma.MarketingStrategyWhereInput = {
+      status: "ACTIVE",
+    };
+    if (typeof body.userId === "string" && body.userId.trim()) {
+      strategyWhere.userId = body.userId.trim();
+    }
+    if (typeof body.userEmail === "string" && body.userEmail.trim()) {
+      strategyWhere.user = { is: { email: body.userEmail.trim() } };
+    }
+
     // Find all users with ACTIVE strategies
     const strategies = await prisma.marketingStrategy.findMany({
-      where: { status: "ACTIVE" },
+      where: strategyWhere,
       include: {
         tasks: true,
         user: {
@@ -234,7 +269,7 @@ Return JSON: { summary, strength, improvement, tip, areas }`,
 
       // Send report email
       if (sendEmails) {
-        await sendStrategyReportEmail({
+        const emailResult = await sendStrategyReportEmail({
           to: user.email,
           name: user.name || "there",
           score: score.overall,
@@ -243,10 +278,16 @@ Return JSON: { summary, strength, improvement, tip, areas }`,
           strategyName: strategy.name,
           factors: score.factors,
           aiInsights: aiInsights || undefined,
-        }).catch((err: Error) =>
-          console.error("Report email failed:", err)
-        );
-        emailsSent++;
+        }).catch((err: Error) => {
+          console.error("Report email failed:", err);
+          return { success: false, error: err.message };
+        });
+
+        if (emailResult.success) {
+          emailsSent++;
+        } else {
+          console.error("Report email failed for", user.id, emailResult.error);
+        }
       }
     }
 
@@ -258,6 +299,8 @@ Return JSON: { summary, strength, improvement, tip, areas }`,
         emailsSent,
         month: targetMonth,
         year: targetYear,
+        requestedUserId: body.userId || null,
+        requestedUserEmail: body.userEmail || null,
       },
     });
   } catch (error) {
