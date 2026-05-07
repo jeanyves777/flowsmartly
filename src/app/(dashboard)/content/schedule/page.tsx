@@ -9,15 +9,24 @@ import {
   ChevronRight,
   Clock,
   FileEdit,
+  FileText,
   CheckCircle2,
   Trash2,
   Plus,
   Image as ImageIcon,
+  BarChart3,
+  ListChecks,
+  Mail,
+  Megaphone,
+  PenTool,
   Search,
   Send,
   Loader2,
   Sparkles,
+  Share2,
   StickyNote,
+  Target,
+  Video,
   X,
 } from "lucide-react";
 import {
@@ -108,6 +117,94 @@ const statusConfig: Record<string, { label: string; dotColor: string; bgColor: s
   todo: { label: "To do", dotColor: "bg-amber-500", bgColor: "bg-amber-500/15", textColor: "text-amber-700 dark:text-amber-300", icon: FileEdit },
   in_progress: { label: "In progress", dotColor: "bg-violet-500", bgColor: "bg-violet-500/15", textColor: "text-violet-700 dark:text-violet-300", icon: FileEdit },
   done: { label: "Done", dotColor: "bg-emerald-500", bgColor: "bg-emerald-500/15", textColor: "text-emerald-700 dark:text-emerald-300", icon: CheckCircle2 },
+};
+
+const strategyTypeConfig: Array<{
+  label: string;
+  icon: React.ElementType;
+  match: RegExp;
+  badgeClass: string;
+}> = [
+  {
+    label: "Email",
+    icon: Mail,
+    match: /\b(email|newsletter|subscriber|inbox|sender|smtp|sms|welcome series|cart recovery)\b/i,
+    badgeClass: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  },
+  {
+    label: "Video",
+    icon: Video,
+    match: /\b(video|reel|youtube|tiktok|shorts|story|walkthrough)\b/i,
+    badgeClass: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  },
+  {
+    label: "Visual",
+    icon: ImageIcon,
+    match: /\b(visual|image|creative|design|instagram|pinterest|grid|media|photo|graphic)\b/i,
+    badgeClass: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+  },
+  {
+    label: "Social",
+    icon: Share2,
+    match: /\b(social|post|caption|linkedin|facebook|twitter|x\/twitter|feed|community)\b/i,
+    badgeClass: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  },
+  {
+    label: "Ads",
+    icon: Megaphone,
+    match: /\b(ad|ads|paid|campaign|boost|awareness|prospecting|retargeting)\b/i,
+    badgeClass: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  },
+  {
+    label: "Content",
+    icon: FileText,
+    match: /\b(seo|blog|article|copy|pillar|framework|content|keyword|landing page)\b/i,
+    badgeClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  },
+  {
+    label: "Analytics",
+    icon: BarChart3,
+    match: /\b(report|analytics|score|performance|tracking|metric|kpi|insight)\b/i,
+    badgeClass: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  },
+  {
+    label: "Planning",
+    icon: ListChecks,
+    match: /\b(plan|planning|task|workflow|setup|launch|kickoff|checklist)\b/i,
+    badgeClass: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
+  },
+  {
+    label: "Creative",
+    icon: PenTool,
+    match: /\b(brand|identity|tone|voice|style|creative direction)\b/i,
+    badgeClass: "bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
+  },
+];
+
+const getStrategyItemMeta = (item: ScheduledPost) => {
+  const text = [
+    item.category,
+    item.title,
+    item.caption,
+    item.description,
+    item.strategyName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    strategyTypeConfig.find((config) => config.match.test(text)) || {
+      label: "Strategy",
+      icon: Target,
+      badgeClass: "bg-brand-500/10 text-brand-700 dark:text-brand-300",
+    }
+  );
+};
+
+const StrategyItemIcon = ({ item, className }: { item: ScheduledPost; className?: string }) => {
+  const Icon = getStrategyItemMeta(item).icon;
+  return <Icon className={className} />;
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -822,7 +919,7 @@ export default function ContentSchedulePage() {
   }, [filteredPosts]);
   const scheduleStats = [
     { label: "Posts", value: scheduledCount.toString(), icon: Clock, tone: "text-blue-600" },
-    { label: "Strategy notes", value: strategyCount.toString(), icon: FileEdit, tone: "text-amber-600" },
+    { label: "Strategy notes", value: strategyCount.toString(), icon: Target, tone: "text-amber-600" },
     { label: "Active days", value: activeDaysCount.toString(), icon: CalendarDays, tone: "text-brand-500" },
   ];
 
@@ -1073,7 +1170,7 @@ export default function ContentSchedulePage() {
                                 title={getCalendarItemDateLabel(post)}
                               >
                                 {post.itemType === "strategy" ? (
-                                  <FileEdit className="h-3.5 w-3.5 shrink-0" />
+                                  <StrategyItemIcon item={post} className="h-3.5 w-3.5 shrink-0" />
                                 ) : (
                                   <PlatformIcon className="h-3.5 w-3.5 shrink-0" />
                                 )}
@@ -1226,7 +1323,7 @@ export default function ContentSchedulePage() {
                                   >
                                     <div className="mb-1 flex items-center gap-1.5">
                                       {post.itemType === "strategy" ? (
-                                        <FileEdit className="h-3.5 w-3.5 shrink-0" />
+                                        <StrategyItemIcon item={post} className="h-3.5 w-3.5 shrink-0" />
                                       ) : (
                                         <PlatformIcon className="h-3.5 w-3.5 shrink-0" />
                                       )}
@@ -1320,7 +1417,8 @@ export default function ContentSchedulePage() {
                   upcomingItems.map((item) => {
                     const itemActive = selectedPost?.id === item.id;
                     const firstPlatform = (item.platforms || []).find((platform) => PLATFORM_META[platform]);
-                    const PlatformIcon = firstPlatform ? PLATFORM_META[firstPlatform].icon : StickyNote;
+                    const strategyMeta = item.itemType === "strategy" ? getStrategyItemMeta(item) : null;
+                    const PlatformIcon = strategyMeta?.icon || (firstPlatform ? PLATFORM_META[firstPlatform].icon : StickyNote);
                     return (
                       <button
                         key={item.id}
@@ -1335,7 +1433,7 @@ export default function ContentSchedulePage() {
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <span className="inline-flex min-w-0 items-center gap-2">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${strategyMeta?.badgeClass || "bg-muted text-foreground"}`}>
                               <PlatformIcon className="h-4 w-4" />
                             </span>
                             <span className="min-w-0">
@@ -1345,7 +1443,15 @@ export default function ContentSchedulePage() {
                               <span className="block text-xs text-muted-foreground">{getCalendarItemDateLabel(item)}</span>
                             </span>
                           </span>
-                          <span className="flex shrink-0 items-center">{getPlatformStack(item.platforms || [])}</span>
+                          <span className="flex shrink-0 items-center">
+                            {strategyMeta ? (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${strategyMeta.badgeClass}`}>
+                                {strategyMeta.label}
+                              </span>
+                            ) : (
+                              getPlatformStack(item.platforms || [])
+                            )}
+                          </span>
                         </div>
                         <p className="line-clamp-2 text-xs text-muted-foreground">
                           {item.description || item.caption || item.title || "No content yet"}
@@ -1377,6 +1483,9 @@ export default function ContentSchedulePage() {
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {selectedPost.itemType === "strategy" ? (
                       <>
+                        <span className={`rounded-full px-2 py-0.5 font-semibold ${getStrategyItemMeta(selectedPost).badgeClass}`}>
+                          {getStrategyItemMeta(selectedPost).label}
+                        </span>
                         <Badge variant="outline">{selectedPost.priority || "MEDIUM"}</Badge>
                         <span>{selectedPost.category || "Calendar note"}</span>
                       </>
@@ -1401,7 +1510,7 @@ export default function ContentSchedulePage() {
                   <div className="mt-3 flex gap-2 border-t pt-3">
                     {selectedPost.itemType === "strategy" ? (
                       <Button size="sm" className="flex-1 bg-brand-500 text-white hover:bg-brand-600" onClick={() => openEditNotePanel(selectedPost)}>
-                        <FileEdit className="mr-1 h-3.5 w-3.5" />
+                        <StrategyItemIcon item={selectedPost} className="mr-1 h-3.5 w-3.5" />
                         Edit note
                       </Button>
                     ) : (
@@ -1442,7 +1551,7 @@ export default function ContentSchedulePage() {
               <div className="flex min-w-0 items-center gap-2">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
                   {hoveredItem.item.itemType === "strategy" ? (
-                    <StickyNote className="h-4 w-4" />
+                    <StrategyItemIcon item={hoveredItem.item} className="h-4 w-4" />
                   ) : (
                     <CalendarDays className="h-4 w-4" />
                   )}
@@ -1463,6 +1572,9 @@ export default function ContentSchedulePage() {
             </p>
             {hoveredItem.item.itemType === "strategy" && (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className={`rounded-full px-2 py-0.5 font-semibold ${getStrategyItemMeta(hoveredItem.item).badgeClass}`}>
+                  {getStrategyItemMeta(hoveredItem.item).label}
+                </span>
                 <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-300">
                   {hoveredItem.item.priority || "MEDIUM"}
                 </span>
@@ -1487,7 +1599,7 @@ export default function ContentSchedulePage() {
           onOpenChange={setShowPostDetail}
           title={selectedPost?.itemType === "strategy" ? "Strategy note" : "Post details"}
           description={selectedPost ? getCalendarItemDateLabel(selectedPost) : undefined}
-          icon={selectedPost?.itemType === "strategy" ? <StickyNote className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
+          icon={selectedPost?.itemType === "strategy" ? <StrategyItemIcon item={selectedPost} className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
           defaultSize={{ width: 520, height: 640 }}
           defaultPosition={{ y: 104 }}
         >
@@ -1564,9 +1676,19 @@ export default function ContentSchedulePage() {
                     </Label>
                     <div className="flex items-center gap-2 mt-1.5 text-foreground">
                       {selectedPost.itemType === "strategy" ? (
-                        <span className="text-xs text-muted-foreground">
-                          {selectedPost.strategyName || selectedPost.category || "Strategy"}
-                        </span>
+                        <>
+                          <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${getStrategyItemMeta(selectedPost).badgeClass}`}>
+                            <StrategyItemIcon item={selectedPost} className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xs font-semibold text-foreground">
+                              {getStrategyItemMeta(selectedPost).label}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {selectedPost.strategyName || selectedPost.category || "Strategy"}
+                            </span>
+                          </span>
+                        </>
                       ) : (
                         <>
                           {getPlatformIcons(selectedPost.platforms || [])}

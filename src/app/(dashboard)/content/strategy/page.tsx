@@ -2019,16 +2019,16 @@ export default function StrategyAutomationPage() {
     isOverlay = false
   ) => {
     const category = normalizeTaskCategory(task.category);
-    const categoryInfo = CATEGORY_CONFIG[category];
+    const categoryInfo = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.content;
     const PriorityDot = PRIORITY_CONFIG[task.priority || "MEDIUM"];
     const matches = parseMatches(task.matchedActivities).sort(
       (a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime()
     );
     const latestMatch = matches[0];
     const isSelected = selectedTaskId === task.id;
-    const Icon = categoryInfo.icon;
+    const Icon = categoryInfo.icon || FileText;
     const readinessView = getAutomationReadinessView(task);
-    const ReadinessIcon = readinessView.icon;
+    const ReadinessIcon = readinessView?.icon || Sparkles;
 
     return (
       <div
@@ -3160,7 +3160,7 @@ export default function StrategyAutomationPage() {
     onClick: () => void
   ) => {
     const meta = PLATFORM_META[platform.id] || PLATFORM_META.feed;
-    const Icon = meta.icon;
+    const Icon = meta?.icon || Rss;
     const platformStyle = getAccountPlatformStyle(platform.id);
 
     return (

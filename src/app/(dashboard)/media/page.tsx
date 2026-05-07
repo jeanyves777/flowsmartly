@@ -942,11 +942,24 @@ export default function MediaLibraryPage() {
                         {file.type === "image" || file.type === "svg" ? (
                           <img src={file.url} alt={file.originalName} className="w-full h-full object-cover" />
                         ) : file.type === "video" ? (
-                          file.metadata?.thumbnailUrl ? (
-                            <img src={file.metadata.thumbnailUrl} alt={file.originalName} className="w-full h-full object-cover" />
-                          ) : (
-                            <Video className="w-12 h-12 text-muted-foreground" />
-                          )
+                          <div className="relative h-full w-full bg-black">
+                            {file.metadata?.thumbnailUrl ? (
+                              <img src={file.metadata.thumbnailUrl} alt={file.originalName} className="h-full w-full object-cover" />
+                            ) : (
+                              <video
+                                src={file.url}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="h-full w-full object-cover"
+                              />
+                            )}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white">
+                                <Video className="h-5 w-5" />
+                              </span>
+                            </div>
+                          </div>
                         ) : (
                           <TypeIcon className="w-12 h-12 text-muted-foreground" />
                         )}
@@ -1008,8 +1021,23 @@ export default function MediaLibraryPage() {
                     <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
                       {file.type === "image" || file.type === "svg" ? (
                         <img src={file.url} alt="" className="w-full h-full object-cover" />
-                      ) : file.type === "video" && file.metadata?.thumbnailUrl ? (
-                        <img src={file.metadata.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                      ) : file.type === "video" ? (
+                        <div className="relative h-full w-full bg-black">
+                          {file.metadata?.thumbnailUrl ? (
+                            <img src={file.metadata.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <video
+                              src={file.url}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                            <Video className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
                       ) : (
                         <TypeIcon className="w-5 h-5 text-muted-foreground" />
                       )}
@@ -1405,7 +1433,13 @@ export default function MediaLibraryPage() {
                       onClick={() => setIsZoomed(!isZoomed)}
                     />
                   ) : selectedFile.type === "video" ? (
-                    <video src={selectedFile.url} controls className="max-w-full max-h-[60vh]" />
+                    <video
+                      src={selectedFile.url}
+                      controls
+                      preload="metadata"
+                      poster={selectedFile.metadata?.thumbnailUrl}
+                      className="max-w-full max-h-[60vh]"
+                    />
                   ) : (
                     <div className="py-12">
                       <FileText className="w-16 h-16 mx-auto text-muted-foreground" />

@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       categories,
     });
 
-    const response = await ai.generateJSON<{ hashtags: string[] }>(prompt, {
+    const response = await ai.generateJSON<{ hashtags?: string[]; tags?: string[] }>(prompt, {
       maxTokens: 1024,
       temperature: 0.7,
       systemPrompt: `You are an expert social media hashtag strategist.
@@ -83,14 +83,21 @@ You know which hashtags drive real engagement vs vanity hashtags.
 Always return valid JSON with an array of hashtags.`,
     });
 
-    if (!response || !response.hashtags) {
-      throw new Error("Failed to parse hashtag response");
+    let hashtags = normalizeHashtags(response?.hashtags || response?.tags || [], actualCount);
+
+    if (hashtags.length === 0) {
+      const fallbackText = await ai.generate(prompt, {
+        maxTokens: 512,
+        temperature: 0.6,
+        systemPrompt:
+          "You are an expert social media hashtag strategist. Return only relevant hashtags separated by spaces, no explanations.",
+      });
+      hashtags = normalizeHashtags(fallbackText, actualCount);
     }
 
-    // Ensure hashtags start with #
-    const hashtags = response.hashtags.map((tag: string) =>
-      tag.startsWith("#") ? tag : `#${tag}`
-    );
+    if (hashtags.length === 0) {
+      throw new Error("AI did not return usable hashtags");
+    }
 
     // Track usage - for admin users, don't decrement credits but still track
     if (session.adminId) {
@@ -158,6 +165,59 @@ Always return valid JSON with an array of hashtags.`,
       { status: 500 }
     );
   }
+}
+
+function normalizeHashtags(value: unknown, limit: number): string[] {
+  const candidates = extractHashtagCandidates(value);
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const candidate of candidates) {
+    const clean = String(candidate)
+      .trim()
+      .replace(/^#+/, "")
+      .replace(/[^A-Za-z0-9_]/g, "")
+      .toLowerCase();
+    if (!clean) continue;
+    const tag = `#${clean}`;
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    normalized.push(tag);
+    if (normalized.length >= limit) break;
+  }
+
+  return normalized;
+}
+
+function extractHashtagCandidates(value: unknown): string[] {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractHashtagCandidates(item));
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return extractHashtagCandidates(record.hashtags || record.tags || Object.values(record));
+  }
+
+  const text = String(value);
+  const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      return extractHashtagCandidates(JSON.parse(jsonMatch[0]));
+    } catch {
+      // Fall through to plain text parsing.
+    }
+  }
+
+  const explicitMatches = text.match(/#[A-Za-z0-9_]+/g);
+  if (explicitMatches?.length) return explicitMatches;
+
+  return text
+    .split(/[\s,;\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function buildHashtagPrompt(params: {

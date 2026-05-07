@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Upload, FolderOpen, X, Plus, Image as ImageIcon, Video, Play, FileText } from "lucide-react";
+import { Upload, FolderOpen, X, Plus, Image as ImageIcon, Video, Play, FileText, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileDropZone } from "@/components/shared/file-drop-zone";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -42,7 +42,7 @@ export interface MediaUploaderProps {
   /** Placeholder when empty */
   placeholder?: string;
   /** Thumbnail size variant */
-  variant?: "small" | "medium" | "large";
+  variant?: "small" | "medium" | "large" | "gallery";
   /** Media library picker title */
   libraryTitle?: string;
   /** Show Upload and Library buttons */
@@ -67,6 +67,7 @@ const SIZE_CLASSES = {
   small: "w-16 h-16",
   medium: "w-20 h-20",
   large: "w-28 h-28",
+  gallery: "h-40 w-full",
 } as const;
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ export function MediaUploader({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [showLibrary, setShowLibrary] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -223,6 +225,13 @@ export function MediaUploader({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const hasMedia = value.length > 0;
+  const isGallery = variant === "gallery";
+  const mediaListClass = isGallery
+    ? "grid grid-cols-1 gap-3 mb-2 sm:grid-cols-2 xl:grid-cols-3"
+    : "flex flex-wrap gap-2 mb-2";
+  const addButtonClass = isGallery
+    ? "h-40 w-full rounded-xl"
+    : `${sizeClass} rounded-lg`;
 
   return (
     <div className={className}>
@@ -245,17 +254,33 @@ export function MediaUploader({
         <div>
           {/* Thumbnail grid / empty state */}
           {hasMedia ? (
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className={mediaListClass}>
               {value.map((url, idx) => {
                 const type = getMediaType(url);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={`${url}-${idx}`}
-                    className={`relative ${sizeClass} rounded-lg border overflow-hidden group bg-muted/30`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setPreviewUrl(url);
+                    }}
+                    className={`relative ${sizeClass} ${isGallery ? "rounded-xl" : "rounded-lg"} border overflow-hidden group bg-muted/30 text-left`}
                   >
                     {type === "video" ? (
-                      <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
-                        <Play className="w-5 h-5 text-white/70" />
+                      <div className="absolute inset-0 bg-gray-900">
+                        <video
+                          src={url}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
+                            <Play className="w-5 h-5 fill-white/30" />
+                          </span>
+                        </div>
                         <span className="absolute top-1 left-1 text-[8px] font-bold bg-black/60 text-white rounded px-1">
                           VIDEO
                         </span>
@@ -271,25 +296,36 @@ export function MediaUploader({
                         className="w-full h-full object-cover"
                       />
                     )}
+                    <span className="absolute right-1.5 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </span>
 
                     {/* Remove button */}
                     {!disabled && (
                       <button
-                        onClick={() => handleRemove(url)}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRemove(url);
+                        }}
                         className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     )}
-                  </div>
+                  </button>
                 );
               })}
 
               {/* Add more button (inline in grid) */}
               {multiple && canAddMore && !disabled && (
                 <button
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
-                  className={`${sizeClass} rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center hover:border-brand-500/50 hover:bg-muted/50 transition-colors`}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!isUploading) fileInputRef.current?.click();
+                  }}
+                  className={`${addButtonClass} border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center hover:border-brand-500/50 hover:bg-muted/50 transition-colors`}
                   disabled={isUploading}
                 >
                   {isUploading ? (
@@ -307,9 +343,13 @@ export function MediaUploader({
             </div>
           ) : (
             /* Empty state */
-            <div
-              onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
-              className={`${sizeClass} rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors mb-2`}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!disabled && !isUploading) fileInputRef.current?.click();
+              }}
+              className={`${addButtonClass} border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors mb-2`}
             >
               {isUploading ? (
                 <div className="flex flex-col items-center gap-0.5">
@@ -332,7 +372,7 @@ export function MediaUploader({
                   </span>
                 </div>
               )}
-            </div>
+            </button>
           )}
 
           {/* Action buttons */}
@@ -391,6 +431,43 @@ export function MediaUploader({
         title={libraryTitle}
         filterTypes={filterTypes}
       />
+
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewUrl(null)}
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+          >
+            <X className="h-5 w-5" />
+            <span className="sr-only">Close media preview</span>
+          </button>
+          <div
+            className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {getMediaType(previewUrl) === "video" ? (
+              <video
+                src={previewUrl}
+                controls
+                autoPlay
+                playsInline
+                preload="metadata"
+                className="max-h-[88vh] w-full bg-black object-contain"
+              />
+            ) : (
+              <img
+                src={previewUrl}
+                alt="Media preview"
+                className="max-h-[88vh] w-full object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

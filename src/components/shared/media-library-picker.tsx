@@ -420,7 +420,18 @@ export function MediaLibraryPicker({
                                   />
                                   <div className="absolute inset-0 bg-black/20" />
                                 </>
-                              ) : null}
+                              ) : (
+                                <>
+                                  <video
+                                    src={file.url}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/25" />
+                                </>
+                              )}
                               <div className="relative z-10 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                                 <Play className="w-5 h-5 text-white ml-0.5" />
                               </div>
