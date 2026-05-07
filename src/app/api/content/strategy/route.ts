@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { normalizeTaskCategory } from "@/lib/strategy/categories";
 
 // GET /api/content/strategy - Fetch user's active marketing strategy with all tasks
 export async function GET() {
@@ -69,7 +70,7 @@ export async function GET() {
             description: task.description,
             status: task.status,
             priority: task.priority,
-            category: task.category,
+            category: normalizeTaskCategory(task.category),
             startDate: task.startDate?.toISOString() || null,
             dueDate: task.dueDate?.toISOString() || null,
             completedAt: task.completedAt?.toISOString() || null,

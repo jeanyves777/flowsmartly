@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { veoClient } from "@/lib/ai/veo-client";
 import { xaiClient } from "@/lib/ai/xai-client";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { soraClient } from "@/lib/ai/sora-client";
 import { ai } from "@/lib/ai/client";
 import {
   generateSlideshowScript,
@@ -59,8 +61,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate provider availability
-    if (provider === "veo3" && !veoClient.isAvailable()) {
-      return new Response(JSON.stringify({ error: "Veo 3 video generation is not configured (GEMINI_API_KEY missing)" }), { status: 503 });
+    if (provider === "veo3" && !veoClient.isAvailable() && !hasAnyVideoFallbackProvider()) {
+      return new Response(JSON.stringify({ error: "Video generation is not configured" }), { status: 503 });
     }
     if (provider === "slideshow" && !xaiClient.isAvailable()) {
       return new Response(JSON.stringify({ error: "Slideshow requires XAI_API_KEY for image generation" }), { status: 503 });
@@ -124,6 +126,7 @@ export async function POST(req: NextRequest) {
 
           let finalVideoBuffer: Buffer;
           let totalDuration = 0;
+          let actualProvider = provider as string;
 
           // Debug directory for saving raw videos
           const debugDir = path.join(process.cwd(), ".cache", "debug-video");
@@ -131,6 +134,7 @@ export async function POST(req: NextRequest) {
           const debugId = nanoid(6);
 
           if (provider === "slideshow") {
+            actualProvider = "slideshow";
             // ──────── SLIDESHOW (AI Images + Voiceover + Captions) ────────
             send({ type: "status", message: "Generating slideshow script..." });
             const script = await generateSlideshowScript(prompt.trim(), category, style, 45);
@@ -190,61 +194,80 @@ export async function POST(req: NextRequest) {
                 : `Generating ${veoDuration}s video...`,
             });
 
-            const result = await veoClient.generateVideoBuffer(veoPrompt, {
-              durationSeconds: veoDuration as "4" | "6" | "8",
-              aspectRatio: veoAspectRatio,
-              resolution: veoResolution,
-              referenceImageUrl: refImage,
-            });
+            try {
+              const result = await veoClient.generateVideoBuffer(veoPrompt, {
+                durationSeconds: veoDuration as "4" | "6" | "8",
+                aspectRatio: veoAspectRatio,
+                resolution: veoResolution,
+                referenceImageUrl: refImage,
+              });
 
-            finalVideoBuffer = result.videoBuffer;
-            totalDuration = result.duration;
+              actualProvider = "veo3";
+              finalVideoBuffer = result.videoBuffer;
+              totalDuration = result.duration;
 
-            // Extension loop: chain additional 7s segments to reach target duration
-            let currentVideoUri = result.videoUri;
-            if (isExtended && currentVideoUri) {
-              const extensionsNeeded = Math.ceil((duration - 8) / 7);
+              // Extension loop: chain additional 7s segments to reach target duration
+              let currentVideoUri = result.videoUri;
+              if (isExtended && currentVideoUri) {
+                const extensionsNeeded = Math.ceil((duration - 8) / 7);
 
-              // Wait for Veo to finish processing the initial video before extending
-              send({ type: "status", message: "Waiting for video processing before extending..." });
-              await new Promise((r) => setTimeout(r, 15000));
+                // Wait for Veo to finish processing the initial video before extending
+                send({ type: "status", message: "Waiting for video processing before extending..." });
+                await new Promise((r) => setTimeout(r, 15000));
 
-              for (let i = 0; i < extensionsNeeded; i++) {
-                const extNum = i + 1;
-                const estimatedTotal = 8 + extNum * 7;
-                send({
-                  type: "status",
-                  message: `Extending video (${extNum}/${extensionsNeeded})... ~${estimatedTotal}s total`,
-                });
+                for (let i = 0; i < extensionsNeeded; i++) {
+                  const extNum = i + 1;
+                  const estimatedTotal = 8 + extNum * 7;
+                  send({
+                    type: "status",
+                    message: `Extending video (${extNum}/${extensionsNeeded})... ~${estimatedTotal}s total`,
+                  });
 
-                // Use a continuation prompt (not the same generation prompt) so each
-                // segment naturally advances the story instead of repeating
-                const continuationPrompt = buildExtensionPrompt(prompt.trim(), category, style, i, extensionsNeeded);
-                const extResult = await veoClient.extendVideo(currentVideoUri, continuationPrompt, {
-                  aspectRatio: veoAspectRatio,
-                });
+                  // Use a continuation prompt (not the same generation prompt) so each
+                  // segment naturally advances the story instead of repeating
+                  const continuationPrompt = buildExtensionPrompt(prompt.trim(), category, style, i, extensionsNeeded);
+                  const extResult = await veoClient.extendVideo(currentVideoUri, continuationPrompt, {
+                    aspectRatio: veoAspectRatio,
+                  });
 
-                finalVideoBuffer = extResult.videoBuffer;
-                totalDuration = estimatedTotal; // best estimate
-                currentVideoUri = extResult.videoUri;
+                  finalVideoBuffer = extResult.videoBuffer;
+                  totalDuration = estimatedTotal; // best estimate
+                  currentVideoUri = extResult.videoUri;
 
-                if (!currentVideoUri) {
-                  console.warn(`[VideoStudio] Extension ${extNum} returned no URI, stopping`);
-                  break;
+                  if (!currentVideoUri) {
+                    console.warn(`[VideoStudio] Extension ${extNum} returned no URI, stopping`);
+                    break;
+                  }
                 }
+                console.log(`[VideoStudio] Video extension complete: ${extensionsNeeded} extensions, ~${totalDuration}s total`);
               }
-              console.log(`[VideoStudio] Video extension complete: ${extensionsNeeded} extensions, ~${totalDuration}s total`);
+            } catch (primaryVideoError) {
+              if (!isVideoFallbackError(primaryVideoError)) throw primaryVideoError;
+              console.warn("[VideoStudio] Primary video engine failed, trying fallback chain:", primaryVideoError);
+              send({ type: "status", message: "Trying another video engine..." });
+              const fallbackResult = await generateFallbackVideoBuffer({
+                prompt: veoPrompt,
+                userPrompt: prompt.trim(),
+                category,
+                style,
+                aspectRatio,
+                duration,
+                referenceImageUrl: refImage,
+              });
+              finalVideoBuffer = fallbackResult.videoBuffer;
+              totalDuration = fallbackResult.duration;
+              actualProvider = fallbackResult.provider;
             }
           }
 
           // ── DEBUG: Log raw video buffer info and save to disk ──
           const rawMagic = finalVideoBuffer.slice(0, 12).toString("hex");
           const rawMagicAscii = finalVideoBuffer.slice(4, 8).toString("ascii");
-          console.log(`[VideoStudio] DEBUG: Raw ${provider} buffer = ${finalVideoBuffer.length} bytes (${(finalVideoBuffer.length / 1024).toFixed(1)} KB), magic: ${rawMagic}, ascii[4:8]: "${rawMagicAscii}"`);
+          console.log(`[VideoStudio] DEBUG: Raw ${actualProvider} buffer = ${finalVideoBuffer.length} bytes (${(finalVideoBuffer.length / 1024).toFixed(1)} KB), magic: ${rawMagic}, ascii[4:8]: "${rawMagicAscii}"`);
           console.log(`[VideoStudio] DEBUG: Is MP4? ${rawMagicAscii === "ftyp" ? "YES" : "NO — this is NOT a video!"}`);
 
           // Save raw video to debug dir before any processing
-          const rawDebugPath = path.join(debugDir, `raw-${provider}-${debugId}.mp4`);
+          const rawDebugPath = path.join(debugDir, `raw-${actualProvider}-${debugId}.mp4`);
           fs.writeFileSync(rawDebugPath, finalVideoBuffer);
           console.log(`[VideoStudio] DEBUG: Raw video saved to ${rawDebugPath}`);
 
@@ -255,7 +278,7 @@ export async function POST(req: NextRequest) {
           send({ type: "status", message: `Raw video saved (${(finalVideoBuffer.length / 1024).toFixed(0)} KB)...` });
 
           // Composite brand logo if provided (skip for slideshow — logo outro handled in pipeline)
-          if (brandLogo && provider !== "slideshow") {
+          if (brandLogo && actualProvider !== "slideshow") {
             send({ type: "status", message: "Adding brand logo..." });
             try {
               finalVideoBuffer = await compositeLogoOnVideo(finalVideoBuffer, brandLogo, resolution);
@@ -266,7 +289,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Generate and mix voiceover if enabled (skip for slideshow — voiceover already baked in)
-          if (provider !== "slideshow" && voiceOver && voiceOver !== "none") {
+          if (actualProvider !== "slideshow" && voiceOver && voiceOver !== "none") {
             send({ type: "status", message: "Writing voiceover script..." });
             try {
               const videoDuration = totalDuration || duration;
@@ -308,7 +331,7 @@ export async function POST(req: NextRequest) {
                 resolution,
                 type: "video",
                 style,
-                provider,
+                provider: actualProvider,
               }),
             },
           });
@@ -361,12 +384,12 @@ export async function POST(req: NextRequest) {
               userId: isAdmin ? null : session.userId,
               adminId: isAdmin ? session.adminId : null,
               feature: "video_studio",
-              model: provider === "veo3" ? "veo-3.1-generate-preview" : "slideshow",
+              model: getVideoUsageModel(actualProvider),
               inputTokens: 0,
               outputTokens: 0,
               costCents: 0,
               prompt: prompt.substring(0, 500),
-              response: `Provider: ${provider}, Duration: ${totalDuration}s`,
+              response: `Provider: ${actualProvider}, Duration: ${totalDuration}s`,
             },
           });
 
@@ -392,10 +415,10 @@ export async function POST(req: NextRequest) {
           let errorMsg = "Video generation failed";
           if (error instanceof Error) {
             const msg = error.message;
-            if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-              errorMsg = "API quota exceeded. Please wait a few minutes and try again, or check your Google AI billing.";
+            if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || msg.includes("limit")) {
+              errorMsg = "Video generation is temporarily at capacity. The backup engines were tried too; please try again shortly or use a shorter prompt.";
             } else if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
-              errorMsg = "API access denied. Please check your API key configuration.";
+              errorMsg = "Video generation is not available for this request. Please try again later.";
             } else if (msg.includes("timeout")) {
               errorMsg = "Video generation timed out. Please try a shorter duration or simpler prompt.";
             } else {
@@ -425,6 +448,151 @@ export async function POST(req: NextRequest) {
     console.error("[VideoStudio] API error:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
   }
+}
+
+function getVideoUsageModel(provider: string): string {
+  switch (provider) {
+    case "veo3":
+      return "veo-3.1-generate-preview";
+    case "grok":
+      return "grok-imagine-video";
+    case "sora":
+      return "sora-2";
+    case "slideshow":
+      return "slideshow";
+    default:
+      return "flowai-video";
+  }
+}
+
+function hasAnyVideoFallbackProvider(): boolean {
+  return grokVideoClient.isAvailable() || soraClient.isAvailable() || xaiClient.isAvailable();
+}
+
+function isVideoFallbackError(error: unknown): boolean {
+  // Any primary provider failure should attempt the fallback chain before
+  // surfacing an error to the user. Quotas are the common case, but model
+  // access and temporary provider failures should behave the same.
+  return !!error;
+}
+
+function normalizeVideoAspect(aspectRatio: string): "16:9" | "9:16" | "1:1" {
+  return aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9";
+}
+
+async function materializeReferenceImage(referenceImageUrl?: string | null): Promise<string | undefined> {
+  if (!referenceImageUrl) return undefined;
+  try {
+    let buffer: Buffer | null = null;
+    let ext = "png";
+    if (referenceImageUrl.startsWith("data:")) {
+      const match = referenceImageUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
+      if (!match) return undefined;
+      ext = match[1].replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "").slice(0, 4) || "png";
+      buffer = Buffer.from(match[2], "base64");
+    } else if (referenceImageUrl.startsWith("http")) {
+      const res = await fetch(referenceImageUrl);
+      if (!res.ok) return undefined;
+      const type = res.headers.get("content-type") || "image/png";
+      ext = type.split("/")[1]?.replace("jpeg", "jpg").replace(/[^a-z0-9]/gi, "").slice(0, 4) || "png";
+      buffer = Buffer.from(await res.arrayBuffer());
+    } else {
+      const localPath = referenceImageUrl.startsWith("/")
+        ? path.join(process.cwd(), "public", referenceImageUrl)
+        : path.join(process.cwd(), "public", referenceImageUrl);
+      if (!fs.existsSync(localPath)) return undefined;
+      ext = path.extname(localPath).replace(".", "") || "png";
+      buffer = fs.readFileSync(localPath);
+    }
+    const tempPath = path.join(os.tmpdir(), `flow-video-ref-${nanoid(6)}.${ext}`);
+    fs.writeFileSync(tempPath, buffer);
+    return tempPath;
+  } catch (error) {
+    console.warn("[VideoStudio] Could not prepare video reference image:", error);
+    return undefined;
+  }
+}
+
+async function generateFallbackVideoBuffer(opts: {
+  prompt: string;
+  userPrompt: string;
+  category: string;
+  style: string;
+  aspectRatio: string;
+  duration: number;
+  referenceImageUrl?: string | null;
+}): Promise<{ videoBuffer: Buffer; duration: number; provider: string }> {
+  const errors: string[] = [];
+  const aspect = normalizeVideoAspect(opts.aspectRatio);
+
+  if (grokVideoClient.isAvailable()) {
+    try {
+      const result = await grokVideoClient.generateVideo(opts.prompt, {
+        duration: Math.max(1, Math.min(15, Math.round(opts.duration || 8))),
+        aspectRatio: aspect,
+        resolution: "720p",
+        imageUrl: opts.referenceImageUrl || undefined,
+      });
+      return {
+        videoBuffer: result.videoBuffer,
+        duration: result.duration || opts.duration || 8,
+        provider: "grok",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+      console.warn("[VideoStudio] Grok video fallback failed:", error);
+    }
+  }
+
+  if (soraClient.isAvailable()) {
+    let referenceImagePath: string | undefined;
+    try {
+      referenceImagePath = await materializeReferenceImage(opts.referenceImageUrl);
+      const result = await soraClient.generateVideoBuffer(opts.prompt, {
+        seconds: opts.duration <= 4 ? "4" : opts.duration <= 8 ? "8" : "12",
+        size: (aspect === "9:16" ? "720x1280" : "1280x720") as never,
+        referenceImagePath,
+      });
+      return {
+        videoBuffer: result.videoBuffer,
+        duration: result.duration || opts.duration || 8,
+        provider: "sora",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+      console.warn("[VideoStudio] Sora video fallback failed:", error);
+    } finally {
+      if (referenceImagePath) {
+        try { fs.unlinkSync(referenceImagePath); } catch { /* ignore */ }
+      }
+    }
+  }
+
+  try {
+    const script = await generateSlideshowScript(opts.userPrompt, opts.category, opts.style, 45);
+    const slideshowImages = await generateSlideshowImages(script.scenes, opts.aspectRatio, () => undefined);
+    const audioBuffer = await generateTTSAudio(script.scenes.map((scene) => scene.narration).join(" "), "nova");
+    const videoBuffer = await compositeSlideshowVideo({
+      scenes: script.scenes,
+      images: slideshowImages,
+      audioBuffer,
+      resolution: "720p",
+      aspectRatio: opts.aspectRatio,
+    });
+    return {
+      videoBuffer,
+      duration: await getSlideshowDuration(videoBuffer),
+      provider: "slideshow",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(message);
+    console.warn("[VideoStudio] Slideshow fallback failed:", error);
+  }
+
+  throw new Error(errors.at(-1) || "All video engines failed");
 }
 
 /**

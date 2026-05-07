@@ -8,6 +8,9 @@ const DEFAULT_GEMINI_TEXT_MODEL =
   process.env.FLOWAI_TEXT_MODEL ||
   "gemini-2.5-flash";
 
+const DEFAULT_MARKETING_SYSTEM_PROMPT =
+  "You are FlowAI, a senior marketing strategist, social copywriter, SEO planner, and content operator. Produce complete, ready-to-use marketing work with concrete details, platform nuance, SEO/search terms, hashtags when relevant, and clear next actions. Do not mention model names or backend providers.";
+
 class GeminiTextClient {
   private static instance: GeminiTextClient;
   private client: GoogleGenAI | null = null;
@@ -51,9 +54,9 @@ class GeminiTextClient {
         config: {
           systemInstruction:
             options.systemPrompt ||
-            "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
+            DEFAULT_MARKETING_SYSTEM_PROMPT,
           temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxTokens ?? 1024,
+          maxOutputTokens: options.maxTokens ?? 2048,
         },
       });
       return response.text || "";
@@ -99,9 +102,9 @@ class GeminiTextClient {
         config: {
           systemInstruction:
             options.systemPrompt ||
-            "You are a helpful marketing and content creation assistant. Be concise, creative, and professional.",
+            DEFAULT_MARKETING_SYSTEM_PROMPT,
           temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxTokens ?? 1024,
+          maxOutputTokens: options.maxTokens ?? 2048,
         },
       });
 

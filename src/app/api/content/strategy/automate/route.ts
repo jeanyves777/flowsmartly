@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import { isAutomatableCategory, isEmailCategory } from "@/lib/strategy/credit-estimator";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
       const task = taskMap.get(config.taskId);
       if (!task) continue;
 
-      const category = task.category || "content";
+      const category = normalizeTaskCategory(task.category);
 
       if (!config.enabled || !isAutomatableCategory(category)) {
         continue;
@@ -204,7 +205,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Non-automated tasks: label as AUTOMATABLE or MANUAL_ONLY
-      const category = task.category || "content";
+      const category = normalizeTaskCategory(task.category);
       const status = isAutomatableCategory(category) ? "AUTOMATABLE" : "MANUAL_ONLY";
       return prisma.strategyTask.update({
         where: { id: task.id },

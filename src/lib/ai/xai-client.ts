@@ -11,6 +11,7 @@
 
 const XAI_GENERATIONS_URL = "https://api.x.ai/v1/images/generations";
 const XAI_EDITS_URL = "https://api.x.ai/v1/images/edits";
+const XAI_IMAGE_MODEL = process.env.XAI_IMAGE_MODEL || "grok-imagine-image";
 
 type AspectRatio =
   | "1:1"
@@ -80,9 +81,10 @@ class XAIClient {
     options: {
       aspectRatio?: AspectRatio;
       n?: number;
+      resolution?: "1k" | "2k";
     } = {}
   ): Promise<string | null> {
-    const { aspectRatio = "1:1", n = 1 } = options;
+    const { aspectRatio = "1:1", n = 1, resolution } = options;
 
     if (!this.apiKey) {
       throw new Error("XAI_API_KEY is not configured");
@@ -100,11 +102,12 @@ class XAIClient {
             Authorization: `Bearer ${this.apiKey}`,
           },
           body: JSON.stringify({
-            model: "grok-imagine-image",
+            model: XAI_IMAGE_MODEL,
             prompt,
             n,
             aspect_ratio: aspectRatio,
             response_format: "b64_json",
+            ...(resolution ? { resolution } : {}),
           }),
         });
 
@@ -166,7 +169,7 @@ class XAIClient {
             Authorization: `Bearer ${this.apiKey}`,
           },
           body: JSON.stringify({
-            model: "grok-imagine-image",
+            model: XAI_IMAGE_MODEL,
             prompt,
             image: {
               url: toImageDataUri(imageBase64),
@@ -242,9 +245,9 @@ class XAIClient {
             Authorization: `Bearer ${this.apiKey}`,
           },
           body: JSON.stringify({
-            model: "grok-imagine-image",
+            model: XAI_IMAGE_MODEL,
             prompt,
-            image: images,
+            images: images.map((url) => ({ type: "image_url", url })),
             n: 1,
             aspect_ratio: aspectRatio,
             response_format: "b64_json",

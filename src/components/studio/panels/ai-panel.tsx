@@ -129,7 +129,7 @@ export function AiPanel() {
           category: "social_post",
           size: `${canvasWidth}x${canvasHeight}`,
           style: "modern",
-          provider: "xai",
+          provider: "openai",
           heroType: "people",
           textMode: "exact",
           editImageUrl: uploadData.data.file.url,

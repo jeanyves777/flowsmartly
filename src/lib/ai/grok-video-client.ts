@@ -77,9 +77,11 @@ class GrokVideoClient {
       resolution,
     };
 
-    // Image-to-video: animate a reference/product image
+    // Image-to-video: animate a reference/product image. The xAI video
+    // endpoint expects an `image` object, not the image-generation
+    // `image_url` helper field.
     if (imageUrl) {
-      bodyPayload.image_url = imageUrl;
+      bodyPayload.image = { type: "image_url", url: imageUrl };
     }
 
     const response = await fetch(XAI_VIDEO_URL, {

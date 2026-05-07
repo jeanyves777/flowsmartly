@@ -79,9 +79,9 @@ const parseGeneratedIdeas = (raw: string, fallbackPlatforms: string[]): Generate
 };
 
 const buildSinglePostPrompt = (brandContext: string, requestedPlatforms: string[], usedAngles: string[] = []) =>
-  `Based on this brand identity:\n\n${brandContext}\n\nWrite one concise, ready-to-use social post. Keep it direct and easy to scan.${
+  `Based on this brand identity:\n\n${brandContext}\n\nWrite one complete, ready-to-use social post with enough substance to publish without extra rewriting.${
     requestedPlatforms.length > 0 ? `\nSelected platforms: ${requestedPlatforms.join(", ")}` : ""
-  }${usedAngles.length > 0 ? `\nAvoid repeating these angles: ${usedAngles.join(", ")}` : ""}\n\nFormat exactly like this:\nHook: one short opening line\nPost: 1-2 short finished sentences with the main value\nCTA: one clear customer-facing action\nHashtags: 3-5 relevant hashtags\n\nRules:\n- Total length under 90 words\n- No long paragraphs\n- Use emojis only if they add clarity\n- Make it specific to the brand and audience\n- Do NOT write instructions, templates, JSON, markdown, or placeholders\n\nRespond with only the formatted post.`;
+  }${usedAngles.length > 0 ? `\nAvoid repeating these angles: ${usedAngles.join(", ")}` : ""}\n\nRules:\n- Return only the finished post copy; no labels such as Hook, Post, CTA, Hashtags, no markdown, no JSON.\n- 120-180 words unless the selected platform requires shorter copy.\n- Open with a strong customer-facing line, then 2-3 short paragraphs with concrete brand/customer details.\n- Include one clear call-to-action in natural language.\n- Include 5-8 relevant hashtags at the end, mixing brand, niche, local, and discovery tags.\n- Naturally include 3-5 SEO/search phrases from the brand identity without keyword stuffing.\n- Use emojis only when they improve scanability.\n- No placeholders like [brand], [offer], or \"your customer\".\n\nRespond with only the ready-to-paste post.`;
 
 const generateSingleIdea = async (
   brandContext: string,
@@ -89,9 +89,9 @@ const generateSingleIdea = async (
   usedAngles: string[] = []
 ): Promise<GeneratedPostIdea | null> => {
   const response = await ai.generate(buildSinglePostPrompt(brandContext, requestedPlatforms, usedAngles), {
-    maxTokens: 420,
+    maxTokens: 900,
     systemPrompt:
-      "You are a social media content creator. Return only a finished caption that is ready to paste. Do not return JSON.",
+      "You are a senior social media strategist and SEO copywriter. Return only finished customer-facing post copy that is ready to paste. Do not return labels, JSON, markdown, or instructions.",
   });
   const clean = response.trim();
   if (!clean) return null;
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
           .slice(0, 6)
       : [];
     const currentDraft = typeof body.currentDraft === "string" ? body.currentDraft.trim().slice(0, 700) : "";
-    const count = Math.min(3, Math.max(1, Number.isFinite(Number(body.count)) ? Number(body.count) : 1));
+    const count = Math.min(5, Math.max(1, Number.isFinite(Number(body.count)) ? Number(body.count) : 3));
 
     // Build context from brand
     const brandContext = [
@@ -178,13 +178,13 @@ export async function POST(request: NextRequest) {
       .join("\n");
 
     const prompt = count > 1
-      ? `Based on this brand identity:\n\n${brandContext}\n\nGenerate exactly ${count} ready-to-use social post ideas. These must be finished captions, not instructions, not templates, and not placeholders.\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "ideas": [\n    {\n      "title": "short descriptive title",\n      "angle": "short marketing angle",\n      "format": "where/how this works best",\n      "platforms": ["facebook", "linkedin"],\n      "caption": "Hook: ready-to-post hook\\n\\nPost: finished branded post copy with concrete brand/customer details\\n\\nCTA: clear action\\n\\nHashtags: #BrandSpecific #Relevant"\n    }\n  ]\n}\n\nRules:\n- Return exactly ${count} items in the ideas array.\n- Every caption must be ready to paste and publish.\n- Use the brand name, audience, offer, voice, products/services, keywords, and preferred hashtags when available.\n- Do NOT say \"show\", \"share\", \"use\", \"insert\", \"add\", or any instruction telling the user what to do, unless it is a customer-facing CTA.\n- No placeholders like [brand], [offer], or \"your customer\".\n- Each caption under 110 words.\n- Match the selected platforms when provided.\n- Make each idea meaningfully different.`
+      ? `Based on this brand identity:\n\n${brandContext}\n\nGenerate exactly ${count} ready-to-use social post ideas. These must be finished captions, not instructions, not templates, and not placeholders.\n\nReturn ONLY valid JSON in this exact shape:\n{\n  "ideas": [\n    {\n      "title": "short descriptive title",\n      "angle": "short marketing angle",\n      "format": "where/how this works best",\n      "platforms": ["facebook", "linkedin"],\n      "caption": "finished customer-facing post copy with no backend labels, ending with relevant hashtags"\n    }\n  ]\n}\n\nRules:\n- Return exactly ${count} items in the ideas array.\n- Every caption must be ready to paste and publish.\n- Each caption should be 120-180 words unless the selected platform needs shorter copy.\n- Use the brand name, audience, offer, voice, products/services, keywords, preferred hashtags, location, and contact context when available.\n- Include a natural CTA and 5-8 relevant hashtags inside the caption.\n- Naturally include 3-5 SEO/search phrases inside the caption without keyword stuffing.\n- Do NOT expose labels like Hook, Post, CTA, Hashtags in the caption text.\n- Do NOT say \"show\", \"share\", \"use\", \"insert\", \"add\", or any instruction telling the user what to do, unless it is a customer-facing CTA.\n- No placeholders like [brand], [offer], or \"your customer\".\n- Match the selected platforms when provided.\n- Make each idea meaningfully different.`
       : buildSinglePostPrompt(brandContext, requestedPlatforms);
 
     const idea = await ai.generate(prompt, {
-      maxTokens: count > 1 ? 1400 : 420,
+      maxTokens: count > 1 ? 2800 : 900,
       systemPrompt:
-        "You are a social media content creator. Write concise, formatted post ideas that are ready to reuse. Keep output short, structured, and practical.",
+        "You are a senior social media strategist, SEO copywriter, and content planner. Create complete, ready-to-use post copy. Keep provider/backend details hidden and never expose internal labels in customer-facing captions.",
     });
 
     const cleanIdea = idea?.trim() || "Share something amazing with your audience today!";

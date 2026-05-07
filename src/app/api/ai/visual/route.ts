@@ -7,7 +7,6 @@ import {
   editImagesXaiFirst,
   generateImageWithProvider as routedGenerateImageWithProvider,
   xaiFirstImageGenerationProviderOrder,
-  xaiFirstImageProviderOrder,
   type RoutedImageProvider,
 } from "@/lib/ai/image-router";
 import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
@@ -822,6 +821,7 @@ async function runRawBrandPipeline(params: PipelineParams) {
     const edited = await editImagesXaiFirst(promptUsed, [refBuffer], params.width, params.height, {
       preferredProvider: params.provider,
       quality: "high",
+      intent: "exact",
     });
     base64 = edited.base64;
     model = edited.model;
@@ -1044,8 +1044,8 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   //   Standard text-to-image via gpt-image-1.generate.
   // ────────────────────────────────────────────────────────────────
 
-  const useHybridComposite = !!refBuffer && !!params.referenceImageUrl;
-  const useTemplateEdit = !!refBuffer && !params.referenceImageUrl;
+  const useHybridComposite = false;
+  const useTemplateEdit = !!refBuffer;
 
   const templateRefPrompt = useTemplateEdit
     ? `IMPORTANT: Use the provided image as a DESIGN TEMPLATE REFERENCE. Recreate a very similar design following the same layout, composition, visual style, color scheme, and arrangement of elements — but customize it with the specific content, branding, and details described below.\n\n${designPrompt}`
@@ -1126,7 +1126,7 @@ Output a polished, print-ready ${params.category} background. The photo will be 
     base64 = generated.base64;
     model = generated.model;
   } else {
-    switch (provider) {
+    switch (useEditApi ? "openai" : provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
       console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference → edit API)" : ""}`);
@@ -1586,7 +1586,7 @@ RULES:
     }
   };
 
-  const providerOrder: ImageProvider[] = uniqueProviderOrder(...xaiFirstImageProviderOrder(provider));
+  const providerOrder: ImageProvider[] = uniqueProviderOrder("openai", provider, "xai", "gemini");
 
   let base64: string | null = null;
   let model = "";

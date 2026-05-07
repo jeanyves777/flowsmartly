@@ -68,7 +68,6 @@ type AIPilotLength = "short" | "medium" | "long";
 type AIPlatform = (typeof AI_SUPPORTED_PLATFORMS)[number];
 type FlowMediaMode = "image" | "video";
 type FlowMediaAspect = "1:1" | "9:16" | "16:9";
-type FlowImageProvider = "xai" | "openai" | "gemini";
 
 type OrganicPostIdea = {
   title: string;
@@ -306,11 +305,6 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 ];
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
-const FLOW_IMAGE_PROVIDER_LABELS: Record<FlowImageProvider, string> = {
-  openai: "FlowAI image",
-  xai: "FlowAI image",
-  gemini: "FlowAI image",
-};
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((item) => item.id === aspect) || FLOW_MEDIA_ASPECTS[0];
@@ -964,66 +958,47 @@ export default function ContentPostsPage() {
 
     try {
       if (flowMediaMode === "image") {
-        const providers: FlowImageProvider[] = ["xai", "openai", "gemini"];
-        let lastError = "Image generation failed";
-
-        for (const provider of providers) {
-          setFlowMediaStatus(
-            provider === "xai"
-              ? "Creating your FlowAI image..."
-              : "Still working on a usable image..."
-          );
-
-          const res = await fetch("/api/ai/visual", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt,
-              category: "social_post",
-              size: aspect.imageSize,
-              style: flowMediaStyle,
-              provider,
-              promptMode: "raw_brand",
-              brandIdentity: rawBrandIdentity,
-              channels: selectedPlatformLabels || "selected social channels",
-              heroType: "product",
-              textMode: "creative",
-              brandColors: brandKit?.colors || null,
-              brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
-              brandName: brandKit?.name || null,
-              showBrandName: !!brandKit?.name,
-              showSocialIcons: true,
-              socialHandles: brandKit?.handles || null,
-              referenceImageUrl: primaryReferenceImageUrl,
-              ctaText: null,
-              qualityCheckEnabled: flowMediaQualityCheckEnabled,
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.status === 401 || res.status === 403) {
-            throw new Error(data.error?.message || "You do not have access to generate FlowAI media");
-          }
-          if (!res.ok || !data.success) {
-            lastError = data.error?.message || `${FLOW_IMAGE_PROVIDER_LABELS[provider]} image generation failed`;
-            continue;
-          }
-
-          const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
-          if (!imageUrl) {
-            lastError = `${FLOW_IMAGE_PROVIDER_LABELS[provider]} generated an image but no media URL was returned`;
-            continue;
-          }
-
-          addGeneratedMediaToPost("image", imageUrl);
-          setFlowMediaStatus("Image added to the post.");
-          toast({
-            title: "Image generated",
-            description: "FlowAI created the asset and added it to your post.",
-          });
-          return;
+        const res = await fetch("/api/ai/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            category: "social_post",
+            size: aspect.imageSize,
+            style: flowMediaStyle,
+            provider: "xai",
+            promptMode: "raw_brand",
+            brandIdentity: rawBrandIdentity,
+            channels: selectedPlatformLabels || "selected social channels",
+            heroType: "product",
+            textMode: "creative",
+            brandColors: brandKit?.colors || null,
+            brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+            brandName: brandKit?.name || null,
+            showBrandName: !!brandKit?.name,
+            showSocialIcons: true,
+            socialHandles: brandKit?.handles || null,
+            referenceImageUrl: primaryReferenceImageUrl,
+            ctaText: null,
+            qualityCheckEnabled: flowMediaQualityCheckEnabled,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(data.error?.message || "You do not have access to generate FlowAI media");
         }
+        if (!res.ok || !data.success) throw new Error(data.error?.message || "Image generation failed");
 
-        throw new Error(lastError);
+        const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+        if (!imageUrl) throw new Error("Image generated but no media URL was returned");
+
+        addGeneratedMediaToPost("image", imageUrl);
+        setFlowMediaStatus("Image added to the post.");
+        toast({
+          title: "Image generated",
+          description: "FlowAI created the asset and added it to your post.",
+        });
+        return;
       }
 
       const res = await fetch("/api/ai/video-studio/generate", {

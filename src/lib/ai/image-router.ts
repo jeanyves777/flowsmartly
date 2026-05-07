@@ -13,6 +13,8 @@ export type RoutedImageResult = {
   format: "png" | "jpeg";
 };
 
+export type ImageEditIntent = "creative" | "exact" | "identity";
+
 export function getGptImageSize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" {
   const aspectRatio = width / height;
   if (aspectRatio > 1.3) return "1536x1024";
@@ -50,7 +52,10 @@ export async function generateImageWithProvider(
       }
       const aspectRatio = sizeToAspectRatio(width, height);
       return {
-        base64: await xaiClient.generateImage(prompt, { aspectRatio }),
+        base64: await xaiClient.generateImage(prompt, {
+          aspectRatio,
+          resolution: options.quality === "high" ? "2k" : undefined,
+        }),
         model: "grok-imagine-image",
         provider,
         format: "jpeg",
@@ -135,14 +140,37 @@ export async function generateImageXaiFirst(
   throw new Error(lastError instanceof Error ? lastError.message : "Image generation failed");
 }
 
+export function referencePreservingEditProviderOrder(
+  preferred?: ImageProvider | null,
+  intent: ImageEditIntent = "identity",
+): ImageProvider[] {
+  const order: ImageProvider[] = [];
+  const base: Array<ImageProvider | null | undefined> =
+    intent === "creative" && preferred === "xai"
+      ? ["xai", "openai", "gemini"]
+      : ["openai", preferred === "openai" ? null : preferred, "xai", "gemini"];
+
+  for (const provider of base) {
+    if (provider && !order.includes(provider)) order.push(provider);
+  }
+  return order;
+}
+
 export async function editImagesXaiFirst(
   prompt: string,
   imageBuffers: Buffer[],
   width: number,
   height: number,
-  options: { preferredProvider?: ImageProvider | null; quality?: "low" | "medium" | "high" } = {},
+  options: {
+    preferredProvider?: ImageProvider | null;
+    quality?: "low" | "medium" | "high";
+    intent?: ImageEditIntent;
+  } = {},
 ): Promise<RoutedImageResult> {
-  const providerOrder = xaiFirstImageProviderOrder(options.preferredProvider);
+  const providerOrder = referencePreservingEditProviderOrder(
+    options.preferredProvider,
+    options.intent ?? "identity",
+  );
   let lastError: unknown = null;
 
   for (const provider of providerOrder) {

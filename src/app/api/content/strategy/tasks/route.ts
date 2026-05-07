@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import { checkAndAwardMilestones } from "@/lib/strategy/scoring";
 
 // POST /api/content/strategy/tasks - Add a task to a strategy
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
         title: title.trim(),
         description: description || null,
         priority: taskPriority,
-        category: category || null,
+        category: category ? normalizeTaskCategory(category) : null,
         startDate: startDate ? new Date(startDate) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
         sortOrder: nextSortOrder,
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
           description: task.description,
           status: task.status,
           priority: task.priority,
-          category: task.category,
+          category: task.category ? normalizeTaskCategory(task.category) : null,
           startDate: task.startDate?.toISOString() || null,
           dueDate: task.dueDate?.toISOString() || null,
           completedAt: null,
@@ -194,7 +195,7 @@ export async function PATCH(request: NextRequest) {
         updateData.priority = priority;
       }
     }
-    if (category !== undefined) updateData.category = category || null;
+    if (category !== undefined) updateData.category = category ? normalizeTaskCategory(category) : null;
     if (startDate !== undefined)
       updateData.startDate = startDate ? new Date(startDate) : null;
     if (dueDate !== undefined)
@@ -262,7 +263,7 @@ export async function PATCH(request: NextRequest) {
           description: updatedTask.description,
           status: updatedTask.status,
           priority: updatedTask.priority,
-          category: updatedTask.category,
+          category: updatedTask.category ? normalizeTaskCategory(updatedTask.category) : null,
           startDate: updatedTask.startDate?.toISOString() || null,
           dueDate: updatedTask.dueDate?.toISOString() || null,
           completedAt: updatedTask.completedAt?.toISOString() || null,

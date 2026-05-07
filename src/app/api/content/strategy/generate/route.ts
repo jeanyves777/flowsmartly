@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { normalizeTaskCategory, TASK_CATEGORIES } from "@/lib/strategy/categories";
 
 interface GeneratedTask {
   title: string;
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
         : "3 months";
 
     // Build focus areas instruction
-    const validCategories = ["content", "social", "ads", "email", "analytics"];
+    const validCategories: string[] = [...TASK_CATEGORIES];
     const selectedAreas: string[] = Array.isArray(focusAreas)
       ? focusAreas.filter((a: string) => validCategories.includes(a))
       : validCategories;
@@ -214,7 +215,7 @@ Return JSON with this structure:
         title: t.title.trim(),
         description: t.description || null,
         priority: validPriorities.includes(t.priority) ? t.priority : "MEDIUM",
-        category: validCategories.includes(t.category) ? t.category : "content",
+        category: normalizeTaskCategory(t.category),
         startDate: t.startDate ? new Date(t.startDate) : null,
         dueDate: t.dueDate ? new Date(t.dueDate) : null,
         sortOrder: index,

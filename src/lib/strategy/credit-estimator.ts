@@ -6,6 +6,7 @@
  */
 
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { normalizeTaskCategory } from "@/lib/strategy/categories";
 
 /** Categories that can be automated via post generation */
 const AUTOMATABLE_CATEGORIES = ["social", "content", "email"];
@@ -44,14 +45,14 @@ export interface AutomationEstimate {
  * Check if a task category is automatable
  */
 export function isAutomatableCategory(category: string | null): boolean {
-  return AUTOMATABLE_CATEGORIES.includes(category || "");
+  return AUTOMATABLE_CATEGORIES.includes(normalizeTaskCategory(category));
 }
 
 /**
  * Check if a task category is email (creates Campaign instead of PostAutomation)
  */
 export function isEmailCategory(category: string | null): boolean {
-  return (category || "").toLowerCase() === "email";
+  return normalizeTaskCategory(category) === "email";
 }
 
 /**
@@ -108,7 +109,7 @@ export async function estimateAutomationCredits(
   const manualOnlyTasks: { taskId: string; title: string; category: string }[] = [];
 
   for (const task of tasks) {
-    const category = task.category || "content";
+    const category = normalizeTaskCategory(task.category);
 
     if (!isAutomatableCategory(category)) {
       manualOnlyTasks.push({ taskId: task.id, title: task.title, category });

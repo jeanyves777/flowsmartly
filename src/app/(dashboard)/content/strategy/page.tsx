@@ -48,10 +48,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeTaskCategory } from "@/lib/strategy/categories";
+import type { TaskCategory } from "@/lib/strategy/categories";
 import { cn } from "@/lib/utils/cn";
 
 type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
-type TaskCategory = "content" | "social" | "ads" | "email" | "analytics";
 type TaskPriority = "HIGH" | "MEDIUM" | "LOW";
 type ViewMode = "plan" | "automations" | "sync";
 
@@ -71,7 +72,7 @@ interface StrategyTask {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  category: TaskCategory | null;
+  category: string | null;
   startDate: string | null;
   dueDate: string | null;
   completedAt: string | null;
@@ -275,7 +276,7 @@ function taskToDraft(task: StrategyTask): TaskDraft {
     id: task.id,
     title: task.title,
     description: task.description || "",
-    category: task.category || "content",
+    category: normalizeTaskCategory(task.category),
     priority: task.priority || "MEDIUM",
     status: task.status || "TODO",
     startDate: task.startDate?.slice(0, 10) || "",
@@ -380,7 +381,7 @@ export default function StrategyAutomationPage() {
   const readyToAutomate = useMemo(
     () =>
       tasks.filter((task) => {
-        const category = task.category || "content";
+        const category = normalizeTaskCategory(task.category);
         return (
           task.status !== "DONE" &&
           !task.automationId &&
@@ -745,7 +746,7 @@ export default function StrategyAutomationPage() {
   };
 
   const renderTaskCard = (task: StrategyTask) => {
-    const category = task.category || "content";
+    const category = normalizeTaskCategory(task.category);
     const categoryInfo = CATEGORY_CONFIG[category];
     const PriorityDot = PRIORITY_CONFIG[task.priority || "MEDIUM"];
     const matches = parseMatches(task.matchedActivities);
