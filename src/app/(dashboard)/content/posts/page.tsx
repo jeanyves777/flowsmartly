@@ -107,6 +107,8 @@ type FlowMediaTemplate = {
   aspect: FlowMediaAspect;
   prompt: string;
   badge: string;
+  helper?: string;
+  thumbnail?: string;
 };
 
 type ProductAdTemplate = {
@@ -225,6 +227,8 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "image",
       aspect: "1:1",
       badge: "FlowAI image",
+      helper: "Campaign offer visual with product collage, benefit callouts, and CTA space.",
+      thumbnail: "/templates/flow-media/brand-offer-card.jpg",
       prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
     },
     {
@@ -233,6 +237,8 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "image",
       aspect: "1:1",
       badge: "FlowAI image",
+      helper: "Social proof layout with review cards, result stats, and audience momentum.",
+      thumbnail: "/templates/flow-media/proof-post-visual.jpg",
       prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
     },
     {
@@ -339,6 +345,8 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     mode: "image",
     aspect: "1:1",
     badge: "FlowAI image",
+    helper: "Campaign offer visual with product collage, benefit callouts, and CTA space.",
+    thumbnail: "/templates/flow-media/brand-offer-card.jpg",
     prompt:
       "Create a polished social media promotion image for a growth and marketing workspace. Modern SaaS style, bold headline space, clear CTA area, subtle social media UI elements, premium lighting, no fake app logos.",
   },
@@ -348,6 +356,8 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
     mode: "image",
     aspect: "1:1",
     badge: "FlowAI image",
+    helper: "Social proof layout with review cards, result stats, and audience momentum.",
+    thumbnail: "/templates/flow-media/proof-post-visual.jpg",
     prompt:
       "Create a trust-building social post image showing campaign results, customer activity, and simple analytics in a clean branded dashboard collage. Friendly, modern, high contrast, ready for Facebook and LinkedIn.",
   },
@@ -2589,7 +2599,7 @@ export default function ContentPostsPage() {
           title="FlowAI media"
           description={`Generate media from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
-          defaultSize={{ width: 760, height: 820 }}
+          defaultSize={{ width: 900, height: 860 }}
           defaultPosition={{ y: 118 }}
         >
           <div className="space-y-4">
@@ -2661,19 +2671,47 @@ export default function ContentPostsPage() {
                       key={template.id}
                       type="button"
                       onClick={() => applyFlowMediaTemplate(template)}
-                      className={`rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      className={`group overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
                         isActive
                           ? "border-brand-500 bg-brand-500/10"
                           : "bg-background hover:border-brand-500/40"
                       }`}
                     >
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold">{template.title}</span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                          {template.badge}
-                        </span>
-                      </div>
-                      <p className="line-clamp-2 text-xs text-muted-foreground">{template.prompt}</p>
+                      {flowMediaMode === "image" && template.thumbnail ? (
+                        <div className="relative h-36 overflow-hidden bg-muted">
+                          <img
+                            src={template.thumbnail}
+                            alt={`${template.title} FlowAI template preview`}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+                          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-sm">
+                            {template.badge}
+                          </span>
+                          {isActive ? (
+                            <span className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                              <Check className="h-4 w-4" />
+                            </span>
+                          ) : null}
+                          <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+                            <p className="text-sm font-bold">{template.title}</p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/80">
+                              {template.helper || template.prompt}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="text-sm font-bold">{template.title}</span>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                              {template.badge}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 text-xs text-muted-foreground">{template.helper || template.prompt}</p>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
