@@ -78,6 +78,19 @@ type FlowVideoSpeechMode =
   | "site_walkthrough"
   | "voiceover_presentation"
   | "visual_only";
+type ProductAdTemplateId =
+  | "floating_product"
+  | "hero_packshot"
+  | "ugc_review"
+  | "launch_collection"
+  | "website_offer"
+  | "promo_stack";
+type ProductAdPresetId =
+  | "premium_mockup"
+  | "realistic_lifestyle"
+  | "bold_offer"
+  | "clean_ecommerce"
+  | "social_story";
 
 type OrganicPostIdea = {
   title: string;
@@ -94,6 +107,32 @@ type FlowMediaTemplate = {
   aspect: FlowMediaAspect;
   prompt: string;
   badge: string;
+};
+
+type ProductAdTemplate = {
+  id: ProductAdTemplateId;
+  title: string;
+  helper: string;
+  aspect: FlowMediaAspect;
+  prompt: string;
+  badge: string;
+  gradient: string;
+};
+
+type ProductAdPreset = {
+  id: ProductAdPresetId;
+  label: string;
+  helper: string;
+  rule: string;
+};
+
+type GeneratedProductAd = {
+  url: string;
+  prompt: string;
+  template: ProductAdTemplateId;
+  designId?: string;
+  creditsUsed?: number;
+  creditsRemaining?: number;
 };
 
 type GeneratedContentHistoryItem = {
@@ -153,6 +192,24 @@ const buildBrandBrief = (brandKit?: BrandKit | null) => {
     .filter(Boolean)
     .join("\n");
 };
+
+const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
+  name: brandKit?.name || null,
+  tagline: brandKit?.tagline || null,
+  description: brandKit?.description || null,
+  industry: brandKit?.industry || null,
+  niche: brandKit?.niche || null,
+  audience: brandKit?.targetAudience || null,
+  voice: brandKit?.voiceTone || null,
+  value: brandKit?.uniqueValue || null,
+  products: brandKit?.products || [],
+  keywords: brandKit?.keywords || [],
+  hashtags: brandKit?.hashtags || [],
+  colors: brandKit?.colors || null,
+  handles: brandKit?.handles || null,
+  website: brandKit?.website || null,
+  logo: brandKit?.logo || brandKit?.iconLogo || null,
+});
 
 const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): FlowMediaTemplate[] => {
   const brandName = getBrandName(brandKit);
@@ -315,6 +372,113 @@ const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
 ];
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
+
+const PRODUCT_AD_TEMPLATES: ProductAdTemplate[] = [
+  {
+    id: "floating_product",
+    title: "Floating product hero",
+    helper: "Premium product suspended in a rich scene with room for a headline and CTA.",
+    aspect: "1:1",
+    badge: "Product poster",
+    gradient: "from-cyan-400 via-sky-200 to-lime-200",
+    prompt:
+      "Build a premium floating-product advertising poster. Put the exact referenced product as the hero, lifted with realistic shadows, reflections, and tasteful environmental details. Reserve clean headline, benefit, and CTA zones without clutter.",
+  },
+  {
+    id: "hero_packshot",
+    title: "Packshot offer card",
+    helper: "Retail-ready offer layout with product, headline, benefit strip, and CTA.",
+    aspect: "1:1",
+    badge: "Offer ad",
+    gradient: "from-amber-300 via-yellow-100 to-emerald-200",
+    prompt:
+      "Create a polished ecommerce packshot ad. Use the uploaded product as the exact hero, keep label and shape recognizable, add a bold offer headline area, three short benefit callouts, and a strong CTA zone.",
+  },
+  {
+    id: "ugc_review",
+    title: "UGC review visual",
+    helper: "Person/product review ad for social proof, with identity locked when a person is uploaded.",
+    aspect: "9:16",
+    badge: "Social proof",
+    gradient: "from-rose-200 via-orange-100 to-cyan-200",
+    prompt:
+      "Create a realistic UGC product review ad. If a person reference is provided, preserve that person's recognizable identity and show them naturally holding, wearing, or using the exact product. Add subtle review/proof elements and a native social ad feel.",
+  },
+  {
+    id: "launch_collection",
+    title: "Launch collection",
+    helper: "New collection announcement with editorial spacing and premium product staging.",
+    aspect: "1:1",
+    badge: "Launch",
+    gradient: "from-teal-300 via-white to-slate-200",
+    prompt:
+      "Design a refined new-collection product ad. Use the reference product or product set exactly, create an editorial composition with launch headline space, refined frames, depth, and brand-color accents.",
+  },
+  {
+    id: "website_offer",
+    title: "Website conversion ad",
+    helper: "Product plus website/app showcase for checkout, booking, or product-page campaigns.",
+    aspect: "16:9",
+    badge: "Traffic ad",
+    gradient: "from-sky-300 via-white to-violet-200",
+    prompt:
+      "Create a website conversion ad that combines the exact product/reference with a clean website or product-page inspired layout. Show a polished offer section, action CTA, and visual proof without inventing third-party logos.",
+  },
+  {
+    id: "promo_stack",
+    title: "Bold promo stack",
+    helper: "High-energy campaign graphic with layered product, ingredients, props, and CTA.",
+    aspect: "1:1",
+    badge: "Promo",
+    gradient: "from-lime-300 via-yellow-200 to-orange-300",
+    prompt:
+      "Create a vibrant promotional product ad with layered product, props, motion accents, a clear headline zone, and a CTA. Keep the exact product from references, make the composition energetic, readable, and social-ready.",
+  },
+];
+
+const PRODUCT_AD_PRESETS: ProductAdPreset[] = [
+  {
+    id: "premium_mockup",
+    label: "Premium mockup",
+    helper: "High-end lighting, realistic shadows, polished retail finish.",
+    rule:
+      "Make the design feel premium and commercially finished. Use realistic product lighting, shadow, reflection, texture, and brand-color atmosphere. Avoid generic stock-product replacements.",
+  },
+  {
+    id: "realistic_lifestyle",
+    label: "Lifestyle realism",
+    helper: "Use the product/person naturally in a scene.",
+    rule:
+      "Make the product feel used in a real lifestyle moment. If a person reference is provided, preserve their face and recognizable identity. If a product reference is provided, preserve its exact form, color, material, label, and distinctive details.",
+  },
+  {
+    id: "bold_offer",
+    label: "Bold offer",
+    helper: "Big visual offer, CTA, strong social scroll stop.",
+    rule:
+      "Create a bold advertising composition with a strong hook area, a clear benefit strip, and a visible CTA zone. Keep text areas clean and readable, and do not add fake pricing unless the user asks for it.",
+  },
+  {
+    id: "clean_ecommerce",
+    label: "Clean ecommerce",
+    helper: "Product-first layout for shops, ads, and catalogs.",
+    rule:
+      "Use a clean ecommerce visual system with product-first hierarchy, concise feature callouts, white or softly colored space, and a clear shopping action. The product must remain the supplied product, not a similar generated item.",
+  },
+  {
+    id: "social_story",
+    label: "Social story",
+    helper: "Designed for feed/reel-style storytelling.",
+    rule:
+      "Make the design feel native to social advertising: strong hook, visual proof, product benefit, and CTA. Keep the layout polished enough for paid ads and organic posts.",
+  },
+];
+
+const getProductAdTemplate = (id: ProductAdTemplateId) =>
+  PRODUCT_AD_TEMPLATES.find((template) => template.id === id) || PRODUCT_AD_TEMPLATES[0];
+
+const getProductAdPreset = (id: ProductAdPresetId) =>
+  PRODUCT_AD_PRESETS.find((preset) => preset.id === id) || PRODUCT_AD_PRESETS[0];
 
 const FLOW_VIDEO_DURATIONS: Array<{
   seconds: FlowVideoDuration;
@@ -693,6 +857,17 @@ export default function ContentPostsPage() {
   const [aiSeoKeywords, setAiSeoKeywords] = useState<string[]>([]);
   const [copiedAiResult, setCopiedAiResult] = useState(false);
   const [aiDetailsOpen, setAiDetailsOpen] = useState(false);
+  const [productAdTemplate, setProductAdTemplate] = useState<ProductAdTemplateId>("floating_product");
+  const [productAdPreset, setProductAdPreset] = useState<ProductAdPresetId>("premium_mockup");
+  const [productAdPrompt, setProductAdPrompt] = useState("");
+  const [productAdAspect, setProductAdAspect] = useState<FlowMediaAspect>("1:1");
+  const [productAdStyle, setProductAdStyle] = useState("premium");
+  const [productAdReferenceUrls, setProductAdReferenceUrls] = useState<string[]>([]);
+  const [productAdQualityCheckEnabled, setProductAdQualityCheckEnabled] = useState(false);
+  const [productAdEditPrompt, setProductAdEditPrompt] = useState("");
+  const [generatedProductAd, setGeneratedProductAd] = useState<GeneratedProductAd | null>(null);
+  const [isGeneratingProductAd, setIsGeneratingProductAd] = useState(false);
+  const [productAdStatus, setProductAdStatus] = useState("");
   const [expandedMediaUrl, setExpandedMediaUrl] = useState<string | null>(null);
   const [showFlowAIMediaModal, setShowFlowAIMediaModal] = useState(false);
   const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>("image");
@@ -1149,6 +1324,160 @@ export default function ContentPostsPage() {
   const addGeneratedMediaToPost = (type: FlowMediaMode, url: string) => {
     setMediaUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
     setGeneratedFlowMedia({ type, url });
+  };
+
+  const applyProductAdTemplate = (template: ProductAdTemplate) => {
+    setProductAdTemplate(template.id);
+    setProductAdAspect(template.aspect);
+    setProductAdStatus("");
+    setGeneratedProductAd(null);
+    if (!productAdPrompt.trim()) {
+      setProductAdPrompt(template.prompt);
+    }
+  };
+
+  const buildProductAdPrompt = (editMode = false) => {
+    const template = getProductAdTemplate(productAdTemplate);
+    const preset = getProductAdPreset(productAdPreset);
+    const referenceLock = productAdReferenceUrls.length
+      ? [
+          `Reference count: ${productAdReferenceUrls.length}.`,
+          "The uploaded references are exact source assets, not loose inspiration.",
+          "If a product is uploaded, preserve the exact product shape, color, material, logo/label, stitching, hardware, packaging, and distinctive details.",
+          "If a person is uploaded, preserve the person's recognizable face, skin tone, age range, hair, body identity, and styling as much as the provider allows.",
+          "If a website or product page is uploaded, preserve the real site/product identity and do not invent unrelated UI.",
+          "Use the first reference as the primary visual anchor and integrate additional references naturally without replacing them with stock substitutes.",
+        ].join(" ")
+      : "No reference image was uploaded. Create a brand-fit concept, but leave the subject generic enough for the user to replace or refine.";
+    const editInstruction = productAdEditPrompt.trim();
+    const userInstruction = productAdPrompt.trim() || template.prompt;
+
+    return [
+      editMode ? "Edit the existing product ad design in place." : "Create a product advertising design for the post composer.",
+      `Visual template: ${template.title}. ${template.prompt}`,
+      `Creative preset: ${preset.label}. ${preset.rule}`,
+      `Brand context:\n${brandBrief}`,
+      selectedPlatformLabels ? `Target channels: ${selectedPlatformLabels}` : "Target channels: selected social channels",
+      referenceLock,
+      editMode
+        ? `Edit request: ${editInstruction}. Preserve the current design's strongest layout, product identity, brand colors, and ad structure while applying only this requested improvement.`
+        : `User direction: ${userInstruction}`,
+      [
+        "Production requirements:",
+        "Create a finished product ad, not a rough mood board.",
+        "Use strong hierarchy: hook/headline zone, product hero, 2-3 benefit cues, CTA area, and brand-safe whitespace.",
+        "Keep text areas readable and intentional. Do not add fake pricing, fake reviews, fake social logos, AI provider marks, or watermarks unless requested.",
+        "Make it polished enough for paid social, ecommerce banners, and organic posts.",
+      ].join(" "),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  };
+
+  const handleGenerateProductAd = async (editMode = false) => {
+    if (editMode && !generatedProductAd?.url) {
+      toast({
+        title: "Generate an ad first",
+        description: "Create the first product ad before sending an edit prompt.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (editMode && productAdEditPrompt.trim().length < 6) {
+      toast({
+        title: "Add an edit instruction",
+        description: "Tell FlowAI exactly what to change in the current design.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editMode && !productAdPrompt.trim() && productAdReferenceUrls.length === 0) {
+      toast({
+        title: "Add direction or a reference",
+        description: "Upload a product/person reference or describe the ad you want to build.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const aspect = getFlowMediaAspect(productAdAspect);
+    const prompt = buildProductAdPrompt(editMode);
+    const rawBrandIdentity = buildRawBrandIdentity(brandKit);
+
+    setIsGeneratingProductAd(true);
+    setProductAdStatus(editMode ? "Editing the product ad in place..." : "Building a product ad from your references...");
+
+    try {
+      const res = await fetch("/api/ai/visual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          category: "product_ad",
+          size: aspect.imageSize,
+          style: productAdStyle,
+          provider: "xai",
+          promptMode: editMode ? "direct" : "raw_brand",
+          brandIdentity: rawBrandIdentity,
+          channels: selectedPlatformLabels || "selected social channels",
+          heroType: "product",
+          textMode: "creative",
+          brandColors: brandKit?.colors || null,
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
+          showBrandName: !!brandKit?.name,
+          showSocialIcons: true,
+          socialHandles: brandKit?.handles || null,
+          referenceImageUrl: editMode ? null : productAdReferenceUrls[0] || null,
+          referenceImageUrls: editMode ? [] : productAdReferenceUrls,
+          editImageUrl: editMode ? generatedProductAd?.url : null,
+          editIntent: editMode ? "auto" : undefined,
+          editReferenceMode: editMode ? "exact" : undefined,
+          editReferenceImageUrls: editMode ? productAdReferenceUrls : [],
+          ctaText: null,
+          qualityCheckEnabled: productAdQualityCheckEnabled,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(data.error?.message || "You do not have access to generate product ads");
+      }
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "Product ad generation failed");
+
+      const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+      if (!imageUrl) throw new Error("Product ad generated but no media URL was returned");
+
+      setGeneratedProductAd({
+        url: imageUrl,
+        prompt,
+        template: productAdTemplate,
+        designId: data.data?.design?.id,
+        creditsUsed: data.data?.creditsUsed,
+        creditsRemaining: data.data?.creditsRemaining,
+      });
+      setProductAdStatus(editMode ? "Edited ad saved to the media library." : "Product ad saved to the media library.");
+      setProductAdEditPrompt("");
+      toast({
+        title: editMode ? "Product ad updated" : "Product ad generated",
+        description: "Review it in the studio, then add it to the post when ready.",
+      });
+    } catch (err) {
+      setProductAdStatus("");
+      toast({
+        title: "Product ad failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingProductAd(false);
+    }
+  };
+
+  const handleAddProductAdToPost = () => {
+    if (!generatedProductAd?.url) return;
+    setMediaUrls((prev) => (prev.includes(generatedProductAd.url) ? prev : [...prev, generatedProductAd.url]));
+    setProductAdStatus("Product ad attached to the post.");
+    toast({ title: "Product ad added", description: "The generated design is now attached to this post." });
   };
 
   const handleGenerateFlowMedia = async () => {
@@ -1627,7 +1956,7 @@ export default function ContentPostsPage() {
                 className="h-9"
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                AI Pilot
+                Product Ad
               </Button>
               <Button
                 variant="outline"
@@ -2580,275 +2909,335 @@ export default function ContentPostsPage() {
         <FloatingPanel
           open={showAIPilotModal}
           onOpenChange={setShowAIPilotModal}
-          title="AI Pilot"
-          description="Generate, rewrite, tune, and insert."
+          title="AI Product Ad"
+          description="Design product ads from references, templates, and edit prompts."
           icon={<Sparkles className="h-4 w-4" />}
-          defaultSize={{ width: 600, height: 720 }}
-          defaultPosition={{ y: 132 }}
+          defaultSize={{ width: 980, height: 860 }}
+          defaultPosition={{ y: 92 }}
         >
           <div className="space-y-4">
-            <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-4 dark:from-cyan-400/10 dark:to-amber-400/10">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold">AI Pilot</p>
-                  <p className="text-sm text-muted-foreground">
-                    Tell me the goal, choose a workflow, then insert the best version into the composer.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              {AI_PILOT_MODES.map((mode) => {
-                const Icon = mode.icon;
-                const isActive = aiMode === mode.id;
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => {
-                      setAiMode(mode.id);
-                      setAiResult("");
-                      setAiHashtags([]);
-                      setAiSeoKeywords([]);
-                    }}
-                    className={`rounded-xl border px-3 py-2 text-left transition ${
-                      isActive
-                        ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
-                        : "bg-background hover:border-brand-500/40 hover:bg-brand-500/5"
-                    }`}
-                  >
-                    <Icon className="mb-1 h-4 w-4" />
-                    <span className="block text-xs font-bold">{mode.label}</span>
-                    <span className="hidden text-[10px] text-muted-foreground sm:block">{mode.hint}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="rounded-2xl border bg-muted/20">
-              <button
-                type="button"
-                onClick={() => setAiDetailsOpen((value) => !value)}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4 text-brand-500" />
-                  Optional direction, tone, and presets
-                </span>
-                <ChevronDown className={`h-4 w-4 transition ${aiDetailsOpen ? "rotate-180" : ""}`} />
-              </button>
-              <AnimatePresence initial={false}>
-                {aiDetailsOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-4 border-t px-3 py-3">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <Label className="text-xs text-muted-foreground">Selected social context</Label>
-                          <AIIdeasHistory
-                            contentType="post_ideas"
-                            mode="single"
-                            onSelect={(idea) => {
-                              setAiResult(extractGeneratedCaption(idea));
-                              setAiHashtags([]);
-                              setAiSeoKeywords([]);
-                            }}
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {aiPlatformSelection.map((platformId) => {
-                            const meta = PLATFORM_META[platformId];
-                            const Icon = meta.icon;
-                            return (
-                              <span key={platformId} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs font-semibold">
-                                <Icon className="h-3.5 w-3.5" />
-                                {meta.label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Tone</Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {AI_PILOT_TONES.map((tone) => (
-                              <button
-                                key={tone.id}
-                                type="button"
-                                onClick={() => setAiTone(tone.id)}
-                                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                                  aiTone === tone.id
-                                    ? "bg-foreground text-background"
-                                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                }`}
-                              >
-                                {tone.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Length</Label>
-                          <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
-                            {AI_PILOT_LENGTHS.map((length) => (
-                              <button
-                                key={length.id}
-                                type="button"
-                                onClick={() => setAiLength(length.id)}
-                                className={`rounded-full px-2 py-1 text-[11px] font-semibold transition ${
-                                  aiLength === length.id ? "bg-background shadow-sm" : "text-muted-foreground"
-                                }`}
-                              >
-                                {length.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <textarea
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                          placeholder={
-                            aiMode === "hashtags" || aiMode === "seo"
-                              ? "Topic, campaign, product, location, or audience..."
-                              : caption.trim()
-                                ? "Optional instruction for AI, like audience, offer, or rewrite angle..."
-                                : "Share your idea, audience, offer, and goal..."
-                          }
-                          className="min-h-[110px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        />
-                        <div className="flex flex-wrap gap-1.5">
-                          {aiPromptStarters.map((starter) => (
-                            <button
-                              key={starter}
-                              type="button"
-                              onClick={() => setAiPrompt(starter)}
-                              className="rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"
-                            >
-                              {starter}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                onClick={() => handleAIPilotGenerate()}
-                disabled={isGeneratingAIPilot || isGeneratingIdea}
-                className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
-              >
-                {isGeneratingAIPilot ? (
-                  <AISpinner className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Run {AI_PILOT_MODES.find((mode) => mode.id === aiMode)?.label}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAIPilotBrandIdea}
-                disabled={isGeneratingAIPilot || isGeneratingIdea}
-              >
-                Brand idea
-              </Button>
-            </div>
-
-            {isGeneratingAIPilot && (
-              <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-4">
-                <AIGenerationLoader
-                  compact
-                  currentStep="AI Pilot is drafting..."
-                  subtitle="Using your selected channels and tone"
-                />
-              </div>
-            )}
-
-            {aiOutput && (
-              <div className="space-y-3 rounded-2xl border bg-muted/25 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold">Generated result</p>
-                  <button
-                    type="button"
-                    onClick={handleCopyAIResult}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-background px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                  >
-                    {copiedAiResult ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    Copy
-                  </button>
-                </div>
-
-                {aiMode === "hashtags" ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {aiHashtags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => setCaption(`${caption}${caption.trim() ? " " : ""}${tag}`.slice(0, MAX_CHARS))}
-                        className="rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-600 dark:text-brand-300"
-                      >
-                        {tag}
-                      </button>
-                    ))}
+            <div className="overflow-hidden rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-4 dark:from-cyan-400/10 dark:to-amber-400/10">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
+                    <ImagePlus className="h-5 w-5" />
                   </div>
-                ) : aiMode === "seo" ? (
-                  <div className="space-y-2">
-                    <p className="rounded-xl bg-background p-3 text-sm leading-6">
-                      {formatSeoKeywordLine(aiSeoKeywords)}
+                  <div>
+                    <p className="text-base font-bold">Product ad playground</p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Upload the real product, person, or site references, choose an ad layout, then generate and edit the design in place. Finished images are saved to the media library before you attach them to the post.
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {aiSeoKeywords.map((keyword) => (
+                  </div>
+                </div>
+                <div className="rounded-2xl border bg-background/80 p-3 shadow-sm">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-lg font-black">{productAdReferenceUrls.length}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground">Refs</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-black">{getFlowMediaAspect(productAdAspect).label}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground">Format</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-black capitalize">{productAdStyle}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground">Style</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_360px]">
+              <div className="space-y-4">
+                <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold">Reference assets</p>
+                      <p className="text-xs text-muted-foreground">The first image anchors the product or person identity.</p>
+                    </div>
+                    <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                      Exact lock
+                    </span>
+                  </div>
+                  <MediaUploader
+                    value={productAdReferenceUrls}
+                    onChange={setProductAdReferenceUrls}
+                    multiple
+                    maxFiles={6}
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    maxSize={25 * 1024 * 1024}
+                    filterTypes={["image"]}
+                    uploadEndpoint="/api/media"
+                    disabled={isGeneratingProductAd}
+                    placeholder="Add reference"
+                    variant="gallery"
+                    libraryTitle="Choose product ad references"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <PenSquare className="h-4 w-4 text-brand-500" />
+                    Visual ad templates
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {PRODUCT_AD_TEMPLATES.map((template) => {
+                      const isActive = productAdTemplate === template.id;
+                      return (
                         <button
-                          key={keyword}
+                          key={template.id}
                           type="button"
-                          onClick={() =>
-                            setCaption(
-                              `${caption}${caption.trim() ? "\n\n" : ""}${formatSeoKeywordLine([keyword])}`.slice(0, MAX_CHARS)
-                            )
-                          }
-                          className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
+                          onClick={() => applyProductAdTemplate(template)}
+                          className={`group overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                            isActive ? "border-brand-500 bg-brand-500/10 shadow-sm" : "bg-background hover:border-brand-500/40"
+                          }`}
                         >
-                          {keyword}
+                          <div className={`h-20 bg-gradient-to-br ${template.gradient} p-3`}>
+                            <div className="flex h-full items-end justify-between">
+                              <div className="h-11 w-11 rounded-2xl border border-white/60 bg-white/60 shadow-sm backdrop-blur" />
+                              <div className="space-y-1">
+                                <div className="h-2 w-16 rounded-full bg-white/80" />
+                                <div className="h-2 w-10 rounded-full bg-white/60" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-bold">{template.title}</span>
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                                {template.badge}
+                              </span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{template.helper}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <SlidersHorizontal className="h-4 w-4 text-cyan-600" />
+                    Preset instruction
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-5">
+                    {PRODUCT_AD_PRESETS.map((preset) => {
+                      const isActive = productAdPreset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setProductAdPreset(preset.id)}
+                          className={`rounded-xl border p-2.5 text-left transition ${
+                            isActive
+                              ? "border-cyan-500 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                              : "bg-muted/20 hover:border-cyan-500/40"
+                          }`}
+                        >
+                          <span className="block text-xs font-bold">{preset.label}</span>
+                          <span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">{preset.helper}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Design instruction</Label>
+                    <textarea
+                      value={productAdPrompt}
+                      onChange={(event) => setProductAdPrompt(event.target.value)}
+                      className="min-h-[150px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Describe the product ad: headline, offer, audience, scene, CTA, colors, and what must stay exact from your references..."
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {PRODUCT_AD_TEMPLATES.slice(0, 3).map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => {
+                            setProductAdTemplate(template.id);
+                            setProductAdAspect(template.aspect);
+                            setProductAdPrompt(template.prompt);
+                          }}
+                          className="rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"
+                        >
+                          {template.title}
                         </button>
                       ))}
                     </div>
                   </div>
-                ) : (
-                  <p className="max-h-52 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background p-3 text-sm leading-6">
-                    {aiResult}
-                  </p>
+                  <div className="space-y-3 rounded-2xl border bg-background/80 p-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Format</Label>
+                      <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
+                        {FLOW_MEDIA_ASPECTS.map((aspect) => (
+                          <button
+                            key={aspect.id}
+                            type="button"
+                            onClick={() => setProductAdAspect(aspect.id)}
+                            className={`rounded-full px-2 py-1 text-[11px] font-semibold transition ${
+                              productAdAspect === aspect.id ? "bg-background shadow-sm" : "text-muted-foreground"
+                            }`}
+                          >
+                            {aspect.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Style</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {FLOW_MEDIA_STYLES.map((style) => (
+                          <button
+                            key={style}
+                            type="button"
+                            onClick={() => setProductAdStyle(style)}
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize transition ${
+                              productAdStyle === style
+                                ? "bg-foreground text-background"
+                                : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                          >
+                            {style}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 p-2.5">
+                      <div>
+                        <p className="text-xs font-bold">Quality check</p>
+                        <p className="text-[10px] text-muted-foreground">3x credits</p>
+                      </div>
+                      <Switch
+                        checked={productAdQualityCheckEnabled}
+                        onCheckedChange={setProductAdQualityCheckEnabled}
+                        aria-label="Enable product ad quality check"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-2xl border bg-background/80 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold">Live preview</p>
+                      <p className="text-xs text-muted-foreground">Generate, inspect, edit, then attach.</p>
+                    </div>
+                    {generatedProductAd?.creditsUsed ? (
+                      <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                        {generatedProductAd.creditsUsed} credits
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => generatedProductAd?.url && setExpandedMediaUrl(generatedProductAd.url)}
+                    className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl border bg-muted/20 ${
+                      productAdAspect === "9:16" ? "aspect-[9/16]" : productAdAspect === "16:9" ? "aspect-video" : "aspect-square"
+                    }`}
+                  >
+                    {generatedProductAd?.url ? (
+                      <>
+                        <img src={generatedProductAd.url} alt="Generated product ad" className="h-full w-full object-contain" />
+                        <span className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm">
+                          <ZoomIn className="h-4 w-4" />
+                        </span>
+                      </>
+                    ) : isGeneratingProductAd ? (
+                      <div className="w-full p-5">
+                        <AIGenerationLoader
+                          compact
+                          currentStep={productAdStatus || "Building product ad..."}
+                          subtitle="FlowAI is preserving references and composing the ad"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-3 p-6 text-center">
+                        <div className={`mx-auto h-24 w-24 rounded-[2rem] bg-gradient-to-br ${getProductAdTemplate(productAdTemplate).gradient} shadow-sm`} />
+                        <div>
+                          <p className="text-sm font-bold">{getProductAdTemplate(productAdTemplate).title}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            Your generated ad preview will appear here.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </button>
+
+                  {(productAdStatus && !isGeneratingProductAd) || generatedProductAd ? (
+                    <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      {productAdStatus || "Product ad ready."}
+                    </div>
+                  ) : null}
+                </div>
+
+                {generatedProductAd && (
+                  <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                      <WandSparkles className="h-4 w-4 text-brand-500" />
+                      Edit this design
+                    </div>
+                    <textarea
+                      value={productAdEditPrompt}
+                      onChange={(event) => setProductAdEditPrompt(event.target.value)}
+                      className="min-h-[92px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Example: make the product larger, change the background to a luxury studio, add more space for the CTA..."
+                      disabled={isGeneratingProductAd}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleGenerateProductAd(true)}
+                      disabled={isGeneratingProductAd || productAdEditPrompt.trim().length < 6}
+                      className="w-full"
+                    >
+                      {isGeneratingProductAd ? (
+                        <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      Apply edit in place
+                    </Button>
+                  </div>
                 )}
 
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => handleApplyAIResult("replace")}>
-                    <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-                    Replace caption
+                <div className="flex flex-col gap-2 rounded-2xl border bg-background/80 p-3">
+                  <Button
+                    type="button"
+                    onClick={() => handleGenerateProductAd(false)}
+                    disabled={isGeneratingProductAd}
+                    className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
+                  >
+                    {isGeneratingProductAd ? (
+                      <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Generate product ad
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleApplyAIResult("append")}>
-                    Append
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAddProductAdToPost}
+                    disabled={!generatedProductAd?.url || isGeneratingProductAd}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Add to post media
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setShowAIPilotModal(false)}>
+                    Close studio
                   </Button>
                 </div>
               </div>
-            )}
             </div>
+          </div>
         </FloatingPanel>
 
         {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}

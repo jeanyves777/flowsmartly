@@ -235,6 +235,7 @@ export async function POST(request: NextRequest) {
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
       referenceImageUrl,
+      referenceImageUrls,
       logoSizePercent,
       ctaText,
       editImageUrl,
@@ -320,6 +321,9 @@ export async function POST(request: NextRequest) {
       showBrandName, showSocialIcons, socialHandles,
       templateImageUrl,
       referenceImageUrl,
+      referenceImageUrls: Array.isArray(referenceImageUrls)
+        ? referenceImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4)
+        : [],
       logoSizePercent: logoSizePercent || null,
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
@@ -469,6 +473,7 @@ interface PipelineParams {
   socialHandles?: Record<string, string> | null;
   templateImageUrl?: string | null;
   referenceImageUrl?: string | null;
+  referenceImageUrls?: string[];
   logoSizePercent?: number | null;
   ctaText?: string | null;
   editImageUrl?: string | null;
@@ -525,6 +530,11 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     `Category: ${params.category}`,
     params.channels ? `Channels: ${params.channels}` : null,
     params.style ? `Style preference: ${params.style}` : null,
+    params.referenceImageUrls?.length
+      ? `Reference assets: ${params.referenceImageUrls.length + (params.referenceImageUrl ? 1 : 0)} uploaded images. Treat them as exact product/person/site sources, not loose inspiration.`
+      : params.referenceImageUrl
+        ? "Reference assets: 1 uploaded image. Treat it as the exact product/person/site source, not loose inspiration."
+        : null,
     "",
     "Brand identity:",
     JSON.stringify(Object.keys(brandIdentity as Record<string, unknown>).length > 0 ? brandIdentity : fallbackBrand, null, 2),
@@ -661,7 +671,11 @@ async function evaluateGeneratedImageQuality(
       channels: params.channels,
       editMode: Boolean(params.editImageUrl),
       editIntent: params.editIntent,
-      referenceCount: (params.editReferenceImageUrls?.length || 0) + (params.referenceImageUrl ? 1 : 0) + (params.templateImageUrl ? 1 : 0),
+      referenceCount:
+        (params.editReferenceImageUrls?.length || 0) +
+        (params.referenceImageUrls?.length || 0) +
+        (params.referenceImageUrl ? 1 : 0) +
+        (params.templateImageUrl ? 1 : 0),
     });
 
     const content: Array<Record<string, unknown>> = [
@@ -691,6 +705,7 @@ async function evaluateGeneratedImageQuality(
       params.editImageUrl,
       params.referenceImageUrl,
       params.templateImageUrl,
+      ...(params.referenceImageUrls || []),
       ...(params.editReferenceImageUrls || []),
     ].filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 6);
 
@@ -815,10 +830,17 @@ async function runRawBrandPipeline(params: PipelineParams) {
   console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
   let base64: string | null;
   let model: string;
+  const referenceUrls = [
+    params.referenceImageUrl,
+    ...(params.referenceImageUrls || []),
+  ]
+    .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, 4);
 
-  if (params.referenceImageUrl) {
-    const refBuffer = await resolveImageToBuffer(params.referenceImageUrl);
-    const edited = await editImagesXaiFirst(promptUsed, [refBuffer], params.width, params.height, {
+  if (referenceUrls.length > 0) {
+    const refBuffers = await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)));
+    const edited = await editImagesXaiFirst(promptUsed, refBuffers, params.width, params.height, {
       preferredProvider: params.provider,
       quality: "high",
       intent: "exact",
@@ -1586,7 +1608,7 @@ RULES:
     }
   };
 
-  const providerOrder: ImageProvider[] = uniqueProviderOrder("openai", provider, "xai", "gemini");
+  const providerOrder: ImageProvider[] = uniqueProviderOrder(provider, "xai", "gemini", "openai");
 
   let base64: string | null = null;
   let model = "";

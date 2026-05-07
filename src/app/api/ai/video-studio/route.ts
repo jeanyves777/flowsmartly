@@ -62,6 +62,12 @@ export async function POST(req: NextRequest) {
     } = body;
     const duration = normalizeRequestedVideoDuration(body.duration ?? body.durationSeconds ?? 15);
     const requestedProvider = normalizeRequestedVideoProvider(body.provider ?? "veo3");
+    if (requestedProvider === "slideshow") {
+      return new Response(
+        JSON.stringify({ error: "Slideshow video is experimental and is not enabled for production generation yet." }),
+        { status: 400 }
+      );
+    }
     const runtimeProvider = resolveRuntimeVideoProvider(requestedProvider, duration);
     const referenceImageUrls = normalizeReferenceImageUrls(body.referenceImageUrls, referenceImageUrl);
     const primaryReferenceImageUrl = referenceImageUrls[0] || null;
@@ -85,15 +91,9 @@ export async function POST(req: NextRequest) {
     if (requestedProvider === "grok" && duration > 15) {
       return new Response(JSON.stringify({ error: "xAI Grok video supports up to 15 seconds. Choose auto provider for 30-second FlowAI videos." }), { status: 400 });
     }
-    if (runtimeProvider === "slideshow" && !xaiClient.isAvailable()) {
-      return new Response(JSON.stringify({ error: "Slideshow requires XAI_API_KEY for image generation" }), { status: 503 });
-    }
-
-    // Credit cost: slideshow uses its own (cheaper) rate, Veo scales with extensions
+    // Credit cost: Veo scales with extensions. The slideshow compositor is
+    // experimental and is not used for production post generation.
     const creditCost = await (async () => {
-      if (runtimeProvider === "slideshow") {
-        return await getDynamicCreditCost("AI_VIDEO_SLIDESHOW" as const);
-      }
       const veoCost = await getDynamicCreditCost("AI_VIDEO_STUDIO" as const);
       const extensionCount = runtimeProvider === "veo3" && duration > 8 ? Math.ceil((duration - 8) / 7) : 0;
       return Math.round(veoCost * (1 + extensionCount));
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
           fs.mkdirSync(debugDir, { recursive: true });
           const debugId = nanoid(6);
 
-          if (runtimeProvider === "slideshow") {
+          if (false && runtimeProvider === "slideshow") {
             actualProvider = "slideshow";
             // ──────── SLIDESHOW (AI Images + Voiceover + Captions) ────────
             send({ type: "status", message: "Generating slideshow script..." });
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
             try {
               audioBuffer = await generateTTSAudio(fullNarration, voiceId);
             } catch (ttsErr) {
-              const msg = ttsErr instanceof Error ? ttsErr.message : String(ttsErr);
+              const msg = getErrorMessage(ttsErr);
               if (msg.includes("429") || msg.includes("quota")) {
                 throw new Error("OpenAI TTS quota exceeded. Please check your OpenAI billing at platform.openai.com to continue generating voiceover.");
               }
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
             actualProvider = "grok";
             send({ type: "status", message: `Generating ${duration}s video with xAI Grok...` });
             try {
-              const result = await grokVideoClient.generateVideo(enhancedPrompt, {
+              const result = await grokVideoClient.generateVideo(compactVideoProviderPrompt(enhancedPrompt), {
                 duration: Math.max(1, Math.min(15, Math.round(duration || 8))),
                 aspectRatio: normalizeVideoAspect(aspectRatio),
                 resolution: "720p",
@@ -514,6 +514,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function getVideoUsageModel(provider: string): string {
   switch (provider) {
     case "veo3":
@@ -587,6 +591,18 @@ function normalizeVideoAspect(aspectRatio: string): "16:9" | "9:16" | "1:1" {
   return aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9";
 }
 
+function compactVideoProviderPrompt(prompt: string, maxChars = 3600): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) return normalized;
+  const headLength = Math.floor(maxChars * 0.62);
+  const tailLength = Math.max(400, maxChars - headLength - 180);
+  return [
+    normalized.slice(0, headLength),
+    "Provider prompt compacted to fit video API limits. Preserve all identity locks, product/person/site references, duration, speech mode, and continuity rules.",
+    normalized.slice(-tailLength),
+  ].join(" ");
+}
+
 async function materializeReferenceImage(referenceImageUrl?: string | null): Promise<string | undefined> {
   if (!referenceImageUrl) return undefined;
   try {
@@ -636,7 +652,7 @@ async function generateFallbackVideoBuffer(opts: {
 
   if (!opts.skipGrok && opts.duration <= 15 && grokVideoClient.isAvailable()) {
     try {
-      const result = await grokVideoClient.generateVideo(opts.prompt, {
+      const result = await grokVideoClient.generateVideo(compactVideoProviderPrompt(opts.prompt), {
         duration: Math.max(1, Math.min(15, Math.round(opts.duration || 8))),
         aspectRatio: aspect,
         resolution: "720p",
@@ -655,26 +671,23 @@ async function generateFallbackVideoBuffer(opts: {
   }
 
   if (opts.duration <= 12 && soraClient.isAvailable()) {
-    let referenceImagePath: string | undefined;
-    try {
-      referenceImagePath = await materializeReferenceImage(opts.referenceImageUrl);
-      const result = await soraClient.generateVideoBuffer(opts.prompt, {
-        seconds: opts.duration <= 4 ? "4" : opts.duration <= 8 ? "8" : "12",
-        size: (aspect === "9:16" ? "720x1280" : "1280x720") as never,
-        referenceImagePath,
-      });
-      return {
-        videoBuffer: result.videoBuffer,
-        duration: result.duration || opts.duration || 8,
-        provider: "sora",
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(message);
-      console.warn("[VideoStudio] Sora video fallback failed:", error);
-    } finally {
-      if (referenceImagePath) {
-        try { fs.unlinkSync(referenceImagePath); } catch { /* ignore */ }
+    if (opts.referenceImageUrl) {
+      errors.push("Sora fallback skipped because this request uses a reference image and must preserve the exact product/person identity.");
+    } else {
+      try {
+        const result = await soraClient.generateVideoBuffer(compactVideoProviderPrompt(opts.prompt, 3000), {
+          seconds: opts.duration <= 4 ? "4" : opts.duration <= 8 ? "8" : "12",
+          size: (aspect === "9:16" ? "720x1280" : "1280x720") as never,
+        });
+        return {
+          videoBuffer: result.videoBuffer,
+          duration: result.duration || opts.duration || 8,
+          provider: "sora",
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(message);
+        console.warn("[VideoStudio] Sora video fallback failed:", error);
       }
     }
   }
@@ -707,7 +720,8 @@ async function generateFallbackVideoBuffer(opts: {
     opts.duration > 15
       ? `${opts.duration}-second video requires the long-video provider. xAI/Grok and Sora fallback are limited to shorter production clips.`
       : "No production video provider is configured for this request";
-  throw new Error(errors.at(-1) || capabilityMessage);
+  const lastError = errors.at(-1);
+  throw new Error(lastError ? `${capabilityMessage}. Last provider note: ${lastError.replace(/\{[\s\S]*\}/g, "").trim()}` : capabilityMessage);
 }
 
 /**
