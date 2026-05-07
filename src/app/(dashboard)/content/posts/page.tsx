@@ -232,6 +232,16 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
     },
     {
+      id: "product-spotlight-post",
+      title: "Product spotlight",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowAI image",
+      helper: "Product-first campaign visual with callouts, texture, and CTA space.",
+      thumbnail: "/templates/flow-media/product-spotlight-post.jpg",
+      prompt: `Create a product spotlight social image for ${brandName}. Make ${productFocus} the clear hero, add concise benefit callouts for ${audience}, use a ${voice} tone, reserve clean CTA space, and keep the visual grounded in the brand palette. No fake third-party logos.`,
+    },
+    {
       id: "brand-proof-post",
       title: "Proof post visual",
       mode: "image",
@@ -242,11 +252,43 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
     },
     {
+      id: "launch-collection-post",
+      title: "Launch collection",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowAI image",
+      helper: "Editorial launch announcement for a new offer, drop, or collection.",
+      thumbnail: "/templates/flow-media/launch-collection-post.jpg",
+      prompt: `Create a launch collection announcement image for ${brandName}. Stage ${productFocus} in a premium editorial layout, add a clear launch headline area, support ${value}, and make it ready for ${channels}. No fake third-party logos.`,
+    },
+    {
+      id: "seasonal-campaign-offer",
+      title: "Seasonal campaign",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowAI image",
+      helper: "Warm seasonal or limited-time offer visual with a clear promo zone.",
+      thumbnail: "/templates/flow-media/seasonal-campaign-offer.jpg",
+      prompt: `Create a seasonal campaign image for ${brandName}. Use ${productFocus} with a warm campaign scene, a clean offer or urgency area, short benefit callouts for ${audience}, and a strong CTA zone. Keep the design polished and brand-safe.`,
+    },
+    {
+      id: "community-story-post",
+      title: "Community story",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowAI image",
+      helper: "Human story visual for maker, customer, founder, or community moments.",
+      thumbnail: "/templates/flow-media/community-story-post.jpg",
+      prompt: `Create a community story image for ${brandName}. Show an authentic customer, maker, team, or brand moment tied to ${value}; leave space for a short story caption, use the brand palette, and make the image feel native to ${channels}.`,
+    },
+    {
       id: "brand-product-reel",
       title: "Promo video idea",
       mode: "video",
       aspect: "9:16",
       badge: "FlowAI video",
+      helper: "Short vertical reel for a product, offer, or service hook.",
+      thumbnail: "/templates/flow-media/video-promo-reel.jpg",
       prompt: `Short vertical promo video for ${brandName}. Show ${productFocus} solving a clear problem for ${audience}, with brand-colored transitions, tasteful product/service scenes, and a confident CTA moment. No text-heavy overlays or third-party logos.`,
     },
     {
@@ -255,7 +297,49 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "16:9",
       badge: "FlowAI video",
+      helper: "Wide story arc from customer problem to branded solution and CTA.",
+      thumbnail: "/templates/flow-media/video-brand-story.jpg",
       prompt: `Horizontal brand story video for ${brandName}: start with the customer problem, show the branded solution around ${productFocus}, then end with the outcome and CTA. Use ${voice} pacing, brand colors, and visuals suited for ${channels}.`,
+    },
+    {
+      id: "talking-product-review",
+      title: "Talking review",
+      mode: "video",
+      aspect: "9:16",
+      badge: "FlowAI video",
+      helper: "TikTok-style presenter review with the product visible in hand.",
+      thumbnail: "/templates/flow-media/video-talking-review.jpg",
+      prompt: `Create a vertical talking product review video for ${brandName}. Show a realistic presenter naturally holding or using ${productFocus}, speaking directly to ${audience}, highlighting ${value}, and ending with a confident CTA. Keep the product and presenter consistent throughout.`,
+    },
+    {
+      id: "website-walkthrough",
+      title: "Website walkthrough",
+      mode: "video",
+      aspect: "16:9",
+      badge: "FlowAI video",
+      helper: "Website or landing-page walkthrough with guided screen highlights.",
+      thumbnail: "/templates/flow-media/video-website-walkthrough.jpg",
+      prompt: `Create a website walkthrough video for ${brandName}. Show a website, landing page, or product page experience for ${productFocus}; guide viewers from problem to action, highlight key sections, and end with a clear CTA for ${audience}.`,
+    },
+    {
+      id: "voiceover-presentation",
+      title: "Voiceover presentation",
+      mode: "video",
+      aspect: "16:9",
+      badge: "FlowAI video",
+      helper: "Clean narrated presentation with slides, proof points, and CTA.",
+      thumbnail: "/templates/flow-media/video-voiceover-presentation.jpg",
+      prompt: `Create a voiceover-style presentation video for ${brandName}. Use clear visual slides, product/service scenes, proof points, and simple motion to explain ${value} for ${audience}. Keep the voiceover flow professional and the visuals brand-aligned.`,
+    },
+    {
+      id: "visual-product-showcase",
+      title: "Visual showcase",
+      mode: "video",
+      aspect: "9:16",
+      badge: "FlowAI video",
+      helper: "Visual-only product beauty shots with smooth premium transitions.",
+      thumbnail: "/templates/flow-media/video-visual-showcase.jpg",
+      prompt: `Create a visual-only product showcase video for ${brandName}. Use premium beauty shots of ${productFocus}, smooth transitions, consistent lighting, and a final CTA visual. No presenter and no voiceover unless the user asks for it.`,
     },
   ];
 };
@@ -338,48 +422,7 @@ const FLOW_MEDIA_ASPECTS: Array<{ id: FlowMediaAspect; label: string; imageSize:
   { id: "16:9", label: "Wide", imageSize: "1536x1024" },
 ];
 
-const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = [
-  {
-    id: "promo-card",
-    title: "Clean offer card",
-    mode: "image",
-    aspect: "1:1",
-    badge: "FlowAI image",
-    helper: "Campaign offer visual with product collage, benefit callouts, and CTA space.",
-    thumbnail: "/templates/flow-media/brand-offer-card.jpg",
-    prompt:
-      "Create a polished social media promotion image for a growth and marketing workspace. Modern SaaS style, bold headline space, clear CTA area, subtle social media UI elements, premium lighting, no fake app logos.",
-  },
-  {
-    id: "proof-carousel",
-    title: "Proof post visual",
-    mode: "image",
-    aspect: "1:1",
-    badge: "FlowAI image",
-    helper: "Social proof layout with review cards, result stats, and audience momentum.",
-    thumbnail: "/templates/flow-media/proof-post-visual.jpg",
-    prompt:
-      "Create a trust-building social post image showing campaign results, customer activity, and simple analytics in a clean branded dashboard collage. Friendly, modern, high contrast, ready for Facebook and LinkedIn.",
-  },
-  {
-    id: "quick-reel",
-    title: "Quick promo video",
-    mode: "video",
-    aspect: "9:16",
-    badge: "FlowAI video",
-    prompt:
-      "Short vertical promo video for a business growth platform. Show campaign cards, social posts, scheduling calendar, and analytics moving smoothly into place. Energetic but professional, clear motion, bright UI moments, no text overlays.",
-  },
-  {
-    id: "product-walkthrough",
-    title: "Feature walkthrough",
-    mode: "video",
-    aspect: "16:9",
-    badge: "FlowAI video",
-    prompt:
-      "Horizontal product walkthrough video showing a social media campaign moving from idea, to media, to scheduled post, to performance graph. Smooth camera push, clean interface-inspired visuals, polished SaaS marketing style.",
-  },
-];
+const FLOW_MEDIA_TEMPLATES: FlowMediaTemplate[] = buildFlowMediaTemplates(null, "selected social channels");
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
 
@@ -1825,6 +1868,8 @@ export default function ContentPostsPage() {
     () => buildTrendIdeasCacheKey(brandName, aiPlatformSelection),
     [aiPlatformSelection, brandName]
   );
+  const selectedProductAdTemplate = getProductAdTemplate(productAdTemplate);
+  const productAdPreviewUrl = generatedProductAd?.url || selectedProductAdTemplate.thumbnail;
   const aiPromptStarters = useMemo(
     () => [
       `Announce a timely offer from ${brandName} for ${brandKit?.targetAudience || "our audience"} and explain why they should act now.`,
@@ -2663,56 +2708,74 @@ export default function ContentPostsPage() {
                 <Lightbulb className="h-4 w-4 text-amber-500" />
                 {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                 {visibleFlowMediaTemplates.map((template) => {
                   const isActive = flowMediaPrompt === template.prompt && flowMediaMode === template.mode;
                   return (
-                    <button
+                    <div
                       key={template.id}
-                      type="button"
-                      onClick={() => applyFlowMediaTemplate(template)}
-                      className={`group overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      className={`group relative overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-sm ${
                         isActive
                           ? "border-brand-500 bg-brand-500/10"
                           : "bg-background hover:border-brand-500/40"
                       }`}
                     >
-                      {flowMediaMode === "image" && template.thumbnail ? (
-                        <div className="relative h-36 overflow-hidden bg-muted">
-                          <img
-                            src={template.thumbnail}
-                            alt={`${template.title} FlowAI template preview`}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                            loading="lazy"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-                          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-sm">
-                            {template.badge}
-                          </span>
-                          {isActive ? (
-                            <span className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
-                              <Check className="h-4 w-4" />
-                            </span>
-                          ) : null}
-                          <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-                            <p className="text-sm font-bold">{template.title}</p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/80">
-                              {template.helper || template.prompt}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3">
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-sm font-bold">{template.title}</span>
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => applyFlowMediaTemplate(template)}
+                        className="block w-full text-left"
+                      >
+                        {template.thumbnail ? (
+                          <div className="relative bg-muted/40 p-2">
+                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-background/80">
+                              <img
+                                src={template.thumbnail}
+                                alt={`${template.title} FlowAI template preview`}
+                                className="h-full w-full object-contain"
+                                loading="lazy"
+                              />
+                            </div>
+                            <span className="absolute left-4 top-4 rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-bold text-foreground shadow-sm">
                               {template.badge}
                             </span>
+                            {flowMediaMode === "video" ? (
+                              <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
+                                  <Play className="h-5 w-5 fill-white/40" />
+                                </span>
+                              </span>
+                            ) : null}
+                            {isActive ? (
+                              <span className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                <Check className="h-4 w-4" />
+                              </span>
+                            ) : null}
                           </div>
-                          <p className="line-clamp-2 text-xs text-muted-foreground">{template.helper || template.prompt}</p>
+                        ) : null}
+                        <div className="p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="line-clamp-1 text-sm font-bold">{template.title}</span>
+                            <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            {template.helper || template.prompt}
+                          </p>
                         </div>
-                      )}
-                    </button>
+                      </button>
+                      {template.thumbnail ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpandedMediaUrl(template.thumbnail || null);
+                          }}
+                          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                          aria-label={`Preview ${template.title}`}
+                        >
+                          <ZoomIn className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
@@ -3031,14 +3094,13 @@ export default function ContentPostsPage() {
                             isActive ? "border-brand-500 bg-brand-500/10 shadow-sm" : "bg-background hover:border-brand-500/40"
                           }`}
                         >
-                          <div className="relative h-28 overflow-hidden bg-muted">
+                          <div className="relative h-32 overflow-hidden bg-muted/40 p-2">
                             <img
                               src={template.thumbnail}
                               alt={`${template.title} product ad example`}
-                              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                              className="h-full w-full rounded-xl object-contain"
                               loading="lazy"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
                             <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-sm">
                               {template.badge}
                             </span>
@@ -3182,7 +3244,7 @@ export default function ContentPostsPage() {
 
                   <button
                     type="button"
-                    onClick={() => generatedProductAd?.url && setExpandedMediaUrl(generatedProductAd.url)}
+                    onClick={() => productAdPreviewUrl && setExpandedMediaUrl(productAdPreviewUrl)}
                     className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl border bg-muted/20 ${
                       productAdAspect === "9:16" ? "aspect-[9/16]" : productAdAspect === "16:9" ? "aspect-video" : "aspect-square"
                     }`}
@@ -3203,31 +3265,35 @@ export default function ContentPostsPage() {
                         />
                       </div>
                     ) : (
-                      <div className="relative h-full w-full overflow-hidden text-left">
+                      <div className="relative h-full w-full overflow-hidden bg-muted/40 p-3 text-left">
                         <img
-                          src={getProductAdTemplate(productAdTemplate).thumbnail}
-                          alt={`${getProductAdTemplate(productAdTemplate).title} example preview`}
-                          className="h-full w-full object-cover"
+                          src={selectedProductAdTemplate.thumbnail}
+                          alt={`${selectedProductAdTemplate.title} example preview`}
+                          className="h-full w-full rounded-xl object-contain"
                           loading="lazy"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
                         <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">
                           <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-900 shadow-sm">
                             Example thumbnail
                           </span>
                           <span className="rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">
-                            {getProductAdTemplate(productAdTemplate).aspect}
+                            {selectedProductAdTemplate.aspect}
                           </span>
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-                          <p className="text-sm font-bold">{getProductAdTemplate(productAdTemplate).title}</p>
-                          <p className="mt-1 max-w-[24rem] text-xs leading-relaxed text-white/80">
-                            Generate to replace this example with your brand, product references, and edit-ready media.
-                          </p>
-                        </div>
+                        <span className="absolute right-4 bottom-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-sm">
+                          <ZoomIn className="h-4 w-4" />
+                        </span>
                       </div>
                     )}
                   </button>
+                  {!generatedProductAd?.url && !isGeneratingProductAd ? (
+                    <div className="mt-3 rounded-xl border bg-muted/25 px-3 py-2">
+                      <p className="text-sm font-bold">{selectedProductAdTemplate.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Click the preview to inspect this full template before generating your branded version.
+                      </p>
+                    </div>
+                  ) : null}
 
                   {(productAdStatus && !isGeneratingProductAd) || generatedProductAd ? (
                     <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">

@@ -67,7 +67,7 @@ const SIZE_CLASSES = {
   small: "w-16 h-16",
   medium: "w-20 h-20",
   large: "w-28 h-28",
-  gallery: "h-40 w-full",
+  gallery: "h-48 w-full",
 } as const;
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ export function MediaUploader({
                           muted
                           playsInline
                           preload="metadata"
-                          className="h-full w-full object-cover"
+                          className={`h-full w-full ${isGallery ? "object-contain" : "object-cover"}`}
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
@@ -293,7 +293,7 @@ export function MediaUploader({
                       <img
                         src={url}
                         alt={`Media ${idx + 1}`}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full ${isGallery ? "object-contain" : "object-cover"}`}
                       />
                     )}
                     <span className="absolute right-1.5 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
