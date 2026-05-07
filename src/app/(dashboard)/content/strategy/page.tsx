@@ -15,9 +15,9 @@ import {
   Clock,
   Copy,
   FileText,
+  GripVertical,
   Link2,
   Mail,
-  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -32,6 +32,24 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +72,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
@@ -264,6 +282,12 @@ interface AutomationRunPreview {
   hasEnoughCredits: boolean;
   scheduledAt: string;
   result: string;
+}
+
+interface ReadinessRepairOptions {
+  convertToPost: boolean;
+  removeMediaRequirement: boolean;
+  keepDates: boolean;
 }
 
 const STATUS_COLUMNS: Array<{ id: TaskStatus; label: string; tone: string }> = [
@@ -606,6 +630,78 @@ function automationToDraft(automation: Automation): AutomationDraft {
   };
 }
 
+function SortableTaskCardShell({
+  task,
+  children,
+}: {
+  task: StrategyTask;
+  children: (dragHandle: ReactNode, isDragging: boolean) => ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+    data: { type: "task", task },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.45 : 1,
+  };
+
+  const dragHandle = (
+    <button
+      ref={setActivatorNodeRef}
+      type="button"
+      {...attributes}
+      {...listeners}
+      onClick={(event) => event.stopPropagation()}
+      className="mt-0.5 inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg border bg-background text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground active:cursor-grabbing"
+      aria-label={`Drag ${task.title}`}
+      title="Drag item"
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragHandle, isDragging)}
+    </div>
+  );
+}
+
+function DroppableTaskColumn({
+  status,
+  className,
+  children,
+}: {
+  status: TaskStatus;
+  className?: string;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+    data: { type: "column", status },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(className, isOver && "ring-2 ring-brand-500/30 ring-offset-2 ring-offset-background")}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function StrategyAutomationPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -644,7 +740,19 @@ export default function StrategyAutomationPage() {
   const [automationEstimate, setAutomationEstimate] = useState<AutomationCreditEstimate | null>(null);
   const [estimatingAutomation, setEstimatingAutomation] = useState(false);
   const [generatingStrategy, setGeneratingStrategy] = useState(false);
+  const [activeDragTask, setActiveDragTask] = useState<StrategyTask | null>(null);
+  const [reorderingTasks, setReorderingTasks] = useState(false);
+  const [readinessTargetTaskId, setReadinessTargetTaskId] = useState<string | null>(null);
+  const [preparingReadiness, setPreparingReadiness] = useState(false);
+  const [readinessOptions, setReadinessOptions] = useState<ReadinessRepairOptions>({
+    convertToPost: true,
+    removeMediaRequirement: true,
+    keepDates: true,
+  });
   const [newStrategyName, setNewStrategyName] = useState("90-day content operating plan");
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -762,6 +870,9 @@ export default function StrategyAutomationPage() {
   const selectedTask = selectedTaskId
     ? tasks.find((task) => task.id === selectedTaskId) || null
     : null;
+  const readinessTargetTask = readinessTargetTaskId
+    ? tasks.find((task) => task.id === readinessTargetTaskId) || null
+    : null;
   const stats = useMemo(() => {
     const completed = tasks.filter((task) => task.status === "DONE").length;
     const inProgress = tasks.filter((task) => task.status === "IN_PROGRESS").length;
@@ -844,6 +955,45 @@ export default function StrategyAutomationPage() {
       blockers,
     };
   }, [automationBuilder, getTaskReadiness, tasks]);
+  const getAutomationReadinessView = useCallback(
+    (task: StrategyTask) => {
+      const readiness = getTaskReadiness(task, automationBuilder);
+      if (task.status === "DONE") {
+        return {
+          label: "Completed",
+          icon: CheckCircle2,
+          className:
+            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          readiness,
+        };
+      }
+      if (task.automationId || task.automationStatus === "AUTOMATED") {
+        return {
+          label: "Automated",
+          icon: Zap,
+          className:
+            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          readiness,
+        };
+      }
+      if (readiness.qualified) {
+        return {
+          label: "Automation ready",
+          icon: CheckCircle2,
+          className:
+            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          readiness,
+        };
+      }
+      return {
+        label: "Needs readiness",
+        icon: Sparkles,
+        className: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        readiness,
+      };
+    },
+    [automationBuilder, getTaskReadiness]
+  );
 
   const activeBrandPlatforms = useMemo(() => {
     if (!brand?.handles) return [];
@@ -1323,6 +1473,187 @@ export default function StrategyAutomationPage() {
     }
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = String(event.active.id);
+    setActiveDragTask(tasks.find((task) => task.id === taskId) || null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragTask(null);
+    if (!strategy || !over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const activeTask = tasks.find((task) => task.id === activeId);
+    if (!activeTask) return;
+
+    const overTask = tasks.find((task) => task.id === overId);
+    const overColumn = STATUS_COLUMNS.find((column) => column.id === overId);
+    const targetStatus = overTask?.status || overColumn?.id || activeTask.status;
+
+    const columns = STATUS_COLUMNS.reduce((acc, column) => {
+      acc[column.id] = tasks
+        .filter((task) => task.status === column.id && task.id !== activeId)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      return acc;
+    }, {} as Record<TaskStatus, StrategyTask[]>);
+
+    if (overTask && targetStatus === activeTask.status) {
+      const sameColumn = tasks
+        .filter((task) => task.status === activeTask.status)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const oldIndex = sameColumn.findIndex((task) => task.id === activeId);
+      const newIndex = sameColumn.findIndex((task) => task.id === overTask.id);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      columns[targetStatus] = arrayMove(sameColumn, oldIndex, newIndex);
+    } else {
+      const targetList = columns[targetStatus];
+      const overIndex = overTask
+        ? targetList.findIndex((task) => task.id === overTask.id)
+        : targetList.length;
+      const insertAt = overIndex >= 0 ? overIndex : targetList.length;
+      targetList.splice(insertAt, 0, { ...activeTask, status: targetStatus });
+    }
+
+    let sortOrder = 0;
+    const nextTasks = STATUS_COLUMNS.flatMap((column) =>
+      columns[column.id].map((task) => ({
+        ...task,
+        status: column.id,
+        sortOrder: sortOrder++,
+        completedAt:
+          column.id === "DONE"
+            ? task.completedAt || new Date().toISOString()
+            : task.completedAt && task.id === activeTask.id
+            ? null
+            : task.completedAt,
+      }))
+    );
+
+    setStrategy((current) =>
+      current
+        ? {
+            ...current,
+            tasks: nextTasks,
+            completedTasks: nextTasks.filter((task) => task.status === "DONE").length,
+          }
+        : current
+    );
+    if (selectedTaskId === activeId) {
+      const movedTask = nextTasks.find((task) => task.id === activeId);
+      if (movedTask) setTaskDraft(taskToDraft(movedTask));
+    }
+
+    setReorderingTasks(true);
+    try {
+      const res = await fetch("/api/content/strategy/tasks/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategyId: strategy.id,
+          items: nextTasks.map((task) => ({
+            id: task.id,
+            status: task.status,
+            sortOrder: task.sortOrder,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "Board order was not saved");
+      }
+      if (json.data?.tasks) {
+        setStrategy((current) =>
+          current
+            ? {
+                ...current,
+                tasks: json.data.tasks,
+                completedTasks: json.data.completedTasks ?? current.completedTasks,
+              }
+            : current
+        );
+        if (selectedTaskId) {
+          const refreshedTask = json.data.tasks.find(
+            (task: StrategyTask) => task.id === selectedTaskId
+          );
+          if (refreshedTask) setTaskDraft(taskToDraft(refreshedTask));
+        }
+      }
+    } catch (err) {
+      await loadData();
+      toast({
+        title: "Board order was not saved",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setReorderingTasks(false);
+    }
+  };
+
+  const openReadinessDialog = (task: StrategyTask) => {
+    setReadinessTargetTaskId(task.id);
+    setReadinessOptions({
+      convertToPost: true,
+      removeMediaRequirement: true,
+      keepDates: true,
+    });
+  };
+
+  const makeTaskAutomationReady = async () => {
+    if (!readinessTargetTask) return;
+    setPreparingReadiness(true);
+    try {
+      const res = await fetch("/api/content/strategy/tasks/readiness", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: readinessTargetTask.id,
+          options: readinessOptions,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "AI readiness repair failed");
+      }
+
+      const updatedTask = json.data.task as StrategyTask;
+      setStrategy((current) =>
+        current
+          ? {
+              ...current,
+              tasks: current.tasks.map((task) =>
+                task.id === updatedTask.id ? updatedTask : task
+              ),
+            }
+          : current
+      );
+      setAutomationBuilder((draft) => ({
+        ...draft,
+        selectedTaskIds: draft.selectedTaskIds.includes(updatedTask.id)
+          ? draft.selectedTaskIds
+          : [...draft.selectedTaskIds, updatedTask.id],
+      }));
+      if (selectedTaskId === updatedTask.id) {
+        setTaskDraft(taskToDraft(updatedTask));
+      }
+      setReadinessTargetTaskId(null);
+      toast({
+        title: "Item is automation ready",
+        description: `${json.data.creditsUsed || 0} credit${json.data.creditsUsed === 1 ? "" : "s"} used. It is selected for AI automation.`,
+      });
+    } catch (err) {
+      toast({
+        title: "AI readiness failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setPreparingReadiness(false);
+    }
+  };
+
   const deleteTask = async () => {
     if (!taskDraft.id) return;
     setSaving(true);
@@ -1534,21 +1865,30 @@ export default function StrategyAutomationPage() {
     };
   }, [automationBuilder, automationBuilderOpen, strategy]);
 
-  const renderTaskCard = (task: StrategyTask) => {
+  const renderTaskCardContent = (
+    task: StrategyTask,
+    dragHandle?: ReactNode,
+    isOverlay = false
+  ) => {
     const category = normalizeTaskCategory(task.category);
     const categoryInfo = CATEGORY_CONFIG[category];
     const PriorityDot = PRIORITY_CONFIG[task.priority || "MEDIUM"];
-    const matches = parseMatches(task.matchedActivities);
+    const matches = parseMatches(task.matchedActivities).sort(
+      (a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime()
+    );
+    const latestMatch = matches[0];
     const isSelected = selectedTaskId === task.id;
     const Icon = categoryInfo.icon;
+    const readinessView = getAutomationReadinessView(task);
+    const ReadinessIcon = readinessView.icon;
 
     return (
       <div
-        key={task.id}
-        role="button"
-        tabIndex={0}
+        role={isOverlay ? undefined : "button"}
+        tabIndex={isOverlay ? undefined : 0}
         onClick={() => openTask(task)}
         onKeyDown={(event) => {
+          if (isOverlay) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             openTask(task);
@@ -1556,7 +1896,8 @@ export default function StrategyAutomationPage() {
         }}
         className={cn(
           "w-full rounded-xl border bg-background p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-          isSelected && "border-brand-500 ring-2 ring-brand-500/20"
+          isSelected && "border-brand-500 ring-2 ring-brand-500/20",
+          isOverlay && "w-[320px] cursor-grabbing shadow-xl"
         )}
       >
         <div className="flex items-start gap-3">
@@ -1568,7 +1909,9 @@ export default function StrategyAutomationPage() {
               <p className="line-clamp-2 text-sm font-semibold leading-snug">
                 {task.title}
               </p>
-              <MoreHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              {dragHandle || (
+                <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
             </div>
             {task.description && (
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -1593,6 +1936,10 @@ export default function StrategyAutomationPage() {
               Synced
             </span>
           )}
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1", readinessView.className)}>
+            <ReadinessIcon className="h-3 w-3" />
+            {readinessView.label}
+          </span>
         </div>
 
         <div className="mt-3 space-y-1">
@@ -1608,12 +1955,30 @@ export default function StrategyAutomationPage() {
           </div>
         </div>
 
+        {latestMatch && (
+          <Link
+            href={completedWorkHref(latestMatch)}
+            onClick={(event) => event.stopPropagation()}
+            className="mt-3 flex items-start gap-2 rounded-lg border bg-muted/30 p-2 text-xs transition hover:border-brand-500/40 hover:bg-muted"
+          >
+            <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">
+                Matched from {completedWorkLabel(latestMatch)}
+                {latestMatch.activityName ? `: ${latestMatch.activityName}` : ""}
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {latestMatch.matchReason || "Opened from strategy sync"} · {formatTimeAgo(latestMatch.matchedAt)}
+              </span>
+            </span>
+          </Link>
+        )}
+
         <div className="mt-3 flex gap-1.5">
           {STATUS_COLUMNS.filter((column) => column.id !== task.status).map((column) => (
-            <span
+            <button
               key={column.id}
-              role="button"
-              tabIndex={0}
+              type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 updateTaskStatus(task, column.id);
@@ -1628,53 +1993,93 @@ export default function StrategyAutomationPage() {
               className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
             >
               {column.label}
-            </span>
+            </button>
           ))}
         </div>
       </div>
     );
   };
 
+  const renderTaskCard = (task: StrategyTask) => (
+    <SortableTaskCardShell key={task.id} task={task}>
+      {(dragHandle) => renderTaskCardContent(task, dragHandle)}
+    </SortableTaskCardShell>
+  );
+
   const renderPlanView = () => (
-    <div className="grid gap-3 lg:grid-cols-3">
-      {STATUS_COLUMNS.map((column) => {
-        const columnTasks = tasks.filter((task) => task.status === column.id);
-        return (
-          <div
-            key={column.id}
-            className={cn("flex h-[min(900px,calc(100vh-250px))] min-h-[540px] flex-col rounded-2xl border p-3", column.tone)}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">{column.label}</span>
-                <Badge variant="secondary">{columnTasks.length}</Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => openNewTask(column.id)}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {columnTasks.length > 0 ? (
-                columnTasks.map(renderTaskCard)
-              ) : (
-                <button
-                  onClick={() => openNewTask(column.id)}
-                  className="flex h-28 w-full items-center justify-center rounded-xl border border-dashed bg-background/60 text-sm text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add item
-                </button>
-              )}
-            </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="relative">
+        {reorderingTasks && (
+          <div className="absolute right-3 top-3 z-20 flex items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+            <AISpinner className="h-3.5 w-3.5 text-brand-500" />
+            Saving board order
           </div>
-        );
-      })}
-    </div>
+        )}
+        <div className="grid gap-3 lg:grid-cols-3">
+          {STATUS_COLUMNS.map((column) => {
+            const columnTasks = tasks
+              .filter((task) => task.status === column.id)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
+            return (
+              <DroppableTaskColumn
+                key={column.id}
+                status={column.id}
+                className={cn("flex h-[min(960px,calc(100vh-220px))] min-h-[620px] flex-col rounded-2xl border p-3 transition", column.tone)}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">{column.label}</span>
+                    <Badge variant="secondary">{columnTasks.length}</Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => openNewTask(column.id)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <SortableContext
+                  items={columnTasks.map((task) => task.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                    {columnTasks.length > 0 ? (
+                      columnTasks.map(renderTaskCard)
+                    ) : (
+                      <button
+                        onClick={() => openNewTask(column.id)}
+                        className="flex h-36 w-full items-center justify-center rounded-xl border border-dashed bg-background/60 text-sm text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add item
+                      </button>
+                    )}
+                  </div>
+                </SortableContext>
+              </DroppableTaskColumn>
+            );
+          })}
+        </div>
+      </div>
+      <DragOverlay>
+        {activeDragTask
+          ? renderTaskCardContent(
+              activeDragTask,
+              <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-background text-brand-500">
+                <GripVertical className="h-4 w-4" />
+              </span>,
+              true
+            )
+          : null}
+      </DragOverlay>
+    </DndContext>
   );
 
   const renderAutomationView = () => (
@@ -1911,8 +2316,22 @@ export default function StrategyAutomationPage() {
 
   const renderInspector = () => {
     if (inspectorMode === "task") {
-      const completedMatches = selectedTask ? parseMatches(selectedTask.matchedActivities) : [];
+      const completedMatches = selectedTask
+        ? parseMatches(selectedTask.matchedActivities).sort(
+            (a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime()
+          )
+        : [];
       const isCompletedTask = selectedTask?.status === "DONE";
+      const selectedReadinessView = selectedTask ? getAutomationReadinessView(selectedTask) : null;
+      const SelectedReadinessIcon = selectedReadinessView?.icon || Sparkles;
+      const selectedReadiness = selectedReadinessView?.readiness || null;
+      const canRepairReadiness =
+        !!selectedTask &&
+        selectedTask.status !== "DONE" &&
+        !selectedTask.automationId &&
+        selectedTask.automationStatus !== "AUTOMATED" &&
+        !!selectedReadiness &&
+        !selectedReadiness.qualified;
 
       return (
         <InspectorShell
@@ -1975,6 +2394,121 @@ export default function StrategyAutomationPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {taskDraft.id && selectedTask && !isCompletedTask && completedMatches.length > 0 && (
+              <div className="rounded-xl border border-brand-500/25 bg-brand-500/5 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="rounded-lg bg-brand-500/10 p-2 text-brand-600">
+                    <Link2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">Matched activity source</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      This in-progress item is moving because Sync found related work. Open a match to review where it came from.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {completedMatches.map((match) => (
+                    <Link
+                      key={`${match.activityType}-${match.activityId}-${match.matchedAt}`}
+                      href={completedWorkHref(match)}
+                      className="group block rounded-lg border bg-background p-3 text-left transition hover:border-brand-500/50 hover:bg-muted/30"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:text-brand-300">
+                              {completedWorkLabel(match)}
+                            </span>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
+                              {match.confidence} match
+                            </span>
+                          </div>
+                          <p className="mt-2 line-clamp-2 text-sm font-medium">
+                            {match.activityName || completedWorkLabel(match)}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {match.matchReason}
+                          </p>
+                        </div>
+                        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-600 group-hover:text-brand-700">
+                          View
+                          <Link2 className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        Initiated by strategy sync {formatTimeAgo(match.matchedAt)}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {taskDraft.id && selectedTask && selectedReadinessView && selectedReadiness && (
+              <div
+                className={cn(
+                  "rounded-xl border p-3",
+                  selectedReadiness.qualified
+                    ? "border-emerald-500/25 bg-emerald-500/5"
+                    : "border-amber-500/25 bg-amber-500/5"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium", selectedReadinessView.className)}>
+                        <SelectedReadinessIcon className="h-3.5 w-3.5" />
+                        {selectedReadinessView.label}
+                      </span>
+                      <span className="text-xs capitalize text-muted-foreground">
+                        {selectedReadiness.type} automation
+                      </span>
+                    </div>
+                    {(selectedReadiness.blockers.length > 0 ||
+                      selectedReadiness.requirements.length > 0 ||
+                      selectedReadiness.warnings.length > 0) && (
+                      <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                        {selectedReadiness.blockers.slice(0, 3).map((blocker) => (
+                          <p key={blocker} className="flex gap-2">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                            {blocker}
+                          </p>
+                        ))}
+                        {selectedReadiness.requirements.slice(0, 2).map((requirement) => (
+                          <p key={requirement} className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />
+                            {requirement}
+                          </p>
+                        ))}
+                        {selectedReadiness.warnings.slice(0, 2).map((warning) => (
+                          <p key={warning} className="flex gap-2">
+                            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />
+                            {warning}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {canRepairReadiness && (
+                    <Button
+                      size="sm"
+                      onClick={() => openReadinessDialog(selectedTask)}
+                      disabled={preparingReadiness && readinessTargetTaskId === selectedTask.id}
+                      className="shrink-0 bg-brand-500 text-white hover:bg-brand-600"
+                    >
+                      {preparingReadiness && readinessTargetTaskId === selectedTask.id ? (
+                        <AISpinner className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Sparkles className="mr-2 h-4 w-4" />
+                      )}
+                      AI readiness
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2721,6 +3255,173 @@ export default function StrategyAutomationPage() {
     );
   };
 
+  const renderReadinessDialog = () => {
+    const task = readinessTargetTask;
+    const readiness = task ? getTaskReadiness(task, automationBuilder) : null;
+
+    return (
+      <Dialog
+        open={!!task}
+        onOpenChange={(open) => {
+          if (!open && !preparingReadiness) setReadinessTargetTaskId(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-brand-500" />
+              AI readiness for automation
+            </DialogTitle>
+            <DialogDescription>
+              FlowAI will repair this plan item so it can pass automation validation before a flow is created.
+            </DialogDescription>
+          </DialogHeader>
+
+          {preparingReadiness ? (
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <AIGenerationLoader
+                compact
+                currentStep="Preparing item for automation"
+                subtitle="FlowAI is rewriting the brief, channel type, and validation details."
+                className="min-h-[260px]"
+              />
+            </div>
+          ) : task && readiness ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-sm font-semibold">{task.title}</p>
+                {task.description && (
+                  <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+                    {task.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Current type</p>
+                  <p className="mt-1 text-sm font-semibold capitalize">{readiness.type}</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <p className={cn("mt-1 text-sm font-semibold", readiness.qualified ? "text-emerald-600" : "text-amber-600")}>
+                    {readiness.qualified ? "Ready" : "Needs setup"}
+                  </p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground">Selected channels</p>
+                  <p className="mt-1 truncate text-sm font-semibold">
+                    {automationBuilder.platforms.length ? automationBuilder.platforms.join(", ") : "None"}
+                  </p>
+                </div>
+              </div>
+
+              {(readiness.blockers.length > 0 ||
+                readiness.requirements.length > 0 ||
+                readiness.warnings.length > 0) && (
+                <div className="rounded-xl border p-3">
+                  <p className="text-sm font-semibold">What must be fixed</p>
+                  <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    {readiness.blockers.map((blocker) => (
+                      <p key={blocker} className="flex gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        {blocker}
+                      </p>
+                    ))}
+                    {readiness.requirements.map((requirement) => (
+                      <p key={requirement} className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                        {requirement}
+                      </p>
+                    ))}
+                    {readiness.warnings.map((warning) => (
+                      <p key={warning} className="flex gap-2">
+                        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3 rounded-xl border p-3">
+                <p className="text-sm font-semibold">FlowAI repair options</p>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-background p-3">
+                  <div>
+                    <p className="text-sm font-medium">Convert to automatable content</p>
+                    <p className="text-xs text-muted-foreground">
+                      Rewrite the item as a recurring post/email brief with audience, proof point, CTA, and destination.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={readinessOptions.convertToPost}
+                    onCheckedChange={(checked) =>
+                      setReadinessOptions((draft) => ({ ...draft, convertToPost: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-background p-3">
+                  <div>
+                    <p className="text-sm font-medium">Remove media blockers</p>
+                    <p className="text-xs text-muted-foreground">
+                      Avoid visual, video, SMS, or platform-specific blockers unless media is enabled.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={readinessOptions.removeMediaRequirement}
+                    onCheckedChange={(checked) =>
+                      setReadinessOptions((draft) => ({ ...draft, removeMediaRequirement: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-background p-3">
+                  <div>
+                    <p className="text-sm font-medium">Keep schedule and priority</p>
+                    <p className="text-xs text-muted-foreground">
+                      Preserve the current status, priority, start date, and due date.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={readinessOptions.keepDates}
+                    onCheckedChange={(checked) =>
+                      setReadinessOptions((draft) => ({ ...draft, keepDates: checked }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+              This item could not be loaded.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setReadinessTargetTaskId(null)}
+              disabled={preparingReadiness}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={makeTaskAutomationReady}
+              disabled={!task || preparingReadiness}
+              className="bg-brand-500 text-white hover:bg-brand-600"
+            >
+              {preparingReadiness ? (
+                <AISpinner className="mr-2 h-4 w-4" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              Make automation ready
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderAutomationConfigDialog = () => {
     const validationRows = readyToAutomate.map((task) => ({
       task,
@@ -3338,6 +4039,7 @@ export default function StrategyAutomationPage() {
       </div>
       </motion.div>
       {renderFloatingPanels()}
+      {renderReadinessDialog()}
       {renderAutomationConfigDialog()}
       {renderRunConfirmationDialog()}
     </>
