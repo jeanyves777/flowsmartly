@@ -1,5 +1,5 @@
-import OpenAI from "openai";
 import type { CardSpec, ChatState, ChatTurn, DispatchEnvelope, RunChatTurnOpts, RunChatTurnResult } from "./studio-chat-agent";
+import { geminiText } from "@/lib/ai/gemini-text-client";
 
 type StudioSize = {
   name: string;
@@ -226,47 +226,45 @@ function buildGenerationPrompt(state: ChatState, fallbackMessage: string, refere
     .join("\n\n");
 }
 
-async function runOpenAITextReply(opts: RunChatTurnOpts): Promise<Pick<RunChatTurnResult, "text" | "usage">> {
-  if (!process.env.OPENAI_API_KEY) {
+async function runFlowAITextReply(opts: RunChatTurnOpts): Promise<Pick<RunChatTurnResult, "text" | "usage">> {
+  const recentContext = opts.history
+    .slice(-12)
+    .map((turn) => `${turn.role === "user" ? "User" : "FlowAI"}: ${turn.content}`)
+    .join("\n\n");
+  const prompt = [
+    "Continue this Studio design conversation naturally.",
+    "Do not mention backend providers, model names, or implementation details.",
+    "If the user is just greeting you, respond warmly and ask what they want to create.",
+    "If they gave a design idea but not enough production details, ask focused clarifying questions before generation.",
+    "Brand identity JSON:",
+    JSON.stringify(compactBrandKit(opts.state.brandKit), null, 2),
+    recentContext ? `Recent conversation:\n${recentContext}` : null,
+    `Latest user message:\n${opts.userMessage}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  try {
+    const text = await geminiText.generate(prompt, {
+      maxTokens: 900,
+      temperature: 0.85,
+      systemPrompt:
+        "You are FlowAI inside FlowSmartly Studio: a practical, creative marketing design partner. Ask concise clarifying questions when needed, preserve conversation context, and keep responses useful without exposing providers or backend details.",
+    });
     return {
-      text: "Tell me what you want to create and I will generate it with your brand kit.",
-      usage: { inputTokens: 0, outputTokens: 0 },
+      text: text.trim() || "Tell me what you want to create and I will shape it with your brand kit.",
+      usage: {
+        inputTokens: geminiText.estimateTokens(prompt),
+        outputTokens: geminiText.estimateTokens(text),
+      },
+    };
+  } catch (error) {
+    console.warn("[StudioFreeChat] Gemini text reply failed:", error);
+    return {
+      text: "Tell me what you want to create and I will shape it with your brand kit.",
+      usage: { inputTokens: geminiText.estimateTokens(prompt), outputTokens: 0 },
     };
   }
-
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const messages = opts.history.slice(-12).map((turn) => ({
-    role: turn.role === "user" ? "user" as const : "assistant" as const,
-    content: turn.content,
-  }));
-  messages.push({ role: "user", content: opts.userMessage });
-
-  const response = await openai.chat.completions.create({
-    model: process.env.FLOWAI_STUDIO_CHAT_MODEL || "gpt-4o-mini",
-    temperature: 0.9,
-    max_tokens: 700,
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You are FlowAI inside FlowSmartly Studio.",
-          "Be natural, concise, and creative.",
-          "Use the user's brand identity as context, but do not force a scripted wizard.",
-          "Brand identity JSON:",
-          JSON.stringify(compactBrandKit(opts.state.brandKit), null, 2),
-        ].join("\n"),
-      },
-      ...messages,
-    ],
-  });
-
-  return {
-    text: response.choices[0]?.message?.content?.trim() || "Tell me what you want to create and I will generate it with your brand kit.",
-    usage: {
-      inputTokens: response.usage?.prompt_tokens || 0,
-      outputTokens: response.usage?.completion_tokens || 0,
-    },
-  };
 }
 
 export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatTurnResult> {
@@ -286,7 +284,7 @@ export async function runFreeStudioTurn(opts: RunChatTurnOpts): Promise<RunChatT
   }
 
   if (isCasualOnly(message)) {
-    const reply = await runOpenAITextReply(opts);
+    const reply = await runFlowAITextReply(opts);
     return {
       text: reply.text,
       cards: [],

@@ -457,7 +457,7 @@ async function dispatchDesignViaLegacy(
     size: `${width}x${height}`,
     style: style ?? "polished",
     ctaText: ctaText ?? null,
-    provider: "openai",
+    provider: referenceImageUrl ? "openai" : "xai",
     promptMode: "raw_brand",
     brandIdentity: chatBrand?.raw ?? null,
     channels: "Studio create chat",
