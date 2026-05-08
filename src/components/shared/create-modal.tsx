@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import {
   Select,
   SelectContent,
@@ -91,6 +92,10 @@ function subscribe(listener: () => void) {
  *            message when omitted.
  */
 export async function openCreateModal(tab?: "image" | "video") {
+  state = { open: true, defaultTab: tab || "image" };
+  emit();
+  return;
+
   // Optimistically navigate quickly — most users won't notice the
   // round-trip. If the chat creation fails, fall back to the legacy
   // modal so they're not stuck.
@@ -258,6 +263,8 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
   const [layoutGenerated, setLayoutGenerated] = useState(false);
+  const [improvePrompt, setImprovePrompt] = useState("");
+  const [isImprovingImage, setIsImprovingImage] = useState(false);
 
   // ── Video tab state ──
   const [videoProvider, setVideoProvider] = useState<VideoProvider>("veo3");
@@ -339,6 +346,12 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
     })();
   }, []);
 
+  const getSelectedBrandLogo = useCallback(() => {
+    if (logoType === "icon") return brandIdentity?.iconLogo || brandIdentity?.logo || null;
+    if (logoType === "full") return brandIdentity?.logo || brandIdentity?.iconLogo || null;
+    return brandIdentity?.logo || brandIdentity?.iconLogo || null;
+  }, [brandIdentity, logoType]);
+
   // ── Image: Generate Ideas ──
   const handleGenerateIdeas = useCallback(async () => {
     if (isGeneratingIdeas) return;
@@ -400,12 +413,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
         address: includeInDesign.address ? brandIdentity?.address : null,
       };
 
-      const brandLogo =
-        logoType === "icon"
-          ? brandIdentity?.iconLogo || brandIdentity?.logo
-          : logoType === "full"
-            ? brandIdentity?.logo || brandIdentity?.iconLogo
-            : brandIdentity?.logo || brandIdentity?.iconLogo;
+      const brandLogo = getSelectedBrandLogo();
 
       if (imageMode === "layout") {
         const res = await fetch("/api/ai/design-layout", {
@@ -478,6 +486,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
             ctaText: ctaText.trim() || null,
             templateImageUrl: styleReferenceUrls[0] || null,
             referenceImageUrl: exactImageUrls[0] || null,
+            referenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
             qualityCheckEnabled,
           }),
         });
@@ -504,7 +513,79 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
     } finally {
       setIsGeneratingImage(false);
     }
-  }, [imagePrompt, selectedSize, imageMode, selectedCategory, selectedStyle, selectedProvider, heroType, textMode, ctaText, brandIdentity, showBrandName, showSocialIcons, selectedSocialPlatforms, includeInDesign, logoType, logoSizePercent, generateHeroImage, generateBackground, exactImageUrls, styleReferenceUrls, qualityCheckEnabled, toast]);
+  }, [imagePrompt, selectedSize, imageMode, selectedCategory, selectedStyle, selectedProvider, heroType, textMode, ctaText, brandIdentity, showBrandName, showSocialIcons, selectedSocialPlatforms, includeInDesign, getSelectedBrandLogo, logoSizePercent, generateHeroImage, generateBackground, exactImageUrls, styleReferenceUrls, qualityCheckEnabled, toast]);
+
+  const handleImproveImage = useCallback(async () => {
+    if (!generatedImageUrl || !improvePrompt.trim() || !selectedSize) return;
+
+    setIsImprovingImage(true);
+    try {
+      const res = await fetch("/api/ai/visual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: improvePrompt.trim(),
+          category: selectedCategory,
+          size: `${selectedSize.width}x${selectedSize.height}`,
+          style: selectedStyle,
+          provider: selectedProvider,
+          promptMode: "edit",
+          editImageUrl: generatedImageUrl,
+          editIntent: "auto",
+          editReferenceMode: "exact",
+          editReferenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
+          brandColors: brandIdentity?.colors || null,
+          brandLogo: getSelectedBrandLogo(),
+          logoSizePercent,
+          brandName: showBrandName ? brandIdentity?.name : null,
+          showBrandName,
+          textMode,
+          ctaText: ctaText.trim() || null,
+          qualityCheckEnabled,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        if (handleCreditError(data.error || {}, "visual edit")) return;
+        throw new Error(data.error?.message || "Image edit failed");
+      }
+      const imageUrl = data.data?.design?.imageUrl;
+      if (!imageUrl) throw new Error("Edit completed but no media URL was returned");
+      setGeneratedImageUrl(imageUrl);
+      setGeneratedDesignId(data.data?.design?.id || null);
+      setImprovePrompt("");
+      if (data.data?.creditsRemaining !== undefined) {
+        setCreditsRemaining(data.data.creditsRemaining);
+        emitCreditsUpdate(data.data.creditsRemaining);
+      }
+      toast({ title: "Design improved", description: "The updated image is ready to use." });
+    } catch (e) {
+      toast({
+        title: "Image edit failed",
+        description: e instanceof Error ? e.message : "Try another edit prompt.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImprovingImage(false);
+    }
+  }, [
+    generatedImageUrl,
+    improvePrompt,
+    selectedSize,
+    selectedCategory,
+    selectedStyle,
+    selectedProvider,
+    exactImageUrls,
+    styleReferenceUrls,
+    brandIdentity,
+    getSelectedBrandLogo,
+    logoSizePercent,
+    showBrandName,
+    textMode,
+    ctaText,
+    qualityCheckEnabled,
+    toast,
+  ]);
 
   // ── Video: Generate ──
   const handleGenerateVideo = useCallback(async () => {
@@ -530,6 +611,10 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
           style: videoStyle,
           resolution: "720p",
           provider: videoProvider,
+          brandLogo: getSelectedBrandLogo(),
+          brandName: brandIdentity?.name || null,
+          referenceImageUrl: exactImageUrls[0] || styleReferenceUrls[0] || null,
+          referenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
         }),
       });
 
@@ -547,6 +632,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
         let finalData: { url?: string; duration?: number } | null = null;
+        let streamError: string | null = null;
 
         if (reader) {
           while (true) {
@@ -560,8 +646,11 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
               if (line.startsWith("data: ")) {
                 try {
                   const data = JSON.parse(line.slice(6));
+                  if (data.type === "status") setVideoGenStatus(data.message || data.status || "Generating video...");
                   if (data.status) setVideoGenStatus(data.status);
                   if (data.progress !== undefined) setVideoGenProgress(data.progress);
+                  if (data.type === "error") streamError = data.message || "Video generation failed";
+                  if (data.type === "media" && data.mediaUrl) finalData = { url: data.mediaUrl, duration: data.duration };
                   if (data.url) finalData = data;
                   if (data.creditsRemaining !== undefined) {
                     setCreditsRemaining(data.creditsRemaining);
@@ -573,6 +662,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
           }
         }
 
+        if (streamError) throw new Error(streamError);
         if (finalData?.url) {
           setGeneratedVideoUrl(finalData.url);
           toast({ title: "Video generated!" });
@@ -596,7 +686,7 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
       setVideoGenStatus("");
       setVideoGenProgress(undefined);
     }
-  }, [videoPrompt, videoCategory, videoAspectRatio, videoDuration, videoStyle, videoProvider, toast]);
+  }, [videoPrompt, videoCategory, videoAspectRatio, videoDuration, videoStyle, videoProvider, getSelectedBrandLogo, brandIdentity, exactImageUrls, styleReferenceUrls, toast]);
 
   // ── Download helpers ──
   const handleDownloadImage = useCallback(async () => {
@@ -637,13 +727,25 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const handleOpenInStudio = useCallback(() => {
     closeCreateModal();
     if (generatedDesignId) {
-      router.push(`/studio?designId=${generatedDesignId}`);
+      router.push(`/studio?id=${generatedDesignId}`);
+    } else if (generatedImageUrl) {
+      try {
+        sessionStorage.setItem("flowcreative-import-image", generatedImageUrl);
+      } catch { /* ignore */ }
+      router.push("/studio?import=flowcreative");
     } else if (layoutGenerated) {
       router.push("/studio?applyLayout=session");
     } else {
       router.push("/studio");
     }
-  }, [generatedDesignId, layoutGenerated, router]);
+  }, [generatedDesignId, generatedImageUrl, layoutGenerated, router]);
+
+  const handleAttachToPost = useCallback(() => {
+    const url = activeTab === "image" ? generatedImageUrl : generatedVideoUrl;
+    if (!url) return;
+    closeCreateModal();
+    router.push(`/content/posts?mediaUrl=${encodeURIComponent(url)}&mediaType=${activeTab}`);
+  }, [activeTab, generatedImageUrl, generatedVideoUrl, router]);
 
   const handleOpenInVideoEditor = useCallback(() => {
     closeCreateModal();
@@ -655,9 +757,9 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   }, [generatedVideoUrl, router]);
 
   const handleClose = useCallback(() => {
-    if (isGeneratingImage || isGeneratingVideo) return;
+    if (isGeneratingImage || isGeneratingVideo || isImprovingImage) return;
     closeCreateModal();
-  }, [isGeneratingImage, isGeneratingVideo]);
+  }, [isGeneratingImage, isGeneratingVideo, isImprovingImage]);
 
   // Escape key
   useEffect(() => {
@@ -668,8 +770,10 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleClose]);
 
-  const isGenerating = isGeneratingImage || isGeneratingVideo;
+  const isGenerating = isGeneratingImage || isGeneratingVideo || isImprovingImage;
   const currentCategory = DESIGN_CATEGORIES.find((c) => c.id === selectedCategory)!;
+  const generatedMediaUrl = activeTab === "image" ? generatedImageUrl : generatedVideoUrl;
+  const hasGeneratedResult = Boolean(generatedMediaUrl || layoutGenerated);
 
   const imageCreditCost = imageMode === "layout"
     ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
@@ -679,18 +783,21 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
   const videoCreditCost = videoProvider === "slideshow" ? 25 : Math.round(60 * (1 + videoExtCount));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Modal */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
-        className="relative z-10 w-[95vw] max-w-6xl max-h-[90vh] bg-background rounded-xl shadow-2xl border flex flex-col overflow-hidden"
-      >
+    <FloatingPanel
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleClose();
+      }}
+      title="FlowCreative"
+      description={`Create brand-safe image and video assets${brandIdentity?.name ? ` for ${brandIdentity.name}` : ""}.`}
+      icon={<Sparkles className="h-4 w-4" />}
+      defaultSize={{ width: 1180, height: 900 }}
+      defaultPosition={{ y: 82 }}
+      minSize={{ width: 760, height: 560 }}
+      contentClassName="p-0 overflow-hidden"
+      className="max-w-[calc(100vw-16px)]"
+    >
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {/* ═══ Header ═══ */}
         <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
           <div className="flex items-center gap-4">
@@ -752,7 +859,85 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
         <div className="flex-1 flex min-h-0">
           {/* ─── Left: Form ─── */}
           <div className="w-[420px] shrink-0 border-r overflow-y-auto p-5 space-y-4">
-            {activeTab === "image" ? (
+            {hasGeneratedResult && !isGenerating ? (
+              <>
+                <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 to-violet-500 text-white">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold">FlowCreative result ready</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {activeTab === "image"
+                          ? "Review the image, improve it with a quick prompt, send it to Studio, or attach it to a post."
+                          : "Review the video, then import it to a post. Video Studio import is intentionally paused for now."}
+                      </p>
+                      {brandIdentity?.logo || brandIdentity?.iconLogo ? (
+                        <p className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">
+                          Real brand logo included from brand kit
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {activeTab === "image" && generatedImageUrl ? (
+                  <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                    <Label className="text-xs font-semibold text-muted-foreground">Improve with FlowCreative chat</Label>
+                    <textarea
+                      value={improvePrompt}
+                      onChange={(event) => setImprovePrompt(event.target.value)}
+                      placeholder="Example: keep the product exact, replace the background with a premium studio scene, make the CTA cleaner..."
+                      className="min-h-[110px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleImproveImage}
+                      disabled={isImprovingImage || improvePrompt.trim().length < 6}
+                      className="w-full gap-2"
+                    >
+                      {isImprovingImage ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      Apply improvement
+                    </Button>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-2">
+                  {activeTab === "image" ? (
+                    <Button type="button" onClick={handleOpenInStudio} className="gap-2">
+                      <ExternalLink className="h-4 w-4" />
+                      Edit in Studio
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant={activeTab === "image" ? "outline" : "default"}
+                    onClick={handleAttachToPost}
+                    disabled={!generatedMediaUrl}
+                    className="gap-2"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    {activeTab === "video" ? "Import video to post" : "Attach to post"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (activeTab === "image") {
+                        setGeneratedImageUrl(null);
+                        setGeneratedDesignId(null);
+                        setLayoutGenerated(false);
+                      } else {
+                        setGeneratedVideoUrl(null);
+                      }
+                    }}
+                  >
+                    Change options and create another
+                  </Button>
+                </div>
+              </>
+            ) : activeTab === "image" ? (
               <>
                 {/* Mode Switcher */}
                 <div className="flex items-center gap-1 p-1 rounded-lg bg-muted">
@@ -1288,9 +1473,9 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
                       <Download className="h-3.5 w-3.5" />
                       Download
                     </Button>
-                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleOpenInVideoEditor}>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Open in Editor
+                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleAttachToPost}>
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      Import to post
                     </Button>
                     <Button variant="ghost" size="sm" className="text-xs" onClick={() => setGeneratedVideoUrl(null)}>
                       Generate Another
@@ -1311,29 +1496,46 @@ function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
               <span>Brand: <span className="font-medium text-foreground">{brandIdentity.name}</span></span>
             )}
           </div>
-          <Button
-            onClick={activeTab === "image" ? handleGenerateImage : handleGenerateVideo}
-            disabled={isGenerating || (activeTab === "image" ? !imagePrompt.trim() : !videoPrompt.trim())}
-            className="gap-2 px-6"
-          >
-            {isGenerating ? (
-              <AISpinner className="h-4 w-4 animate-spin" />
-            ) : (
+          {hasGeneratedResult && !isGenerating ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setGeneratedImageUrl(null);
+                setGeneratedDesignId(null);
+                setLayoutGenerated(false);
+                setGeneratedVideoUrl(null);
+              }}
+              className="gap-2 px-6"
+            >
               <Sparkles className="h-4 w-4" />
-            )}
-            {isGenerating
-              ? "Generating..."
-              : activeTab === "image"
-                ? imageMode === "layout" ? "Generate Layout" : "Generate Design"
-                : "Generate Video"
-            }
-            <Badge variant="secondary" className="text-[10px] ml-1">
-              {activeTab === "image" ? imageCreditCost : videoCreditCost} credits
-            </Badge>
-          </Button>
+              Start another FlowCreative asset
+            </Button>
+          ) : (
+            <Button
+              onClick={activeTab === "image" ? handleGenerateImage : handleGenerateVideo}
+              disabled={isGenerating || (activeTab === "image" ? !imagePrompt.trim() : !videoPrompt.trim())}
+              className="gap-2 px-6"
+            >
+              {isGenerating ? (
+                <AISpinner className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {isGenerating
+                ? "Generating..."
+                : activeTab === "image"
+                  ? imageMode === "layout" ? "Generate Layout" : "Generate Design"
+                  : "Generate Video"
+              }
+              <Badge variant="secondary" className="text-[10px] ml-1">
+                {activeTab === "image" ? imageCreditCost : videoCreditCost} credits
+              </Badge>
+            </Button>
+          )}
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </FloatingPanel>
   );
 }
 

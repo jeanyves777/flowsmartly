@@ -352,7 +352,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                 Create
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Create AI images & videos</TooltipContent>
+            <TooltipContent>Open FlowCreative</TooltipContent>
           </Tooltip>
 
           {/* Theme Toggle */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef, type ElementType } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -37,6 +37,7 @@ import {
   SlidersHorizontal,
   ZoomIn,
   Play,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -228,7 +229,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Brand offer card",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Campaign offer visual with product collage, benefit callouts, and CTA space.",
       thumbnail: "/templates/flow-media/brand-offer-card.jpg",
       prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
@@ -238,7 +239,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Product spotlight",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Product-first campaign visual with callouts, texture, and CTA space.",
       thumbnail: "/templates/flow-media/product-spotlight-post.jpg",
       prompt: `Create a product spotlight social image for ${brandName}. Make ${productFocus} the clear hero, add concise benefit callouts for ${audience}, use a ${voice} tone, reserve clean CTA space, and keep the visual grounded in the brand palette. No fake third-party logos.`,
@@ -248,7 +249,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Proof post visual",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Social proof layout with review cards, result stats, and audience momentum.",
       thumbnail: "/templates/flow-media/proof-post-visual.jpg",
       prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
@@ -258,7 +259,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Launch collection",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Editorial launch announcement for a new offer, drop, or collection.",
       thumbnail: "/templates/flow-media/launch-collection-post.jpg",
       prompt: `Create a launch collection announcement image for ${brandName}. Stage ${productFocus} in a premium editorial layout, add a clear launch headline area, support ${value}, and make it ready for ${channels}. No fake third-party logos.`,
@@ -268,7 +269,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Seasonal campaign",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Warm seasonal or limited-time offer visual with a clear promo zone.",
       thumbnail: "/templates/flow-media/seasonal-campaign-offer.jpg",
       prompt: `Create a seasonal campaign image for ${brandName}. Use ${productFocus} with a warm campaign scene, a clean offer or urgency area, short benefit callouts for ${audience}, and a strong CTA zone. Keep the design polished and brand-safe.`,
@@ -278,7 +279,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Community story",
       mode: "image",
       aspect: "1:1",
-      badge: "FlowAI image",
+      badge: "FlowCreative image",
       helper: "Human story visual for maker, customer, founder, or community moments.",
       thumbnail: "/templates/flow-media/community-story-post.jpg",
       prompt: `Create a community story image for ${brandName}. Show an authentic customer, maker, team, or brand moment tied to ${value}; leave space for a short story caption, use the brand palette, and make the image feel native to ${channels}.`,
@@ -289,7 +290,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "9:16",
       speechMode: "visual_only",
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "Short vertical reel for a product, offer, or service hook.",
       thumbnail: "/templates/flow-media/video-promo-reel.jpg",
       prompt: `Short vertical promo video for ${brandName}. Show ${productFocus} solving a clear problem for ${audience}, with brand-colored transitions, tasteful product/service scenes, and a confident CTA moment. No text-heavy overlays or third-party logos.`,
@@ -300,7 +301,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "16:9",
       speechMode: "voiceover_presentation",
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "Wide story arc from customer problem to branded solution and CTA.",
       thumbnail: "/templates/flow-media/video-brand-story.jpg",
       prompt: `Horizontal brand story video for ${brandName}: start with the customer problem, show the branded solution around ${productFocus}, then end with the outcome and CTA. Use ${voice} pacing, brand colors, and visuals suited for ${channels}.`,
@@ -312,7 +313,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       aspect: "9:16",
       speechMode: "talking_review",
       duration: 15,
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "TikTok-style presenter review with the product visible in hand.",
       thumbnail: "/templates/flow-media/video-talking-review.jpg",
       prompt: `Create a vertical TikTok-style talking review video for ${brandName}. If a presenter reference is uploaded, preserve that exact face and clothing identity. If a product reference is uploaded, preserve that exact product shape, color, material, hardware, and details. Show one presenter with normal anatomy and the product beside them, on a table, in a product insert, or held naturally without covering the face. Replace rough backgrounds with a clean lifestyle or creator-review setting. Add tasteful review overlays such as Honest review, star rating, comment bubble, or LIVE-style engagement cues, and end with a confident CTA for ${audience}.`,
@@ -323,7 +324,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "16:9",
       speechMode: "site_walkthrough",
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "Website or landing-page walkthrough with guided screen highlights.",
       thumbnail: "/templates/flow-media/video-website-walkthrough.jpg",
       prompt: `Create a website walkthrough video for ${brandName}. Show a website, landing page, or product page experience for ${productFocus}; guide viewers from problem to action, highlight key sections, and end with a clear CTA for ${audience}.`,
@@ -334,7 +335,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "16:9",
       speechMode: "voiceover_presentation",
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "Clean narrated presentation with slides, proof points, and CTA.",
       thumbnail: "/templates/flow-media/video-voiceover-presentation.jpg",
       prompt: `Create a voiceover-style presentation video for ${brandName}. Use clear visual slides, product/service scenes, proof points, and simple motion to explain ${value} for ${audience}. Keep the voiceover flow professional and the visuals brand-aligned.`,
@@ -345,7 +346,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       mode: "video",
       aspect: "9:16",
       speechMode: "visual_only",
-      badge: "FlowAI video",
+      badge: "FlowCreative video",
       helper: "Visual-only product beauty shots with smooth premium transitions.",
       thumbnail: "/templates/flow-media/video-visual-showcase.jpg",
       prompt: `Create a visual-only product showcase video for ${brandName}. Use premium beauty shots of ${productFocus}, smooth transitions, consistent lighting, and a final CTA visual. No presenter and no voiceover unless the user asks for it.`,
@@ -877,6 +878,7 @@ const toTimeInputValue = (date: Date) => {
 
 export default function ContentPostsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const { isConnected } = useSocialPlatforms();
   const searchParams = useSearchParams();
 
@@ -941,10 +943,13 @@ export default function ContentPostsPage() {
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
+  const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
+  const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
   const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const autoTrendIdeaKeysRef = useRef<Set<string>>(new Set());
+  const importedMediaUrlRef = useRef<string | null>(null);
 
   // ── Publish Results Modal State ───────────────────────────────────────
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -958,7 +963,16 @@ export default function ContentPostsPage() {
       setScheduleDate(dateFromCalendar);
       setShowSchedulePicker(true);
     }
-  }, [searchParams]);
+    const importedMediaUrl = searchParams.get("mediaUrl");
+    if (importedMediaUrl && importedMediaUrlRef.current !== importedMediaUrl) {
+      importedMediaUrlRef.current = importedMediaUrl;
+      setMediaUrls((prev) => (prev.includes(importedMediaUrl) ? prev : [...prev, importedMediaUrl]));
+      toast({
+        title: "FlowCreative media attached",
+        description: "The generated asset was added to this post.",
+      });
+    }
+  }, [searchParams, toast]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1390,6 +1404,78 @@ export default function ContentPostsPage() {
     setGeneratedFlowMedia({ type, url });
   };
 
+  const handleOpenFlowMediaInStudio = () => {
+    if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image") return;
+    try {
+      sessionStorage.setItem("flowcreative-import-image", generatedFlowMedia.url);
+    } catch {
+      // ignore storage failures and still open Studio
+    }
+    setShowFlowAIMediaModal(false);
+    router.push("/studio?import=flowcreative");
+  };
+
+  const handleImproveFlowMedia = async () => {
+    if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image" || flowMediaImprovePrompt.trim().length < 6) {
+      return;
+    }
+
+    const originalUrl = generatedFlowMedia.url;
+    const aspect = getFlowMediaAspect(flowMediaAspect);
+    setIsImprovingFlowMedia(true);
+    setFlowMediaStatus("Improving the FlowCreative image...");
+
+    try {
+      const dataBrand = buildRawBrandIdentity(brandKit);
+      const res = await fetch("/api/ai/visual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: flowMediaImprovePrompt.trim(),
+          category: "social_post",
+          size: aspect.imageSize,
+          style: flowMediaStyle,
+          provider: "xai",
+          promptMode: "edit",
+          brandIdentity: dataBrand,
+          brandColors: brandKit?.colors || null,
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
+          showBrandName: !!brandKit?.name,
+          editImageUrl: originalUrl,
+          editIntent: "auto",
+          editReferenceMode: "exact",
+          editReferenceImageUrls: flowMediaReferenceUrls,
+          referenceImageUrls: flowMediaReferenceUrls,
+          qualityCheckEnabled: flowMediaQualityCheckEnabled,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "Image improvement failed");
+
+      const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+      if (!imageUrl) throw new Error("Image improved but no media URL was returned");
+
+      setGeneratedFlowMedia({ type: "image", url: imageUrl });
+      setMediaUrls((prev) => {
+        const withoutOld = prev.filter((url) => url !== originalUrl);
+        return withoutOld.includes(imageUrl) ? withoutOld : [...withoutOld, imageUrl];
+      });
+      setFlowMediaImprovePrompt("");
+      setFlowMediaStatus("Improved image added to the post.");
+      toast({ title: "FlowCreative image improved", description: "The edited version replaced the previous media in this post." });
+    } catch (err) {
+      setFlowMediaStatus("");
+      toast({
+        title: "FlowCreative edit failed",
+        description: err instanceof Error ? err.message : "Please try another edit prompt.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImprovingFlowMedia(false);
+    }
+  };
+
   const applyProductAdTemplate = (template: ProductAdTemplate) => {
     setProductAdTemplate(template.id);
     setProductAdAspect(template.aspect);
@@ -1452,7 +1538,7 @@ export default function ContentPostsPage() {
     if (editMode && productAdEditPrompt.trim().length < 6) {
       toast({
         title: "Add an edit instruction",
-        description: "Tell FlowAI exactly what to change in the current design.",
+        description: "Tell FlowCreative exactly what to change in the current design.",
         variant: "destructive",
       });
       return;
@@ -1546,12 +1632,23 @@ export default function ContentPostsPage() {
     toast({ title: "Product ad added", description: "The generated design is now attached to this post." });
   };
 
+  const handleOpenProductAdInStudio = () => {
+    if (!generatedProductAd?.url) return;
+    try {
+      sessionStorage.setItem("flowcreative-import-image", generatedProductAd.url);
+    } catch {
+      // ignore storage failures and still open Studio
+    }
+    setShowAIPilotModal(false);
+    router.push("/studio?import=flowcreative");
+  };
+
   const handleGenerateFlowMedia = async () => {
     const prompt = flowMediaPrompt.trim();
     if (prompt.length < 12) {
       toast({
         title: "Add a stronger prompt",
-        description: "Tell FlowAI what to create and where it will be used.",
+        description: "Tell FlowCreative what to create and where it will be used.",
         variant: "destructive",
       });
       return;
@@ -1621,10 +1718,11 @@ export default function ContentPostsPage() {
       .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
+    setFlowMediaImprovePrompt("");
     setFlowMediaStatus(
       flowMediaMode === "image"
-        ? "Creating your FlowAI image..."
-        : `Creating your ${flowVideoDuration}s FlowAI video...`
+        ? "Creating your FlowCreative image..."
+        : `Creating your ${flowVideoDuration}s FlowCreative video...`
     );
 
     try {
@@ -1656,7 +1754,7 @@ export default function ContentPostsPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
-          throw new Error(data.error?.message || "You do not have access to generate FlowAI media");
+          throw new Error(data.error?.message || "You do not have access to generate FlowCreative media");
         }
         if (!res.ok || !data.success) throw new Error(data.error?.message || "Image generation failed");
 
@@ -1667,7 +1765,7 @@ export default function ContentPostsPage() {
         setFlowMediaStatus("Image added to the post.");
         toast({
           title: "Image generated",
-          description: "FlowAI created the asset and added it to your post.",
+          description: "FlowCreative created the asset and added it to your post.",
         });
         return;
       }
@@ -1685,6 +1783,8 @@ export default function ContentPostsPage() {
           provider: "auto",
           speechMode: flowVideoSpeechMode,
           voiceOver: flowVideoSpeechMode === "voiceover_presentation" ? "nova" : false,
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
           referenceImageUrl: primaryReferenceImageUrl,
           referenceImageUrls: flowMediaReferenceUrls,
         }),
@@ -1733,11 +1833,11 @@ export default function ContentPostsPage() {
       if (!videoUrl) throw new Error("Video generated but no media URL was returned");
       addGeneratedMediaToPost("video", videoUrl);
       setFlowMediaStatus("Video added to the post.");
-      toast({ title: "Video generated", description: "FlowAI added the video to your post media." });
+      toast({ title: "Video generated", description: "FlowCreative added the video to your post media." });
     } catch (err) {
       setFlowMediaStatus("");
       toast({
-        title: "FlowAI media failed",
+        title: "FlowCreative failed",
         description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
@@ -2192,7 +2292,7 @@ export default function ContentPostsPage() {
                   className="h-8 gap-1.5 border-cyan-500/30 bg-cyan-500/5 text-xs font-semibold text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
                 >
                   <ImagePlus className="h-3.5 w-3.5" />
-                  FlowAI media
+                  FlowCreative
                 </Button>
               </div>
               <MediaUploader
@@ -2677,8 +2777,8 @@ export default function ContentPostsPage() {
         <FloatingPanel
           open={showFlowAIMediaModal}
           onOpenChange={setShowFlowAIMediaModal}
-          title="FlowAI media"
-          description={`Generate media from ${brandName}'s brand identity.`}
+          title="FlowCreative"
+          description={`Generate images and videos from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
           defaultSize={{ width: 900, height: 860 }}
           defaultPosition={{ y: 118 }}
@@ -2690,9 +2790,9 @@ export default function ContentPostsPage() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Create media without leaving the post</p>
+                  <p className="text-sm font-bold">Create with FlowCreative without leaving the post</p>
                   <p className="text-sm text-muted-foreground">
-                    Pick a brand-aware template, tune the prompt, generate, and the asset is attached to this post.
+                    Pick a brand-aware template, tune the prompt, and generate with your real brand logo and references.
                   </p>
                 </div>
               </div>
@@ -2739,6 +2839,8 @@ export default function ContentPostsPage() {
               })}
             </div>
 
+            {(!generatedFlowMedia || isGeneratingFlowMedia) && (
+              <>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Lightbulb className="h-4 w-4 text-amber-500" />
@@ -2766,7 +2868,7 @@ export default function ContentPostsPage() {
                             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-background/80">
                               <img
                                 src={template.thumbnail}
-                                alt={`${template.title} FlowAI template preview`}
+                                alt={`${template.title} FlowCreative template preview`}
                                 className="h-full w-full object-contain"
                                 loading="lazy"
                               />
@@ -2823,7 +2925,7 @@ export default function ContentPostsPage() {
                 value={flowMediaPrompt}
                 onChange={(event) => setFlowMediaPrompt(event.target.value)}
                 className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="Describe the media you want FlowAI to create..."
+                placeholder="Describe the media you want FlowCreative to create..."
               />
             </div>
 
@@ -2836,7 +2938,7 @@ export default function ContentPostsPage() {
                       Video length
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Short clips can use xAI/Grok when available. Longer clips use FlowAI continuity planning and provider fallback.
+                      Short clips can use xAI/Grok when available. Longer clips use FlowCreative continuity planning and provider fallback.
                     </p>
                   </div>
                   <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
@@ -2919,7 +3021,7 @@ export default function ContentPostsPage() {
                 libraryTitle="Choose reference image"
               />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowAI combines them into one identity anchor so the face and item stay locked instead of being reinvented.
+                Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowCreative combines them into one identity anchor so the face and item stay locked instead of being reinvented.
               </p>
             </div>
 
@@ -2934,7 +3036,7 @@ export default function ContentPostsPage() {
                 <Switch
                   checked={flowMediaQualityCheckEnabled}
                   onCheckedChange={setFlowMediaQualityCheckEnabled}
-                  aria-label="Enable FlowAI media quality check"
+                  aria-label="Enable FlowCreative media quality check"
                 />
               </div>
             )}
@@ -2977,17 +3079,19 @@ export default function ContentPostsPage() {
                 </div>
               </div>
             </div>
+              </>
+            )}
 
-            {(isGeneratingFlowMedia || flowMediaStatus) && (
+            {(isGeneratingFlowMedia || isImprovingFlowMedia || flowMediaStatus) && (
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                {isGeneratingFlowMedia ? (
+                {isGeneratingFlowMedia || isImprovingFlowMedia ? (
                   <AIGenerationLoader
                     compact
                     currentStep={flowMediaStatus || "Generating media..."}
                     subtitle={
                       flowMediaMode === "image"
-                        ? "FlowAI is creating a polished campaign asset"
-                        : `FlowAI is producing a ${flowVideoDuration}s video with brand continuity checks`
+                        ? "FlowCreative is creating a polished campaign asset"
+                        : `FlowCreative is producing a ${flowVideoDuration}s video with brand continuity checks`
                     }
                   />
                 ) : (
@@ -3017,6 +3121,38 @@ export default function ContentPostsPage() {
                     <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-72 w-full object-contain" />
                   )}
                 </div>
+                {generatedFlowMedia.type === "image" ? (
+                  <div className="mt-3 space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground">Improve this image</Label>
+                    <textarea
+                      value={flowMediaImprovePrompt}
+                      onChange={(event) => setFlowMediaImprovePrompt(event.target.value)}
+                      className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
+                      disabled={isImprovingFlowMedia}
+                    />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleImproveFlowMedia}
+                        disabled={isImprovingFlowMedia || flowMediaImprovePrompt.trim().length < 6}
+                        className="gap-2"
+                      >
+                        {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        Apply edit
+                      </Button>
+                      <Button type="button" onClick={handleOpenFlowMediaInStudio} className="gap-2">
+                        <ExternalLink className="h-4 w-4" />
+                        Edit in Studio
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                    Video is attached to the post. Studio import is image-only for now, so keep refining video here and use it from the post media.
+                  </div>
+                )}
               </div>
             )}
 
@@ -3024,17 +3160,17 @@ export default function ContentPostsPage() {
               <Button
                 type="button"
                 onClick={handleGenerateFlowMedia}
-                disabled={isGeneratingFlowMedia}
+                disabled={isGeneratingFlowMedia || isImprovingFlowMedia}
                 className="bg-gradient-to-r from-cyan-500 to-violet-500 text-white hover:from-cyan-600 hover:to-violet-600"
               >
-                {isGeneratingFlowMedia ? (
+                {isGeneratingFlowMedia || isImprovingFlowMedia ? (
                   <AISpinner className="mr-2 h-4 w-4 animate-spin" />
                 ) : flowMediaMode === "image" ? (
                   <ImagePlus className="mr-2 h-4 w-4" />
                 ) : (
                   <Video className="mr-2 h-4 w-4" />
                 )}
-                Generate {flowMediaMode === "video" ? `${flowVideoDuration}s video` : "image"}
+                {generatedFlowMedia ? "Create another" : `Generate ${flowMediaMode === "video" ? `${flowVideoDuration}s video` : "image"}`}
               </Button>
               <Button type="button" variant="outline" onClick={() => setShowFlowAIMediaModal(false)}>
                 Close
@@ -3390,6 +3526,15 @@ export default function ContentPostsPage() {
                   >
                     <ArrowRight className="mr-2 h-4 w-4" />
                     Add to post media
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleOpenProductAdInStudio}
+                    disabled={!generatedProductAd?.url || isGeneratingProductAd}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Edit in Studio
                   </Button>
                   <Button type="button" variant="ghost" onClick={() => setShowAIPilotModal(false)}>
                     Close studio

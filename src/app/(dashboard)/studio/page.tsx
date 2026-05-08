@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useCanvasStore } from "@/components/studio/hooks/use-canvas-store";
 import { safeLoadFromJSON, addImageToCanvas } from "@/components/studio/utils/canvas-helpers";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { CreateModal } from "@/components/shared/create-modal";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 
@@ -31,6 +32,7 @@ function StudioPageInner() {
   const designId = searchParams.get("id");
   const preset = searchParams.get("preset");
   const shareParam = searchParams.get("share");
+  const importMode = searchParams.get("import");
 
   const setDesignId = useCanvasStore((s) => s.setDesignId);
   const setCanvasDimensions = useCanvasStore((s) => s.setCanvasDimensions);
@@ -110,6 +112,49 @@ function StudioPageInner() {
       store.setCanvasDimensions(1080, 1080);
     }
   }, [designId, canvas, preset]);
+
+  const didImportRef = useRef(false);
+  useEffect(() => {
+    if (!canvas || designId || importMode !== "flowcreative" || didImportRef.current) return;
+    didImportRef.current = true;
+
+    (async () => {
+      try {
+        const imageUrl = sessionStorage.getItem("flowcreative-import-image");
+        if (!imageUrl) return;
+        sessionStorage.removeItem("flowcreative-import-image");
+
+        const fabric = await import("fabric");
+        await addImageToCanvas(canvas, imageUrl, fabric, { left: 0, top: 0, selectable: true });
+        const img = canvas.getObjects()[canvas.getObjects().length - 1];
+        if (img) {
+          const scaleX = canvas.width / (img.width || canvas.width);
+          const scaleY = canvas.height / (img.height || canvas.height);
+          const scale = Math.min(scaleX, scaleY);
+          img.set({
+            scaleX: scale,
+            scaleY: scale,
+            left: (canvas.width - (img.width || 0) * scale) / 2,
+            top: (canvas.height - (img.height || 0) * scale) / 2,
+          });
+          img.setCoords();
+        }
+        canvas.renderAll();
+        const store = useCanvasStore.getState();
+        store.setDesignName("FlowCreative Design");
+        store.refreshLayers();
+        store.setDirty(true);
+        toast({ title: "FlowCreative image loaded", description: "You can now edit it in Studio." });
+      } catch (err) {
+        console.error("[studio] FlowCreative import failed:", err);
+        toast({
+          title: "Couldn't import FlowCreative image",
+          description: "Open the generated design from FlowCreative again.",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [canvas, designId, importMode, toast]);
 
   // Clear the reset key when loading an existing design so next "new" triggers reset
   useEffect(() => {
@@ -456,7 +501,12 @@ function StudioPageInner() {
     };
   }, [triggerAutoSave]);
 
-  return <StudioLayout />;
+  return (
+    <>
+      <StudioLayout />
+      <CreateModal />
+    </>
+  );
 }
 
 export default function StudioPage() {

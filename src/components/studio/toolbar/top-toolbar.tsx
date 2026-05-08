@@ -21,6 +21,7 @@ import {
   Keyboard,
   Magnet,
   Home,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ import { ShortcutsDialog } from "../shortcuts-dialog";
 import { SaveStatus } from "./save-status";
 import { PresenceAvatars } from "./presence-avatars";
 import type { CollabUser } from "../hooks/use-collaboration";
+import { openCreateModal } from "@/components/shared/create-modal";
 
 interface TopToolbarProps {
   activeUsers?: CollabUser[];
@@ -365,6 +367,16 @@ export function TopToolbar({ activeUsers = [], isCollabConnected = false }: TopT
 
       {/* Right: Export + Share */}
       <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => openCreateModal()}
+          title="Open FlowCreative"
+        >
+          <Sparkles className="h-4 w-4" />
+          Create
+        </Button>
         <SmartGuidesToggle />
         <Button
           variant="ghost"
