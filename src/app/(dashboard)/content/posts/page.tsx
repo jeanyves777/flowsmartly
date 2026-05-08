@@ -38,6 +38,7 @@ import {
   ZoomIn,
   Play,
   ExternalLink,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -948,6 +949,7 @@ export default function ContentPostsPage() {
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
   const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
+  const [isPreparingFlowMediaPost, setIsPreparingFlowMediaPost] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const autoTrendIdeaKeysRef = useRef<Set<string>>(new Set());
   const importedMediaUrlRef = useRef<string | null>(null);
@@ -964,16 +966,57 @@ export default function ContentPostsPage() {
       setScheduleDate(dateFromCalendar);
       setShowSchedulePicker(true);
     }
+    const flowCreativeDraftKey = searchParams.get("flowCreativeDraft");
+    if (flowCreativeDraftKey && importedMediaUrlRef.current !== flowCreativeDraftKey) {
+      importedMediaUrlRef.current = flowCreativeDraftKey;
+      try {
+        const stored = window.sessionStorage.getItem(`flowcreative-post-draft:${flowCreativeDraftKey}`);
+        const draft = stored ? JSON.parse(stored) as {
+          mediaUrl?: string;
+          mediaType?: FlowMediaMode;
+          caption?: string;
+          hashtags?: string[];
+          seoKeywords?: string[];
+        } : null;
+        if (draft?.mediaUrl) {
+          setMediaUrls((prev) => (prev.includes(draft.mediaUrl!) ? prev : [...prev, draft.mediaUrl!]));
+        }
+        if (draft?.caption) setCaption(draft.caption.slice(0, MAX_CHARS));
+        if (Array.isArray(draft?.hashtags)) setAiHashtags(draft.hashtags.slice(0, 20));
+        if (Array.isArray(draft?.seoKeywords)) setAiSeoKeywords(draft.seoKeywords.slice(0, 15));
+        window.sessionStorage.removeItem(`flowcreative-post-draft:${flowCreativeDraftKey}`);
+        router.replace("/content/posts");
+        toast({
+          title: "FlowCreative post ready",
+          description: "The media, caption, hashtags, and SEO keys are loaded.",
+        });
+      } catch {
+        toast({
+          title: "Could not load FlowCreative draft",
+          description: "Please attach the generated media again.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     const importedMediaUrl = searchParams.get("mediaUrl");
-    if (importedMediaUrl && importedMediaUrlRef.current !== importedMediaUrl) {
-      importedMediaUrlRef.current = importedMediaUrl;
-      setMediaUrls((prev) => (prev.includes(importedMediaUrl) ? prev : [...prev, importedMediaUrl]));
+    const importedCaption = searchParams.get("caption");
+    const importedKey = [importedMediaUrl || "", importedCaption || ""].join("|");
+    if ((importedMediaUrl || importedCaption) && importedMediaUrlRef.current !== importedKey) {
+      importedMediaUrlRef.current = importedKey;
+      if (importedMediaUrl) {
+        setMediaUrls((prev) => (prev.includes(importedMediaUrl) ? prev : [...prev, importedMediaUrl]));
+      }
+      if (importedCaption) setCaption(importedCaption.slice(0, MAX_CHARS));
       toast({
-        title: "FlowCreative media attached",
-        description: "The generated asset was added to this post.",
+        title: importedCaption ? "FlowCreative post ready" : "FlowCreative media attached",
+        description: importedCaption
+          ? "The generated media and caption were added to this post."
+          : "The generated asset was added to this post.",
       });
     }
-  }, [searchParams, toast]);
+  }, [router, searchParams, toast]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1400,8 +1443,7 @@ export default function ContentPostsPage() {
     setFlowMediaStatus("");
   };
 
-  const addGeneratedMediaToPost = (type: FlowMediaMode, url: string) => {
-    setMediaUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  const setGeneratedFlowMediaResult = (type: FlowMediaMode, url: string) => {
     setGeneratedFlowMedia({ type, url });
   };
 
@@ -1414,6 +1456,75 @@ export default function ContentPostsPage() {
     }
     setShowFlowAIMediaModal(false);
     router.push("/studio?import=flowcreative");
+  };
+
+  const handleDownloadFlowMedia = async () => {
+    if (!generatedFlowMedia?.url) return;
+    try {
+      const response = await fetch(generatedFlowMedia.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = generatedFlowMedia.type === "video" ? "flowcreative-video.mp4" : "flowcreative-image.png";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", variant: "destructive" });
+    }
+  };
+
+  const handleAttachFlowMediaToPost = async () => {
+    if (!generatedFlowMedia?.url) return;
+
+    setIsPreparingFlowMediaPost(true);
+    setFlowMediaStatus("Please wait, generating your post...");
+
+    try {
+      const res = await fetch("/api/content/posts/prepare-from-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaUrl: generatedFlowMedia.url,
+          mediaType: generatedFlowMedia.type,
+          platforms: aiPlatformSelection,
+          prompt: flowMediaPrompt.trim(),
+          brandBrief,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "FlowCreative could not prepare the post.");
+      }
+
+      const prepared = data.data || {};
+      const preparedCaption = typeof prepared.caption === "string" ? prepared.caption.trim() : "";
+      const hashtags = Array.isArray(prepared.hashtags) ? prepared.hashtags.filter((item: unknown): item is string => typeof item === "string") : [];
+      const seoKeywords = Array.isArray(prepared.seoKeywords) ? prepared.seoKeywords.filter((item: unknown): item is string => typeof item === "string") : [];
+
+      setMediaUrls((prev) => (prev.includes(generatedFlowMedia.url) ? prev : [...prev, generatedFlowMedia.url]));
+      if (preparedCaption) setCaption(preparedCaption.slice(0, MAX_CHARS));
+      setAiHashtags(hashtags.slice(0, 20));
+      setAiSeoKeywords(seoKeywords.slice(0, 15));
+      setFlowMediaStatus("Post ready.");
+      setShowFlowAIMediaModal(false);
+      router.replace("/content/posts");
+      toast({
+        title: "FlowCreative post ready",
+        description: "The image, caption, hashtags, and SEO keys are loaded.",
+      });
+    } catch (err) {
+      setFlowMediaStatus(generatedFlowMedia.type === "video" ? "Video ready." : "Image ready.");
+      toast({
+        title: "Attach failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreparingFlowMediaPost(false);
+    }
   };
 
   const handleImproveFlowMedia = async () => {
@@ -1458,13 +1569,9 @@ export default function ContentPostsPage() {
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
 
       setGeneratedFlowMedia({ type: "image", url: imageUrl });
-      setMediaUrls((prev) => {
-        const withoutOld = prev.filter((url) => url !== originalUrl);
-        return withoutOld.includes(imageUrl) ? withoutOld : [...withoutOld, imageUrl];
-      });
       setFlowMediaImprovePrompt("");
-      setFlowMediaStatus("Improved image added to the post.");
-      toast({ title: "FlowCreative image improved", description: "The edited version replaced the previous media in this post." });
+      setFlowMediaStatus("Improved image ready.");
+      toast({ title: "FlowCreative image improved", description: "Review the edited version, then attach it to the post." });
     } catch (err) {
       setFlowMediaStatus("");
       toast({
@@ -1773,11 +1880,11 @@ export default function ContentPostsPage() {
         const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
         if (!imageUrl) throw new Error("Image generated but no media URL was returned");
 
-        addGeneratedMediaToPost("image", imageUrl);
-        setFlowMediaStatus("Image added to the post.");
+        setGeneratedFlowMediaResult("image", imageUrl);
+        setFlowMediaStatus("Image ready.");
         toast({
           title: "Image generated",
-          description: "FlowCreative created the asset and added it to your post.",
+          description: "Review it, then attach it when you are ready.",
         });
         return;
       }
@@ -1843,9 +1950,9 @@ export default function ContentPostsPage() {
       }
 
       if (!videoUrl) throw new Error("Video generated but no media URL was returned");
-      addGeneratedMediaToPost("video", videoUrl);
-      setFlowMediaStatus("Video added to the post.");
-      toast({ title: "Video generated", description: "FlowCreative added the video to your post media." });
+      setGeneratedFlowMediaResult("video", videoUrl);
+      setFlowMediaStatus("Video ready.");
+      toast({ title: "Video generated", description: "Review it, then import it when you are ready." });
     } catch (err) {
       setFlowMediaStatus("");
       toast({
@@ -3099,14 +3206,16 @@ export default function ContentPostsPage() {
               </>
             )}
 
-            {(isGeneratingFlowMedia || isImprovingFlowMedia || flowMediaStatus) && (
+            {(isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingFlowMediaPost || flowMediaStatus) && (
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                {isGeneratingFlowMedia || isImprovingFlowMedia ? (
+                {isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingFlowMediaPost ? (
                   <AIGenerationLoader
                     compact
                     currentStep={flowMediaStatus || "Generating media..."}
                     subtitle={
-                      flowMediaMode === "image"
+                      isPreparingFlowMediaPost
+                        ? "FlowCreative is analyzing the image and writing your caption, hashtags, and SEO keys"
+                        : flowMediaMode === "image"
                         ? "FlowCreative is creating a polished campaign asset"
                         : `FlowCreative is producing a ${flowVideoDuration}s video with brand continuity checks`
                     }
@@ -3118,26 +3227,53 @@ export default function ContentPostsPage() {
             )}
 
             {generatedFlowMedia && (
-              <div className="rounded-2xl border bg-muted/25 p-3">
+              <div className="rounded-2xl border bg-muted/25 p-4">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-bold">Attached media</p>
+                  <div>
+                    <p className="text-sm font-bold">FlowCreative result</p>
+                    <p className="text-xs text-muted-foreground">
+                      Click the visual to inspect it, then attach it to generate the post copy.
+                    </p>
+                  </div>
                   <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                    Added to post
+                    Ready
                   </span>
                 </div>
-                <div className="overflow-hidden rounded-xl border bg-background">
+                <div className="overflow-hidden rounded-2xl border bg-background">
                   {generatedFlowMedia.type === "video" ? (
                     <video
                       src={generatedFlowMedia.url}
                       controls
                       muted
                       playsInline
-                      className="aspect-video w-full bg-black object-contain"
+                      className="max-h-[560px] min-h-[320px] w-full bg-black object-contain"
                     />
                   ) : (
-                    <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-72 w-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMediaUrl(generatedFlowMedia.url)}
+                      className="group relative flex min-h-[360px] w-full cursor-zoom-in items-center justify-center bg-muted/10"
+                    >
+                      <img
+                        src={generatedFlowMedia.url}
+                        alt="Generated media"
+                        className="max-h-[620px] w-full object-contain"
+                      />
+                      <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
+                        <ZoomIn className="h-4 w-4" />
+                      </span>
+                    </button>
                   )}
                 </div>
+                {isPreparingFlowMediaPost ? (
+                  <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                    <AIGenerationLoader
+                      compact
+                      currentStep="Please wait, generating your post..."
+                      subtitle="FlowCreative is analyzing the image and preparing a caption, hashtags, and SEO keys."
+                    />
+                  </div>
+                ) : null}
                 {generatedFlowMedia.type === "image" ? (
                   <div className="mt-3 space-y-2">
                     <Label className="text-xs font-semibold text-muted-foreground">Improve this image</Label>
@@ -3146,20 +3282,20 @@ export default function ContentPostsPage() {
                       onChange={(event) => setFlowMediaImprovePrompt(event.target.value)}
                       className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
-                      disabled={isImprovingFlowMedia}
+                      disabled={isImprovingFlowMedia || isPreparingFlowMediaPost}
                     />
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={handleImproveFlowMedia}
-                        disabled={isImprovingFlowMedia || flowMediaImprovePrompt.trim().length < 6}
+                        disabled={isImprovingFlowMedia || isPreparingFlowMediaPost || flowMediaImprovePrompt.trim().length < 6}
                         className="gap-2"
                       >
                         {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                         Apply edit
                       </Button>
-                      <Button type="button" onClick={handleOpenFlowMediaInStudio} className="gap-2">
+                      <Button type="button" onClick={handleOpenFlowMediaInStudio} disabled={isPreparingFlowMediaPost} className="gap-2">
                         <ExternalLink className="h-4 w-4" />
                         Edit in Studio
                       </Button>
@@ -3167,9 +3303,23 @@ export default function ContentPostsPage() {
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                    Video is attached to the post. Studio import is image-only for now, so keep refining video here and use it from the post media.
+                    Video is ready. Studio import is image-only for now, so attach the video to the post when you are ready.
                   </div>
                 )}
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+                  <Button type="button" onClick={handleAttachFlowMediaToPost} disabled={isPreparingFlowMediaPost || isImprovingFlowMedia} className="gap-2">
+                    {isPreparingFlowMediaPost ? <AISpinner className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                    {isPreparingFlowMediaPost
+                      ? "Generating your post..."
+                      : generatedFlowMedia.type === "video"
+                        ? "Import video to post"
+                        : "Attach to post"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleDownloadFlowMedia} disabled={isPreparingFlowMediaPost} className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -3177,10 +3327,10 @@ export default function ContentPostsPage() {
               <Button
                 type="button"
                 onClick={handleGenerateFlowMedia}
-                disabled={isGeneratingFlowMedia || isImprovingFlowMedia}
+                disabled={isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingFlowMediaPost}
                 className="bg-gradient-to-r from-cyan-500 to-violet-500 text-white hover:from-cyan-600 hover:to-violet-600"
               >
-                {isGeneratingFlowMedia || isImprovingFlowMedia ? (
+                {isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingFlowMediaPost ? (
                   <AISpinner className="mr-2 h-4 w-4 animate-spin" />
                 ) : flowMediaMode === "image" ? (
                   <ImagePlus className="mr-2 h-4 w-4" />
@@ -3562,50 +3712,39 @@ export default function ContentPostsPage() {
         </FloatingPanel>
 
         {/* ─── PUBLISHING OVERLAY ───────────────────────────────────── */}
-        <AnimatePresence>
-          {expandedMediaUrl && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[140] flex items-center justify-center bg-white/75 p-4 backdrop-blur-sm dark:bg-background/75"
-              onClick={() => setExpandedMediaUrl(null)}
-            >
-              <button
-                type="button"
-                onClick={() => setExpandedMediaUrl(null)}
-                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border bg-background/95 text-foreground shadow-lg transition hover:bg-background"
-              >
-                <X className="h-5 w-5" />
-                <span className="sr-only">Close media preview</span>
-              </button>
-              <motion.div
-                initial={{ scale: 0.96, y: 12 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.96, y: 12 }}
-                className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border bg-background shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {isVideoUrl(expandedMediaUrl) ? (
-                  <video
-                    src={expandedMediaUrl}
-                    controls
-                    autoPlay
-                    playsInline
-                    preload="metadata"
-                    className="max-h-[88vh] w-full bg-black object-contain"
-                  />
-                ) : (
-                  <img
-                    src={expandedMediaUrl}
-                    alt="Expanded media preview"
-                    className="max-h-[88vh] w-full bg-background object-contain"
-                  />
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {expandedMediaUrl ? (
+          <FloatingPanel
+            open
+            onOpenChange={(open) => {
+              if (!open) setExpandedMediaUrl(null);
+            }}
+            title="Media preview"
+            description="Inspect the full media without leaving the composer."
+            icon={<ZoomIn className="h-4 w-4" />}
+            defaultSize={{ width: 860, height: 820 }}
+            defaultPosition={{ x: 70, y: 86 }}
+            contentClassName="p-3"
+          >
+            <div className="flex h-full min-h-0 items-center justify-center overflow-hidden rounded-2xl border bg-muted/20">
+              {isVideoUrl(expandedMediaUrl) ? (
+                <video
+                  src={expandedMediaUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                  className="max-h-full max-w-full bg-black object-contain"
+                />
+              ) : (
+                <img
+                  src={expandedMediaUrl}
+                  alt="Expanded media preview"
+                  className="max-h-full max-w-full object-contain"
+                />
+              )}
+            </div>
+          </FloatingPanel>
+        ) : null}
 
         <AnimatePresence>
           {isPublishing && publishAction === "publish" && selectedPlatforms.filter((p) => p !== "feed").length > 0 && (

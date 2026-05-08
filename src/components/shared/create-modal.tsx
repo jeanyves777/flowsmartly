@@ -168,6 +168,26 @@ const joinBrandList = (items?: string[] | null, fallback = "") => {
   return clean.length ? clean.join(", ") : fallback;
 };
 
+const buildBrandBrief = (brandKit?: BrandKit | null) => {
+  if (!brandKit) return "";
+  return [
+    `Brand: ${getBrandName(brandKit)}`,
+    brandKit.tagline ? `Tagline: ${brandKit.tagline}` : null,
+    brandKit.description ? `Description: ${brandKit.description}` : null,
+    brandKit.industry ? `Industry: ${brandKit.industry}` : null,
+    brandKit.niche ? `Niche: ${brandKit.niche}` : null,
+    brandKit.targetAudience ? `Audience: ${brandKit.targetAudience}` : null,
+    brandKit.voiceTone ? `Voice: ${brandKit.voiceTone}` : null,
+    brandKit.uniqueValue ? `Value: ${brandKit.uniqueValue}` : null,
+    joinBrandList(brandKit.products) ? `Products/services: ${joinBrandList(brandKit.products)}` : null,
+    joinBrandList(brandKit.keywords) ? `Keywords: ${joinBrandList(brandKit.keywords)}` : null,
+    joinBrandList(brandKit.hashtags) ? `Preferred hashtags: ${joinBrandList(brandKit.hashtags)}` : null,
+    brandKit.website ? `Website: ${brandKit.website}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
 const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
   name: brandKit?.name || null,
   tagline: brandKit?.tagline || null,
@@ -358,6 +378,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
   const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
+  const [isPreparingPost, setIsPreparingPost] = useState(false);
   const [expandedMediaUrl, setExpandedMediaUrl] = useState<string | null>(null);
 
   const brandName = getBrandName(brandKit);
@@ -402,9 +423,9 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
   }, [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
 
   const closeIfIdle = useCallback(() => {
-    if (isGeneratingFlowMedia || isImprovingFlowMedia) return;
+    if (isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingPost) return;
     closeCreateModal();
-  }, [isGeneratingFlowMedia, isImprovingFlowMedia]);
+  }, [isGeneratingFlowMedia, isImprovingFlowMedia, isPreparingPost]);
 
   const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
     setSelectedFlowMediaTemplateId(template.id);
@@ -444,10 +465,59 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
     router.push("/studio?import=flowcreative");
   };
 
-  const handleAttachToPost = () => {
+  const handleAttachToPost = async () => {
     if (!generatedFlowMedia?.url) return;
-    closeCreateModal();
-    router.push(`/content/posts?mediaUrl=${encodeURIComponent(generatedFlowMedia.url)}&mediaType=${generatedFlowMedia.type}`);
+    setIsPreparingPost(true);
+    setFlowMediaStatus("Please wait, generating your post...");
+
+    try {
+      const res = await fetch("/api/content/posts/prepare-from-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaUrl: generatedFlowMedia.url,
+          mediaType: generatedFlowMedia.type,
+          platforms: ["facebook"],
+          prompt: flowMediaPrompt.trim(),
+          brandBrief: buildBrandBrief(brandKit),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        if (handleCreditError(data.error || {}, "FlowCreative post preparation")) {
+          setFlowMediaStatus(generatedFlowMedia.type === "video" ? "Video ready." : "Image ready.");
+          return;
+        }
+        throw new Error(data.error?.message || "FlowCreative could not prepare the post.");
+      }
+
+      const draftKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const draft = {
+        mediaUrl: generatedFlowMedia.url,
+        mediaType: generatedFlowMedia.type,
+        caption: data.data?.caption || "",
+        hashtags: data.data?.hashtags || [],
+        seoKeywords: data.data?.seoKeywords || [],
+      };
+      sessionStorage.setItem(`flowcreative-post-draft:${draftKey}`, JSON.stringify(draft));
+
+      if (data.data?.creditsRemaining !== undefined) {
+        setCreditsRemaining(data.data.creditsRemaining);
+        emitCreditsUpdate(data.data.creditsRemaining);
+      }
+
+      closeCreateModal();
+      router.push(`/content/posts?flowCreativeDraft=${encodeURIComponent(draftKey)}`);
+    } catch (err) {
+      setFlowMediaStatus(generatedFlowMedia.type === "video" ? "Video ready." : "Image ready.");
+      toast({
+        title: "Attach failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreparingPost(false);
+    }
   };
 
   const handleImproveFlowMedia = async () => {
@@ -705,7 +775,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
     }
   };
 
-  const isBusy = isGeneratingFlowMedia || isImprovingFlowMedia;
+  const isBusy = isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingPost;
   const selectedTemplatePreview = selectedFlowMediaTemplate?.thumbnail || null;
 
   return (
@@ -785,6 +855,8 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
               generatedFlowMedia={generatedFlowMedia}
               flowMediaImprovePrompt={flowMediaImprovePrompt}
               isImprovingFlowMedia={isImprovingFlowMedia}
+              isPreparingPost={isPreparingPost}
+              prepareStatus={flowMediaStatus}
               onImprovePromptChange={setFlowMediaImprovePrompt}
               onImprove={handleImproveFlowMedia}
               onOpenStudio={handleOpenInStudio}
@@ -980,7 +1052,9 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
                   compact
                   currentStep={flowMediaStatus || "Generating media..."}
                   subtitle={
-                    flowMediaMode === "image"
+                    isPreparingPost
+                      ? "FlowCreative is analyzing the media and writing your caption, hashtags, and SEO keys"
+                      : flowMediaMode === "image"
                       ? "FlowCreative is creating a polished campaign asset"
                       : `FlowCreative is producing a ${flowVideoDuration}s video with brand continuity checks`
                   }
@@ -992,9 +1066,28 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
           )}
 
           {!generatedFlowMedia && selectedTemplatePreview ? (
-            <div className="overflow-hidden rounded-2xl border bg-muted/20">
-              <img src={selectedTemplatePreview} alt="Selected template preview" className="max-h-56 w-full object-contain" />
-            </div>
+            <button
+              type="button"
+              onClick={() => setExpandedMediaUrl(selectedTemplatePreview)}
+              className="group w-full overflow-hidden rounded-2xl border bg-muted/20 text-left transition hover:border-cyan-500/40"
+            >
+              <div className="flex min-h-[320px] items-center justify-center bg-background/80 p-3">
+                <img
+                  src={selectedTemplatePreview}
+                  alt="Selected template preview"
+                  className="max-h-[520px] w-full object-contain"
+                />
+              </div>
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <div>
+                  <p className="text-sm font-bold">Selected design inspiration</p>
+                  <p className="text-xs text-muted-foreground">Click to inspect the full template before generation.</p>
+                </div>
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm transition group-hover:text-foreground">
+                  <ZoomIn className="h-4 w-4" />
+                </span>
+              </div>
+            </button>
           ) : null}
 
           {!generatedFlowMedia ? (
@@ -1126,6 +1219,8 @@ function GeneratedFlowCreativeResult({
   generatedFlowMedia,
   flowMediaImprovePrompt,
   isImprovingFlowMedia,
+  isPreparingPost,
+  prepareStatus,
   onImprovePromptChange,
   onImprove,
   onOpenStudio,
@@ -1137,6 +1232,8 @@ function GeneratedFlowCreativeResult({
   generatedFlowMedia: GeneratedMedia;
   flowMediaImprovePrompt: string;
   isImprovingFlowMedia: boolean;
+  isPreparingPost: boolean;
+  prepareStatus?: string;
   onImprovePromptChange: (value: string) => void;
   onImprove: () => void;
   onOpenStudio: () => void;
@@ -1146,9 +1243,12 @@ function GeneratedFlowCreativeResult({
   onCreateAnother: () => void;
 }) {
   return (
-    <div className="rounded-2xl border bg-muted/25 p-3">
+    <div className="rounded-2xl border bg-muted/25 p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-sm font-bold">FlowCreative result</p>
+        <div>
+          <p className="text-sm font-bold">FlowCreative result</p>
+          <p className="text-xs text-muted-foreground">Click the visual to inspect it before attaching.</p>
+        </div>
         <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
           Ready
         </span>
@@ -1156,7 +1256,7 @@ function GeneratedFlowCreativeResult({
       <button
         type="button"
         onClick={() => onPreview(generatedFlowMedia.url)}
-        className="group relative block w-full overflow-hidden rounded-xl border bg-background"
+        className="group relative flex min-h-[420px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-2xl border bg-background"
       >
         {generatedFlowMedia.type === "video" ? (
           <video
@@ -1164,10 +1264,10 @@ function GeneratedFlowCreativeResult({
             controls
             muted
             playsInline
-            className="aspect-video w-full bg-black object-contain"
+            className="max-h-[640px] w-full bg-black object-contain"
           />
         ) : (
-          <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-[520px] w-full object-contain" />
+          <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-[680px] w-full object-contain" />
         )}
         {generatedFlowMedia.type === "image" ? (
           <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
@@ -1175,6 +1275,16 @@ function GeneratedFlowCreativeResult({
           </span>
         ) : null}
       </button>
+
+      {isPreparingPost ? (
+        <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <AIGenerationLoader
+            compact
+            currentStep={prepareStatus || "Please wait, generating your post..."}
+            subtitle="FlowCreative is analyzing the media and preparing your caption, hashtags, and SEO keys."
+          />
+        </div>
+      ) : null}
 
       {generatedFlowMedia.type === "image" ? (
         <div className="mt-3 space-y-2">
@@ -1187,20 +1297,20 @@ function GeneratedFlowCreativeResult({
             onChange={(event) => onImprovePromptChange(event.target.value)}
             className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
-            disabled={isImprovingFlowMedia}
+            disabled={isImprovingFlowMedia || isPreparingPost}
           />
           <div className="grid gap-2 sm:grid-cols-2">
             <Button
               type="button"
               variant="outline"
               onClick={onImprove}
-              disabled={isImprovingFlowMedia || flowMediaImprovePrompt.trim().length < 6}
+              disabled={isImprovingFlowMedia || isPreparingPost || flowMediaImprovePrompt.trim().length < 6}
               className="gap-2"
             >
               {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               Apply edit
             </Button>
-            <Button type="button" onClick={onOpenStudio} className="gap-2">
+            <Button type="button" onClick={onOpenStudio} disabled={isPreparingPost} className="gap-2">
               <ExternalLink className="h-4 w-4" />
               Edit in Studio
             </Button>
@@ -1213,15 +1323,15 @@ function GeneratedFlowCreativeResult({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
-        <Button type="button" onClick={onAttachToPost} className="gap-2">
-          <ImagePlus className="h-4 w-4" />
-          {generatedFlowMedia.type === "video" ? "Import video to post" : "Attach to post"}
+        <Button type="button" onClick={onAttachToPost} disabled={isPreparingPost || isImprovingFlowMedia} className="gap-2">
+          {isPreparingPost ? <AISpinner className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {isPreparingPost ? "Generating your post..." : generatedFlowMedia.type === "video" ? "Import video to post" : "Attach to post"}
         </Button>
-        <Button type="button" variant="outline" onClick={onDownload} className="gap-2">
+        <Button type="button" variant="outline" onClick={onDownload} disabled={isPreparingPost} className="gap-2">
           <Download className="h-4 w-4" />
           Download
         </Button>
-        <Button type="button" variant="ghost" onClick={onCreateAnother}>
+        <Button type="button" variant="ghost" onClick={onCreateAnother} disabled={isPreparingPost}>
           Create another
         </Button>
       </div>
