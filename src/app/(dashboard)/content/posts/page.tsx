@@ -3371,13 +3371,13 @@ export default function ContentPostsPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[140] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+              className="fixed inset-0 z-[140] flex items-center justify-center bg-white/75 p-4 backdrop-blur-sm dark:bg-background/75"
               onClick={() => setExpandedMediaUrl(null)}
             >
               <button
                 type="button"
                 onClick={() => setExpandedMediaUrl(null)}
-                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border bg-background/95 text-foreground shadow-lg transition hover:bg-background"
               >
                 <X className="h-5 w-5" />
                 <span className="sr-only">Close media preview</span>
@@ -3386,7 +3386,7 @@ export default function ContentPostsPage() {
                 initial={{ scale: 0.96, y: 12 }}
                 animate={{ scale: 1, y: 0 }}
                 exit={{ scale: 0.96, y: 12 }}
-                className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl"
+                className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border bg-background shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 {isVideoUrl(expandedMediaUrl) ? (
@@ -3402,7 +3402,7 @@ export default function ContentPostsPage() {
                   <img
                     src={expandedMediaUrl}
                     alt="Expanded media preview"
-                    className="max-h-[88vh] w-full object-contain"
+                    className="max-h-[88vh] w-full bg-background object-contain"
                   />
                 )}
               </motion.div>

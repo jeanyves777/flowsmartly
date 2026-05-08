@@ -233,6 +233,12 @@ export async function POST(req: NextRequest) {
               finalVideoBuffer = fallbackResult.videoBuffer;
               totalDuration = fallbackResult.duration;
               actualProvider = fallbackResult.provider;
+              if (totalDuration < duration) {
+                send({
+                  type: "status",
+                  message: `Backup engine generated a ${totalDuration}s clip because the long-video provider is temporarily unavailable.`,
+                });
+              }
             }
           } else {
             // ──────── VEO 3 (Google) ────────
@@ -326,6 +332,12 @@ export async function POST(req: NextRequest) {
               finalVideoBuffer = fallbackResult.videoBuffer;
               totalDuration = fallbackResult.duration;
               actualProvider = fallbackResult.provider;
+              if (totalDuration < duration) {
+                send({
+                  type: "status",
+                  message: `Backup engine generated a ${totalDuration}s clip because the long-video provider is temporarily unavailable.`,
+                });
+              }
             }
           }
 
@@ -405,23 +417,29 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          // Deduct credits
-          let creditsRemaining = (user?.aiCredits || 0) - creditCost;
+          // Deduct credits. If a long-video request falls back to a shorter
+          // provider because Veo is at capacity, charge the base video cost
+          // rather than the Veo extension estimate.
+          const finalCreditCost =
+            actualProvider === "veo3"
+              ? creditCost
+              : Math.min(creditCost, await getDynamicCreditCost("AI_VIDEO_STUDIO" as const));
+          let creditsRemaining = (user?.aiCredits || 0) - finalCreditCost;
           if (!isAdmin) {
             await prisma.$transaction([
               prisma.user.update({
                 where: { id: session.userId },
-                data: { aiCredits: { decrement: creditCost } },
+                data: { aiCredits: { decrement: finalCreditCost } },
               }),
               prisma.creditTransaction.create({
                 data: {
                   userId: session.userId,
                   type: "USAGE",
-                  amount: -creditCost,
+                  amount: -finalCreditCost,
                   balanceAfter: creditsRemaining,
                   referenceType: "ai_video_studio",
                   referenceId: design.id,
-                  description: `Video studio: ${category}`,
+                  description: `Video studio: ${category}${actualProvider !== "veo3" && duration > totalDuration ? " (backup provider)" : ""}`,
                 },
               }),
             ]);
@@ -468,7 +486,7 @@ export async function POST(req: NextRequest) {
             mediaUrl,
             designId: design.id,
             duration: totalDuration,
-            creditsUsed: creditCost,
+            creditsUsed: finalCreditCost,
             creditsRemaining,
           });
         } catch (error) {
@@ -598,7 +616,7 @@ function normalizeVideoAspect(aspectRatio: string): "16:9" | "9:16" | "1:1" {
   return aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9";
 }
 
-function compactVideoProviderPrompt(prompt: string, maxChars = 3600): string {
+function compactVideoProviderPrompt(prompt: string, maxChars = 2800): string {
   const normalized = prompt.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
   const headLength = Math.floor(maxChars * 0.62);
@@ -694,17 +712,18 @@ async function generateFallbackVideoBuffer(opts: {
   const errors: string[] = [];
   const aspect = normalizeVideoAspect(opts.aspectRatio);
 
-  if (!opts.skipGrok && opts.duration <= 15 && grokVideoClient.isAvailable()) {
+  const grokDuration = Math.max(1, Math.min(15, Math.round(opts.duration || 8)));
+  if (!opts.skipGrok && grokVideoClient.isAvailable()) {
     try {
       const result = await grokVideoClient.generateVideo(compactVideoProviderPrompt(opts.prompt), {
-        duration: Math.max(1, Math.min(15, Math.round(opts.duration || 8))),
+        duration: grokDuration,
         aspectRatio: aspect,
         resolution: "720p",
         imageUrl: opts.referenceImageUrl || undefined,
       });
       return {
         videoBuffer: result.videoBuffer,
-        duration: result.duration || opts.duration || 8,
+        duration: result.duration || grokDuration,
         provider: "grok",
       };
     } catch (error) {
@@ -714,18 +733,19 @@ async function generateFallbackVideoBuffer(opts: {
     }
   }
 
-  if (opts.duration <= 12 && soraClient.isAvailable()) {
+  const soraDuration = opts.duration <= 4 ? "4" : opts.duration <= 8 ? "8" : "12";
+  if (soraClient.isAvailable()) {
     if (opts.referenceImageUrl) {
       errors.push("Sora fallback skipped because this request uses a reference image and must preserve the exact product/person identity.");
     } else {
       try {
         const result = await soraClient.generateVideoBuffer(compactVideoProviderPrompt(opts.prompt, 3000), {
-          seconds: opts.duration <= 4 ? "4" : opts.duration <= 8 ? "8" : "12",
+          seconds: soraDuration,
           size: (aspect === "9:16" ? "720x1280" : "1280x720") as never,
         });
         return {
           videoBuffer: result.videoBuffer,
-          duration: result.duration || opts.duration || 8,
+          duration: result.duration || Number(soraDuration),
           provider: "sora",
         };
       } catch (error) {

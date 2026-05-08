@@ -434,19 +434,19 @@ export function MediaUploader({
 
       {previewUrl && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-white/75 p-4 backdrop-blur-sm dark:bg-background/75"
           onClick={() => setPreviewUrl(null)}
         >
           <button
             type="button"
             onClick={() => setPreviewUrl(null)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border bg-background/95 text-foreground shadow-lg transition hover:bg-background"
           >
             <X className="h-5 w-5" />
             <span className="sr-only">Close media preview</span>
           </button>
           <div
-            className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl"
+            className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-2xl border bg-background shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             {getMediaType(previewUrl) === "video" ? (
@@ -462,7 +462,7 @@ export function MediaUploader({
               <img
                 src={previewUrl}
                 alt="Media preview"
-                className="max-h-[88vh] w-full object-contain"
+                className="max-h-[88vh] w-full bg-background object-contain"
               />
             )}
           </div>
