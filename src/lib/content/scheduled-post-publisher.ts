@@ -80,8 +80,15 @@ export async function publishDueScheduledPosts(now = new Date(), limit = 100): P
       result.externalAttempted += 1;
       try {
         const publishResults = await publishToSocialPlatforms(post.id, post.userId);
-        if (Object.values(publishResults).some((platformResult) => !platformResult.success)) {
+        const failedPlatforms = Object.entries(publishResults).filter(([, platformResult]) => !platformResult.success);
+        if (failedPlatforms.length > 0) {
           result.externalFailed += 1;
+          for (const [platform, platformResult] of failedPlatforms) {
+            result.errors.push({
+              postId: post.id,
+              message: `${platform}: ${platformResult.error || "External publishing failed"}`,
+            });
+          }
         }
       } catch (error) {
         result.externalFailed += 1;
