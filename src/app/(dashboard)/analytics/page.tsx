@@ -297,21 +297,10 @@ export default function AnalyticsPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <div className="rounded-lg border bg-background p-4 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-600">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Analytics command center</h1>
-              <p className="text-sm text-muted-foreground">
-                Real FlowSmartly activity and connected platform metrics in one workspace.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border bg-muted/20 p-1">
+      <div className="rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-violet-500/10 p-4 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-cyan-500/20 bg-background/80 p-1 shadow-sm backdrop-blur">
               {RANGE_OPTIONS.map((range) => (
                 <button
                   key={range.id}
@@ -325,11 +314,13 @@ export default function AnalyticsPage() {
                 </button>
               ))}
             </div>
-            <Button variant="outline" onClick={() => setWorkspaceOpen(true)}>
+            <Button variant="outline" onClick={() => setWorkspaceOpen(true)} className="border-violet-500/30 bg-background/80 shadow-sm hover:bg-violet-500/10">
               <Maximize2 className="mr-2 h-4 w-4" />
               Movable workspace
             </Button>
-            <Button onClick={refreshEverything} disabled={isLoading || isSocialLoading || platformsLoading}>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={refreshEverything} disabled={isLoading || isSocialLoading || platformsLoading} className="bg-gradient-to-r from-cyan-500 to-blue-600 shadow-sm hover:from-cyan-600 hover:to-blue-700">
               {isLoading || isSocialLoading ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Refresh live data
             </Button>
@@ -380,6 +371,7 @@ export default function AnalyticsPage() {
           title="Performance flow"
           description="Internal feed performance from your real post records."
           icon={TrendingUp}
+          tone="cyan"
           collapsed={collapsedSections.chart}
           onToggle={toggleSection}
           action={
@@ -413,6 +405,7 @@ export default function AnalyticsPage() {
           title="Connected platform health"
           description="Only the active accounts in this user's workspace."
           icon={Link2}
+          tone="blue"
           collapsed={collapsedSections.platforms}
           onToggle={toggleSection}
           action={
@@ -461,6 +454,7 @@ export default function AnalyticsPage() {
           title="Distribution and spend"
           description="Organic, boosted, and ad performance without mixing in fake platform totals."
           icon={Megaphone}
+          tone="violet"
           collapsed={collapsedSections.mix}
           onToggle={toggleSection}
         >
@@ -479,6 +473,7 @@ export default function AnalyticsPage() {
           title="Content and platform results"
           description="Where posts were published and which posts are carrying performance."
           icon={Rss}
+          tone="emerald"
           collapsed={collapsedSections.posts}
           onToggle={toggleSection}
         >
@@ -541,9 +536,15 @@ function MetricCard({
     violet: "bg-violet-500/10 text-violet-600 border-violet-500/20",
     emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   }[tone];
+  const cardClass = {
+    cyan: "border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-background to-cyan-100/50 dark:to-cyan-950/20",
+    blue: "border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-background to-blue-100/50 dark:to-blue-950/20",
+    violet: "border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-background to-fuchsia-100/50 dark:to-violet-950/20",
+    emerald: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-background to-teal-100/50 dark:to-emerald-950/20",
+  }[tone];
 
   return (
-    <div className="rounded-lg border bg-background p-4 shadow-sm">
+    <div className={cn("rounded-lg border p-4 shadow-sm", cardClass)}>
       {loading ? (
         <>
           <Skeleton className="mb-3 h-9 w-9 rounded-lg" />
@@ -577,6 +578,7 @@ function SectionBlock({
   title,
   description,
   icon: Icon,
+  tone = "cyan",
   collapsed,
   onToggle,
   action,
@@ -586,16 +588,40 @@ function SectionBlock({
   title: string;
   description: string;
   icon: ElementType;
+  tone?: "cyan" | "blue" | "violet" | "emerald";
   collapsed: boolean;
   onToggle: (id: SectionId) => void;
   action?: ReactNode;
   children: ReactNode;
 }) {
+  const toneClass = {
+    cyan: {
+      section: "border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 via-background to-background",
+      header: "border-cyan-500/15 bg-cyan-500/5",
+      icon: "bg-cyan-500/10 text-cyan-600",
+    },
+    blue: {
+      section: "border-blue-500/20 bg-gradient-to-br from-blue-500/5 via-background to-background",
+      header: "border-blue-500/15 bg-blue-500/5",
+      icon: "bg-blue-500/10 text-blue-600",
+    },
+    violet: {
+      section: "border-violet-500/20 bg-gradient-to-br from-violet-500/5 via-background to-background",
+      header: "border-violet-500/15 bg-violet-500/5",
+      icon: "bg-violet-500/10 text-violet-600",
+    },
+    emerald: {
+      section: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-background to-background",
+      header: "border-emerald-500/15 bg-emerald-500/5",
+      icon: "bg-emerald-500/10 text-emerald-600",
+    },
+  }[tone];
+
   return (
-    <section className="rounded-lg border bg-background shadow-sm">
-      <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className={cn("rounded-lg border shadow-sm", toneClass.section)}>
+      <div className={cn("flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between", toneClass.header)}>
         <button type="button" onClick={() => onToggle(id)} className="flex min-w-0 items-center gap-3 text-left">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", toneClass.icon)}>
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
