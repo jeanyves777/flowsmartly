@@ -2,6 +2,62 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
+const ANALYTICS_REFRESH_PLATFORMS = new Set(["facebook", "instagram", "youtube", "whatsapp"]);
+
+function normalizePlatformKey(platform: string) {
+  if (platform.startsWith("facebook_")) return "facebook";
+  if (platform.startsWith("instagram_")) return "instagram";
+  if (platform === "x") return "twitter";
+  return platform;
+}
+
+function formatAnalyticsAccount(account: {
+  id: string;
+  platform: string;
+  platformUserId: string | null;
+  platformUsername: string | null;
+  platformDisplayName: string | null;
+  platformAvatarUrl: string | null;
+  accessToken?: string | null;
+  tokenExpiresAt: Date | null;
+  scopes: string;
+  connectedAt: Date;
+  followersCount: number | null;
+  followingCount: number | null;
+  postsCount: number | null;
+  engagementRate: number | null;
+  impressions: number | null;
+  reach: number | null;
+  profileViews: number | null;
+  analyticsUpdatedAt: Date | null;
+}) {
+  const platformKey = normalizePlatformKey(account.platform);
+  const tokenExpired = account.tokenExpiresAt ? account.tokenExpiresAt.getTime() < Date.now() : false;
+  return {
+    id: account.id,
+    platform: account.platform,
+    platformKey,
+    platformUserId: account.platformUserId,
+    platformUsername: account.platformUsername,
+    platformDisplayName: account.platformDisplayName,
+    platformAvatarUrl: account.platformAvatarUrl,
+    followersCount: account.followersCount,
+    followingCount: account.followingCount,
+    postsCount: account.postsCount,
+    engagementRate: account.engagementRate,
+    impressions: account.impressions,
+    reach: account.reach,
+    profileViews: account.profileViews,
+    analyticsUpdatedAt: account.analyticsUpdatedAt,
+    connectedAt: account.connectedAt,
+    tokenExpiresAt: account.tokenExpiresAt,
+    hasAccessToken: Boolean(account.accessToken),
+    tokenExpired,
+    analyticsRefreshSupported: ANALYTICS_REFRESH_PLATFORMS.has(platformKey),
+    scopes: account.scopes,
+  };
+}
+
 /**
  * GET /api/social-accounts/analytics
  * Fetches and updates analytics for all connected social accounts
@@ -42,45 +98,18 @@ export async function GET(request: NextRequest) {
           userId: session.userId,
           isActive: true,
         },
-        select: {
-          id: true,
-          platform: true,
-          platformDisplayName: true,
-          platformAvatarUrl: true,
-          followersCount: true,
-          followingCount: true,
-          postsCount: true,
-          engagementRate: true,
-          impressions: true,
-          reach: true,
-          profileViews: true,
-          analyticsUpdatedAt: true,
-        },
       });
 
       return NextResponse.json({
         success: true,
-        analytics: updatedAccounts,
+        analytics: updatedAccounts.map(formatAnalyticsAccount),
       });
     }
 
     // Return cached analytics
     return NextResponse.json({
       success: true,
-      analytics: accounts.map((a) => ({
-        id: a.id,
-        platform: a.platform,
-        platformDisplayName: a.platformDisplayName,
-        platformAvatarUrl: a.platformAvatarUrl,
-        followersCount: a.followersCount,
-        followingCount: a.followingCount,
-        postsCount: a.postsCount,
-        engagementRate: a.engagementRate,
-        impressions: a.impressions,
-        reach: a.reach,
-        profileViews: a.profileViews,
-        analyticsUpdatedAt: a.analyticsUpdatedAt,
-      })),
+      analytics: accounts.map(formatAnalyticsAccount),
     });
   } catch (error) {
     console.error("Analytics error:", error);

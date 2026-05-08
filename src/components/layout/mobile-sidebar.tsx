@@ -72,6 +72,7 @@ const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
   { name: "Strategy & Automation", href: "/content/strategy", icon: Target },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 
 // AI Creatives
@@ -81,6 +82,7 @@ const aiCreativesNavigation = [
   // { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Logo Generator", href: "/logo-generator", icon: Crown },
   { name: "Media Library", href: "/media", icon: FolderOpen },
+  { name: "My Designs", href: "/designs", icon: FolderKanban },
 ];
 
 // Marketing features
@@ -99,7 +101,6 @@ const toolsNavigation = [
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 
 // Money
@@ -295,7 +296,7 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   </span>
                 </div>
                 {contentNavigation.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.href === "/analytics" && pathname.startsWith("/analytics"));
                   return renderNavItem(item, isActive);
                 })}
               </div>

@@ -177,12 +177,24 @@ export async function GET(request: NextRequest) {
         viewCount: true,
         likeCount: true,
         commentCount: true,
+        shareCount: true,
         isPromoted: true,
+        platforms: true,
       },
     });
 
     // Aggregate by day
     const dayMap = new Map<string, { views: number; likes: number; comments: number; posts: number; boostedViews: number; organicViews: number }>();
+    const platformMap = new Map<string, {
+      posts: number;
+      views: number;
+      likes: number;
+      comments: number;
+      shares: number;
+      boostedPosts: number;
+      lastPostAt: Date | null;
+    }>();
+
     posts.forEach(post => {
       const date = post.createdAt.toISOString().split("T")[0];
       const existing = dayMap.get(date) || { views: 0, likes: 0, comments: 0, posts: 0, boostedViews: 0, organicViews: 0 };
@@ -196,6 +208,35 @@ export async function GET(request: NextRequest) {
         existing.organicViews += post.viewCount;
       }
       dayMap.set(date, existing);
+
+      let postPlatforms: string[] = [];
+      try {
+        const parsed = JSON.parse(post.platforms || "[]");
+        postPlatforms = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+      } catch {
+        postPlatforms = [];
+      }
+      if (postPlatforms.length === 0) postPlatforms = ["feed"];
+
+      for (const platform of postPlatforms) {
+        const current = platformMap.get(platform) || {
+          posts: 0,
+          views: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          boostedPosts: 0,
+          lastPostAt: null,
+        };
+        current.posts += 1;
+        current.views += post.viewCount;
+        current.likes += post.likeCount;
+        current.comments += post.commentCount;
+        current.shares += post.shareCount;
+        if (post.isPromoted) current.boostedPosts += 1;
+        if (!current.lastPostAt || post.createdAt > current.lastPostAt) current.lastPostAt = post.createdAt;
+        platformMap.set(platform, current);
+      }
     });
 
     const chartData = Array.from(dayMap.entries())
@@ -244,6 +285,13 @@ export async function GET(request: NextRequest) {
           totalEarned: (totalAdEarnings._sum.amountCents || 0) / 100,
         },
         chartData,
+        platformStats: Array.from(platformMap.entries())
+          .map(([platform, data]) => ({
+            platform,
+            ...data,
+            lastPostAt: data.lastPostAt?.toISOString() || null,
+          }))
+          .sort((a, b) => b.views - a.views),
         topPosts: topPosts.map(post => ({
           id: post.id,
           content: post.caption?.substring(0, 100) + (post.caption && post.caption.length > 100 ? "..." : ""),
