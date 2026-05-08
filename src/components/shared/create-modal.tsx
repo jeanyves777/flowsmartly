@@ -1,59 +1,84 @@
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ChevronDown, Image as ImageIcon, Megaphone, FileText, Presentation, PanelTop, Signpost, User, Package, Type, Palette, Building2, Mail, Phone, Globe, MapPin, Zap, Layers, X, Film, Video, Download, ExternalLink, Play, Clock, Ratio } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Download,
+  ExternalLink,
+  Film,
+  Image as ImageIcon,
+  ImagePlus,
+  Lightbulb,
+  Play,
+  Sparkles,
+  Video,
+  WandSparkles,
+  ZoomIn,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { FloatingPanel } from "@/components/ui/floating-panel";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast";
-import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
-import {
-  DESIGN_CATEGORIES,
-  DESIGN_STYLES,
-  getProvidersForPreset,
-  type DesignCategory,
-  type ImageProvider,
-  type SizePreset,
-} from "@/lib/constants/design-presets";
-import {
-  VIDEO_CATEGORIES,
-  VIDEO_DURATIONS,
-  VIDEO_STYLES,
-  ASPECT_RATIO_OPTIONS,
-  getExtensionCount,
-  type VideoCategory,
-  type AspectRatio,
-  type DurationOption,
-} from "@/lib/constants/video-presets";
+import { useToast } from "@/hooks/use-toast";
 
-// ── Global Store (same pattern as credit-purchase-modal) ──────────────────
+type FlowMediaMode = "image" | "video";
+type FlowMediaAspect = "1:1" | "9:16" | "16:9";
+type FlowVideoDuration = 8 | 15 | 30;
+type FlowVideoSpeechMode =
+  | "talking_review"
+  | "site_walkthrough"
+  | "voiceover_presentation"
+  | "visual_only";
 
-interface CreateModalState {
+type FlowMediaTemplate = {
+  id: string;
+  title: string;
+  mode: FlowMediaMode;
+  aspect: FlowMediaAspect;
+  speechMode?: FlowVideoSpeechMode;
+  duration?: FlowVideoDuration;
+  prompt: string;
+  badge: string;
+  helper?: string;
+  thumbnail?: string;
+};
+
+type BrandKit = {
+  id?: string;
+  name?: string | null;
+  logo?: string | null;
+  iconLogo?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  industry?: string | null;
+  niche?: string | null;
+  targetAudience?: string | null;
+  voiceTone?: string | null;
+  uniqueValue?: string | null;
+  products?: string[] | null;
+  keywords?: string[] | null;
+  hashtags?: string[] | null;
+  colors?: Record<string, string> | null;
+  handles?: Record<string, string> | null;
+  website?: string | null;
+};
+
+type GeneratedMedia = {
+  type: FlowMediaMode;
+  url: string;
+};
+
+type CreateModalState = {
   open: boolean;
-  defaultTab: "image" | "video";
-}
+  defaultTab: FlowMediaMode;
+};
 
 const defaultState: CreateModalState = {
   open: false,
@@ -64,7 +89,7 @@ let state: CreateModalState = { ...defaultState };
 const listeners = new Set<() => void>();
 
 function emit() {
-  listeners.forEach((l) => l());
+  listeners.forEach((listener) => listener());
 }
 
 function getSnapshot() {
@@ -76,52 +101,9 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/**
- * Phase 1 of the Studio Create Chat (see
- * docs/superpowers/specs/2026-04-26-studio-create-chat-design.md):
- * `openCreateModal` now routes to the new conversational chat front
- * door instead of opening the legacy modal. Mints a fresh DesignChat
- * via POST /api/studio/chat then navigates to /studio/create/[chatId].
- *
- * The legacy <CreateModal /> stays mounted as a safety fallback when
- * the network call fails — that way the user always gets SOMETHING.
- *
- * @param tab seeds the agent's mode hint via the initialPrompt — if
- *            "video" we prepend a hint so the chat opens with video
- *            context. Optional; agent infers from the user's first
- *            message when omitted.
- */
-export async function openCreateModal(tab?: "image" | "video") {
+export async function openCreateModal(tab?: FlowMediaMode) {
   state = { open: true, defaultTab: tab || "image" };
   emit();
-  return;
-
-  // Optimistically navigate quickly — most users won't notice the
-  // round-trip. If the chat creation fails, fall back to the legacy
-  // modal so they're not stuck.
-  try {
-    const seed = tab === "video"
-      ? "I want to create a short video"
-      : tab === "image"
-        ? "I want to create an image"
-        : undefined;
-    const res = await fetch("/api/studio/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(seed ? { initialPrompt: seed } : {}),
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.chat?.id) throw new Error(data?.error?.message || "Couldn't start chat");
-    if (typeof window !== "undefined") {
-      window.location.href = `/studio/create/${data.chat.id}`;
-    }
-    return;
-  } catch (err) {
-    console.error("[openCreateModal] failed to mint chat — falling back to legacy modal:", err);
-    // Fallback to the legacy form so users aren't blocked.
-    state = { open: true, defaultTab: tab || "image" };
-    emit();
-  }
 }
 
 export function closeCreateModal() {
@@ -129,1482 +111,1119 @@ export function closeCreateModal() {
   emit();
 }
 
-// ── Shared Types ──────────────────────────────────────────────────────────
+const FLOW_MEDIA_ASPECTS: Array<{
+  id: FlowMediaAspect;
+  label: string;
+  imageSize: string;
+}> = [
+  { id: "1:1", label: "Square", imageSize: "1080x1080" },
+  { id: "9:16", label: "Reel", imageSize: "1080x1920" },
+  { id: "16:9", label: "Wide", imageSize: "1920x1080" },
+];
 
-interface SocialHandles {
-  instagram?: string;
-  twitter?: string;
-  facebook?: string;
-  linkedin?: string;
-  tiktok?: string;
-  youtube?: string;
-}
+const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
 
-interface BrandIdentity {
-  id: string;
-  name: string;
-  logo: string | null;
-  iconLogo: string | null;
-  colors: Record<string, string>;
-  voiceTone: string | null;
-  email: string | null;
-  phone: string | null;
-  website: string | null;
-  address: string | null;
-  handles: SocialHandles;
-}
+const FLOW_VIDEO_DURATIONS: Array<{ seconds: FlowVideoDuration; label: string; helper: string }> = [
+  { seconds: 8, label: "8 sec", helper: "Fast hook, teaser, or simple proof moment." },
+  { seconds: 15, label: "15 sec", helper: "Short social story with hook, proof, and CTA." },
+  { seconds: 30, label: "30 sec", helper: "Full message with stronger continuity planning." },
+];
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+const FLOW_VIDEO_SPEECH_MODES: Array<{
+  id: FlowVideoSpeechMode;
+  label: string;
+  helper: string;
+  rule: string;
+}> = [
+  {
+    id: "talking_review",
+    label: "Talking review",
+    helper: "Realistic presenter talking with the product visible.",
+    rule: "Show a visible presenter speaking naturally to camera. Use native synchronized speech from the visible speaker only.",
+  },
+  {
+    id: "site_walkthrough",
+    label: "Site walkthrough",
+    helper: "Presenter or guided screen walkthrough.",
+    rule: "Show a website, landing page, product page, or offer walkthrough with clear screen highlights and a visible presenter when requested.",
+  },
+  {
+    id: "voiceover_presentation",
+    label: "Voiceover",
+    helper: "Presentation visuals with narration.",
+    rule: "Use clear product, website, feature, and benefit visuals designed for narration. Do not show a lip-sync presenter talking to camera.",
+  },
+  {
+    id: "visual_only",
+    label: "Visual only",
+    helper: "No speech, product-first visual storytelling.",
+    rule: "No spoken words, no presenter dialogue, no voiceover, and no subtitles unless requested.",
+  },
+];
 
-const categoryIcons: Record<string, React.ElementType> = {
-  social_post: ImageIcon,
-  ad: Megaphone,
-  flyer: FileText,
-  poster: Presentation,
-  banner: PanelTop,
-  signboard: Signpost,
+const getBrandName = (brandKit?: BrandKit | null) => brandKit?.name?.trim() || "your brand";
+
+const joinBrandList = (items?: string[] | null, fallback = "") => {
+  const clean = (items || []).map((item) => item.trim()).filter(Boolean);
+  return clean.length ? clean.join(", ") : fallback;
 };
 
-function CollapsibleSection({
-  title,
-  icon: Icon,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  icon: React.ElementType;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  return (
-    <div className="border rounded-lg">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm font-medium"
-      >
-        <Icon
-          className={`w-4 h-4 ${isOpen ? "text-brand-500" : "text-muted-foreground"}`}
-        />
-        <span className="flex-1">{title}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="overflow-hidden"
-          >
-            <div className="px-3 pb-3 space-y-3">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
+  name: brandKit?.name || null,
+  tagline: brandKit?.tagline || null,
+  description: brandKit?.description || null,
+  industry: brandKit?.industry || null,
+  niche: brandKit?.niche || null,
+  audience: brandKit?.targetAudience || null,
+  voice: brandKit?.voiceTone || null,
+  value: brandKit?.uniqueValue || null,
+  products: brandKit?.products || [],
+  keywords: brandKit?.keywords || [],
+  hashtags: brandKit?.hashtags || [],
+  colors: brandKit?.colors || null,
+  handles: brandKit?.handles || null,
+  website: brandKit?.website || null,
+  logo: brandKit?.logo || brandKit?.iconLogo || null,
+});
 
-// ── Video Providers ───────────────────────────────────────────────────────
+const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
+  FLOW_MEDIA_ASPECTS.find((option) => option.id === aspect) || FLOW_MEDIA_ASPECTS[0];
 
-const VIDEO_PROVIDERS = [
-  { id: "veo3", label: "Veo 3", desc: "Google AI video", icon: Film },
-  { id: "slideshow", label: "Slideshow", desc: "Image-based", icon: ImageIcon },
-] as const;
+const getFlowVideoSpeechMode = (mode: FlowVideoSpeechMode) =>
+  FLOW_VIDEO_SPEECH_MODES.find((option) => option.id === mode) || FLOW_VIDEO_SPEECH_MODES[0];
 
-type VideoProvider = (typeof VIDEO_PROVIDERS)[number]["id"];
+const normalizeGeneratedMediaUrl = (url: unknown) =>
+  typeof url === "string" && url.trim() ? url.trim() : "";
 
-// ── Main Component ────────────────────────────────────────────────────────
+const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): FlowMediaTemplate[] => {
+  const brandName = getBrandName(brandKit);
+  const audience = brandKit?.targetAudience || "the brand's ideal customers";
+  const value = brandKit?.uniqueValue || brandKit?.tagline || "the main offer";
+  const productFocus = joinBrandList(brandKit?.products, "the featured offer");
+  const voice = brandKit?.voiceTone || "professional";
+
+  return [
+    {
+      id: "brand-offer-card",
+      title: "Brand offer card",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Campaign offer visual with product collage, benefit callouts, and CTA space.",
+      thumbnail: "/templates/flow-media/brand-offer-card.jpg",
+      prompt: `Create a polished social media offer image for ${brandName}. It should promote ${productFocus} to ${audience}, use a ${voice} tone, make ${value} visually obvious, reserve clean space for a short headline and CTA, and use the brand palette. No fake third-party logos.`,
+    },
+    {
+      id: "product-spotlight-post",
+      title: "Product spotlight",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Product-first campaign visual with callouts, texture, and CTA space.",
+      thumbnail: "/templates/flow-media/product-spotlight-post.jpg",
+      prompt: `Create a product spotlight social image for ${brandName}. Make ${productFocus} the clear hero, add concise benefit callouts for ${audience}, use a ${voice} tone, reserve clean CTA space, and keep the visual grounded in the brand palette. No fake third-party logos.`,
+    },
+    {
+      id: "brand-proof-post",
+      title: "Proof post visual",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Social proof layout with review cards, result stats, and audience momentum.",
+      thumbnail: "/templates/flow-media/proof-post-visual.jpg",
+      prompt: `Create a trust-building proof image for ${brandName} on ${channels}. Show realistic customer momentum, review/social proof, and a simple result card tied to ${value}. Keep it premium, readable, and grounded in the brand colors. No generic dashboard mockup.`,
+    },
+    {
+      id: "launch-collection-post",
+      title: "Launch collection",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Editorial launch announcement for a new offer, drop, or collection.",
+      thumbnail: "/templates/flow-media/launch-collection-post.jpg",
+      prompt: `Create a launch collection announcement image for ${brandName}. Stage ${productFocus} in a premium editorial layout, add a clear launch headline area, support ${value}, and make it ready for ${channels}. No fake third-party logos.`,
+    },
+    {
+      id: "seasonal-campaign-offer",
+      title: "Seasonal campaign",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Warm seasonal or limited-time offer visual with a clear promo zone.",
+      thumbnail: "/templates/flow-media/seasonal-campaign-offer.jpg",
+      prompt: `Create a seasonal campaign image for ${brandName}. Use ${productFocus} with a warm campaign scene, a clean offer or urgency area, short benefit callouts for ${audience}, and a strong CTA zone. Keep the design polished and brand-safe.`,
+    },
+    {
+      id: "community-story-post",
+      title: "Community story",
+      mode: "image",
+      aspect: "1:1",
+      badge: "FlowCreative image",
+      helper: "Human story visual for maker, customer, founder, or community moments.",
+      thumbnail: "/templates/flow-media/community-story-post.jpg",
+      prompt: `Create a community story image for ${brandName}. Show an authentic customer, maker, team, or brand moment tied to ${value}; leave space for a short story caption, use the brand palette, and make the image feel native to ${channels}.`,
+    },
+    {
+      id: "brand-product-reel",
+      title: "Promo video idea",
+      mode: "video",
+      aspect: "9:16",
+      speechMode: "visual_only",
+      badge: "FlowCreative video",
+      helper: "Short vertical reel for a product, offer, or service hook.",
+      thumbnail: "/templates/flow-media/video-promo-reel.jpg",
+      prompt: `Short vertical promo video for ${brandName}. Show ${productFocus} solving a clear problem for ${audience}, with brand-colored transitions, tasteful product/service scenes, and a confident CTA moment. No text-heavy overlays or third-party logos.`,
+    },
+    {
+      id: "brand-story-walkthrough",
+      title: "Story walkthrough",
+      mode: "video",
+      aspect: "16:9",
+      speechMode: "voiceover_presentation",
+      badge: "FlowCreative video",
+      helper: "Wide story arc from customer problem to branded solution and CTA.",
+      thumbnail: "/templates/flow-media/video-brand-story.jpg",
+      prompt: `Horizontal brand story video for ${brandName}: start with the customer problem, show the branded solution around ${productFocus}, then end with the outcome and CTA. Use ${voice} pacing, brand colors, and visuals suited for ${channels}.`,
+    },
+    {
+      id: "talking-product-review",
+      title: "Talking review",
+      mode: "video",
+      aspect: "9:16",
+      speechMode: "talking_review",
+      duration: 15,
+      badge: "FlowCreative video",
+      helper: "TikTok-style presenter review with the product visible in hand.",
+      thumbnail: "/templates/flow-media/video-talking-review.jpg",
+      prompt: `Create a vertical TikTok-style talking review video for ${brandName}. If a presenter reference is uploaded, preserve that exact face and clothing identity. If a product reference is uploaded, preserve that exact product shape, color, material, hardware, and details. Show one presenter with normal anatomy and the product beside them, on a table, in a product insert, or held naturally without covering the face. Replace rough backgrounds with a clean lifestyle or creator-review setting. Add tasteful review overlays such as Honest review, star rating, comment bubble, or LIVE-style engagement cues, and end with a confident CTA for ${audience}.`,
+    },
+    {
+      id: "website-walkthrough",
+      title: "Website walkthrough",
+      mode: "video",
+      aspect: "16:9",
+      speechMode: "site_walkthrough",
+      badge: "FlowCreative video",
+      helper: "Website or landing-page walkthrough with guided screen highlights.",
+      thumbnail: "/templates/flow-media/video-website-walkthrough.jpg",
+      prompt: `Create a website walkthrough video for ${brandName}. Show a website, landing page, or product page experience for ${productFocus}; guide viewers from problem to action, highlight key sections, and end with a clear CTA for ${audience}.`,
+    },
+    {
+      id: "voiceover-presentation",
+      title: "Voiceover presentation",
+      mode: "video",
+      aspect: "16:9",
+      speechMode: "voiceover_presentation",
+      badge: "FlowCreative video",
+      helper: "Clean narrated presentation with slides, proof points, and CTA.",
+      thumbnail: "/templates/flow-media/video-voiceover-presentation.jpg",
+      prompt: `Create a voiceover-style presentation video for ${brandName}. Use clear visual slides, product/service scenes, proof points, and simple motion to explain ${value} for ${audience}. Keep the voiceover flow professional and the visuals brand-aligned.`,
+    },
+    {
+      id: "visual-product-showcase",
+      title: "Visual showcase",
+      mode: "video",
+      aspect: "9:16",
+      speechMode: "visual_only",
+      badge: "FlowCreative video",
+      helper: "Visual-only product beauty shots with smooth premium transitions.",
+      thumbnail: "/templates/flow-media/video-visual-showcase.jpg",
+      prompt: `Create a visual-only product showcase video for ${brandName}. Use premium beauty shots of ${productFocus}, smooth transitions, consistent lighting, and a final CTA visual. No presenter and no voiceover unless the user asks for it.`,
+    },
+  ];
+};
 
 export function CreateModal() {
   const { open, defaultTab } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-
   if (!open) return null;
-
-  return <CreateModalInner defaultTab={defaultTab} />;
+  return <FlowCreativeModal defaultTab={defaultTab} />;
 }
 
-function CreateModalInner({ defaultTab }: { defaultTab: "image" | "video" }) {
+function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"image" | "video">(defaultTab);
-
-  // ── Shared state ──
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
-  const [brandIdentity, setBrandIdentity] = useState<BrandIdentity | null>(null);
+  const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>(defaultTab);
+  const [selectedFlowMediaTemplateId, setSelectedFlowMediaTemplateId] = useState("");
+  const [flowMediaPrompt, setFlowMediaPrompt] = useState("");
+  const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
+  const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
+  const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
+  const [flowVideoSpeechMode, setFlowVideoSpeechMode] = useState<FlowVideoSpeechMode>("talking_review");
+  const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
+  const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
+  const [generatedFlowMedia, setGeneratedFlowMedia] = useState<GeneratedMedia | null>(null);
+  const [flowMediaStatus, setFlowMediaStatus] = useState("");
+  const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
+  const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
+  const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
+  const [expandedMediaUrl, setExpandedMediaUrl] = useState<string | null>(null);
 
-  // ── Image tab state ──
-  const [imageMode, setImageMode] = useState<"layout" | "image">("image");
-  const [imagePrompt, setImagePrompt] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<DesignCategory>("social_post");
-  const [selectedSize, setSelectedSize] = useState<SizePreset | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>("xai");
-  const [selectedStyle, setSelectedStyle] = useState("modern");
-  const [heroType, setHeroType] = useState<"people" | "product" | "text-only">("people");
-  const [textMode, setTextMode] = useState<"exact" | "creative">("creative");
-  const [ctaText, setCtaText] = useState("");
-  const [exactImageUrls, setExactImageUrls] = useState<string[]>([]);
-  const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
-  const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
-  const [showBrandName, setShowBrandName] = useState(false);
-  const [showSocialIcons, setShowSocialIcons] = useState(false);
-  const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<Set<string>>(new Set());
-  const [logoType, setLogoType] = useState<"auto" | "icon" | "full">("auto");
-  const [logoSizePercent, setLogoSizePercent] = useState(12);
-  const [includeInDesign, setIncludeInDesign] = useState({ email: false, phone: false, website: false, address: false });
-  const [generateHeroImage, setGenerateHeroImage] = useState(false);
-  const [generateBackground, setGenerateBackground] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
-  const [aiIdeas, setAiIdeas] = useState<string[]>([]);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-  const [generatedDesignId, setGeneratedDesignId] = useState<string | null>(null);
-  const [layoutGenerated, setLayoutGenerated] = useState(false);
-  const [improvePrompt, setImprovePrompt] = useState("");
-  const [isImprovingImage, setIsImprovingImage] = useState(false);
+  const brandName = getBrandName(brandKit);
+  const flowMediaTemplates = useMemo(
+    () => buildFlowMediaTemplates(brandKit, "selected social channels"),
+    [brandKit]
+  );
+  const visibleFlowMediaTemplates = useMemo(
+    () => flowMediaTemplates.filter((template) => template.mode === flowMediaMode),
+    [flowMediaMode, flowMediaTemplates]
+  );
+  const selectedFlowMediaTemplate = useMemo(
+    () =>
+      visibleFlowMediaTemplates.find((template) => template.id === selectedFlowMediaTemplateId) ||
+      visibleFlowMediaTemplates[0] ||
+      null,
+    [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]
+  );
 
-  // ── Video tab state ──
-  const [videoProvider, setVideoProvider] = useState<VideoProvider>("veo3");
-  const [videoPrompt, setVideoPrompt] = useState("");
-  const [videoCategory, setVideoCategory] = useState<VideoCategory>("product_ad");
-  const [videoAspectRatio, setVideoAspectRatio] = useState<AspectRatio>("16:9");
-  const [videoDuration, setVideoDuration] = useState<DurationOption>(VIDEO_DURATIONS[2]);
-  const [videoStyle, setVideoStyle] = useState("cinematic");
-  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [videoGenStatus, setVideoGenStatus] = useState("");
-  const [videoGenProgress, setVideoGenProgress] = useState<number | undefined>(undefined);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
-
-  // ── Credit costs ──
-  const [designCreditCost, setDesignCreditCost] = useState(15);
-  const [layoutCreditCost, setLayoutCreditCost] = useState(5);
-  const [layoutImageCost, setLayoutImageCost] = useState(15);
-
-  // Auto-select first compatible preset
   useEffect(() => {
-    const cat = DESIGN_CATEGORIES.find((c) => c.id === selectedCategory);
-    if (cat && cat.presets.length > 0) {
-      const compatible = cat.presets.find((p) =>
-        getProvidersForPreset(p.width, p.height).includes(selectedProvider)
-      );
-      setSelectedSize(compatible || cat.presets[0]);
-    }
-  }, [selectedCategory, selectedProvider]);
-
-  // Fetch brand data + credits on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const [brandRes, costsRes, studioRes] = await Promise.all([
-          fetch("/api/brand"),
-          fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN,AI_DESIGN_LAYOUT,AI_DESIGN_LAYOUT_IMAGE"),
-          fetch("/api/ai/studio"),
-        ]);
-        const brandData = await brandRes.json();
-        const costsData = await costsRes.json();
-        const studioData = await studioRes.json();
-
-        if (brandData.success && brandData.data?.brandKit) {
-          const kit = brandData.data.brandKit;
-          const parsedHandles =
-            typeof kit.handles === "string"
-              ? JSON.parse(kit.handles || "{}")
-              : kit.handles || {};
-          setBrandIdentity({
-            id: kit.id,
-            name: kit.name,
-            logo: kit.logo || null,
-            iconLogo: kit.iconLogo || null,
-            colors: typeof kit.colors === "string" ? JSON.parse(kit.colors) : kit.colors,
-            voiceTone: kit.voiceTone,
-            email: kit.email || null,
-            phone: kit.phone || null,
-            website: kit.website || null,
-            address: kit.address || null,
-            handles: parsedHandles,
-          });
-          const platformsWithHandles = Object.keys(parsedHandles).filter(
-            (k: string) => parsedHandles[k]
-          );
-          if (platformsWithHandles.length > 0)
-            setSelectedSocialPlatforms(new Set(platformsWithHandles));
-        }
-        if (costsData.success && costsData.data?.costs?.AI_VISUAL_DESIGN)
-          setDesignCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
-        if (costsData.success && costsData.data?.costs?.AI_DESIGN_LAYOUT)
-          setLayoutCreditCost(costsData.data.costs.AI_DESIGN_LAYOUT);
-        if (costsData.success && costsData.data?.costs?.AI_DESIGN_LAYOUT_IMAGE)
-          setLayoutImageCost(costsData.data.costs.AI_DESIGN_LAYOUT_IMAGE);
-        if (studioData.success)
-          setCreditsRemaining(studioData.data?.stats?.creditsRemaining ?? 0);
-      } catch {
-        /* silently */
-      }
-    })();
+    let isMounted = true;
+    Promise.all([
+      fetch("/api/brand").then((res) => res.json()).catch(() => null),
+      fetch("/api/ai/studio").then((res) => res.json()).catch(() => null),
+    ]).then(([brandData, studioData]) => {
+      if (!isMounted) return;
+      if (brandData?.success) setBrandKit(brandData.data?.brandKit || null);
+      if (studioData?.success) setCreditsRemaining(studioData.data?.stats?.creditsRemaining ?? 0);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const getSelectedBrandLogo = useCallback(() => {
-    if (logoType === "icon") return brandIdentity?.iconLogo || brandIdentity?.logo || null;
-    if (logoType === "full") return brandIdentity?.logo || brandIdentity?.iconLogo || null;
-    return brandIdentity?.logo || brandIdentity?.iconLogo || null;
-  }, [brandIdentity, logoType]);
+  useEffect(() => {
+    const firstTemplate = visibleFlowMediaTemplates[0];
+    if (!firstTemplate || visibleFlowMediaTemplates.some((template) => template.id === selectedFlowMediaTemplateId)) return;
+    setSelectedFlowMediaTemplateId(firstTemplate.id);
+    setFlowMediaAspect(firstTemplate.aspect);
+    if (firstTemplate.speechMode) setFlowVideoSpeechMode(firstTemplate.speechMode);
+    if (firstTemplate.duration) setFlowVideoDuration(firstTemplate.duration);
+  }, [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
 
-  // ── Image: Generate Ideas ──
-  const handleGenerateIdeas = useCallback(async () => {
-    if (isGeneratingIdeas) return;
-    setIsGeneratingIdeas(true);
-    setAiIdeas([]);
+  const closeIfIdle = useCallback(() => {
+    if (isGeneratingFlowMedia || isImprovingFlowMedia) return;
+    closeCreateModal();
+  }, [isGeneratingFlowMedia, isImprovingFlowMedia]);
+
+  const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
+    setSelectedFlowMediaTemplateId(template.id);
+    setFlowMediaMode(template.mode);
+    setFlowMediaAspect(template.aspect);
+    if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
+    if (template.duration) setFlowVideoDuration(template.duration);
+    setGeneratedFlowMedia(null);
+    setFlowMediaStatus("");
+    setFlowMediaImprovePrompt("");
+  };
+
+  const handleDownload = async () => {
+    if (!generatedFlowMedia?.url) return;
     try {
-      const res = await fetch("/api/ai/studio/ideas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: selectedCategory, style: selectedStyle }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        if (handleCreditError(err.error || {}, "AI ideas")) return;
-        throw new Error(err.error || "Failed");
-      }
-      const data = await res.json();
-      setAiIdeas(data.ideas || []);
-      if (data.creditsRemaining !== undefined) {
-        setCreditsRemaining(data.creditsRemaining);
-        emitCreditsUpdate(data.creditsRemaining);
-      }
-    } catch (e) {
-      toast({ title: "Idea generation failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
-    } finally {
-      setIsGeneratingIdeas(false);
+      const res = await fetch(generatedFlowMedia.url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `flowcreative-${Date.now()}.${generatedFlowMedia.type === "video" ? "mp4" : "png"}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", variant: "destructive" });
     }
-  }, [isGeneratingIdeas, selectedCategory, selectedStyle, toast]);
+  };
 
-  // ── Image: Generate Design ──
-  const handleGenerateImage = useCallback(async () => {
-    if (!imagePrompt.trim()) {
-      toast({ title: "Please describe what you want to create", variant: "destructive" });
+  const handleOpenInStudio = () => {
+    if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image") return;
+    try {
+      sessionStorage.setItem("flowcreative-import-image", generatedFlowMedia.url);
+    } catch {
+      // Continue; Studio will simply open blank if storage is blocked.
+    }
+    closeCreateModal();
+    router.push("/studio?import=flowcreative");
+  };
+
+  const handleAttachToPost = () => {
+    if (!generatedFlowMedia?.url) return;
+    closeCreateModal();
+    router.push(`/content/posts?mediaUrl=${encodeURIComponent(generatedFlowMedia.url)}&mediaType=${generatedFlowMedia.type}`);
+  };
+
+  const handleImproveFlowMedia = async () => {
+    if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image" || flowMediaImprovePrompt.trim().length < 6) {
       return;
     }
-    if (!selectedSize) {
-      toast({ title: "Please select a size", variant: "destructive" });
-      return;
-    }
 
-    setIsGeneratingImage(true);
-    setGeneratedImageUrl(null);
-    setGeneratedDesignId(null);
-    setLayoutGenerated(false);
+    const aspect = getFlowMediaAspect(flowMediaAspect);
+    const originalUrl = generatedFlowMedia.url;
+    setIsImprovingFlowMedia(true);
+    setFlowMediaStatus("Improving the FlowCreative image...");
 
-    try {
-      const socialHandles: Record<string, string> = {};
-      if (showSocialIcons && brandIdentity?.handles) {
-        selectedSocialPlatforms.forEach((p) => {
-          const h = brandIdentity.handles[p as keyof SocialHandles];
-          if (h) socialHandles[p] = h;
-        });
-      }
-
-      const contactInfo = {
-        email: includeInDesign.email ? brandIdentity?.email : null,
-        phone: includeInDesign.phone ? brandIdentity?.phone : null,
-        website: includeInDesign.website ? brandIdentity?.website : null,
-        address: includeInDesign.address ? brandIdentity?.address : null,
-      };
-
-      const brandLogo = getSelectedBrandLogo();
-
-      if (imageMode === "layout") {
-        const res = await fetch("/api/ai/design-layout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: imagePrompt,
-            category: selectedCategory,
-            size: `${selectedSize.width}x${selectedSize.height}`,
-            style: selectedStyle,
-            heroType,
-            textMode,
-            ctaText: ctaText.trim() || null,
-            brandColors: brandIdentity?.colors || null,
-            brandName: showBrandName ? brandIdentity?.name : null,
-            brandFonts: null,
-            showBrandName,
-            showSocialIcons,
-            socialHandles: Object.keys(socialHandles).length > 0 ? socialHandles : null,
-            contactInfo,
-            generateHeroImage,
-            generateBackground,
-            imageProvider: (generateHeroImage || generateBackground) ? selectedProvider : undefined,
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          if (handleCreditError(data.error || {}, "smart layout")) return;
-          throw new Error(data.error?.message || "Layout generation failed");
-        }
-
-        if (data.data?.creditsRemaining !== undefined) {
-          setCreditsRemaining(data.data.creditsRemaining);
-          emitCreditsUpdate(data.data.creditsRemaining);
-        }
-
-        setLayoutGenerated(true);
-        // Store layout data for "Open in Studio"
-        if (data.data?.layout) {
-          try {
-            sessionStorage.setItem("create-modal-layout", JSON.stringify({
-              layout: data.data.layout,
-              size: data.data.size || `${selectedSize.width}x${selectedSize.height}`,
-              brandLogoUrl: brandLogo || null,
-            }));
-          } catch { /* ignore */ }
-        }
-        toast({ title: "Smart layout generated!" });
-      } else {
-        const res = await fetch("/api/ai/visual", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: imagePrompt,
-            category: selectedCategory,
-            size: `${selectedSize.width}x${selectedSize.height}`,
-            style: selectedStyle,
-            provider: selectedProvider,
-            heroType,
-            textMode,
-            brandColors: brandIdentity?.colors || null,
-            brandLogo,
-            logoSizePercent,
-            brandName: showBrandName ? brandIdentity?.name : null,
-            showBrandName,
-            showSocialIcons,
-            socialHandles: Object.keys(socialHandles).length > 0 ? socialHandles : null,
-            contactInfo,
-            ctaText: ctaText.trim() || null,
-            templateImageUrl: styleReferenceUrls[0] || null,
-            referenceImageUrl: exactImageUrls[0] || null,
-            referenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
-            qualityCheckEnabled,
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          if (handleCreditError(data.error || {}, "visual design")) return;
-          throw new Error(data.error?.message || "Generation failed");
-        }
-
-        if (data.data?.creditsRemaining !== undefined) {
-          setCreditsRemaining(data.data.creditsRemaining);
-          emitCreditsUpdate(data.data.creditsRemaining);
-        }
-
-        if (data.data?.design?.imageUrl) {
-          setGeneratedImageUrl(data.data.design.imageUrl);
-          setGeneratedDesignId(data.data.design.id || null);
-        }
-        toast({ title: "Design generated!" });
-      }
-    } catch (e) {
-      toast({ title: "Generation failed", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  }, [imagePrompt, selectedSize, imageMode, selectedCategory, selectedStyle, selectedProvider, heroType, textMode, ctaText, brandIdentity, showBrandName, showSocialIcons, selectedSocialPlatforms, includeInDesign, getSelectedBrandLogo, logoSizePercent, generateHeroImage, generateBackground, exactImageUrls, styleReferenceUrls, qualityCheckEnabled, toast]);
-
-  const handleImproveImage = useCallback(async () => {
-    if (!generatedImageUrl || !improvePrompt.trim() || !selectedSize) return;
-
-    setIsImprovingImage(true);
     try {
       const res = await fetch("/api/ai/visual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: improvePrompt.trim(),
-          category: selectedCategory,
-          size: `${selectedSize.width}x${selectedSize.height}`,
-          style: selectedStyle,
-          provider: selectedProvider,
+          prompt: flowMediaImprovePrompt.trim(),
+          category: "social_post",
+          size: aspect.imageSize,
+          style: flowMediaStyle,
+          provider: "xai",
           promptMode: "edit",
-          editImageUrl: generatedImageUrl,
+          brandIdentity: buildRawBrandIdentity(brandKit),
+          brandColors: brandKit?.colors || null,
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
+          showBrandName: !!brandKit?.name,
+          editImageUrl: originalUrl,
           editIntent: "auto",
           editReferenceMode: "exact",
-          editReferenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
-          brandColors: brandIdentity?.colors || null,
-          brandLogo: getSelectedBrandLogo(),
-          logoSizePercent,
-          brandName: showBrandName ? brandIdentity?.name : null,
-          showBrandName,
-          textMode,
-          ctaText: ctaText.trim() || null,
-          qualityCheckEnabled,
+          editReferenceImageUrls: flowMediaReferenceUrls,
+          referenceImageUrls: flowMediaReferenceUrls,
+          qualityCheckEnabled: flowMediaQualityCheckEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        if (handleCreditError(data.error || {}, "visual edit")) return;
-        throw new Error(data.error?.message || "Image edit failed");
+        if (handleCreditError(data.error || {}, "FlowCreative edit")) return;
+        throw new Error(data.error?.message || "Image improvement failed");
       }
-      const imageUrl = data.data?.design?.imageUrl;
-      if (!imageUrl) throw new Error("Edit completed but no media URL was returned");
-      setGeneratedImageUrl(imageUrl);
-      setGeneratedDesignId(data.data?.design?.id || null);
-      setImprovePrompt("");
+      const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+      if (!imageUrl) throw new Error("Image improved but no media URL was returned");
+      setGeneratedFlowMedia({ type: "image", url: imageUrl });
+      setFlowMediaImprovePrompt("");
+      setFlowMediaStatus("Improved image ready.");
       if (data.data?.creditsRemaining !== undefined) {
         setCreditsRemaining(data.data.creditsRemaining);
         emitCreditsUpdate(data.data.creditsRemaining);
       }
-      toast({ title: "Design improved", description: "The updated image is ready to use." });
-    } catch (e) {
+      toast({ title: "FlowCreative image improved", description: "The edited version is ready." });
+    } catch (err) {
+      setFlowMediaStatus("");
       toast({
-        title: "Image edit failed",
-        description: e instanceof Error ? e.message : "Try another edit prompt.",
+        title: "FlowCreative edit failed",
+        description: err instanceof Error ? err.message : "Please try another edit prompt.",
         variant: "destructive",
       });
     } finally {
-      setIsImprovingImage(false);
+      setIsImprovingFlowMedia(false);
     }
-  }, [
-    generatedImageUrl,
-    improvePrompt,
-    selectedSize,
-    selectedCategory,
-    selectedStyle,
-    selectedProvider,
-    exactImageUrls,
-    styleReferenceUrls,
-    brandIdentity,
-    getSelectedBrandLogo,
-    logoSizePercent,
-    showBrandName,
-    textMode,
-    ctaText,
-    qualityCheckEnabled,
-    toast,
-  ]);
+  };
 
-  // ── Video: Generate ──
-  const handleGenerateVideo = useCallback(async () => {
-    if (!videoPrompt.trim()) {
-      toast({ title: "Enter a prompt", variant: "destructive" });
+  const handleGenerateFlowMedia = async () => {
+    const prompt = flowMediaPrompt.trim();
+    if (prompt.length < 12) {
+      toast({
+        title: "Add a stronger prompt",
+        description: "Tell FlowCreative what to create and where it will be used.",
+        variant: "destructive",
+      });
       return;
     }
 
-    setIsGeneratingVideo(true);
-    setVideoGenStatus("Initializing...");
-    setVideoGenProgress(undefined);
-    setGeneratedVideoUrl(null);
+    const aspect = getFlowMediaAspect(flowMediaAspect);
+    const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
+    const templateImageUrl = selectedFlowMediaTemplate?.thumbnail || null;
+    const flowVideoReferenceUrls = [
+      ...flowMediaReferenceUrls,
+      templateImageUrl,
+    ].filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4);
+    const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
+    const videoCategoryBySpeechMode: Record<FlowVideoSpeechMode, string> = {
+      talking_review: "testimonial",
+      site_walkthrough: "explainer",
+      voiceover_presentation: "explainer",
+      visual_only: "product_ad",
+    };
+    const referenceImageNote = flowMediaReferenceUrls.length
+      ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
+      : null;
+    const rawBrandIdentity = buildRawBrandIdentity(brandKit);
+    const rawVideoPrompt = [
+      "Brand identity:",
+      JSON.stringify(rawBrandIdentity, null, 2),
+      `Target video length: ${flowVideoDuration} seconds.`,
+      `Video format: ${videoSpeechOption.label}. ${videoSpeechOption.rule}`,
+      templateImageUrl
+        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. The attached template image is design and storyboard inspiration only. Do not copy its text, fake logo, product, people, or brand. Use the user's prompt, uploaded references, and real brand kit for the final media.`
+        : null,
+      flowMediaReferenceUrls.length
+        ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
+        : null,
+      flowVideoSpeechMode === "talking_review" && flowMediaReferenceUrls.length > 1
+        ? "Talking review reference roles: treat the first uploaded image as the presenter/face identity when it contains a person. Treat the second and later uploaded images as the exact product, bag, website, or supporting assets. Combine them without changing either identity. Do not turn the product into a different color, shape, brand, material, or item."
+        : null,
+      flowVideoSpeechMode === "talking_review"
+        ? "Talking review anatomy and scene rules: show exactly one presenter, one head, one torso, two arms, two hands, natural fingers, and a normal pose. Do not add extra arms, duplicate hands, duplicate products, floating limbs, overhead holding poses, or product placement that covers the face. If the hand pose is uncertain, place the product beside the presenter, on a table, or as a clean product insert."
+        : null,
+      flowVideoSpeechMode === "talking_review"
+        ? "Review presentation: improve the background into a clean creator-review or lifestyle setting while preserving the presenter's face and the exact product. Add tasteful TikTok/Reels-style review cues such as a short Honest review hook, star rating, comment card, progress bar, or LIVE-style engagement indicators. Keep text readable and do not cover the face or product."
+        : null,
+      "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
+      referenceImageNote,
+      `User prompt: ${prompt}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    setIsGeneratingFlowMedia(true);
+    setGeneratedFlowMedia(null);
+    setFlowMediaImprovePrompt("");
+    setFlowMediaStatus(
+      flowMediaMode === "image"
+        ? "Creating your FlowCreative image..."
+        : `Creating your ${flowVideoDuration}s FlowCreative video...`
+    );
 
     try {
+      if (flowMediaMode === "image") {
+        const res = await fetch("/api/ai/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            category: "social_post",
+            size: aspect.imageSize,
+            style: flowMediaStyle,
+            provider: "xai",
+            promptMode: "raw_brand",
+            brandIdentity: rawBrandIdentity,
+            channels: "selected social channels",
+            heroType: "product",
+            textMode: "creative",
+            brandColors: brandKit?.colors || null,
+            brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+            brandName: brandKit?.name || null,
+            showBrandName: !!brandKit?.name,
+            showSocialIcons: true,
+            socialHandles: brandKit?.handles || null,
+            referenceImageUrl: primaryReferenceImageUrl,
+            templateImageUrl,
+            referenceImageUrls: flowMediaReferenceUrls,
+            ctaText: null,
+            qualityCheckEnabled: flowMediaQualityCheckEnabled,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          if (handleCreditError(data.error || {}, "FlowCreative image")) return;
+          throw new Error(data.error?.message || "Image generation failed");
+        }
+
+        const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
+        if (!imageUrl) throw new Error("Image generated but no media URL was returned");
+        setGeneratedFlowMedia({ type: "image", url: imageUrl });
+        setFlowMediaStatus("Image ready.");
+        if (data.data?.creditsRemaining !== undefined) {
+          setCreditsRemaining(data.data.creditsRemaining);
+          emitCreditsUpdate(data.data.creditsRemaining);
+        }
+        toast({ title: "Image generated", description: "FlowCreative created the asset." });
+        return;
+      }
+
       const res = await fetch("/api/ai/video-studio/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: videoPrompt,
-          category: videoCategory,
-          aspectRatio: videoAspectRatio,
-          duration: videoDuration.seconds,
-          style: videoStyle,
+          prompt: rawVideoPrompt,
+          category: videoCategoryBySpeechMode[flowVideoSpeechMode],
+          aspectRatio: flowMediaAspect,
+          duration: flowVideoDuration,
+          style: flowMediaStyle,
           resolution: "720p",
-          provider: videoProvider,
-          brandLogo: getSelectedBrandLogo(),
-          brandName: brandIdentity?.name || null,
-          referenceImageUrl: exactImageUrls[0] || styleReferenceUrls[0] || null,
-          referenceImageUrls: [...exactImageUrls, ...styleReferenceUrls],
+          provider: "auto",
+          speechMode: flowVideoSpeechMode,
+          voiceOver: flowVideoSpeechMode === "voiceover_presentation" ? "nova" : false,
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
+          referenceImageUrl: primaryReferenceImageUrl,
+          referenceImageUrls: flowVideoReferenceUrls,
         }),
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        if (err.code === "INSUFFICIENT_CREDITS" || err.error?.code === "INSUFFICIENT_CREDITS") {
-          handleCreditError(err.error || err);
-          return;
-        }
-        throw new Error(err.error?.message || err.error || "Generation failed");
+        const err = await res.json().catch(() => ({}));
+        if (handleCreditError(err.error || err, "FlowCreative video")) return;
+        throw new Error(err.error?.message || err.error || "Video generation failed");
       }
 
-      // SSE streaming for progress
-      if (res.headers.get("content-type")?.includes("text/event-stream")) {
-        const reader = res.body?.getReader();
+      let videoUrl = "";
+      if (res.headers.get("content-type")?.includes("text/event-stream") && res.body) {
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let finalData: { url?: string; duration?: number } | null = null;
-        let streamError: string | null = null;
+        let buffer = "";
+        let streamError = "";
 
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split("\n\n");
+          buffer = chunks.pop() || "";
 
-            const text = decoder.decode(value, { stream: true });
-            const lines = text.split("\n");
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  if (data.type === "status") setVideoGenStatus(data.message || data.status || "Generating video...");
-                  if (data.status) setVideoGenStatus(data.status);
-                  if (data.progress !== undefined) setVideoGenProgress(data.progress);
-                  if (data.type === "error") streamError = data.message || "Video generation failed";
-                  if (data.type === "media" && data.mediaUrl) finalData = { url: data.mediaUrl, duration: data.duration };
-                  if (data.url) finalData = data;
-                  if (data.creditsRemaining !== undefined) {
-                    setCreditsRemaining(data.creditsRemaining);
-                    emitCreditsUpdate(data.creditsRemaining);
-                  }
-                } catch { /* skip malformed lines */ }
-              }
+          for (const chunk of chunks) {
+            const line = chunk.split("\n").find((item) => item.startsWith("data: "));
+            if (!line) continue;
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "status") setFlowMediaStatus(event.message || "Generating video...");
+            if (event.type === "error") streamError = event.message || "Video generation failed";
+            if (event.type === "media") {
+              videoUrl = normalizeGeneratedMediaUrl(event.mediaUrl);
+              setFlowMediaStatus("Video ready.");
+            }
+            if (event.creditsRemaining !== undefined) {
+              setCreditsRemaining(event.creditsRemaining);
+              emitCreditsUpdate(event.creditsRemaining);
             }
           }
         }
-
         if (streamError) throw new Error(streamError);
-        if (finalData?.url) {
-          setGeneratedVideoUrl(finalData.url);
-          toast({ title: "Video generated!" });
-        }
       } else {
         const data = await res.json();
-        const videoUrl = data.url || data.data?.url;
-        if (videoUrl) {
-          setGeneratedVideoUrl(videoUrl);
-          toast({ title: "Video generated!" });
-        }
+        videoUrl = normalizeGeneratedMediaUrl(data.mediaUrl || data.url || data.data?.url);
         if (data.creditsRemaining !== undefined) {
           setCreditsRemaining(data.creditsRemaining);
           emitCreditsUpdate(data.creditsRemaining);
         }
       }
-    } catch (err: unknown) {
-      toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+
+      if (!videoUrl) throw new Error("Video generated but no media URL was returned");
+      setGeneratedFlowMedia({ type: "video", url: videoUrl });
+      setFlowMediaStatus("Video ready.");
+      toast({ title: "Video generated", description: "FlowCreative created the video." });
+    } catch (err) {
+      setFlowMediaStatus("");
+      toast({
+        title: "FlowCreative failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
     } finally {
-      setIsGeneratingVideo(false);
-      setVideoGenStatus("");
-      setVideoGenProgress(undefined);
+      setIsGeneratingFlowMedia(false);
     }
-  }, [videoPrompt, videoCategory, videoAspectRatio, videoDuration, videoStyle, videoProvider, getSelectedBrandLogo, brandIdentity, exactImageUrls, styleReferenceUrls, toast]);
+  };
 
-  // ── Download helpers ──
-  const handleDownloadImage = useCallback(async () => {
-    if (!generatedImageUrl) return;
-    try {
-      const proxyUrl = generatedImageUrl.startsWith("http") && typeof window !== "undefined" && !generatedImageUrl.startsWith(window.location.origin)
-        ? `/api/image-proxy?url=${encodeURIComponent(generatedImageUrl)}`
-        : generatedImageUrl;
-      const res = await fetch(proxyUrl);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `flowsmartly-design-${Date.now()}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "Download failed", variant: "destructive" });
-    }
-  }, [generatedImageUrl, toast]);
-
-  const handleDownloadVideo = useCallback(async () => {
-    if (!generatedVideoUrl) return;
-    try {
-      const res = await fetch(generatedVideoUrl);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `flowsmartly-video-${Date.now()}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "Download failed", variant: "destructive" });
-    }
-  }, [generatedVideoUrl, toast]);
-
-  const handleOpenInStudio = useCallback(() => {
-    closeCreateModal();
-    if (generatedDesignId) {
-      router.push(`/studio?id=${generatedDesignId}`);
-    } else if (generatedImageUrl) {
-      try {
-        sessionStorage.setItem("flowcreative-import-image", generatedImageUrl);
-      } catch { /* ignore */ }
-      router.push("/studio?import=flowcreative");
-    } else if (layoutGenerated) {
-      router.push("/studio?applyLayout=session");
-    } else {
-      router.push("/studio");
-    }
-  }, [generatedDesignId, generatedImageUrl, layoutGenerated, router]);
-
-  const handleAttachToPost = useCallback(() => {
-    const url = activeTab === "image" ? generatedImageUrl : generatedVideoUrl;
-    if (!url) return;
-    closeCreateModal();
-    router.push(`/content/posts?mediaUrl=${encodeURIComponent(url)}&mediaType=${activeTab}`);
-  }, [activeTab, generatedImageUrl, generatedVideoUrl, router]);
-
-  const handleOpenInVideoEditor = useCallback(() => {
-    closeCreateModal();
-    if (generatedVideoUrl) {
-      router.push(`/video-editor?videoUrl=${encodeURIComponent(generatedVideoUrl)}`);
-    } else {
-      router.push("/video-editor");
-    }
-  }, [generatedVideoUrl, router]);
-
-  const handleClose = useCallback(() => {
-    if (isGeneratingImage || isGeneratingVideo || isImprovingImage) return;
-    closeCreateModal();
-  }, [isGeneratingImage, isGeneratingVideo, isImprovingImage]);
-
-  // Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose]);
-
-  const isGenerating = isGeneratingImage || isGeneratingVideo || isImprovingImage;
-  const currentCategory = DESIGN_CATEGORIES.find((c) => c.id === selectedCategory)!;
-  const generatedMediaUrl = activeTab === "image" ? generatedImageUrl : generatedVideoUrl;
-  const hasGeneratedResult = Boolean(generatedMediaUrl || layoutGenerated);
-
-  const imageCreditCost = imageMode === "layout"
-    ? layoutCreditCost + (generateHeroImage ? layoutImageCost : 0) + (generateBackground ? layoutImageCost : 0)
-    : qualityCheckEnabled ? designCreditCost * 3 : designCreditCost;
-
-  const videoExtCount = videoProvider === "veo3" ? getExtensionCount(videoDuration.seconds) : 0;
-  const videoCreditCost = videoProvider === "slideshow" ? 25 : Math.round(60 * (1 + videoExtCount));
+  const isBusy = isGeneratingFlowMedia || isImprovingFlowMedia;
+  const selectedTemplatePreview = selectedFlowMediaTemplate?.thumbnail || null;
 
   return (
-    <FloatingPanel
-      open
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) handleClose();
-      }}
-      title="FlowCreative"
-      description={`Create brand-safe image and video assets${brandIdentity?.name ? ` for ${brandIdentity.name}` : ""}.`}
-      icon={<Sparkles className="h-4 w-4" />}
-      defaultSize={{ width: 1180, height: 900 }}
-      defaultPosition={{ y: 82 }}
-      minSize={{ width: 760, height: 560 }}
-      contentClassName="p-0 overflow-hidden"
-      className="max-w-[calc(100vw-16px)]"
-    >
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        {/* ═══ Header ═══ */}
-        <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-          <div className="flex items-center gap-4">
-            {/* Logo */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-
-            {/* Tab Switcher */}
-            <div className="flex items-center gap-1 p-1 rounded-lg bg-muted">
-              <button
-                onClick={() => setActiveTab("image")}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === "image"
-                    ? "bg-background shadow-sm text-brand-600"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <ImageIcon className="h-4 w-4" />
-                Image
-              </button>
-              <button
-                onClick={() => setActiveTab("video")}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === "video"
-                    ? "bg-background shadow-sm text-brand-600"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Video className="h-4 w-4" />
-                Video
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="text-xs cursor-default">
-                    <Sparkles className="h-3 w-3 mr-1 text-violet-500" />
-                    {creditsRemaining} credits
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>Your remaining AI credits</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <button
-              onClick={handleClose}
-              disabled={isGenerating}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* ═══ Body ═══ */}
-        <div className="flex-1 flex min-h-0">
-          {/* ─── Left: Form ─── */}
-          <div className="w-[420px] shrink-0 border-r overflow-y-auto p-5 space-y-4">
-            {hasGeneratedResult && !isGenerating ? (
-              <>
-                <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 to-violet-500 text-white">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold">FlowCreative result ready</p>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {activeTab === "image"
-                          ? "Review the image, improve it with a quick prompt, send it to Studio, or attach it to a post."
-                          : "Review the video, then import it to a post. Video Studio import is intentionally paused for now."}
-                      </p>
-                      {brandIdentity?.logo || brandIdentity?.iconLogo ? (
-                        <p className="mt-2 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">
-                          Real brand logo included from brand kit
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                {activeTab === "image" && generatedImageUrl ? (
-                  <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
-                    <Label className="text-xs font-semibold text-muted-foreground">Improve with FlowCreative chat</Label>
-                    <textarea
-                      value={improvePrompt}
-                      onChange={(event) => setImprovePrompt(event.target.value)}
-                      placeholder="Example: keep the product exact, replace the background with a premium studio scene, make the CTA cleaner..."
-                      className="min-h-[110px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleImproveImage}
-                      disabled={isImprovingImage || improvePrompt.trim().length < 6}
-                      className="w-full gap-2"
-                    >
-                      {isImprovingImage ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      Apply improvement
-                    </Button>
-                  </div>
+    <>
+      <FloatingPanel
+        open
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) closeIfIdle();
+        }}
+        title="FlowCreative"
+        description={`Generate images and videos from ${brandName}'s brand identity.`}
+        icon={<ImagePlus className="h-4 w-4" />}
+        defaultSize={{ width: 900, height: 860 }}
+        defaultPosition={{ y: 118 }}
+        minSize={{ width: 620, height: 520 }}
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold">Create with FlowCreative anywhere</p>
+                <p className="text-sm text-muted-foreground">
+                  Pick a brand-aware template, tune the prompt, and generate with your real brand logo and references.
+                </p>
+                {brandKit?.logo || brandKit?.iconLogo ? (
+                  <p className="mt-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+                    Using the real brand kit logo, not a made-up logo.
+                  </p>
                 ) : null}
+              </div>
+              <Badge variant="outline" className="ml-auto shrink-0">
+                <Sparkles className="mr-1 h-3 w-3 text-violet-500" />
+                {creditsRemaining} credits
+              </Badge>
+            </div>
+          </div>
 
-                <div className="grid gap-2">
-                  {activeTab === "image" ? (
-                    <Button type="button" onClick={handleOpenInStudio} className="gap-2">
-                      <ExternalLink className="h-4 w-4" />
-                      Edit in Studio
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant={activeTab === "image" ? "outline" : "default"}
-                    onClick={handleAttachToPost}
-                    disabled={!generatedMediaUrl}
-                    className="gap-2"
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                    {activeTab === "video" ? "Import video to post" : "Attach to post"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      if (activeTab === "image") {
-                        setGeneratedImageUrl(null);
-                        setGeneratedDesignId(null);
-                        setLayoutGenerated(false);
-                      } else {
-                        setGeneratedVideoUrl(null);
-                      }
-                    }}
-                  >
-                    Change options and create another
-                  </Button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { id: "image" as const, label: "Image Studio", icon: ImageIcon, helper: "Campaign images, offer cards, proof visuals" },
+              { id: "video" as const, label: "Video Studio", icon: Film, helper: "8s, 15s, or 30s story-driven videos" },
+            ].map((mode) => {
+              const Icon = mode.icon;
+              const isActive = flowMediaMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => {
+                    setFlowMediaMode(mode.id);
+                    setGeneratedFlowMedia(null);
+                    setFlowMediaStatus("");
+                    const first = flowMediaTemplates.find((template) => template.mode === mode.id);
+                    if (first) applyFlowMediaTemplate(first);
+                  }}
+                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    isActive
+                      ? "border-cyan-500 bg-cyan-500/10 shadow-sm"
+                      : "bg-background/80 text-muted-foreground hover:border-cyan-500/40 hover:text-foreground"
+                  }`}
+                >
+                  <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="block text-base font-bold text-foreground">{mode.label}</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{mode.helper}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {generatedFlowMedia && !isGeneratingFlowMedia ? (
+            <GeneratedFlowCreativeResult
+              generatedFlowMedia={generatedFlowMedia}
+              flowMediaImprovePrompt={flowMediaImprovePrompt}
+              isImprovingFlowMedia={isImprovingFlowMedia}
+              onImprovePromptChange={setFlowMediaImprovePrompt}
+              onImprove={handleImproveFlowMedia}
+              onOpenStudio={handleOpenInStudio}
+              onAttachToPost={handleAttachToPost}
+              onDownload={handleDownload}
+              onPreview={setExpandedMediaUrl}
+              onCreateAnother={() => {
+                setGeneratedFlowMedia(null);
+                setFlowMediaStatus("");
+                setFlowMediaImprovePrompt("");
+              }}
+            />
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
                 </div>
-              </>
-            ) : activeTab === "image" ? (
-              <>
-                {/* Mode Switcher */}
-                <div className="flex items-center gap-1 p-1 rounded-lg bg-muted">
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setImageMode("layout")}
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            imageMode === "layout"
-                              ? "bg-background shadow-sm text-brand-600"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          <Layers className="h-3.5 w-3.5" />
-                          Smart Layout
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0">{layoutCreditCost}+cr</Badge>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Generates editable text, shapes & elements. Best for social media posts with custom text.</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => setImageMode("image")}
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                            imageMode === "image"
-                              ? "bg-background shadow-sm text-brand-600"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          <ImageIcon className="h-3.5 w-3.5" />
-                          AI Image
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0">{designCreditCost}cr</Badge>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Generates a single flat image. Best for photorealistic or artistic designs.</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                {imageMode === "image" && (
-                  <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Quality check</p>
-                      <p className="text-xs text-muted-foreground">
-                        Review and retry before delivery. Uses {designCreditCost * 3} credits.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={qualityCheckEnabled}
-                      onCheckedChange={setQualityCheckEnabled}
-                      aria-label="Enable visual quality check"
-                    />
-                  </div>
-                )}
-
-                {/* Prompt */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-sm font-medium">Describe your design</Label>
-                    <div className="flex items-center gap-1">
-                      <AIIdeasHistory contentType="design_ideas" onSelect={(idea) => setImagePrompt(idea)} className="text-xs" />
-                      <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1" onClick={handleGenerateIdeas} disabled={isGeneratingIdeas}>
-                        {isGeneratingIdeas ? <AISpinner className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                        Ideas
-                      </Button>
-                    </div>
-                  </div>
-                  <textarea
-                    value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="e.g. A vibrant Instagram post announcing a new product launch with bold typography and colorful gradients"
-                    className="w-full min-h-[100px] p-3 text-sm border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background"
-                  />
-                  {aiIdeas.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {aiIdeas.map((idea, i) => (
-                        <button key={i} onClick={() => { setImagePrompt(idea); setAiIdeas([]); }} className="w-full text-left p-2 text-xs rounded-lg border hover:border-brand-500 hover:bg-brand-500/5 transition-colors line-clamp-2">
-                          {idea}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* CTA */}
-                <div>
-                  <Label className="text-xs text-muted-foreground">Call to Action (optional)</Label>
-                  <Input value={ctaText} onChange={(e) => setCtaText(e.target.value)} placeholder='e.g. "Shop Now", "Book Today"' className="h-8 text-sm mt-1" />
-                </div>
-
-                {/* Design Type & Size */}
-                <CollapsibleSection title="Design Type & Size" icon={Layers} defaultOpen>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Category</Label>
-                    <div className="grid grid-cols-3 gap-1.5 mt-1">
-                      {DESIGN_CATEGORIES.map((cat) => {
-                        const CatIcon = categoryIcons[cat.id] || ImageIcon;
-                        return (
-                          <TooltipProvider key={cat.id} delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => setSelectedCategory(cat.id as DesignCategory)}
-                                  className={`flex flex-col items-center gap-1 p-2 rounded-lg text-xs border transition-colors ${
-                                    selectedCategory === cat.id
-                                      ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                                      : "border-transparent hover:bg-muted"
-                                  }`}
-                                >
-                                  <CatIcon className="h-4 w-4" />
-                                  {cat.name.split(" ")[0]}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom">{cat.description}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Size Preset</Label>
-                    <div className="space-y-0.5 mt-1">
-                      {currentCategory?.presets.map((preset) => {
-                        const providers = getProvidersForPreset(preset.width, preset.height);
-                        const compatible = imageMode === "layout" || providers.includes(selectedProvider);
-                        return (
-                          <button
-                            key={preset.name}
-                            onClick={() => setSelectedSize(preset)}
-                            disabled={!compatible}
-                            className={`w-full flex justify-between items-center px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                              selectedSize?.name === preset.name
-                                ? "bg-brand-500/10 text-brand-600 border border-brand-500"
-                                : compatible
-                                  ? "hover:bg-muted border border-transparent"
-                                  : "opacity-40 cursor-not-allowed border border-transparent"
-                            }`}
-                          >
-                            <span>{preset.name}</span>
-                            <span className="text-[11px] font-mono text-muted-foreground">{preset.width}x{preset.height}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* Style & Appearance */}
-                <CollapsibleSection title="Style & Appearance" icon={Palette}>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Visual Style</Label>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {DESIGN_STYLES.map((style) => (
-                        <Badge key={style.id} variant={selectedStyle === style.id ? "default" : "outline"} className="cursor-pointer text-xs" onClick={() => setSelectedStyle(style.id)}>
-                          {style.label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Visual Focus</Label>
-                    <div className="flex gap-1.5 mt-1">
-                      {[
-                        { id: "people" as const, icon: User, label: "People" },
-                        { id: "product" as const, icon: Package, label: "Product" },
-                        { id: "text-only" as const, icon: Type, label: "Text Only" },
-                      ].map((h) => (
-                        <button
-                          key={h.id}
-                          onClick={() => { setHeroType(h.id); if (h.id === "text-only") setGenerateHeroImage(false); }}
-                          className={`flex-1 flex flex-col items-center gap-1 p-2.5 rounded-lg border text-xs transition-colors ${
-                            heroType === h.id
-                              ? "border-brand-500 bg-brand-500/10 text-brand-600"
-                              : "border-border hover:border-brand-300"
-                          }`}
-                        >
-                          <h.icon className="h-4 w-4" />
-                          {h.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Text Mode</Label>
-                    <div className="flex gap-1.5 mt-1">
-                      <button onClick={() => setTextMode("creative")} className={`flex-1 p-2 rounded-lg border text-xs text-center transition-colors ${textMode === "creative" ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-300"}`}>AI Creative</button>
-                      <button onClick={() => setTextMode("exact")} className={`flex-1 p-2 rounded-lg border text-xs text-center transition-colors ${textMode === "exact" ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-300"}`}>Use My Text</button>
-                    </div>
-                  </div>
-
-                  {imageMode === "image" && (
-                    <>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Style Reference</Label>
-                        <MediaUploader value={styleReferenceUrls} onChange={setStyleReferenceUrls} maxFiles={1} accept="image/*" />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Exact Image</Label>
-                        <MediaUploader value={exactImageUrls} onChange={setExactImageUrls} maxFiles={1} accept="image/*" />
-                      </div>
-                    </>
-                  )}
-                </CollapsibleSection>
-
-                {/* AI Images (layout mode) */}
-                {imageMode === "layout" && (
-                  <CollapsibleSection title="AI Images" icon={ImageIcon}>
-                    <div className="space-y-3">
-                      <p className="text-[11px] text-muted-foreground">
-                        Optionally generate AI images for your layout. Each image adds {layoutImageCost} credits.
-                      </p>
-                      <label className="flex items-center justify-between gap-2 text-xs cursor-pointer">
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox" checked={generateHeroImage} onChange={(e) => setGenerateHeroImage(e.target.checked)} className="accent-brand-500" disabled={heroType === "text-only"} />
-                          <span className={heroType === "text-only" ? "text-muted-foreground" : ""}>Generate Hero Image</span>
-                        </div>
-                        {generateHeroImage && <Badge variant="secondary" className="text-[9px] px-1 py-0">+{layoutImageCost}cr</Badge>}
-                      </label>
-                      {heroType === "text-only" && (
-                        <p className="text-[10px] text-muted-foreground -mt-2 ml-5">Change Visual Focus to People or Product to enable</p>
-                      )}
-                      <label className="flex items-center justify-between gap-2 text-xs cursor-pointer">
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox" checked={generateBackground} onChange={(e) => setGenerateBackground(e.target.checked)} className="accent-brand-500" />
-                          <span>AI Background</span>
-                        </div>
-                        {generateBackground && <Badge variant="secondary" className="text-[9px] px-1 py-0">+{layoutImageCost}cr</Badge>}
-                      </label>
-                      {(generateHeroImage || generateBackground) && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Image Quality</Label>
-                          <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
-                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="xai">Primary</SelectItem>
-                              <SelectItem value="openai">Fallback quality</SelectItem>
-                              <SelectItem value="gemini">Experimental style</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {selectedProvider !== "openai" && generateHeroImage && (
-                            <p className="text-[10px] text-muted-foreground mt-1">Transparent background via AI background removal</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </CollapsibleSection>
-                )}
-
-                {/* Provider (image mode) */}
-                {imageMode === "image" && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Image Quality</Label>
-                    <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as ImageProvider)}>
-                      <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="xai">Primary</SelectItem>
-                        <SelectItem value="openai">Fallback quality</SelectItem>
-                        <SelectItem value="gemini">Experimental style</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Brand & Contact */}
-                <CollapsibleSection title="Brand & Contact Info" icon={Building2}>
-                  {brandIdentity ? (
-                    <div className="space-y-3">
-                      <div className="text-xs text-muted-foreground">Using <span className="font-medium text-foreground">{brandIdentity.name}</span></div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Logo Display</Label>
-                        <div className="flex gap-1.5 mt-1">
-                          {(["auto", "icon", "full"] as const).map((lt) => (
-                            <button key={lt} onClick={() => setLogoType(lt)} className={`flex-1 p-2 rounded-lg border text-xs capitalize transition-colors ${logoType === lt ? "border-brand-500 bg-brand-500/10" : "border-border"}`}>
-                              {lt === "auto" ? "Auto" : lt === "icon" ? "Icon Logo" : "Full Logo"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {imageMode === "image" && (
-                        <div>
-                          <div className="flex justify-between text-xs text-muted-foreground"><span>Logo Size</span><span>{logoSizePercent}%</span></div>
-                          <input type="range" min={8} max={35} value={logoSizePercent} onChange={(e) => setLogoSizePercent(parseInt(e.target.value))} className="w-full h-1.5 accent-brand-500" />
-                        </div>
-                      )}
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
-                        <input type="checkbox" checked={showBrandName} onChange={(e) => setShowBrandName(e.target.checked)} className="accent-brand-500" />
-                        Show Brand Name
-                      </label>
-                      {Object.keys(brandIdentity.handles).some((k) => brandIdentity.handles[k as keyof SocialHandles]) && (
-                        <label className="flex items-center gap-2 text-xs cursor-pointer">
-                          <input type="checkbox" checked={showSocialIcons} onChange={(e) => setShowSocialIcons(e.target.checked)} className="accent-brand-500" />
-                          Show Social Icons
-                        </label>
-                      )}
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Include Contact Info</Label>
-                        <div className="space-y-1.5 mt-1">
-                          {[
-                            { key: "email" as const, icon: Mail, label: "Email", value: brandIdentity.email },
-                            { key: "phone" as const, icon: Phone, label: "Phone", value: brandIdentity.phone },
-                            { key: "website" as const, icon: Globe, label: "Website", value: brandIdentity.website },
-                            { key: "address" as const, icon: MapPin, label: "Address", value: brandIdentity.address },
-                          ].filter((c) => c.value).map((c) => (
-                            <label key={c.key} className="flex items-center gap-2 text-xs cursor-pointer">
-                              <input type="checkbox" checked={includeInDesign[c.key]} onChange={(e) => setIncludeInDesign((prev) => ({ ...prev, [c.key]: e.target.checked }))} className="accent-brand-500" />
-                              <c.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                              {c.label}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Set up your brand in Settings to include logo, colors, and contact info.
-                    </p>
-                  )}
-                </CollapsibleSection>
-              </>
-            ) : (
-              /* ─── VIDEO TAB FORM ─── */
-              <>
-                {/* Provider */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Provider</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {VIDEO_PROVIDERS.map((p) => {
-                      const Icon = p.icon;
-                      return (
-                        <TooltipProvider key={p.id} delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => setVideoProvider(p.id)}
-                                className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-xs transition-colors ${
-                                  videoProvider === p.id
-                                    ? "border-brand-500 bg-brand-500/5"
-                                    : "border-border hover:bg-muted/50"
-                                }`}
-                              >
-                                <Icon className="h-4 w-4" />
-                                <span className="font-medium">{p.label}</span>
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>{p.desc}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Prompt */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium">Describe your video</Label>
-                  <textarea
-                    value={videoPrompt}
-                    onChange={(e) => setVideoPrompt(e.target.value)}
-                    placeholder="Describe the video you want to create..."
-                    className="w-full min-h-[100px] p-3 text-sm border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 bg-background"
-                  />
-                </div>
-
-                {/* Category */}
-                <CollapsibleSection title="Category" icon={Film} defaultOpen>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {VIDEO_CATEGORIES.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setVideoCategory(cat.id as VideoCategory)}
-                        className={`text-[11px] px-2 py-1.5 rounded-md border transition-colors ${
-                          videoCategory === cat.id
-                            ? "border-brand-500 bg-brand-500/5 text-brand-600"
-                            : "border-border hover:bg-muted/50"
+                <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleFlowMediaTemplates.map((template) => {
+                    const isActive = selectedFlowMediaTemplateId === template.id && flowMediaMode === template.mode;
+                    return (
+                      <div
+                        key={template.id}
+                        className={`group relative overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-sm ${
+                          isActive ? "border-brand-500 bg-brand-500/10" : "bg-background hover:border-brand-500/40"
                         }`}
                       >
-                        {cat.name}
+                        <button
+                          type="button"
+                          onClick={() => applyFlowMediaTemplate(template)}
+                          className="block w-full text-left"
+                        >
+                          {template.thumbnail ? (
+                            <div className="relative bg-muted/40 p-2">
+                              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-background/80">
+                                <img
+                                  src={template.thumbnail}
+                                  alt={`${template.title} FlowCreative template preview`}
+                                  className="h-full w-full object-contain"
+                                  loading="lazy"
+                                />
+                              </div>
+                              <span className="absolute left-4 top-4 rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-bold text-foreground shadow-sm">
+                                {template.badge}
+                              </span>
+                              {flowMediaMode === "video" ? (
+                                <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
+                                    <Play className="h-5 w-5 fill-white/40" />
+                                  </span>
+                                </span>
+                              ) : null}
+                              {isActive ? (
+                                <span className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                  <Check className="h-4 w-4" />
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="line-clamp-1 text-sm font-bold">{template.title}</span>
+                              <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                              {template.helper || template.prompt}
+                            </p>
+                          </div>
+                        </button>
+                        {template.thumbnail ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedMediaUrl(template.thumbnail || null);
+                            }}
+                            className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                            aria-label={`Preview ${template.title}`}
+                          >
+                            <ZoomIn className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Prompt</Label>
+                <textarea
+                  value={flowMediaPrompt}
+                  onChange={(event) => setFlowMediaPrompt(event.target.value)}
+                  className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Describe the media you want FlowCreative to create..."
+                />
+              </div>
+
+              {flowMediaMode === "video" ? (
+                <VideoControls
+                  flowVideoDuration={flowVideoDuration}
+                  flowVideoSpeechMode={flowVideoSpeechMode}
+                  onDurationChange={setFlowVideoDuration}
+                  onSpeechModeChange={setFlowVideoSpeechMode}
+                />
+              ) : null}
+
+              <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground">Reference images</Label>
+                  <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
+                </div>
+                <MediaUploader
+                  value={flowMediaReferenceUrls}
+                  onChange={setFlowMediaReferenceUrls}
+                  multiple
+                  maxFiles={3}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  maxSize={25 * 1024 * 1024}
+                  filterTypes={["image"]}
+                  uploadEndpoint="/api/media"
+                  disabled={isBusy}
+                  placeholder="Add reference"
+                  variant="small"
+                  libraryTitle="Choose reference image"
+                />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowCreative combines them into one identity anchor so the face and item stay locked instead of being reinvented.
+                </p>
+              </div>
+
+              {flowMediaMode === "image" ? (
+                <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background/70 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">Quality check</p>
+                    <p className="text-xs text-muted-foreground">Review and retry the image before delivery. Uses 3x credits.</p>
+                  </div>
+                  <Switch
+                    checked={flowMediaQualityCheckEnabled}
+                    onCheckedChange={setFlowMediaQualityCheckEnabled}
+                    aria-label="Enable FlowCreative media quality check"
+                  />
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Format</Label>
+                  <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
+                    {FLOW_MEDIA_ASPECTS.map((aspect) => (
+                      <button
+                        key={aspect.id}
+                        type="button"
+                        onClick={() => setFlowMediaAspect(aspect.id)}
+                        className={`rounded-full px-2 py-1 text-[11px] font-semibold transition ${
+                          flowMediaAspect === aspect.id ? "bg-background shadow-sm" : "text-muted-foreground"
+                        }`}
+                      >
+                        {aspect.label}
                       </button>
                     ))}
                   </div>
-                </CollapsibleSection>
-
-                {/* Format */}
-                <CollapsibleSection title="Format" icon={Ratio} defaultOpen>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Aspect Ratio</Label>
-                    <div className="grid grid-cols-3 gap-1.5 mt-1">
-                      {ASPECT_RATIO_OPTIONS.map((ar) => (
-                        <button
-                          key={ar.id}
-                          onClick={() => setVideoAspectRatio(ar.id as AspectRatio)}
-                          className={`text-[11px] px-2 py-1.5 rounded-md border transition-colors ${
-                            videoAspectRatio === ar.id
-                              ? "border-brand-500 bg-brand-500/5 text-brand-600"
-                              : "border-border hover:bg-muted/50"
-                          }`}
-                        >
-                          {ar.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Duration</Label>
-                    <div className="grid grid-cols-4 gap-1.5 mt-1">
-                      {VIDEO_DURATIONS.map((d) => (
-                        <TooltipProvider key={d.seconds} delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => setVideoDuration(d)}
-                                className={`text-[11px] px-2 py-1.5 rounded-md border transition-colors ${
-                                  videoDuration.seconds === d.seconds
-                                    ? "border-brand-500 bg-brand-500/5 text-brand-600"
-                                    : "border-border hover:bg-muted/50"
-                                }`}
-                              >
-                                {d.label}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {d.seconds <= 8 ? "Base duration" : `Extends video (${getExtensionCount(d.seconds)} extension${getExtensionCount(d.seconds) > 1 ? "s" : ""})`}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ))}
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* Style */}
-                <CollapsibleSection title="Style" icon={Palette}>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Style</Label>
                   <div className="flex flex-wrap gap-1.5">
-                    {VIDEO_STYLES.map((style) => (
-                      <Badge key={style.id} variant={videoStyle === style.id ? "default" : "outline"} className="cursor-pointer text-xs" onClick={() => setVideoStyle(style.id)}>
-                        {style.label}
-                      </Badge>
+                    {FLOW_MEDIA_STYLES.map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setFlowMediaStyle(style)}
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize transition ${
+                          flowMediaStyle === style
+                            ? "bg-foreground text-background"
+                            : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {style}
+                      </button>
                     ))}
                   </div>
-                </CollapsibleSection>
-              </>
-            )}
-          </div>
-
-          {/* ─── Right: Preview / Loader ─── */}
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-muted/30 min-h-0">
-            {activeTab === "image" ? (
-              /* Image Preview Area */
-              isGeneratingImage ? (
-                <AIGenerationLoader
-                  currentStep={imageMode === "layout" ? "Generating layout..." : "Creating your design..."}
-                  subtitle={imageMode === "layout" ? "AI is building your editable layout" : "This usually takes 10-60 seconds"}
-                />
-              ) : generatedImageUrl ? (
-                <div className="flex flex-col items-center gap-4 w-full max-w-lg">
-                  <div className="relative rounded-xl overflow-hidden shadow-lg border bg-background">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        generatedImageUrl.startsWith("http") && typeof window !== "undefined" && !generatedImageUrl.startsWith(window.location.origin)
-                          ? `/api/image-proxy?url=${encodeURIComponent(generatedImageUrl)}`
-                          : generatedImageUrl
-                      }
-                      alt="Generated design"
-                      className="max-w-full max-h-[50vh] object-contain"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleDownloadImage}>
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleOpenInStudio}>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Open in Studio
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setGeneratedImageUrl(null); setGeneratedDesignId(null); }}>
-                      Generate Another
-                    </Button>
-                  </div>
                 </div>
-              ) : layoutGenerated ? (
-                <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-400/20 to-green-600/20 flex items-center justify-center">
-                    <Layers className="h-8 w-8 text-green-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">Layout generated!</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Your smart layout is ready. Open it in the Studio to edit, move, and customize each element individually.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" className="text-xs gap-1.5" onClick={handleOpenInStudio}>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Open in Studio
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs" onClick={() => setLayoutGenerated(false)}>
-                      Generate Another
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <ImageEmptyState imageMode={imageMode} />
-              )
-            ) : (
-              /* Video Preview Area */
-              isGeneratingVideo ? (
-                <AIGenerationLoader
-                  currentStep={videoGenStatus || "Generating video..."}
-                  progress={videoGenProgress}
-                  subtitle="AI video generation may take 1-3 minutes"
-                />
-              ) : generatedVideoUrl ? (
-                <div className="flex flex-col items-center gap-4 w-full max-w-lg">
-                  <div className="relative rounded-xl overflow-hidden shadow-lg border bg-black w-full aspect-video">
-                    <video
-                      src={generatedVideoUrl}
-                      controls
-                      className="w-full h-full object-contain"
-                      autoPlay
-                      muted
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleDownloadVideo}>
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleAttachToPost}>
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      Import to post
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setGeneratedVideoUrl(null)}>
-                      Generate Another
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <VideoEmptyState />
-              )
-            )}
-          </div>
-        </div>
-
-        {/* ═══ Footer ═══ */}
-        <div className="border-t px-6 py-3 flex items-center justify-between shrink-0">
-          <div className="text-xs text-muted-foreground">
-            {brandIdentity && activeTab === "image" && (
-              <span>Brand: <span className="font-medium text-foreground">{brandIdentity.name}</span></span>
-            )}
-          </div>
-          {hasGeneratedResult && !isGenerating ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setGeneratedImageUrl(null);
-                setGeneratedDesignId(null);
-                setLayoutGenerated(false);
-                setGeneratedVideoUrl(null);
-              }}
-              className="gap-2 px-6"
-            >
-              <Sparkles className="h-4 w-4" />
-              Start another FlowCreative asset
-            </Button>
-          ) : (
-            <Button
-              onClick={activeTab === "image" ? handleGenerateImage : handleGenerateVideo}
-              disabled={isGenerating || (activeTab === "image" ? !imagePrompt.trim() : !videoPrompt.trim())}
-              className="gap-2 px-6"
-            >
-              {isGenerating ? (
-                <AISpinner className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              {isGenerating
-                ? "Generating..."
-                : activeTab === "image"
-                  ? imageMode === "layout" ? "Generate Layout" : "Generate Design"
-                  : "Generate Video"
-              }
-              <Badge variant="secondary" className="text-[10px] ml-1">
-                {activeTab === "image" ? imageCreditCost : videoCreditCost} credits
-              </Badge>
-            </Button>
+              </div>
+            </>
           )}
+
+          {(isBusy || flowMediaStatus) && (
+            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+              {isBusy ? (
+                <AIGenerationLoader
+                  compact
+                  currentStep={flowMediaStatus || "Generating media..."}
+                  subtitle={
+                    flowMediaMode === "image"
+                      ? "FlowCreative is creating a polished campaign asset"
+                      : `FlowCreative is producing a ${flowVideoDuration}s video with brand continuity checks`
+                  }
+                />
+              ) : (
+                <p className="text-sm font-semibold text-cyan-700 dark:text-cyan-300">{flowMediaStatus}</p>
+              )}
+            </div>
+          )}
+
+          {!generatedFlowMedia && selectedTemplatePreview ? (
+            <div className="overflow-hidden rounded-2xl border bg-muted/20">
+              <img src={selectedTemplatePreview} alt="Selected template preview" className="max-h-56 w-full object-contain" />
+            </div>
+          ) : null}
+
+          {!generatedFlowMedia ? (
+            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+              <Button
+                type="button"
+                onClick={handleGenerateFlowMedia}
+                disabled={isBusy}
+                className="bg-gradient-to-r from-cyan-500 to-violet-500 text-white hover:from-cyan-600 hover:to-violet-600"
+              >
+                {isBusy ? (
+                  <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                ) : flowMediaMode === "image" ? (
+                  <ImagePlus className="mr-2 h-4 w-4" />
+                ) : (
+                  <Video className="mr-2 h-4 w-4" />
+                )}
+                Generate {flowMediaMode === "video" ? `${flowVideoDuration}s video` : "image"}
+              </Button>
+              <Button type="button" variant="outline" onClick={closeIfIdle}>
+                Close
+              </Button>
+            </div>
+          ) : null}
         </div>
-      </div>
-    </FloatingPanel>
+      </FloatingPanel>
+
+      {expandedMediaUrl ? (
+        <FloatingPanel
+          open
+          onOpenChange={(open) => {
+            if (!open) setExpandedMediaUrl(null);
+          }}
+          title="FlowCreative preview"
+          description="Inspect the full visual."
+          icon={<ZoomIn className="h-4 w-4" />}
+          defaultSize={{ width: 760, height: 760 }}
+          defaultPosition={{ x: 72, y: 96 }}
+          contentClassName="p-3"
+        >
+          <div className="flex h-full min-h-0 items-center justify-center overflow-hidden rounded-2xl border bg-muted/20">
+            <img src={expandedMediaUrl} alt="Expanded FlowCreative preview" className="max-h-full max-w-full object-contain" />
+          </div>
+        </FloatingPanel>
+      ) : null}
+    </>
   );
 }
 
-// ── Empty State Components ────────────────────────────────────────────────
-
-function ImageEmptyState({ imageMode }: { imageMode: "layout" | "image" }) {
+function VideoControls({
+  flowVideoDuration,
+  flowVideoSpeechMode,
+  onDurationChange,
+  onSpeechModeChange,
+}: {
+  flowVideoDuration: FlowVideoDuration;
+  flowVideoSpeechMode: FlowVideoSpeechMode;
+  onDurationChange: (duration: FlowVideoDuration) => void;
+  onSpeechModeChange: (mode: FlowVideoSpeechMode) => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-600/20 flex items-center justify-center">
-        <Sparkles className="h-8 w-8 text-brand-500" />
+    <div className="space-y-3 rounded-2xl border bg-background/70 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Clock className="h-4 w-4 text-cyan-600" />
+            Video length
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Short clips can use xAI/Grok when available. Longer clips use FlowCreative continuity planning and provider fallback.
+          </p>
+        </div>
+        <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+          {flowVideoDuration}s
+        </span>
       </div>
-      <div>
-        <h3 className="text-lg font-semibold text-foreground">Create an image</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {imageMode === "layout"
-            ? "Describe your design and hit Generate. AI will create editable text, shapes, and elements you can open in the Studio."
-            : "Describe your design, pick a style and size, then hit Generate. Your AI-created design will appear here."}
+      <div className="grid gap-2 sm:grid-cols-3">
+        {FLOW_VIDEO_DURATIONS.map((option) => {
+          const isActive = flowVideoDuration === option.seconds;
+          return (
+            <button
+              key={option.seconds}
+              type="button"
+              onClick={() => onDurationChange(option.seconds)}
+              className={`rounded-xl border p-3 text-left transition ${
+                isActive ? "border-cyan-500 bg-cyan-500/10" : "bg-background hover:border-cyan-500/40"
+              }`}
+            >
+              <span className="block text-sm font-bold">{option.label}</span>
+              <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{option.helper}</span>
+            </button>
+          );
+        })}
+      </div>
+      {flowVideoDuration === 30 ? (
+        <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+          30-second videos are planned as one message with continuity instructions so the subject, product, and brand identity stay consistent from start to finish.
         </p>
-      </div>
-      <div className="grid grid-cols-3 gap-3 w-full mt-2">
-        {imageMode === "layout"
-          ? [
-              { icon: Layers, label: "Editable elements" },
-              { icon: Type, label: "Live text" },
-              { icon: Zap, label: "Fast & cheap" },
-            ].map((f) => (
-              <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border">
-                <f.icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground">{f.label}</span>
-              </div>
-            ))
-          : [
-              { icon: Layers, label: "Multi-format" },
-              { icon: Palette, label: "Brand-aware" },
-              { icon: Zap, label: "Instant" },
-            ].map((f) => (
-              <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border">
-                <f.icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground">{f.label}</span>
-              </div>
-            ))}
+      ) : null}
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <Video className="h-4 w-4 text-cyan-600" />
+          Audio and story format
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {FLOW_VIDEO_SPEECH_MODES.map((option) => {
+            const isActive = flowVideoSpeechMode === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onSpeechModeChange(option.id)}
+                className={`rounded-xl border p-3 text-left transition ${
+                  isActive ? "border-cyan-500 bg-cyan-500/10" : "bg-background hover:border-cyan-500/40"
+                }`}
+              >
+                <span className="block text-sm font-bold">{option.label}</span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{option.helper}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-function VideoEmptyState() {
+function GeneratedFlowCreativeResult({
+  generatedFlowMedia,
+  flowMediaImprovePrompt,
+  isImprovingFlowMedia,
+  onImprovePromptChange,
+  onImprove,
+  onOpenStudio,
+  onAttachToPost,
+  onDownload,
+  onPreview,
+  onCreateAnother,
+}: {
+  generatedFlowMedia: GeneratedMedia;
+  flowMediaImprovePrompt: string;
+  isImprovingFlowMedia: boolean;
+  onImprovePromptChange: (value: string) => void;
+  onImprove: () => void;
+  onOpenStudio: () => void;
+  onAttachToPost: () => void;
+  onDownload: () => void;
+  onPreview: (url: string) => void;
+  onCreateAnother: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-400/20 to-rose-600/20 flex items-center justify-center">
-        <Play className="h-8 w-8 text-rose-500" />
+    <div className="rounded-2xl border bg-muted/25 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-bold">FlowCreative result</p>
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+          Ready
+        </span>
       </div>
-      <div>
-        <h3 className="text-lg font-semibold text-foreground">Create a video</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Describe your video, pick a format and duration, then hit Generate. AI will create your video clip.
-        </p>
-      </div>
-      <div className="grid grid-cols-3 gap-3 w-full mt-2">
-        {[
-          { icon: Film, label: "AI-powered" },
-          { icon: Clock, label: "Up to 2 min" },
-          { icon: Ratio, label: "Any format" },
-        ].map((f) => (
-          <div key={f.label} className="flex flex-col items-center gap-1.5 p-3 rounded-lg bg-muted/50 border">
-            <f.icon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-[11px] text-muted-foreground">{f.label}</span>
+      <button
+        type="button"
+        onClick={() => onPreview(generatedFlowMedia.url)}
+        className="group relative block w-full overflow-hidden rounded-xl border bg-background"
+      >
+        {generatedFlowMedia.type === "video" ? (
+          <video
+            src={generatedFlowMedia.url}
+            controls
+            muted
+            playsInline
+            className="aspect-video w-full bg-black object-contain"
+          />
+        ) : (
+          <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-[520px] w-full object-contain" />
+        )}
+        {generatedFlowMedia.type === "image" ? (
+          <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
+            <ZoomIn className="h-4 w-4" />
+          </span>
+        ) : null}
+      </button>
+
+      {generatedFlowMedia.type === "image" ? (
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <WandSparkles className="h-4 w-4 text-brand-500" />
+            Improve this image
           </div>
-        ))}
+          <textarea
+            value={flowMediaImprovePrompt}
+            onChange={(event) => onImprovePromptChange(event.target.value)}
+            className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
+            disabled={isImprovingFlowMedia}
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onImprove}
+              disabled={isImprovingFlowMedia || flowMediaImprovePrompt.trim().length < 6}
+              className="gap-2"
+            >
+              {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Apply edit
+            </Button>
+            <Button type="button" onClick={onOpenStudio} className="gap-2">
+              <ExternalLink className="h-4 w-4" />
+              Edit in Studio
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-xl border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          Video is ready. Studio import is image-only for now, so send this video to a post and keep editing videos in FlowCreative.
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+        <Button type="button" onClick={onAttachToPost} className="gap-2">
+          <ImagePlus className="h-4 w-4" />
+          {generatedFlowMedia.type === "video" ? "Import video to post" : "Attach to post"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onDownload} className="gap-2">
+          <Download className="h-4 w-4" />
+          Download
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCreateAnother}>
+          Create another
+        </Button>
       </div>
     </div>
   );

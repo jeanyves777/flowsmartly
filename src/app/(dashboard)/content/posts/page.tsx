@@ -935,7 +935,8 @@ export default function ContentPostsPage() {
   const [expandedMediaUrl, setExpandedMediaUrl] = useState<string | null>(null);
   const [showFlowAIMediaModal, setShowFlowAIMediaModal] = useState(false);
   const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>("image");
-  const [flowMediaPrompt, setFlowMediaPrompt] = useState(FLOW_MEDIA_TEMPLATES[0].prompt);
+  const [selectedFlowMediaTemplateId, setSelectedFlowMediaTemplateId] = useState(FLOW_MEDIA_TEMPLATES[0].id);
+  const [flowMediaPrompt, setFlowMediaPrompt] = useState("");
   const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
   const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
@@ -1390,11 +1391,11 @@ export default function ContentPostsPage() {
   };
 
   const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
+    setSelectedFlowMediaTemplateId(template.id);
     setFlowMediaMode(template.mode);
     setFlowMediaAspect(template.aspect);
     if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
     if (template.duration) setFlowVideoDuration(template.duration);
-    setFlowMediaPrompt(template.prompt);
     setGeneratedFlowMedia(null);
     setFlowMediaStatus("");
   };
@@ -1481,9 +1482,6 @@ export default function ContentPostsPage() {
     setProductAdAspect(template.aspect);
     setProductAdStatus("");
     setGeneratedProductAd(null);
-    if (!productAdPrompt.trim()) {
-      setProductAdPrompt(template.prompt);
-    }
   };
 
   const buildProductAdPrompt = (editMode = false) => {
@@ -1502,11 +1500,13 @@ export default function ContentPostsPage() {
         ].join(" ")
       : "No reference image was uploaded. Create a brand-fit concept, but leave the subject generic enough for the user to replace or refine.";
     const editInstruction = productAdEditPrompt.trim();
-    const userInstruction = productAdPrompt.trim() || template.prompt;
+    const userInstruction =
+      productAdPrompt.trim() ||
+      "Use the selected visual template image as the design inspiration, then build a brand-fit product ad from the uploaded references and brand context.";
 
     return [
       editMode ? "Edit the existing product ad design in place." : "Create a product advertising design for the post composer.",
-      `Visual template: ${template.title}. ${template.prompt}`,
+      `Selected visual template: ${template.title}. Use the separately attached template image as layout, composition, and style inspiration only. Do not copy its text, fake logo, product, people, or brand.`,
       `Creative preset: ${preset.label}. ${preset.rule}`,
       `Brand context:\n${brandBrief}`,
       selectedPlatformLabels ? `Target channels: ${selectedPlatformLabels}` : "Target channels: selected social channels",
@@ -1553,6 +1553,7 @@ export default function ContentPostsPage() {
     }
 
     const aspect = getFlowMediaAspect(productAdAspect);
+    const template = getProductAdTemplate(productAdTemplate);
     const prompt = buildProductAdPrompt(editMode);
     const rawBrandIdentity = buildRawBrandIdentity(brandKit);
 
@@ -1580,6 +1581,7 @@ export default function ContentPostsPage() {
           showBrandName: !!brandKit?.name,
           showSocialIcons: true,
           socialHandles: brandKit?.handles || null,
+          templateImageUrl: editMode ? null : template.thumbnail,
           referenceImageUrl: editMode ? null : productAdReferenceUrls[0] || null,
           referenceImageUrls: editMode ? [] : productAdReferenceUrls,
           editImageUrl: editMode ? generatedProductAd?.url : null,
@@ -1656,6 +1658,11 @@ export default function ContentPostsPage() {
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
+    const templateImageUrl = selectedFlowMediaTemplate?.thumbnail || null;
+    const flowVideoReferenceUrls = [
+      ...flowMediaReferenceUrls,
+      templateImageUrl,
+    ].filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4);
     const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
     const videoCategoryBySpeechMode: Record<FlowVideoSpeechMode, string> = {
       talking_review: "testimonial",
@@ -1701,6 +1708,9 @@ export default function ContentPostsPage() {
       selectedPlatformLabels ? `Channels: ${selectedPlatformLabels}` : null,
       `Target video length: ${flowVideoDuration} seconds.`,
       `Video format: ${videoSpeechOption.label}. ${videoSpeechOption.rule}`,
+      templateImageUrl
+        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. The attached template image is design and storyboard inspiration only. Do not copy its text, fake logo, product, people, or brand. Use the user's prompt, uploaded references, and real brand kit for the final media.`
+        : null,
       flowMediaReferenceUrls.length
         ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
         : null,
@@ -1747,7 +1757,9 @@ export default function ContentPostsPage() {
             showBrandName: !!brandKit?.name,
             showSocialIcons: true,
             socialHandles: brandKit?.handles || null,
+            templateImageUrl,
             referenceImageUrl: primaryReferenceImageUrl,
+            referenceImageUrls: flowMediaReferenceUrls,
             ctaText: null,
             qualityCheckEnabled: flowMediaQualityCheckEnabled,
           }),
@@ -1786,7 +1798,7 @@ export default function ContentPostsPage() {
           brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
           brandName: brandKit?.name || null,
           referenceImageUrl: primaryReferenceImageUrl,
-          referenceImageUrls: flowMediaReferenceUrls,
+          referenceImageUrls: flowVideoReferenceUrls,
         }),
       });
 
@@ -2000,6 +2012,13 @@ export default function ContentPostsPage() {
     () => flowMediaTemplates.filter((template) => template.mode === flowMediaMode),
     [flowMediaMode, flowMediaTemplates]
   );
+  const selectedFlowMediaTemplate = useMemo(
+    () =>
+      visibleFlowMediaTemplates.find((template) => template.id === selectedFlowMediaTemplateId) ||
+      visibleFlowMediaTemplates[0] ||
+      null,
+    [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]
+  );
   const trendIdeasCacheKey = useMemo(
     () => buildTrendIdeasCacheKey(brandName, aiPlatformSelection),
     [aiPlatformSelection, brandName]
@@ -2015,15 +2034,13 @@ export default function ContentPostsPage() {
     [brandKit?.targetAudience, brandName, selectedPlatformLabels]
   );
   useEffect(() => {
-    setFlowMediaPrompt((current) => {
-      const currentTemplate =
-        flowMediaTemplates.find((template) => template.prompt === current) ||
-        FLOW_MEDIA_TEMPLATES.find((template) => template.prompt === current);
-      if (currentTemplate?.mode === flowMediaMode) return current;
-      if (current.trim() && !currentTemplate) return current;
-      return visibleFlowMediaTemplates[0]?.prompt || current;
-    });
-  }, [flowMediaMode, flowMediaTemplates, visibleFlowMediaTemplates]);
+    const firstTemplate = visibleFlowMediaTemplates[0];
+    if (!firstTemplate || visibleFlowMediaTemplates.some((template) => template.id === selectedFlowMediaTemplateId)) return;
+    setSelectedFlowMediaTemplateId(firstTemplate.id);
+    setFlowMediaAspect(firstTemplate.aspect);
+    if (firstTemplate.speechMode) setFlowVideoSpeechMode(firstTemplate.speechMode);
+    if (firstTemplate.duration) setFlowVideoDuration(firstTemplate.duration);
+  }, [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
   useEffect(() => {
     let cancelled = false;
 
@@ -2848,7 +2865,7 @@ export default function ContentPostsPage() {
               </div>
               <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                 {visibleFlowMediaTemplates.map((template) => {
-                  const isActive = flowMediaPrompt === template.prompt && flowMediaMode === template.mode;
+                  const isActive = selectedFlowMediaTemplateId === template.id && flowMediaMode === template.mode;
                   return (
                     <div
                       key={template.id}
@@ -3339,7 +3356,6 @@ export default function ContentPostsPage() {
                           onClick={() => {
                             setProductAdTemplate(template.id);
                             setProductAdAspect(template.aspect);
-                            setProductAdPrompt(template.prompt);
                           }}
                           className="rounded-full border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"
                         >

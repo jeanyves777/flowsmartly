@@ -530,6 +530,9 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     `Category: ${params.category}`,
     params.channels ? `Channels: ${params.channels}` : null,
     params.style ? `Style preference: ${params.style}` : null,
+    params.templateImageUrl
+      ? "Selected design template image is attached separately. Use it as the primary layout, composition, and visual style inspiration only. Replace its text, logo, people, products, and brand with the user's prompt, real brand kit, and uploaded source assets."
+      : null,
     params.referenceImageUrls?.length
       ? `Reference assets: ${params.referenceImageUrls.length + (params.referenceImageUrl ? 1 : 0)} uploaded images. Treat them as exact product/person/site sources, not loose inspiration.`
       : params.referenceImageUrl
@@ -831,6 +834,7 @@ async function runRawBrandPipeline(params: PipelineParams) {
   let base64: string | null;
   let model: string;
   const referenceUrls = [
+    params.templateImageUrl,
     params.referenceImageUrl,
     ...(params.referenceImageUrls || []),
   ]
