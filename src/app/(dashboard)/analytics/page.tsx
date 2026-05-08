@@ -44,6 +44,9 @@ type Stats = {
   comments: number;
   commentsChange: number;
   shares: number;
+  sharesChange?: number;
+  clicks: number;
+  clicksChange: number;
   followers: number;
   followersChange: number;
   engagementRate: number;
@@ -67,6 +70,8 @@ type ChartData = {
   views: number;
   likes: number;
   comments: number;
+  shares: number;
+  clicks: number;
   posts: number;
   boostedViews: number;
   organicViews: number;
@@ -79,6 +84,7 @@ type PlatformPostStats = {
   likes: number;
   comments: number;
   shares: number;
+  clicks: number;
   boostedPosts: number;
   lastPostAt: string | null;
 };
@@ -89,6 +95,8 @@ type TopPost = {
   views: number;
   likes: number;
   comments: number;
+  shares: number;
+  clicks: number;
   createdAt: string;
 };
 
@@ -122,6 +130,8 @@ type SocialAnalytics = {
   hasAccessToken?: boolean;
   tokenExpired?: boolean;
   analyticsRefreshSupported?: boolean;
+  analyticsStatus?: string;
+  analyticsMessage?: string;
 };
 
 const RANGE_OPTIONS: Array<{ id: TimeRange; label: string }> = [
@@ -179,6 +189,26 @@ const formatTimeAgo = (value: string | null | undefined) => {
   const days = Math.floor(hours / 24);
   if (days === 1) return "Yesterday";
   return `${days}d ago`;
+};
+
+const getAccountStatus = (account: SocialAnalytics) => {
+  if (account.analyticsStatus) return account.analyticsStatus;
+  if (account.tokenExpired) return "token_expired";
+  if (!account.hasAccessToken) return "needs_token";
+  if (!account.analyticsRefreshSupported) return "unsupported";
+  if (!account.analyticsUpdatedAt) return "needs_refresh";
+  return "synced";
+};
+
+const getAccountStatusCopy = (account: SocialAnalytics) => {
+  const status = getAccountStatus(account);
+  if (status === "synced") return `synced ${formatTimeAgo(account.analyticsUpdatedAt)}`;
+  if (status === "token_expired") return "token expired, reconnect";
+  if (status === "needs_token") return "missing access token";
+  if (status === "unsupported") return "refresh connector pending";
+  if (status === "sync_failed") return "sync failed";
+  if (status === "limited") return "partial metrics";
+  return "needs live refresh";
 };
 
 function getPlatformMeta(platform: string) {
@@ -333,7 +363,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           label="Connected platforms"
           value={connectedCount.toString()}
@@ -352,10 +382,19 @@ export default function AnalyticsPage() {
           loading={isLoading}
         />
         <MetricCard
+          label="Internal clicks"
+          value={formatNumber(stats?.clicks)}
+          change={stats?.clicksChange}
+          helper="Tracked feed taps, media opens, and CTA clicks"
+          icon={MousePointerClick}
+          tone="emerald"
+          loading={isLoading}
+        />
+        <MetricCard
           label="Engagement"
           value={formatRate(stats?.engagementRate, true)}
           change={stats?.likesChange}
-          helper={`${formatNumber((stats?.likes || 0) + (stats?.comments || 0) + (stats?.shares || 0))} actions`}
+          helper={`${formatNumber((stats?.likes || 0) + (stats?.comments || 0) + (stats?.shares || 0) + (stats?.clicks || 0))} actions`}
           icon={Sparkles}
           tone="violet"
           loading={isLoading}
@@ -627,7 +666,7 @@ function AnalyticsBars({ data, mode }: { data: ChartData[]; mode: ChartMode }) {
       mode === "views"
         ? item.views
         : mode === "engagement"
-          ? item.likes + item.comments
+          ? item.likes + item.comments + item.shares + item.clicks
           : item.boostedViews + item.organicViews
     )
   );
@@ -640,6 +679,8 @@ function AnalyticsBars({ data, mode }: { data: ChartData[]; mode: ChartMode }) {
           <>
             <LegendItem color="bg-pink-500" label="Likes" />
             <LegendItem color="bg-amber-500" label="Comments" />
+            <LegendItem color="bg-emerald-500" label="Shares" />
+            <LegendItem color="bg-violet-500" label="Clicks" />
           </>
         )}
         {mode === "distribution" && (
@@ -654,6 +695,8 @@ function AnalyticsBars({ data, mode }: { data: ChartData[]; mode: ChartMode }) {
           const viewsHeight = Math.max(4, (item.views / max) * 100);
           const likesHeight = Math.max(2, (item.likes / max) * 100);
           const commentsHeight = Math.max(2, (item.comments / max) * 100);
+          const sharesHeight = Math.max(2, (item.shares / max) * 100);
+          const clicksHeight = Math.max(2, (item.clicks / max) * 100);
           const boostedHeight = Math.max(2, (item.boostedViews / max) * 100);
           const organicHeight = Math.max(2, (item.organicViews / max) * 100);
 
@@ -662,7 +705,7 @@ function AnalyticsBars({ data, mode }: { data: ChartData[]; mode: ChartMode }) {
               <div className="relative flex h-56 w-full items-end justify-center gap-1">
                 <div className="absolute bottom-full mb-2 hidden whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-sm group-hover:block">
                   {mode === "views" && `${formatNumber(item.views)} views`}
-                  {mode === "engagement" && `${formatNumber(item.likes)} likes, ${formatNumber(item.comments)} comments`}
+                  {mode === "engagement" && `${formatNumber(item.likes)} likes, ${formatNumber(item.comments)} comments, ${formatNumber(item.shares)} shares, ${formatNumber(item.clicks)} clicks`}
                   {mode === "distribution" && `${formatNumber(item.boostedViews)} boosted, ${formatNumber(item.organicViews)} organic`}
                 </div>
                 {mode === "views" && (
@@ -670,8 +713,10 @@ function AnalyticsBars({ data, mode }: { data: ChartData[]; mode: ChartMode }) {
                 )}
                 {mode === "engagement" && (
                   <>
-                    <motion.div initial={{ height: 0 }} animate={{ height: `${likesHeight}%` }} className="w-1/2 rounded-t-md bg-pink-500" />
-                    <motion.div initial={{ height: 0 }} animate={{ height: `${commentsHeight}%` }} className="w-1/2 rounded-t-md bg-amber-500" />
+                    <motion.div initial={{ height: 0 }} animate={{ height: `${likesHeight}%` }} className="w-1/4 rounded-t-md bg-pink-500" />
+                    <motion.div initial={{ height: 0 }} animate={{ height: `${commentsHeight}%` }} className="w-1/4 rounded-t-md bg-amber-500" />
+                    <motion.div initial={{ height: 0 }} animate={{ height: `${sharesHeight}%` }} className="w-1/4 rounded-t-md bg-emerald-500" />
+                    <motion.div initial={{ height: 0 }} animate={{ height: `${clicksHeight}%` }} className="w-1/4 rounded-t-md bg-violet-500" />
                   </>
                 )}
                 {mode === "distribution" && (
@@ -701,7 +746,8 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 
 function PlatformAccountRow({ account, selected, onInspect }: { account: SocialAnalytics; selected: boolean; onInspect: () => void }) {
   const meta = getPlatformMeta(account.platformKey || account.platform);
-  const missingData = !account.analyticsUpdatedAt;
+  const status = getAccountStatus(account);
+  const statusCopy = account.analyticsMessage || getAccountStatusCopy(account);
 
   return (
     <button
@@ -722,9 +768,14 @@ function PlatformAccountRow({ account, selected, onInspect }: { account: SocialA
             </Badge>
           </div>
           <p className="truncate text-xs text-muted-foreground">
-            {account.platformUsername || "Connected account"} / {missingData ? "analytics not synced" : `synced ${formatTimeAgo(account.analyticsUpdatedAt)}`}
+            {account.platformUsername || "Connected account"} / {statusCopy}
           </p>
         </div>
+        {status !== "synced" && (
+          <Badge variant="outline" className="hidden shrink-0 text-[10px] sm:inline-flex">
+            {status === "limited" ? "Partial" : status === "sync_failed" ? "Check sync" : status === "unsupported" ? "Pending" : "Needs setup"}
+          </Badge>
+        )}
         <div className="hidden grid-cols-3 gap-3 text-right text-xs sm:grid">
           <MiniStat label="Followers" value={formatOptional(account.followersCount)} />
           <MiniStat label="Reach" value={formatOptional(account.reach)} />
@@ -841,9 +892,15 @@ function PlatformPostBreakdown({ rows }: { rows: PlatformPostStats[] }) {
               <p className="font-medium">{meta.label}</p>
               <p className="text-xs text-muted-foreground">{row.posts} posts / last {formatTimeAgo(row.lastPostAt)}</p>
             </div>
-            <div className="text-right text-sm">
-              <p className="font-bold">{formatNumber(row.views)}</p>
-              <p className="text-xs text-muted-foreground">views</p>
+            <div className="grid grid-cols-2 gap-3 text-right text-sm">
+              <div>
+                <p className="font-bold">{formatNumber(row.views)}</p>
+                <p className="text-xs text-muted-foreground">views</p>
+              </div>
+              <div>
+                <p className="font-bold">{formatNumber(row.clicks)}</p>
+                <p className="text-xs text-muted-foreground">clicks</p>
+              </div>
             </div>
           </div>
         );
@@ -867,10 +924,11 @@ function TopPostsList({ posts }: { posts: TopPost[] }) {
               <p className="mt-1 text-xs text-muted-foreground">{formatTimeAgo(post.createdAt)}</p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+          <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
             <MiniPill icon={Eye} label={formatNumber(post.views)} />
             <MiniPill icon={Heart} label={formatNumber(post.likes)} />
             <MiniPill icon={MessageCircle} label={formatNumber(post.comments)} />
+            <MiniPill icon={MousePointerClick} label={formatNumber(post.clicks)} />
           </div>
         </div>
       ))}
@@ -971,9 +1029,9 @@ function AnalyticsWorkspace({
             <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
               Last analytics sync: <span className="font-medium text-foreground">{formatTimeAgo(selectedAccount.analyticsUpdatedAt)}</span>.
               {" "}
-              {selectedAccount.analyticsRefreshSupported
+              {selectedAccount.analyticsMessage || (selectedAccount.analyticsRefreshSupported
                 ? "This platform supports backend refresh in FlowSmartly."
-                : "This platform is connected, but live platform analytics refresh is not implemented for it yet."}
+                : "This platform is connected, but live platform analytics refresh still needs provider API support.")}
             </div>
           </div>
         ) : (

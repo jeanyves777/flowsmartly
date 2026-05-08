@@ -15,21 +15,39 @@ export async function POST(
     const { postId } = await params;
     const { platform } = await request.json();
 
-    // Record the share
-    const share = await prisma.share.create({
+    const post = await prisma.post.findFirst({
+      where: { id: postId, status: "PUBLISHED", deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!post) {
+      return NextResponse.json(
+        { success: false, error: { message: "Post not found" } },
+        { status: 404 }
+      );
+    }
+
+    const [share, updatedPost] = await prisma.$transaction([
+      prisma.share.create({
+        data: {
+          postId,
+          platform: platform || "unknown",
+        },
+      }),
+      prisma.post.update({
+        where: { id: postId },
+        data: { shareCount: { increment: 1 } },
+        select: { shareCount: true },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
       data: {
-        postId,
-        platform: platform || "unknown",
+        ...share,
+        shareCount: updatedPost.shareCount,
       },
     });
-
-    // Increment the share count on the post
-    await prisma.post.update({
-      where: { id: postId },
-      data: { shareCount: { increment: 1 } },
-    });
-
-    return NextResponse.json({ success: true, data: share });
   } catch (error) {
     console.error("[Share] Error:", error);
     return NextResponse.json(

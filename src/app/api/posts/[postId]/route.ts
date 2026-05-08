@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
+
+function getDeviceType(userAgent: string) {
+  const value = userAgent.toLowerCase();
+  if (/ipad|tablet/.test(value)) return "tablet";
+  if (/mobile|android|iphone|ipod/.test(value)) return "mobile";
+  return "desktop";
+}
+
+function isUniqueViolation(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
 
 // GET /api/posts/[postId] - Get a single post
 export async function GET(
@@ -86,11 +98,32 @@ export async function GET(
       isBookmarked = !!bookmark;
     }
 
-    // Increment view count
-    await prisma.post.update({
-      where: { id: postId },
-      data: { viewCount: { increment: 1 } },
-    });
+    let viewCount = post.viewCount;
+    if (session?.userId !== post.userId) {
+      try {
+        const [, updatedPost] = await prisma.$transaction([
+          prisma.postView.create({
+            data: {
+              postId,
+              viewerUserId: session?.userId || null,
+              campaignId: post.campaignId,
+              viewDuration: 1,
+              deviceType: getDeviceType(request.headers.get("user-agent") || ""),
+            },
+          }),
+          prisma.post.update({
+            where: { id: postId },
+            data: { viewCount: { increment: 1 } },
+            select: { viewCount: true },
+          }),
+        ]);
+        viewCount = updatedPost.viewCount;
+      } catch (error) {
+        if (!isUniqueViolation(error)) {
+          throw error;
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -113,7 +146,7 @@ export async function GET(
           likesCount: post.likeCount,
           commentsCount: post._count.comments,
           sharesCount: post.shareCount,
-          viewCount: post.viewCount + 1,
+          viewCount,
           isLiked,
           isBookmarked,
           createdAt: post.createdAt.toISOString(),

@@ -301,6 +301,7 @@ export default function FeedPage() {
     } catch { return new Set(); }
   });
   const promotedTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const trackedImpressionsRef = useRef<Set<string>>(new Set());
 
   // Trending data
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
@@ -505,6 +506,38 @@ export default function FeedPage() {
     }
   }, [posts, toast]);
 
+  const trackPostAnalytics = useCallback(async (
+    postId: string,
+    action: "impression" | "view" | "click",
+    options: {
+      clickType?: "post" | "media" | "profile" | "cta" | "comment" | "share" | "bookmark" | "external";
+      href?: string;
+      durationMs?: number;
+      source?: string;
+    } = {}
+  ) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/analytics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          path: window.location.pathname + window.location.search,
+          source: "feed",
+          ...options,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.success && typeof data.data?.viewCount === "number") {
+        setPosts(prev => prev.map(post => (
+          post.id === postId ? { ...post, viewCount: data.data.viewCount } : post
+        )));
+      }
+    } catch {
+      // Analytics should never interrupt feed interactions.
+    }
+  }, []);
+
 
   // Start watching an ad to earn (full-screen focus mode with visibility tracking)
   const handleStartAdView = async (postId: string) => {
@@ -647,6 +680,11 @@ export default function FeedPage() {
             if (countdown <= 0) {
               if (adRedirectTimerRef.current) clearInterval(adRedirectTimerRef.current);
               adRedirectTimerRef.current = null;
+              trackPostAnalytics(postId, "click", {
+                clickType: "external",
+                href: post.destinationUrl!,
+                durationMs: focusedTimeRef.current * 1000,
+              });
               window.open(post.destinationUrl!, "_blank", "noopener,noreferrer");
               setAdRedirectUrl(null);
               setAdFocusPost(null);
@@ -762,6 +800,7 @@ export default function FeedPage() {
 
     const shareUrl = platform.getUrl(postUrl, shareText);
     window.open(shareUrl, "_blank", "width=600,height=400,noopener,noreferrer");
+    trackPostAnalytics(postId, "click", { clickType: "share", href: shareUrl });
 
     try {
       const response = await fetch(`/api/posts/${postId}/share`, {
@@ -780,7 +819,7 @@ export default function FeedPage() {
     }
 
     toast({ title: `Shared to ${platform.label}!` });
-  }, [posts, toast]);
+  }, [posts, toast, trackPostAnalytics]);
 
   // Copy link for sharing
   const handleCopyShareLink = useCallback(async (postId: string) => {
@@ -788,6 +827,7 @@ export default function FeedPage() {
     try {
       await navigator.clipboard.writeText(postUrl);
       setCopiedLink(true);
+      trackPostAnalytics(postId, "click", { clickType: "share", href: postUrl });
       toast({ title: "Link copied to clipboard!" });
       setTimeout(() => setCopiedLink(false), 2000);
 
@@ -809,7 +849,7 @@ export default function FeedPage() {
     } catch {
       toast({ title: "Failed to copy link", variant: "destructive" });
     }
-  }, [toast]);
+  }, [toast, trackPostAnalytics]);
 
   // =========================================
   // COMMENT FUNCTIONALITY
@@ -1494,6 +1534,27 @@ export default function FeedPage() {
     return () => observer.disconnect();
   }, [feedItems, handlePromotedPostVisible]);
 
+  // Track native feed impressions once a regular post is actually seen.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const postId = (entry.target as HTMLElement).dataset.feedPostId;
+          if (!postId || trackedImpressionsRef.current.has(postId)) return;
+          trackedImpressionsRef.current.add(postId);
+          trackPostAnalytics(postId, "impression", { durationMs: 1000 });
+        });
+      },
+      { threshold: 0.6 }
+    );
+
+    const elements = document.querySelectorAll("[data-feed-post-id]");
+    elements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [feedItems, trackPostAnalytics]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1779,6 +1840,7 @@ export default function FeedPage() {
                 <motion.div
                   id={`post-${post.id}`}
                   key={post.id}
+                  data-feed-post-id={post.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -1819,7 +1881,11 @@ export default function FeedPage() {
                       {/* Author Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <a href={`/profile/${post.author.username}`} className="shrink-0">
+                          <a
+                            href={`/profile/${post.author.username}`}
+                            className="shrink-0"
+                            onClick={() => trackPostAnalytics(post.id, "click", { clickType: "profile", href: `/profile/${post.author.username}` })}
+                          >
                             <Avatar className="w-11 h-11 hover:ring-2 hover:ring-brand-500/40 transition-all cursor-pointer">
                               <AvatarImage src={getAuthorAvatar(post) || undefined} />
                               <AvatarFallback className="bg-gradient-to-br from-brand-500 to-purple-500 text-white font-semibold">
@@ -1829,7 +1895,13 @@ export default function FeedPage() {
                           </a>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <a href={`/profile/${post.author.username}`} className="font-semibold text-[15px] hover:underline">{post.author.name}</a>
+                              <a
+                                href={`/profile/${post.author.username}`}
+                                className="font-semibold text-[15px] hover:underline"
+                                onClick={() => trackPostAnalytics(post.id, "click", { clickType: "profile", href: `/profile/${post.author.username}` })}
+                              >
+                                {post.author.name}
+                              </a>
                               {post.author.isVerified && (
                                 <svg className="w-4 h-4 text-brand-500" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -1969,7 +2041,10 @@ export default function FeedPage() {
                       {post.mediaUrls.length > 0 && (
                         <PostMediaGallery
                           mediaUrls={post.mediaUrls}
-                          onMediaClick={(index) => setLightboxMedia({ urls: post.mediaUrls, index })}
+                          onMediaClick={(index) => {
+                            trackPostAnalytics(post.id, "click", { clickType: "media" });
+                            setLightboxMedia({ urls: post.mediaUrls, index });
+                          }}
                         />
                       )}
 
@@ -2060,7 +2135,10 @@ export default function FeedPage() {
                             variant="ghost"
                             size="sm"
                             className={`gap-1.5 rounded-lg px-3 ${expandedCommentPostId === post.id ? "text-blue-500 bg-blue-500/10" : "text-muted-foreground hover:text-blue-500"}`}
-                            onClick={() => toggleCommentSection(post.id)}
+                            onClick={() => {
+                              trackPostAnalytics(post.id, "click", { clickType: "comment" });
+                              toggleCommentSection(post.id);
+                            }}
                           >
                             <MessageCircle className={`w-[18px] h-[18px] ${expandedCommentPostId === post.id ? "fill-blue-500/20" : ""}`} />
                             <span className="text-xs font-medium">Comment</span>
@@ -2069,7 +2147,10 @@ export default function FeedPage() {
                             variant="ghost"
                             size="sm"
                             className={`gap-1.5 rounded-lg px-3 ${expandedSharePostId === post.id ? "text-brand-500 bg-brand-500/10" : "text-muted-foreground hover:text-green-500"}`}
-                            onClick={() => toggleSharePanel(post.id)}
+                            onClick={() => {
+                              trackPostAnalytics(post.id, "click", { clickType: "share" });
+                              toggleSharePanel(post.id);
+                            }}
                           >
                             <Share2 className="w-[18px] h-[18px]" />
                             <span className="text-xs font-medium">Share</span>
@@ -2103,7 +2184,10 @@ export default function FeedPage() {
                             variant="ghost"
                             size="sm"
                             className={`rounded-lg ${post.isBookmarked ? "text-brand-500 hover:text-brand-600" : "text-muted-foreground"}`}
-                            onClick={() => handleBookmark(post.id)}
+                            onClick={() => {
+                              trackPostAnalytics(post.id, "click", { clickType: "bookmark" });
+                              handleBookmark(post.id);
+                            }}
                           >
                             <Bookmark className={`w-[18px] h-[18px] ${post.isBookmarked ? "fill-current" : ""}`} />
                           </Button>
