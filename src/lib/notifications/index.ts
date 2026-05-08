@@ -710,7 +710,7 @@ export async function notifyPostLiked(params: {
     title: "Post Liked",
     message: `${params.likerName} liked your post`,
     data: { likerName: params.likerName, likerUsername: params.likerUsername },
-    actionUrl: `/posts/${params.postId}`,
+    actionUrl: `/feed?post=${params.postId}`,
   });
 }
 
@@ -730,7 +730,7 @@ export async function notifyPostCommented(params: {
     title: "New Comment",
     message: `${params.commenterName} commented: "${params.commentPreview.substring(0, 50)}${params.commentPreview.length > 50 ? "..." : ""}"`,
     data: { commenterName: params.commenterName, commenterUsername: params.commenterUsername, comment: params.commentPreview },
-    actionUrl: `/posts/${params.postId}`,
+    actionUrl: `/feed?post=${params.postId}`,
   });
 }
 
@@ -750,7 +750,7 @@ export async function notifyCommentReply(params: {
     title: "Comment Reply",
     message: `${params.replierName} replied: "${params.replyPreview.substring(0, 50)}${params.replyPreview.length > 50 ? "..." : ""}"`,
     data: { replierName: params.replierName, replierUsername: params.replierUsername, reply: params.replyPreview },
-    actionUrl: `/posts/${params.postId}`,
+    actionUrl: `/feed?post=${params.postId}`,
   });
 }
 
@@ -968,7 +968,7 @@ export async function notifyEngagementMilestone(params: {
     title: "Your Post is Trending!",
     message: `Your post reached ${params.likes} likes!`,
     data: { postId: params.postId, likes: params.likes, comments: params.comments, shares: params.shares },
-    actionUrl: `/posts/${params.postId}`,
+    actionUrl: `/feed?post=${params.postId}`,
   });
 
   // Optionally send email
@@ -1017,7 +1017,7 @@ export async function notifyPostPublished(params: {
     title: "Post Published",
     message: "Your scheduled post has been published!",
     data: { postId: params.postId },
-    actionUrl: `/posts/${params.postId}`,
+    actionUrl: `/feed?post=${params.postId}`,
   });
 }
 

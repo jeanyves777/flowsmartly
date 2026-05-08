@@ -418,14 +418,21 @@ export default function FeedPage() {
     fetchUserAndBrand();
   }, [fetchPosts, fetchTrending, fetchUserAndBrand]);
 
-  // Scroll to post when navigated with hash (e.g. /feed#post-xyz)
+  // Scroll to post when navigated with hash or query (e.g. /feed#post-xyz or /feed?post=xyz)
   useEffect(() => {
     if (isLoading || posts.length === 0) return;
     const hash = window.location.hash;
-    if (hash && hash.startsWith("#post-")) {
+    const queryPostId = new URLSearchParams(window.location.search).get("post");
+    const targetId = hash && hash.startsWith("#post-")
+      ? hash.slice(1)
+      : queryPostId
+        ? `post-${queryPostId}`
+        : null;
+
+    if (targetId) {
       // Small delay to let DOM render
       const timer = setTimeout(() => {
-        const el = document.getElementById(hash.slice(1));
+        const el = document.getElementById(targetId);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
           el.classList.add("ring-2", "ring-brand-500/50");
@@ -795,7 +802,7 @@ export default function FeedPage() {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
-    const postUrl = `${window.location.origin}/post/${postId}`;
+    const postUrl = `${window.location.origin}/feed?post=${postId}`;
     const shareText = post.content.length > 100 ? post.content.substring(0, 97) + "..." : post.content;
 
     const shareUrl = platform.getUrl(postUrl, shareText);
@@ -823,7 +830,7 @@ export default function FeedPage() {
 
   // Copy link for sharing
   const handleCopyShareLink = useCallback(async (postId: string) => {
-    const postUrl = `${window.location.origin}/post/${postId}`;
+    const postUrl = `${window.location.origin}/feed?post=${postId}`;
     try {
       await navigator.clipboard.writeText(postUrl);
       setCopiedLink(true);

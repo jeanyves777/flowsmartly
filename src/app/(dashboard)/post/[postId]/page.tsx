@@ -1,0 +1,10 @@
+import { redirect } from "next/navigation";
+
+export default async function LegacyPostPage({
+  params,
+}: {
+  params: Promise<{ postId: string }>;
+}) {
+  const { postId } = await params;
+  redirect(`/feed?post=${encodeURIComponent(postId)}`);
+}

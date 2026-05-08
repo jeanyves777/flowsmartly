@@ -66,7 +66,7 @@ export async function POST(
           title: "New Like",
           message: `${session.user.name} liked your post`,
           data: JSON.stringify({ postId, userId: session.userId }),
-          actionUrl: `/post/${postId}`,
+          actionUrl: `/feed?post=${postId}`,
         },
       }).catch(() => {
         // Ignore notification errors

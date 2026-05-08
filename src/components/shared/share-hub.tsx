@@ -83,7 +83,7 @@ export function ShareHub({
   const [copiedLink, setCopiedLink] = useState(false);
   const [sharingPlatform, setSharingPlatform] = useState<string | null>(null);
 
-  const postUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/post/${postId}`;
+  const postUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/feed?post=${postId}`;
   const shareText = postContent.length > 100
     ? postContent.substring(0, 97) + "..."
     : postContent;

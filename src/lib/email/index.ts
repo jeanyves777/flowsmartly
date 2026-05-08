@@ -317,7 +317,7 @@ export async function sendEngagementAlertEmail(params: {
       </div>
     </div>
     <p style="text-align: center;">
-      <a href="${APP_URL}/posts/${params.postId}" class="button">View Post</a>
+      <a href="${APP_URL}/feed?post=${encodeURIComponent(params.postId)}" class="button">View Post</a>
     </p>
   `;
 

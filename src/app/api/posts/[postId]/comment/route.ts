@@ -154,7 +154,7 @@ export async function POST(
           title: "New Comment",
           message: `${session.user.name} commented on your post`,
           data: JSON.stringify({ postId, commentId: comment.id, userId: session.userId }),
-          actionUrl: `/post/${postId}`,
+          actionUrl: `/feed?post=${postId}`,
         },
       }).catch(() => {
         // Ignore notification errors

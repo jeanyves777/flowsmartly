@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
   Bell,
+  BarChart3,
+  Heart,
   Search,
   Moon,
   Sun,
@@ -20,16 +22,27 @@ import {
   CheckCheck,
   Trash2,
   Menu,
+  LayoutDashboard,
   CreditCard,
+  CalendarDays,
   HelpCircle,
   X,
   Building2,
   Video,
   Palette,
   Target,
+  Rss,
+  PenSquare,
   Briefcase,
   MessageSquare,
   Clapperboard,
+  FolderOpen,
+  Users,
+  Globe,
+  Megaphone,
+  FileText,
+  Link2,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -41,6 +54,10 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { openCreateModal } from "@/components/shared/create-modal";
+import {
+  isExternalNotificationActionUrl,
+  normalizeNotificationActionUrl,
+} from "@/lib/navigation/notification-url";
 
 interface HeaderProps {
   user?: {
@@ -66,6 +83,46 @@ interface Notification {
   createdAt: string;
 }
 
+interface SearchResult {
+  id: string;
+  kind: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  icon?: LucideIcon;
+}
+
+const GLOBAL_SEARCH_ITEMS: SearchResult[] = [
+  { id: "dashboard", kind: "page", title: "Dashboard", subtitle: "Overview and quick status", href: "/dashboard", icon: LayoutDashboard },
+  { id: "feed", kind: "page", title: "Feed", subtitle: "FlowSmartly internal social feed", href: "/feed", icon: Rss },
+  { id: "posts", kind: "page", title: "Posts", subtitle: "Create, draft, publish, and schedule posts", href: "/content/posts", icon: PenSquare },
+  { id: "schedule", kind: "page", title: "Schedule", subtitle: "Calendar and upcoming content", href: "/content/schedule", icon: CalendarDays },
+  { id: "strategy", kind: "page", title: "Strategy & Automation", subtitle: "Strategy board, AI automation, reports", href: "/content/strategy", icon: Target },
+  { id: "analytics", kind: "page", title: "Analytics", subtitle: "Connected platform and feed performance", href: "/analytics", icon: BarChart3 },
+  { id: "studio", kind: "page", title: "Image Studio", subtitle: "AI design and editable creative workspace", href: "/studio", icon: Palette },
+  { id: "media", kind: "page", title: "Media Library", subtitle: "Images, videos, uploads, generated assets", href: "/media", icon: FolderOpen },
+  { id: "designs", kind: "page", title: "My Designs", subtitle: "Saved design projects", href: "/designs", icon: Clapperboard },
+  { id: "contacts", kind: "page", title: "Contacts", subtitle: "Audience, email, SMS, and customer records", href: "/contacts", icon: Users },
+  { id: "campaigns", kind: "page", title: "Campaigns", subtitle: "Marketing campaigns", href: "/campaigns", icon: Megaphone },
+  { id: "email", kind: "page", title: "Email Marketing", subtitle: "Email campaigns and automations", href: "/email-marketing", icon: MessageSquare },
+  { id: "ads", kind: "page", title: "Ads", subtitle: "Boosted posts and paid campaigns", href: "/ads", icon: Megaphone },
+  { id: "landing", kind: "page", title: "Landing Pages", subtitle: "Lead pages and campaign pages", href: "/landing-pages", icon: Globe },
+  { id: "websites", kind: "page", title: "Website Builder", subtitle: "Sites and pages", href: "/websites", icon: Globe },
+  { id: "business-plan", kind: "page", title: "Business Plan", subtitle: "Plans, pitch, and strategy docs", href: "/tools/business-plan", icon: FileText },
+  { id: "social-accounts", kind: "page", title: "Social Accounts", subtitle: "Connect Facebook, Instagram, X, LinkedIn, TikTok", href: "/social-accounts", icon: Link2 },
+  { id: "settings", kind: "page", title: "Settings", subtitle: "Account, billing, notifications, integrations", href: "/settings", icon: Settings },
+];
+
+function getSearchIcon(kind: string, fallback?: LucideIcon) {
+  if (fallback) return fallback;
+  if (kind === "profile") return User;
+  if (kind === "feed_post") return Rss;
+  if (kind === "campaign") return Megaphone;
+  if (kind === "contact") return Users;
+  if (kind === "strategy" || kind === "task") return Target;
+  return Search;
+}
+
 export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
@@ -77,6 +134,14 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  // Global search
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // User menu
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -114,10 +179,59 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearch(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+      if (event.key === "Escape") {
+        setShowSearch(false);
+      }
+    }
+
+    document.addEventListener("keydown", handleShortcut);
+    return () => document.removeEventListener("keydown", handleShortcut);
+  }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!showSearch || query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        if (active && data.success) {
+          setSearchResults(data.data.results || []);
+        }
+      } catch (error) {
+        if (active) setSearchResults([]);
+      } finally {
+        if (active) setSearchLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, showSearch]);
 
   const fetchNotificationCount = async () => {
     try {
@@ -193,8 +307,42 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
 
     // Navigate to action URL if present
     if (notification.actionUrl) {
-      router.push(notification.actionUrl);
+      const targetUrl = normalizeNotificationActionUrl(notification.actionUrl);
+      if (isExternalNotificationActionUrl(targetUrl)) {
+        window.open(targetUrl, "_blank", "noopener,noreferrer");
+      } else {
+        router.push(targetUrl);
+      }
       setShowNotifications(false);
+    }
+  };
+
+  const query = searchQuery.trim().toLowerCase();
+  const staticSearchResults = query
+    ? GLOBAL_SEARCH_ITEMS.filter((item) =>
+        `${item.title} ${item.subtitle}`.toLowerCase().includes(query)
+      )
+    : GLOBAL_SEARCH_ITEMS.slice(0, 7);
+  const combinedSearchResults = [...staticSearchResults, ...searchResults]
+    .filter((item, index, array) => array.findIndex((other) => other.href === item.href) === index)
+    .slice(0, 10);
+
+  const navigateSearchResult = (href: string) => {
+    const targetUrl = normalizeNotificationActionUrl(href);
+    if (isExternalNotificationActionUrl(targetUrl)) {
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(targetUrl);
+    }
+    setShowSearch(false);
+    setSearchQuery("");
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const firstResult = combinedSearchResults[0];
+    if (firstResult) {
+      navigateSearchResult(firstResult.href);
     }
   };
 
@@ -241,29 +389,29 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
     .join("")
     .toUpperCase() || "U";
 
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (type: string): LucideIcon => {
     switch (type) {
       case "NEW_FOLLOWER":
-        return "👤";
+        return User;
       case "POST_LIKED":
-        return "❤️";
+        return Heart;
       case "POST_COMMENTED":
       case "COMMENT_REPLY":
-        return "💬";
+        return MessageSquare;
       case "CREDITS_PURCHASED":
-        return "💳";
+        return CreditCard;
       case "CREDITS_LOW":
-        return "⚠️";
+        return Bell;
       case "CAMPAIGN_SENT":
-        return "📧";
+        return Megaphone;
       case "SMS_NUMBER_ACTIVATED":
-        return "📱";
+        return MessageSquare;
       case "ENGAGEMENT_MILESTONE":
-        return "🔥";
+        return Sparkles;
       case "WELCOME":
-        return "🎉";
+        return Sparkles;
       default:
-        return "🔔";
+        return Bell;
     }
   };
 
@@ -286,14 +434,74 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
         </Button>
 
         {/* Search */}
-        <div className="flex-1 max-w-xl hidden sm:block">
-          <button className="flex items-center w-full gap-2 px-4 py-2 text-sm text-muted-foreground bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+        <div ref={searchRef} className="relative flex-1 max-w-xl hidden sm:block">
+          <button
+            type="button"
+            onClick={() => {
+              setShowSearch(true);
+              setTimeout(() => searchInputRef.current?.focus(), 0);
+            }}
+            className="flex items-center w-full gap-2 px-4 py-2 text-sm text-muted-foreground bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+          >
             <Search className="h-4 w-4" />
-            <span className="flex-1 text-left">Search...</span>
+            <span className="flex-1 text-left">{searchQuery || "Search..."}</span>
             <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-background rounded border">
               <Command className="h-3 w-3" />K
             </kbd>
           </button>
+
+          {showSearch && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border bg-card shadow-lg">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 border-b px-3 py-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search pages, posts, campaigns, contacts..."
+                  className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </form>
+              <div className="max-h-[420px] overflow-y-auto p-2">
+                {searchLoading && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+                )}
+                {!searchLoading && combinedSearchResults.length === 0 && (
+                  <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No matching pages or workspace records.
+                  </div>
+                )}
+                {combinedSearchResults.map((result) => {
+                  const Icon = getSearchIcon(result.kind, result.icon);
+                  return (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => navigateSearchResult(result.href)}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-accent"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{result.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{result.subtitle}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -449,45 +657,48 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          onClick={() => handleNotificationClick(notification)}
-                          className={cn(
-                            "flex items-start gap-3 px-4 py-3 hover:bg-accent cursor-pointer transition-colors group",
-                            !notification.read && "bg-brand-500/5"
-                          )}
-                        >
-                          <span className="text-lg shrink-0 mt-0.5">
-                            {getNotificationIcon(notification.type)}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={cn(
-                                "text-sm",
-                                !notification.read && "font-medium"
-                              )}>
-                                {notification.title}
+                      {notifications.map((notification) => {
+                        const NotificationIcon = getNotificationIcon(notification.type);
+                        return (
+                          <div
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className={cn(
+                              "flex items-start gap-3 px-4 py-3 hover:bg-accent cursor-pointer transition-colors group",
+                              !notification.read && "bg-brand-500/5"
+                            )}
+                          >
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
+                              <NotificationIcon className="h-4 w-4" />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={cn(
+                                  "text-sm",
+                                  !notification.read && "font-medium"
+                                )}>
+                                  {notification.title}
+                                </p>
+                                <button
+                                  onClick={(e) => handleDeleteNotification(notification.id, e)}
+                                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                {notification.message}
                               </p>
-                              <button
-                                onClick={(e) => handleDeleteNotification(notification.id, e)}
-                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                              <p className="text-xs text-muted-foreground/70 mt-1">
+                                {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-muted-foreground/70 mt-1">
-                              {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                            </p>
+                            {!notification.read && (
+                              <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0 mt-2" />
+                            )}
                           </div>
-                          {!notification.read && (
-                            <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0 mt-2" />
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
