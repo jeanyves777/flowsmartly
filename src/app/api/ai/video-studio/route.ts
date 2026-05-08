@@ -16,6 +16,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { nanoid } from "nanoid";
 import OpenAI from "openai";
+import sharp from "sharp";
 import os from "os";
 import fs from "fs";
 import path from "path";
@@ -150,9 +151,16 @@ export async function POST(req: NextRequest) {
         send({ type: "start", mode: "video", designId: design.id });
 
         try {
-          const refImage: string | undefined = primaryReferenceImageUrl || undefined;
+          const refImage = await prepareVideoReferenceAnchor(
+            referenceImageUrls,
+            session.userId,
+            speechMode,
+            aspectRatio,
+            (message) => send({ type: "status", message })
+          );
           // Build enhanced prompt with style, continuity, and duration guidance.
           const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style, duration, referenceImageUrls.length, speechMode);
+          const negativePrompt = buildVideoNegativePrompt(referenceImageUrls.length, speechMode);
 
           let finalVideoBuffer: Buffer;
           let totalDuration = 0;
@@ -267,6 +275,7 @@ export async function POST(req: NextRequest) {
                 aspectRatio: veoAspectRatio,
                 resolution: veoResolution,
                 referenceImageUrl: refImage,
+                negativePrompt,
               });
 
               actualProvider = "veo3";
@@ -634,6 +643,130 @@ function isVeoProcessingDelayError(error: unknown): boolean {
     (/INVALID_ARGUMENT/i.test(message) && /processed/i.test(message));
 }
 
+function buildVideoNegativePrompt(referenceImageCount: number, speechMode: VideoSpeechMode): string {
+  const anatomyRules =
+    speechMode === "talking_review"
+      ? "extra arms, extra hands, extra fingers, duplicated hands, duplicated arms, distorted hands, floating limbs, impossible grip, overhead product pose, product covering face, face distortion, face swap, identity drift"
+      : "extra arms, extra hands, extra fingers, duplicated body parts, distorted anatomy, identity drift";
+  const productRules =
+    referenceImageCount > 0
+      ? "changed product, different bag, wrong color, wrong material, mutated product shape, duplicate products, invented logos, unreadable product label"
+      : "mutated product, unreadable labels, fake third-party logos";
+  return `${anatomyRules}, ${productRules}, low quality, blurry, cropped face, cropped product, watermark, fake AI provider mark`;
+}
+
+async function prepareVideoReferenceAnchor(
+  referenceImageUrls: string[],
+  userId: string,
+  speechMode: VideoSpeechMode,
+  aspectRatio: string,
+  onStatus?: (message: string) => void
+): Promise<string | undefined> {
+  if (referenceImageUrls.length === 0) return undefined;
+  if (referenceImageUrls.length === 1) return referenceImageUrls[0] || undefined;
+
+  try {
+    onStatus?.("Locking uploaded person and product references...");
+    const board = await buildVideoReferenceBoard(referenceImageUrls.slice(0, 3), speechMode, aspectRatio);
+    const key = `ai-video-studio/reference-anchors/${userId}/${nanoid(8)}.jpg`;
+    return await uploadToS3(key, board, "image/jpeg");
+  } catch (error) {
+    console.warn("[VideoStudio] Could not build multi-reference anchor; falling back to first reference:", error);
+    return referenceImageUrls[0] || undefined;
+  }
+}
+
+async function buildVideoReferenceBoard(
+  referenceImageUrls: string[],
+  speechMode: VideoSpeechMode,
+  aspectRatio: string
+): Promise<Buffer> {
+  const vertical = aspectRatio === "9:16" || speechMode === "talking_review";
+  const width = vertical ? 1080 : 1280;
+  const height = vertical ? 1920 : 720;
+  const bgSvg = `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f8fafc"/>
+          <stop offset="55%" stop-color="#eef8fb"/>
+          <stop offset="100%" stop-color="#fff7ed"/>
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#bg)"/>
+    </svg>`;
+  const base = sharp(Buffer.from(bgSvg)).png();
+
+  const slots = vertical
+    ? [
+        { left: 64, top: 64, width: 952, height: 1040 },
+        { left: 104, top: 1160, width: 872, height: 520 },
+        { left: 246, top: 1700, width: 588, height: 170 },
+      ]
+    : [
+        { left: 42, top: 42, width: 744, height: 636 },
+        { left: 824, top: 72, width: 408, height: 288 },
+        { left: 824, top: 390, width: 408, height: 258 },
+      ];
+
+  const composites: sharp.OverlayOptions[] = [];
+  for (let index = 0; index < referenceImageUrls.length && index < slots.length; index++) {
+    const imageBuffer = await resolveVideoReferenceBuffer(referenceImageUrls[index]);
+    if (!imageBuffer) continue;
+    const slot = slots[index];
+    const roundedImage = await renderReferenceSlot(imageBuffer, slot.width, slot.height);
+    composites.push({ input: roundedImage, left: slot.left, top: slot.top });
+  }
+
+  if (composites.length === 0) {
+    throw new Error("No reference images could be read for the video anchor.");
+  }
+
+  return base.composite(composites).jpeg({ quality: 92 }).toBuffer();
+}
+
+async function renderReferenceSlot(buffer: Buffer, width: number, height: number): Promise<Buffer> {
+  const resized = await sharp(buffer)
+    .rotate()
+    .resize(width, height, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      withoutEnlargement: false,
+    })
+    .png()
+    .toBuffer();
+  const maskSvg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${width}" height="${height}" rx="36" ry="36" fill="#fff"/></svg>`;
+  return sharp(resized)
+    .composite([{ input: Buffer.from(maskSvg), blend: "dest-in" }])
+    .png()
+    .toBuffer();
+}
+
+async function resolveVideoReferenceBuffer(referenceImageUrl: string): Promise<Buffer | null> {
+  try {
+    if (referenceImageUrl.startsWith("data:")) {
+      const match = referenceImageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!match) return null;
+      return Buffer.from(match[1], "base64");
+    }
+
+    if (referenceImageUrl.startsWith("http")) {
+      const res = await fetch(referenceImageUrl);
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    }
+
+    const localPath = referenceImageUrl.startsWith("/")
+      ? path.join(process.cwd(), "public", referenceImageUrl)
+      : path.join(process.cwd(), "public", referenceImageUrl);
+    if (!fs.existsSync(localPath)) return null;
+    return fs.readFileSync(localPath);
+  } catch (error) {
+    console.warn("[VideoStudio] Could not read video reference image:", error);
+    return null;
+  }
+}
+
 async function extendVeoVideoWithProcessingRetry(
   videoUri: string,
   prompt: string,
@@ -838,7 +971,7 @@ function buildVideoPrompt(
     .filter(Boolean)
     .join(" ");
   const referenceLockDirective = referenceImageCount > 0
-    ? `REFERENCE LOCK: The uploaded reference ${referenceImageCount > 1 ? "images are" : "image is"} the exact subject source. Preserve the real product/person/site identity from the reference. Do not substitute a similar product, do not change the bag/item design, do not invent a different presenter, and do not reinterpret the supplied website. Keep the same product silhouette, color, material, labels, person appearance, clothing style, and recognizable visual details as much as the provider allows. If multiple references are supplied, treat the first as the primary anchor and combine the additional product/person/site references without changing their identities.`
+    ? `REFERENCE LOCK: The uploaded reference ${referenceImageCount > 1 ? "images are" : "image is"} the exact subject source. Preserve the real product/person/site identity from the reference. Do not substitute a similar product, do not change the bag/item design, do not invent a different presenter, and do not reinterpret the supplied website. Keep the same product silhouette, color, material, labels, person appearance, clothing style, face identity, and recognizable visual details as much as the provider allows. If multiple references are supplied, the backend may combine them into one neutral reference anchor; do not reproduce the anchor board, cards, or borders in the final video. Use it only to preserve the first image as the presenter/primary identity and the additional images as exact product/site/assets. Replace or improve the environment into a polished scene when requested, while keeping the referenced face, clothing style, and product identity unchanged.`
     : "";
   const speechDirective = buildVideoSpeechDirective(speechMode, durationSeconds);
 
@@ -851,6 +984,8 @@ function buildVideoPrompt(
   const cleanPromptDirective =
     speechMode === "site_walkthrough"
       ? "CRITICAL CLEAN VIDEO RULES: Do not create fake marketing text overlays, subtitles, watermarks, or invented UI copy. Website text may appear only when it naturally belongs to the referenced site/page being shown."
+      : speechMode === "talking_review"
+        ? "SOCIAL REVIEW OVERLAY RULES: Tasteful TikTok/Reels-style review overlays are allowed when the request is a review: short hook text, star rating, comment bubble, simple like/comment/share counters, progress bar, or LIVE-style badge. Keep overlays readable, premium, and away from the face and product. Do not use copyrighted platform logos, watermarks, or fake provider marks."
       : cleanDirective;
 
   return `${continuityDirective} ${referenceLockDirective} ${speechDirective} ${motionDirective} ${catHint} ${styleHint} ${cleanPromptDirective} ${userPrompt}`.trim();
@@ -859,7 +994,7 @@ function buildVideoPrompt(
 function buildVideoSpeechDirective(mode: VideoSpeechMode, durationSeconds: number): string {
   switch (mode) {
     case "talking_review":
-      return `VIDEO FORMAT: Realistic TikTok-style product review for ${durationSeconds} seconds. Show one natural presenter on camera speaking directly to the viewer while holding, wearing, using, unboxing, or pointing to the product. The product must be visible in hand or clearly demonstrated. Use native synchronized speech from the visible presenter only. No disembodied voiceover, no off-screen narrator, no subtitles, and no fake text overlays.`;
+      return `VIDEO FORMAT: Realistic TikTok-style product review for ${durationSeconds} seconds. Show exactly one natural presenter on camera speaking directly to the viewer with the referenced face preserved. The product must remain the exact referenced item and can be shown beside the presenter, on a table, in a clean product insert, or held in one natural way. Preserve normal anatomy: one head, one torso, two arms, two hands, natural fingers, no duplicated limbs, and no impossible grip. Do not lift the product overhead or cover the presenter's face unless the user explicitly asks. Use native synchronized speech from the visible presenter only. No disembodied voiceover or off-screen narrator.`;
     case "site_walkthrough":
       return `VIDEO FORMAT: Realistic website or offer walkthrough for ${durationSeconds} seconds. Show the user's site, product page, booking page, checkout, or offer clearly while a visible presenter talks through what viewers are seeing. The presenter can appear full frame, beside the screen, or picture-in-picture, but speech must come from the visible presenter. No separate voiceover narrator, no subtitles, and no fake interface text beyond what naturally appears on the site.`;
     case "voiceover_presentation":
@@ -908,6 +1043,7 @@ CONTINUATION RULES:
 - Keep the same mood and energy level but evolve the scene naturally
 - ${speechHint}
 - Keep the same referenced product/person/site identity. Do not replace the product, presenter, or website with a different invented subject.
+- If this is a talking review, preserve the presenter face and exact product, keep normal anatomy with two hands only, and do not add duplicate arms, duplicate products, or impossible holding poses.
 - Do NOT render any text, brand names, titles, or written words in the video — keep it purely visual
 - Think of this as the next shot in a professional TV commercial — each cut shows something new while maintaining the flow
 
@@ -917,7 +1053,7 @@ Original concept: ${userPrompt}`.trim();
 function buildContinuationSpeechDirective(mode: VideoSpeechMode): string {
   switch (mode) {
     case "talking_review":
-      return "Keep the same visible presenter speaking naturally to camera with synced mouth movement; the product remains in hand or clearly demonstrated. Do not switch to an off-screen voiceover.";
+      return "Keep the same visible presenter speaking naturally to camera with synced mouth movement; preserve the referenced face and exact product. The product can stay beside the presenter, on a table, in a product insert, or held naturally with normal two-hand anatomy. Do not switch to an off-screen voiceover.";
     case "site_walkthrough":
       return "Keep the same visible presenter or picture-in-picture walkthrough voice connected to the website or offer being shown. Do not switch to a separate narrator.";
     case "voiceover_presentation":

@@ -105,6 +105,8 @@ type FlowMediaTemplate = {
   title: string;
   mode: FlowMediaMode;
   aspect: FlowMediaAspect;
+  speechMode?: FlowVideoSpeechMode;
+  duration?: FlowVideoDuration;
   prompt: string;
   badge: string;
   helper?: string;
@@ -286,6 +288,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Promo video idea",
       mode: "video",
       aspect: "9:16",
+      speechMode: "visual_only",
       badge: "FlowAI video",
       helper: "Short vertical reel for a product, offer, or service hook.",
       thumbnail: "/templates/flow-media/video-promo-reel.jpg",
@@ -296,6 +299,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Story walkthrough",
       mode: "video",
       aspect: "16:9",
+      speechMode: "voiceover_presentation",
       badge: "FlowAI video",
       helper: "Wide story arc from customer problem to branded solution and CTA.",
       thumbnail: "/templates/flow-media/video-brand-story.jpg",
@@ -306,16 +310,19 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Talking review",
       mode: "video",
       aspect: "9:16",
+      speechMode: "talking_review",
+      duration: 15,
       badge: "FlowAI video",
       helper: "TikTok-style presenter review with the product visible in hand.",
       thumbnail: "/templates/flow-media/video-talking-review.jpg",
-      prompt: `Create a vertical talking product review video for ${brandName}. Show a realistic presenter naturally holding or using ${productFocus}, speaking directly to ${audience}, highlighting ${value}, and ending with a confident CTA. Keep the product and presenter consistent throughout.`,
+      prompt: `Create a vertical TikTok-style talking review video for ${brandName}. If a presenter reference is uploaded, preserve that exact face and clothing identity. If a product reference is uploaded, preserve that exact product shape, color, material, hardware, and details. Show one presenter with normal anatomy and the product beside them, on a table, in a product insert, or held naturally without covering the face. Replace rough backgrounds with a clean lifestyle or creator-review setting. Add tasteful review overlays such as Honest review, star rating, comment bubble, or LIVE-style engagement cues, and end with a confident CTA for ${audience}.`,
     },
     {
       id: "website-walkthrough",
       title: "Website walkthrough",
       mode: "video",
       aspect: "16:9",
+      speechMode: "site_walkthrough",
       badge: "FlowAI video",
       helper: "Website or landing-page walkthrough with guided screen highlights.",
       thumbnail: "/templates/flow-media/video-website-walkthrough.jpg",
@@ -326,6 +333,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Voiceover presentation",
       mode: "video",
       aspect: "16:9",
+      speechMode: "voiceover_presentation",
       badge: "FlowAI video",
       helper: "Clean narrated presentation with slides, proof points, and CTA.",
       thumbnail: "/templates/flow-media/video-voiceover-presentation.jpg",
@@ -336,6 +344,7 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Visual showcase",
       mode: "video",
       aspect: "9:16",
+      speechMode: "visual_only",
       badge: "FlowAI video",
       helper: "Visual-only product beauty shots with smooth premium transitions.",
       thumbnail: "/templates/flow-media/video-visual-showcase.jpg",
@@ -1369,6 +1378,8 @@ export default function ContentPostsPage() {
   const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
     setFlowMediaMode(template.mode);
     setFlowMediaAspect(template.aspect);
+    if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
+    if (template.duration) setFlowVideoDuration(template.duration);
     setFlowMediaPrompt(template.prompt);
     setGeneratedFlowMedia(null);
     setFlowMediaStatus("");
@@ -1400,6 +1411,8 @@ export default function ContentPostsPage() {
           "If a person is uploaded, preserve the person's recognizable face, skin tone, age range, hair, body identity, and styling as much as the provider allows.",
           "If a website or product page is uploaded, preserve the real site/product identity and do not invent unrelated UI.",
           "Use the first reference as the primary visual anchor and integrate additional references naturally without replacing them with stock substitutes.",
+          "When combining a person and a product, keep the person's face recognizable and keep the product exact. Use normal anatomy only: one head, one torso, two arms, two hands, natural fingers, and no duplicated limbs or impossible holding pose.",
+          "If the ad is a UGC or review concept, replace rough backgrounds with a clean creator-review scene and add tasteful review text, rating, comment, or live-style social cues without covering the face or product.",
         ].join(" ")
       : "No reference image was uploaded. Create a brand-fit concept, but leave the subject generic enough for the user to replace or refine.";
     const editInstruction = productAdEditPrompt.trim();
@@ -1547,9 +1560,27 @@ export default function ContentPostsPage() {
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
     const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
+    const videoCategoryBySpeechMode: Record<FlowVideoSpeechMode, string> = {
+      talking_review: "testimonial",
+      site_walkthrough: "explainer",
+      voiceover_presentation: "explainer",
+      visual_only: "product_ad",
+    };
     const referenceImageNote = flowMediaReferenceUrls.length
       ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
       : null;
+    const talkingReviewReferenceRule =
+      flowVideoSpeechMode === "talking_review" && flowMediaReferenceUrls.length > 1
+        ? "Talking review reference roles: treat the first uploaded image as the presenter/face identity when it contains a person. Treat the second and later uploaded images as the exact product, bag, website, or supporting assets. Combine them without changing either identity. Do not turn the product into a different color, shape, brand, material, or item."
+        : null;
+    const talkingReviewAnatomyRule =
+      flowVideoSpeechMode === "talking_review"
+        ? "Talking review anatomy and scene rules: show exactly one presenter, one head, one torso, two arms, two hands, natural fingers, and a normal pose. Do not add extra arms, duplicate hands, duplicate products, floating limbs, overhead holding poses, or product placement that covers the face. If the hand pose is uncertain, place the product beside the presenter, on a table, or as a clean product insert."
+        : null;
+    const talkingReviewOverlayRule =
+      flowVideoSpeechMode === "talking_review"
+        ? "Review presentation: improve the background into a clean creator-review or lifestyle setting while preserving the presenter's face and the exact product. Add tasteful TikTok/Reels-style review cues such as a short Honest review hook, star rating, comment card, progress bar, or LIVE-style engagement indicators. Keep text readable and do not cover the face or product."
+        : null;
     const rawBrandIdentity = {
       name: brandKit?.name || null,
       tagline: brandKit?.tagline || null,
@@ -1576,8 +1607,13 @@ export default function ContentPostsPage() {
       flowMediaReferenceUrls.length
         ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
         : null,
+      talkingReviewReferenceRule,
+      talkingReviewAnatomyRule,
+      talkingReviewOverlayRule,
       "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
-      "Message structure: opening hook, clear product or offer demonstration, proof or benefit moment, and final call-to-action visual. Use visual storytelling only; avoid burned-in text overlays unless the user explicitly asks for text.",
+      flowVideoSpeechMode === "talking_review"
+        ? "Message structure: opening hook, product proof/review moment, benefit or result, and final call-to-action. Review overlays are allowed when they support the message."
+        : "Message structure: opening hook, clear product or offer demonstration, proof or benefit moment, and final call-to-action visual. Use visual storytelling only; avoid burned-in text overlays unless the user explicitly asks for text.",
       referenceImageNote,
       `User prompt: ${prompt}`,
     ]
@@ -1641,7 +1677,7 @@ export default function ContentPostsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: rawVideoPrompt,
-          category: "promo",
+          category: videoCategoryBySpeechMode[flowVideoSpeechMode],
           aspectRatio: flowMediaAspect,
           duration: flowVideoDuration,
           style: flowMediaStyle,
@@ -2883,7 +2919,7 @@ export default function ContentPostsPage() {
                 libraryTitle="Choose reference image"
               />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Add the exact product, person, style, or scene references. FlowAI locks the first image as the main identity anchor and keeps supplied product/person references instead of reinventing them.
+                Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowAI combines them into one identity anchor so the face and item stay locked instead of being reinvented.
               </p>
             </div>
 
