@@ -5,12 +5,33 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 interface ScheduleConfig {
   frequency?: string;
   dayOfWeek?: number;
   time?: string;
 }
+
+interface ZonedParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  weekday: number;
+}
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
 
 function parseSchedule(scheduleStr: string): ScheduleConfig {
   try {
@@ -20,60 +41,160 @@ function parseSchedule(scheduleStr: string): ScheduleConfig {
   }
 }
 
+function parseScheduleTime(value?: string): { hour: number; minute: number } | null {
+  const match = value?.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  if (!match) return null;
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = match[3]?.toUpperCase();
+
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  if (meridiem === "PM" && hour < 12) hour += 12;
+  if (meridiem === "AM" && hour === 12) hour = 0;
+
+  if (hour < 0 || hour > 23) return null;
+  return { hour, minute };
+}
+
+function getZonedParts(date: Date, timeZone: string): ZonedParts {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    weekday: "short",
+  });
+
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date).map((part) => [part.type, part.value])
+  );
+
+  const weekday = WEEKDAY_INDEX[(parts.weekday || "sun").slice(0, 3).toLowerCase()] ?? 0;
+
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+    second: Number(parts.second),
+    weekday,
+  };
+}
+
+function shiftLocalDate(parts: Pick<ZonedParts, "year" | "month" | "day">, days: number) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, 12, 0, 0));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function shiftLocalMonth(parts: Pick<ZonedParts, "year" | "month">, months: number) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1 + months, 1, 12, 0, 0));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: 1,
+  };
+}
+
+function zonedDateTimeToUtc(
+  parts: Pick<ZonedParts, "year" | "month" | "day">,
+  time: { hour: number; minute: number },
+  timeZone: string
+): Date {
+  const targetAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, time.hour, time.minute, 0);
+  const guess = new Date(targetAsUtc);
+  const zonedGuess = getZonedParts(guess, timeZone);
+  const zonedGuessAsUtc = Date.UTC(
+    zonedGuess.year,
+    zonedGuess.month - 1,
+    zonedGuess.day,
+    zonedGuess.hour,
+    zonedGuess.minute,
+    0
+  );
+  return new Date(guess.getTime() - (zonedGuessAsUtc - targetAsUtc));
+}
+
+function getLastScheduledOccurrence(
+  schedule: ScheduleConfig,
+  now: Date,
+  timeZone: string
+): Date | null {
+  const frequency = schedule.frequency?.toUpperCase();
+  const scheduledTime = parseScheduleTime(schedule.time);
+  if (!frequency || !scheduledTime) return null;
+
+  let current: ZonedParts;
+  try {
+    current = getZonedParts(now, timeZone);
+  } catch {
+    current = getZonedParts(now, "UTC");
+    timeZone = "UTC";
+  }
+
+  const nowLocalMinutes = current.hour * 60 + current.minute;
+  const scheduledMinutes = scheduledTime.hour * 60 + scheduledTime.minute;
+  let occurrenceDate: Pick<ZonedParts, "year" | "month" | "day">;
+
+  if (frequency === "DAILY") {
+    occurrenceDate = { year: current.year, month: current.month, day: current.day };
+    if (nowLocalMinutes < scheduledMinutes) {
+      occurrenceDate = shiftLocalDate(occurrenceDate, -1);
+    }
+  } else if (frequency === "WEEKLY") {
+    const rawTargetDay = typeof schedule.dayOfWeek === "number" ? schedule.dayOfWeek : current.weekday;
+    const targetDay = ((rawTargetDay % 7) + 7) % 7;
+    let daysSince = (current.weekday - targetDay + 7) % 7;
+    occurrenceDate = shiftLocalDate(current, -daysSince);
+    if (daysSince === 0 && nowLocalMinutes < scheduledMinutes) {
+      occurrenceDate = shiftLocalDate(occurrenceDate, -7);
+    }
+  } else if (frequency === "MONTHLY") {
+    occurrenceDate = { year: current.year, month: current.month, day: 1 };
+    if (current.day === 1 && nowLocalMinutes < scheduledMinutes) {
+      occurrenceDate = shiftLocalMonth(current, -1);
+    }
+  } else {
+    return null;
+  }
+
+  return zonedDateTimeToUtc(occurrenceDate, scheduledTime, timeZone);
+}
+
 /**
  * Check if an automation is due to run based on its schedule and last trigger time.
  */
 function isDue(
   schedule: ScheduleConfig,
   lastTriggered: Date | null,
-  now: Date
+  now: Date,
+  startDate: Date,
+  timeZone: string
 ): boolean {
-  const { frequency, dayOfWeek, time } = schedule;
-  if (!frequency || !time) return false;
-
-  const [hStr, mStr] = time.split(":");
-  const scheduledHour = parseInt(hStr, 10);
-  const scheduledMinute = parseInt(mStr, 10);
-  if (isNaN(scheduledHour) || isNaN(scheduledMinute)) return false;
-
-  const nowHour = now.getUTCHours();
-  const nowMinute = now.getUTCMinutes();
-
-  // Check if within 30-min window of scheduled time
-  const nowMinutes = nowHour * 60 + nowMinute;
-  const scheduledMinutes = scheduledHour * 60 + scheduledMinute;
-  const timeDiff = Math.abs(nowMinutes - scheduledMinutes);
-  if (timeDiff > 30 && timeDiff < 1410) return false; // 1410 = 24*60 - 30 (wrap-around)
-
-  // Check day constraints
-  const nowDay = now.getUTCDay();
-
-  if (frequency === "WEEKLY" && dayOfWeek !== undefined && nowDay !== dayOfWeek) {
-    return false;
-  }
-
-  if (frequency === "MONTHLY" && now.getUTCDate() !== 1) {
-    return false;
-  }
-
-  // Check cooldown based on lastTriggered to avoid double-runs
-  if (lastTriggered) {
-    const hoursSinceLast = (now.getTime() - lastTriggered.getTime()) / 3600000;
-    if (frequency === "DAILY" && hoursSinceLast < 23) return false;
-    if (frequency === "WEEKLY" && hoursSinceLast < 144) return false; // 6 days
-    if (frequency === "MONTHLY" && hoursSinceLast < 648) return false; // 27 days
-  }
-
+  const occurrence = getLastScheduledOccurrence(schedule, now, timeZone || "UTC");
+  if (!occurrence || occurrence > now || occurrence < startDate) return false;
+  if (lastTriggered && lastTriggered >= occurrence) return false;
   return true;
 }
 
 // POST /api/content/automation/scheduler
 // Called by external cron service (every 15 minutes). Protected by CRON_SECRET.
-export async function POST(request: NextRequest) {
+async function runScheduler(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!isCronAuthorized(request)) {
       return NextResponse.json(
         { success: false, error: { message: "Unauthorized" } },
         { status: 401 }
@@ -90,7 +211,7 @@ export async function POST(request: NextRequest) {
         OR: [{ endDate: null }, { endDate: { gt: now } }],
       },
       include: {
-        user: { select: { id: true, aiCredits: true } },
+        user: { select: { id: true, aiCredits: true, timezone: true } },
       },
     });
 
@@ -103,8 +224,9 @@ export async function POST(request: NextRequest) {
 
     for (const automation of automations) {
       const schedule = parseSchedule(automation.schedule);
+      const timeZone = automation.user.timezone || "UTC";
 
-      if (!isDue(schedule, automation.lastTriggered, now)) {
+      if (!isDue(schedule, automation.lastTriggered, now, automation.startDate, timeZone)) {
         continue;
       }
 
@@ -276,4 +398,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  return runScheduler(request);
+}
+
+export async function POST(request: NextRequest) {
+  return runScheduler(request);
 }

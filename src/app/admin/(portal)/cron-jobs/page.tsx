@@ -12,6 +12,7 @@ interface CronJob {
   name: string;
   description: string;
   endpoint: string;
+  method?: "GET" | "POST";
   schedule: string;
   frequency: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -68,6 +69,16 @@ const CRON_JOBS: CronJob[] = [
     category: "engagement",
   },
   {
+    id: "scheduled-posts",
+    name: "Scheduled Posts Publisher",
+    description: "Publish due calendar posts to the FlowSmartly feed and connected social platforms",
+    endpoint: "/api/cron/publish-scheduled-posts",
+    schedule: "*/5 * * * *",
+    frequency: "Every 5 minutes",
+    icon: Calendar,
+    category: "content",
+  },
+  {
     id: "content-automation",
     name: "Content Automation",
     description: "Generate AI content and schedule posts based on user automations",
@@ -82,6 +93,7 @@ const CRON_JOBS: CronJob[] = [
     name: "Strategy Reminders",
     description: "Send reminders for content strategy tasks due within 3 days",
     endpoint: "/api/content/strategy/reminders",
+    method: "POST",
     schedule: "0 7 * * *",
     frequency: "Daily at 7:00 AM UTC",
     icon: ListChecks,
@@ -92,6 +104,7 @@ const CRON_JOBS: CronJob[] = [
     name: "Weekly Strategy Digest",
     description: "Send weekly summary of completed, upcoming, and overdue strategy tasks",
     endpoint: "/api/content/strategy/weekly-digest",
+    method: "POST",
     schedule: "0 9 * * 1",
     frequency: "Weekly on Monday at 9:00 AM UTC",
     icon: Mail,
@@ -167,8 +180,10 @@ export default function AdminCronJobsPage() {
 
     const start = Date.now();
     try {
-      const res = await fetch(job.endpoint, {
-        headers: { "x-cron-secret": "admin-manual-trigger" },
+      const res = await fetch("/api/admin/cron-jobs/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: job.endpoint, method: job.method || "GET" }),
       });
       const data = await res.json();
       const duration = Date.now() - start;
@@ -427,6 +442,9 @@ export default function AdminCronJobsPage() {
 
 # Re-engagement - weekly Monday 9am UTC
 0 9 * * 1 curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/cron/reengagement
+
+# Scheduled posts - every 5 minutes
+*/5 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/cron/publish-scheduled-posts
 
 # Content automation - every 15 minutes
 */15 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/content/automation/scheduler`}

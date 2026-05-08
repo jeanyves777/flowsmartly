@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { publishToSocialPlatforms } from "@/lib/social/publisher";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { isCronAuthorized } from "@/lib/cron/auth";
+import { publishDueScheduledPosts } from "@/lib/content/scheduled-post-publisher";
 
 // POST /api/posts/schedule - Schedule a post for future publishing
 export async function POST(request: NextRequest) {
@@ -86,55 +87,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH /api/posts/schedule - Publish all scheduled posts that are due (called by cron or admin)
-export async function PATCH() {
+// PATCH /api/posts/schedule - Publish all scheduled posts that are due (called by cron/admin)
+export async function PATCH(request: NextRequest) {
   try {
-    const now = new Date();
-
-    const duePosts = await prisma.post.findMany({
-      where: {
-        status: "SCHEDULED",
-        scheduledAt: { lte: now },
-      },
-      select: { id: true, userId: true, platforms: true },
-    });
-
-    if (duePosts.length === 0) {
+    if (!isCronAuthorized(request)) {
       return NextResponse.json({
-        success: true,
-        data: { publishedCount: 0 },
-      });
+        success: false,
+        error: { message: "Unauthorized" },
+      }, { status: 401 });
     }
 
-    await prisma.post.updateMany({
-      where: {
-        id: { in: duePosts.map((p) => p.id) },
-      },
-      data: {
-        status: "PUBLISHED",
-        publishedAt: now,
-      },
-    });
-
-    // Publish to external social platforms (fire-and-forget per post)
-    for (const post of duePosts) {
-      let platforms: string[] = [];
-      try {
-        platforms = JSON.parse(post.platforms || "[]");
-      } catch {
-        continue;
-      }
-      const hasExternal = platforms.some((p) => p !== "feed");
-      if (hasExternal) {
-        publishToSocialPlatforms(post.id, post.userId).catch((err) => {
-          console.error(`[Scheduler] Publish error for post ${post.id}:`, err);
-        });
-      }
-    }
-
+    const result = await publishDueScheduledPosts();
     return NextResponse.json({
       success: true,
-      data: { publishedCount: duePosts.length },
+      data: result,
     });
   } catch (error) {
     console.error("Publish scheduled posts error:", error);
