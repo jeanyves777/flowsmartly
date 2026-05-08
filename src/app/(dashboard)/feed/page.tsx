@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, ImagePlus, Sparkles, Send, TrendingUp, Users, X, AlertTriangle, RefreshCw, Check, Image, Video, ChevronLeft, ChevronRight, Link2, Mail, Eye, Reply, Trash2, ChevronDown, AtSign, ZoomIn, Megaphone, Rocket, DollarSign, Timer, CheckCircle2, Pause, ExternalLink, Shield, Pencil, Lightbulb, Upload, FolderOpen, Zap, Flag } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, ImagePlus, Sparkles, Send, TrendingUp, Users, X, AlertTriangle, RefreshCw, Check, Image, Video, ChevronLeft, ChevronRight, Link2, Mail, Eye, Reply, Trash2, ChevronDown, AtSign, ZoomIn, Megaphone, Rocket, DollarSign, Timer, CheckCircle2, Pause, ExternalLink, Shield, Pencil, Lightbulb, Upload, FolderOpen, Zap, Flag, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -190,6 +191,11 @@ interface MediaFile {
   height: number | null;
 }
 
+function normalizeTrendTag(tag: string | null | undefined): string | null {
+  const normalized = tag?.trim().replace(/^#/, "").toLowerCase();
+  return normalized || null;
+}
+
 export default function FeedPage() {
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -206,6 +212,8 @@ export default function FeedPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [feedType, setFeedType] = useState<"feed" | "following" | "trending">("feed");
+  const [selectedTrend, setSelectedTrend] = useState<string | null>(null);
+  const [hasReadUrlFilters, setHasReadUrlFilters] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   // Edit/Delete post state
@@ -306,6 +314,7 @@ export default function FeedPage() {
   // Trending data
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
+  const [creatorSearch, setCreatorSearch] = useState("");
 
   // Fetch posts
   const fetchPosts = useCallback(async (cursor?: string) => {
@@ -318,6 +327,7 @@ export default function FeedPage() {
 
       const params = new URLSearchParams({ type: feedType, limit: "20" });
       if (cursor) params.set("cursor", cursor);
+      if (selectedTrend) params.set("trend", selectedTrend);
 
       const response = await fetch(`/api/posts?${params}`);
       const data = await response.json();
@@ -346,7 +356,7 @@ export default function FeedPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [feedType]);
+  }, [feedType, selectedTrend]);
 
   // Fetch trending data
   const fetchTrending = useCallback(async () => {
@@ -362,6 +372,25 @@ export default function FeedPage() {
       console.error("Failed to fetch trending:", err);
     }
   }, []);
+
+  const filteredSuggestedUsers = useMemo(() => {
+    const query = creatorSearch.trim().toLowerCase();
+    if (!query) return suggestedUsers;
+    return suggestedUsers.filter((user) =>
+      [user.name, user.username].filter(Boolean).join(" ").toLowerCase().includes(query)
+    );
+  }, [creatorSearch, suggestedUsers]);
+
+  const handleTopicFilter = useCallback((tag: string) => {
+    const trend = normalizeTrendTag(tag);
+    if (!trend) return;
+    setSelectedTrend(trend);
+    setFeedType("trending");
+    setPosts([]);
+    setNextCursor(null);
+    setHasMore(false);
+    router.push(`/feed?trend=${encodeURIComponent(trend)}`, { scroll: true });
+  }, [router]);
 
   // Fetch current user + brand identity
   const fetchUserAndBrand = useCallback(async () => {
@@ -413,10 +442,20 @@ export default function FeedPage() {
   }, []);
 
   useEffect(() => {
+    const trend = normalizeTrendTag(new URLSearchParams(window.location.search).get("trend"));
+    if (trend) {
+      setSelectedTrend(trend);
+      setFeedType("trending");
+    }
+    setHasReadUrlFilters(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasReadUrlFilters) return;
     fetchPosts();
     fetchTrending();
     fetchUserAndBrand();
-  }, [fetchPosts, fetchTrending, fetchUserAndBrand]);
+  }, [fetchPosts, fetchTrending, fetchUserAndBrand, hasReadUrlFilters]);
 
   // Scroll to post when navigated with hash or query (e.g. /feed#post-xyz or /feed?post=xyz)
   useEffect(() => {
@@ -1580,13 +1619,34 @@ export default function FeedPage() {
             size="sm"
             onClick={() => {
               setFeedType(tab.value as typeof feedType);
+              setSelectedTrend(null);
               setPosts([]);
+              router.push("/feed", { scroll: false });
             }}
           >
             {tab.label}
           </Button>
         ))}
       </div>
+
+      {selectedTrend && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-brand-500/25 bg-brand-500/5 px-3 py-2 text-sm">
+          <span className="font-medium text-brand-700">Showing #{selectedTrend}</span>
+          <span className="text-muted-foreground">Trending posts filtered by this topic</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 px-2 text-xs"
+            onClick={() => {
+              setSelectedTrend(null);
+              setPosts([]);
+              router.push("/feed", { scroll: false });
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         {/* Main Feed */}
@@ -2477,9 +2537,6 @@ export default function FeedPage() {
             );
           })()}
 
-          {/* Trending Topics */}
-          <TrendingTopics topics={trendingTopics} />
-
           {/* Suggested Users */}
           <Card>
             <CardHeader className="pb-3">
@@ -2489,11 +2546,22 @@ export default function FeedPage() {
               </div>
             </CardHeader>
             <CardContent className="pt-0">
+              <div className="relative mb-3">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={creatorSearch}
+                  onChange={(event) => setCreatorSearch(event.target.value)}
+                  placeholder="Search creators..."
+                  className="h-9 rounded-xl pl-9 text-sm"
+                />
+              </div>
               {suggestedUsers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No suggestions yet</p>
+              ) : filteredSuggestedUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No creators match your search</p>
               ) : (
                 <div className="space-y-3">
-                  {suggestedUsers.map((user) => (
+                  {filteredSuggestedUsers.map((user) => (
                     <div key={user.id} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Avatar className="w-8 h-8">
@@ -2523,6 +2591,9 @@ export default function FeedPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Trending Topics */}
+          <TrendingTopics topics={trendingTopics} onTopicClick={handleTopicFilter} />
         </div>
       </div>
 

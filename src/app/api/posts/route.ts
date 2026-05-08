@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const userId = searchParams.get("userId"); // For profile pages
     const type = searchParams.get("type") || "feed"; // feed, following, trending
+    const trend = searchParams.get("trend")?.trim().replace(/^#/, "").toLowerCase();
 
     const where: Record<string, unknown> = {
       status: "PUBLISHED",
@@ -27,8 +28,16 @@ export async function GET(request: NextRequest) {
       where.userId = userId;
     }
 
+    if (trend) {
+      where.OR = [
+        { hashtags: { contains: `#${trend}` } },
+        { hashtags: { contains: trend } },
+        { caption: { contains: `#${trend}` } },
+      ];
+    }
+
     // For feed and following types, only show posts from followed users + own + FlowSmartly
-    if ((type === "feed" || type === "following") && session && !userId) {
+    if ((type === "feed" || type === "following") && session && !userId && !trend) {
       const following = await prisma.follow.findMany({
         where: { followerId: session.userId },
         select: { followingId: true },

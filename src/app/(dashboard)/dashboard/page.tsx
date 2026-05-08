@@ -16,15 +16,13 @@ import {
   Wand2,
   Briefcase,
   Award,
-  Zap,
   BarChart3,
   PenTool,
   Image as ImageIcon,
   Palette,
-  Activity,
+  Play,
 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,8 +56,12 @@ interface DashboardData {
     thisMonth: number;
   };
   recentActivity: Array<{
+    id: string;
     type: string;
     title: string;
+    content: string;
+    mediaUrl: string | null;
+    mediaType: string | null;
     views: number;
     likes: number;
     comments: number;
@@ -100,6 +102,21 @@ interface DashboardData {
   };
 }
 
+interface DashboardVisualPost {
+  id: string;
+  content: string;
+  title: string;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  views: number;
+  likes: number;
+  comments: number;
+  createdAt: string;
+  authorName: string;
+  authorAvatar: string | null;
+  sourceLabel: string;
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
@@ -119,23 +136,21 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 const dashboardTips = [
   "Loading your dashboard...",
   "Crunching your numbers...",
   "Fetching latest stats...",
 ];
+
+function feedTrendHref(tag: string): string {
+  const normalized = tag.trim().replace(/^#/, "").toLowerCase();
+  return `/feed?trend=${encodeURIComponent(normalized)}`;
+}
+
+function isVideoMedia(url?: string | null, mediaType?: string | null): boolean {
+  if (mediaType?.toLowerCase().includes("video")) return true;
+  return !!url?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -144,6 +159,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBrandBanner, setShowBrandBanner] = useState(true);
+  const [postShowcaseIndex, setPostShowcaseIndex] = useState(0);
+  const [isPostShowcasePaused, setIsPostShowcasePaused] = useState(false);
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -161,6 +178,20 @@ export default function DashboardPage() {
     }
     fetchDashboard();
   }, []);
+
+  const showcasePostCount = data?.recentActivity.length || data?.sidebar.trendingPosts.length || 0;
+
+  useEffect(() => {
+    setPostShowcaseIndex(0);
+  }, [showcasePostCount]);
+
+  useEffect(() => {
+    if (loading || isPostShowcasePaused || showcasePostCount <= 1) return;
+    const timer = window.setInterval(() => {
+      setPostShowcaseIndex((current) => (current + 1) % showcasePostCount);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [isPostShowcasePaused, loading, showcasePostCount]);
 
   if (loading) {
     return <PageLoader tips={dashboardTips} />;
@@ -199,6 +230,40 @@ export default function DashboardPage() {
     likeCount: p.likeCount,
     commentCount: p.commentCount,
   }));
+
+  const visualPosts: DashboardVisualPost[] = data?.recentActivity.length
+    ? data.recentActivity.map((post) => ({
+        id: post.id,
+        content: post.content || post.title,
+        title: post.title,
+        mediaUrl: post.mediaUrl,
+        mediaType: post.mediaType,
+        views: post.views,
+        likes: post.likes,
+        comments: post.comments,
+        createdAt: post.createdAt,
+        authorName: data.user.name,
+        authorAvatar: data.user.avatarUrl,
+        sourceLabel: "Your latest post",
+      }))
+    : trendingPosts.map((post) => ({
+        id: post.id,
+        content: post.content,
+        title: post.content,
+        mediaUrl: post.mediaUrl,
+        mediaType: null,
+        views: post.viewCount || 0,
+        likes: post.likeCount || 0,
+        comments: post.commentCount || 0,
+        createdAt: "",
+        authorName: post.authorName,
+        authorAvatar: post.authorAvatar,
+        sourceLabel: "Trending now",
+      }));
+
+  const visibleShowcasePosts = visualPosts.length
+    ? Array.from({ length: Math.min(3, visualPosts.length) }, (_, offset) => visualPosts[(postShowcaseIndex + offset) % visualPosts.length])
+    : [];
 
   return (
     <motion.div
@@ -363,15 +428,24 @@ export default function DashboardPage() {
             <QuickActionCard icon={BarChart3} label="Analytics" href="/analytics" color="green" />
           </motion.div>
 
-          {/* Recent Posts — Full width */}
+          {/* Recent Posts */}
           <motion.div variants={itemVariants}>
-            <Card>
+            <Card
+              className="overflow-hidden"
+              onMouseEnter={() => setIsPostShowcasePaused(true)}
+              onMouseLeave={() => setIsPostShowcasePaused(false)}
+            >
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-brand-500/10 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-500/15 to-violet-500/15 flex items-center justify-center">
                     <FileText className="h-3.5 w-3.5 text-brand-500" />
                   </div>
-                  Recent Posts
+                  Recent posts showcase
+                  {visualPosts.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
+                      {data?.recentActivity.length ? "Your work" : "Trending fallback"}
+                    </Badge>
+                  )}
                 </CardTitle>
                 <Button variant="ghost" size="sm" className="text-xs h-7 px-2" asChild>
                   <Link href="/feed">
@@ -380,43 +454,27 @@ export default function DashboardPage() {
                 </Button>
               </CardHeader>
               <CardContent className="pt-1">
-                {data?.recentActivity && data.recentActivity.length > 0 ? (
-                  <div className="divide-y">
-                    {data.recentActivity.slice(0, 5).map((activity, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 + index * 0.08 }}
-                        className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
-                      >
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-muted shrink-0 text-xs font-bold text-muted-foreground">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate leading-tight">{activity.title}</p>
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3 w-3" /> {formatCount(activity.views)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Heart className="h-3 w-3" /> {formatCount(activity.likes)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" /> {formatCount(activity.comments)}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-                          {timeAgo(activity.createdAt)}
-                        </span>
-                      </motion.div>
-                    ))}
+                {visibleShowcasePosts.length > 0 ? (
+                  <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]">
+                    <DashboardPostCard
+                      post={visibleShowcasePosts[0]}
+                      featured
+                      onClick={() => router.push(`/feed?post=${visibleShowcasePosts[0].id}`)}
+                    />
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                      {visibleShowcasePosts.slice(1).map((post) => (
+                        <DashboardPostCard
+                          key={post.id}
+                          post={post}
+                          onClick={() => router.push(`/feed?post=${post.id}`)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No posts yet</p>
+                    <p className="text-sm">No posts or trends yet</p>
                     <Button asChild className="mt-3" size="sm" variant="outline">
                       <Link href="/studio">
                         <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Create Post
@@ -428,73 +486,6 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-          {/* Overview — Full width */}
-          <motion.div variants={itemVariants}>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-violet-500/10 flex items-center justify-center">
-                    <Activity className="h-3.5 w-3.5 text-violet-500" />
-                  </div>
-                  Overview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-1">
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <OverviewItem label="Posts" value={stats.postsCount} icon={FileText} color="text-blue-500" />
-                  <OverviewItem label="Views" value={stats.totalViews} icon={Eye} color="text-sky-500" />
-                  <OverviewItem label="Engagement" value={stats.engagement} icon={Heart} color="text-rose-500" />
-                  <OverviewItem label="Followers" value={stats.followers} icon={Users} color="text-violet-500" />
-                  <OverviewItem label="Following" value={stats.following} icon={Users} color="text-indigo-400" />
-                </div>
-
-                {/* Credits section */}
-                <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">AI Credits</p>
-                      <p className="font-bold text-brand-600">{(data?.user.aiCredits || 0).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Used This Month</p>
-                      <p className="font-bold">{data?.aiUsage.thisMonth || 0}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Credits Banner */}
-          <motion.div variants={itemVariants}>
-            <Card className="bg-gradient-to-r from-brand-500 to-accent-purple text-white overflow-hidden">
-              <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm sm:text-base">
-                      {(data?.user.aiCredits || 0).toLocaleString()} AI Credits
-                    </h3>
-                    <p className="text-white/80 text-xs sm:text-sm">
-                      {data?.user.plan || "STARTER"} plan
-                      {data?.user.plan === "STARTER" && " · Upgrade for more"}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="secondary" size="sm" className="bg-white text-brand-600 hover:bg-white/90 w-full sm:w-auto" asChild>
-                  <Link href={data?.user.plan === "STARTER" ? "/settings/upgrade" : "/buy-credits"}>
-                    {data?.user.plan === "STARTER" ? "Upgrade" : "Buy Credits"}
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
 
         {/* Right Sidebar — Hidden on mobile */}
@@ -513,7 +504,10 @@ export default function DashboardPage() {
           {/* Trending Topics */}
           {data?.sidebar.trendingTopics && data.sidebar.trendingTopics.length > 0 && (
             <motion.div variants={itemVariants}>
-              <TrendingTopics topics={data.sidebar.trendingTopics} />
+              <TrendingTopics
+                topics={data.sidebar.trendingTopics}
+                onTopicClick={(tag) => router.push(feedTrendHref(tag))}
+              />
             </motion.div>
           )}
         </div>
@@ -524,7 +518,11 @@ export default function DashboardPage() {
         {/* Trending Topics — badges on mobile */}
         {data?.sidebar.trendingTopics && data.sidebar.trendingTopics.length > 0 && (
           <motion.div variants={itemVariants}>
-            <TrendingTopics topics={data.sidebar.trendingTopics} variant="badges" />
+            <TrendingTopics
+              topics={data.sidebar.trendingTopics}
+              variant="badges"
+              onTopicClick={(tag) => router.push(feedTrendHref(tag))}
+            />
           </motion.div>
         )}
 
@@ -581,26 +579,109 @@ function StatCard({
   );
 }
 
-// ─── Overview Item ─────────────────────────────────────────────────────────────
+// ─── Dashboard Post Card ───────────────────────────────────────────────────────
 
-function OverviewItem({
-  label,
-  value,
-  icon: Icon,
-  color,
+function DashboardPostCard({
+  post,
+  featured = false,
+  onClick,
 }: {
-  label: string;
-  value: number;
+  post: DashboardVisualPost;
+  featured?: boolean;
+  onClick: () => void;
+}) {
+  const hasVideo = isVideoMedia(post.mediaUrl, post.mediaType);
+  const fallbackTitle = post.content || "Post preview";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-md ${
+        featured ? "min-h-[310px]" : "min-h-[148px]"
+      }`}
+    >
+      {post.mediaUrl ? (
+        <div className="absolute inset-0 bg-muted">
+          {hasVideo ? (
+            <video
+              src={post.mediaUrl}
+              className="h-full w-full object-cover"
+              muted
+              playsInline
+              loop
+              autoPlay
+            />
+          ) : (
+            <img
+              src={post.mediaUrl}
+              alt=""
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              loading="lazy"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/5" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.28),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(88,28,135,0.88),rgba(13,148,136,0.84))]" />
+      )}
+
+      <div className="relative flex h-full min-h-[inherit] flex-col justify-between p-4 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Avatar className="h-7 w-7 border border-white/30">
+              <AvatarImage src={post.authorAvatar || undefined} />
+              <AvatarFallback className="bg-white/20 text-[10px] text-white">
+                {post.authorName?.charAt(0) || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold">{post.authorName}</p>
+              <p className="truncate text-[10px] text-white/70">{post.sourceLabel}</p>
+            </div>
+          </div>
+          {hasVideo ? (
+            <span className="rounded-full bg-white/20 p-1.5 backdrop-blur">
+              <Play className="h-3.5 w-3.5 fill-white" />
+            </span>
+          ) : (
+            <span className="rounded-full bg-white/20 p-1.5 backdrop-blur">
+              <ImageIcon className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <p className={`${featured ? "text-xl" : "text-sm"} font-semibold leading-tight line-clamp-3`}>
+            {fallbackTitle}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <MetricPill icon={Eye} value={post.views} label="Views" />
+            <MetricPill icon={Heart} value={post.likes} label="Likes" />
+            <MetricPill icon={MessageCircle} value={post.comments} label="Comments" />
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function MetricPill({
+  icon: Icon,
+  value,
+  label,
+}: {
   icon: React.ElementType;
-  color: string;
+  value: number;
+  label: string;
 }) {
   return (
-    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-      <Icon className={`h-4 w-4 shrink-0 ${color}`} />
-      <div className="min-w-0">
-        <p className="text-sm font-bold leading-tight">{formatCount(value)}</p>
-        <p className="text-[10px] text-muted-foreground">{label}</p>
+    <div className="rounded-xl bg-white/14 px-2 py-1.5 backdrop-blur">
+      <div className="flex items-center gap-1">
+        <Icon className="h-3 w-3 text-white/75" />
+        <span className="text-xs font-bold">{formatCount(value)}</span>
       </div>
+      <p className="mt-0.5 text-[9px] uppercase tracking-wide text-white/55">{label}</p>
     </div>
   );
 }

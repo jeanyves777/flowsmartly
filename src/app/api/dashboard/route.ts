@@ -79,10 +79,13 @@ export async function GET() {
       prisma.post.findMany({
         where: { userId, deletedAt: null },
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: 8,
         select: {
           id: true,
           caption: true,
+          mediaUrl: true,
+          mediaMeta: true,
+          mediaType: true,
           viewCount: true,
           likeCount: true,
           commentCount: true,
@@ -205,12 +208,25 @@ export async function GET() {
 
     // Build recent activity from real data
     const recentActivity = recentPosts.map((post) => ({
+      id: post.id,
       type: "post",
       title: post.caption ? post.caption.substring(0, 50) + (post.caption.length > 50 ? "..." : "") : "New post",
+      content: post.caption || "New post",
+      mediaUrl: post.mediaMeta
+        ? (() => {
+            try {
+              const mediaUrls = JSON.parse(post.mediaMeta || "[]");
+              return Array.isArray(mediaUrls) ? mediaUrls[0] || post.mediaUrl || null : post.mediaUrl || null;
+            } catch {
+              return post.mediaUrl || null;
+            }
+          })()
+        : post.mediaUrl || null,
+      mediaType: post.mediaType,
       views: post.viewCount,
       likes: post.likeCount,
       comments: post.commentCount,
-      createdAt: post.createdAt,
+      createdAt: post.createdAt.toISOString(),
     }));
 
     // Agent stats (if user is an agent)
@@ -285,7 +301,8 @@ export async function GET() {
       trendingTopics: trending,
     };
 
-    // Presign S3 URLs in sidebar data (avatars, media, etc.)
+    // Presign S3 URLs in dashboard media, sidebar data, avatars, etc.
+    const presignedRecentActivity = await presignAllUrls(recentActivity);
     const presignedSidebar = await presignAllUrls(sidebar);
 
     return NextResponse.json({
@@ -313,7 +330,7 @@ export async function GET() {
         aiUsage: {
           thisMonth: aiUsageCount,
         },
-        recentActivity,
+        recentActivity: presignedRecentActivity,
         agentStats,
         sidebar: presignedSidebar,
       },
