@@ -1,4 +1,5 @@
 import { Rss } from "lucide-react";
+import type { ElementType } from "react";
 
 // ─── Social Platform SVG Icons ──────────────────────────────────────────────
 
@@ -78,17 +79,25 @@ export function WhatsAppIcon({ className }: { className?: string }) {
 // Static metadata (icons/labels). Connection status comes from DB via useSocialPlatforms hook.
 // Must match SUPPORTED_PLATFORMS in /api/social-accounts + "feed" for internal posting.
 
-export const PLATFORM_META: Record<string, { label: string; icon: React.ElementType }> = {
-  feed: { label: "Feed", icon: Rss },
-  instagram: { label: "Instagram", icon: InstagramIcon },
-  twitter: { label: "X / Twitter", icon: XTwitterIcon },
-  linkedin: { label: "LinkedIn", icon: LinkedInIcon },
-  facebook: { label: "Facebook", icon: FacebookIcon },
-  tiktok: { label: "TikTok", icon: TikTokIcon },
-  youtube: { label: "YouTube", icon: YouTubeIcon },
-  pinterest: { label: "Pinterest", icon: PinterestIcon },
-  threads: { label: "Threads", icon: ThreadsIcon },
-  whatsapp: { label: "WhatsApp", icon: WhatsAppIcon },
+export type PlatformMeta = {
+  label: string;
+  icon: ElementType;
+  color: string;
+  bgClass: string;
+  borderClass: string;
+};
+
+export const PLATFORM_META: Record<string, PlatformMeta> = {
+  feed: { label: "Feed", icon: Rss, color: "#0EA5E9", bgClass: "bg-sky-500/10", borderClass: "border-sky-500/20" },
+  instagram: { label: "Instagram", icon: InstagramIcon, color: "#E4405F", bgClass: "bg-pink-500/10", borderClass: "border-pink-500/20" },
+  twitter: { label: "X / Twitter", icon: XTwitterIcon, color: "#111827", bgClass: "bg-zinc-900/10 dark:bg-white/10", borderClass: "border-zinc-900/20 dark:border-white/20" },
+  linkedin: { label: "LinkedIn", icon: LinkedInIcon, color: "#0A66C2", bgClass: "bg-blue-600/10", borderClass: "border-blue-600/20" },
+  facebook: { label: "Facebook", icon: FacebookIcon, color: "#1877F2", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/20" },
+  tiktok: { label: "TikTok", icon: TikTokIcon, color: "#111827", bgClass: "bg-zinc-900/10 dark:bg-white/10", borderClass: "border-zinc-900/20 dark:border-white/20" },
+  youtube: { label: "YouTube", icon: YouTubeIcon, color: "#FF0000", bgClass: "bg-red-500/10", borderClass: "border-red-500/20" },
+  pinterest: { label: "Pinterest", icon: PinterestIcon, color: "#E60023", bgClass: "bg-red-600/10", borderClass: "border-red-600/20" },
+  threads: { label: "Threads", icon: ThreadsIcon, color: "#111827", bgClass: "bg-zinc-900/10 dark:bg-white/10", borderClass: "border-zinc-900/20 dark:border-white/20" },
+  whatsapp: { label: "WhatsApp", icon: WhatsAppIcon, color: "#25D366", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/20" },
 };
 
 /** Canonical order for platform selectors across the app */

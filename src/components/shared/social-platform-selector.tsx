@@ -93,7 +93,7 @@ export function SocialPlatformSelector({
                               : "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
                         } ${isFeed ? "cursor-default" : ""}`}
                       >
-                        <Icon className="w-4 h-4" />
+                        <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
@@ -147,7 +147,7 @@ export function SocialPlatformSelector({
                       : "border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                 } ${isFeed ? "cursor-default" : ""}`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
                 <span className="text-xs font-medium">{platform.label}</span>
                 {isSelected && <Check className="w-3 h-3 text-brand-500" />}
                 {isDisabled && <LinkIcon className="w-3 h-3" />}

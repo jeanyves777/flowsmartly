@@ -183,10 +183,15 @@ const formatTimeAgo = (value: string | null | undefined) => {
 
 function getPlatformMeta(platform: string) {
   const key = normalizePlatformKey(platform);
+  const fallback = PLATFORM_META.feed;
+  const meta = PLATFORM_META[key] || fallback;
   return {
     key,
-    label: PLATFORM_META[key]?.label || key.replace(/_/g, " "),
-    Icon: PLATFORM_META[key]?.icon || Link2,
+    label: meta.label || key.replace(/_/g, " "),
+    Icon: meta.icon || Link2,
+    color: meta.color || fallback.color,
+    bgClass: meta.bgClass || fallback.bgClass,
+    borderClass: meta.borderClass || fallback.borderClass,
   };
 }
 
@@ -297,10 +302,10 @@ export default function AnalyticsPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <div className="rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-violet-500/10 p-4 shadow-sm">
+      <div className="rounded-lg border bg-background p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border border-cyan-500/20 bg-background/80 p-1 shadow-sm backdrop-blur">
+            <div className="flex rounded-lg border bg-muted/20 p-1">
               {RANGE_OPTIONS.map((range) => (
                 <button
                   key={range.id}
@@ -314,8 +319,8 @@ export default function AnalyticsPage() {
                 </button>
               ))}
             </div>
-            <Button variant="outline" onClick={() => setWorkspaceOpen(true)} className="border-violet-500/30 bg-background/80 shadow-sm hover:bg-violet-500/10">
-              <Maximize2 className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={() => setWorkspaceOpen(true)}>
+              <Maximize2 className="mr-2 h-4 w-4 text-violet-600" />
               Movable workspace
             </Button>
           </div>
@@ -536,15 +541,9 @@ function MetricCard({
     violet: "bg-violet-500/10 text-violet-600 border-violet-500/20",
     emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   }[tone];
-  const cardClass = {
-    cyan: "border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-background to-cyan-100/50 dark:to-cyan-950/20",
-    blue: "border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-background to-blue-100/50 dark:to-blue-950/20",
-    violet: "border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-background to-fuchsia-100/50 dark:to-violet-950/20",
-    emerald: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-background to-teal-100/50 dark:to-emerald-950/20",
-  }[tone];
 
   return (
-    <div className={cn("rounded-lg border p-4 shadow-sm", cardClass)}>
+    <div className="rounded-lg border bg-background p-4 shadow-sm">
       {loading ? (
         <>
           <Skeleton className="mb-3 h-9 w-9 rounded-lg" />
@@ -594,34 +593,18 @@ function SectionBlock({
   action?: ReactNode;
   children: ReactNode;
 }) {
-  const toneClass = {
-    cyan: {
-      section: "border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 via-background to-background",
-      header: "border-cyan-500/15 bg-cyan-500/5",
-      icon: "bg-cyan-500/10 text-cyan-600",
-    },
-    blue: {
-      section: "border-blue-500/20 bg-gradient-to-br from-blue-500/5 via-background to-background",
-      header: "border-blue-500/15 bg-blue-500/5",
-      icon: "bg-blue-500/10 text-blue-600",
-    },
-    violet: {
-      section: "border-violet-500/20 bg-gradient-to-br from-violet-500/5 via-background to-background",
-      header: "border-violet-500/15 bg-violet-500/5",
-      icon: "bg-violet-500/10 text-violet-600",
-    },
-    emerald: {
-      section: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-background to-background",
-      header: "border-emerald-500/15 bg-emerald-500/5",
-      icon: "bg-emerald-500/10 text-emerald-600",
-    },
+  const iconClass = {
+    cyan: "bg-cyan-500/10 text-cyan-600",
+    blue: "bg-blue-500/10 text-blue-600",
+    violet: "bg-violet-500/10 text-violet-600",
+    emerald: "bg-emerald-500/10 text-emerald-600",
   }[tone];
 
   return (
-    <section className={cn("rounded-lg border shadow-sm", toneClass.section)}>
-      <div className={cn("flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between", toneClass.header)}>
+    <section className="rounded-lg border bg-background shadow-sm">
+      <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" onClick={() => onToggle(id)} className="flex min-w-0 items-center gap-3 text-left">
-          <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", toneClass.icon)}>
+          <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", iconClass)}>
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -718,7 +701,6 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 
 function PlatformAccountRow({ account, selected, onInspect }: { account: SocialAnalytics; selected: boolean; onInspect: () => void }) {
   const meta = getPlatformMeta(account.platformKey || account.platform);
-  const Icon = meta.Icon;
   const missingData = !account.analyticsUpdatedAt;
 
   return (
@@ -731,20 +713,13 @@ function PlatformAccountRow({ account, selected, onInspect }: { account: SocialA
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-          {account.platformAvatarUrl ? (
-            <img src={account.platformAvatarUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Icon className="h-5 w-5" />
-          )}
-          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-md border bg-background">
-            <Icon className="h-3 w-3" />
-          </span>
-        </div>
+        <AccountAvatar account={account} meta={meta} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate font-semibold">{account.platformDisplayName || account.platformUsername || meta.label}</p>
-            <Badge variant="outline" className="shrink-0 text-[10px]">{meta.label}</Badge>
+            <Badge variant="outline" className={cn("shrink-0 text-[10px]", meta.borderClass)} style={{ color: meta.color }}>
+              {meta.label}
+            </Badge>
           </div>
           <p className="truncate text-xs text-muted-foreground">
             {account.platformUsername || "Connected account"} / {missingData ? "analytics not synced" : `synced ${formatTimeAgo(account.analyticsUpdatedAt)}`}
@@ -765,6 +740,30 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div>
       <p className="font-bold">{value}</p>
       <p className="text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function AccountAvatar({ account, meta }: { account: SocialAnalytics; meta: ReturnType<typeof getPlatformMeta> }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const Icon = meta.Icon;
+  const showImage = Boolean(account.platformAvatarUrl) && !imageFailed;
+
+  return (
+    <div className={cn("relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border", meta.bgClass, meta.borderClass)}>
+      {showImage ? (
+        <img
+          src={account.platformAvatarUrl || ""}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <Icon className="h-5 w-5" style={{ color: meta.color }} />
+      )}
+      <span className={cn("absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-md border bg-background", meta.borderClass)}>
+        <Icon className="h-3 w-3" style={{ color: meta.color }} />
+      </span>
     </div>
   );
 }
@@ -835,8 +834,8 @@ function PlatformPostBreakdown({ rows }: { rows: PlatformPostStats[] }) {
         const Icon = meta.Icon;
         return (
           <div key={row.platform} className="flex items-center gap-3 rounded-lg border bg-muted/20 p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-background">
-              <Icon className="h-4 w-4" />
+            <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg border", meta.bgClass, meta.borderClass)}>
+              <Icon className="h-4 w-4" style={{ color: meta.color }} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-medium">{meta.label}</p>
@@ -905,7 +904,6 @@ function AnalyticsWorkspace({
 }) {
   const [collapsed, setCollapsed] = useState({ accounts: false, details: false, content: false });
   const selectedMeta = selectedAccount ? getPlatformMeta(selectedAccount.platformKey || selectedAccount.platform) : null;
-  const SelectedIcon = selectedMeta?.Icon || Link2;
 
   return (
     <div className="space-y-4">
@@ -935,7 +933,9 @@ function AnalyticsWorkspace({
                     selectedAccount?.id === account.id && "border-cyan-500 bg-cyan-500/5"
                   )}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border", meta.bgClass, meta.borderClass)}>
+                    <Icon className="h-4 w-4" style={{ color: meta.color }} />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{account.platformDisplayName || account.platformUsername || meta.label}</p>
                     <p className="truncate text-xs text-muted-foreground">{meta.label} / {account.platformUsername || "no handle saved"}</p>
@@ -953,13 +953,7 @@ function AnalyticsWorkspace({
         {selectedAccount && selectedMeta ? (
           <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-lg border bg-background p-3">
-              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-                {selectedAccount.platformAvatarUrl ? (
-                  <img src={selectedAccount.platformAvatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <SelectedIcon className="h-5 w-5" />
-                )}
-              </div>
+              <AccountAvatar account={selectedAccount} meta={selectedMeta} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold">{selectedAccount.platformDisplayName || selectedAccount.platformUsername || selectedMeta.label}</p>
                 <p className="text-sm text-muted-foreground">{selectedMeta.label} / connected {formatDate(selectedAccount.connectedAt)}</p>
