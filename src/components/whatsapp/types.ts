@@ -91,7 +91,7 @@ export interface Automation {
   isActive: boolean;
   triggerType: "keyword" | "new_conversation" | "inbound_message" | "missed_chat" | "schedule";
   triggerConfig: string | null;
-  actionType: "send_message" | "send_template" | "assign_to" | "add_tag" | "webhook";
+  actionType: "send_message" | "send_template" | "assign_to" | "add_tag" | "webhook" | "agent_reply";
   actionValue: string | null;
   actionConfig: string | null;
   priority: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ElementType } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -738,49 +738,53 @@ function PlatformConnectCard({
 }) {
   const meta = PLATFORM_META[platform.id as keyof typeof PLATFORM_META];
   const Icon = meta?.icon || Link2;
+  const statusText = locked
+    ? connectedCount
+      ? "Unlock another profile"
+      : "Unlock a publishing slot"
+    : connectedCount
+      ? `${connectedCount} connected - add another`
+      : "Connect for publishing";
+  const slotText = unlockedSlots > 0
+    ? remainingUnlockedSlots > 0
+      ? `${remainingUnlockedSlots} unlocked slot${remainingUnlockedSlots === 1 ? "" : "s"} ready`
+      : `${unlockedSlots} extra slot${unlockedSlots === 1 ? "" : "s"} used`
+    : locked
+      ? "Credit unlock required"
+      : "Ready to connect";
   return (
     <div
-      className={`group flex min-h-[104px] items-center justify-between gap-3 rounded-2xl border bg-background p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-sm ${
+      className={`group flex min-h-[132px] flex-col justify-between gap-3 rounded-2xl border bg-background p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-sm ${
         locked ? "border-amber-500/35 bg-amber-500/5" : ""
       }`}
     >
-      <button type="button" onClick={onConnect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <span className={`grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform.id] || "from-gray-500 to-gray-700"}`}>
+      <button type="button" onClick={onConnect} className="flex w-full min-w-0 items-start gap-3 text-left">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform.id] || "from-gray-500 to-gray-700"}`}>
           <Icon className="h-5 w-5 text-white" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{platform.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {locked
-              ? connectedCount
-                ? "Unlock another profile with credits"
-                : "Unlock one more slot with credits"
-              : connectedCount
-                ? `${connectedCount} connected - add another`
-                : "Connect for publishing"}
-          </p>
-          {unlockedSlots > 0 && (
-            <p className="mt-0.5 text-xs text-emerald-600">
-              {remainingUnlockedSlots > 0
-                ? `${remainingUnlockedSlots} unlocked slot${remainingUnlockedSlots === 1 ? "" : "s"} ready`
-                : `${unlockedSlots} extra slot${unlockedSlots === 1 ? "" : "s"} used`}
-            </p>
-          )}
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{statusText}</p>
         </div>
       </button>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full items-center justify-between gap-3">
+        <p className={`min-w-0 truncate text-xs ${locked ? "text-amber-700" : unlockedSlots > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+          {slotText}
+        </p>
         {locked ? (
-          <Button type="button" size="sm" variant="outline" className="h-8 border-amber-500/40 text-amber-700" onClick={onUnlock}>
+          <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 whitespace-nowrap border-amber-500/40 px-3 text-amber-700" onClick={onUnlock}>
             <Lock className="mr-1.5 h-3.5 w-3.5" />
             {unlockCost} credits
           </Button>
         ) : connectedCount ? (
-          <Button type="button" size="sm" variant="outline" className="h-8" onClick={onConnect}>
+          <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 whitespace-nowrap px-3" onClick={onConnect}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Add
           </Button>
         ) : (
-          <Plus className="h-5 w-5 text-muted-foreground group-hover:text-brand-600" />
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border bg-muted/30 text-muted-foreground group-hover:text-brand-600">
+            <Plus className="h-4 w-4" />
+          </span>
         )}
       </div>
     </div>
@@ -890,16 +894,7 @@ function AccountRow({
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
       <div className="flex min-w-0 items-center gap-3">
-        {account.platformAvatarUrl ? (
-          <img src={account.platformAvatarUrl} alt="" className="h-11 w-11 rounded-full border object-cover" />
-        ) : (
-          <span className="relative grid h-11 w-11 place-items-center rounded-full border bg-muted text-sm font-bold">
-            {initials(account.platformDisplayName)}
-            <span className={`absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"} text-white`}>
-              <Icon className="h-3 w-3" />
-            </span>
-          </span>
-        )}
+        <ProfileAvatar account={account} platform={platform} icon={Icon} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{account.platformDisplayName || meta?.label || platform}</p>
           <p className="truncate text-xs text-muted-foreground">{account.platformUsername || account.platformUserId}</p>
@@ -921,6 +916,40 @@ function AccountRow({
         </Button>
       </div>
     </div>
+  );
+}
+
+function ProfileAvatar({
+  account,
+  platform,
+  icon: Icon,
+}: {
+  account: SocialAccount;
+  platform: string;
+  icon: ElementType;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(account.platformAvatarUrl) && !imageFailed;
+  const label = account.platformDisplayName || account.platformUsername || account.platformUserId;
+
+  if (showImage) {
+    return (
+      <img
+        src={account.platformAvatarUrl || ""}
+        alt=""
+        className="h-11 w-11 shrink-0 rounded-full border bg-muted object-cover"
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full border bg-muted text-sm font-bold">
+      {initials(label)}
+      <span className={`absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"} text-white`}>
+        <Icon className="h-3 w-3" />
+      </span>
+    </span>
   );
 }
 

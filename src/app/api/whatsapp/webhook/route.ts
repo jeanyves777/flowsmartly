@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { generateWhatsAppAgentReply } from "@/lib/whatsapp/agent-runtime";
 
 /**
  * WhatsApp Webhook - Receive incoming messages
@@ -166,11 +167,70 @@ async function processIncomingMessage(message: any, metadata: any) {
       },
     });
 
-    // Check for automations
-    await checkAutomations(socialAccount.userId, conversation.id, content, messageType);
+    // Check for automations before the AI agent so existing explicit flows keep priority.
+    const automationHandled = await checkAutomations(socialAccount.userId, conversation.id, content, messageType);
+    if (!automationHandled) {
+      await maybeRunWhatsAppAgent(socialAccount, conversation.id, content, messageType, customerPhone);
+    }
 
   } catch (error) {
     console.error("Error processing incoming message:", error);
+  }
+}
+
+async function maybeRunWhatsAppAgent(
+  socialAccount: any,
+  conversationId: string,
+  content: string,
+  messageType: string,
+  customerPhone: string
+) {
+  try {
+    if (!socialAccount.accessToken || !socialAccount.platformUserId) return;
+
+    const reply = await generateWhatsAppAgentReply({
+      socialAccountId: socialAccount.id,
+      conversationId,
+      inboundMessage: content,
+      messageType,
+    });
+
+    if (!reply) return;
+
+    const whatsappResponse = await sendWhatsAppMessage(
+      socialAccount.accessToken,
+      socialAccount.platformUserId,
+      customerPhone,
+      reply
+    );
+
+    const sentMessageId = whatsappResponse?.messages?.[0]?.id || null;
+    const failedMessage = whatsappResponse?.error?.message || whatsappResponse?.error?.error_user_msg || null;
+    const now = new Date();
+
+    await prisma.whatsAppMessage.create({
+      data: {
+        conversationId,
+        whatsappMessageId: sentMessageId,
+        direction: "outbound",
+        messageType: "text",
+        content: reply,
+        status: sentMessageId ? "sent" : "failed",
+        errorMessage: failedMessage,
+        metadata: JSON.stringify({ source: "whatsapp_agent" }),
+        timestamp: now,
+      },
+    });
+
+    await prisma.whatsAppConversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageAt: now,
+        lastMessageText: reply,
+      },
+    });
+  } catch (error) {
+    console.error("WhatsApp agent reply error:", error);
   }
 }
 
@@ -193,7 +253,7 @@ async function updateMessageStatus(status: any) {
   }
 }
 
-async function checkAutomations(userId: string, conversationId: string, content: string, messageType: string) {
+async function checkAutomations(userId: string, conversationId: string, content: string, messageType: string): Promise<boolean> {
   try {
     const automations = await prisma.whatsAppAutomation.findMany({
       where: {
@@ -201,6 +261,8 @@ async function checkAutomations(userId: string, conversationId: string, content:
         isActive: true,
       },
     });
+
+    let handled = false;
 
     for (const automation of automations) {
       let shouldTrigger = false;
@@ -227,15 +289,19 @@ async function checkAutomations(userId: string, conversationId: string, content:
 
       if (shouldTrigger) {
         // Execute automation action
-        await executeAutomation(automation, conversationId);
+        const actionHandled = await executeAutomation(automation, conversationId);
+        handled = handled || actionHandled;
       }
     }
+
+    return handled;
   } catch (error) {
     console.error("Error checking automations:", error);
+    return false;
   }
 }
 
-async function executeAutomation(automation: any, conversationId: string) {
+async function executeAutomation(automation: any, conversationId: string): Promise<boolean> {
   try {
     if (automation.actionType === "send_message") {
       const config = JSON.parse(automation.actionConfig || "{}");
@@ -246,7 +312,7 @@ async function executeAutomation(automation: any, conversationId: string) {
         },
       });
 
-      if (!conversation) return;
+      if (!conversation) return false;
 
       // Send message via WhatsApp API
       await sendWhatsAppMessage(
@@ -255,10 +321,13 @@ async function executeAutomation(automation: any, conversationId: string) {
         conversation.customerPhone,
         config.message || automation.actionValue
       );
+      return true;
     }
     // Additional action types can be added here (send_template, etc.)
+    return false;
   } catch (error) {
     console.error("Error executing automation:", error);
+    return false;
   }
 }
 
