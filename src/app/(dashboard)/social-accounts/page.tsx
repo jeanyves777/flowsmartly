@@ -462,22 +462,24 @@ export default function SocialAccountsPage() {
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2">
               {PUBLISHING_PLATFORMS.map((platform) => {
-                const isConnected = !!groupedAccounts[platform.id];
+                const platformConnectedCount = groupedAccounts[platform.id]?.length || 0;
                 const platformUnlock = connectionSlots.platformUnlocks[platform.id] || {
                   unlockedSlots: 0,
                   remainingUnlockedSlots: 0,
                   creditsSpent: 0,
                 };
+                const requiresUnlockForNext = accountLimit !== null && connectedCount >= accountLimit && platformUnlock.remainingUnlockedSlots <= 0;
                 return (
                   <PlatformConnectCard
                     key={platform.id}
                     platform={platform}
-                    connectedCount={groupedAccounts[platform.id]?.length || 0}
-                    locked={isAtLimit && !isConnected}
+                    connectedCount={platformConnectedCount}
+                    locked={requiresUnlockForNext}
                     unlockedSlots={platformUnlock.unlockedSlots}
+                    remainingUnlockedSlots={platformUnlock.remainingUnlockedSlots}
                     unlockCost={connectionSlots.unlockCreditCost}
                     onConnect={() => {
-                      if (isAtLimit && !isConnected) {
+                      if (requiresUnlockForNext) {
                         setUnlockTarget({ platform: platform.id, name: platform.name });
                         return;
                       }
@@ -518,6 +520,26 @@ export default function SocialAccountsPage() {
               isLoading={isLoading}
               groupedAccounts={Object.fromEntries(Object.entries(groupedAccounts).filter(([platform]) => platform !== "whatsapp"))}
               getTokenStatus={getTokenStatus}
+              platformActions={Object.fromEntries(PUBLISHING_PLATFORMS.map((platform) => {
+                const platformUnlock = connectionSlots.platformUnlocks[platform.id] || {
+                  unlockedSlots: 0,
+                  remainingUnlockedSlots: 0,
+                  creditsSpent: 0,
+                };
+                const requiresUnlock = accountLimit !== null && connectedCount >= accountLimit && platformUnlock.remainingUnlockedSlots <= 0;
+                return [platform.id, {
+                  requiresUnlock,
+                  unlockCost: connectionSlots.unlockCreditCost,
+                  onConnect: () => {
+                    if (requiresUnlock) {
+                      setUnlockTarget({ platform: platform.id, name: platform.name });
+                      return;
+                    }
+                    window.location.href = platform.connectUrl;
+                  },
+                  onUnlock: () => setUnlockTarget({ platform: platform.id, name: platform.name }),
+                }];
+              }))}
               onDisconnect={(account, platform) => setDisconnectTarget({ id: account.id, platform, name: account.platformDisplayName })}
             />
           </CardContent>
@@ -528,12 +550,12 @@ export default function SocialAccountsPage() {
         <WhatsAppBusinessPanel
           accounts={whatsappAccounts}
           isLoading={isLoading}
-          isAtLimit={isAtLimit}
+          requiresUnlockForNext={accountLimit !== null && connectedCount >= accountLimit && (connectionSlots.platformUnlocks.whatsapp?.remainingUnlockedSlots || 0) <= 0}
           unlockedSlots={connectionSlots.platformUnlocks.whatsapp?.unlockedSlots || 0}
           unlockCost={connectionSlots.unlockCreditCost}
           getTokenStatus={getTokenStatus}
           onConnect={() => {
-            if (isAtLimit && whatsappAccounts.length === 0) {
+            if (accountLimit !== null && connectedCount >= accountLimit && (connectionSlots.platformUnlocks.whatsapp?.remainingUnlockedSlots || 0) <= 0) {
               setUnlockTarget({ platform: "whatsapp", name: "WhatsApp Business" });
               return;
             }
@@ -700,6 +722,7 @@ function PlatformConnectCard({
   connectedCount,
   locked,
   unlockedSlots,
+  remainingUnlockedSlots,
   unlockCost,
   onConnect,
   onUnlock,
@@ -708,6 +731,7 @@ function PlatformConnectCard({
   connectedCount: number;
   locked: boolean;
   unlockedSlots: number;
+  remainingUnlockedSlots: number;
   unlockCost: number;
   onConnect: () => void;
   onUnlock: () => void;
@@ -727,10 +751,20 @@ function PlatformConnectCard({
         <div className="min-w-0">
           <p className="truncate font-semibold">{platform.name}</p>
           <p className="text-xs text-muted-foreground">
-            {locked ? "Unlock one more slot with credits" : connectedCount ? `${connectedCount} connected` : "Connect for publishing"}
+            {locked
+              ? connectedCount
+                ? "Unlock another profile with credits"
+                : "Unlock one more slot with credits"
+              : connectedCount
+                ? `${connectedCount} connected - add another`
+                : "Connect for publishing"}
           </p>
           {unlockedSlots > 0 && (
-            <p className="mt-0.5 text-xs text-emerald-600">{unlockedSlots} extra slot{unlockedSlots === 1 ? "" : "s"} unlocked</p>
+            <p className="mt-0.5 text-xs text-emerald-600">
+              {remainingUnlockedSlots > 0
+                ? `${remainingUnlockedSlots} unlocked slot${remainingUnlockedSlots === 1 ? "" : "s"} ready`
+                : `${unlockedSlots} extra slot${unlockedSlots === 1 ? "" : "s"} used`}
+            </p>
           )}
         </div>
       </button>
@@ -741,7 +775,10 @@ function PlatformConnectCard({
             {unlockCost} credits
           </Button>
         ) : connectedCount ? (
-          <Check className="h-5 w-5 text-emerald-600" />
+          <Button type="button" size="sm" variant="outline" className="h-8" onClick={onConnect}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Add
+          </Button>
         ) : (
           <Plus className="h-5 w-5 text-muted-foreground group-hover:text-brand-600" />
         )}
@@ -754,11 +791,18 @@ function ConnectedAccountsList({
   isLoading,
   groupedAccounts,
   getTokenStatus,
+  platformActions,
   onDisconnect,
 }: {
   isLoading: boolean;
   groupedAccounts: Record<string, SocialAccount[]>;
   getTokenStatus: (account: SocialAccount) => { label: string; color: string; expired: boolean };
+  platformActions: Record<string, {
+    requiresUnlock: boolean;
+    unlockCost: number;
+    onConnect: () => void;
+    onUnlock: () => void;
+  }>;
   onDisconnect: (account: SocialAccount, platform: string) => void;
 }) {
   const entries = Object.entries(groupedAccounts);
@@ -785,16 +829,31 @@ function ConnectedAccountsList({
       {entries.map(([platform, platformAccounts]) => {
         const meta = PLATFORM_META[platform as keyof typeof PLATFORM_META];
         const Icon = meta?.icon || Link2;
+        const action = platformActions[platform];
         return (
           <div key={platform} className="rounded-2xl border bg-muted/20 p-3">
-            <div className="mb-3 flex items-center gap-3">
-              <span className={`grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"}`}>
-                <Icon className="h-5 w-5 text-white" />
-              </span>
-              <div>
-                <p className="font-semibold">{meta?.label || platform}</p>
-                <p className="text-xs text-muted-foreground">{platformAccounts.length} connected profile{platformAccounts.length === 1 ? "" : "s"}</p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className={`grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform] || "from-gray-500 to-gray-700"}`}>
+                  <Icon className="h-5 w-5 text-white" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-semibold">{meta?.label || platform}</p>
+                  <p className="text-xs text-muted-foreground">{platformAccounts.length} connected profile{platformAccounts.length === 1 ? "" : "s"}</p>
+                </div>
               </div>
+              {action && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={action.requiresUnlock ? "h-8 border-amber-500/40 text-amber-700" : "h-8"}
+                  onClick={action.requiresUnlock ? action.onUnlock : action.onConnect}
+                >
+                  {action.requiresUnlock ? <Lock className="mr-1.5 h-3.5 w-3.5" /> : <Plus className="mr-1.5 h-3.5 w-3.5" />}
+                  {action.requiresUnlock ? `${action.unlockCost} credits` : "Add profile"}
+                </Button>
+              )}
             </div>
             <div className="grid gap-2">
               {platformAccounts.map((account) => (
@@ -868,7 +927,7 @@ function AccountRow({
 function WhatsAppBusinessPanel({
   accounts,
   isLoading,
-  isAtLimit,
+  requiresUnlockForNext,
   unlockedSlots,
   unlockCost,
   getTokenStatus,
@@ -878,7 +937,7 @@ function WhatsAppBusinessPanel({
 }: {
   accounts: SocialAccount[];
   isLoading: boolean;
-  isAtLimit: boolean;
+  requiresUnlockForNext: boolean;
   unlockedSlots: number;
   unlockCost: number;
   getTokenStatus: (account: SocialAccount) => { label: string; color: string; expired: boolean };
@@ -935,10 +994,10 @@ function WhatsAppBusinessPanel({
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={onConnect} className="bg-emerald-600 text-white hover:bg-emerald-700">
-            {isAtLimit && !hasAccounts ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+            {requiresUnlockForNext ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
             {hasAccounts ? "Add or refresh WhatsApp" : "Connect WhatsApp Business"}
           </Button>
-          {isAtLimit && !hasAccounts && (
+          {requiresUnlockForNext && (
             <Button type="button" variant="outline" onClick={onUnlock} className="border-amber-500/40 text-amber-700">
               <Lock className="mr-2 h-4 w-4" />
               Unlock for {unlockCost} credits

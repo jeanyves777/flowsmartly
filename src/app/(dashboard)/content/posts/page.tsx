@@ -58,12 +58,23 @@ import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { PLATFORM_META, PLATFORM_ORDER, PLATFORM_REQUIREMENTS } from "@/components/shared/social-platform-icons";
+import { socialAccountDestinationId } from "@/lib/social/destinations";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface PlatformPublishResult {
   success: boolean;
   postId?: string;
   error?: string;
+}
+
+interface SocialDestination {
+  id: string;
+  platformId: string;
+  label: string;
+  description: string;
+  icon: ElementType;
+  enabled: boolean;
+  avatarUrl: string | null;
 }
 
 const MAX_CHARS = 2000;
@@ -880,20 +891,61 @@ const toTimeInputValue = (date: Date) => {
 export default function ContentPostsPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { isConnected } = useSocialPlatforms();
+  const { platforms: connectedSocialPlatforms } = useSocialPlatforms();
   const searchParams = useSearchParams();
 
-  // Build dynamic platform list from DB connections
-  const SOCIAL_PLATFORMS = useMemo(() => {
-    return PLATFORM_ORDER
-      .filter((id) => PLATFORM_META[id])
-      .map((id) => ({
+  // Build dynamic destination list from DB connections. Multi-page platforms
+  // become one selectable destination per connected account.
+  const SOCIAL_PLATFORMS = useMemo<SocialDestination[]>(() => {
+    const platformMap = new Map(connectedSocialPlatforms.map((platform) => [platform.platform, platform]));
+    const destinations: SocialDestination[] = [];
+
+    for (const id of PLATFORM_ORDER) {
+      const meta = PLATFORM_META[id];
+      if (!meta) continue;
+
+      if (id === "feed") {
+        destinations.push({
+          id,
+          platformId: id,
+          label: meta.label,
+          description: "Internal feed",
+          icon: meta.icon,
+          enabled: true,
+          avatarUrl: null,
+        });
+        continue;
+      }
+
+      const accounts = platformMap.get(id)?.accounts || [];
+      if (accounts.length > 0) {
+        for (const account of accounts) {
+          destinations.push({
+            id: socialAccountDestinationId(account.id),
+            platformId: id,
+            label: account.displayName || account.username || meta.label,
+            description: account.username || meta.label,
+            icon: meta.icon,
+            enabled: true,
+            avatarUrl: account.avatarUrl,
+          });
+        }
+        continue;
+      }
+
+      destinations.push({
         id,
-        label: PLATFORM_META[id].label,
-        icon: PLATFORM_META[id].icon,
-        enabled: id === "feed" || isConnected(id),
-      }));
-  }, [isConnected]);
+        platformId: id,
+        label: meta.label,
+        description: "Connect in settings",
+        icon: meta.icon,
+        enabled: false,
+        avatarUrl: null,
+      });
+    }
+
+    return destinations;
+  }, [connectedSocialPlatforms]);
 
   // ── Composer State ──────────────────────────────────────────────────────
   const [caption, setCaption] = useState("");
@@ -959,6 +1011,24 @@ export default function ContentPostsPage() {
   const [publishResults, setPublishResults] = useState<Record<string, PlatformPublishResult>>({});
   const [lastPostId, setLastPostId] = useState<string | null>(null);
   const [retryingPlatforms, setRetryingPlatforms] = useState<string[]>([]);
+
+  const destinationById = useMemo(() => {
+    return new Map(SOCIAL_PLATFORMS.map((destination) => [destination.id, destination]));
+  }, [SOCIAL_PLATFORMS]);
+
+  const getDestinationPlatformId = useCallback(
+    (destinationId: string) => destinationById.get(destinationId)?.platformId || destinationId,
+    [destinationById]
+  );
+
+  const getDestinationLabel = useCallback(
+    (destinationId: string) => {
+      const destination = destinationById.get(destinationId);
+      if (destination) return destination.label;
+      return PLATFORM_META[destinationId]?.label || destinationId;
+    },
+    [destinationById]
+  );
 
   useEffect(() => {
     const dateFromCalendar = searchParams.get("scheduleDate");
@@ -1047,7 +1117,8 @@ export default function ContentPostsPage() {
   }, [caption, mediaUrls]);
 
   const getIncompatibleReason = useCallback(
-    (platformId: string): string | null => {
+    (destinationId: string): string | null => {
+      const platformId = getDestinationPlatformId(destinationId);
       const reqs = PLATFORM_REQUIREMENTS[platformId];
       if (!reqs) return null;
       // If no content yet, allow pre-selection
@@ -1078,7 +1149,7 @@ export default function ContentPostsPage() {
       }
       return null;
     },
-    [contentState]
+    [contentState, getDestinationPlatformId]
   );
 
   // Auto-deselect platforms that become incompatible when content changes
@@ -1096,11 +1167,12 @@ export default function ContentPostsPage() {
   }, [previewPlatform, selectedPlatforms]);
 
   const aiPlatformSelection = useMemo<AIPlatform[]>(() => {
-    const supported = selectedPlatforms.filter((platform): platform is AIPlatform =>
-      AI_SUPPORTED_PLATFORMS.includes(platform as AIPlatform)
-    );
+    const supported = Array.from(new Set(selectedPlatforms.map(getDestinationPlatformId)))
+      .filter((platform): platform is AIPlatform =>
+        AI_SUPPORTED_PLATFORMS.includes(platform as AIPlatform)
+      );
     return supported.length > 0 ? supported : ["facebook"];
-  }, [selectedPlatforms]);
+  }, [getDestinationPlatformId, selectedPlatforms]);
 
   // ── AI Idea Generation ──────────────────────────────────────────────────
   const handleGenerateIdea = async (insertIntoCaption = true) => {
@@ -2100,12 +2172,13 @@ export default function ContentPostsPage() {
   const activePreviewPlatform = previewPlatformOptions.includes(previewPlatform)
     ? previewPlatform
     : previewPlatformOptions[0] || "feed";
-  const activePreviewMeta = PLATFORM_META[activePreviewPlatform] || PLATFORM_META.feed;
+  const activePreviewPlatformId = getDestinationPlatformId(activePreviewPlatform);
+  const activePreviewMeta = PLATFORM_META[activePreviewPlatformId] || PLATFORM_META.feed;
   const ActivePreviewIcon = activePreviewMeta.icon;
   const aiOutput =
     aiMode === "hashtags" ? aiHashtags.join(" ") : aiMode === "seo" ? formatSeoKeywordLine(aiSeoKeywords) : aiResult;
   const selectedPlatformLabels = selectedPlatforms
-    .map((platformId) => PLATFORM_META[platformId]?.label)
+    .map(getDestinationLabel)
     .filter(Boolean)
     .join(", ");
   const brandName = getBrandName(brandKit);
@@ -2206,9 +2279,11 @@ export default function ContentPostsPage() {
   const selectablePlatforms = SOCIAL_PLATFORMS.filter(
     (platform) => platform.enabled && !getIncompatibleReason(platform.id)
   );
-  const filteredPlatforms = SOCIAL_PLATFORMS.filter((platform) =>
-    platform.label.toLowerCase().includes(channelSearch.trim().toLowerCase())
-  );
+  const filteredPlatforms = SOCIAL_PLATFORMS.filter((platform) => {
+    const query = channelSearch.trim().toLowerCase();
+    const haystack = `${platform.label} ${platform.description} ${PLATFORM_META[platform.platformId]?.label || ""}`.toLowerCase();
+    return haystack.includes(query);
+  });
   const selectAllPlatforms = () => {
     setSelectedPlatforms(selectablePlatforms.map((platform) => platform.id));
   };
@@ -2318,7 +2393,7 @@ export default function ContentPostsPage() {
                   const isActive = selectedPlatforms.includes(platform.id);
                   const incompatibleReason = getIncompatibleReason(platform.id);
                   const isDisabled = !platform.enabled || !!incompatibleReason;
-                  const platformStyle = getAccountPlatformStyle(platform.id);
+                  const platformStyle = getAccountPlatformStyle(platform.platformId);
 
                   return (
                     <Tooltip key={platform.id}>
@@ -2327,7 +2402,7 @@ export default function ContentPostsPage() {
                           type="button"
                           disabled={isDisabled}
                           onClick={() => {
-                            if (platform.id === "feed") return;
+                            if (platform.platformId === "feed") return;
                             setSelectedPlatforms((prev) =>
                               prev.includes(platform.id)
                                 ? prev.filter((p) => p !== platform.id)
@@ -2376,14 +2451,18 @@ export default function ContentPostsPage() {
                                   }
                             }
                           >
-                            <Icon className="h-5 w-5" />
+                            {platform.avatarUrl ? (
+                              <img src={platform.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                            ) : (
+                              <Icon className="h-5 w-5" />
+                            )}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-semibold">{platform.label}</span>
                             <span className="block truncate text-xs text-muted-foreground">
-                              {platform.id === "feed"
+                              {platform.platformId === "feed"
                                 ? "Internal feed"
-                                : incompatibleReason || (platform.enabled ? "Ready" : "Connect in settings")}
+                                : incompatibleReason || (platform.enabled ? platform.description : "Connect in settings")}
                             </span>
                           </span>
                         </button>
@@ -2392,7 +2471,7 @@ export default function ContentPostsPage() {
                         {incompatibleReason
                           ? `${platform.label}: ${incompatibleReason}`
                           : platform.enabled
-                            ? platform.label
+                            ? `${platform.label} - ${platform.description}`
                             : `Connect ${platform.label} in Settings`}
                       </TooltipContent>
                     </Tooltip>
@@ -2768,7 +2847,8 @@ export default function ContentPostsPage() {
           <div className="space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {previewPlatformOptions.map((platformId) => {
-                const meta = PLATFORM_META[platformId] || PLATFORM_META.feed;
+                const destination = destinationById.get(platformId);
+                const meta = PLATFORM_META[destination?.platformId || platformId] || PLATFORM_META.feed;
                 const Icon = meta.icon;
                 const isActive = platformId === activePreviewPlatform;
                 return (
@@ -2783,7 +2863,7 @@ export default function ContentPostsPage() {
                     }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    {meta.label}
+                    {destination?.label || meta.label}
                   </button>
                 );
               })}
@@ -2793,7 +2873,7 @@ export default function ContentPostsPage() {
               <div className="rounded-2xl border bg-white shadow-sm dark:bg-neutral-950">
                 <div className="flex items-start gap-3 p-4">
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${
-                    activePreviewPlatform === "facebook" ? "bg-[#1877F2]" : "bg-brand-500"
+                    activePreviewPlatformId === "facebook" ? "bg-[#1877F2]" : "bg-brand-500"
                   }`}>
                     <ActivePreviewIcon className="h-5 w-5" />
                   </div>
@@ -3761,7 +3841,8 @@ export default function ContentPostsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {selectedPlatforms.map((platformId) => {
-                      const meta = PLATFORM_META[platformId];
+                      const destination = destinationById.get(platformId);
+                      const meta = PLATFORM_META[destination?.platformId || platformId];
                       if (!meta) return null;
                       const Icon = meta.icon;
                       return (
@@ -3769,8 +3850,12 @@ export default function ContentPostsPage() {
                           key={platformId}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-background border text-xs font-medium"
                         >
-                          <Icon className="w-3.5 h-3.5" />
-                          {meta.label}
+                          {destination?.avatarUrl ? (
+                            <img src={destination.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                          ) : (
+                            <Icon className="w-3.5 h-3.5" />
+                          )}
+                          {destination?.label || meta.label}
                           <AISpinner className="w-3 h-3 animate-spin text-muted-foreground ml-0.5" />
                         </div>
                       );
@@ -3810,7 +3895,8 @@ export default function ContentPostsPage() {
 
             <div className="space-y-2 mt-2">
               {Object.entries(publishResults).map(([platformId, result]) => {
-                const meta = PLATFORM_META[platformId];
+                const destination = destinationById.get(platformId);
+                const meta = PLATFORM_META[destination?.platformId || platformId];
                 if (!meta) return null;
                 const Icon = meta.icon;
                 const isRetrying = retryingPlatforms.includes(platformId);
@@ -3825,8 +3911,12 @@ export default function ContentPostsPage() {
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Icon className={`w-4 h-4 ${result.success ? "text-green-600" : "text-red-500"}`} />
-                      <span className="text-sm font-medium">{meta.label}</span>
+                      {destination?.avatarUrl ? (
+                        <img src={destination.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                      ) : (
+                        <Icon className={`w-4 h-4 ${result.success ? "text-green-600" : "text-red-500"}`} />
+                      )}
+                      <span className="text-sm font-medium">{destination?.label || meta.label}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {isRetrying ? (

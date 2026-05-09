@@ -103,10 +103,12 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           platform: true,
+          platformUserId: true,
           platformUsername: true,
           platformDisplayName: true,
           platformAvatarUrl: true,
           connectedAt: true,
+          tokenExpiresAt: true,
         },
       }),
       prisma.listSmartlyProfile.findUnique({
@@ -163,28 +165,43 @@ export async function GET(request: NextRequest) {
     // Build a map of connected accounts by platform
     // Facebook pages stored as "facebook_<pageId>", Instagram as "instagram_<igId>"
     const connectedMap = new Map<string, typeof connectedAccounts[0]>();
+    const accountsByPlatform = new Map<string, typeof connectedAccounts>();
     for (const a of connectedAccounts) {
-      if (a.platform.startsWith("facebook_")) {
-        if (!connectedMap.has("facebook")) connectedMap.set("facebook", a);
-      } else if (a.platform.startsWith("instagram_")) {
-        if (!connectedMap.has("instagram")) connectedMap.set("instagram", a);
-      } else {
-        connectedMap.set(a.platform, a);
-      }
+      const platformKey = a.platform.startsWith("facebook_")
+        ? "facebook"
+        : a.platform.startsWith("instagram_")
+          ? "instagram"
+          : a.platform;
+      if (!connectedMap.has(platformKey)) connectedMap.set(platformKey, a);
+      const platformAccounts = accountsByPlatform.get(platformKey) || [];
+      platformAccounts.push(a);
+      accountsByPlatform.set(platformKey, platformAccounts);
     }
 
     // Merge with supported platforms list
     const platforms = SUPPORTED_PLATFORMS.map((p) => {
       const account = connectedMap.get(p.id);
+      const accounts = (accountsByPlatform.get(p.id) || []).map((item) => ({
+        id: item.id,
+        platform: item.platform,
+        platformUserId: item.platformUserId,
+        username: item.platformUsername || null,
+        displayName: item.platformDisplayName || null,
+        avatarUrl: item.platformAvatarUrl || null,
+        connectedAt: item.connectedAt?.toISOString() || null,
+        tokenExpiresAt: item.tokenExpiresAt?.toISOString() || null,
+      }));
       return {
         platform: p.id,
         name: p.name,
         color: p.color,
         connected: !!account,
+        connectedCount: accounts.length,
         username: account?.platformUsername || null,
         displayName: account?.platformDisplayName || null,
         avatarUrl: account?.platformAvatarUrl || null,
-        connectedAt: account?.connectedAt || null,
+        connectedAt: account?.connectedAt?.toISOString() || null,
+        accounts,
       };
     });
 

@@ -5,10 +5,23 @@ export interface SocialPlatformData {
   name: string;
   color: string;
   connected: boolean;
+  connectedCount: number;
   username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   connectedAt: string | null;
+  accounts: SocialPlatformAccount[];
+}
+
+export interface SocialPlatformAccount {
+  id: string;
+  platform: string;
+  platformUserId: string | null;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  connectedAt: string | null;
+  tokenExpiresAt: string | null;
 }
 
 /**

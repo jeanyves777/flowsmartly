@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db/client";
 import { extractS3Key, getPresignedUrl } from "@/lib/utils/s3-client";
+import {
+  baseSocialPlatform,
+  isSocialAccountDestination,
+  socialAccountIdFromDestination,
+} from "@/lib/social/destinations";
 
 /**
  * Social Media Publisher
@@ -1079,7 +1084,7 @@ export async function publishToSocialPlatforms(
   };
 
   // "feed" is internal — skip it; optionally filter to specific platforms (for retry)
-  let externalPlatforms = platforms.filter((p) => p !== "feed");
+  let externalPlatforms = Array.from(new Set(platforms.filter((p) => p !== "feed")));
   if (onlyPlatforms && onlyPlatforms.length > 0) {
     externalPlatforms = externalPlatforms.filter((p) => onlyPlatforms.includes(p));
   }
@@ -1089,26 +1094,29 @@ export async function publishToSocialPlatforms(
     return results;
   }
 
-  // Load user's connected accounts
+  // Load user's connected accounts. New posts can target a specific row with
+  // account:<socialAccountId>; older posts can still target a base platform.
   const accounts = await prisma.socialAccount.findMany({
     where: { userId, isActive: true },
   });
 
-  for (const platform of externalPlatforms) {
+  for (const destination of externalPlatforms) {
     try {
       let account: SocialAccount | undefined;
+      let platform = baseSocialPlatform(destination);
 
-      // Find matching account (facebook/instagram use prefixed platform names)
-      if (platform === "facebook") {
-        account = accounts.find((a) => a.platform.startsWith("facebook"));
-      } else if (platform === "instagram") {
-        account = accounts.find((a) => a.platform.startsWith("instagram"));
+      if (isSocialAccountDestination(destination)) {
+        const accountId = socialAccountIdFromDestination(destination);
+        account = accounts.find((a) => a.id === accountId);
+        if (account) {
+          platform = baseSocialPlatform(account.platform);
+        }
       } else {
-        account = accounts.find((a) => a.platform === platform);
+        account = accounts.find((a) => baseSocialPlatform(a.platform) === platform);
       }
 
       if (!account) {
-        results[platform] = { success: false, error: `No ${platform} account connected` };
+        results[destination] = { success: false, error: `No ${platform} account connected` };
         continue;
       }
 
@@ -1116,34 +1124,34 @@ export async function publishToSocialPlatforms(
 
       switch (platform) {
         case "facebook":
-          results.facebook = await publishToFacebook(postData, account);
+          results[destination] = await publishToFacebook(postData, account);
           break;
         case "instagram":
-          results.instagram = await publishToInstagram(postData, account);
+          results[destination] = await publishToInstagram(postData, account);
           break;
         case "youtube":
-          results.youtube = await publishToYouTube(postData, account);
+          results[destination] = await publishToYouTube(postData, account);
           break;
         case "twitter":
-          results.twitter = await publishToTwitter(postData, account);
+          results[destination] = await publishToTwitter(postData, account);
           break;
         case "linkedin":
-          results.linkedin = await publishToLinkedIn(postData, account);
+          results[destination] = await publishToLinkedIn(postData, account);
           break;
         case "tiktok":
-          results.tiktok = await publishToTikTok(postData, account);
+          results[destination] = await publishToTikTok(postData, account);
           break;
         case "threads":
-          results.threads = await publishToThreads(postData, account);
+          results[destination] = await publishToThreads(postData, account);
           break;
         case "pinterest":
-          results.pinterest = await publishToPinterest(postData, account);
+          results[destination] = await publishToPinterest(postData, account);
           break;
         default:
-          results[platform] = { success: false, error: `Unsupported platform: ${platform}` };
+          results[destination] = { success: false, error: `Unsupported platform: ${platform}` };
       }
     } catch (err: any) {
-      results[platform] = { success: false, error: err.message || "Unexpected error" };
+      results[destination] = { success: false, error: err.message || "Unexpected error" };
     }
   }
 

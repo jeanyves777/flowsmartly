@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ElementType } from "react";
 import Link from "next/link";
 import { Check, LinkIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { PLATFORM_META, PLATFORM_ORDER } from "@/components/shared/social-platform-icons";
+import { socialAccountDestinationId } from "@/lib/social/destinations";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,19 @@ interface SocialPlatformSelectorProps {
   className?: string;
 }
 
+interface SelectorPlatform {
+  id: string;
+  platformId: string;
+  label: string;
+  detail: string;
+  avatarUrl: string | null;
+  icon: ElementType;
+  color: string;
+  bgClass: string;
+  borderClass: string;
+  enabled: boolean;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function SocialPlatformSelector({
@@ -43,17 +57,58 @@ export function SocialPlatformSelector({
   label = "Publish to",
   className,
 }: SocialPlatformSelectorProps) {
-  const { isConnected } = useSocialPlatforms();
+  const { platforms: connectedPlatforms } = useSocialPlatforms();
 
-  const platforms = useMemo(() => {
-    return PLATFORM_ORDER
-      .filter((id) => PLATFORM_META[id])
-      .map((id) => ({
+  const platforms = useMemo<SelectorPlatform[]>(() => {
+    const platformMap = new Map(connectedPlatforms.map((platform) => [platform.platform, platform]));
+    const items: SelectorPlatform[] = [];
+
+    for (const id of PLATFORM_ORDER) {
+      const meta = PLATFORM_META[id];
+      if (!meta) continue;
+
+      if (id === "feed") {
+        items.push({
+          id,
+          platformId: id,
+          ...meta,
+          label: meta.label,
+          detail: "FlowSmartly feed",
+          avatarUrl: null,
+          enabled: true,
+        });
+        continue;
+      }
+
+      const accounts = platformMap.get(id)?.accounts || [];
+      if (accounts.length > 0) {
+        for (const account of accounts) {
+          items.push({
+            id: socialAccountDestinationId(account.id),
+            platformId: id,
+            ...meta,
+            label: account.displayName || account.username || meta.label,
+            detail: account.username || meta.label,
+            avatarUrl: account.avatarUrl,
+            enabled: true,
+          });
+        }
+        continue;
+      }
+
+      items.push({
         id,
-        ...PLATFORM_META[id],
-        enabled: id === "feed" || isConnected(id),
-      }));
-  }, [isConnected]);
+        platformId: id,
+        ...meta,
+        label: meta.label,
+        detail: "Connect in settings",
+        avatarUrl: null,
+        enabled: false,
+      });
+    }
+
+    return items;
+  }, [connectedPlatforms]);
 
   const togglePlatform = (platformId: string) => {
     if (platformId === "feed") return; // Feed is always selected
@@ -75,7 +130,7 @@ export function SocialPlatformSelector({
               {platforms.map((platform) => {
                 const Icon = platform.icon;
                 const isSelected = selectedPlatforms.includes(platform.id);
-                const isFeed = platform.id === "feed";
+                const isFeed = platform.platformId === "feed";
                 const isDisabled = !platform.enabled && !isFeed;
 
                 return (
@@ -93,11 +148,16 @@ export function SocialPlatformSelector({
                               : "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
                         } ${isFeed ? "cursor-default" : ""}`}
                       >
-                        <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
+                        {platform.avatarUrl ? (
+                          <img src={platform.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                        ) : (
+                          <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
+                        )}
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
                       {platform.label}
+                      {platform.detail ? ` - ${platform.detail}` : ""}
                       {isDisabled ? " (not connected)" : ""}
                     </TooltipContent>
                   </Tooltip>
@@ -107,7 +167,7 @@ export function SocialPlatformSelector({
           </TooltipProvider>
           {showConnectLink && (
             <Link
-              href="/settings/social-accounts"
+              href="/social-accounts"
               className="text-[11px] text-brand-600 hover:underline ml-1"
             >
               Connect accounts
@@ -130,7 +190,7 @@ export function SocialPlatformSelector({
           {platforms.map((platform) => {
             const Icon = platform.icon;
             const isSelected = selectedPlatforms.includes(platform.id);
-            const isFeed = platform.id === "feed";
+            const isFeed = platform.platformId === "feed";
             const isDisabled = !platform.enabled && !isFeed;
 
             const button = (
@@ -147,7 +207,11 @@ export function SocialPlatformSelector({
                       : "border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                 } ${isFeed ? "cursor-default" : ""}`}
               >
-                <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
+                {platform.avatarUrl ? (
+                  <img src={platform.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                ) : (
+                  <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
+                )}
                 <span className="text-xs font-medium">{platform.label}</span>
                 {isSelected && <Check className="w-3 h-3 text-brand-500" />}
                 {isDisabled && <LinkIcon className="w-3 h-3" />}
@@ -176,12 +240,12 @@ export function SocialPlatformSelector({
             <Badge variant="secondary" className="text-[10px] px-1.5">
               {selectedPlatforms.length}
             </Badge>
-            platforms selected
+            profiles selected
           </p>
         )}
         {showConnectLink && (
           <Link
-            href="/settings/social-accounts"
+            href="/social-accounts"
             className="text-xs text-brand-600 hover:underline"
           >
             Connect accounts
