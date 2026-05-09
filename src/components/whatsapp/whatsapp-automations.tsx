@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppAccount, Automation } from "./types";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
@@ -385,22 +386,18 @@ export function WhatsAppAutomations({ account }: WhatsAppAutomationsProps) {
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
-      {showDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <Card className="max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">
-                  {editingId ? "Edit Automation" : "New Automation"}
-                </h3>
-                <button
-                  onClick={() => setShowDialog(false)}
-                  className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+      <FloatingPanel
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        title={editingId ? "Edit Automation" : "New Automation"}
+        description="Configure WhatsApp agent rules, replies, tags, and webhook actions."
+        icon={<Zap className="h-4 w-4" />}
+        defaultSize={{ width: 620, height: 760 }}
+        defaultPosition={{ y: 88 }}
+        minSize={{ width: 520, height: 520 }}
+        contentClassName="p-6"
+      >
+        <div className="space-y-5">
 
               {/* Name */}
               <div>
@@ -551,16 +548,24 @@ export function WhatsAppAutomations({ account }: WhatsAppAutomationsProps) {
                   {editingId ? "Save Changes" : "Create Automation"}
                 </Button>
               </div>
-            </div>
-          </Card>
         </div>
-      )}
+      </FloatingPanel>
 
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <Card className="max-w-sm w-full mx-4">
-            <div className="p-6 space-y-4">
+      <FloatingPanel
+        open={!!deleteConfirm}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
+        title="Delete Automation?"
+        description="Remove this WhatsApp automation rule."
+        icon={<Trash2 className="h-4 w-4" />}
+        defaultSize={{ width: 420, height: 300 }}
+        defaultPosition={{ y: 128 }}
+        minSize={{ width: 340, height: 260 }}
+        contentClassName="p-6"
+      >
+        {deleteConfirm && (
+          <div className="space-y-4">
               <h3 className="font-semibold">Delete Automation?</h3>
               <p className="text-sm text-muted-foreground">
                 This will permanently delete this automation rule. This action cannot be undone.
@@ -577,10 +582,9 @@ export function WhatsAppAutomations({ account }: WhatsAppAutomationsProps) {
                   Delete
                 </Button>
               </div>
-            </div>
-          </Card>
-        </div>
-      )}
+          </div>
+        )}
+      </FloatingPanel>
     </div>
   );
 }

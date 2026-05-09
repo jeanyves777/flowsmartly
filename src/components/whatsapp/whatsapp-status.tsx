@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Send,
   Sparkles,
-  WandSparkles,
   Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { openCreateModal } from "@/components/shared/create-modal";
 import { socialAccountDestinationId } from "@/lib/social/destinations";
 import type { WhatsAppAccount } from "./types";
 
@@ -49,6 +49,12 @@ type ScheduledStatusPost = {
   caption: string | null;
   mediaType: string | null;
   scheduledAt: string | null;
+};
+
+type FlowCreativeStatusDraft = {
+  mediaUrl?: string;
+  mediaType?: "image" | "video" | string;
+  caption?: string;
 };
 
 function toDateInputValue(date: Date) {
@@ -97,8 +103,6 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
   const [scheduleTime, setScheduleTime] = useState(toTimeInputValue(defaultSchedule));
   const [posting, setPosting] = useState(false);
   const [posted, setPosted] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [generatingImage, setGeneratingImage] = useState(false);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledStatusPost[]>([]);
   const [loadingContext, setLoadingContext] = useState(false);
@@ -148,51 +152,68 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
     void refreshContext();
   }, [account.id]);
 
-  async function handleGenerateImage(event?: EventItem) {
+  useEffect(() => {
+    const storageKey = `flowcreative-whatsapp-status-draft:${account.id}`;
+    const applyDraft = (draft?: FlowCreativeStatusDraft) => {
+      if (!draft?.mediaUrl) return;
+      setMediaUrls([draft.mediaUrl]);
+      setCaption((current) => {
+        if (current.trim() || !draft.caption) return current;
+        return draft.caption.slice(0, 700);
+      });
+      toast({
+        title: "FlowCreative media added",
+        description: "Review the caption and publish timing before posting.",
+      });
+    };
+
+    try {
+      const stored = sessionStorage.getItem(storageKey);
+      if (stored) {
+        sessionStorage.removeItem(storageKey);
+        applyDraft(JSON.parse(stored));
+      }
+    } catch {
+      sessionStorage.removeItem(storageKey);
+    }
+
+    const handleDraft = (event: Event) => {
+      const detail = (event as CustomEvent<{ socialAccountId?: string; draft?: FlowCreativeStatusDraft }>).detail;
+      if (detail?.socialAccountId !== account.id) return;
+      applyDraft(detail.draft);
+    };
+
+    window.addEventListener("flowcreative:whatsapp-status-draft", handleDraft);
+    return () => window.removeEventListener("flowcreative:whatsapp-status-draft", handleDraft);
+  }, [account.id, toast]);
+
+  function buildStatusCreativePrompt(event?: EventItem) {
     const eventContext = event
       ? `Upcoming event: ${event.title}. Date: ${formatDateTime(event.eventDate)}. ${event.description || ""}`
       : nextEvent
         ? `Upcoming event: ${nextEvent.title}. Date: ${formatDateTime(nextEvent.eventDate)}. ${nextEvent.description || ""}`
         : "";
-    const prompt =
-      aiPrompt.trim() ||
-      [
-        `Create a polished vertical WhatsApp Status image for ${account.platformDisplayName}.`,
-        caption.trim() ? `Caption context: ${caption.trim()}` : null,
-        eventContext || null,
-        "Use a clean social poster layout, readable headline space, brand-safe colors, and a mobile-first 9:16 composition.",
-      ]
-        .filter(Boolean)
-        .join(" ");
+    return [
+      `Create a polished vertical 9:16 WhatsApp Status image for ${account.platformDisplayName}.`,
+      caption.trim() ? `Caption context: ${caption.trim()}` : null,
+      eventContext || null,
+      "Use the real brand kit assets available in FlowCreative, readable mobile-first headline space, safe margins for WhatsApp UI, and no fake third-party logos.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
 
-    setGeneratingImage(true);
-    try {
-      const res = await fetch("/api/media/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(getErrorMessage(data, "Could not generate the image"));
-      }
-
-      const imageUrl = data.data?.url;
-      if (!imageUrl) throw new Error("Image generation did not return a media URL");
-      setMediaUrls([imageUrl]);
-      toast({
-        title: "Status image created",
-        description: data.data?.creditCost ? `${data.data.creditCost} credits used.` : "The image is ready.",
-      });
-    } catch (error) {
-      toast({
-        title: "Image generation failed",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setGeneratingImage(false);
-    }
+  function handleOpenFlowCreative(event?: EventItem) {
+    const prompt = buildStatusCreativePrompt(event);
+    void openCreateModal("image", {
+      target: {
+        type: "whatsappStatus",
+        socialAccountId: account.id,
+        prompt,
+        caption: caption.trim(),
+      },
+      initialPrompt: prompt,
+    });
   }
 
   async function handlePost() {
@@ -346,7 +367,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
               </div>
             ) : (
               <>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="space-y-4">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label className="font-semibold">Media</Label>
@@ -354,16 +375,12 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => handleGenerateImage()}
-                        disabled={generatingImage || posting}
+                        onClick={() => handleOpenFlowCreative()}
+                        disabled={posting}
                         className="border-emerald-500/30 bg-emerald-500/5 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
                       >
-                        {generatingImage ? (
-                          <AISpinner className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <ImagePlus className="h-3.5 w-3.5" />
-                        )}
-                        Create image
+                        <ImagePlus className="h-3.5 w-3.5" />
+                        FlowCreative
                       </Button>
                     </div>
                     <MediaUploader
@@ -375,34 +392,28 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                       maxSize={16 * 1024 * 1024}
                       variant="large"
                       placeholder="Upload image or video"
-                      disabled={posting || generatingImage}
-                    />
-                  </div>
-
-                  <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <WandSparkles className="h-4 w-4 text-emerald-600" />
-                      AI image brief
-                    </div>
-                    <Textarea
-                      value={aiPrompt}
-                      onChange={(event) => setAiPrompt(event.target.value)}
-                      rows={7}
-                      placeholder="Optional visual direction..."
-                      disabled={posting || generatingImage}
+                      disabled={posting}
                     />
                     {nextEvent && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-xs"
-                        onClick={() => handleGenerateImage(nextEvent)}
-                        disabled={posting || generatingImage}
-                      >
-                        <CalendarDays className="h-3.5 w-3.5" />
-                        Use next event
-                      </Button>
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-semibold">Next event creative</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {nextEvent.title} - {formatDateTime(nextEvent.eventDate)}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => handleOpenFlowCreative(nextEvent)}
+                          disabled={posting}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Creative
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -468,7 +479,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                 <Button
                   className="h-12 w-full bg-emerald-500 text-base text-white hover:bg-emerald-600"
                   onClick={handlePost}
-                  disabled={mediaUrls.length === 0 || posting || generatingImage}
+                  disabled={mediaUrls.length === 0 || posting}
                   size="lg"
                 >
                   {posting ? (
@@ -522,20 +533,32 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                             {formatDateTime(event.eventDate)}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCreateEventAutomation(event)}
-                          disabled={savingAutomationId === event.id}
-                        >
-                          {savingAutomationId === event.id ? (
-                            <AISpinner className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-3.5 w-3.5" />
-                          )}
-                          Automate
-                        </Button>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenFlowCreative(event)}
+                            disabled={posting}
+                          >
+                            <ImagePlus className="h-3.5 w-3.5" />
+                            Creative
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCreateEventAutomation(event)}
+                            disabled={savingAutomationId === event.id}
+                          >
+                            {savingAutomationId === event.id ? (
+                              <AISpinner className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            Automate
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

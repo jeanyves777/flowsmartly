@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Plus, Trash2, X, CheckCircle, Clock, XCircle, Copy, Eye } from "lucide-react";
+import { FileText, Plus, Trash2, CheckCircle, Clock, XCircle, Copy, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppAccount, Template } from "./types";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
@@ -331,20 +332,18 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
         </div>
       )}
 
-      {/* Create Dialog */}
-      {showCreateDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <Card className="max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">New Template</h3>
-                <button
-                  onClick={() => setShowCreateDialog(false)}
-                  className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+      <FloatingPanel
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        title="New Template"
+        description="Create and submit a WhatsApp message template for this account."
+        icon={<FileText className="h-4 w-4" />}
+        defaultSize={{ width: 900, height: 820 }}
+        defaultPosition={{ y: 86 }}
+        minSize={{ width: 640, height: 520 }}
+        contentClassName="p-6"
+      >
+        <div className="space-y-5">
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Form */}
@@ -475,31 +474,27 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
                   Submit for Approval
                 </Button>
               </div>
-            </div>
-          </Card>
         </div>
-      )}
+      </FloatingPanel>
 
-      {/* Preview Dialog */}
-      {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <Card className="max-w-md w-full mx-4">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{showPreview.name}</h3>
-                  <div className="flex gap-1.5 mt-1">
-                    {getStatusBadge(showPreview.status)}
-                    {getCategoryBadge(showPreview.category)}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowPreview(null)}
-                  className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+      <FloatingPanel
+        open={!!showPreview}
+        onOpenChange={(open) => {
+          if (!open) setShowPreview(null);
+        }}
+        title={showPreview?.name || "Template preview"}
+        description="Review the approved WhatsApp bubble before using it."
+        icon={<Eye className="h-4 w-4" />}
+        defaultSize={{ width: 460, height: 560 }}
+        defaultPosition={{ y: 96 }}
+        contentClassName="p-6"
+      >
+        {showPreview && (
+          <div className="space-y-4">
+            <div className="flex gap-1.5">
+              {getStatusBadge(showPreview.status)}
+              {getCategoryBadge(showPreview.category)}
+            </div>
 
               {/* WhatsApp-style preview */}
               <div className="bg-[#e5ddd5] dark:bg-[#0b141a] rounded-xl p-4">
@@ -528,16 +523,25 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
               <Button variant="outline" className="w-full" onClick={() => setShowPreview(null)}>
                 Close
               </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+          </div>
+        )}
+      </FloatingPanel>
 
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <Card className="max-w-sm w-full mx-4">
-            <div className="p-6 space-y-4">
+      <FloatingPanel
+        open={!!deleteConfirm}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirm(null);
+        }}
+        title="Delete Template?"
+        description="Remove this template from WhatsApp and the account."
+        icon={<Trash2 className="h-4 w-4" />}
+        defaultSize={{ width: 420, height: 300 }}
+        defaultPosition={{ y: 128 }}
+        minSize={{ width: 340, height: 260 }}
+        contentClassName="p-6"
+      >
+        {deleteConfirm && (
+          <div className="space-y-4">
               <h3 className="font-semibold">Delete Template?</h3>
               <p className="text-sm text-muted-foreground">
                 This will delete the template from both WhatsApp and your account. This action cannot be undone.
@@ -554,10 +558,9 @@ export function WhatsAppTemplates({ account }: WhatsAppTemplatesProps) {
                   Delete
                 </Button>
               </div>
-            </div>
-          </Card>
-        </div>
-      )}
+          </div>
+        )}
+      </FloatingPanel>
     </div>
   );
 }

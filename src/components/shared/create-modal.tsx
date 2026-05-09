@@ -75,14 +75,32 @@ type GeneratedMedia = {
   url: string;
 };
 
+export type CreateModalTarget =
+  | { type: "contentPost" }
+  | {
+      type: "whatsappStatus";
+      socialAccountId: string;
+      prompt?: string;
+      caption?: string;
+    };
+
 type CreateModalState = {
   open: boolean;
   defaultTab: FlowMediaMode;
+  target: CreateModalTarget | null;
+  initialPrompt: string;
+};
+
+type CreateModalOptions = {
+  target?: CreateModalTarget | null;
+  initialPrompt?: string;
 };
 
 const defaultState: CreateModalState = {
   open: false,
   defaultTab: "image",
+  target: null,
+  initialPrompt: "",
 };
 
 let state: CreateModalState = { ...defaultState };
@@ -101,8 +119,13 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export async function openCreateModal(tab?: FlowMediaMode) {
-  state = { open: true, defaultTab: tab || "image" };
+export async function openCreateModal(tab?: FlowMediaMode, options: CreateModalOptions = {}) {
+  state = {
+    open: true,
+    defaultTab: tab || "image",
+    target: options.target ?? null,
+    initialPrompt: options.initialPrompt || "",
+  };
   emit();
 }
 
@@ -354,20 +377,31 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
 };
 
 export function CreateModal() {
-  const { open, defaultTab } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { open, defaultTab, target, initialPrompt } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   if (!open) return null;
-  return <FlowCreativeModal defaultTab={defaultTab} />;
+  return <FlowCreativeModal defaultTab={defaultTab} target={target} initialPrompt={initialPrompt} />;
 }
 
-function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
+function FlowCreativeModal({
+  defaultTab,
+  target,
+  initialPrompt,
+}: {
+  defaultTab: FlowMediaMode;
+  target: CreateModalTarget | null;
+  initialPrompt?: string;
+}) {
   const router = useRouter();
   const { toast } = useToast();
+  const whatsAppStatusTarget = target?.type === "whatsappStatus" ? target : null;
+  const isWhatsAppStatusTarget = !!whatsAppStatusTarget;
+  const initialFlowMediaPrompt = initialPrompt?.trim() || whatsAppStatusTarget?.prompt?.trim() || "";
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>(defaultTab);
   const [selectedFlowMediaTemplateId, setSelectedFlowMediaTemplateId] = useState("");
-  const [flowMediaPrompt, setFlowMediaPrompt] = useState("");
-  const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>("1:1");
+  const [flowMediaPrompt, setFlowMediaPrompt] = useState(initialFlowMediaPrompt);
+  const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>(isWhatsAppStatusTarget ? "9:16" : "1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
   const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
   const [flowVideoSpeechMode, setFlowVideoSpeechMode] = useState<FlowVideoSpeechMode>("talking_review");
@@ -417,10 +451,10 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
     const firstTemplate = visibleFlowMediaTemplates[0];
     if (!firstTemplate || visibleFlowMediaTemplates.some((template) => template.id === selectedFlowMediaTemplateId)) return;
     setSelectedFlowMediaTemplateId(firstTemplate.id);
-    setFlowMediaAspect(firstTemplate.aspect);
+    setFlowMediaAspect(isWhatsAppStatusTarget && firstTemplate.mode === "image" ? "9:16" : firstTemplate.aspect);
     if (firstTemplate.speechMode) setFlowVideoSpeechMode(firstTemplate.speechMode);
     if (firstTemplate.duration) setFlowVideoDuration(firstTemplate.duration);
-  }, [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
+  }, [isWhatsAppStatusTarget, selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
 
   const closeIfIdle = useCallback(() => {
     if (isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingPost) return;
@@ -430,7 +464,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
   const applyFlowMediaTemplate = (template: FlowMediaTemplate) => {
     setSelectedFlowMediaTemplateId(template.id);
     setFlowMediaMode(template.mode);
-    setFlowMediaAspect(template.aspect);
+    setFlowMediaAspect(isWhatsAppStatusTarget && template.mode === "image" ? "9:16" : template.aspect);
     if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
     if (template.duration) setFlowVideoDuration(template.duration);
     setGeneratedFlowMedia(null);
@@ -468,7 +502,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
   const handleAttachToPost = async () => {
     if (!generatedFlowMedia?.url) return;
     setIsPreparingPost(true);
-    setFlowMediaStatus("Please wait, generating your post...");
+    setFlowMediaStatus(isWhatsAppStatusTarget ? "Preparing your WhatsApp Status..." : "Please wait, generating your post...");
 
     try {
       const res = await fetch("/api/content/posts/prepare-from-media", {
@@ -477,7 +511,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
         body: JSON.stringify({
           mediaUrl: generatedFlowMedia.url,
           mediaType: generatedFlowMedia.type,
-          platforms: ["facebook"],
+          platforms: isWhatsAppStatusTarget ? ["whatsapp"] : ["facebook"],
           prompt: flowMediaPrompt.trim(),
           brandBrief: buildBrandBrief(brandKit),
         }),
@@ -499,13 +533,36 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
         hashtags: data.data?.hashtags || [],
         seoKeywords: data.data?.seoKeywords || [],
       };
-      sessionStorage.setItem(`flowcreative-post-draft:${draftKey}`, JSON.stringify(draft));
 
       if (data.data?.creditsRemaining !== undefined) {
         setCreditsRemaining(data.data.creditsRemaining);
         emitCreditsUpdate(data.data.creditsRemaining);
       }
 
+      if (whatsAppStatusTarget) {
+        const statusDraft = {
+          ...draft,
+          caption: draft.caption || whatsAppStatusTarget.caption || "",
+        };
+        const storageKey = `flowcreative-whatsapp-status-draft:${whatsAppStatusTarget.socialAccountId}`;
+        sessionStorage.setItem(storageKey, JSON.stringify(statusDraft));
+        window.dispatchEvent(
+          new CustomEvent("flowcreative:whatsapp-status-draft", {
+            detail: {
+              socialAccountId: whatsAppStatusTarget.socialAccountId,
+              draft: statusDraft,
+            },
+          })
+        );
+        closeCreateModal();
+        toast({
+          title: "Added to WhatsApp Status",
+          description: "The media is ready in the Status composer.",
+        });
+        return;
+      }
+
+      sessionStorage.setItem(`flowcreative-post-draft:${draftKey}`, JSON.stringify(draft));
       closeCreateModal();
       router.push(`/content/posts?flowCreativeDraft=${encodeURIComponent(draftKey)}`);
     } catch (err) {
@@ -857,6 +914,7 @@ function FlowCreativeModal({ defaultTab }: { defaultTab: FlowMediaMode }) {
               isImprovingFlowMedia={isImprovingFlowMedia}
               isPreparingPost={isPreparingPost}
               prepareStatus={flowMediaStatus}
+              attachTargetLabel={isWhatsAppStatusTarget ? "WhatsApp Status" : "post"}
               onImprovePromptChange={setFlowMediaImprovePrompt}
               onImprove={handleImproveFlowMedia}
               onOpenStudio={handleOpenInStudio}
@@ -1221,6 +1279,7 @@ function GeneratedFlowCreativeResult({
   isImprovingFlowMedia,
   isPreparingPost,
   prepareStatus,
+  attachTargetLabel,
   onImprovePromptChange,
   onImprove,
   onOpenStudio,
@@ -1234,6 +1293,7 @@ function GeneratedFlowCreativeResult({
   isImprovingFlowMedia: boolean;
   isPreparingPost: boolean;
   prepareStatus?: string;
+  attachTargetLabel: string;
   onImprovePromptChange: (value: string) => void;
   onImprove: () => void;
   onOpenStudio: () => void;
@@ -1281,7 +1341,7 @@ function GeneratedFlowCreativeResult({
           <AIGenerationLoader
             compact
             currentStep={prepareStatus || "Please wait, generating your post..."}
-            subtitle="FlowCreative is analyzing the media and preparing your caption, hashtags, and SEO keys."
+            subtitle={`FlowCreative is analyzing the media and preparing it for ${attachTargetLabel}.`}
           />
         </div>
       ) : null}
@@ -1325,7 +1385,11 @@ function GeneratedFlowCreativeResult({
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
         <Button type="button" onClick={onAttachToPost} disabled={isPreparingPost || isImprovingFlowMedia} className="gap-2">
           {isPreparingPost ? <AISpinner className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-          {isPreparingPost ? "Generating your post..." : generatedFlowMedia.type === "video" ? "Import video to post" : "Attach to post"}
+          {isPreparingPost
+            ? `Preparing ${attachTargetLabel}...`
+            : generatedFlowMedia.type === "video"
+              ? `Import video to ${attachTargetLabel}`
+              : `Attach to ${attachTargetLabel}`}
         </Button>
         <Button type="button" variant="outline" onClick={onDownload} disabled={isPreparingPost} className="gap-2">
           <Download className="h-4 w-4" />
