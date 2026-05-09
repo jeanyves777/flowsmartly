@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { getSocialAccountLimit } from "@/lib/social/account-limits";
+import {
+  getSocialConnectionCapacity,
+  remainingUnlockedPlatformSlots,
+  SOCIAL_ACCOUNT_UNLOCK_CREDIT_COST,
+} from "@/lib/social/account-capacity";
 
 // Supported platforms with display metadata
 const SUPPORTED_PLATFORMS = [
@@ -44,7 +49,7 @@ export async function GET(request: NextRequest) {
     const connectedCount = await prisma.socialAccount.count({
       where: { userId: session.userId, isActive: true },
     });
-    const accountLimit = getSocialAccountLimit(session.user.plan);
+    const baseAccountLimit = getSocialAccountLimit(session.user.plan);
 
     // If platform filter is specified, return only accounts for that platform
     if (platformFilter) {
@@ -82,17 +87,17 @@ export async function GET(request: NextRequest) {
         meta: {
           plan: session.user.plan,
           connectedCount,
-          accountLimit,
+          accountLimit: baseAccountLimit,
           remainingSlots:
-            accountLimit === null
+            baseAccountLimit === null
               ? null
-              : Math.max(0, accountLimit - connectedCount),
+              : Math.max(0, baseAccountLimit - connectedCount),
         },
       });
     }
 
     // Otherwise, return the platforms overview
-    const [connectedAccounts, googleListingProfile] = await Promise.all([
+    const [connectedAccounts, googleListingProfile, userCredits] = await Promise.all([
       prisma.socialAccount.findMany({
         where: { userId: session.userId, isActive: true },
         select: {
@@ -149,6 +154,10 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { aiCredits: true, freeCredits: true },
+      }),
     ]);
 
     // Build a map of connected accounts by platform
@@ -199,11 +208,30 @@ export async function GET(request: NextRequest) {
       )
     );
     const whatsappAccounts = connectedAccounts.filter((account) => account.platform === "whatsapp");
+    const capacity = await getSocialConnectionCapacity(session.userId, session.user.plan, connectedAccounts);
+    const accountLimit = capacity.effectiveLimit;
+    const platformUnlocks = SUPPORTED_PLATFORMS.reduce((acc, platform) => {
+      acc[platform.id] = {
+        unlockedSlots: capacity.platformSlots[platform.id] || 0,
+        remainingUnlockedSlots: remainingUnlockedPlatformSlots(capacity, platform.id),
+        creditsSpent: capacity.platformCreditsSpent[platform.id] || 0,
+      };
+      return acc;
+    }, {} as Record<string, { unlockedSlots: number; remainingUnlockedSlots: number; creditsSpent: number }>);
 
     return NextResponse.json({
       success: true,
       data: {
         platforms,
+        connectionSlots: {
+          baseLimit: capacity.baseLimit,
+          effectiveLimit: capacity.effectiveLimit,
+          totalUnlockedSlots: capacity.totalUnlockedSlots,
+          unlockCreditCost: SOCIAL_ACCOUNT_UNLOCK_CREDIT_COST,
+          platformUnlocks,
+          purchasedCredits: Math.max(0, (userCredits?.aiCredits || 0) - (userCredits?.freeCredits || 0)),
+          creditBalance: userCredits?.aiCredits || 0,
+        },
         googleBusiness: {
           connected: googleConnected,
           profileId: googleListingProfile?.id || null,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getSocialAccountLimit } from "@/lib/social/account-limits";
+import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/social/account-capacity";
 
 /**
  * Facebook Pages OAuth - Step 2: Handle callback
@@ -193,18 +193,20 @@ export async function GET(request: NextRequest) {
       where: { id: userId },
       select: { plan: true },
     });
-    const accountLimit = getSocialAccountLimit(user?.plan);
     const activeAccounts = await prisma.socialAccount.findMany({
       where: { userId, isActive: true },
       select: { platform: true },
     });
+    const capacity = await getSocialConnectionCapacity(userId, user?.plan, activeAccounts);
     const activePlatformKeys = new Set(activeAccounts.map((account) => account.platform));
     let newSlotsUsed = 0;
+    let newFacebookSlotsUsed = 0;
     const pagesToStore = pages.filter((page) => {
       const platformKey = `facebook_${page.id}`;
       if (activePlatformKeys.has(platformKey)) return true;
-      if (accountLimit === null || activeAccounts.length + newSlotsUsed < accountLimit) {
+      if (canUseSocialAccountSlot(capacity, "facebook", newSlotsUsed, newFacebookSlotsUsed)) {
         newSlotsUsed++;
+        newFacebookSlotsUsed++;
         return true;
       }
       return false;

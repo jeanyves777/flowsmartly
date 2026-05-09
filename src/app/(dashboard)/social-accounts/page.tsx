@@ -36,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import { formatSocialAccountLimit, getSocialAccountLimit } from "@/lib/social/account-limits";
+import { handleCreditError, showCreditPurchaseModal } from "@/components/payments/credit-purchase-modal";
 
 const PLATFORM_COLORS: Record<string, string> = {
   facebook: "from-blue-500 to-blue-600",
@@ -71,11 +72,18 @@ interface SocialAccount {
   tokenExpiresAt: string | null;
 }
 
-interface AccountMeta {
-  plan: string;
-  connectedCount: number;
-  accountLimit: number | null;
-  remainingSlots: number | null;
+interface ConnectionSlots {
+  baseLimit: number | null;
+  effectiveLimit: number | null;
+  totalUnlockedSlots: number;
+  unlockCreditCost: number;
+  purchasedCredits: number;
+  creditBalance: number;
+  platformUnlocks: Record<string, {
+    unlockedSlots: number;
+    remainingUnlockedSlots: number;
+    creditsSpent: number;
+  }>;
 }
 
 interface GoogleBusinessSummary {
@@ -133,9 +141,7 @@ const ERROR_MAP: Record<string, ErrorInfo> = {
   },
   social_account_limit_reached: {
     title: "Account limit reached",
-    description: "Upgrade your plan or disconnect an inactive profile before adding another publishing channel.",
-    actionLabel: "Upgrade plan",
-    actionUrl: "/settings/upgrade",
+    description: "Your included connection slots are full. Unlock an additional platform slot with credits, or disconnect an inactive profile.",
   },
   missing_params: {
     title: "Connection incomplete",
@@ -200,13 +206,18 @@ export default function SocialAccountsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorPanel, setErrorPanel] = useState<ErrorInfo | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; platform: string; name: string } | null>(null);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [accountMeta, setAccountMeta] = useState<AccountMeta>({
-    plan: "STARTER",
-    connectedCount: 0,
-    accountLimit: getSocialAccountLimit("STARTER"),
-    remainingSlots: getSocialAccountLimit("STARTER"),
+  const [unlockTarget, setUnlockTarget] = useState<{ platform: string; name: string } | null>(null);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [connectionSlots, setConnectionSlots] = useState<ConnectionSlots>({
+    baseLimit: getSocialAccountLimit("STARTER"),
+    effectiveLimit: getSocialAccountLimit("STARTER"),
+    totalUnlockedSlots: 0,
+    unlockCreditCost: 250,
+    purchasedCredits: 0,
+    creditBalance: 0,
+    platformUnlocks: {},
   });
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   useEffect(() => {
     const success = searchParams.get("success");
@@ -250,19 +261,10 @@ export default function SocialAccountsPage() {
       const overviewResponse = await fetch("/api/social-accounts");
       const overviewData = await overviewResponse.json();
       if (overviewData.success && overviewData.data) {
-        setAccountMeta({
-          plan: overviewData.data.plan || "STARTER",
-          connectedCount: overviewData.data.connectedCount || 0,
-          accountLimit:
-            overviewData.data.accountLimit === undefined
-              ? getSocialAccountLimit(overviewData.data.plan)
-              : overviewData.data.accountLimit,
-          remainingSlots:
-            overviewData.data.remainingSlots === undefined
-              ? null
-              : overviewData.data.remainingSlots,
-        });
         setGoogleBusiness(overviewData.data.googleBusiness || DEFAULT_GOOGLE_BUSINESS);
+        if (overviewData.data.connectionSlots) {
+          setConnectionSlots(overviewData.data.connectionSlots);
+        }
       }
 
       const platforms = ["facebook", "instagram", "youtube", "whatsapp", "twitter", "linkedin", "tiktok", "pinterest", "threads"];
@@ -279,12 +281,6 @@ export default function SocialAccountsPage() {
 
       const allAccounts = platformResults.flat();
       setAccounts(allAccounts);
-      setAccountMeta((prev) => ({
-        ...prev,
-        connectedCount: allAccounts.length,
-        remainingSlots:
-          prev.accountLimit === null ? null : Math.max(0, prev.accountLimit - allAccounts.length),
-      }));
     } catch (error) {
       console.error("Error fetching social accounts:", error);
       toast({
@@ -325,6 +321,49 @@ export default function SocialAccountsPage() {
     }
   }
 
+  async function handleUnlockConnectionSlot() {
+    if (!unlockTarget) return;
+    const creditsRequired = connectionSlots.unlockCreditCost;
+
+    if (connectionSlots.purchasedCredits < creditsRequired) {
+      showCreditPurchaseModal({
+        creditsNeeded: creditsRequired,
+        featureName: `${unlockTarget.name} connection slot`,
+      });
+      return;
+    }
+
+    setIsUnlocking(true);
+    try {
+      const response = await fetch("/api/social-accounts/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: unlockTarget.platform, quantity: 1 }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        if (handleCreditError(data.error || {}, `${unlockTarget.name} connection slot`)) return;
+        throw new Error(data.error?.message || "Could not unlock this connection slot.");
+      }
+
+      toast({
+        title: "Connection slot unlocked",
+        description: `You can now connect one additional ${unlockTarget.name} profile.`,
+      });
+      setUnlockTarget(null);
+      await fetchAccounts();
+    } catch (error) {
+      toast({
+        title: "Unlock failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUnlocking(false);
+    }
+  }
+
   function getTokenStatus(account: SocialAccount): { label: string; color: string; expired: boolean } {
     if (!account.tokenExpiresAt) return { label: "No expiry", color: "text-emerald-600", expired: false };
     const daysLeft = Math.ceil((new Date(account.tokenExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -345,9 +384,8 @@ export default function SocialAccountsPage() {
 
   const publishingAccounts = accounts.filter((account) => basePlatform(account.platform) !== "whatsapp");
   const whatsappAccounts = groupedAccounts.whatsapp || [];
-  const accountLimit = accountMeta.accountLimit;
+  const accountLimit = connectionSlots.effectiveLimit;
   const connectedCount = accounts.length;
-  const remainingSlots = accountLimit === null ? null : Math.max(0, accountLimit - connectedCount);
   const usagePercent = accountLimit === null || accountLimit === 0 ? 100 : Math.min(100, Math.round((connectedCount / accountLimit) * 100));
   const isAtLimit = accountLimit !== null && connectedCount >= accountLimit;
   const expiredCount = accounts.filter((account) => getTokenStatus(account).expired).length;
@@ -393,7 +431,12 @@ export default function SocialAccountsPage() {
           <CommandMetric icon={Send} label="Publishing profiles" value={String(publishingAccounts.length)} tone="brand" />
           <CommandMetric icon={MessageCircle} label="WhatsApp numbers" value={String(whatsappAccounts.length)} tone="emerald" />
           <CommandMetric icon={SearchCheck} label="Google profile" value={googleBusiness.connected ? "Live" : "Not connected"} tone={googleBusiness.connected ? "emerald" : "amber"} />
-          <CommandMetric icon={ShieldCheck} label="Connection health" value={expiredCount ? `${expiredCount} expired` : "Healthy"} tone={expiredCount ? "amber" : "blue"} />
+          <CommandMetric
+            icon={ShieldCheck}
+            label={connectionSlots.totalUnlockedSlots ? "Unlocked extra slots" : "Connection health"}
+            value={connectionSlots.totalUnlockedSlots ? `+${connectionSlots.totalUnlockedSlots}` : expiredCount ? `${expiredCount} expired` : "Healthy"}
+            tone={expiredCount ? "amber" : "blue"}
+          />
         </div>
         {accountLimit !== null && <Progress value={usagePercent} className="mt-4 h-1.5" />}
       </section>
@@ -420,15 +463,28 @@ export default function SocialAccountsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {PUBLISHING_PLATFORMS.map((platform) => {
                 const isConnected = !!groupedAccounts[platform.id];
-                const disableConnect = isAtLimit && !isConnected;
+                const platformUnlock = connectionSlots.platformUnlocks[platform.id] || {
+                  unlockedSlots: 0,
+                  remainingUnlockedSlots: 0,
+                  creditsSpent: 0,
+                };
                 return (
                   <PlatformConnectCard
                     key={platform.id}
                     platform={platform}
                     connectedCount={groupedAccounts[platform.id]?.length || 0}
-                    disabled={disableConnect}
+                    locked={isAtLimit && !isConnected}
+                    unlockedSlots={platformUnlock.unlockedSlots}
+                    unlockCost={connectionSlots.unlockCreditCost}
                     onConnect={() => {
-                      if (!disableConnect) window.location.href = platform.connectUrl;
+                      if (isAtLimit && !isConnected) {
+                        setUnlockTarget({ platform: platform.id, name: platform.name });
+                        return;
+                      }
+                      window.location.href = platform.connectUrl;
+                    }}
+                    onUnlock={() => {
+                      setUnlockTarget({ platform: platform.id, name: platform.name });
                     }}
                   />
                 );
@@ -441,7 +497,7 @@ export default function SocialAccountsPage() {
                   <div>
                     <p className="font-semibold">Your current channel limit is full.</p>
                     <p className="mt-1 text-muted-foreground">
-                      Upgrade to add more pages, or disconnect a channel that no longer needs publishing access.
+                      Unlock an extra platform slot for {connectionSlots.unlockCreditCost} credits, upgrade for more included capacity, or disconnect a channel that no longer needs publishing access.
                     </p>
                   </div>
                 </div>
@@ -473,9 +529,18 @@ export default function SocialAccountsPage() {
           accounts={whatsappAccounts}
           isLoading={isLoading}
           isAtLimit={isAtLimit}
+          unlockedSlots={connectionSlots.platformUnlocks.whatsapp?.unlockedSlots || 0}
+          unlockCost={connectionSlots.unlockCreditCost}
           getTokenStatus={getTokenStatus}
           onConnect={() => {
-            if (!isAtLimit || whatsappAccounts.length > 0) window.location.href = "/api/social/whatsapp/connect";
+            if (isAtLimit && whatsappAccounts.length === 0) {
+              setUnlockTarget({ platform: "whatsapp", name: "WhatsApp Business" });
+              return;
+            }
+            window.location.href = "/api/social/whatsapp/connect";
+          }}
+          onUnlock={() => {
+            setUnlockTarget({ platform: "whatsapp", name: "WhatsApp Business" });
           }}
           onDisconnect={(account) => setDisconnectTarget({ id: account.id, platform: "whatsapp", name: account.platformDisplayName })}
         />
@@ -501,6 +566,64 @@ export default function SocialAccountsPage() {
       </section>
 
       <GoogleBusinessPanel google={googleBusiness} routerPush={router.push} />
+
+      {unlockTarget && (
+        <FloatingPanel onClose={() => setUnlockTarget(null)} title="Unlock connection slot" icon={<Lock className="h-4 w-4 text-amber-600" />}>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Add one extra <span className="font-semibold text-foreground">{unlockTarget.name}</span> connection slot for this workspace.
+                This is a one-time credit unlock, separate from the subscription plan.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Cost</p>
+                <p className="mt-1 text-lg font-bold">{connectionSlots.unlockCreditCost}</p>
+                <p className="text-xs text-muted-foreground">credits</p>
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Purchased credits</p>
+                <p className="mt-1 text-lg font-bold">{connectionSlots.purchasedCredits}</p>
+                <p className="text-xs text-muted-foreground">available</p>
+              </div>
+            </div>
+            {connectionSlots.purchasedCredits < connectionSlots.unlockCreditCost ? (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm">
+                <p className="font-semibold text-amber-700">More credits needed</p>
+                <p className="mt-1 text-muted-foreground">
+                  Buy credits first, then return here to unlock this additional {unlockTarget.name} slot.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm">
+                <p className="font-semibold text-emerald-700">Ready to unlock</p>
+                <p className="mt-1 text-muted-foreground">
+                  After confirmation, {connectionSlots.unlockCreditCost} credits will be deducted and this slot will be available immediately.
+                </p>
+              </div>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => setUnlockTarget(null)} disabled={isUnlocking}>Cancel</Button>
+              {connectionSlots.purchasedCredits < connectionSlots.unlockCreditCost ? (
+                <Button
+                  onClick={() => showCreditPurchaseModal({
+                    creditsNeeded: connectionSlots.unlockCreditCost,
+                    featureName: `${unlockTarget.name} connection slot`,
+                  })}
+                >
+                  Buy credits
+                </Button>
+              ) : (
+                <Button onClick={handleUnlockConnectionSlot} disabled={isUnlocking}>
+                  {isUnlocking && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirm unlock
+                </Button>
+              )}
+            </div>
+          </div>
+        </FloatingPanel>
+      )}
 
       {errorPanel && (
         <FloatingPanel onClose={() => setErrorPanel(null)} title={errorPanel.title} icon={<AlertCircle className="h-4 w-4 text-amber-600" />}>
@@ -575,40 +698,55 @@ function CommandMetric({
 function PlatformConnectCard({
   platform,
   connectedCount,
-  disabled,
+  locked,
+  unlockedSlots,
+  unlockCost,
   onConnect,
+  onUnlock,
 }: {
   platform: { id: string; name: string; connectUrl: string };
   connectedCount: number;
-  disabled: boolean;
+  locked: boolean;
+  unlockedSlots: number;
+  unlockCost: number;
   onConnect: () => void;
+  onUnlock: () => void;
 }) {
   const meta = PLATFORM_META[platform.id as keyof typeof PLATFORM_META];
   const Icon = meta?.icon || Link2;
   return (
-    <button
-      type="button"
-      onClick={onConnect}
-      disabled={disabled}
-      className={`group flex min-h-[92px] items-center justify-between gap-3 rounded-2xl border p-4 text-left transition ${
-        disabled
-          ? "cursor-not-allowed bg-muted/30 opacity-60"
-          : "bg-background hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-sm"
+    <div
+      className={`group flex min-h-[104px] items-center justify-between gap-3 rounded-2xl border bg-background p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-sm ${
+        locked ? "border-amber-500/35 bg-amber-500/5" : ""
       }`}
     >
-      <div className="flex items-center gap-3">
+      <button type="button" onClick={onConnect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className={`grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br ${PLATFORM_COLORS[platform.id] || "from-gray-500 to-gray-700"}`}>
           <Icon className="h-5 w-5 text-white" />
         </span>
-        <div>
-          <p className="font-semibold">{platform.name}</p>
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{platform.name}</p>
           <p className="text-xs text-muted-foreground">
-            {disabled ? "Upgrade required" : connectedCount ? `${connectedCount} connected` : "Connect for publishing"}
+            {locked ? "Unlock one more slot with credits" : connectedCount ? `${connectedCount} connected` : "Connect for publishing"}
           </p>
+          {unlockedSlots > 0 && (
+            <p className="mt-0.5 text-xs text-emerald-600">{unlockedSlots} extra slot{unlockedSlots === 1 ? "" : "s"} unlocked</p>
+          )}
         </div>
+      </button>
+      <div className="flex shrink-0 items-center gap-2">
+        {locked ? (
+          <Button type="button" size="sm" variant="outline" className="h-8 border-amber-500/40 text-amber-700" onClick={onUnlock}>
+            <Lock className="mr-1.5 h-3.5 w-3.5" />
+            {unlockCost} credits
+          </Button>
+        ) : connectedCount ? (
+          <Check className="h-5 w-5 text-emerald-600" />
+        ) : (
+          <Plus className="h-5 w-5 text-muted-foreground group-hover:text-brand-600" />
+        )}
       </div>
-      {disabled ? <Lock className="h-4 w-4 text-muted-foreground" /> : connectedCount ? <Check className="h-5 w-5 text-emerald-600" /> : <Plus className="h-5 w-5 text-muted-foreground group-hover:text-brand-600" />}
-    </button>
+    </div>
   );
 }
 
@@ -731,15 +869,21 @@ function WhatsAppBusinessPanel({
   accounts,
   isLoading,
   isAtLimit,
+  unlockedSlots,
+  unlockCost,
   getTokenStatus,
   onConnect,
+  onUnlock,
   onDisconnect,
 }: {
   accounts: SocialAccount[];
   isLoading: boolean;
   isAtLimit: boolean;
+  unlockedSlots: number;
+  unlockCost: number;
   getTokenStatus: (account: SocialAccount) => { label: string; color: string; expired: boolean };
   onConnect: () => void;
+  onUnlock: () => void;
   onDisconnect: (account: SocialAccount) => void;
 }) {
   const hasAccounts = accounts.length > 0;
@@ -760,6 +904,11 @@ function WhatsAppBusinessPanel({
         <p className="text-sm text-muted-foreground">
           Manage WhatsApp separately from social publishing so templates, inbox, and automation permissions stay clear.
         </p>
+        {unlockedSlots > 0 && (
+          <p className="mt-1 text-xs text-emerald-600">
+            {unlockedSlots} additional WhatsApp slot{unlockedSlots === 1 ? "" : "s"} unlocked with credits.
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -785,10 +934,16 @@ function WhatsAppBusinessPanel({
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={onConnect} disabled={isAtLimit && !hasAccounts} className="bg-emerald-600 text-white hover:bg-emerald-700">
+          <Button onClick={onConnect} className="bg-emerald-600 text-white hover:bg-emerald-700">
             {isAtLimit && !hasAccounts ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
             {hasAccounts ? "Add or refresh WhatsApp" : "Connect WhatsApp Business"}
           </Button>
+          {isAtLimit && !hasAccounts && (
+            <Button type="button" variant="outline" onClick={onUnlock} className="border-amber-500/40 text-amber-700">
+              <Lock className="mr-2 h-4 w-4" />
+              Unlock for {unlockCost} credits
+            </Button>
+          )}
           <Button variant="outline" asChild>
             <Link href="/whatsapp">
               Open WhatsApp workspace

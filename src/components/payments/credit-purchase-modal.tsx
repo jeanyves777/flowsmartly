@@ -168,7 +168,7 @@ export function CreditPurchaseModal() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/25"
             onClick={handleClose}
           />
 
@@ -180,17 +180,13 @@ export function CreditPurchaseModal() {
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="relative z-10 w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden rounded-2xl bg-background border shadow-2xl"
           >
-            {/* Gradient header */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-brand-600 via-brand-500 to-purple-600 px-6 py-5 text-white">
+            {/* Header */}
+            <div className="relative overflow-hidden border-b bg-muted/25 px-6 py-5 text-foreground">
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                {/* Decorative circles */}
-                <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/10" />
-                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full bg-white/5" />
-
                 <div className="flex items-start justify-between relative">
                   <div className="flex items-center gap-3">
                     <motion.div
@@ -201,7 +197,7 @@ export function CreditPurchaseModal() {
                         delay: 0.2,
                         damping: 12,
                       }}
-                      className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"
+                      className="rounded-xl bg-brand-500/10 p-2.5 text-brand-600"
                     >
                       {isFreeRestricted ? (
                         <Lock className="w-5 h-5" />
@@ -215,7 +211,7 @@ export function CreditPurchaseModal() {
                           ? "Premium Feature"
                           : "Credits Needed"}
                       </h2>
-                      <p className="text-sm text-white/80 mt-0.5">
+                      <p className="text-sm text-muted-foreground mt-0.5">
                         {isFreeRestricted
                           ? "Free credits are for email & SMS only"
                           : `${creditsNeeded > 0 ? `${creditsNeeded} credits required` : "Not enough credits"}${featureName ? ` for ${featureName}` : ""}`}
@@ -224,7 +220,7 @@ export function CreditPurchaseModal() {
                   </div>
                   <button
                     onClick={handleClose}
-                    className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -278,9 +274,9 @@ export function CreditPurchaseModal() {
                         onClick={() => handleSelectPackage(pkg.id)}
                         className={cn(
                           "w-full text-left p-3.5 rounded-xl border-2 transition-all duration-200",
-                          "hover:shadow-md hover:border-brand-300 dark:hover:border-brand-600",
+                          "hover:border-brand-300 dark:hover:border-brand-600",
                           isSelected || (isRecommended && !selectedPkg)
-                            ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500/20"
+                            ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10 ring-1 ring-brand-500/15"
                             : "border-border bg-card hover:bg-accent/50"
                         )}
                       >
@@ -290,7 +286,7 @@ export function CreditPurchaseModal() {
                               className={cn(
                                 "p-2 rounded-lg",
                                 isSelected || (isRecommended && !selectedPkg)
-                                  ? "bg-brand-500 text-white"
+                                  ? "bg-brand-500/10 text-brand-600"
                                   : "bg-muted text-muted-foreground"
                               )}
                             >
@@ -352,7 +348,7 @@ export function CreditPurchaseModal() {
               <div className="flex gap-2.5">
                 <Button
                   onClick={handleBuyNow}
-                  className="flex-1 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white shadow-lg shadow-brand-500/25"
+                  className="flex-1"
                   disabled={loading || packages.length === 0}
                 >
                   <Zap className="w-4 h-4 mr-2" />

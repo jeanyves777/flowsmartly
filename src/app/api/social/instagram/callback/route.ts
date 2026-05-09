@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getSocialAccountLimit } from "@/lib/social/account-limits";
+import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/social/account-capacity";
 
 /**
  * Instagram Business OAuth - Step 2: Handle callback
@@ -150,13 +150,14 @@ export async function GET(request: NextRequest) {
       where: { id: userId },
       select: { plan: true },
     });
-    const accountLimit = getSocialAccountLimit(user?.plan);
     const activeAccounts = await prisma.socialAccount.findMany({
       where: { userId, isActive: true },
       select: { platform: true },
     });
+    const capacity = await getSocialConnectionCapacity(userId, user?.plan, activeAccounts);
     const activePlatformKeys = new Set(activeAccounts.map((account) => account.platform));
     let newSlotsUsed = 0;
+    let newInstagramSlotsUsed = 0;
     let instagramAccountsFound = 0;
     let instagramAccountsSkipped = 0;
 
@@ -174,13 +175,14 @@ export async function GET(request: NextRequest) {
           const platformKey = `instagram_${ig.id}`;
           const alreadyConnected = activePlatformKeys.has(platformKey);
 
-          if (!alreadyConnected && accountLimit !== null && activeAccounts.length + newSlotsUsed >= accountLimit) {
+          if (!alreadyConnected && !canUseSocialAccountSlot(capacity, "instagram", newSlotsUsed, newInstagramSlotsUsed)) {
             instagramAccountsSkipped++;
             continue;
           }
 
           if (!alreadyConnected) {
             newSlotsUsed++;
+            newInstagramSlotsUsed++;
           }
 
           // Store Instagram account
