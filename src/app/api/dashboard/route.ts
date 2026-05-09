@@ -600,7 +600,7 @@ export async function GET() {
             return [];
           }
         })() : [],
-        connectHref: googleListingProfile?.id ? "/listsmartly/dashboard" : "/listsmartly/onboarding",
+        connectHref: "/social-accounts?section=google-business",
       };
     })();
 

@@ -27,6 +27,9 @@ import {
   SearchCheck,
   ShieldCheck,
   Star,
+  GripVertical,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -236,6 +239,27 @@ function isVideoMedia(url?: string | null, mediaType?: string | null): boolean {
   return !!url?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
 }
 
+type DashboardWorkspaceSectionId = "google" | "recent" | "premier";
+
+const DASHBOARD_WORKSPACE_STORAGE_KEY = "flowsmartly.dashboard.workspace.v1";
+const DEFAULT_DASHBOARD_WORKSPACE_ORDER: DashboardWorkspaceSectionId[] = ["google", "recent", "premier"];
+const DASHBOARD_WORKSPACE_LABELS: Record<DashboardWorkspaceSectionId, string> = {
+  google: "Google listing and SEO health",
+  recent: "Recent posts showcase",
+  premier: "Premier video spotlight",
+};
+
+function normalizeDashboardWorkspaceOrder(value: unknown): DashboardWorkspaceSectionId[] {
+  const valid = new Set<DashboardWorkspaceSectionId>(DEFAULT_DASHBOARD_WORKSPACE_ORDER);
+  const incoming = Array.isArray(value)
+    ? value.filter((item): item is DashboardWorkspaceSectionId => valid.has(item as DashboardWorkspaceSectionId))
+    : [];
+  return [
+    ...incoming,
+    ...DEFAULT_DASHBOARD_WORKSPACE_ORDER.filter((item) => !incoming.includes(item)),
+  ];
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -245,6 +269,9 @@ export default function DashboardPage() {
   const [showBrandBanner, setShowBrandBanner] = useState(true);
   const [postShowcaseIndex, setPostShowcaseIndex] = useState(0);
   const [isPostShowcasePaused, setIsPostShowcasePaused] = useState(false);
+  const [workspaceOrder, setWorkspaceOrder] = useState<DashboardWorkspaceSectionId[]>(DEFAULT_DASHBOARD_WORKSPACE_ORDER);
+  const [pinnedWorkspaceSection, setPinnedWorkspaceSection] = useState<DashboardWorkspaceSectionId | null>(null);
+  const [workspacePrefsLoaded, setWorkspacePrefsLoaded] = useState(false);
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -262,6 +289,36 @@ export default function DashboardPage() {
     }
     fetchDashboard();
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DASHBOARD_WORKSPACE_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as {
+          order?: unknown;
+          pinned?: DashboardWorkspaceSectionId | null;
+        };
+        setWorkspaceOrder(normalizeDashboardWorkspaceOrder(parsed.order));
+        setPinnedWorkspaceSection(
+          DEFAULT_DASHBOARD_WORKSPACE_ORDER.includes(parsed.pinned as DashboardWorkspaceSectionId)
+            ? (parsed.pinned as DashboardWorkspaceSectionId)
+            : null
+        );
+      }
+    } catch (error) {
+      console.warn("Could not load dashboard workspace preferences", error);
+    } finally {
+      setWorkspacePrefsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!workspacePrefsLoaded) return;
+    window.localStorage.setItem(
+      DASHBOARD_WORKSPACE_STORAGE_KEY,
+      JSON.stringify({ order: workspaceOrder, pinned: pinnedWorkspaceSection })
+    );
+  }, [workspaceOrder, pinnedWorkspaceSection, workspacePrefsLoaded]);
 
   const showcasePostCount = data?.recentActivity.length || data?.sidebar.trendingPosts.length || 0;
 
@@ -358,6 +415,106 @@ export default function DashboardPage() {
       return;
     }
     router.push(url);
+  };
+
+  const moveWorkspaceSection = (source: DashboardWorkspaceSectionId, target: DashboardWorkspaceSectionId) => {
+    if (source === target) return;
+    setWorkspaceOrder((current) => {
+      const next = normalizeDashboardWorkspaceOrder(current);
+      const sourceIndex = next.indexOf(source);
+      const targetIndex = next.indexOf(target);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const toggleWorkspacePin = (sectionId: DashboardWorkspaceSectionId) => {
+    setPinnedWorkspaceSection((current) => (current === sectionId ? null : sectionId));
+    setWorkspaceOrder((current) => {
+      const next = normalizeDashboardWorkspaceOrder(current).filter((item) => item !== sectionId);
+      return [sectionId, ...next];
+    });
+  };
+
+  const orderedWorkspaceSections = [
+    ...(pinnedWorkspaceSection ? [pinnedWorkspaceSection] : []),
+    ...workspaceOrder.filter((sectionId) => sectionId !== pinnedWorkspaceSection),
+  ];
+
+  const workspaceSections: Record<DashboardWorkspaceSectionId, React.ReactNode> = {
+    google: data?.googleListing ? (
+      <GoogleListingShowcase
+        listing={data.googleListing}
+        onConnect={() => router.push(data.googleListing.connectHref || "/social-accounts?section=google-business")}
+        onOpenListing={() => {
+          if (data.googleListing.listingUrl) openDestination(data.googleListing.listingUrl);
+        }}
+      />
+    ) : null,
+    recent: (
+      <Card
+        className="overflow-hidden"
+        onMouseEnter={() => setIsPostShowcasePaused(true)}
+        onMouseLeave={() => setIsPostShowcasePaused(false)}
+      >
+        <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-500/15 to-violet-500/15 flex items-center justify-center">
+              <FileText className="h-3.5 w-3.5 text-brand-500" />
+            </div>
+            Recent posts showcase
+            {visualPosts.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
+                {data?.recentActivity.length ? "Your work" : "Trending fallback"}
+              </Badge>
+            )}
+          </CardTitle>
+          <Button variant="ghost" size="sm" className="text-xs h-7 px-2" asChild>
+            <Link href="/feed">
+              View all <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-1">
+          {visibleShowcasePosts.length > 0 ? (
+            <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]">
+              <DashboardPostCard
+                post={visibleShowcasePosts[0]}
+                featured
+                onClick={() => router.push(`/feed?post=${visibleShowcasePosts[0].id}`)}
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                {visibleShowcasePosts.slice(1).map((post) => (
+                  <DashboardPostCard
+                    key={post.id}
+                    post={post}
+                    onClick={() => router.push(`/feed?post=${post.id}`)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No posts or trends yet</p>
+              <Button asChild className="mt-3" size="sm" variant="outline">
+                <Link href="/studio">
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Create Post
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    ),
+    premier: (
+      <PremierVideoShowcase
+        videos={premierVideos}
+        onSelect={(video) => openDestination(video.destinationUrl || (video.postId ? `/feed?post=${video.postId}` : "/feed"))}
+      />
+    ),
   };
 
   return (
@@ -523,82 +680,23 @@ export default function DashboardPage() {
             <QuickActionCard icon={BarChart3} label="Analytics" href="/analytics" color="green" />
           </motion.div>
 
-          {/* Recent Posts */}
-          <motion.div variants={itemVariants}>
-            <Card
-              className="overflow-hidden"
-              onMouseEnter={() => setIsPostShowcasePaused(true)}
-              onMouseLeave={() => setIsPostShowcasePaused(false)}
-            >
-              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-500/15 to-violet-500/15 flex items-center justify-center">
-                    <FileText className="h-3.5 w-3.5 text-brand-500" />
-                  </div>
-                  Recent posts showcase
-                  {visualPosts.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
-                      {data?.recentActivity.length ? "Your work" : "Trending fallback"}
-                    </Badge>
-                  )}
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="text-xs h-7 px-2" asChild>
-                  <Link href="/feed">
-                    View all <ArrowRight className="h-3 w-3 ml-1" />
-                  </Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="pt-1">
-                {visibleShowcasePosts.length > 0 ? (
-                  <div className="grid gap-3 xl:grid-cols-[1.18fr_0.82fr]">
-                    <DashboardPostCard
-                      post={visibleShowcasePosts[0]}
-                      featured
-                      onClick={() => router.push(`/feed?post=${visibleShowcasePosts[0].id}`)}
-                    />
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                      {visibleShowcasePosts.slice(1).map((post) => (
-                        <DashboardPostCard
-                          key={post.id}
-                          post={post}
-                          onClick={() => router.push(`/feed?post=${post.id}`)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No posts or trends yet</p>
-                    <Button asChild className="mt-3" size="sm" variant="outline">
-                      <Link href="/studio">
-                        <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Create Post
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div variants={itemVariants}>
-            <PremierVideoShowcase
-              videos={premierVideos}
-              onSelect={(video) => openDestination(video.destinationUrl || (video.postId ? `/feed?post=${video.postId}` : "/feed"))}
-            />
-          </motion.div>
-
-          {data?.googleListing && (
-            <motion.div variants={itemVariants}>
-              <GoogleListingShowcase
-                listing={data.googleListing}
-                onConnect={() => router.push(data.googleListing.connectHref || "/listsmartly/onboarding")}
-                onOpenListing={() => {
-                  if (data.googleListing.listingUrl) openDestination(data.googleListing.listingUrl);
-                }}
-              />
-            </motion.div>
-          )}
+          {orderedWorkspaceSections.map((sectionId) => {
+            const content = workspaceSections[sectionId];
+            if (!content) return null;
+            return (
+              <motion.div variants={itemVariants} key={sectionId}>
+                <MovableDashboardSection
+                  sectionId={sectionId}
+                  label={DASHBOARD_WORKSPACE_LABELS[sectionId]}
+                  pinned={pinnedWorkspaceSection === sectionId}
+                  onMove={moveWorkspaceSection}
+                  onPin={() => toggleWorkspacePin(sectionId)}
+                >
+                  {content}
+                </MovableDashboardSection>
+              </motion.div>
+            );
+          })}
 
         </div>
 
@@ -657,6 +755,73 @@ export default function DashboardPage() {
 }
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
+
+function MovableDashboardSection({
+  sectionId,
+  label,
+  pinned,
+  onMove,
+  onPin,
+  children,
+}: {
+  sectionId: DashboardWorkspaceSectionId;
+  label: string;
+  pinned: boolean;
+  onMove: (source: DashboardWorkspaceSectionId, target: DashboardWorkspaceSectionId) => void;
+  onPin: () => void;
+  children: React.ReactNode;
+}) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  return (
+    <div
+      className={`rounded-2xl transition ${
+        isDragOver ? "ring-2 ring-brand-500/60 ring-offset-2 ring-offset-background" : ""
+      }`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDragOver(false);
+        const source = event.dataTransfer.getData("application/x-dashboard-section") as DashboardWorkspaceSectionId;
+        if (source) onMove(source, sectionId);
+      }}
+    >
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("application/x-dashboard-section", sectionId);
+          }}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-2.5 text-xs font-medium text-muted-foreground shadow-sm transition hover:border-brand-500/40 hover:text-foreground"
+          title={`Drag ${label}`}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+          Move
+        </button>
+        <button
+          type="button"
+          onClick={onPin}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium shadow-sm transition ${
+            pinned
+              ? "border-brand-500/40 bg-brand-500/10 text-brand-700"
+              : "bg-background text-muted-foreground hover:border-brand-500/40 hover:text-foreground"
+          }`}
+          title={pinned ? `Unpin ${label}` : `Pin ${label} to top`}
+        >
+          {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+          {pinned ? "Pinned" : "Pin top"}
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function StatCard({
   title,
@@ -965,7 +1130,7 @@ function GoogleListingShowcase({
               variant="secondary"
               className={`text-[10px] ${connected ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}
             >
-              {connected ? "Live profile" : "Connect preview"}
+              {connected ? "Live profile" : "Preview only"}
             </Badge>
           </CardTitle>
           <Button
@@ -1036,10 +1201,12 @@ function GoogleListingShowcase({
             </div>
 
             {!connected && (
-              <div className="mt-4 rounded-xl border border-dashed border-emerald-500/35 bg-emerald-500/10 p-3">
-                <p className="text-sm font-semibold">Connect your Google profile to make this live.</p>
+              <div className="mt-4 rounded-xl border border-dashed border-amber-500/45 bg-amber-500/10 p-3">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Google Business Profile is not connected yet. These numbers are a preview, not your real stats.
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  FlowSmartly will pull reviews, listing health, local SEO signals, and monthly visibility recommendations into this space.
+                  Connect Google to pull your real reviews, listing health, local SEO signals, and monthly visibility recommendations into this space.
                 </p>
               </div>
             )}
@@ -1050,7 +1217,7 @@ function GoogleListingShowcase({
               <div>
                 <p className="text-sm font-bold">Google reviews</p>
                 <p className="text-xs text-muted-foreground">
-                  {connected ? "Recent customer proof from the connected listing." : "Preview of the review display after connection."}
+                  {connected ? "Recent customer proof from the connected listing." : "Sample display only until your Google account is connected."}
                 </p>
               </div>
               <Quote className="h-4 w-4 text-emerald-600" />

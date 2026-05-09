@@ -16,6 +16,19 @@ const SUPPORTED_PLATFORMS = [
   { id: "whatsapp", name: "WhatsApp", color: "from-green-500 to-green-600" },
 ];
 
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function googleReviewScore(rating: number, reviewCount: number): number {
+  if (!rating || !reviewCount) return 0;
+  const ratingComponent = Math.min(100, (rating / 5) * 100) * 0.58;
+  const volumeComponent = Math.min(100, (reviewCount / 50) * 100) * 0.28;
+  const trustComponent = reviewCount >= 10 ? 14 : reviewCount >= 3 ? 8 : 3;
+  return clampScore(ratingComponent + volumeComponent + trustComponent);
+}
+
 // GET /api/social-accounts - Get user's social connections
 export async function GET(request: NextRequest) {
   try {
@@ -79,17 +92,64 @@ export async function GET(request: NextRequest) {
     }
 
     // Otherwise, return the platforms overview
-    const connectedAccounts = await prisma.socialAccount.findMany({
-      where: { userId: session.userId, isActive: true },
-      select: {
-        id: true,
-        platform: true,
-        platformUsername: true,
-        platformDisplayName: true,
-        platformAvatarUrl: true,
-        connectedAt: true,
-      },
-    });
+    const [connectedAccounts, googleListingProfile] = await Promise.all([
+      prisma.socialAccount.findMany({
+        where: { userId: session.userId, isActive: true },
+        select: {
+          id: true,
+          platform: true,
+          platformUsername: true,
+          platformDisplayName: true,
+          platformAvatarUrl: true,
+          connectedAt: true,
+        },
+      }),
+      prisma.listSmartlyProfile.findUnique({
+        where: { userId: session.userId },
+        select: {
+          id: true,
+          businessName: true,
+          phone: true,
+          website: true,
+          address: true,
+          city: true,
+          state: true,
+          setupComplete: true,
+          totalListings: true,
+          liveListings: true,
+          citationScore: true,
+          totalReviews: true,
+          averageRating: true,
+          listings: {
+            where: { directory: { slug: "google-business" } },
+            take: 1,
+            select: {
+              status: true,
+              listingUrl: true,
+              businessName: true,
+              phone: true,
+              website: true,
+              address: true,
+              verifiedAt: true,
+              lastCheckedAt: true,
+            },
+          },
+          presenceReports: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              overallScore: true,
+              citationScore: true,
+              coverageScore: true,
+              consistencyScore: true,
+              reviewScore: true,
+              responseRate: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     // Build a map of connected accounts by platform
     // Facebook pages stored as "facebook_<pageId>", Instagram as "instagram_<igId>"
@@ -119,10 +179,57 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const googleBusiness = googleListingProfile?.listings?.[0] || null;
+    const latestReport = googleListingProfile?.presenceReports?.[0] || null;
+    const googleStatus = (googleBusiness?.status || "").toLowerCase();
+    const googleConnected = !!googleBusiness?.listingUrl || ["live", "claimed", "verified"].includes(googleStatus);
+    const googleRating = Number(googleListingProfile?.averageRating || 0);
+    const googleReviewCount = Number(googleListingProfile?.totalReviews || 0);
+    const coverageScore = googleListingProfile?.totalListings
+      ? clampScore(((googleListingProfile.liveListings || 0) / Math.max(1, googleListingProfile.totalListings)) * 100)
+      : Number(latestReport?.coverageScore || 0);
+    const reviewScore = Number(latestReport?.reviewScore || googleReviewScore(googleRating, googleReviewCount));
+    const seoHealthScore = clampScore(
+      Number(latestReport?.overallScore) ||
+      (
+        (Number(googleListingProfile?.citationScore || latestReport?.citationScore || 0) * 0.32) +
+        (coverageScore * 0.24) +
+        (Number(latestReport?.consistencyScore || 0) * 0.18) +
+        (reviewScore * 0.26)
+      )
+    );
+    const whatsappAccounts = connectedAccounts.filter((account) => account.platform === "whatsapp");
+
     return NextResponse.json({
       success: true,
       data: {
         platforms,
+        googleBusiness: {
+          connected: googleConnected,
+          profileId: googleListingProfile?.id || null,
+          businessName: googleBusiness?.businessName || googleListingProfile?.businessName || "Google Business Profile",
+          address: googleBusiness?.address || googleListingProfile?.address || [googleListingProfile?.city, googleListingProfile?.state].filter(Boolean).join(", ") || null,
+          phone: googleBusiness?.phone || googleListingProfile?.phone || null,
+          website: googleBusiness?.website || googleListingProfile?.website || null,
+          listingUrl: googleBusiness?.listingUrl || null,
+          status: googleBusiness?.status || (googleListingProfile?.setupComplete ? "ready" : "not_connected"),
+          rating: googleRating || null,
+          reviewCount: googleReviewCount,
+          seoHealthScore,
+          citationScore: Number(googleListingProfile?.citationScore || latestReport?.citationScore || 0),
+          coverageScore,
+          consistencyScore: Number(latestReport?.consistencyScore || 0),
+          reviewScore,
+          lastCheckedAt: googleBusiness?.lastCheckedAt?.toISOString() || latestReport?.createdAt?.toISOString() || null,
+          connectHref: "/listsmartly/onboarding?source=social-accounts",
+          dashboardHref: "/listsmartly/dashboard",
+        },
+        whatsapp: {
+          connected: whatsappAccounts.length > 0,
+          count: whatsappAccounts.length,
+          connectHref: "/api/social/whatsapp/connect",
+          workspaceHref: "/whatsapp",
+        },
         plan: session.user.plan,
         connectedCount,
         accountLimit,
