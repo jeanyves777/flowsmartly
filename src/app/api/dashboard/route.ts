@@ -426,7 +426,7 @@ export async function GET() {
               description: post.caption || "Watch this boosted client video.",
               videoUrl: mediaUrl,
               posterUrl: null,
-              destinationUrl: post.adCampaign?.destinationUrl || `/feed?post=${post.id}`,
+              destinationUrl: post.adCampaign?.destinationUrl || `/post/${post.id}`,
               ctaText: post.adCampaign?.ctaText || "Watch post",
               authorName: post.user.name,
               authorAvatar: post.user.avatarUrl,

@@ -70,6 +70,7 @@ export async function POST(
         id: postId,
         status: "PUBLISHED",
         deletedAt: null,
+        moderationStatus: { not: "removed" },
       },
       select: {
         id: true,
@@ -96,26 +97,51 @@ export async function POST(
     let viewCount = post.viewCount;
     let visitorCookieData: Awaited<ReturnType<typeof getOrCreateVisitor>> | null = null;
 
+    if ((event.action === "impression" || event.action === "view" || event.action === "click") && !isOwnerInteraction) {
+      const cookieStore = await cookies();
+      const visitorId = cookieStore.get(VISITOR_COOKIE)?.value || null;
+      const sessionId = cookieStore.get(SESSION_COOKIE)?.value || null;
+      visitorCookieData = await getOrCreateVisitor(visitorId, sessionId, viewerUserId, {
+        userAgent,
+        referrer: request.headers.get("referer") || undefined,
+      });
+    }
+
     if ((event.action === "impression" || event.action === "view") && !isOwnerInteraction) {
-      try {
-        const [, updatedPost] = await prisma.$transaction([
-          prisma.postView.create({
-            data: {
-              postId,
-              viewerUserId,
-              campaignId: post.campaignId,
-              viewDuration: durationSeconds,
-              deviceType,
+      const existingPublicView = !viewerUserId && visitorCookieData
+        ? await prisma.trackingEvent.findFirst({
+            where: {
+              visitorId: visitorCookieData.visitorId,
+              eventName: "post_view",
+              eventLabel: postId,
+              createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
             },
-          }),
-          prisma.post.update({
-            where: { id: postId },
-            data: { viewCount: { increment: 1 } },
-            select: { viewCount: true },
-          }),
-        ]);
-        countedView = true;
-        viewCount = updatedPost.viewCount;
+            select: { id: true },
+          })
+        : null;
+      const shouldCountView = !!viewerUserId || !existingPublicView;
+
+      try {
+        if (shouldCountView) {
+          const [, updatedPost] = await prisma.$transaction([
+            prisma.postView.create({
+              data: {
+                postId,
+                viewerUserId,
+                campaignId: post.campaignId,
+                viewDuration: durationSeconds,
+                deviceType,
+              },
+            }),
+            prisma.post.update({
+              where: { id: postId },
+              data: { viewCount: { increment: 1 } },
+              select: { viewCount: true },
+            }),
+          ]);
+          countedView = true;
+          viewCount = updatedPost.viewCount;
+        }
       } catch (error) {
         if (!isUniqueViolation(error)) {
           throw error;
@@ -128,20 +154,35 @@ export async function POST(
           });
         }
       }
+
+      if (visitorCookieData) {
+        await trackEvent({
+          visitorId: visitorCookieData.visitorId,
+          sessionId: visitorCookieData.sessionId,
+          userId: post.userId,
+          eventName: "post_view",
+          eventCategory: "feed_post",
+          eventLabel: postId,
+          eventValue: durationSeconds,
+          path: event.path || `/post/${postId}`,
+          properties: {
+            postId,
+            postOwnerId: post.userId,
+            viewerUserId,
+            source: event.source || "feed",
+            action: event.action,
+            countedView,
+            isPromoted: post.isPromoted,
+            ...event.metadata,
+          },
+        });
+      }
     }
 
     if (event.action === "click" && !isOwnerInteraction) {
-      const cookieStore = await cookies();
-      const visitorId = cookieStore.get(VISITOR_COOKIE)?.value || null;
-      const sessionId = cookieStore.get(SESSION_COOKIE)?.value || null;
-      visitorCookieData = await getOrCreateVisitor(visitorId, sessionId, null, {
-        userAgent,
-        referrer: request.headers.get("referer") || undefined,
-      });
-
       await trackEvent({
-        visitorId: visitorCookieData.visitorId,
-        sessionId: visitorCookieData.sessionId,
+        visitorId: visitorCookieData!.visitorId,
+        sessionId: visitorCookieData!.sessionId,
         userId: post.userId,
         eventName: "post_click",
         eventCategory: "feed_post",

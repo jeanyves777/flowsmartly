@@ -841,7 +841,7 @@ export default function FeedPage() {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
-    const postUrl = `${window.location.origin}/feed?post=${postId}`;
+    const postUrl = `${window.location.origin}/post/${postId}`;
     const shareText = post.content.length > 100 ? post.content.substring(0, 97) + "..." : post.content;
 
     const shareUrl = platform.getUrl(postUrl, shareText);
@@ -869,7 +869,7 @@ export default function FeedPage() {
 
   // Copy link for sharing
   const handleCopyShareLink = useCallback(async (postId: string) => {
-    const postUrl = `${window.location.origin}/feed?post=${postId}`;
+    const postUrl = `${window.location.origin}/post/${postId}`;
     try {
       await navigator.clipboard.writeText(postUrl);
       setCopiedLink(true);
@@ -2024,7 +2024,7 @@ export default function FeedPage() {
                               <>
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    navigator.clipboard.writeText(`${window.location.origin}/feed?post=${post.id}`);
+                                    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
                                     toast({ title: "Link copied" });
                                   }}
                                 >

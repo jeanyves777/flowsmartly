@@ -6,5 +6,5 @@ export default async function LegacyPostsPage({
   params: Promise<{ postId: string }>;
 }) {
   const { postId } = await params;
-  redirect(`/feed?post=${encodeURIComponent(postId)}`);
+  redirect(`/post/${encodeURIComponent(postId)}`);
 }

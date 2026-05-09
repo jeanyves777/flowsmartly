@@ -24,8 +24,13 @@ export async function GET(
     const { postId } = await params;
     const session = await getSession();
 
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        moderationStatus: { not: "removed" },
+      },
       include: {
         user: {
           select: {
@@ -74,7 +79,7 @@ export async function GET(
       },
     });
 
-    if (!post || post.deletedAt) {
+    if (!post) {
       return NextResponse.json(
         { success: false, error: { message: "Post not found" } },
         { status: 404 }

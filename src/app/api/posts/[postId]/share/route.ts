@@ -16,7 +16,12 @@ export async function POST(
     const { platform } = await request.json();
 
     const post = await prisma.post.findFirst({
-      where: { id: postId, status: "PUBLISHED", deletedAt: null },
+      where: {
+        id: postId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        moderationStatus: { not: "removed" },
+      },
       select: { id: true },
     });
 

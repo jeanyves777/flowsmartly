@@ -19,8 +19,13 @@ export async function POST(
     }
 
     // Check if post exists
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        moderationStatus: { not: "removed" },
+      },
       select: { id: true, userId: true },
     });
 

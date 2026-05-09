@@ -14,6 +14,23 @@ export async function GET(
     const limit = parseInt(searchParams.get("limit") || "20");
     const parentId = searchParams.get("parentId"); // For loading replies
 
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        moderationStatus: { not: "removed" },
+      },
+      select: { id: true },
+    });
+
+    if (!post) {
+      return NextResponse.json(
+        { success: false, error: { message: "Post not found" } },
+        { status: 404 }
+      );
+    }
+
     const comments = await prisma.comment.findMany({
       where: {
         postId,
@@ -92,8 +109,13 @@ export async function POST(
     }
 
     // Check if post exists
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        moderationStatus: { not: "removed" },
+      },
       select: { id: true, userId: true },
     });
 
