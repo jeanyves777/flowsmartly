@@ -5,6 +5,7 @@ import {
   isSocialAccountDestination,
   socialAccountIdFromDestination,
 } from "@/lib/social/destinations";
+import { publishWhatsAppStatus } from "@/lib/whatsapp/status-publisher";
 
 /**
  * Social Media Publisher
@@ -1146,6 +1147,13 @@ export async function publishToSocialPlatforms(
           break;
         case "pinterest":
           results[destination] = await publishToPinterest(postData, account);
+          break;
+        case "whatsapp":
+          results[destination] = await publishWhatsAppStatus(account, {
+            mediaUrl: postData.mediaUrls[0],
+            mediaType: postData.mediaType,
+            caption: postData.caption,
+          });
           break;
         default:
           results[destination] = { success: false, error: `Unsupported platform: ${platform}` };

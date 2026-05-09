@@ -78,7 +78,7 @@ interface SocialDestination {
 }
 
 const MAX_CHARS = 2000;
-const AI_SUPPORTED_PLATFORMS = ["instagram", "twitter", "linkedin", "facebook", "youtube"] as const;
+const AI_SUPPORTED_PLATFORMS = ["instagram", "twitter", "linkedin", "facebook", "youtube", "whatsapp"] as const;
 type AIPilotMode = "generate" | "rewrite" | "shorten" | "expand" | "hashtags" | "seo";
 type AIPilotTone = "professional" | "casual" | "humorous" | "inspirational" | "educational";
 type AIPilotLength = "short" | "medium" | "long";
@@ -405,6 +405,13 @@ const ACCOUNT_PLATFORM_STYLES: Record<
     glow: "rgba(24, 119, 242, 0.2)",
     iconBackground: "linear-gradient(135deg, #1877F2, #60A5FA)",
   },
+  whatsapp: {
+    color: "#25D366",
+    soft: "rgba(37, 211, 102, 0.14)",
+    softer: "rgba(37, 211, 102, 0.06)",
+    glow: "rgba(37, 211, 102, 0.18)",
+    iconBackground: "linear-gradient(135deg, #16A34A, #25D366)",
+  },
   tiktok: {
     color: "#FE2C55",
     soft: "rgba(254, 44, 85, 0.12)",
@@ -437,6 +444,35 @@ const ACCOUNT_PLATFORM_STYLES: Record<
 
 const getAccountPlatformStyle = (platformId: string) =>
   ACCOUNT_PLATFORM_STYLES[platformId] || ACCOUNT_PLATFORM_STYLES.feed;
+
+function PlatformAvatar({
+  avatarUrl,
+  label,
+  Icon,
+  color,
+  className,
+}: {
+  avatarUrl: string | null;
+  label: string;
+  Icon: ElementType;
+  color: string;
+  className: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (avatarUrl && !failed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={label}
+        className={`${className} rounded-full object-cover`}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return <Icon className={className} style={{ color }} />;
+}
 
 const FLOW_MEDIA_ASPECTS: Array<{ id: FlowMediaAspect; label: string; imageSize: string }> = [
   { id: "1:1", label: "Square", imageSize: "1024x1024" },
@@ -924,7 +960,7 @@ export default function ContentPostsPage() {
             id: socialAccountDestinationId(account.id),
             platformId: id,
             label: account.displayName || account.username || meta.label,
-            description: account.username || meta.label,
+            description: account.username ? `${meta.label} - ${account.username}` : meta.label,
             icon: meta.icon,
             enabled: true,
             avatarUrl: account.avatarUrl,
@@ -2436,7 +2472,7 @@ export default function ContentPostsPage() {
                             {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
                           </span>
                           <span
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-transform group-hover:scale-105"
+                            className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-transform group-hover:scale-105"
                             style={
                               isDisabled
                                 ? {
@@ -2451,14 +2487,35 @@ export default function ContentPostsPage() {
                                   }
                             }
                           >
-                            {platform.avatarUrl ? (
-                              <img src={platform.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                            ) : (
-                              <Icon className="h-5 w-5" />
+                            <PlatformAvatar
+                              avatarUrl={platform.avatarUrl}
+                              label={platform.label}
+                              Icon={Icon}
+                              color={isDisabled ? "hsl(var(--muted-foreground))" : platformStyle.color}
+                              className="h-7 w-7"
+                            />
+                            {platform.platformId !== "feed" && (
+                              <span
+                                className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border bg-background"
+                                style={{ color: isDisabled ? "hsl(var(--muted-foreground))" : platformStyle.color }}
+                              >
+                                <Icon className="h-2.5 w-2.5" />
+                              </span>
                             )}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold">{platform.label}</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate text-sm font-semibold">{platform.label}</span>
+                              <span
+                                className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                                style={{
+                                  background: platformStyle.softer,
+                                  color: platformStyle.color,
+                                }}
+                              >
+                                {PLATFORM_META[platform.platformId]?.label || platform.platformId}
+                              </span>
+                            </span>
                             <span className="block truncate text-xs text-muted-foreground">
                               {platform.platformId === "feed"
                                 ? "Internal feed"
@@ -3850,11 +3907,13 @@ export default function ContentPostsPage() {
                           key={platformId}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-background border text-xs font-medium"
                         >
-                          {destination?.avatarUrl ? (
-                            <img src={destination.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
-                          ) : (
-                            <Icon className="w-3.5 h-3.5" />
-                          )}
+                          <PlatformAvatar
+                            avatarUrl={destination?.avatarUrl || null}
+                            label={destination?.label || meta.label}
+                            Icon={Icon}
+                            color={meta.color}
+                            className="h-4 w-4"
+                          />
                           {destination?.label || meta.label}
                           <AISpinner className="w-3 h-3 animate-spin text-muted-foreground ml-0.5" />
                         </div>
@@ -3899,6 +3958,7 @@ export default function ContentPostsPage() {
                 const meta = PLATFORM_META[destination?.platformId || platformId];
                 if (!meta) return null;
                 const Icon = meta.icon;
+                const platformColor = result.success ? "rgb(22 163 74)" : "rgb(239 68 68)";
                 const isRetrying = retryingPlatforms.includes(platformId);
 
                 return (
@@ -3911,11 +3971,13 @@ export default function ContentPostsPage() {
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      {destination?.avatarUrl ? (
-                        <img src={destination.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
-                      ) : (
-                        <Icon className={`w-4 h-4 ${result.success ? "text-green-600" : "text-red-500"}`} />
-                      )}
+                      <PlatformAvatar
+                        avatarUrl={destination?.avatarUrl || null}
+                        label={destination?.label || meta.label}
+                        Icon={Icon}
+                        color={platformColor}
+                        className="h-5 w-5"
+                      />
                       <span className="text-sm font-medium">{destination?.label || meta.label}</span>
                     </div>
                     <div className="flex items-center gap-2">

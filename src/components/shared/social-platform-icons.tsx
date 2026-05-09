@@ -101,7 +101,18 @@ export const PLATFORM_META: Record<string, PlatformMeta> = {
 };
 
 /** Canonical order for platform selectors across the app */
-export const PLATFORM_ORDER = ["feed", "instagram", "twitter", "linkedin", "facebook", "tiktok", "youtube", "pinterest", "threads"];
+export const PLATFORM_ORDER = [
+  "feed",
+  "instagram",
+  "facebook",
+  "whatsapp",
+  "twitter",
+  "linkedin",
+  "tiktok",
+  "youtube",
+  "pinterest",
+  "threads",
+];
 
 /** What content types each platform supports */
 export const PLATFORM_REQUIREMENTS: Record<string, { text: boolean; image: boolean; video: boolean }> = {
@@ -110,7 +121,7 @@ export const PLATFORM_REQUIREMENTS: Record<string, { text: boolean; image: boole
   facebook:  { text: true,  image: true,  video: true },
   linkedin:  { text: true,  image: true,  video: true },
   threads:   { text: true,  image: true,  video: true },
-  whatsapp:  { text: true,  image: true,  video: true },
+  whatsapp:  { text: false, image: true,  video: true },
   instagram: { text: false, image: true,  video: true },
   youtube:   { text: false, image: false, video: true },
   tiktok:    { text: false, image: false, video: true },

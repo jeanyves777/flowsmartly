@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     const {
       name, type, schedule, topic, aiPrompt, aiTone, platforms,
       includeMedia, mediaType, mediaStyle, startDate, endDate,
-      strategyTaskId, sourceStrategyId,
+      strategyTaskId, sourceStrategyId, enabled,
     } = body;
 
     if (!name?.trim()) {
@@ -195,6 +195,7 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         name: name.trim(),
         type,
+        enabled: !!enabled,
         schedule: scheduleString,
         topic: topic || null,
         aiPrompt: aiPrompt || null,

@@ -1,37 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { socialAccountDestinationId } from "@/lib/social/destinations";
+import { extractS3Key } from "@/lib/utils/s3-client";
+import {
+  inferWhatsAppStatusMediaType,
+  publishWhatsAppStatus,
+} from "@/lib/whatsapp/status-publisher";
 
 /**
- * WhatsApp Status (Stories) API
- * Post images/videos to WhatsApp Status
+ * WhatsApp Status API
+ * Publishes immediately or creates a scheduled content post targeted at a
+ * specific WhatsApp account destination.
  */
 
-// POST: Create WhatsApp Status
+function errorResponse(message: string, status: number, details?: unknown) {
+  return NextResponse.json(
+    { success: false, error: { message, details } },
+    { status }
+  );
+}
+
+function parseTags(value: string, pattern: RegExp) {
+  return value.match(pattern) || [];
+}
+
+function normalizeStoredMediaUrl(mediaUrl: string) {
+  return extractS3Key(mediaUrl) || mediaUrl;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return errorResponse("Unauthorized", 401);
     }
 
     const body = await request.json();
     const {
       socialAccountId,
-      mediaType, // "image" or "video"
+      mediaType,
       mediaUrl,
       caption,
+      scheduleAt,
+      scheduledAt,
     } = body;
 
-    // Validate required fields
-    if (!socialAccountId || !mediaType || !mediaUrl) {
-      return NextResponse.json(
-        { error: "Missing required fields: socialAccountId, mediaType, mediaUrl" },
-        { status: 400 }
-      );
+    if (!socialAccountId || !mediaUrl) {
+      return errorResponse("Missing required fields: socialAccountId and mediaUrl", 400);
     }
 
-    // Get social account
+    const finalMediaType = inferWhatsAppStatusMediaType(mediaUrl, mediaType);
+    const finalCaption = typeof caption === "string" ? caption.trim() : "";
+
     const socialAccount = await prisma.socialAccount.findFirst({
       where: {
         id: socialAccountId,
@@ -42,155 +63,82 @@ export async function POST(request: NextRequest) {
     });
 
     if (!socialAccount) {
-      return NextResponse.json(
-        { error: "WhatsApp account not found or inactive" },
-        { status: 404 }
-      );
+      return errorResponse("WhatsApp account not found or inactive", 404);
     }
 
-    // Upload media to WhatsApp first
-    const uploadedMedia = await uploadMediaToWhatsApp(
-      socialAccount.accessToken!,
-      socialAccount.platformUserId!,
+    const requestedSchedule = scheduledAt || scheduleAt;
+    if (requestedSchedule) {
+      const scheduledDate = new Date(requestedSchedule);
+      if (Number.isNaN(scheduledDate.getTime())) {
+        return errorResponse("Invalid schedule date", 400);
+      }
+      if (scheduledDate <= new Date()) {
+        return errorResponse("Schedule date must be in the future", 400);
+      }
+
+      const storedMediaUrl = normalizeStoredMediaUrl(mediaUrl);
+      const post = await prisma.post.create({
+        data: {
+          userId: session.userId,
+          caption: finalCaption || null,
+          hashtags: JSON.stringify(parseTags(finalCaption, /#[\w]+/g)),
+          mentions: JSON.stringify(parseTags(finalCaption, /@[\w]+/g)),
+          mediaUrl: storedMediaUrl,
+          mediaMeta: JSON.stringify([storedMediaUrl]),
+          mediaType: finalMediaType,
+          platforms: JSON.stringify([socialAccountDestinationId(socialAccountId)]),
+          status: "SCHEDULED",
+          scheduledAt: scheduledDate,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        scheduled: true,
+        data: {
+          post: {
+            id: post.id,
+            scheduledAt: post.scheduledAt?.toISOString() || null,
+            platforms: [socialAccountDestinationId(socialAccountId)],
+          },
+        },
+        message: "WhatsApp Status scheduled successfully",
+      });
+    }
+
+    const result = await publishWhatsAppStatus(socialAccount, {
+      mediaType: finalMediaType,
       mediaUrl,
-      mediaType
-    );
+      caption: finalCaption,
+    });
 
-    if (!uploadedMedia.id) {
-      return NextResponse.json(
-        { error: "Failed to upload media to WhatsApp", details: uploadedMedia },
-        { status: 500 }
-      );
-    }
-
-    // Post to WhatsApp Status using the uploaded media ID
-    const statusResponse = await postToWhatsAppStatus(
-      socialAccount.accessToken!,
-      socialAccount.platformUserId!,
-      uploadedMedia.id,
-      mediaType,
-      caption
-    );
-
-    if (!statusResponse.messages) {
-      return NextResponse.json(
-        { error: "Failed to post to WhatsApp Status", details: statusResponse },
-        { status: 500 }
-      );
+    if (!result.success) {
+      return errorResponse(result.error || "Failed to post WhatsApp Status", 500, result.details);
     }
 
     return NextResponse.json({
       success: true,
-      statusId: statusResponse.messages[0].id,
+      statusId: result.postId,
       message: "WhatsApp Status posted successfully",
     });
   } catch (error) {
     console.error("WhatsApp Status post error:", error);
-    return NextResponse.json(
-      { error: "Failed to post WhatsApp Status" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to post WhatsApp Status", 500);
   }
 }
 
-async function uploadMediaToWhatsApp(
-  accessToken: string,
-  phoneNumberId: string,
-  mediaUrl: string,
-  mediaType: string
-) {
-  try {
-    // Download media from URL
-    const mediaResponse = await fetch(mediaUrl);
-    const mediaBlob = await mediaResponse.blob();
-
-    // Create form data
-    const formData = new FormData();
-    formData.append("file", mediaBlob);
-    formData.append("messaging_product", "whatsapp");
-    formData.append("type", mediaType);
-
-    // Upload to WhatsApp
-    const uploadResponse = await fetch(
-      `https://graph.facebook.com/v21.0/${phoneNumberId}/media`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      }
-    );
-
-    return await uploadResponse.json();
-  } catch (error) {
-    console.error("Error uploading media to WhatsApp:", error);
-    return { error: "Failed to upload media" };
-  }
-}
-
-async function postToWhatsAppStatus(
-  accessToken: string,
-  phoneNumberId: string,
-  mediaId: string,
-  mediaType: string,
-  caption?: string
-) {
-  try {
-    const mediaBody: any = {
-      id: mediaId,
-    };
-
-    if (caption && mediaType === "image") {
-      mediaBody.caption = caption;
-    }
-
-    // Note: WhatsApp Status is posted by sending to a special recipient
-    // In practice, posting to Status might require different API endpoint
-    // This is a simplified version based on WhatsApp Cloud API docs
-    const response = await fetch(
-      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          type: mediaType,
-          [mediaType]: mediaBody,
-          // For Status, recipient_type might be different
-          // Check WhatsApp Cloud API docs for correct implementation
-        }),
-      }
-    );
-
-    return await response.json();
-  } catch (error) {
-    console.error("Error posting to WhatsApp Status:", error);
-    return { error: "Failed to post to Status" };
-  }
-}
-
-// GET: Get WhatsApp Status analytics (if available)
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return errorResponse("Unauthorized", 401);
     }
 
     const socialAccountId = request.nextUrl.searchParams.get("socialAccountId");
-
     if (!socialAccountId) {
-      return NextResponse.json(
-        { error: "socialAccountId is required" },
-        { status: 400 }
-      );
+      return errorResponse("socialAccountId is required", 400);
     }
 
-    // Get social account
     const socialAccount = await prisma.socialAccount.findFirst({
       where: {
         id: socialAccountId,
@@ -198,27 +146,56 @@ export async function GET(request: NextRequest) {
         platform: "whatsapp",
         isActive: true,
       },
+      select: { id: true },
     });
 
     if (!socialAccount) {
-      return NextResponse.json(
-        { error: "WhatsApp account not found or inactive" },
-        { status: 404 }
-      );
+      return errorResponse("WhatsApp account not found or inactive", 404);
     }
 
-    // Note: WhatsApp Status analytics might not be available via API
-    // This is a placeholder for future implementation
+    const destinationId = socialAccountDestinationId(socialAccountId);
+    const scheduledPosts = await prisma.post.findMany({
+      where: {
+        userId: session.userId,
+        status: "SCHEDULED",
+        deletedAt: null,
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 50,
+      select: {
+        id: true,
+        caption: true,
+        mediaUrl: true,
+        mediaType: true,
+        platforms: true,
+        scheduledAt: true,
+        createdAt: true,
+      },
+    });
+
     return NextResponse.json({
       success: true,
-      message: "WhatsApp Status analytics not yet available via API",
       analytics: [],
+      scheduledPosts: scheduledPosts
+        .filter((post) => {
+          try {
+            const platforms = JSON.parse(post.platforms || "[]");
+            return Array.isArray(platforms) && platforms.includes(destinationId);
+          } catch {
+            return false;
+          }
+        })
+        .map((post) => ({
+          id: post.id,
+          caption: post.caption,
+          mediaUrl: post.mediaUrl,
+          mediaType: post.mediaType,
+          scheduledAt: post.scheduledAt?.toISOString() || null,
+          createdAt: post.createdAt.toISOString(),
+        })),
     });
   } catch (error) {
     console.error("WhatsApp Status analytics error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch Status analytics" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to fetch Status analytics", 500);
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ElementType } from "react";
+import { useMemo, useState, type ElementType } from "react";
 import Link from "next/link";
 import { Check, LinkIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,37 @@ interface SelectorPlatform {
   bgClass: string;
   borderClass: string;
   enabled: boolean;
+}
+
+function PlatformAvatar({
+  avatarUrl,
+  label,
+  Icon,
+  color,
+  imageClassName,
+  iconClassName,
+}: {
+  avatarUrl: string | null;
+  label: string;
+  Icon: ElementType;
+  color: string;
+  imageClassName: string;
+  iconClassName: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (avatarUrl && !failed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={label}
+        className={imageClassName}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return <Icon className={iconClassName} style={{ color }} />;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -148,11 +179,14 @@ export function SocialPlatformSelector({
                               : "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
                         } ${isFeed ? "cursor-default" : ""}`}
                       >
-                        {platform.avatarUrl ? (
-                          <img src={platform.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
-                        ) : (
-                          <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
-                        )}
+                        <PlatformAvatar
+                          avatarUrl={platform.avatarUrl}
+                          label={platform.label}
+                          Icon={Icon}
+                          color={isDisabled ? "currentColor" : platform.color}
+                          imageClassName="h-5 w-5 rounded-full object-cover"
+                          iconClassName="h-4 w-4"
+                        />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
@@ -207,12 +241,20 @@ export function SocialPlatformSelector({
                       : "border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                 } ${isFeed ? "cursor-default" : ""}`}
               >
-                {platform.avatarUrl ? (
-                  <img src={platform.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
-                ) : (
-                  <Icon className="w-4 h-4" style={isDisabled ? undefined : { color: platform.color }} />
-                )}
+                <PlatformAvatar
+                  avatarUrl={platform.avatarUrl}
+                  label={platform.label}
+                  Icon={Icon}
+                  color={isDisabled ? "currentColor" : platform.color}
+                  imageClassName="h-5 w-5 rounded-full object-cover"
+                  iconClassName="h-4 w-4"
+                />
                 <span className="text-xs font-medium">{platform.label}</span>
+                {platform.platformId !== "feed" && platform.enabled && (
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    {PLATFORM_META[platform.platformId]?.label || platform.platformId}
+                  </span>
+                )}
                 {isSelected && <Check className="w-3 h-3 text-brand-500" />}
                 {isDisabled && <LinkIcon className="w-3 h-3" />}
               </button>
