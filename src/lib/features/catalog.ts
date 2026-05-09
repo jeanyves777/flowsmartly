@@ -523,11 +523,37 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
   },
 ];
 
+export type CatalogPlanId = keyof FeatureDefinition["plans"];
+
+const PLAN_ALIASES: Record<string, CatalogPlanId> = {
+  FREE: "STARTER",
+  ADMIN: "ENTERPRISE",
+  SUPER_ADMIN: "ENTERPRISE",
+  AGENT: "ENTERPRISE",
+};
+
+/**
+ * Map internal/non-purchasable roles to a customer feature plan.
+ * AGENT is advertised as full-access, so it inherits ENTERPRISE features.
+ */
+export function getCatalogPlanId(planId: string): CatalogPlanId {
+  const normalized = planId.toUpperCase();
+  if (normalized in PLAN_ALIASES) return PLAN_ALIASES[normalized];
+  if (["STARTER", "NON_PROFIT", "PRO", "BUSINESS", "ENTERPRISE"].includes(normalized)) {
+    return normalized as CatalogPlanId;
+  }
+  return "STARTER";
+}
+
+export function getFeaturePlanValue(feature: FeatureDefinition, planId: string): boolean | string | undefined {
+  return feature.plans[getCatalogPlanId(planId)];
+}
+
 /**
  * Get features available for a specific plan
  */
 export function getFeaturesForPlan(planId: string): FeatureDefinition[] {
-  return FEATURE_CATALOG.filter((f) => f.plans[planId as keyof FeatureDefinition["plans"]]);
+  return FEATURE_CATALOG.filter((f) => getFeaturePlanValue(f, planId));
 }
 
 /**
@@ -536,7 +562,7 @@ export function getFeaturesForPlan(planId: string): FeatureDefinition[] {
 export function isFeatureInPlan(featureSlug: string, planId: string): boolean {
   const feature = FEATURE_CATALOG.find((f) => f.slug === featureSlug);
   if (!feature) return false;
-  return !!feature.plans[planId as keyof FeatureDefinition["plans"]];
+  return !!getFeaturePlanValue(feature, planId);
 }
 
 /**
@@ -545,10 +571,10 @@ export function isFeatureInPlan(featureSlug: string, planId: string): boolean {
 export function getFeatureLimit(featureSlug: string, planId: string): string | null {
   const feature = FEATURE_CATALOG.find((f) => f.slug === featureSlug);
   if (!feature) return null;
-  const value = feature.plans[planId as keyof FeatureDefinition["plans"]];
+  const value = getFeaturePlanValue(feature, planId);
   if (typeof value === "string") return value;
   return null;
 }
 
-export const ALL_PLAN_IDS = ["STARTER", "NON_PROFIT", "PRO", "BUSINESS", "ENTERPRISE"] as const;
+export const ALL_PLAN_IDS = ["STARTER", "NON_PROFIT", "PRO", "BUSINESS", "ENTERPRISE", "AGENT"] as const;
 export type PlanId = (typeof ALL_PLAN_IDS)[number];

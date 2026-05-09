@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { FEATURE_CATALOG } from "@/lib/features/catalog";
+import { FEATURE_CATALOG, getCatalogPlanId, getFeaturePlanValue } from "@/lib/features/catalog";
 
 /**
  * GET /api/onboarding — Get onboarding state + available features for user's plan
@@ -23,10 +23,17 @@ export async function GET() {
     }
 
     // Get features available for this plan from DB (admin-controlled)
-    const dbPlanFeatures = await prisma.planFeature.findMany({
+    let dbPlanFeatures = await prisma.planFeature.findMany({
       where: { planId: user.plan },
       include: { feature: true },
     });
+    const catalogPlanId = getCatalogPlanId(user.plan);
+    if (dbPlanFeatures.length === 0 && catalogPlanId !== user.plan) {
+      dbPlanFeatures = await prisma.planFeature.findMany({
+        where: { planId: catalogPlanId },
+        include: { feature: true },
+      });
+    }
 
     let availableFeatures;
     if (dbPlanFeatures.length > 0) {
@@ -43,7 +50,7 @@ export async function GET() {
     } else {
       // Fallback to catalog defaults
       availableFeatures = FEATURE_CATALOG
-        .filter((f) => f.plans[user.plan as keyof typeof f.plans])
+        .filter((f) => getFeaturePlanValue(f, user.plan))
         .map((f) => ({
           slug: f.slug,
           name: f.name,
@@ -51,8 +58,8 @@ export async function GET() {
           category: f.category,
           icon: f.icon,
           route: f.route,
-          limit: typeof f.plans[user.plan as keyof typeof f.plans] === "string"
-            ? f.plans[user.plan as keyof typeof f.plans] as string
+          limit: typeof getFeaturePlanValue(f, user.plan) === "string"
+            ? getFeaturePlanValue(f, user.plan) as string
             : null,
         }));
     }
@@ -109,10 +116,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate that selected features are available for user's plan
-    const dbPlanFeatures = await prisma.planFeature.findMany({
+    let dbPlanFeatures = await prisma.planFeature.findMany({
       where: { planId: user.plan },
       include: { feature: { select: { slug: true } } },
     });
+    const catalogPlanId = getCatalogPlanId(user.plan);
+    if (dbPlanFeatures.length === 0 && catalogPlanId !== user.plan) {
+      dbPlanFeatures = await prisma.planFeature.findMany({
+        where: { planId: catalogPlanId },
+        include: { feature: { select: { slug: true } } },
+      });
+    }
 
     let allowedSlugs: Set<string>;
     if (dbPlanFeatures.length > 0) {
@@ -121,7 +135,7 @@ export async function POST(request: NextRequest) {
       // Fallback to catalog
       allowedSlugs = new Set(
         FEATURE_CATALOG
-          .filter((f) => f.plans[user.plan as keyof typeof f.plans])
+          .filter((f) => getFeaturePlanValue(f, user.plan))
           .map((f) => f.slug)
       );
     }

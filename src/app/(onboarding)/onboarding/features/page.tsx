@@ -28,6 +28,7 @@ const CATEGORY_LABELS: Record<string, { label: string; description: string }> = 
   "team": { label: "Team & Collaboration", description: "Work together with your team" },
   "monetization": { label: "Monetization", description: "Earn revenue and grow" },
   "analytics": { label: "Analytics", description: "Track your performance" },
+  "local-presence": { label: "Local Presence", description: "Manage listings, reviews, and local visibility" },
 };
 
 interface AvailableFeature {

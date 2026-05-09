@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getUserFeatures } from "@/lib/features/access";
 import { prisma } from "@/lib/db/client";
-import { FEATURE_CATALOG } from "@/lib/features/catalog";
+import { FEATURE_CATALOG, getCatalogPlanId, getFeaturePlanValue } from "@/lib/features/catalog";
 
 /**
  * GET /api/user/features — Get user's activated features (for sidebar rendering)
@@ -64,10 +64,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get allowed features for plan
-    const dbPlanFeatures = await prisma.planFeature.findMany({
+    let dbPlanFeatures = await prisma.planFeature.findMany({
       where: { planId: user.plan },
       include: { feature: { select: { slug: true } } },
     });
+    const catalogPlanId = getCatalogPlanId(user.plan);
+    if (dbPlanFeatures.length === 0 && catalogPlanId !== user.plan) {
+      dbPlanFeatures = await prisma.planFeature.findMany({
+        where: { planId: catalogPlanId },
+        include: { feature: { select: { slug: true } } },
+      });
+    }
 
     let allowedSlugs: Set<string>;
     if (dbPlanFeatures.length > 0) {
@@ -75,7 +82,7 @@ export async function PUT(request: NextRequest) {
     } else {
       allowedSlugs = new Set(
         FEATURE_CATALOG
-          .filter((f) => f.plans[user.plan as keyof typeof f.plans])
+          .filter((f) => getFeaturePlanValue(f, user.plan))
           .map((f) => f.slug)
       );
     }

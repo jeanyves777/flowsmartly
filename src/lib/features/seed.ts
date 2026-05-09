@@ -4,7 +4,7 @@
  * Or call seedFeatures() programmatically.
  */
 import { PrismaClient } from "@prisma/client";
-import { FEATURE_CATALOG } from "./catalog";
+import { ALL_PLAN_IDS, FEATURE_CATALOG, getFeaturePlanValue } from "./catalog";
 
 const prisma = new PrismaClient();
 
@@ -54,12 +54,12 @@ export async function seedFeatures() {
   console.log(`Features: ${created} created, ${updated} updated`);
 
   // Seed PlanFeature mappings
-  const plans = ["STARTER", "NON_PROFIT", "PRO", "BUSINESS", "ENTERPRISE"];
+  const plans = ALL_PLAN_IDS;
   let pfCreated = 0;
 
   for (const planId of plans) {
     for (const f of FEATURE_CATALOG) {
-      const planValue = f.plans[planId as keyof typeof f.plans];
+      const planValue = getFeaturePlanValue(f, planId);
       if (!planValue) continue;
 
       const feature = await prisma.feature.findUnique({ where: { slug: f.slug } });
