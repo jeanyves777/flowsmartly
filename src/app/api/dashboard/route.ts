@@ -3,6 +3,26 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
+function firstMediaUrl(mediaMeta?: string | null, fallback?: string | null): string | null {
+  if (mediaMeta) {
+    try {
+      const parsed = JSON.parse(mediaMeta);
+      if (Array.isArray(parsed)) {
+        const first = parsed[0];
+        if (typeof first === "string" && first) return first;
+        if (first && typeof first === "object" && typeof first.url === "string") return first.url;
+      }
+    } catch {
+      // Use the stored fallback below.
+    }
+  }
+  return fallback || null;
+}
+
+function isVideoUrl(value?: string | null): boolean {
+  return !!value?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
+}
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -38,6 +58,9 @@ export async function GET() {
       adCampaigns,
       // Trending posts (most engaged)
       trendingPosts,
+      // Premier video placement for dashboard
+      premierVideoAds,
+      premierVideoPosts,
     ] = await Promise.all([
       // Get user with credits
       prisma.user.findUnique({
@@ -167,6 +190,7 @@ export async function GET() {
           headline: true,
           description: true,
           mediaUrl: true,
+          videoUrl: true,
           destinationUrl: true,
           ctaText: true,
         },
@@ -192,6 +216,79 @@ export async function GET() {
           viewCount: true,
           likeCount: true,
           commentCount: true,
+          user: {
+            select: { name: true, avatarUrl: true },
+          },
+        },
+      }),
+      prisma.adCampaign.findMany({
+        where: {
+          status: "ACTIVE",
+          userId: { not: userId },
+          OR: [
+            { videoUrl: { not: null } },
+            { mediaUrl: { contains: ".mp4" } },
+            { mediaUrl: { contains: ".webm" } },
+            { mediaUrl: { contains: ".mov" } },
+            { mediaUrl: { contains: ".m4v" } },
+          ],
+        },
+        orderBy: [
+          { clicks: "desc" },
+          { impressions: "desc" },
+          { createdAt: "desc" },
+        ],
+        take: 4,
+        select: {
+          id: true,
+          name: true,
+          headline: true,
+          description: true,
+          mediaUrl: true,
+          videoUrl: true,
+          destinationUrl: true,
+          ctaText: true,
+          user: {
+            select: { name: true, avatarUrl: true },
+          },
+        },
+      }),
+      prisma.post.findMany({
+        where: {
+          isPromoted: true,
+          deletedAt: null,
+          status: "PUBLISHED",
+          userId: { not: userId },
+          OR: [
+            { mediaType: { contains: "video" } },
+            { mediaUrl: { contains: ".mp4" } },
+            { mediaUrl: { contains: ".webm" } },
+            { mediaUrl: { contains: ".mov" } },
+            { mediaUrl: { contains: ".m4v" } },
+            { mediaMeta: { contains: ".mp4" } },
+            { mediaMeta: { contains: ".webm" } },
+            { mediaMeta: { contains: ".mov" } },
+            { mediaMeta: { contains: ".m4v" } },
+          ],
+        },
+        orderBy: [
+          { viewCount: "desc" },
+          { likeCount: "desc" },
+          { createdAt: "desc" },
+        ],
+        take: 4,
+        select: {
+          id: true,
+          caption: true,
+          mediaUrl: true,
+          mediaMeta: true,
+          mediaType: true,
+          viewCount: true,
+          likeCount: true,
+          commentCount: true,
+          adCampaign: {
+            select: { destinationUrl: true, ctaText: true },
+          },
           user: {
             select: { name: true, avatarUrl: true },
           },
@@ -277,6 +374,7 @@ export async function GET() {
         headline: ad.headline,
         description: ad.description,
         mediaUrl: ad.mediaUrl,
+        videoUrl: ad.videoUrl,
         destinationUrl: ad.destinationUrl,
         ctaText: ad.ctaText,
       })),
@@ -298,6 +396,48 @@ export async function GET() {
         authorName: p.user.name,
         authorAvatar: p.user.avatarUrl,
       })),
+      premierVideos: [
+        ...premierVideoAds
+          .map((ad) => {
+            const videoUrl = ad.videoUrl || (isVideoUrl(ad.mediaUrl) ? ad.mediaUrl : null);
+            if (!videoUrl) return null;
+            return {
+              id: `ad-${ad.id}`,
+              title: ad.headline || ad.name,
+              description: ad.description || "Premier boosted video from a FlowSmartly client.",
+              videoUrl,
+              posterUrl: !isVideoUrl(ad.mediaUrl) ? ad.mediaUrl : null,
+              destinationUrl: ad.destinationUrl || "/feed",
+              ctaText: ad.ctaText || "Learn more",
+              authorName: ad.user.name,
+              authorAvatar: ad.user.avatarUrl,
+              source: "Premier boosted ad",
+            };
+          })
+          .filter(Boolean),
+        ...premierVideoPosts
+          .map((post) => {
+            const mediaUrl = firstMediaUrl(post.mediaMeta, post.mediaUrl);
+            if (!mediaUrl || (!isVideoUrl(mediaUrl) && !post.mediaType?.toLowerCase().includes("video"))) return null;
+            return {
+              id: `post-${post.id}`,
+              postId: post.id,
+              title: post.caption?.split("\n").find(Boolean)?.slice(0, 90) || "Premier video post",
+              description: post.caption || "Watch this boosted client video.",
+              videoUrl: mediaUrl,
+              posterUrl: null,
+              destinationUrl: post.adCampaign?.destinationUrl || `/feed?post=${post.id}`,
+              ctaText: post.adCampaign?.ctaText || "Watch post",
+              authorName: post.user.name,
+              authorAvatar: post.user.avatarUrl,
+              source: "Premier boosted post",
+              viewCount: post.viewCount,
+              likeCount: post.likeCount,
+              commentCount: post.commentCount,
+            };
+          })
+          .filter(Boolean),
+      ],
       trendingTopics: trending,
     };
 

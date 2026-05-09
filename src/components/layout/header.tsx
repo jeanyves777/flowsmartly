@@ -434,33 +434,35 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
         </Button>
 
         {/* Search */}
-        <div ref={searchRef} className="relative flex-1 max-w-xl hidden sm:block">
+        <div ref={searchRef} className="relative flex items-center">
           <button
             type="button"
             onClick={() => {
               setShowSearch(true);
               setTimeout(() => searchInputRef.current?.focus(), 0);
             }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-sm text-muted-foreground bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Open search"
           >
             <Search className="h-4 w-4" />
-            <span className="flex-1 text-left">{searchQuery || "Search..."}</span>
-            <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-background rounded border">
-              <Command className="h-3 w-3" />K
-            </kbd>
           </button>
 
           {showSearch && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border bg-card shadow-lg">
-              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 border-b px-3 py-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
+            <div className="fixed left-1/2 top-20 z-50 w-[min(920px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl border bg-card shadow-2xl">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-3 border-b px-4 py-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600">
+                  <Search className="h-5 w-5" />
+                </span>
                 <input
                   ref={searchInputRef}
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search pages, posts, campaigns, contacts..."
-                  className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  className="h-11 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
                 />
+                <kbd className="hidden items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground sm:inline-flex">
+                  <Command className="h-3 w-3" />K
+                </kbd>
                 {searchQuery && (
                   <button
                     type="button"
@@ -471,9 +473,9 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                   </button>
                 )}
               </form>
-              <div className="max-h-[420px] overflow-y-auto p-2">
+              <div className="max-h-[min(620px,calc(100vh-9rem))] overflow-y-auto p-3">
                 {searchLoading && (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+                  <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>
                 )}
                 {!searchLoading && combinedSearchResults.length === 0 && (
                   <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -489,12 +491,12 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                       onClick={() => navigateSearchResult(result.href)}
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-accent"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600">
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{result.title}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{result.subtitle}</span>
+                        <span className="block truncate text-base font-medium">{result.title}</span>
+                        <span className="block truncate text-sm text-muted-foreground">{result.subtitle}</span>
                       </span>
                     </button>
                   );

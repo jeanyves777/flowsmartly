@@ -13,6 +13,7 @@ export interface SponsoredAd {
   headline: string | null;
   description: string | null;
   mediaUrl: string | null;
+  videoUrl?: string | null;
   destinationUrl: string | null;
   ctaText: string | null;
 }
@@ -38,25 +39,47 @@ interface SponsoredSidebarProps {
   onPostClick?: (postId: string) => void;
 }
 
-function MediaImage({ src, alt }: { src: string; alt: string }) {
+function isVideoUrl(url?: string | null): boolean {
+  return !!url?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
+}
+
+function MediaPreview({ src, poster, alt }: { src: string; poster?: string | null; alt: string }) {
+  const isVideo = isVideoUrl(src);
+
   return (
     <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-      <img
-        src={src}
-        alt={alt}
-        className="w-full h-full object-cover"
-        loading="lazy"
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = "none";
-        }}
-      />
+      {isVideo ? (
+        <video
+          src={src}
+          poster={poster || undefined}
+          className="h-full w-full object-cover"
+          muted
+          playsInline
+          loop
+          autoPlay
+          preload="metadata"
+          onCanPlay={(event) => {
+            event.currentTarget.play().catch(() => undefined);
+          }}
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover"
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+      )}
     </div>
   );
 }
 
 export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, limit, onPostClick }: SponsoredSidebarProps) {
   // Filter ads that have media
-  const adsWithMedia = ads.filter((ad) => ad.mediaUrl);
+  const adsWithMedia = ads.filter((ad) => ad.videoUrl || ad.mediaUrl);
   const hasContent = adsWithMedia.length > 0 || promotedPosts.length > 0;
 
   if (!hasContent) return null;
@@ -96,7 +119,9 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                     rel="noopener noreferrer"
                     className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
                   >
-                    {ad.mediaUrl && <MediaImage src={ad.mediaUrl} alt={ad.headline || ad.name} />}
+                    {(ad.videoUrl || ad.mediaUrl) && (
+                      <MediaPreview src={(ad.videoUrl || ad.mediaUrl)!} poster={ad.mediaUrl} alt={ad.headline || ad.name} />
+                    )}
                     <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
                     {ad.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>
@@ -110,7 +135,9 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                     href="/feed"
                     className="block border rounded-lg p-2.5 hover:bg-muted/30 hover:border-brand-500/30 transition-colors cursor-pointer"
                   >
-                    {ad.mediaUrl && <MediaImage src={ad.mediaUrl} alt={ad.headline || ad.name} />}
+                    {(ad.videoUrl || ad.mediaUrl) && (
+                      <MediaPreview src={(ad.videoUrl || ad.mediaUrl)!} poster={ad.mediaUrl} alt={ad.headline || ad.name} />
+                    )}
                     <p className="text-sm font-medium line-clamp-1">{ad.headline || ad.name}</p>
                     {ad.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.description}</p>
@@ -140,7 +167,7 @@ export function SponsoredSidebar({ ads = [], promotedPosts = [], grid = false, l
                     Boosted
                   </Badge>
                 </div>
-                {post.mediaUrl && <MediaImage src={post.mediaUrl} alt="" />}
+                {post.mediaUrl && <MediaPreview src={post.mediaUrl} alt="" />}
                 <p className="text-xs line-clamp-2">{post.content}</p>
                 {post.hasEarned === false && (
                   <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed">

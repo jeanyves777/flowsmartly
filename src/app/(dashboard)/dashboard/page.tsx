@@ -21,6 +21,7 @@ import {
   Image as ImageIcon,
   Palette,
   Play,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +81,7 @@ interface DashboardData {
   } | null;
   sidebar: {
     sponsoredAds: SponsoredAd[];
+    premierVideos: DashboardPremierVideo[];
     promotedPosts: Array<{
       id: string;
       content: string;
@@ -100,6 +102,23 @@ interface DashboardData {
     }>;
     trendingTopics: TrendingTopic[];
   };
+}
+
+interface DashboardPremierVideo {
+  id: string;
+  postId?: string;
+  title: string;
+  description: string;
+  videoUrl: string;
+  posterUrl: string | null;
+  destinationUrl: string;
+  ctaText: string;
+  authorName: string;
+  authorAvatar: string | null;
+  source: string;
+  viewCount?: number;
+  likeCount?: number;
+  commentCount?: number;
 }
 
 interface DashboardVisualPost {
@@ -140,6 +159,33 @@ const dashboardTips = [
   "Loading your dashboard...",
   "Crunching your numbers...",
   "Fetching latest stats...",
+];
+
+const FLOWSMARTLY_PREMIER_VIDEOS: DashboardPremierVideo[] = [
+  {
+    id: "flowsmartly-premier-creative",
+    title: "FlowCreative turns ideas into campaign-ready media",
+    description: "A premium FlowSmartly showcase for brands that need posts, ads, and creative assets moving fast.",
+    videoUrl: "/marketing/videos/flowsmartly-premier-creative.mp4",
+    posterUrl: "/marketing/flowsmartly-studio-team.jpg",
+    destinationUrl: "/content/posts",
+    ctaText: "Create a campaign",
+    authorName: "FlowSmartly",
+    authorAvatar: "/icon.png",
+    source: "FlowSmartly premier",
+  },
+  {
+    id: "flowsmartly-premier-growth",
+    title: "Launch, promote, and track in one workspace",
+    description: "A quick look at the operating system behind smarter content, automation, and performance.",
+    videoUrl: "/marketing/videos/flowsmartly-premier-growth.mp4",
+    posterUrl: "/marketing/transparent/flowsmartly-dashboard-cutout.png",
+    destinationUrl: "/analytics",
+    ctaText: "See analytics",
+    authorName: "FlowSmartly",
+    authorAvatar: "/icon.png",
+    source: "FlowSmartly premier",
+  },
 ];
 
 function feedTrendHref(tag: string): string {
@@ -207,8 +253,11 @@ export default function DashboardPage() {
   };
 
   // Only show ads that have media
-  const adsWithMedia = data?.sidebar.sponsoredAds.filter(ad => ad.mediaUrl) || [];
+  const adsWithMedia = data?.sidebar.sponsoredAds.filter(ad => ad.videoUrl || ad.mediaUrl) || [];
   const hasSponsored = adsWithMedia.length > 0 || (data?.sidebar.promotedPosts.length || 0) > 0;
+  const premierVideos = data?.sidebar.premierVideos?.length
+    ? data.sidebar.premierVideos
+    : FLOWSMARTLY_PREMIER_VIDEOS;
 
   // Map sidebar data to shared component types
   const promotedPosts: PromotedPost[] = (data?.sidebar.promotedPosts || []).map(p => ({
@@ -264,6 +313,14 @@ export default function DashboardPage() {
   const visibleShowcasePosts = visualPosts.length
     ? Array.from({ length: Math.min(3, visualPosts.length) }, (_, offset) => visualPosts[(postShowcaseIndex + offset) % visualPosts.length])
     : [];
+
+  const openDestination = (url: string) => {
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    router.push(url);
+  };
 
   return (
     <motion.div
@@ -486,6 +543,13 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
+          <motion.div variants={itemVariants}>
+            <PremierVideoShowcase
+              videos={premierVideos}
+              onSelect={(video) => openDestination(video.destinationUrl || (video.postId ? `/feed?post=${video.postId}` : "/feed"))}
+            />
+          </motion.div>
+
         </div>
 
         {/* Right Sidebar — Hidden on mobile */}
@@ -611,6 +675,10 @@ function DashboardPostCard({
               playsInline
               loop
               autoPlay
+              preload="metadata"
+              onCanPlay={(event) => {
+                event.currentTarget.play().catch(() => undefined);
+              }}
             />
           ) : (
             <img
@@ -663,6 +731,136 @@ function DashboardPostCard({
         </div>
       </div>
     </button>
+  );
+}
+
+function PremierVideoShowcase({
+  videos,
+  onSelect,
+}: {
+  videos: DashboardPremierVideo[];
+  onSelect: (video: DashboardPremierVideo) => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeVideo = videos[Math.min(activeIndex, Math.max(videos.length - 1, 0))];
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [videos.length]);
+
+  if (!activeVideo) return null;
+
+  return (
+    <Card className="overflow-hidden border-brand-500/20 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(124,58,237,0.14),transparent_36%)]">
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
+              <Play className="h-3.5 w-3.5 fill-current" />
+            </span>
+            Premier video spotlight
+            <Badge variant="secondary" className="text-[10px]">
+              {videos.some((video) => !video.id.startsWith("flowsmartly-")) ? "Client boosted" : "FlowSmartly premier"}
+            </Badge>
+          </CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 bg-brand-500 text-xs text-white hover:bg-brand-600"
+            onClick={() => onSelect(activeVideo)}
+          >
+            {activeVideo.ctaText || "Watch now"}
+            <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-1">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px]">
+          <button
+            type="button"
+            onClick={() => onSelect(activeVideo)}
+            className="group relative min-h-[300px] overflow-hidden rounded-2xl border bg-black text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <video
+              key={activeVideo.videoUrl}
+              src={activeVideo.videoUrl}
+              poster={activeVideo.posterUrl || undefined}
+              className="absolute inset-0 h-full w-full object-cover"
+              muted
+              playsInline
+              loop
+              autoPlay
+              preload="metadata"
+              onCanPlay={(event) => {
+                event.currentTarget.play().catch(() => undefined);
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/10" />
+            <div className="relative flex min-h-[300px] flex-col justify-between p-4 text-white sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Avatar className="h-8 w-8 border border-white/30">
+                    <AvatarImage src={activeVideo.authorAvatar || undefined} />
+                    <AvatarFallback className="bg-white/20 text-[10px] text-white">
+                      {activeVideo.authorName?.charAt(0) || "F"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold">{activeVideo.authorName}</p>
+                    <p className="truncate text-[10px] text-white/70">{activeVideo.source}</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/20 px-2 py-1 text-[10px] font-semibold backdrop-blur">
+                  Premier
+                </span>
+              </div>
+              <div className="max-w-2xl space-y-2">
+                <p className="text-2xl font-bold leading-tight sm:text-3xl">{activeVideo.title}</p>
+                <p className="line-clamp-2 text-sm text-white/82">{activeVideo.description}</p>
+                <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-white/75">
+                  {typeof activeVideo.viewCount === "number" && <span>{formatCount(activeVideo.viewCount)} views</span>}
+                  {typeof activeVideo.likeCount === "number" && <span>{formatCount(activeVideo.likeCount)} likes</span>}
+                  {typeof activeVideo.commentCount === "number" && <span>{formatCount(activeVideo.commentCount)} comments</span>}
+                </div>
+              </div>
+            </div>
+          </button>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            {videos.slice(0, 4).map((video, index) => (
+              <button
+                key={video.id}
+                type="button"
+                onClick={() => setActiveIndex(index)}
+                className={`group grid grid-cols-[88px_minmax(0,1fr)] gap-2 rounded-xl border p-2 text-left transition hover:border-brand-500/40 hover:bg-background/70 ${
+                  index === activeIndex ? "border-brand-500 bg-background/85 shadow-sm" : "bg-background/55"
+                }`}
+              >
+                <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
+                  <video
+                    src={video.videoUrl}
+                    poster={video.posterUrl || undefined}
+                    className="h-full w-full object-cover"
+                    muted
+                    playsInline
+                    loop
+                    autoPlay
+                    preload="metadata"
+                  />
+                  <span className="absolute inset-0 grid place-items-center bg-black/10 text-white opacity-0 transition group-hover:opacity-100">
+                    <Play className="h-4 w-4 fill-current" />
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="line-clamp-2 text-xs font-semibold">{video.title}</p>
+                  <p className="mt-1 truncate text-[10px] text-muted-foreground">{video.authorName}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -23,6 +23,10 @@ function formatCount(n: number): string {
   return String(n);
 }
 
+function isVideoUrl(url?: string | null): boolean {
+  return !!url?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
+}
+
 interface TrendingPostsProps {
   posts: TrendingPost[];
   onPostClick?: (post: TrendingPost) => void;
@@ -76,15 +80,30 @@ export function TrendingPosts({ posts, onPostClick, grid = false, limit }: Trend
                 </div>
                 {post.mediaUrl && (
                   <div className="w-full aspect-video rounded-md overflow-hidden bg-muted mb-2">
-                    <img
-                      src={post.mediaUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
+                    {isVideoUrl(post.mediaUrl) ? (
+                      <video
+                        src={post.mediaUrl}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        loop
+                        autoPlay
+                        preload="metadata"
+                        onCanPlay={(event) => {
+                          event.currentTarget.play().catch(() => undefined);
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={post.mediaUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    )}
                   </div>
                 )}
                 <p className="text-xs line-clamp-2">{post.content}</p>

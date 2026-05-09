@@ -4299,11 +4299,11 @@ export default function StrategyAutomationPage() {
         animate={{ opacity: 1, y: 0 }}
         className="overflow-hidden rounded-2xl border bg-card shadow-sm"
       >
-      <div className="flex flex-col gap-3 border-b bg-background/95 p-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2">
-            <Target className="h-4 w-4 text-brand-500" />
-            <span className="max-w-[260px] truncate text-sm font-semibold">{strategy.name}</span>
+      <div className="flex flex-col gap-2 border-b bg-background/95 p-2 sm:p-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex max-w-full items-center gap-2 rounded-xl border bg-muted/30 px-2 py-2 sm:px-3">
+            <Target className="h-3.5 w-3.5 shrink-0 text-brand-500 sm:h-4 sm:w-4" />
+            <span className="max-w-[170px] truncate text-xs font-semibold sm:max-w-[260px] sm:text-sm">{strategy.name}</span>
           </div>
           <SegmentedButton active={view === "plan"} onClick={() => setView("plan")} icon={Target}>
             Plan
@@ -4315,36 +4315,48 @@ export default function StrategyAutomationPage() {
             Sync
           </SegmentedButton>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={openStrategyBuilder}>
-            <Wand2 className="mr-2 h-4 w-4" />
-            Improve strategy
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <Button variant="outline" onClick={openStrategyBuilder} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Improve strategy">
+            <Wand2 className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Improve strategy</span>
           </Button>
           {!upcomingOpen && (
-            <Button variant="outline" onClick={() => setUpcomingOpen(true)}>
-              <Clock className="mr-2 h-4 w-4" />
-              Upcoming
+            <Button variant="outline" onClick={() => setUpcomingOpen(true)} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Upcoming">
+              <Clock className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Upcoming</span>
             </Button>
           )}
-          <Button variant="outline" onClick={syncNow} disabled={syncing}>
-            {syncing ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Sync
+          <Button variant="outline" onClick={syncNow} disabled={syncing} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Sync">
+            {syncing ? <AISpinner className="h-4 w-4 sm:mr-2" /> : <RefreshCw className="h-4 w-4 sm:mr-2" />}
+            <span className="hidden sm:inline">Sync</span>
           </Button>
-          <Button variant="outline" onClick={() => openNewTask()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Item
+          <Button variant="outline" asChild className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Reports">
+            <Link href="/content/strategy/reports">
+              <BarChart3 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Reports</span>
+            </Link>
           </Button>
-          <Button variant="outline" onClick={() => openNewAutomation()}>
-            <Wand2 className="mr-2 h-4 w-4" />
-            One-off automation
+          <Button variant="outline" onClick={() => openNewTask()} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Add item">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Item</span>
+          </Button>
+          <Button variant="outline" onClick={() => openNewAutomation()} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="One-off automation">
+            <Wand2 className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">One-off automation</span>
           </Button>
           <Button
             onClick={openAutomationBuilder}
             disabled={saving || tasks.length === 0}
-            className="bg-brand-500 text-white hover:bg-brand-600"
+            className="h-9 bg-brand-500 px-2 text-xs text-white hover:bg-brand-600 sm:px-3 sm:text-sm"
+            title="Strategy planner"
           >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Strategy planner {qualifiedAutomationTasks.length || ""}
+            <Sparkles className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Strategy planner</span>
+            {!!qualifiedAutomationTasks.length && (
+              <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px]">
+                {qualifiedAutomationTasks.length}
+              </span>
+            )}
           </Button>
         </div>
       </div>
@@ -4398,14 +4410,15 @@ function SegmentedButton({
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition",
+        "inline-flex h-9 items-center gap-1.5 rounded-xl border px-2 text-xs font-medium transition sm:h-10 sm:gap-2 sm:px-3 sm:text-sm",
         active
           ? "border-brand-500 bg-brand-500 text-white"
           : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
       )}
+      title={typeof children === "string" ? children : undefined}
     >
-      <Icon className="h-4 w-4" />
-      {children}
+      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+      <span className="hidden sm:inline">{children}</span>
     </button>
   );
 }
