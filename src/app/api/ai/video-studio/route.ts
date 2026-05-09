@@ -5,6 +5,7 @@ import { veoClient } from "@/lib/ai/veo-client";
 import { xaiClient } from "@/lib/ai/xai-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { soraClient } from "@/lib/ai/sora-client";
+import { editImagesXaiFirst } from "@/lib/ai/image-router";
 import { ai } from "@/lib/ai/client";
 import {
   generateSlideshowScript,
@@ -151,13 +152,16 @@ export async function POST(req: NextRequest) {
         send({ type: "start", mode: "video", designId: design.id });
 
         try {
-          const refImage = await prepareVideoReferenceAnchor(
+          const refImage = await prepareVideoReferenceAnchor({
             referenceImageUrls,
-            session.userId,
+            userId: session.userId,
             speechMode,
             aspectRatio,
-            (message) => send({ type: "status", message })
-          );
+            prompt: prompt.trim(),
+            category,
+            style,
+            onStatus: (message) => send({ type: "status", message }),
+          });
           // Build enhanced prompt with style, continuity, and duration guidance.
           const enhancedPrompt = buildVideoPrompt(prompt.trim(), category, style, duration, referenceImageUrls.length, speechMode);
           const negativePrompt = buildVideoNegativePrompt(referenceImageUrls.length, speechMode);
@@ -655,25 +659,107 @@ function buildVideoNegativePrompt(referenceImageCount: number, speechMode: Video
   return `${anatomyRules}, ${productRules}, low quality, blurry, cropped face, cropped product, watermark, fake AI provider mark`;
 }
 
-async function prepareVideoReferenceAnchor(
-  referenceImageUrls: string[],
-  userId: string,
-  speechMode: VideoSpeechMode,
-  aspectRatio: string,
-  onStatus?: (message: string) => void
-): Promise<string | undefined> {
+async function prepareVideoReferenceAnchor({
+  referenceImageUrls,
+  userId,
+  speechMode,
+  aspectRatio,
+  prompt,
+  category,
+  style,
+  onStatus,
+}: {
+  referenceImageUrls: string[];
+  userId: string;
+  speechMode: VideoSpeechMode;
+  aspectRatio: string;
+  prompt: string;
+  category: string;
+  style: string;
+  onStatus?: (message: string) => void;
+}): Promise<string | undefined> {
   if (referenceImageUrls.length === 0) return undefined;
-  if (referenceImageUrls.length === 1) return referenceImageUrls[0] || undefined;
 
   try {
-    onStatus?.("Locking uploaded person and product references...");
-    const board = await buildVideoReferenceBoard(referenceImageUrls.slice(0, 3), speechMode, aspectRatio);
-    const key = `ai-video-studio/reference-anchors/${userId}/${nanoid(8)}.jpg`;
-    return await uploadToS3(key, board, "image/jpeg");
+    onStatus?.("Building a polished first frame from your references...");
+    const frame = await buildPolishedVideoReferenceFrame({
+      referenceImageUrls: referenceImageUrls.slice(0, 4),
+      speechMode,
+      aspectRatio,
+      prompt,
+      category,
+      style,
+    });
+    const key = `ai-video-studio/reference-anchors/${userId}/first-frame-${nanoid(8)}.jpg`;
+    return await uploadToS3(key, frame, "image/jpeg");
   } catch (error) {
-    console.warn("[VideoStudio] Could not build multi-reference anchor; falling back to first reference:", error);
-    return referenceImageUrls[0] || undefined;
+    console.warn("[VideoStudio] Could not build polished video reference frame; continuing without raw reference frame:", error);
+    onStatus?.("Continuing without showing raw reference uploads in the first frame...");
+    return undefined;
   }
+}
+
+async function buildPolishedVideoReferenceFrame({
+  referenceImageUrls,
+  speechMode,
+  aspectRatio,
+  prompt,
+  category,
+  style,
+}: {
+  referenceImageUrls: string[];
+  speechMode: VideoSpeechMode;
+  aspectRatio: string;
+  prompt: string;
+  category: string;
+  style: string;
+}): Promise<Buffer> {
+  const vertical = aspectRatio === "9:16" || speechMode === "talking_review";
+  const square = aspectRatio === "1:1";
+  const width = vertical ? 1080 : square ? 1080 : 1280;
+  const height = vertical ? 1920 : square ? 1080 : 720;
+  const imageBuffers = (
+    await Promise.all(referenceImageUrls.map((url) => resolveVideoReferenceBuffer(url)))
+  ).filter((buffer): buffer is Buffer => !!buffer);
+
+  if (imageBuffers.length === 0) {
+    throw new Error("No reference images could be read for the video first frame.");
+  }
+
+  const promptText = [
+    `Create the polished first frame for a ${Math.round(width)}x${Math.round(height)} ${category.replace(/_/g, " ")} video.`,
+    `Style: ${style}. Speech mode: ${speechMode}.`,
+    "",
+    "This image will be used as the first frame for image-to-video generation.",
+    "It must already look like the final professional scene, not a reference board, not a template preview, not a collage, and not the raw uploaded image.",
+    "Do not show upload borders, cards, split panels, labels like reference/template, or any before/after layout.",
+    "Use the reference images only as locked identity sources.",
+    imageBuffers.length > 1
+      ? "Reference roles: first image is the main presenter/primary identity when it contains a person; later images are exact product/site/design assets. Combine them into one believable polished scene."
+      : "Reference role: preserve the exact product/person/site identity while improving the environment into a polished ad-ready scene.",
+    "If a product is provided, preserve its exact shape, color, material, labels, silhouette, and distinctive details. Do not invent a different product or logo.",
+    "If a person is provided, preserve the face identity, skin tone, hairstyle, clothing style, and natural anatomy. Show exactly one person with normal two-arm/two-hand anatomy.",
+    "For talking reviews, create a premium TikTok/Reels-style review opening frame: clean background, product visible beside the presenter or held naturally, optional tasteful review UI cues, no product covering the face.",
+    "For website walkthroughs, show the site/offer as a polished screen or device scene without fake UI copy.",
+    "Do not add fake brand logos, provider marks, watermarks, or random text. Any required brand logo will be applied separately by FlowSmartly.",
+    "",
+    `User request: ${prompt}`,
+  ].join("\n");
+
+  const result = await editImagesXaiFirst(promptText, imageBuffers, width, height, {
+    quality: "high",
+    intent: speechMode === "talking_review" ? "identity" : "creative",
+  });
+
+  if (!result.base64) {
+    throw new Error("Image provider returned no polished video first frame.");
+  }
+
+  return sharp(Buffer.from(result.base64, "base64"))
+    .rotate()
+    .resize(width, height, { fit: "cover" })
+    .jpeg({ quality: 92 })
+    .toBuffer();
 }
 
 async function buildVideoReferenceBoard(

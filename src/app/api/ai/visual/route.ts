@@ -541,6 +541,9 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "",
     "Brand identity:",
     JSON.stringify(Object.keys(brandIdentity as Record<string, unknown>).length > 0 ? brandIdentity : fallbackBrand, null, 2),
+    params.brandLogo
+      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and is composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template."
+      : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
     params.prompt,
@@ -965,14 +968,15 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
+    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly will composite it after generation. Leave the top-left logo area clean. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image.`;
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {
-        designPrompt += `\n- Brand name: "${brandName}" — display it in the top-left corner`;
+        designPrompt += `\n- Brand name text: "${brandName}" may appear as plain readable text only if needed; do not pair it with an invented symbol or fake logo mark.`;
       }
     }
   } else if (showBrandName && brandName) {
-    designPrompt += `\n- Brand name: "${brandName}" — display prominently in the top-left corner`;
+    designPrompt += `\n- Brand name: "${brandName}" — display prominently as text only. Do not invent a logo mark, seal, monogram, or emblem.`;
   }
 
   // Social media handles — explicit bottom-left positioning
@@ -1037,6 +1041,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
 - ABSOLUTELY NO NESTING: The design must NOT appear as a card, flyer, or poster placed ON TOP of another background. There is only ONE layer — the design itself, filling every pixel of the output image. No outer margins, no surrounding space, no drop shadow on the overall image.${antiMockupExtra}
 - NO AI BRANDING: Do NOT add any AI provider logos (xAI, Grok, OpenAI, Google, Gemini, DALL-E, etc.), watermarks, or AI-generated badges. This is the user's design — it must contain ONLY the user's brand elements.
+- NO FABRICATED LOGOS: Do NOT generate any new logo, fake logo, abstract brand symbol, seal, monogram, crest, icon mark, or copied template logo. ${hasLogo ? "The exact real logo will be added by FlowSmartly after generation, so keep the logo area clean." : "If no real logo is provided, use brand name text only."}
 - TYPOGRAPHY QUALITY: Every word must be perfectly spelled, fully visible, and razor-sharp. Use a premium sans-serif typeface. Headlines should have dramatic size contrast with body text. The text layout should look like it was done by a professional graphic designer — balanced, aligned, and beautifully spaced.
 - TEXT READABILITY: If text sits on a photo or complex background, you MUST ensure contrast — use a dark overlay behind light text, or a light overlay behind dark text, or add a strong drop shadow. No text should ever be hard to read.
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design

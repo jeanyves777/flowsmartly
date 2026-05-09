@@ -22,6 +22,11 @@ import {
   Palette,
   Play,
   ExternalLink,
+  MapPin,
+  Quote,
+  SearchCheck,
+  ShieldCheck,
+  Star,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +84,7 @@ interface DashboardData {
     totalEarnings: string;
     specialties: string | null;
   } | null;
+  googleListing: DashboardGoogleListing;
   sidebar: {
     sponsoredAds: SponsoredAd[];
     premierVideos: DashboardPremierVideo[];
@@ -102,6 +108,38 @@ interface DashboardData {
     }>;
     trendingTopics: TrendingTopic[];
   };
+}
+
+interface DashboardGoogleListing {
+  connected: boolean;
+  profileId: string | null;
+  businessName: string;
+  address: string | null;
+  website: string | null;
+  phone: string | null;
+  listingUrl: string | null;
+  status: string;
+  rating: number | null;
+  reviewCount: number;
+  seoHealthScore: number;
+  citationScore: number;
+  coverageScore: number;
+  reviewScore: number;
+  consistencyScore: number;
+  responseRate: number | null;
+  lastCheckedAt: string | null;
+  reviews: Array<{
+    id: string;
+    authorName: string;
+    authorAvatarUrl: string | null;
+    rating: number;
+    text: string | null;
+    sentiment: string | null;
+    reviewUrl: string | null;
+    publishedAt: string | null;
+  }>;
+  recommendations: string[];
+  connectHref: string;
 }
 
 interface DashboardPremierVideo {
@@ -550,6 +588,18 @@ export default function DashboardPage() {
             />
           </motion.div>
 
+          {data?.googleListing && (
+            <motion.div variants={itemVariants}>
+              <GoogleListingShowcase
+                listing={data.googleListing}
+                onConnect={() => router.push(data.googleListing.connectHref || "/listsmartly/onboarding")}
+                onOpenListing={() => {
+                  if (data.googleListing.listingUrl) openDestination(data.googleListing.listingUrl);
+                }}
+              />
+            </motion.div>
+          )}
+
         </div>
 
         {/* Right Sidebar — Hidden on mobile */}
@@ -861,6 +911,213 @@ function PremierVideoShowcase({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function GoogleListingShowcase({
+  listing,
+  onConnect,
+  onOpenListing,
+}: {
+  listing: DashboardGoogleListing;
+  onConnect: () => void;
+  onOpenListing: () => void;
+}) {
+  const connected = listing.connected;
+  const score = Math.max(0, Math.min(100, listing.seoHealthScore || 0));
+  const displayRating = listing.rating ? listing.rating.toFixed(1) : connected ? "0.0" : "4.8";
+  const displayReviews = listing.reviewCount || (connected ? 0 : 128);
+  const reviews = listing.reviews.length
+    ? listing.reviews.slice(0, 3)
+    : [
+        {
+          id: "preview-1",
+          authorName: "Google customer",
+          authorAvatarUrl: null,
+          rating: 5,
+          text: "The service was clear, fast, and easy to trust. This review preview shows what FlowSmartly can monitor once Google is connected.",
+          sentiment: "positive",
+          reviewUrl: null,
+          publishedAt: null,
+        },
+        {
+          id: "preview-2",
+          authorName: "Local buyer",
+          authorAvatarUrl: null,
+          rating: 5,
+          text: "Great communication and a professional experience from start to finish.",
+          sentiment: "positive",
+          reviewUrl: null,
+          publishedAt: null,
+        },
+      ];
+
+  return (
+    <Card className="overflow-hidden border-emerald-500/20 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.13),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.12),transparent_34%)]">
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+              <SearchCheck className="h-3.5 w-3.5" />
+            </span>
+            Google listing and SEO health
+            <Badge
+              variant="secondary"
+              className={`text-[10px] ${connected ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}
+            >
+              {connected ? "Live profile" : "Connect preview"}
+            </Badge>
+          </CardTitle>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+            onClick={connected && listing.listingUrl ? onOpenListing : onConnect}
+          >
+            {connected && listing.listingUrl ? "Open listing" : "Connect Google"}
+            <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-1">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="rounded-2xl border bg-background/78 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-white shadow-sm">
+                    <span className="text-lg font-black text-blue-600">G</span>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-bold">{listing.businessName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {listing.address || listing.website || "Google Business Profile"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="rounded-xl bg-amber-500/10 px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xl font-bold text-amber-600">{displayRating}</span>
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                    </div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {formatCount(displayReviews)} reviews
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-blue-500/10 px-3 py-2">
+                    <p className="text-xl font-bold text-blue-600">{score || (connected ? 0 : 82)}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">SEO health</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-500/10 px-3 py-2">
+                    <p className="text-xl font-bold text-emerald-600">{listing.coverageScore || (connected ? 0 : 76)}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Coverage</p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-2"
+                style={{
+                  background: `conic-gradient(rgb(16 185 129) ${(score || (connected ? 0 : 82)) * 3.6}deg, rgb(229 231 235) 0deg)`,
+                }}
+              >
+                <div className="grid h-full w-full place-items-center rounded-full bg-background text-center">
+                  <p className="text-lg font-black">{score || (connected ? 0 : 82)}</p>
+                  <p className="-mt-1 text-[9px] uppercase text-muted-foreground">score</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <GoogleMetric icon={ShieldCheck} label="Citations" value={listing.citationScore || (connected ? 0 : 74)} />
+              <GoogleMetric icon={SearchCheck} label="Reviews" value={listing.reviewScore || (connected ? 0 : 88)} />
+              <GoogleMetric icon={MapPin} label="Consistency" value={listing.consistencyScore || (connected ? 0 : 79)} />
+            </div>
+
+            {!connected && (
+              <div className="mt-4 rounded-xl border border-dashed border-emerald-500/35 bg-emerald-500/10 p-3">
+                <p className="text-sm font-semibold">Connect your Google profile to make this live.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  FlowSmartly will pull reviews, listing health, local SEO signals, and monthly visibility recommendations into this space.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border bg-background/78 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold">Google reviews</p>
+                <p className="text-xs text-muted-foreground">
+                  {connected ? "Recent customer proof from the connected listing." : "Preview of the review display after connection."}
+                </p>
+              </div>
+              <Quote className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="grid gap-2">
+              {reviews.map((review) => (
+                <a
+                  key={review.id}
+                  href={review.reviewUrl || listing.listingUrl || "#"}
+                  onClick={(event) => {
+                    if (!connected || (!review.reviewUrl && !listing.listingUrl)) event.preventDefault();
+                  }}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border bg-background/70 p-3 transition hover:border-emerald-500/40 hover:bg-emerald-500/5"
+                >
+                  <div className="flex items-start gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={review.authorAvatarUrl || undefined} />
+                      <AvatarFallback className="bg-emerald-500/10 text-[10px] text-emerald-700">
+                        {review.authorName?.charAt(0) || "G"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-xs font-semibold">{review.authorName}</p>
+                        <span className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, index) => (
+                            <Star
+                              key={index}
+                              className={`h-3 w-3 ${index < review.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                            />
+                          ))}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {review.text || "Rating-only Google review"}
+                      </p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GoogleMetric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-xl bg-background/80 p-2.5">
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-emerald-600" />
+        <span className="text-sm font-bold">{Math.round(value)}</span>
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
+    </div>
   );
 }
 

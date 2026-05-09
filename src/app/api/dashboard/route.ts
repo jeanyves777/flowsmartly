@@ -23,6 +23,27 @@ function isVideoUrl(value?: string | null): boolean {
   return !!value?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
 }
 
+function parseJsonObject(value?: string | null): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function googleReviewScore(rating: number, reviewCount: number): number {
+  if (!rating || !reviewCount) return 0;
+  const ratingScore = (Math.max(0, Math.min(5, rating)) / 5) * 70;
+  const volumeScore = Math.min(30, (reviewCount / 50) * 30);
+  return clampScore(ratingScore + volumeScore);
+}
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -61,6 +82,7 @@ export async function GET() {
       // Premier video placement for dashboard
       premierVideoAds,
       premierVideoPosts,
+      googleListingProfile,
     ] = await Promise.all([
       // Get user with credits
       prisma.user.findUnique({
@@ -294,6 +316,69 @@ export async function GET() {
           },
         },
       }),
+      prisma.listSmartlyProfile.findUnique({
+        where: { userId },
+        select: {
+          id: true,
+          businessName: true,
+          website: true,
+          address: true,
+          city: true,
+          state: true,
+          totalListings: true,
+          liveListings: true,
+          citationScore: true,
+          totalReviews: true,
+          averageRating: true,
+          setupComplete: true,
+          listings: {
+            where: { directory: { slug: "google-business" } },
+            take: 1,
+            select: {
+              status: true,
+              listingUrl: true,
+              businessName: true,
+              phone: true,
+              website: true,
+              address: true,
+              aiDescription: true,
+              verifiedAt: true,
+              lastCheckedAt: true,
+              directory: { select: { name: true, slug: true } },
+            },
+          },
+          reviews: {
+            where: { platform: { in: ["google", "Google", "google-business", "Google Business"] } },
+            orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+            take: 5,
+            select: {
+              id: true,
+              authorName: true,
+              authorAvatarUrl: true,
+              rating: true,
+              text: true,
+              sentiment: true,
+              reviewUrl: true,
+              publishedAt: true,
+              createdAt: true,
+            },
+          },
+          presenceReports: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              overallScore: true,
+              citationScore: true,
+              coverageScore: true,
+              consistencyScore: true,
+              reviewScore: true,
+              responseRate: true,
+              recommendations: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
     ]);
 
     // Calculate engagement (likes + comments)
@@ -441,6 +526,84 @@ export async function GET() {
       trendingTopics: trending,
     };
 
+    const googleListing = (() => {
+      const googleBusiness = googleListingProfile?.listings?.[0] || null;
+      const richGoogle = parseJsonObject(googleBusiness?.aiDescription);
+      const richReviews = Array.isArray(richGoogle.recentReviews)
+        ? richGoogle.recentReviews
+            .filter((review): review is Record<string, unknown> => !!review && typeof review === "object")
+            .slice(0, 3)
+        : [];
+      const rating = Number(googleListingProfile?.averageRating || richGoogle.rating || 0);
+      const reviewCount = Number(googleListingProfile?.totalReviews || richGoogle.reviewCount || 0);
+      const latestReport = googleListingProfile?.presenceReports?.[0] || null;
+      const coverageScore = googleListingProfile?.totalListings
+        ? clampScore(((googleListingProfile.liveListings || 0) / Math.max(1, googleListingProfile.totalListings)) * 100)
+        : Number(latestReport?.coverageScore || 0);
+      const reviewHealth = Number(latestReport?.reviewScore || googleReviewScore(rating, reviewCount));
+      const seoHealthScore = clampScore(
+        Number(latestReport?.overallScore) ||
+        (
+          (Number(googleListingProfile?.citationScore || latestReport?.citationScore || 0) * 0.32) +
+          (coverageScore * 0.24) +
+          (Number(latestReport?.consistencyScore || 0) * 0.18) +
+          (reviewHealth * 0.26)
+        )
+      );
+      const connected = !!googleBusiness?.listingUrl || ["live", "claimed", "verified"].includes((googleBusiness?.status || "").toLowerCase());
+      const reviews = googleListingProfile?.reviews?.length
+        ? googleListingProfile.reviews.map((review) => ({
+            id: review.id,
+            authorName: review.authorName,
+            authorAvatarUrl: review.authorAvatarUrl,
+            rating: review.rating,
+            text: review.text,
+            sentiment: review.sentiment,
+            reviewUrl: review.reviewUrl,
+            publishedAt: (review.publishedAt || review.createdAt).toISOString(),
+          }))
+        : richReviews.map((review, index) => ({
+            id: `google-rich-${index}`,
+            authorName: String(review.author || "Google reviewer"),
+            authorAvatarUrl: null,
+            rating: Number(review.rating || 5),
+            text: typeof review.text === "string" ? review.text : null,
+            sentiment: null,
+            reviewUrl: googleBusiness?.listingUrl || null,
+            publishedAt: typeof review.timeAgo === "string" ? review.timeAgo : null,
+          }));
+
+      return {
+        connected,
+        profileId: googleListingProfile?.id || null,
+        businessName: googleBusiness?.businessName || googleListingProfile?.businessName || brandKit?.name || user?.name || "Your business",
+        address: googleBusiness?.address || googleListingProfile?.address || [googleListingProfile?.city, googleListingProfile?.state].filter(Boolean).join(", ") || null,
+        website: googleBusiness?.website || googleListingProfile?.website || null,
+        phone: googleBusiness?.phone || null,
+        listingUrl: googleBusiness?.listingUrl || null,
+        status: googleBusiness?.status || (googleListingProfile?.setupComplete ? "ready" : "not_connected"),
+        rating: rating || null,
+        reviewCount,
+        seoHealthScore,
+        citationScore: Number(googleListingProfile?.citationScore || latestReport?.citationScore || 0),
+        coverageScore,
+        reviewScore: reviewHealth,
+        consistencyScore: Number(latestReport?.consistencyScore || 0),
+        responseRate: latestReport?.responseRate ?? null,
+        lastCheckedAt: googleBusiness?.lastCheckedAt?.toISOString() || latestReport?.createdAt?.toISOString() || null,
+        reviews,
+        recommendations: latestReport?.recommendations ? (() => {
+          try {
+            const parsed = JSON.parse(latestReport.recommendations);
+            return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(0, 3) : [];
+          } catch {
+            return [];
+          }
+        })() : [],
+        connectHref: googleListingProfile?.id ? "/listsmartly/dashboard" : "/listsmartly/onboarding",
+      };
+    })();
+
     // Presign S3 URLs in dashboard media, sidebar data, avatars, etc.
     const presignedRecentActivity = await presignAllUrls(recentActivity);
     const presignedSidebar = await presignAllUrls(sidebar);
@@ -472,6 +635,7 @@ export async function GET() {
         },
         recentActivity: presignedRecentActivity,
         agentStats,
+        googleListing,
         sidebar: presignedSidebar,
       },
     });

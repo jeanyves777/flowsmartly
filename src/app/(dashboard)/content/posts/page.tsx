@@ -1766,10 +1766,9 @@ export default function ContentPostsPage() {
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
     const templateImageUrl = selectedFlowMediaTemplate?.thumbnail || null;
-    const flowVideoReferenceUrls = [
-      ...flowMediaReferenceUrls,
-      templateImageUrl,
-    ].filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4);
+    const flowVideoReferenceUrls = flowMediaReferenceUrls
+      .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+      .slice(0, 4);
     const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
     const videoCategoryBySpeechMode: Record<FlowVideoSpeechMode, string> = {
       talking_review: "testimonial",
