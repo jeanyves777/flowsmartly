@@ -28,6 +28,7 @@ import {
   HelpCircle,
   X,
   Building2,
+  Bug,
   Video,
   Palette,
   Target,
@@ -54,6 +55,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { openCreateModal } from "@/components/shared/create-modal";
+import { FeedbackReportModal } from "@/components/feedback/feedback-report-modal";
 import {
   isExternalNotificationActionUrl,
   normalizeNotificationActionUrl,
@@ -154,6 +156,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
 
   // Unread messages
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [showFeedbackReport, setShowFeedbackReport] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -416,6 +419,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   };
 
   return (
+    <>
     <header
       className={cn(
         "fixed top-0 right-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-200",
@@ -563,6 +567,22 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Open FlowCreative</TooltipContent>
+          </Tooltip>
+
+          {/* Feedback / Bug Report */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                onClick={() => setShowFeedbackReport(true)}
+              >
+                <Bug className="h-5 w-5" />
+                <span className="sr-only">Report issue</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Report issue</TooltipContent>
           </Tooltip>
 
           {/* Theme Toggle */}
@@ -816,5 +836,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
         </TooltipProvider>
       </div>
     </header>
+    <FeedbackReportModal open={showFeedbackReport} onOpenChange={setShowFeedbackReport} />
+    </>
   );
 }
