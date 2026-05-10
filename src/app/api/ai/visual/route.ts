@@ -57,6 +57,11 @@ type PipelineResult = {
   promptUsed: string;
   qualityReviews?: VisualQualityReview[];
 };
+type LogoPlacement = {
+  x?: number;
+  y?: number;
+  sizePercent?: number;
+};
 type EditRegion = {
   x: number;
   y: number;
@@ -78,6 +83,18 @@ function normalizeEditIntent(value: unknown): EditIntent {
 
 function normalizeQualityCheck(value: unknown): boolean {
   return value === true || value === "true" || value === "premium" || value === "quality";
+}
+
+function normalizeLogoPlacement(value: unknown): LogoPlacement | null {
+  if (!value || typeof value !== "object") return null;
+  const placement = value as Record<string, unknown>;
+  const normalized: LogoPlacement = {};
+  if (typeof placement.x === "number" && Number.isFinite(placement.x)) normalized.x = placement.x;
+  if (typeof placement.y === "number" && Number.isFinite(placement.y)) normalized.y = placement.y;
+  if (typeof placement.sizePercent === "number" && Number.isFinite(placement.sizePercent)) {
+    normalized.sizePercent = placement.sizePercent;
+  }
+  return normalized;
 }
 
 function inferEditIntent(prompt: string, editIntent: EditIntent): Exclude<EditIntent, "auto"> {
@@ -167,10 +184,11 @@ async function resolveImageToBuffer(urlOrPath: string): Promise<Buffer> {
 }
 
 async function addSoftShadow(subjectBuffer: Buffer): Promise<Buffer> {
-  const meta = await sharp(subjectBuffer).metadata();
+  const subjectWithAlpha = await sharp(subjectBuffer).ensureAlpha().png().toBuffer();
+  const meta = await sharp(subjectWithAlpha).metadata();
   const width = meta.width || 1;
   const height = meta.height || 1;
-  const alphaShadow = await sharp(subjectBuffer)
+  const alphaShadow = await sharp(subjectWithAlpha)
     .extractChannel("alpha")
     .blur(18)
     .toColourspace("b-w")
@@ -207,10 +225,96 @@ async function addSoftShadow(subjectBuffer: Buffer): Promise<Buffer> {
   })
     .composite([
       { input: dimmedShadow, left: 14, top: 20 },
-      { input: subjectBuffer, left: 0, top: 0 },
+      { input: subjectWithAlpha, left: 0, top: 0 },
     ])
     .png()
     .toBuffer();
+}
+
+function uniqueImageUrls(urls: Array<string | null | undefined>, max = 4): string[] {
+  return urls
+    .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+    .map((url) => url.trim())
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, max);
+}
+
+async function getBase64ImageDimensions(base64: string, fallbackW: number, fallbackH: number) {
+  try {
+    const meta = await sharp(Buffer.from(base64, "base64")).metadata();
+    return { width: meta.width || fallbackW, height: meta.height || fallbackH };
+  } catch {
+    return { width: fallbackW, height: fallbackH };
+  }
+}
+
+async function compositeReferenceSubject(
+  imageBase64: string,
+  subjectSource: string,
+  targetSize: string,
+): Promise<string> {
+  const [fallbackW, fallbackH] = targetSize.split("x").map(Number);
+  const bgBuffer = Buffer.from(imageBase64, "base64");
+  const bgMeta = await sharp(bgBuffer).metadata();
+  const bgW = bgMeta.width || fallbackW;
+  const bgH = bgMeta.height || fallbackH;
+  const originalSubject = await resolveImageToBuffer(subjectSource);
+  const subjectMeta = await sharp(originalSubject).metadata();
+  const sourceW = subjectMeta.width || 1;
+  const sourceH = subjectMeta.height || 1;
+  const sourceRatio = sourceW / sourceH;
+  const canvasRatio = bgW / bgH;
+  const treatAsWidePhoto = sourceRatio > 1.18 && canvasRatio < 1.45;
+
+  let subjectLayer: Buffer;
+  let left: number;
+  let top: number;
+
+  if (treatAsWidePhoto) {
+    const maxW = Math.round(bgW * 0.68);
+    const maxH = Math.round(bgH * 0.38);
+    const framedSubject = await sharp(originalSubject)
+      .rotate()
+      .resize(maxW, maxH, { fit: "inside", withoutEnlargement: false })
+      .png()
+      .toBuffer();
+    subjectLayer = await addSoftShadow(framedSubject);
+    const layerMeta = await sharp(subjectLayer).metadata();
+    const layerW = layerMeta.width || maxW;
+    const layerH = layerMeta.height || maxH;
+    left = Math.round((bgW - layerW) / 2);
+    top = Math.round(bgH * 0.055);
+  } else {
+    const cutout = await stripReferenceBg(originalSubject);
+    const subjectSrc = cutout || originalSubject;
+    const maxW = Math.round(bgW * (cutout ? 0.44 : 0.38));
+    const maxH = Math.round(bgH * (cutout ? 0.78 : 0.66));
+    const resized = await sharp(subjectSrc)
+      .rotate()
+      .resize(maxW, maxH, { fit: "inside", withoutEnlargement: false })
+      .png()
+      .toBuffer();
+    subjectLayer = await addSoftShadow(resized);
+    const layerMeta = await sharp(subjectLayer).metadata();
+    const layerW = layerMeta.width || maxW;
+    const layerH = layerMeta.height || maxH;
+    left = Math.round(bgW * 0.54);
+    top = Math.round(bgH - layerH - bgH * 0.06);
+    if (left + layerW > bgW - Math.round(bgW * 0.035)) {
+      left = bgW - layerW - Math.round(bgW * 0.035);
+    }
+  }
+
+  const layerMeta = await sharp(subjectLayer).metadata();
+  const layerW = layerMeta.width || 1;
+  const layerH = layerMeta.height || 1;
+  const safeLeft = Math.max(0, Math.min(left, bgW - layerW));
+  const safeTop = Math.max(0, Math.min(top, bgH - layerH));
+  const composited = await sharp(bgBuffer)
+    .composite([{ input: subjectLayer, left: safeLeft, top: safeTop }])
+    .png()
+    .toBuffer();
+  return composited.toString("base64");
 }
 
 // POST /api/ai/visual
@@ -237,6 +341,7 @@ export async function POST(request: NextRequest) {
       referenceImageUrl,
       referenceImageUrls,
       logoSizePercent,
+      logoPlacement,
       ctaText,
       editImageUrl,
       editRegion,
@@ -250,6 +355,7 @@ export async function POST(request: NextRequest) {
       channels,
       qualityCheck,
       qualityCheckEnabled,
+      compositeReferenceSubject,
     } = body;
 
     if (!prompt || !category || !size) {
@@ -325,6 +431,8 @@ export async function POST(request: NextRequest) {
         ? referenceImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4)
         : [],
       logoSizePercent: logoSizePercent || null,
+      logoPlacement: normalizeLogoPlacement(logoPlacement),
+      compositeReferenceSubject: compositeReferenceSubject === true,
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
       editRegion: editRegion || null,
@@ -475,6 +583,8 @@ interface PipelineParams {
   referenceImageUrl?: string | null;
   referenceImageUrls?: string[];
   logoSizePercent?: number | null;
+  logoPlacement?: LogoPlacement | null;
+  compositeReferenceSubject?: boolean;
   ctaText?: string | null;
   editImageUrl?: string | null;
   editIntent?: EditIntent;
@@ -515,8 +625,25 @@ function compactPromptValue(value: unknown): unknown {
   return value;
 }
 
+function sanitizeBrandIdentityForPrompt(value: unknown, hasRealLogo: boolean): Record<string, unknown> {
+  const compacted = compactPromptValue(value || {});
+  const source = compacted && typeof compacted === "object" && !Array.isArray(compacted)
+    ? compacted as Record<string, unknown>
+    : {};
+  const blocked = /(^|_)(logo|iconLogo|brandLogo|logoUrl|iconLogoUrl|wordmark|emblem|seal|crest)(_|$)/i;
+  const sanitized = Object.fromEntries(
+    Object.entries(source).filter(([key, item]) => {
+      if (blocked.test(key)) return false;
+      if (typeof item === "string" && /^https?:\/\//i.test(item) && /(logo|wordmark|brand|icon)/i.test(key)) return false;
+      return true;
+    })
+  );
+  if (hasRealLogo) sanitized.hasRealLogoForPostComposite = true;
+  return sanitized;
+}
+
 function buildRawBrandPrompt(params: PipelineParams): string {
-  const brandIdentity = compactPromptValue(params.brandIdentity || {});
+  const brandIdentity = sanitizeBrandIdentityForPrompt(params.brandIdentity || {}, Boolean(params.brandLogo));
   const fallbackBrand = compactPromptValue({
     name: params.brandName || undefined,
     colors: params.brandColors || undefined,
@@ -538,11 +665,14 @@ function buildRawBrandPrompt(params: PipelineParams): string {
       : params.referenceImageUrl
         ? "Reference assets: 1 uploaded image. Treat it as the exact product/person/site source, not loose inspiration."
         : null,
+    params.compositeReferenceSubject && (params.referenceImageUrl || params.referenceImageUrls?.length)
+      ? "Exact subject plan: FlowSmartly will place the first uploaded user reference into the final design after generation. Build a polished empty photo/product zone for it; do not generate a substitute person, group, face, product, logo, or lookalike."
+      : null,
     "",
     "Brand identity:",
-    JSON.stringify(Object.keys(brandIdentity as Record<string, unknown>).length > 0 ? brandIdentity : fallbackBrand, null, 2),
+    JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand, null, 2),
     params.brandLogo
-      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and is composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template."
+      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and is composited after generation. Leave the top-left logo coordinate clean and low-detail. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template."
       : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
@@ -836,21 +966,23 @@ async function runRawBrandPipeline(params: PipelineParams) {
   console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
   let base64: string | null;
   let model: string;
-  const referenceUrls = [
-    params.templateImageUrl,
-    params.referenceImageUrl,
-    ...(params.referenceImageUrls || []),
-  ]
-    .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
-    .filter((url, index, arr) => arr.indexOf(url) === index)
-    .slice(0, 4);
+  const subjectReferenceUrls = params.compositeReferenceSubject
+    ? uniqueImageUrls([params.referenceImageUrl, ...(params.referenceImageUrls || [])], 3)
+    : [];
+  const referenceUrls = params.compositeReferenceSubject
+    ? uniqueImageUrls([params.templateImageUrl], 1)
+    : uniqueImageUrls([
+        params.templateImageUrl,
+        params.referenceImageUrl,
+        ...(params.referenceImageUrls || []),
+      ], 4);
 
   if (referenceUrls.length > 0) {
     const refBuffers = await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)));
     const edited = await editImagesXaiFirst(promptUsed, refBuffers, params.width, params.height, {
       preferredProvider: params.provider,
       quality: "high",
-      intent: "exact",
+      intent: params.compositeReferenceSubject ? "creative" : "exact",
     });
     base64 = edited.base64;
     model = edited.model;
@@ -869,8 +1001,47 @@ async function runRawBrandPipeline(params: PipelineParams) {
     throw new Error("FlowAI did not return a usable image.");
   }
 
+  let finalBase64 = base64;
+  let finalSize = await getBase64ImageDimensions(finalBase64, params.width, params.height);
+
+  try {
+    finalBase64 = await trimWhiteBorder(finalBase64);
+    finalSize = await getBase64ImageDimensions(finalBase64, params.width, params.height);
+  } catch (trimErr) {
+    console.warn("[Visual] Raw brand auto-trim failed, using original:", trimErr);
+  }
+
+  if (params.compositeReferenceSubject && subjectReferenceUrls[0]) {
+    try {
+      console.log("[Visual] Compositing exact user reference subject after raw brand generation");
+      finalBase64 = await compositeReferenceSubject(
+        finalBase64,
+        subjectReferenceUrls[0],
+        `${finalSize.width}x${finalSize.height}`,
+      );
+      finalSize = await getBase64ImageDimensions(finalBase64, finalSize.width, finalSize.height);
+    } catch (subjectErr) {
+      console.error("[Visual] Exact subject compositing failed; delivering generated design:", subjectErr);
+    }
+  }
+
+  if (params.brandLogo) {
+    try {
+      console.log(`[Visual] Compositing real brand logo after raw brand generation on ${finalSize.width}x${finalSize.height}`);
+      finalBase64 = await compositeLogo(
+        finalBase64,
+        params.brandLogo,
+        `${finalSize.width}x${finalSize.height}`,
+        params.logoPlacement?.sizePercent || params.logoSizePercent || undefined,
+        params.logoPlacement || undefined,
+      );
+    } catch (logoErr) {
+      console.error("[Visual] Raw brand logo compositing failed:", logoErr);
+    }
+  }
+
   return {
-    imageUrl: `data:image/png;base64,${base64}`,
+    imageUrl: `data:image/png;base64,${finalBase64}`,
     pipeline: "direct" as const,
     model,
     promptUsed,
@@ -1358,7 +1529,13 @@ Output a polished, print-ready ${params.category} background. The photo will be 
   if (hasLogo && params.brandLogo) {
     try {
       console.log(`[Visual] Compositing logo on ${finalW}x${finalH} canvas...`);
-      finalBase64 = await compositeLogo(finalBase64, params.brandLogo, `${finalW}x${finalH}`, params.logoSizePercent || undefined);
+      finalBase64 = await compositeLogo(
+        finalBase64,
+        params.brandLogo,
+        `${finalW}x${finalH}`,
+        params.logoPlacement?.sizePercent || params.logoSizePercent || undefined,
+        params.logoPlacement || undefined,
+      );
       console.log("[Visual] Logo composited successfully");
     } catch (logoErr) {
       console.error("[Visual] Logo compositing failed:", logoErr);
@@ -1666,7 +1843,8 @@ async function compositeLogo(
   imageBase64: string,
   logoSource: string,
   targetSize: string,
-  sizePercent?: number
+  sizePercent?: number,
+  placement?: LogoPlacement,
 ): Promise<string> {
   const [imgW, imgH] = targetSize.split("x").map(Number);
 
@@ -1677,10 +1855,10 @@ async function compositeLogo(
   // Max height = same as max width (prevents extremely tall logos from dominating)
   const logoMaxH = logoMaxW;
   // Position: flush to top edge (y=0) and 1% from left — sits above all design content
-  const logoX = Math.round(imgW * 0.01);
-  const logoY = 0;
+  const normalizedX = Math.max(0, Math.min(0.95, typeof placement?.x === "number" ? placement.x : 0.03));
+  const normalizedY = Math.max(0, Math.min(0.95, typeof placement?.y === "number" ? placement.y : 0.03));
 
-  console.log(`[Visual] Logo: maxW=${logoMaxW}px at (${logoX}, ${logoY}) on ${imgW}x${imgH}`);
+  console.log(`[Visual] Logo: maxW=${logoMaxW}px at ${normalizedX},${normalizedY} on ${imgW}x${imgH}`);
 
   // Get logo buffer
   let logoBuffer: Buffer;
@@ -1717,6 +1895,11 @@ async function compositeLogo(
     .resize(logoMaxW, logoMaxH, { fit: "inside", withoutEnlargement: false })
     .png()
     .toBuffer();
+  const resizedMeta = await sharp(resizedLogo).metadata();
+  const renderedW = resizedMeta.width || logoMaxW;
+  const renderedH = resizedMeta.height || logoMaxH;
+  const logoX = Math.max(0, Math.min(Math.round(imgW * normalizedX), imgW - renderedW));
+  const logoY = Math.max(0, Math.min(Math.round(imgH * normalizedY), imgH - renderedH));
 
   // Composite onto design
   const designBuffer = Buffer.from(imageBase64, "base64");

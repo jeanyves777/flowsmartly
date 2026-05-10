@@ -46,10 +46,10 @@ export function buildEditIntentPlan(prompt: string, options: EditIntentOptions):
     bullets.push("Keep text readable and preserve existing wording unless the prompt asks to change it.");
   }
   if (ACTION_PATTERNS.logo.test(cleanPrompt) || options.brandName) {
-    bullets.push("Use the real brand logo only; do not invent, redraw, or replace it.");
+    bullets.push("Use the real brand logo only; do not invent, redraw, repaint, or replace it.");
   }
   if (ACTION_PATTERNS.face.test(cleanPrompt) || options.hasReferenceImages) {
-    bullets.push("Preserve the referenced person, product, or logo identity instead of generating a substitute.");
+    bullets.push("Preserve the referenced person, product, or logo identity instead of generating a substitute or lookalike.");
   }
   if (ACTION_PATTERNS.style.test(cleanPrompt)) {
     bullets.push("Apply the requested style without degrading sharpness or repainting unchanged areas.");
@@ -84,7 +84,7 @@ export function buildEditIntentPlan(prompt: string, options: EditIntentOptions):
       ? `- Treat the ${options.referenceCount || 1} uploaded reference image${(options.referenceCount || 1) === 1 ? "" : "s"} as exact visual anchors. Do not change the referenced face, product shape, logo, color, material, or important details.`
       : null,
     "- Preserve all unchanged areas, existing composition, image quality, resolution, sharp edges, and readable text.",
-    "- If an exact face, product, or logo cannot be preserved, leave that part unchanged instead of inventing a new one.",
+    "- If an exact face, product, or logo cannot be preserved, leave that part unchanged instead of inventing a new one. Never create a close resemblance as a substitute for the real person.",
   ]
     .filter(Boolean)
     .join("\n");

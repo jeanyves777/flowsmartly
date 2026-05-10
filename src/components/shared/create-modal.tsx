@@ -228,7 +228,7 @@ const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
   colors: brandKit?.colors || null,
   handles: brandKit?.handles || null,
   website: brandKit?.website || null,
-  logo: brandKit?.logo || brandKit?.iconLogo || null,
+  hasLogo: Boolean(brandKit?.logo || brandKit?.iconLogo),
 });
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
@@ -307,6 +307,114 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       helper: "Human story visual for maker, customer, founder, or community moments.",
       thumbnail: "/templates/flow-media/community-story-post.jpg",
       prompt: `Create a community story image for ${brandName}. Show an authentic customer, maker, team, or brand moment tied to ${value}; leave space for a short story caption, use the brand palette, and make the image feel native to ${channels}.`,
+    },
+    {
+      id: "appreciation-thank-you",
+      title: "Thank you card",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Event calendar",
+      helper: "Appreciation post for members, customers, donors, volunteers, or guests.",
+      prompt: `Create a warm appreciation social image for ${brandName}. Build a premium thank-you layout for ${audience}, with a strong headline area, a short gratitude message, tasteful celebration accents, and a clean exact-photo zone when a person or group reference is uploaded.`,
+    },
+    {
+      id: "holiday-greeting",
+      title: "Holiday greeting",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Holiday calendar",
+      helper: "Seasonal greeting for holidays, observances, and cultural moments.",
+      prompt: `Create a holiday greeting image for ${brandName}. Use the brand palette, seasonal visual cues, a polished greeting headline, and a small message area that feels appropriate for ${audience}. Keep the layout flexible so the specific holiday can be edited in the prompt.`,
+    },
+    {
+      id: "church-service-event",
+      title: "Service event",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Faith calendar",
+      helper: "Church service, worship night, conference, prayer meeting, or guest speaker.",
+      prompt: `Create a church or ministry event flyer for ${brandName}. Reserve clear areas for event title, date, time, location, speaker, and a short scripture or theme line. Use reverent premium styling, readable typography, and a clean photo zone for the exact pastor, speaker, choir, or church photo if uploaded.`,
+    },
+    {
+      id: "community-fundraiser",
+      title: "Fundraiser",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Community calendar",
+      helper: "Donation drive, nonprofit appeal, school fundraiser, or community cause.",
+      prompt: `Create a fundraiser announcement image for ${brandName}. Make the cause feel urgent but trustworthy, include a strong donation or participation CTA zone, leave space for a goal/progress detail, and design it for ${audience}.`,
+    },
+    {
+      id: "restaurant-special",
+      title: "Restaurant special",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Food calendar",
+      helper: "Daily special, weekend offer, holiday menu, catering push, or happy hour.",
+      prompt: `Create a restaurant or food special image for ${brandName}. Feature appetizing food or menu energy, reserve clear space for the special, price, valid date, ordering CTA, and contact details, and keep the design polished for ${channels}.`,
+    },
+    {
+      id: "retail-flash-sale",
+      title: "Flash sale",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Retail calendar",
+      helper: "Limited-time discount, product drop, holiday sale, or store promotion.",
+      prompt: `Create a retail flash sale image for ${brandName}. Make ${productFocus} feel desirable, add a bold offer zone, urgency cue, benefit callouts, and a CTA area for ${audience}. Keep the visual premium instead of cluttered.`,
+    },
+    {
+      id: "grand-opening",
+      title: "Grand opening",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Business calendar",
+      helper: "Opening day, ribbon cutting, new location, launch party, or open house.",
+      prompt: `Create a grand opening announcement image for ${brandName}. Reserve space for date, time, address, opening offer, and RSVP/visit CTA. Use celebratory but professional styling and make ${value} clear.`,
+    },
+    {
+      id: "webinar-workshop",
+      title: "Workshop",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Professional calendar",
+      helper: "Webinar, class, training, masterclass, coaching session, or consultation event.",
+      prompt: `Create a workshop or webinar promo image for ${brandName}. Design a clear speaker/topic layout with room for title, date, time, key takeaways, and registration CTA. Use a ${voice} tone and make it credible for ${audience}.`,
+    },
+    {
+      id: "weekly-schedule",
+      title: "Weekly schedule",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Content calendar",
+      helper: "Recurring weekly program, service times, class schedule, or content lineup.",
+      prompt: `Create a weekly schedule image for ${brandName}. Build a clean calendar-style layout with multiple time slots, a clear week label, readable hierarchy, and brand-colored dividers so ${audience} can scan it quickly.`,
+    },
+    {
+      id: "countdown-reminder",
+      title: "Countdown",
+      mode: "image",
+      aspect: "9:16",
+      badge: "Event calendar",
+      helper: "Countdown, last call, deadline reminder, registration close, or event tomorrow.",
+      prompt: `Create a vertical countdown reminder for ${brandName}. Use a big countdown number, short urgency headline, supporting detail area, and CTA zone. Keep it mobile-first, readable, and ready for stories or WhatsApp Status.`,
+    },
+    {
+      id: "awareness-campaign",
+      title: "Awareness day",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Awareness calendar",
+      helper: "Awareness month/day, educational post, civic moment, or advocacy campaign.",
+      prompt: `Create an awareness campaign image for ${brandName}. Use a respectful educational layout with a strong fact or message area, clear callout cards, and a soft CTA for ${audience}. Keep the tone credible and not sensational.`,
+    },
+    {
+      id: "birthday-anniversary",
+      title: "Celebration",
+      mode: "image",
+      aspect: "1:1",
+      badge: "Celebration calendar",
+      helper: "Birthday, anniversary, milestone, team spotlight, or member celebration.",
+      prompt: `Create a celebration image for ${brandName}. Make room for the person's name, milestone, short message, and exact uploaded photo if provided. Use tasteful festive accents, balanced typography, and the brand palette.`,
     },
     {
       id: "brand-product-reel",
@@ -710,17 +818,19 @@ function FlowCreativeModal({
       ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
       : null;
     const rawBrandIdentity = buildRawBrandIdentity(brandKit);
-    const logoPolicy = brandKit?.logo || brandKit?.iconLogo
-      ? "Logo lock: use only the exact provided brand logo asset. Do not invent, redraw, stylize, approximate, replace, or fabricate a logo or wordmark. If the logo cannot be preserved exactly, use brand-name text or leave logo space blank."
-      : "Do not invent a logo, icon, seal, or brand mark that the user did not provide.";
+    const hasBrandLogo = Boolean(brandKit?.logo || brandKit?.iconLogo);
+    const logoPolicy = hasBrandLogo
+      ? "Logo lock: the AI must not draw any logo, wordmark, emblem, seal, crest, mascot, badge, monogram, or abstract brand mark. Leave a clean low-detail logo safe zone in the top-left area; FlowSmartly will composite the real brand logo onto that coordinate after generation."
+      : "Do not invent a logo, icon, seal, crest, monogram, mascot, badge, or brand mark that the user did not provide. Use plain brand-name text only when the prompt explicitly asks for it.";
+    const exactReferencePolicy = flowMediaReferenceUrls.length
+      ? "Exact reference handling: FlowSmartly will use the first uploaded reference as the real subject source and composite it into the design after generation when possible. Do not synthesize a similar-looking face, group, product, or logo. Reserve a clean photo/product zone and design around it so the exact uploaded image can belong naturally in the final design."
+      : null;
     const imagePrompt = [
       prompt,
       templateImageUrl
         ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. Use it only for layout inspiration. Do not copy its text, fake logo, product, people, or brand.`
         : null,
-      flowMediaReferenceUrls.length
-        ? "Reference lock: preserve the exact person, face, product, logo, material, color, and key details from uploaded references. Do not substitute a different person, product, or brand mark."
-        : null,
+      exactReferencePolicy,
       logoPolicy,
       "Quality: keep the final visual sharp, high-resolution, readable, and free of unnecessary repainting in unchanged areas.",
     ]
@@ -788,6 +898,8 @@ function FlowCreativeModal({
             referenceImageUrl: primaryReferenceImageUrl,
             templateImageUrl,
             referenceImageUrls: flowMediaReferenceUrls,
+            compositeReferenceSubject: flowMediaReferenceUrls.length > 0,
+            logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
             ctaText: null,
             qualityCheckEnabled: flowMediaQualityCheckEnabled,
           }),
@@ -918,11 +1030,11 @@ function FlowCreativeModal({
               <div className="min-w-0">
                 <p className="text-sm font-bold">Create with FlowCreative anywhere</p>
                 <p className="text-sm text-muted-foreground">
-                  Pick a brand-aware template, tune the prompt, and generate with your real brand logo and references.
+                  Pick a brand-aware template, tune the prompt, and generate with exact references and a real logo overlay.
                 </p>
                 {brandKit?.logo || brandKit?.iconLogo ? (
                   <p className="mt-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
-                    Using the real brand kit logo, not a made-up logo.
+                    The AI leaves logo space blank; FlowSmartly adds the real brand kit logo after generation.
                   </p>
                 ) : null}
               </div>
@@ -1054,7 +1166,21 @@ function FlowCreativeModal({
                                 </span>
                               ) : null}
                             </div>
-                          ) : null}
+                          ) : (
+                            <div className="flex items-center justify-between gap-2 border-b bg-muted/30 p-3">
+                              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                                <Lightbulb className="h-4 w-4" />
+                              </span>
+                              <span className="rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-bold text-muted-foreground shadow-sm">
+                                {template.badge}
+                              </span>
+                              {isActive ? (
+                                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                  <Check className="h-3.5 w-3.5" />
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                           <div className="p-3">
                             <div className="flex items-center justify-between gap-2">
                               <span className="line-clamp-1 text-sm font-bold">{template.title}</span>
@@ -1126,7 +1252,7 @@ function FlowCreativeModal({
                   libraryTitle="Choose reference image"
                 />
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowCreative combines them into one identity anchor so the face and item stay locked instead of being reinvented.
+                  Add the exact product, person, style, or scene references. The first image is treated as the real subject source for image designs; for talking reviews, upload the presenter first and product second.
                 </p>
               </div>
 
