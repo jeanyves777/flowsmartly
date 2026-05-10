@@ -51,18 +51,11 @@ const planIcons: Record<string, React.ElementType> = {
   ENTERPRISE: Rocket,
 };
 
-const planColors: Record<string, string> = {
-  STARTER: "from-gray-500 to-gray-700",
-  PRO: "from-brand-500 to-purple-600",
-  BUSINESS: "from-blue-500 to-indigo-600",
-  ENTERPRISE: "from-orange-500 to-red-600",
-};
-
 const planAccentColors: Record<string, string> = {
-  STARTER: "from-gray-400 to-gray-600",
-  PRO: "from-brand-400 to-purple-500",
-  BUSINESS: "from-blue-400 to-indigo-500",
-  ENTERPRISE: "from-orange-400 to-red-500",
+  STARTER: "from-muted-foreground/30 to-muted-foreground/20",
+  PRO: "from-brand-500 to-brand-400",
+  BUSINESS: "from-brand-500 to-brand-400",
+  ENTERPRISE: "from-brand-500 to-brand-400",
 };
 
 const planDescriptions: Record<string, string> = {
@@ -70,13 +63,6 @@ const planDescriptions: Record<string, string> = {
   PRO: "For creators who want more power and professional tools",
   BUSINESS: "For teams and businesses scaling their marketing efforts",
   ENTERPRISE: "Full-featured solution for large organizations",
-};
-
-const planCreditBg: Record<string, string> = {
-  STARTER: "bg-gray-500/5",
-  PRO: "bg-purple-500/5",
-  BUSINESS: "bg-blue-500/5",
-  ENTERPRISE: "bg-orange-500/5",
 };
 
 const faqItems = [
@@ -340,35 +326,35 @@ function UpgradeContent() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-8 p-6"
+      className="w-full space-y-6"
     >
-      {/* Back Button */}
-      <div className="flex items-center">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings?tab=billing">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-      </div>
-
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-500/10 to-purple-500/10 border border-brand-500/10 px-8 py-10 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-purple-600 shadow-lg shadow-purple-500/25">
-          <Crown className="w-7 h-7 text-white" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/settings?tab=billing">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10">
+                <Crown className="w-4 h-4 text-brand-600" />
+              </span>
+              Upgrade plan
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Compare plan limits, monthly credits, and included tools without leaving the billing workflow.
+            </p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-2">Choose Your Plan</h1>
-        <p className="text-muted-foreground max-w-md mx-auto mb-6">
-          Unlock powerful AI tools and grow your business faster
-        </p>
 
-        {/* Billing Toggle */}
-        <div className="flex justify-center">
-          <div className="inline-flex items-center gap-2 p-1 rounded-xl bg-background/80 backdrop-blur-sm border shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="inline-flex items-center gap-1 rounded-lg border bg-background p-1">
             <button
               onClick={() => setBillingInterval("monthly")}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                 billingInterval === "monthly"
-                  ? "bg-foreground text-background shadow-sm"
+                  ? "bg-brand-500 text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -376,9 +362,9 @@ function UpgradeContent() {
             </button>
             <button
               onClick={() => setBillingInterval("yearly")}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                 billingInterval === "yearly"
-                  ? "bg-foreground text-background shadow-sm"
+                  ? "bg-brand-500 text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -393,18 +379,16 @@ function UpgradeContent() {
 
       {/* Plans Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-[520px] rounded-2xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4 items-start">
           {plans.map((plan) => {
             const Icon = planIcons[plan.id] || Sparkles;
-            const colorClass = planColors[plan.id] || "from-gray-500 to-gray-700";
             const accentColor = planAccentColors[plan.id] || "from-gray-400 to-gray-600";
-            const creditBg = planCreditBg[plan.id] || "bg-gray-500/5";
             const description = planDescriptions[plan.id] || "";
             const status = getPlanStatus(plan.id);
             const price = getPrice(plan);
@@ -414,12 +398,12 @@ function UpgradeContent() {
             return (
               <div
                 key={plan.id}
-                className={`relative flex flex-col rounded-2xl border bg-card text-card-foreground overflow-hidden transition-all duration-200 hover:shadow-lg ${
+                className={`relative flex flex-col rounded-lg border bg-card text-card-foreground overflow-hidden transition-colors hover:border-brand-500/40 ${
                   isCurrent
-                    ? "ring-2 ring-green-500/50 shadow-md"
+                    ? "border-green-500/40"
                     : isPopular
-                    ? "shadow-xl ring-2 ring-purple-500/50 scale-[1.02]"
-                    : "hover:shadow-md"
+                    ? "border-brand-500/50"
+                    : ""
                 }`}
               >
                 {/* Top Accent Strip */}
@@ -428,7 +412,7 @@ function UpgradeContent() {
                 {/* Popular Badge */}
                 {isPopular && !isCurrent && (
                   <div className="absolute top-1 right-0 z-10">
-                    <div className="bg-gradient-to-r from-brand-500 to-purple-600 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-md">
+                    <div className="bg-brand-500 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-sm">
                       Most Popular
                     </div>
                   </div>
@@ -437,7 +421,7 @@ function UpgradeContent() {
                 {/* Current Plan Badge */}
                 {isCurrent && (
                   <div className="absolute top-1 right-0 z-10">
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-md flex items-center gap-1">
+                    <div className="bg-green-500 text-white text-xs font-semibold px-3.5 py-1.5 rounded-bl-xl shadow-sm flex items-center gap-1">
                       <Check className="w-3 h-3" />
                       Current Plan
                     </div>
@@ -446,8 +430,8 @@ function UpgradeContent() {
 
                 <div className="flex flex-col flex-1 p-6 pt-5">
                   {/* Icon & Title */}
-                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${colorClass} flex items-center justify-center mb-4 shadow-sm`}>
-                    <Icon className="w-7 h-7 text-white" />
+                  <div className="w-12 h-12 rounded-lg bg-brand-500/10 flex items-center justify-center mb-4">
+                    <Icon className="w-6 h-6 text-brand-600" />
                   </div>
                   <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
                   <p className="text-sm text-muted-foreground min-h-[40px] mb-5">
@@ -481,7 +465,7 @@ function UpgradeContent() {
                   </div>
 
                   {/* Credits */}
-                  <div className={`flex items-center gap-2.5 p-3.5 rounded-xl ${creditBg} mb-5`}>
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-lg bg-muted/40 mb-5">
                     <Sparkles className="w-4.5 h-4.5 text-brand-500 shrink-0" />
                     <span className="font-semibold text-sm">
                       {plan.monthlyCredits.toLocaleString()} credits/month
@@ -511,7 +495,7 @@ function UpgradeContent() {
                       </Button>
                     ) : status === "upgrade" ? (
                       <Button
-                        className={`w-full bg-gradient-to-r ${colorClass} hover:opacity-90 text-white shadow-sm transition-all`}
+                        className="w-full"
                         onClick={() => handleSelectPlan(plan.id)}
                         disabled={isCheckingOut}
                       >
@@ -572,8 +556,8 @@ function UpgradeContent() {
       )}
 
       {/* FAQ Section - Accordion */}
-      <div className="max-w-2xl mx-auto w-full">
-        <h2 className="text-lg font-semibold mb-4 text-center">Frequently Asked Questions</h2>
+      <div className="w-full">
+        <h2 className="text-lg font-semibold mb-4">Frequently Asked Questions</h2>
         <div className="divide-y rounded-xl border overflow-hidden">
           {faqItems.map((item, index) => (
             <div key={index} className="bg-card">
@@ -633,8 +617,8 @@ function UpgradeContent() {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${planColors[confirmPlan.id] || "from-gray-500 to-gray-700"} flex items-center justify-center`}>
-                    <Crown className="w-4 h-4 text-white" />
+                  <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                    <Crown className="w-4 h-4 text-brand-600" />
                   </div>
                   Confirm Upgrade
                 </DialogTitle>
@@ -681,8 +665,8 @@ function UpgradeContent() {
 
                 {/* Payment Method */}
                 <div className="flex items-center gap-3 p-3 rounded-lg border bg-background">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
-                    <CreditCard className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-5 h-5 text-brand-600" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">
@@ -716,7 +700,7 @@ function UpgradeContent() {
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700"
+                  className="flex-1"
                   onClick={handleConfirmUpgrade}
                   disabled={isCheckingOut}
                 >

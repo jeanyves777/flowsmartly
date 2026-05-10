@@ -20,7 +20,6 @@ import { MediaUploader } from "@/components/shared/media-uploader";
 import { REGIONS } from "@/lib/constants/regions";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
-import { InlineUpgrade } from "@/components/payments/inline-upgrade";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,24 +66,6 @@ interface NotificationPrefs {
   productUpdates?: boolean;
 }
 
-interface PlanData {
-  id: string;
-  name: string;
-  monthlyCredits: number;
-  priceCentsMonthly: number;
-  priceCentsYearly: number;
-  features: string[];
-}
-
-interface CreditPackageData {
-  id: string;
-  credits: number;
-  bonus: number;
-  priceCents: number;
-  label: string;
-  priceFormatted: string;
-}
-
 interface PaymentMethod {
   id: string;
   brand: string;
@@ -129,10 +110,6 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [plans, setPlans] = useState<PlanData[]>([]);
-  const [allPlans, setAllPlans] = useState<PlanData[]>([]);
-  const [creditPackages, setCreditPackages] = useState<CreditPackageData[]>([]);
-  const [packagesLoading, setPackagesLoading] = useState(true);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
@@ -314,46 +291,9 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Version that returns data for InlineUpgrade callback
-  const fetchPaymentMethodsReturn = useCallback(async (): Promise<PaymentMethod[]> => {
-    try {
-      const response = await fetch("/api/payments/methods");
-      const data = await response.json();
-      if (data.success) {
-        const methods = data.data.paymentMethods || [];
-        setPaymentMethods(methods);
-        return methods;
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  }, []);
-
   useEffect(() => {
     fetchPaymentMethods();
   }, [fetchPaymentMethods]);
-
-  // Fetch plans and credit packages from API
-  useEffect(() => {
-    async function fetchPackages() {
-      try {
-        setPackagesLoading(true);
-        const response = await fetch("/api/payments/packages");
-        const data = await response.json();
-        if (data.success) {
-          setPlans(data.data.plans.filter((p: PlanData) => p.id !== "STARTER"));
-          setAllPlans(data.data.plans);
-          setCreditPackages(data.data.creditPackages);
-        }
-      } catch (err) {
-        // Silently fail - UI shows loading state
-      } finally {
-        setPackagesLoading(false);
-      }
-    }
-    fetchPackages();
-  }, []);
 
   useEffect(() => {
     const payment = searchParams.get("payment");
@@ -764,8 +704,8 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center">
-            <Settings className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-brand-600" />
           </div>
           Settings
         </h1>
@@ -801,11 +741,11 @@ export default function SettingsPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
+              className="space-y-5"
             >
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle>Profile Information</CardTitle>
                       <CardDescription>
@@ -1318,13 +1258,13 @@ export default function SettingsPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
+              className="space-y-5"
             >
               {/* Current Plan */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Crown className="w-5 h-5 text-orange-500" />
+                    <Crown className="w-5 h-5 text-brand-500" />
                     Current Plan
                   </CardTitle>
                 </CardHeader>
@@ -1332,42 +1272,33 @@ export default function SettingsPage() {
                   {isLoading ? (
                     <Skeleton className="h-24" />
                   ) : (
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-brand-500/10 to-purple-500/10 border border-brand-500/20">
+                    <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 md:flex-row md:items-center md:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-lg">{getPlanName(user?.plan || "STARTER")}</h3>
-                          <Badge>Active</Badge>
+                          <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">Active</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {user?.plan === "STARTER" || !user?.plan ? "Free forever" : "Manage your subscription"}
+                          {user?.plan === "STARTER" || !user?.plan ? "Free workspace access" : "Subscription managed by Stripe"}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {(user?.plan === "STARTER" || !user?.plan) ? (
-                          <Button onClick={() => document.getElementById("plan-selector")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
-                            <Zap className="w-4 h-4 mr-2" />
-                            Upgrade Plan
+                          <Button asChild>
+                            <Link href="/settings/upgrade">
+                              <Zap className="w-4 h-4 mr-2" />
+                              Upgrade plan
+                            </Link>
                           </Button>
                         ) : (
-                          <Button variant="outline" onClick={() => document.getElementById("plan-selector")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
-                            <ArrowUpRight className="w-4 h-4 mr-2" />
-                            Change Plan
+                          <Button variant="outline" asChild>
+                            <Link href="/settings/upgrade">
+                              <ArrowUpRight className="w-4 h-4 mr-2" />
+                              Change plan
+                            </Link>
                           </Button>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Inline Plan Selector */}
-                  {!isLoading && !packagesLoading && allPlans.length > 0 && (
-                    <div className="mt-6" id="plan-selector">
-                      <InlineUpgrade
-                        plans={allPlans}
-                        currentPlan={user?.plan || "STARTER"}
-                        paymentMethods={paymentMethods}
-                        onUpgradeSuccess={fetchProfile}
-                        onPaymentMethodsChanged={fetchPaymentMethodsReturn}
-                      />
                     </div>
                   )}
                 </CardContent>
@@ -1376,10 +1307,10 @@ export default function SettingsPage() {
               {/* Payment Methods */}
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
-                        <CreditCard className="w-5 h-5 text-blue-500" />
+                        <CreditCard className="w-5 h-5 text-brand-500" />
                         Payment Methods
                       </CardTitle>
                       <CardDescription>Manage your saved payment methods</CardDescription>
@@ -1396,14 +1327,14 @@ export default function SettingsPage() {
                         ) : (
                           <ExternalLink className="w-4 h-4 mr-2" />
                         )}
-                        Billing Portal
+                        Billing portal
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleAddPaymentMethod}
                       >
                         <Plus className="w-4 h-4 mr-2" />
-                        Add Card
+                        Add card
                       </Button>
                     </div>
                   </div>
@@ -1415,7 +1346,7 @@ export default function SettingsPage() {
                       <Skeleton className="h-16" />
                     </div>
                   ) : paymentMethods.length === 0 ? (
-                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <div className="rounded-lg border border-dashed p-8 text-center">
                       <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                       <p className="font-medium">No payment methods</p>
                       <p className="text-sm text-muted-foreground mb-4">
@@ -1437,12 +1368,12 @@ export default function SettingsPage() {
                           className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                              <CreditCard className="w-5 h-5 text-white" />
+                            <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                              <CreditCard className="w-5 h-5 text-brand-600" />
                             </div>
                             <div>
                               <p className="font-medium text-sm flex items-center gap-2">
-                                <span className="capitalize">{method.brand}</span> •••• {method.last4}
+                                <span className="capitalize">{method.brand}</span> ending in {method.last4}
                                 {method.isDefault && (
                                   <Badge variant="secondary" className="text-xs">Default</Badge>
                                 )}
@@ -1459,7 +1390,7 @@ export default function SettingsPage() {
                                 size="sm"
                                 onClick={() => handleSetDefaultPaymentMethod(method.id)}
                               >
-                                Set Default
+                                Set default
                               </Button>
                             )}
                             <Button
@@ -1483,6 +1414,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
+              <div className="grid gap-5 xl:grid-cols-2">
               {/* Buy Credits */}
               <Card>
                 <CardHeader>
@@ -1503,30 +1435,26 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {packagesLoading ? (
-                      <>
-                        <Skeleton className="h-32" />
-                        <Skeleton className="h-32" />
-                        <Skeleton className="h-32" />
-                        <Skeleton className="h-32" />
-                      </>
-                    ) : (
-                      creditPackages.map((pkg) => (
-                        <Link
-                          key={pkg.id}
-                          href={`/buy-credits?package=${pkg.id}`}
-                          className="p-4 rounded-xl border border-border hover:border-brand-500/50 transition-all text-left hover:shadow-md"
-                        >
-                          <Package className="w-5 h-5 text-brand-500 mb-2" />
-                          <p className="font-semibold text-sm">{pkg.label}</p>
-                          <p className="text-lg font-bold mt-1">{pkg.priceFormatted}</p>
-                          {pkg.bonus > 0 && (
-                            <p className="text-xs text-green-500 mt-1">+{pkg.bonus} bonus</p>
-                          )}
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
+                          <Package className="w-5 h-5 text-brand-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Credit packages have their own checkout page</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Compare packages, choose a saved card, and review the order without crowding billing settings.
+                          </p>
+                        </div>
+                      </div>
+                      <Button asChild>
+                        <Link href="/buy-credits">
+                          Open credit store
+                          <ArrowRight className="w-4 h-4 ml-2" />
                         </Link>
-                      ))
-                    )}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1537,7 +1465,7 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
-                        <Coins className="w-5 h-5 text-orange-500" />
+                        <Coins className="w-5 h-5 text-brand-500" />
                         Your Credits
                       </CardTitle>
                       <CardDescription>Your remaining credit balance</CardDescription>
@@ -1614,6 +1542,7 @@ export default function SettingsPage() {
                   )}
                 </CardContent>
               </Card>
+              </div>
             </motion.div>
           )}
 

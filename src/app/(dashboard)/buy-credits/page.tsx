@@ -256,22 +256,39 @@ function BuyCreditsContent() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-4xl mx-auto"
+      className="w-full space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings?tab=billing">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            Buy Credits
-          </h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/settings?tab=billing">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-brand-600" />
+              </div>
+              Buy Credits
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose credits, confirm a saved payment method, and review the order before charging the card.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/credits/history">
+              View history
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/settings/upgrade">
+              Upgrade plan
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -326,8 +343,10 @@ function BuyCreditsContent() {
         })}
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-5">
       {/* Current Credits Banner */}
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-500/5 border border-brand-500/20">
+      <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
         <Zap className="w-5 h-5 text-brand-500 shrink-0" />
         <span className="text-sm">
           Current balance:{" "}
@@ -358,13 +377,13 @@ function BuyCreditsContent() {
               </CardHeader>
               <CardContent>
                 {packagesLoading ? (
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                     {[1, 2, 3, 4].map((i) => (
                       <Skeleton key={i} className="h-48" />
                     ))}
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                     {packages.map((pkg) => {
                       const isSelected = selectedPackageId === pkg.id;
                       const totalCredits = pkg.credits + pkg.bonus;
@@ -374,9 +393,9 @@ function BuyCreditsContent() {
                           key={pkg.id}
                           onClick={() => setSelectedPackageId(pkg.id)}
                           className={cn(
-                            "relative p-5 rounded-xl border-2 text-left transition-all hover:shadow-md",
+                            "relative p-5 rounded-lg border text-left transition-all hover:bg-muted/40",
                             isSelected
-                              ? "border-brand-500 bg-brand-500/5 shadow-md"
+                              ? "border-brand-500 bg-brand-500/5"
                               : "border-border hover:border-brand-500/50"
                           )}
                         >
@@ -520,7 +539,7 @@ function BuyCreditsContent() {
                               "w-12 h-12 rounded-lg flex items-center justify-center",
                               isSelected
                                 ? "bg-brand-500 text-white"
-                                : "bg-gradient-to-br from-blue-500 to-purple-600 text-white"
+                                : "bg-brand-500 text-white"
                             )}
                           >
                             <CreditCard className="w-6 h-6" />
@@ -657,7 +676,7 @@ function BuyCreditsContent() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Package summary */}
-                <div className="p-5 rounded-xl bg-gradient-to-br from-brand-500/5 to-purple-500/5 border border-brand-500/20">
+                <div className="p-5 rounded-lg bg-muted/30 border">
                   <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-3">
                     Credit Package
                   </h3>
@@ -689,7 +708,7 @@ function BuyCreditsContent() {
                     Payment Method
                   </h3>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center">
                       <CreditCard className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -758,7 +777,6 @@ function BuyCreditsContent() {
                 onClick={handleConfirmPurchase}
                 disabled={isCheckingOut}
                 size="lg"
-                className="bg-gradient-to-r from-brand-500 to-purple-600 hover:from-brand-600 hover:to-purple-700"
               >
                 {isCheckingOut ? (
                   <>
@@ -768,7 +786,7 @@ function BuyCreditsContent() {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Confirm Purchase — {selectedPackage.priceFormatted}
+                    Confirm purchase - {selectedPackage.priceFormatted}
                   </>
                 )}
               </Button>
@@ -776,6 +794,94 @@ function BuyCreditsContent() {
           </motion.div>
         )}
       </AnimatePresence>
+        </div>
+
+        <aside className="space-y-5 xl:sticky xl:top-4 xl:self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Order summary</CardTitle>
+              <CardDescription>Updates as the customer moves through checkout.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {selectedPackage ? (
+                <>
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Selected package</p>
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{selectedPackage.label}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(selectedPackage.credits + selectedPackage.bonus).toLocaleString()} total credits
+                        </p>
+                      </div>
+                      <p className="font-semibold">{selectedPackage.priceFormatted}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-muted-foreground">Base</p>
+                      <p className="font-medium">{selectedPackage.credits.toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-muted-foreground">Bonus</p>
+                      <p className="font-medium text-green-600">+{selectedPackage.bonus.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Select a package to preview credits, bonus, and final balance.
+                </div>
+              )}
+
+              <div className="rounded-lg border p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Current credits</span>
+                  <span className="font-medium">{currentCredits.toLocaleString()}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground">After purchase</span>
+                  <span className="font-semibold">
+                    {selectedPackage
+                      ? (currentCredits + selectedPackage.credits + selectedPackage.bonus).toLocaleString()
+                      : currentCredits.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Checkout flow</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {STEPS.map((s, i) => {
+                const StepIcon = s.icon;
+                const isActive = s.id === step;
+                const isDone = i < stepIndex;
+                return (
+                  <div key={s.id} className="flex items-center gap-3 text-sm">
+                    <div className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-lg border",
+                      isActive && "border-brand-500 bg-brand-500/10 text-brand-600",
+                      isDone && "border-green-500/30 bg-green-500/10 text-green-600",
+                      !isActive && !isDone && "bg-muted/40 text-muted-foreground"
+                    )}>
+                      {isDone ? <Check className="w-4 h-4" /> : <StepIcon className="w-4 h-4" />}
+                    </div>
+                    <span className={isActive ? "font-medium" : "text-muted-foreground"}>{s.label}</span>
+                  </div>
+                );
+              })}
+              <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
+                <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-600" />
+                Stripe securely processes payment details. FlowSmartly never stores raw card numbers.
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
 
       {/* Add Card Modal */}
       <AddCardForm

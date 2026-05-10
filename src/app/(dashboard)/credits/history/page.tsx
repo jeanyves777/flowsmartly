@@ -193,29 +193,42 @@ export default function CreditHistoryPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-4xl mx-auto"
+      className="w-full space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings?tab=billing">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-white" />
-            </div>
-            Credits & Billing
-          </h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/settings?tab=billing">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-brand-600" />
+              </div>
+              Credits & Billing
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review credit movement, invoices, receipts, and billing activity in one workspace view.
+            </p>
+          </div>
         </div>
-        <Button size="sm" asChild>
-          <Link href="/buy-credits">
-            <Sparkles className="w-4 h-4 mr-2" />
-            Buy Credits
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/settings/upgrade">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Upgrade plan
+            </Link>
+          </Button>
+          <Button size="sm" asChild>
+            <Link href="/buy-credits">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Buy credits
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
