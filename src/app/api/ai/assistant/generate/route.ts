@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { geminiText } from "@/lib/ai/gemini-text-client";
-import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
+import { buildAssistantPrompt, buildAssistantRuntimePrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
@@ -101,7 +101,10 @@ export async function POST(req: NextRequest) {
     // creation lives in Studio AI — so user requests like "generate
     // an image of …" get a referral instead of a hallucinated answer.
     const baseSystem = await buildAssistantPrompt(session.userId);
-    const systemPrompt = `${baseSystem}\n\nIMPORTANT — you are FlowAI, the text/writing/thinking assistant. Image and video creation live in Studio AI (a separate tool at /studio/create). If the user asks for an image, video, flyer, poster, or any visual design, briefly recommend they use Studio AI for that — do NOT pretend you can generate visuals. You are a text-only collaborator: brainstorming, copywriting, strategy, planning, summarization, analysis.`;
+    const systemPrompt = buildAssistantRuntimePrompt(
+      `${baseSystem}\n\nIMPORTANT — you are FlowAI, the text/writing/thinking assistant. Image and video creation live in Studio AI (a separate tool at /studio/create). If the user asks you to create/render/generate the actual finished image, video, flyer, poster, or visual design, briefly recommend they use Studio AI for that — do NOT pretend you can generate visuals. If the user asks for a prompt, brief, wording, copy, caption, or instructions for a visual, provide that text directly.`,
+      message.trim()
+    );
 
     const messages = history.map((m) => ({
       role: m.role as "user" | "assistant",

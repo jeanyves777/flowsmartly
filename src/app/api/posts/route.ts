@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
     // Format posts for response
     const formattedPosts = postsToReturn.map(post => ({
       id: post.id,
-      content: post.caption,
+      content: post.caption || "",
       mediaUrls: (() => {
         const fromMeta = parseStringArray(post.mediaMeta);
         return fromMeta.length ? fromMeta : post.mediaUrl ? [post.mediaUrl] : [];

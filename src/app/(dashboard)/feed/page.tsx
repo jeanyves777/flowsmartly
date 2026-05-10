@@ -191,6 +191,44 @@ interface MediaFile {
   height: number | null;
 }
 
+function normalizeFeedPost(post: Post): Post {
+  const author = post.author || ({} as Post["author"]);
+  return {
+    ...post,
+    content: typeof post.content === "string" ? post.content : "",
+    mediaUrls: Array.isArray(post.mediaUrls)
+      ? post.mediaUrls.filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+      : [],
+    author: {
+      id: author.id || "",
+      name: author.name || "User",
+      username: author.username || "user",
+      avatarUrl: author.avatarUrl || null,
+      isVerified: !!author.isVerified,
+    },
+    likesCount: Number.isFinite(post.likesCount) ? post.likesCount : 0,
+    commentsCount: Number.isFinite(post.commentsCount) ? post.commentsCount : 0,
+    sharesCount: Number.isFinite(post.sharesCount) ? post.sharesCount : 0,
+    viewCount: Number.isFinite(post.viewCount) ? post.viewCount : 0,
+    isLiked: !!post.isLiked,
+    isBookmarked: !!post.isBookmarked,
+    isPromoted: !!post.isPromoted,
+    hasEarned: !!post.hasEarned,
+    createdAt: post.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeSuggestedUser(user: SuggestedUser): SuggestedUser {
+  return {
+    ...user,
+    name: user.name || "User",
+    username: user.username || "user",
+    avatarUrl: user.avatarUrl || null,
+    followersCount: Number.isFinite(user.followersCount) ? user.followersCount : 0,
+    isFollowing: !!user.isFollowing,
+  };
+}
+
 function normalizeTrendTag(tag: string | null | undefined): string | null {
   const normalized = tag?.trim().replace(/^#/, "").toLowerCase();
   return normalized || null;
@@ -337,9 +375,11 @@ export default function FeedPage() {
       }
 
       // Separate regular posts from ad campaign cards
-      const allItems: FeedItem[] = data.data.posts;
-      const regularPosts = allItems.filter((item): item is Post => !("isAdCard" in item));
-      const adItems = allItems.filter((item): item is AdCampaignItem => "isAdCard" in item);
+      const allItems: FeedItem[] = Array.isArray(data.data?.posts) ? data.data.posts : [];
+      const regularPosts = allItems
+        .filter((item): item is Post => !!item && !("isAdCard" in item))
+        .map(normalizeFeedPost);
+      const adItems = allItems.filter((item): item is AdCampaignItem => !!item && "isAdCard" in item);
 
       if (cursor) {
         setPosts(prev => [...prev, ...regularPosts]);
@@ -366,7 +406,7 @@ export default function FeedPage() {
 
       if (data.success) {
         setTrendingTopics(data.data.trendingTopics || []);
-        setSuggestedUsers(data.data.suggestedUsers || []);
+        setSuggestedUsers(Array.isArray(data.data.suggestedUsers) ? data.data.suggestedUsers.map(normalizeSuggestedUser) : []);
       }
     } catch (err) {
       console.error("Failed to fetch trending:", err);
@@ -1202,7 +1242,7 @@ export default function FeedPage() {
         throw new Error(data.error?.message || "Failed to create post");
       }
 
-      const newPost = data.data.post;
+      const newPost = normalizeFeedPost(data.data.post);
       newPost.isPromoted = newPost.isPromoted ?? false;
       newPost.hasEarned = false;
       if (!newPost.author.avatarUrl && brandLogo) {
@@ -1271,7 +1311,7 @@ export default function FeedPage() {
       });
       const data = await response.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to update post");
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editingContent } : p));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: editingContent || "" } : p));
       setEditingPostId(null);
       setEditingContent("");
       toast({ title: "Post updated" });

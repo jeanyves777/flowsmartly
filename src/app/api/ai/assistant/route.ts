@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { geminiText } from "@/lib/ai/gemini-text-client";
-import { buildAssistantPrompt } from "@/lib/ai/assistant-prompt";
+import { buildAssistantPrompt, buildAssistantRuntimePrompt } from "@/lib/ai/assistant-prompt";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Build system prompt with brand context
-    const systemPrompt = await buildAssistantPrompt(session.userId);
+    const systemPrompt = buildAssistantRuntimePrompt(await buildAssistantPrompt(session.userId), message.trim());
 
     // Build messages array for Claude
     const messages = history.map((m) => ({

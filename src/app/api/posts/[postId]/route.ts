@@ -145,7 +145,7 @@ export async function GET(
       data: await presignAllUrls({
         post: {
           id: post.id,
-          content: post.caption,
+          content: post.caption || "",
           mediaUrls: (() => {
             const fromMeta = parseStringArray(post.mediaMeta);
             return fromMeta.length ? fromMeta : post.mediaUrl ? [post.mediaUrl] : [];
@@ -322,7 +322,7 @@ export async function PATCH(
       data: await presignAllUrls({
         post: {
           id: updatedPost.id,
-          content: updatedPost.caption,
+          content: updatedPost.caption || "",
           mediaUrls: (() => {
             const fromMeta = parseStringArray(updatedPost.mediaMeta);
             return fromMeta.length ? fromMeta : updatedPost.mediaUrl ? [updatedPost.mediaUrl] : [];
