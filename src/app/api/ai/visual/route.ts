@@ -350,6 +350,7 @@ export async function POST(request: NextRequest) {
       editReferenceImageUrl,
       editReferenceImageUrls,
       provider,
+      strictProvider,
       promptMode,
       brandIdentity,
       channels,
@@ -444,6 +445,7 @@ export async function POST(request: NextRequest) {
           ? [editReferenceImageUrl]
           : [],
       provider: selectedProvider,
+      strictProvider: strictProvider === true,
       promptMode: promptMode === "raw_brand" ? "raw_brand" : "direct",
       brandIdentity: brandIdentity && typeof brandIdentity === "object" ? brandIdentity : null,
       channels: typeof channels === "string" ? channels : null,
@@ -603,6 +605,7 @@ interface PipelineParams {
   // provider (Gemini) so the AI can blend the reference into the canvas —
   // see runEditPipeline below.
   provider: ImageProvider;
+  strictProvider?: boolean;
   promptMode?: "direct" | "raw_brand";
   brandIdentity?: Record<string, unknown> | null;
   channels?: string | null;
@@ -700,9 +703,12 @@ async function generateImageWithFallback(
   provider: ImageProvider,
   prompt: string,
   width: number,
-  height: number
+  height: number,
+  strictProvider = false
 ): Promise<{ base64: string | null; model: string; provider: RoutedImageProvider }> {
-  const providerOrder = getProviderOrderWithGoogleFallback(provider);
+  const providerOrder: RoutedImageProvider[] = strictProvider
+    ? [provider]
+    : getProviderOrderWithGoogleFallback(provider);
   let lastError: unknown = null;
 
   for (const candidate of providerOrder) {
@@ -983,6 +989,7 @@ async function runRawBrandPipeline(params: PipelineParams) {
       preferredProvider: params.provider,
       quality: "high",
       intent: params.compositeReferenceSubject ? "creative" : "exact",
+      strictProvider: params.strictProvider,
     });
     base64 = edited.base64;
     model = edited.model;
@@ -991,7 +998,8 @@ async function runRawBrandPipeline(params: PipelineParams) {
       params.provider,
       promptUsed,
       params.width,
-      params.height
+      params.height,
+      params.strictProvider
     );
     base64 = generated.base64;
     model = generated.model;
@@ -1324,7 +1332,7 @@ Output a polished, print-ready ${params.category} background. The photo will be 
   const useEditApi = useTemplateEdit;
 
   if (!useEditApi) {
-    const generated = await generateImageWithFallback(provider, generationPrompt, width, height);
+    const generated = await generateImageWithFallback(provider, generationPrompt, width, height, params.strictProvider);
     base64 = generated.base64;
     model = generated.model;
   } else {

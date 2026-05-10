@@ -115,9 +115,12 @@ export async function generateImageXaiFirst(
     preferredProvider?: ImageProvider | null;
     quality?: "low" | "medium" | "high";
     transparent?: boolean;
+    strictProvider?: boolean;
   } = {},
 ): Promise<RoutedImageResult> {
-  const providerOrder = xaiFirstImageGenerationProviderOrder(options.preferredProvider);
+  const providerOrder = options.strictProvider && options.preferredProvider
+    ? [options.preferredProvider]
+    : xaiFirstImageGenerationProviderOrder(options.preferredProvider);
   let lastError: unknown = null;
 
   for (const provider of providerOrder) {
@@ -165,12 +168,15 @@ export async function editImagesXaiFirst(
     preferredProvider?: ImageProvider | null;
     quality?: "low" | "medium" | "high";
     intent?: ImageEditIntent;
+    strictProvider?: boolean;
   } = {},
 ): Promise<RoutedImageResult> {
-  const providerOrder = referencePreservingEditProviderOrder(
-    options.preferredProvider,
-    options.intent ?? "identity",
-  );
+  const providerOrder = options.strictProvider && options.preferredProvider
+    ? [options.preferredProvider]
+    : referencePreservingEditProviderOrder(
+        options.preferredProvider,
+        options.intent ?? "identity",
+      );
   let lastError: unknown = null;
 
   for (const provider of providerOrder) {
