@@ -1540,21 +1540,6 @@ export default function FeedPage() {
     );
   };
 
-  if (error && posts.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => fetchPosts()} variant="outline">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   // Merge posts for feed display — promoted posts stay in their original position
   const feedItems: FeedItem[] = useMemo(() => {
     return [...posts];
@@ -1600,6 +1585,21 @@ export default function FeedPage() {
 
     return () => observer.disconnect();
   }, [feedItems, trackPostAnalytics]);
+
+  if (error && posts.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => fetchPosts()} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

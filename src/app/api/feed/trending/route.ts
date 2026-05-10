@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
+function parseStringArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // GET /api/feed/trending - Get trending topics and suggested users
 export async function GET() {
   try {
@@ -20,7 +30,7 @@ export async function GET() {
     // Count hashtag occurrences
     const hashtagCounts: Record<string, number> = {};
     recentPosts.forEach(post => {
-      const hashtags = JSON.parse(post.hashtags || "[]");
+      const hashtags = parseStringArray(post.hashtags);
       hashtags.forEach((tag: string) => {
         const normalizedTag = tag.toLowerCase();
         hashtagCounts[normalizedTag] = (hashtagCounts[normalizedTag] || 0) + 1;

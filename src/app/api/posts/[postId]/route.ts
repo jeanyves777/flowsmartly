@@ -15,6 +15,16 @@ function isUniqueViolation(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+function parseStringArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // GET /api/posts/[postId] - Get a single post
 export async function GET(
   request: NextRequest,
@@ -136,11 +146,12 @@ export async function GET(
         post: {
           id: post.id,
           content: post.caption,
-          mediaUrls: post.mediaMeta
-            ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
-            : post.mediaUrl ? [post.mediaUrl] : [],
+          mediaUrls: (() => {
+            const fromMeta = parseStringArray(post.mediaMeta);
+            return fromMeta.length ? fromMeta : post.mediaUrl ? [post.mediaUrl] : [];
+          })(),
           mediaType: post.mediaType,
-          hashtags: JSON.parse(post.hashtags || "[]"),
+          hashtags: parseStringArray(post.hashtags),
           author: {
             id: post.user.id,
             name: post.user.name,
@@ -312,9 +323,10 @@ export async function PATCH(
         post: {
           id: updatedPost.id,
           content: updatedPost.caption,
-          mediaUrls: updatedPost.mediaMeta
-            ? (() => { try { return JSON.parse(updatedPost.mediaMeta); } catch { return updatedPost.mediaUrl ? [updatedPost.mediaUrl] : []; } })()
-            : updatedPost.mediaUrl ? [updatedPost.mediaUrl] : [],
+          mediaUrls: (() => {
+            const fromMeta = parseStringArray(updatedPost.mediaMeta);
+            return fromMeta.length ? fromMeta : updatedPost.mediaUrl ? [updatedPost.mediaUrl] : [];
+          })(),
           updatedAt: updatedPost.updatedAt.toISOString(),
         },
       }),

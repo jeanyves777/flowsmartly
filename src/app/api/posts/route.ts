@@ -5,6 +5,16 @@ import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
 
+function parseStringArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // GET /api/posts - Get feed posts
 export async function GET(request: NextRequest) {
   try {
@@ -133,11 +143,12 @@ export async function GET(request: NextRequest) {
     const formattedPosts = postsToReturn.map(post => ({
       id: post.id,
       content: post.caption,
-      mediaUrls: post.mediaMeta
-        ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
-        : post.mediaUrl ? [post.mediaUrl] : [],
+      mediaUrls: (() => {
+        const fromMeta = parseStringArray(post.mediaMeta);
+        return fromMeta.length ? fromMeta : post.mediaUrl ? [post.mediaUrl] : [];
+      })(),
       mediaType: post.mediaType,
-      hashtags: JSON.parse(post.hashtags || "[]"),
+      hashtags: parseStringArray(post.hashtags),
       author: {
         id: post.user.id,
         name: post.user.name,

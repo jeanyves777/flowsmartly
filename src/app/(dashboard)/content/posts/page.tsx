@@ -57,6 +57,7 @@ import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { openCreateModal } from "@/components/shared/create-modal";
 import { PLATFORM_META, PLATFORM_ORDER, PLATFORM_REQUIREMENTS } from "@/components/shared/social-platform-icons";
 import { socialAccountDestinationId } from "@/lib/social/destinations";
 
@@ -2547,7 +2548,7 @@ export default function ContentPostsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowFlowAIMediaModal(true)}
+                  onClick={() => openCreateModal("image", { target: { type: "contentPost" } })}
                   className="h-8 gap-1.5 border-cyan-500/30 bg-cyan-500/5 text-xs font-semibold text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
                 >
                   <ImagePlus className="h-3.5 w-3.5" />

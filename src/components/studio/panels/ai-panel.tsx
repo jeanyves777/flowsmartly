@@ -20,6 +20,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
+import { buildEditIntentPlan, type EditIntentPlan } from "@/lib/ai/edit-intent";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +55,7 @@ export function AiPanel() {
   const [visualCreditCost, setVisualCreditCost] = useState(15);
   const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
   const [instruction, setInstruction] = useState("");
+  const [pendingEditPlan, setPendingEditPlan] = useState<EditIntentPlan | null>(null);
   const [referenceUrls, setReferenceUrls] = useState<string[]>([]);
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export function AiPanel() {
     ? `${effectiveRegion.w}x${effectiveRegion.h}px region`
     : "Whole canvas";
 
-  const handleApplyEdit = async () => {
+  const executeEdit = async (plan: EditIntentPlan) => {
     const cleanInstruction = instruction.trim();
     if (!cleanInstruction) {
       toast({ title: "Describe what to change", variant: "destructive" });
@@ -125,7 +127,7 @@ export function AiPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: cleanInstruction,
+          prompt: plan.refinedPrompt,
           category: "social_post",
           size: `${canvasWidth}x${canvasHeight}`,
           style: "modern",
@@ -158,6 +160,7 @@ export function AiPanel() {
       }
 
       setInstruction("");
+      setPendingEditPlan(null);
       setAiSelectedRegion(null);
       toast({ title: "Edit applied" });
     } catch (error) {
@@ -169,6 +172,34 @@ export function AiPanel() {
     } finally {
       setIsImproving(false);
     }
+  };
+
+  const handleApplyEdit = () => {
+    const cleanInstruction = instruction.trim();
+    if (!cleanInstruction) {
+      toast({ title: "Describe what to change", variant: "destructive" });
+      return;
+    }
+
+    const plan = buildEditIntentPlan(cleanInstruction, {
+      source: "studio",
+      hasReferenceImages: referenceUrls.length > 0,
+      referenceCount: referenceUrls.length,
+      hasRegion: !!effectiveRegion,
+      qualityCheckEnabled,
+    });
+
+    if (plan.needsConfirmation) {
+      setPendingEditPlan(plan);
+      return;
+    }
+
+    void executeEdit(plan);
+  };
+
+  const handleConfirmEdit = () => {
+    if (!pendingEditPlan) return;
+    void executeEdit(pendingEditPlan);
   };
 
   return (
@@ -185,7 +216,10 @@ export function AiPanel() {
         <div className="space-y-3">
           <textarea
             value={instruction}
-            onChange={(event) => setInstruction(event.target.value)}
+            onChange={(event) => {
+              setInstruction(event.target.value);
+              setPendingEditPlan(null);
+            }}
             placeholder="Tell FlowAI what to change, remove, improve, replace, or match..."
             className="min-h-[150px] w-full resize-none rounded-md border bg-background p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
@@ -204,7 +238,10 @@ export function AiPanel() {
               <AccordionContent className="pb-3">
                 <MediaUploader
                   value={referenceUrls}
-                  onChange={setReferenceUrls}
+                  onChange={(urls) => {
+                    setReferenceUrls(urls);
+                    setPendingEditPlan(null);
+                  }}
                   multiple
                   maxFiles={4}
                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -237,7 +274,10 @@ export function AiPanel() {
                   </div>
                   <Switch
                     checked={qualityCheckEnabled}
-                    onCheckedChange={setQualityCheckEnabled}
+                    onCheckedChange={(value) => {
+                      setQualityCheckEnabled(value);
+                      setPendingEditPlan(null);
+                    }}
                     aria-label="Enable quality check"
                   />
                 </div>
@@ -340,13 +380,33 @@ export function AiPanel() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+
+          {pendingEditPlan ? (
+            <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed">
+              <div className="mb-1 font-semibold text-amber-900 dark:text-amber-100">Confirm edit before spending credits</div>
+              <p className="text-amber-900/90 dark:text-amber-100/90">{pendingEditPlan.confirmReason}</p>
+              <ul className="mt-2 space-y-1 text-amber-900/90 dark:text-amber-100/90">
+                {pendingEditPlan.bullets.slice(0, 4).map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button type="button" size="sm" onClick={handleConfirmEdit} disabled={isImproving}>
+                  Continue edit
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPendingEditPlan(null)} disabled={isImproving}>
+                  Revise prompt
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="shrink-0 border-t bg-background/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
         <Button
           onClick={handleApplyEdit}
-          disabled={isImproving || !instruction.trim()}
+          disabled={isImproving || !!pendingEditPlan || !instruction.trim()}
           className="h-11 w-full gap-2"
         >
           {isImproving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}

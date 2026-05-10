@@ -25,6 +25,7 @@ import { FloatingPanel } from "@/components/ui/floating-panel";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
+import { buildEditIntentPlan, type EditIntentPlan } from "@/lib/ai/edit-intent";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { useToast } from "@/hooks/use-toast";
 
@@ -145,6 +146,7 @@ const FLOW_MEDIA_ASPECTS: Array<{
 ];
 
 const FLOW_MEDIA_STYLES = ["modern", "premium", "bold", "clean", "cinematic"];
+const CUSTOM_FLOW_MEDIA_TEMPLATE_ID = "custom";
 
 const FLOW_VIDEO_DURATIONS: Array<{ seconds: FlowVideoDuration; label: string; helper: string }> = [
   { seconds: 8, label: "8 sec", helper: "Fast hook, teaser, or simple proof moment." },
@@ -399,7 +401,7 @@ function FlowCreativeModal({
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [flowMediaMode, setFlowMediaMode] = useState<FlowMediaMode>(defaultTab);
-  const [selectedFlowMediaTemplateId, setSelectedFlowMediaTemplateId] = useState("");
+  const [selectedFlowMediaTemplateId, setSelectedFlowMediaTemplateId] = useState(CUSTOM_FLOW_MEDIA_TEMPLATE_ID);
   const [flowMediaPrompt, setFlowMediaPrompt] = useState(initialFlowMediaPrompt);
   const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>(isWhatsAppStatusTarget ? "9:16" : "1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
@@ -410,6 +412,7 @@ function FlowCreativeModal({
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<GeneratedMedia | null>(null);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
+  const [pendingFlowMediaEditPlan, setPendingFlowMediaEditPlan] = useState<EditIntentPlan | null>(null);
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [isPreparingPost, setIsPreparingPost] = useState(false);
@@ -426,9 +429,9 @@ function FlowCreativeModal({
   );
   const selectedFlowMediaTemplate = useMemo(
     () =>
-      visibleFlowMediaTemplates.find((template) => template.id === selectedFlowMediaTemplateId) ||
-      visibleFlowMediaTemplates[0] ||
-      null,
+      selectedFlowMediaTemplateId === CUSTOM_FLOW_MEDIA_TEMPLATE_ID
+        ? null
+        : visibleFlowMediaTemplates.find((template) => template.id === selectedFlowMediaTemplateId) || null,
     [selectedFlowMediaTemplateId, visibleFlowMediaTemplates]
   );
 
@@ -449,6 +452,7 @@ function FlowCreativeModal({
 
   useEffect(() => {
     const firstTemplate = visibleFlowMediaTemplates[0];
+    if (selectedFlowMediaTemplateId === CUSTOM_FLOW_MEDIA_TEMPLATE_ID) return;
     if (!firstTemplate || visibleFlowMediaTemplates.some((template) => template.id === selectedFlowMediaTemplateId)) return;
     setSelectedFlowMediaTemplateId(firstTemplate.id);
     setFlowMediaAspect(isWhatsAppStatusTarget && firstTemplate.mode === "image" ? "9:16" : firstTemplate.aspect);
@@ -470,6 +474,17 @@ function FlowCreativeModal({
     setGeneratedFlowMedia(null);
     setFlowMediaStatus("");
     setFlowMediaImprovePrompt("");
+    setPendingFlowMediaEditPlan(null);
+  };
+
+  const usePromptOnlyFlowMedia = (mode: FlowMediaMode = flowMediaMode) => {
+    setSelectedFlowMediaTemplateId(CUSTOM_FLOW_MEDIA_TEMPLATE_ID);
+    setFlowMediaMode(mode);
+    setFlowMediaAspect(isWhatsAppStatusTarget && mode === "image" ? "9:16" : mode === "image" ? "1:1" : "9:16");
+    setGeneratedFlowMedia(null);
+    setFlowMediaStatus("");
+    setFlowMediaImprovePrompt("");
+    setPendingFlowMediaEditPlan(null);
   };
 
   const handleDownload = async () => {
@@ -577,7 +592,7 @@ function FlowCreativeModal({
     }
   };
 
-  const handleImproveFlowMedia = async () => {
+  const executeFlowMediaEdit = async (plan: EditIntentPlan) => {
     if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image" || flowMediaImprovePrompt.trim().length < 6) {
       return;
     }
@@ -592,7 +607,7 @@ function FlowCreativeModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: flowMediaImprovePrompt.trim(),
+          prompt: plan.refinedPrompt,
           category: "social_post",
           size: aspect.imageSize,
           style: flowMediaStyle,
@@ -620,6 +635,7 @@ function FlowCreativeModal({
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
       setGeneratedFlowMedia({ type: "image", url: imageUrl });
       setFlowMediaImprovePrompt("");
+      setPendingFlowMediaEditPlan(null);
       setFlowMediaStatus("Improved image ready.");
       if (data.data?.creditsRemaining !== undefined) {
         setCreditsRemaining(data.data.creditsRemaining);
@@ -636,6 +652,33 @@ function FlowCreativeModal({
     } finally {
       setIsImprovingFlowMedia(false);
     }
+  };
+
+  const handleImproveFlowMedia = () => {
+    if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image" || flowMediaImprovePrompt.trim().length < 6) {
+      return;
+    }
+
+    const plan = buildEditIntentPlan(flowMediaImprovePrompt, {
+      source: "flowcreative",
+      hasReferenceImages: flowMediaReferenceUrls.length > 0,
+      referenceCount: flowMediaReferenceUrls.length,
+      qualityCheckEnabled: flowMediaQualityCheckEnabled,
+      brandName: brandKit?.name || null,
+    });
+
+    if (plan.needsConfirmation) {
+      setPendingFlowMediaEditPlan(plan);
+      setFlowMediaStatus("");
+      return;
+    }
+
+    void executeFlowMediaEdit(plan);
+  };
+
+  const handleConfirmFlowMediaEdit = () => {
+    if (!pendingFlowMediaEditPlan) return;
+    void executeFlowMediaEdit(pendingFlowMediaEditPlan);
   };
 
   const handleGenerateFlowMedia = async () => {
@@ -667,6 +710,22 @@ function FlowCreativeModal({
       ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
       : null;
     const rawBrandIdentity = buildRawBrandIdentity(brandKit);
+    const logoPolicy = brandKit?.logo || brandKit?.iconLogo
+      ? "Logo lock: use only the exact provided brand logo asset. Do not invent, redraw, stylize, approximate, replace, or fabricate a logo or wordmark. If the logo cannot be preserved exactly, use brand-name text or leave logo space blank."
+      : "Do not invent a logo, icon, seal, or brand mark that the user did not provide.";
+    const imagePrompt = [
+      prompt,
+      templateImageUrl
+        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. Use it only for layout inspiration. Do not copy its text, fake logo, product, people, or brand.`
+        : null,
+      flowMediaReferenceUrls.length
+        ? "Reference lock: preserve the exact person, face, product, logo, material, color, and key details from uploaded references. Do not substitute a different person, product, or brand mark."
+        : null,
+      logoPolicy,
+      "Quality: keep the final visual sharp, high-resolution, readable, and free of unnecessary repainting in unchanged areas.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
     const rawVideoPrompt = [
       "Brand identity:",
       JSON.stringify(rawBrandIdentity, null, 2),
@@ -687,6 +746,7 @@ function FlowCreativeModal({
       flowVideoSpeechMode === "talking_review"
         ? "Review presentation: improve the background into a clean creator-review or lifestyle setting while preserving the presenter's face and the exact product. Add tasteful TikTok/Reels-style review cues such as a short Honest review hook, star rating, comment card, progress bar, or LIVE-style engagement indicators. Keep text readable and do not cover the face or product."
         : null,
+      logoPolicy,
       "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
       referenceImageNote,
       `User prompt: ${prompt}`,
@@ -709,7 +769,7 @@ function FlowCreativeModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt,
+            prompt: imagePrompt,
             category: "social_post",
             size: aspect.imageSize,
             style: flowMediaStyle,
@@ -885,11 +945,7 @@ function FlowCreativeModal({
                   key={mode.id}
                   type="button"
                   onClick={() => {
-                    setFlowMediaMode(mode.id);
-                    setGeneratedFlowMedia(null);
-                    setFlowMediaStatus("");
-                    const first = flowMediaTemplates.find((template) => template.mode === mode.id);
-                    if (first) applyFlowMediaTemplate(first);
+                    usePromptOnlyFlowMedia(mode.id);
                   }}
                   className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
                     isActive
@@ -911,12 +967,18 @@ function FlowCreativeModal({
             <GeneratedFlowCreativeResult
               generatedFlowMedia={generatedFlowMedia}
               flowMediaImprovePrompt={flowMediaImprovePrompt}
+              pendingEditPlan={pendingFlowMediaEditPlan}
               isImprovingFlowMedia={isImprovingFlowMedia}
               isPreparingPost={isPreparingPost}
               prepareStatus={flowMediaStatus}
               attachTargetLabel={isWhatsAppStatusTarget ? "WhatsApp Status" : "post"}
-              onImprovePromptChange={setFlowMediaImprovePrompt}
+              onImprovePromptChange={(value) => {
+                setFlowMediaImprovePrompt(value);
+                setPendingFlowMediaEditPlan(null);
+              }}
               onImprove={handleImproveFlowMedia}
+              onConfirmImprove={handleConfirmFlowMediaEdit}
+              onCancelImproveConfirmation={() => setPendingFlowMediaEditPlan(null)}
               onOpenStudio={handleOpenInStudio}
               onAttachToPost={handleAttachToPost}
               onDownload={handleDownload}
@@ -935,6 +997,23 @@ function FlowCreativeModal({
                   {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
                 </div>
                 <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => usePromptOnlyFlowMedia(flowMediaMode)}
+                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      selectedFlowMediaTemplateId === CUSTOM_FLOW_MEDIA_TEMPLATE_ID
+                        ? "border-brand-500 bg-brand-500/10"
+                        : "bg-background hover:border-brand-500/40"
+                    }`}
+                  >
+                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                      <WandSparkles className="h-5 w-5" />
+                    </span>
+                    <span className="block text-sm font-bold">Start from prompt</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                      Generate from your instruction and brand kit without using a template image.
+                    </span>
+                  </button>
                   {visibleFlowMediaTemplates.map((template) => {
                     const isActive = selectedFlowMediaTemplateId === template.id && flowMediaMode === template.mode;
                     return (
@@ -1031,7 +1110,10 @@ function FlowCreativeModal({
                 </div>
                 <MediaUploader
                   value={flowMediaReferenceUrls}
-                  onChange={setFlowMediaReferenceUrls}
+                  onChange={(urls) => {
+                    setFlowMediaReferenceUrls(urls);
+                    setPendingFlowMediaEditPlan(null);
+                  }}
                   multiple
                   maxFiles={3}
                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -1056,7 +1138,10 @@ function FlowCreativeModal({
                   </div>
                   <Switch
                     checked={flowMediaQualityCheckEnabled}
-                    onCheckedChange={setFlowMediaQualityCheckEnabled}
+                    onCheckedChange={(value) => {
+                      setFlowMediaQualityCheckEnabled(value);
+                      setPendingFlowMediaEditPlan(null);
+                    }}
                     aria-label="Enable FlowCreative media quality check"
                   />
                 </div>
@@ -1276,12 +1361,15 @@ function VideoControls({
 function GeneratedFlowCreativeResult({
   generatedFlowMedia,
   flowMediaImprovePrompt,
+  pendingEditPlan,
   isImprovingFlowMedia,
   isPreparingPost,
   prepareStatus,
   attachTargetLabel,
   onImprovePromptChange,
   onImprove,
+  onConfirmImprove,
+  onCancelImproveConfirmation,
   onOpenStudio,
   onAttachToPost,
   onDownload,
@@ -1290,12 +1378,15 @@ function GeneratedFlowCreativeResult({
 }: {
   generatedFlowMedia: GeneratedMedia;
   flowMediaImprovePrompt: string;
+  pendingEditPlan: EditIntentPlan | null;
   isImprovingFlowMedia: boolean;
   isPreparingPost: boolean;
   prepareStatus?: string;
   attachTargetLabel: string;
   onImprovePromptChange: (value: string) => void;
   onImprove: () => void;
+  onConfirmImprove: () => void;
+  onCancelImproveConfirmation: () => void;
   onOpenStudio: () => void;
   onAttachToPost: () => void;
   onDownload: () => void;
@@ -1359,12 +1450,31 @@ function GeneratedFlowCreativeResult({
             placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
             disabled={isImprovingFlowMedia || isPreparingPost}
           />
+          {pendingEditPlan ? (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed">
+              <div className="mb-1 font-bold text-amber-900 dark:text-amber-100">Confirm edit before spending credits</div>
+              <p className="text-amber-900/90 dark:text-amber-100/90">{pendingEditPlan.confirmReason}</p>
+              <ul className="mt-2 space-y-1 text-amber-900/90 dark:text-amber-100/90">
+                {pendingEditPlan.bullets.slice(0, 4).map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={onConfirmImprove} disabled={isImprovingFlowMedia || isPreparingPost}>
+                  Continue edit
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={onCancelImproveConfirmation} disabled={isImprovingFlowMedia}>
+                  Revise prompt
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-2">
             <Button
               type="button"
               variant="outline"
               onClick={onImprove}
-              disabled={isImprovingFlowMedia || isPreparingPost || flowMediaImprovePrompt.trim().length < 6}
+              disabled={isImprovingFlowMedia || isPreparingPost || !!pendingEditPlan || flowMediaImprovePrompt.trim().length < 6}
               className="gap-2"
             >
               {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
