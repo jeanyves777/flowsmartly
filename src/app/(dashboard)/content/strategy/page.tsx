@@ -90,6 +90,7 @@ type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 type TaskPriority = "HIGH" | "MEDIUM" | "LOW";
 type ViewMode = "plan" | "automations" | "sync";
 type Timeframe = "1_MONTH" | "3_MONTHS" | "6_MONTHS";
+type StrategyBuilderMode = "create" | "improve";
 
 interface MatchedActivity {
   activityType: string;
@@ -874,6 +875,7 @@ export default function StrategyAutomationPage() {
   const [workspacePanelOpen, setWorkspacePanelOpen] = useState(false);
   const [upcomingOpen, setUpcomingOpen] = useState(true);
   const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
+  const [strategyBuilderMode, setStrategyBuilderMode] = useState<StrategyBuilderMode>("create");
   const [automationBuilderOpen, setAutomationBuilderOpen] = useState(false);
   const [automationConfigOpen, setAutomationConfigOpen] = useState(false);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(DEFAULT_TASK);
@@ -1339,33 +1341,40 @@ export default function StrategyAutomationPage() {
     setAutomationDraft(DEFAULT_AUTOMATION);
   };
 
-  const openStrategyBuilder = () => {
+  const openStrategyBuilder = (mode: StrategyBuilderMode = strategy ? "improve" : "create") => {
     const defaultPreset = STRATEGY_GOAL_PRESETS[0];
-    setStrategyBuilder((draft) => ({
-      ...draft,
-      goalPresetId: strategy ? draft.goalPresetId : draft.goalPresetId || defaultPreset.id,
-      goals:
-        draft.goals ||
-        (strategy
+    setStrategyBuilderMode(mode);
+    setStrategyBuilder((draft) => {
+      if (mode === "create") {
+        return {
+          ...DEFAULT_STRATEGY_BUILDER,
+          goalPresetId: defaultPreset.id,
+          goals: goalPresetText(defaultPreset, brand),
+          timeframe: defaultPreset.timeframe,
+          focusAreas: defaultPreset.focusAreas,
+          platforms: mergePresetPlatforms(defaultPreset, activeBrandPlatforms),
+          additionalContext: defaultPreset.additionalContext,
+          budget: defaultPreset.budget || "",
+        };
+      }
+
+      return {
+        ...draft,
+        goalPresetId: null,
+        goals: strategy
           ? `Improve "${strategy.name}" so the open plan items become automation-ready while keeping completed and already automated work intact.`
-          : goalPresetText(defaultPreset, brand)),
-      timeframe: strategy ? draft.timeframe : draft.timeframe || defaultPreset.timeframe,
-      focusAreas:
-        draft.focusAreas.length > 0
-          ? draft.focusAreas
-          : strategy
-          ? DEFAULT_STRATEGY_BUILDER.focusAreas
-          : defaultPreset.focusAreas,
-      platforms: draft.platforms.length
-        ? draft.platforms
-        : activeBrandPlatforms.length
-        ? activeBrandPlatforms
-        : strategy
-        ? DEFAULT_STRATEGY_BUILDER.platforms
-        : mergePresetPlatforms(defaultPreset, activeBrandPlatforms),
-      additionalContext: draft.additionalContext || (!strategy ? defaultPreset.additionalContext : ""),
-      budget: draft.budget || defaultPreset.budget || "",
-    }));
+          : "",
+        timeframe: draft.timeframe || DEFAULT_STRATEGY_BUILDER.timeframe,
+        focusAreas: draft.focusAreas.length > 0 ? draft.focusAreas : DEFAULT_STRATEGY_BUILDER.focusAreas,
+        platforms: draft.platforms.length
+          ? draft.platforms
+          : activeBrandPlatforms.length
+          ? activeBrandPlatforms
+          : DEFAULT_STRATEGY_BUILDER.platforms,
+        additionalContext: draft.additionalContext,
+        budget: draft.budget || "",
+      };
+    });
     setStrategyBuilderOpen(true);
   };
 
@@ -1638,7 +1647,7 @@ export default function StrategyAutomationPage() {
     const goals = strategyBuilder.goals.trim() || buildBrandGoal(brand);
     setGeneratingStrategy(true);
     try {
-      if (strategy) {
+      if (strategyBuilderMode === "improve" && strategy) {
         const res = await fetch("/api/content/strategy/improve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2006,7 +2015,7 @@ export default function StrategyAutomationPage() {
     if (automationDraft.platforms.length === 0) {
       toast({
         title: "Select a connected channel",
-        description: "One-off automations create scheduled social posts, so they need a real connected destination.",
+        description: "Automations create scheduled social posts, so they need a real connected destination.",
         variant: "destructive",
       });
       return;
@@ -2539,13 +2548,14 @@ export default function StrategyAutomationPage() {
                 onClick={openAutomationBuilder}
                 disabled={tasks.length === 0}
                 className="bg-brand-500 text-white hover:bg-brand-600"
+                title="Strategy automation planner"
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                Strategy automation planner
+                Planner
               </Button>
-              <Button variant="outline" onClick={() => openNewAutomation()}>
+              <Button variant="outline" onClick={() => openNewAutomation()} title="One-off automation">
                 <Plus className="mr-2 h-4 w-4" />
-                One-off automation
+                Automation
               </Button>
               <Button
                 variant="outline"
@@ -3090,7 +3100,7 @@ export default function StrategyAutomationPage() {
 
     return (
       <InspectorShell
-        title={automationDraft.id ? "Edit automation" : "One-off automation"}
+        title={automationDraft.id ? "Edit automation" : "Automation"}
         subtitle="Create or edit a single automation outside the strategy planner"
         icon={Zap}
         onClose={closeInspector}
@@ -3262,7 +3272,7 @@ export default function StrategyAutomationPage() {
   };
 
   const renderStrategyBuilderPanel = () => {
-    const isImprove = !!strategy;
+    const isImprove = strategyBuilderMode === "improve" && !!strategy;
 
     return (
     <div className="space-y-4">
@@ -3787,7 +3797,7 @@ export default function StrategyAutomationPage() {
                       </div>
                     )}
                   </div>
-                  <Button onClick={openStrategyBuilder} className="bg-brand-500 text-white hover:bg-brand-600">
+                  <Button onClick={() => openStrategyBuilder("improve")} className="bg-brand-500 text-white hover:bg-brand-600">
                     <Sparkles className="mr-2 h-4 w-4" />
                     Improve strategy
                   </Button>
@@ -3999,7 +4009,7 @@ export default function StrategyAutomationPage() {
       <FloatingPanel
         open={automationConfigOpen}
         onOpenChange={setAutomationConfigOpen}
-        title="Strategy Automation Planner"
+        title="Planner"
         description="Grouped plan-item automation setup"
         icon={<Sparkles className="h-4 w-4" />}
         defaultSize={{ width: 1120, height: 820 }}
@@ -4483,9 +4493,13 @@ export default function StrategyAutomationPage() {
       <FloatingPanel
         open={strategyBuilderOpen}
         onOpenChange={setStrategyBuilderOpen}
-        title={strategy ? "Improve Strategy" : "Create Strategy"}
-        description={strategy ? "Make the active plan automation-ready" : "Brand identity to plan in one click"}
-        icon={strategy ? <Wand2 className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+        title={strategyBuilderMode === "improve" && strategy ? "Improve Strategy" : "Create Strategy"}
+        description={
+          strategyBuilderMode === "improve" && strategy
+            ? "Make the active plan automation-ready"
+            : "Brand identity to plan in one click"
+        }
+        icon={strategyBuilderMode === "improve" && strategy ? <Wand2 className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
         defaultSize={{ width: 560, height: 720 }}
         defaultPosition={{ x: 92, y: 86 }}
       >
@@ -4498,7 +4512,7 @@ export default function StrategyAutomationPage() {
           if (!open) closeInspector();
           else setWorkspacePanelOpen(true);
         }}
-        title={inspectorMode === "task" ? "Plan Item" : "One-off Automation"}
+        title={inspectorMode === "task" ? "Plan Item" : "Automation"}
         description={inspectorMode === "task" ? "Plan item controls" : "Single automation controls"}
         icon={inspectorMode === "task" ? <Target className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
         defaultSize={{ width: 500, height: 680 }}
@@ -4604,7 +4618,7 @@ export default function StrategyAutomationPage() {
               </Button>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-1">
-              <Button onClick={openStrategyBuilder} variant="outline" className="justify-start">
+              <Button onClick={() => openStrategyBuilder("create")} variant="outline" className="justify-start">
                 <Sparkles className="mr-2 h-4 w-4" />
                 Create a strategy with FlowAI
               </Button>
@@ -4645,7 +4659,11 @@ export default function StrategyAutomationPage() {
           </SegmentedButton>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <Button variant="outline" onClick={openStrategyBuilder} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Improve strategy">
+          <Button variant="outline" onClick={() => openStrategyBuilder("create")} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Create Strategy">
+            <Sparkles className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create strategy</span>
+          </Button>
+          <Button variant="outline" onClick={() => openStrategyBuilder("improve")} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Improve strategy">
             <Wand2 className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Improve strategy</span>
           </Button>
