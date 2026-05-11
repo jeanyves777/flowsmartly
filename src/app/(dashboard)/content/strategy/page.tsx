@@ -266,15 +266,19 @@ interface MarketingReadiness {
 
 interface AutomationCreditEstimate {
   totalCredits: number;
+  requiredCredits?: number;
+  projectedCredits?: number;
   userCredits: number;
   hasEnoughCredits: boolean;
   totalPosts: number;
+  projectedRuns?: number;
   automatableTasks: Array<{
     taskId: string;
     title: string;
     type?: string;
     requirements?: string[];
     warnings?: string[];
+    costPerRun?: number;
     totalCost: number;
     runs: number;
   }>;
@@ -1598,9 +1602,12 @@ export default function StrategyAutomationPage() {
       }
       const estimate = estimateJson.data as AutomationCreditEstimate;
       setAutomationEstimate(estimate);
+      const requiredCredits = estimate.requiredCredits ?? estimate.totalCredits;
+      const projectedCredits = estimate.projectedCredits ?? estimate.totalCredits;
+      const projectedRuns = estimate.projectedRuns ?? estimate.totalPosts;
       if (!estimate.hasEnoughCredits) {
         throw new Error(
-          `Not enough credits. Required: ${estimate.totalCredits}, Available: ${estimate.userCredits}`
+          `Not enough credits for the next run. Required: ${requiredCredits}, Available: ${estimate.userCredits}`
         );
       }
 
@@ -1623,7 +1630,7 @@ export default function StrategyAutomationPage() {
       setAutomationConfigOpen(false);
       toast({
         title: successTitle,
-        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected. ${json.data.creditEstimate?.totalCredits || estimate.totalCredits} credits validated for scheduled AI runs.`,
+        description: `${json.data.automatedTaskCount || 0} task${json.data.automatedTaskCount === 1 ? "" : "s"} connected. Next run needs ${requiredCredits} credits. Projected ${projectedCredits} credits across ${projectedRuns} scheduled run${projectedRuns === 1 ? "" : "s"}.`,
       });
       return true;
     } catch (err) {
@@ -3603,6 +3610,9 @@ export default function StrategyAutomationPage() {
     );
     const manualSelected = selectedRows.filter((row) => !row.canEverAutomate);
     const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
+    const requiredCredits = automationEstimate?.requiredCredits ?? automationEstimate?.totalCredits ?? 0;
+    const projectedCredits = automationEstimate?.projectedCredits ?? automationEstimate?.totalCredits ?? 0;
+    const projectedRuns = automationEstimate?.projectedRuns ?? automationEstimate?.totalPosts ?? 0;
 
     return (
       <div className="rounded-2xl border bg-background">
@@ -3610,7 +3620,7 @@ export default function StrategyAutomationPage() {
           <div>
             <p className="text-base font-semibold">AI automation selection</p>
             <p className="text-sm text-muted-foreground">
-              {readySelected.length} ready, {blockedSelected.length} need setup, {manualSelected.length} manual-only, {automationEstimate?.totalCredits ?? 0} credits estimated
+              {readySelected.length} ready, {blockedSelected.length} need setup, {manualSelected.length} manual-only, {requiredCredits} credits needed for the next run
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -3653,10 +3663,15 @@ export default function StrategyAutomationPage() {
               <p className="mt-1 text-2xl font-bold text-amber-600">{blockedSelected.length}</p>
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Credits</p>
+              <p className="text-xs text-muted-foreground">Next run</p>
               <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
-                {estimatingAutomation ? <AISpinner size={24} /> : automationEstimate?.totalCredits ?? 0}
+                {estimatingAutomation ? <AISpinner size={24} /> : requiredCredits}
               </p>
+              {automationEstimate && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Projected {projectedCredits} / {projectedRuns} run{projectedRuns === 1 ? "" : "s"}
+                </p>
+              )}
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">Balance</p>
@@ -3689,7 +3704,7 @@ export default function StrategyAutomationPage() {
             </div>
             {estimateBlocked && (
               <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                Current setup needs {automationEstimate.totalCredits} credits. Balance is {automationEstimate.userCredits}.
+                Next run needs {requiredCredits} credits. Balance is {automationEstimate.userCredits}. Projected future usage is {projectedCredits} credits.
               </div>
             )}
           </div>
@@ -3993,6 +4008,12 @@ export default function StrategyAutomationPage() {
     );
     const manualSelected = selectedRows.filter((row) => !row.canEverAutomate);
     const estimateBlocked = !!automationEstimate && !automationEstimate.hasEnoughCredits;
+    const requiredCredits = automationEstimate?.requiredCredits ?? automationEstimate?.totalCredits ?? 0;
+    const projectedCredits = automationEstimate?.projectedCredits ?? automationEstimate?.totalCredits ?? 0;
+    const projectedRuns = automationEstimate?.projectedRuns ?? automationEstimate?.totalPosts ?? 0;
+    const perRunCredits =
+      automationEstimate?.automatableTasks.reduce((sum, task) => sum + (task.costPerRun ?? 0), 0) ||
+      requiredCredits;
     const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
     const readyGroups = Object.entries(
       readySelected.reduce((acc, row) => {
@@ -4037,7 +4058,7 @@ export default function StrategyAutomationPage() {
                   },
                   {
                     title: "3. Save set",
-                    body: "Create stores the automations on this strategy. Future runs generate and schedule content using credits.",
+                    body: "Create stores the automations on this strategy. Credits are charged each time a run generates content.",
                   },
                 ].map((step) => (
                   <div key={step.title} className="rounded-lg border bg-background p-3">
@@ -4066,10 +4087,15 @@ export default function StrategyAutomationPage() {
                 <p className="mt-1 text-2xl font-bold text-muted-foreground">{manualSelected.length}</p>
               </div>
               <div className="rounded-xl border bg-muted/20 p-3">
-                <p className="text-xs text-muted-foreground">Credits</p>
+                <p className="text-xs text-muted-foreground">Next run</p>
                 <p className={cn("mt-1 text-2xl font-bold", estimateBlocked && "text-destructive")}>
-                  {estimatingAutomation ? <AISpinner size={24} /> : automationEstimate?.totalCredits ?? 0}
+                  {estimatingAutomation ? <AISpinner size={24} /> : requiredCredits}
                 </p>
+                {automationEstimate && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Projected {projectedCredits}
+                  </p>
+                )}
               </div>
               <div className="rounded-xl border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Balance</p>
@@ -4299,6 +4325,23 @@ export default function StrategyAutomationPage() {
                   )}
                 </div>
 
+                {automationEstimate && (
+                  <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+                    <p className="font-semibold">Credit estimate</p>
+                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      <p>
+                        Next run: <span className="font-medium text-foreground">{requiredCredits}</span> credits
+                        {perRunCredits ? ` (${perRunCredits} per scheduled run group)` : ""}
+                      </p>
+                      <p>
+                        Projection: <span className="font-medium text-foreground">{projectedCredits}</span> credits across{" "}
+                        <span className="font-medium text-foreground">{projectedRuns}</span> planned run{projectedRuns === 1 ? "" : "s"} through {formatShortDate(automationBuilder.endDate)}.
+                      </p>
+                      <p>Saving the automation does not deduct the full projection. Credits are deducted only when each automation run generates content.</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>FlowAI direction</Label>
                   <Textarea
@@ -4313,7 +4356,7 @@ export default function StrategyAutomationPage() {
 
                 {estimateBlocked && automationEstimate && (
                   <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                    This automation set needs {automationEstimate.totalCredits} credits. Current balance is {automationEstimate.userCredits}.
+                    The next run needs {requiredCredits} credits. Current balance is {automationEstimate.userCredits}. Projected future usage is {projectedCredits} credits.
                   </div>
                 )}
               </div>

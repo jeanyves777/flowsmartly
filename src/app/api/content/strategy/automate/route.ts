@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: {
-            message: `Not enough credits for the scheduled AI runs. Required: ${estimate.totalCredits}, Available: ${estimate.userCredits}`,
+            message: `Not enough credits for the next automation run. Required: ${estimate.requiredCredits}, Available: ${estimate.userCredits}`,
             estimate,
           },
         },

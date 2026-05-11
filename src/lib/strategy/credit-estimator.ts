@@ -50,6 +50,9 @@ export interface AutomationEstimate {
   costPerPost: number;
   costPerPostWithVideo: number;
   totalPosts: number;
+  projectedRuns: number;
+  requiredCredits: number;
+  projectedCredits: number;
   totalCredits: number;
   userCredits: number;
   hasEnoughCredits: boolean;
@@ -191,7 +194,8 @@ export async function estimateAutomationCredits(
   }
 
   const totalPosts = automatableTasks.reduce((sum, t) => sum + t.runs, 0);
-  const totalCredits = automatableTasks.reduce((sum, t) => sum + t.totalCost, 0);
+  const projectedCredits = automatableTasks.reduce((sum, t) => sum + t.totalCost, 0);
+  const requiredCredits = automatableTasks.reduce((sum, t) => sum + t.costPerRun, 0);
 
   return {
     automatableTasks,
@@ -199,8 +203,11 @@ export async function estimateAutomationCredits(
     costPerPost,
     costPerPostWithVideo,
     totalPosts,
-    totalCredits,
+    projectedRuns: totalPosts,
+    requiredCredits,
+    projectedCredits,
+    totalCredits: projectedCredits,
     userCredits: options.userCredits,
-    hasEnoughCredits: options.userCredits >= totalCredits,
+    hasEnoughCredits: options.userCredits >= requiredCredits,
   };
 }
