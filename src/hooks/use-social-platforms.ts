@@ -22,6 +22,8 @@ export interface SocialPlatformAccount {
   avatarUrl: string | null;
   connectedAt: string | null;
   tokenExpiresAt: string | null;
+  missingScopes?: string[];
+  needsReconnect?: boolean;
 }
 
 /**

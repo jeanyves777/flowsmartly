@@ -34,6 +34,22 @@ function googleReviewScore(rating: number, reviewCount: number): number {
   return clampScore(ratingComponent + volumeComponent + trustComponent);
 }
 
+function parseScopes(scopes: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(scopes || "[]");
+    return Array.isArray(parsed) ? parsed.filter((scope): scope is string => typeof scope === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function missingRequiredScopes(platform: string, scopes: string | null | undefined): string[] {
+  const normalizedPlatform = platform.startsWith("twitter") ? "twitter" : platform;
+  if (normalizedPlatform !== "twitter") return [];
+  const granted = new Set(parseScopes(scopes));
+  return ["media.write"].filter((scope) => !granted.has(scope));
+}
+
 // GET /api/social-accounts - Get user's social connections
 export async function GET(request: NextRequest) {
   try {
@@ -75,6 +91,7 @@ export async function GET(request: NextRequest) {
           connectedAt: true,
           isActive: true,
           tokenExpiresAt: true,
+          scopes: true,
         },
         orderBy: {
           connectedAt: "desc",
@@ -83,7 +100,15 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        accounts,
+        accounts: accounts.map((account) => {
+          const missingScopes = missingRequiredScopes(account.platform, account.scopes);
+          return {
+            ...account,
+            scopes: parseScopes(account.scopes),
+            missingScopes,
+            needsReconnect: missingScopes.length > 0,
+          };
+        }),
         meta: {
           plan: session.user.plan,
           connectedCount,
@@ -109,6 +134,7 @@ export async function GET(request: NextRequest) {
           platformAvatarUrl: true,
           connectedAt: true,
           tokenExpiresAt: true,
+          scopes: true,
         },
       }),
       prisma.listSmartlyProfile.findUnique({
@@ -190,6 +216,8 @@ export async function GET(request: NextRequest) {
         avatarUrl: item.platformAvatarUrl || null,
         connectedAt: item.connectedAt?.toISOString() || null,
         tokenExpiresAt: item.tokenExpiresAt?.toISOString() || null,
+        missingScopes: missingRequiredScopes(item.platform, item.scopes),
+        needsReconnect: missingRequiredScopes(item.platform, item.scopes).length > 0,
       }));
       return {
         platform: p.id,

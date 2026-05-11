@@ -1,16 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { prisma } from "@/lib/db/client";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { verifyTurnstile } from "@/lib/auth/turnstile";
+import { consumeRecoveryCode, verifyTotpCode } from "@/lib/auth/totp";
 
 // Validation schema
 const loginSchema = z.object({
   email: z.string().email("Invalid email address").toLowerCase().trim(),
   password: z.string().min(1, "Password is required"),
+  twoFactorCode: z.string().optional(),
+  twoFactorChallenge: z.string().optional(),
   turnstileToken: z.string().optional(),
 });
+
+const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
+function twoFactorChallengeSecret() {
+  return process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-in-production";
+}
+
+function signTwoFactorChallenge(userId: string, email: string) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId,
+      email,
+      exp: Date.now() + TWO_FACTOR_CHALLENGE_TTL_MS,
+      nonce: crypto.randomBytes(8).toString("hex"),
+    })
+  ).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", twoFactorChallengeSecret())
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function verifyTwoFactorChallenge(token: string | undefined, email: string) {
+  if (!token || !token.includes(".")) return null;
+  const [payload, signature] = token.split(".");
+  const expected = crypto
+    .createHmac("sha256", twoFactorChallengeSecret())
+    .update(payload)
+    .digest("base64url");
+  const signatureBuffer = Buffer.from(signature || "");
+  const expectedBuffer = Buffer.from(expected);
+  if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return null;
+  }
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (decoded.email !== email || typeof decoded.userId !== "string" || decoded.exp < Date.now()) return null;
+    return decoded as { userId: string; email: string; exp: number };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,10 +79,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, turnstileToken } = validation.data;
+    const { email, password, twoFactorCode, twoFactorChallenge, turnstileToken } = validation.data;
+    const validTwoFactorChallenge = verifyTwoFactorChallenge(twoFactorChallenge, email);
 
     // Verify Turnstile CAPTCHA
-    if (process.env.TURNSTILE_SECRET_KEY) {
+    if (process.env.TURNSTILE_SECRET_KEY && !validTwoFactorChallenge) {
       const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || undefined;
       const isHuman = await verifyTurnstile(turnstileToken || "", ip);
       if (!isHuman) {
@@ -61,6 +109,9 @@ export async function POST(request: NextRequest) {
         aiCredits: true,
         balanceCents: true,
         deletedAt: true,
+        twoFactorEnabled: true,
+        twoFactorSecret: true,
+        twoFactorRecoveryCodes: true,
       },
     });
 
@@ -105,6 +156,50 @@ export async function POST(request: NextRequest) {
         },
         { status: 401 }
       );
+    }
+
+    if (user.twoFactorEnabled) {
+      const code = twoFactorCode?.trim() || "";
+      if (!code) {
+        return NextResponse.json(
+          {
+            success: false,
+            data: {
+              requiresTwoFactor: true,
+              twoFactorChallenge: signTwoFactorChallenge(user.id, user.email),
+            },
+            error: {
+              code: "TWO_FACTOR_REQUIRED",
+              message: "Enter your authenticator code to finish signing in",
+            },
+          },
+          { status: 401 }
+        );
+      }
+
+      const validTotp = !!user.twoFactorSecret && verifyTotpCode(user.twoFactorSecret, code);
+      const recoveryResult = consumeRecoveryCode(user.twoFactorRecoveryCodes, code);
+
+      if (!validTotp && !recoveryResult.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            data: { requiresTwoFactor: true },
+            error: {
+              code: "INVALID_TWO_FACTOR",
+              message: "Invalid two-factor authentication code",
+            },
+          },
+          { status: 401 }
+        );
+      }
+
+      if (recoveryResult.valid) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { twoFactorRecoveryCodes: JSON.stringify(recoveryResult.remainingHashes) },
+        });
+      }
     }
 
     // Update last login time

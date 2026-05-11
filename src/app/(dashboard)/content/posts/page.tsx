@@ -76,6 +76,8 @@ interface SocialDestination {
   icon: ElementType;
   enabled: boolean;
   avatarUrl: string | null;
+  missingScopes?: string[];
+  needsReconnect?: boolean;
 }
 
 const MAX_CHARS = 2000;
@@ -965,6 +967,8 @@ export default function ContentPostsPage() {
             icon: meta.icon,
             enabled: true,
             avatarUrl: account.avatarUrl,
+            missingScopes: account.missingScopes || [],
+            needsReconnect: !!account.needsReconnect,
           });
         }
         continue;
@@ -1155,11 +1159,15 @@ export default function ContentPostsPage() {
 
   const getIncompatibleReason = useCallback(
     (destinationId: string): string | null => {
+      const destination = destinationById.get(destinationId);
       const platformId = getDestinationPlatformId(destinationId);
       const reqs = PLATFORM_REQUIREMENTS[platformId];
       if (!reqs) return null;
       // If no content yet, allow pre-selection
       if (!contentState.hasText && !contentState.hasMedia) return null;
+      if (destination?.needsReconnect && contentState.hasMedia) {
+        return `Reconnect ${PLATFORM_META[platformId]?.label || platformId} to enable media uploads`;
+      }
 
       const hasOnlyText = contentState.hasText && !contentState.hasMedia;
       const hasOnlyImages = contentState.hasImage && !contentState.hasVideo;
@@ -1186,7 +1194,7 @@ export default function ContentPostsPage() {
       }
       return null;
     },
-    [contentState, getDestinationPlatformId]
+    [contentState, destinationById, getDestinationPlatformId]
   );
 
   // Auto-deselect platforms that become incompatible when content changes
@@ -2088,6 +2096,21 @@ export default function ContentPostsPage() {
       toast({
         title: "Schedule required",
         description: "Please set both a date and time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const blockedDestination = selectedPlatforms
+      .map((destinationId) => {
+        const reason = getIncompatibleReason(destinationId);
+        return reason ? { label: getDestinationLabel(destinationId), reason } : null;
+      })
+      .find((item): item is { label: string; reason: string } => !!item);
+    if (blockedDestination) {
+      toast({
+        title: "Channel needs attention",
+        description: `${blockedDestination.label}: ${blockedDestination.reason}`,
         variant: "destructive",
       });
       return;

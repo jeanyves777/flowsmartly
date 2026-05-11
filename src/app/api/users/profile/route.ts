@@ -96,6 +96,8 @@ export async function GET(request: NextRequest) {
         theme: true,
         notificationPrefs: true,
         emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorEnabledAt: true,
         createdAt: true,
         _count: {
           select: {
@@ -137,6 +139,8 @@ export async function GET(request: NextRequest) {
           theme: user.theme,
           notificationPrefs: JSON.parse(user.notificationPrefs || "{}"),
           emailVerified: user.emailVerified,
+          twoFactorEnabled: user.twoFactorEnabled,
+          twoFactorEnabledAt: user.twoFactorEnabledAt?.toISOString() || null,
           postsCount: user._count.posts,
           followersCount: user._count.followers,
           followingCount: user._count.following,

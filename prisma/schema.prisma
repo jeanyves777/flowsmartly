@@ -54,6 +54,12 @@ model User {
   notificationPrefs String @default("{}")
   dismissedBanners  String @default("[]") // JSON array of dismissed banner IDs
 
+  // Account security
+  twoFactorEnabled       Boolean   @default(false)
+  twoFactorSecret        String?
+  twoFactorEnabledAt     DateTime?
+  twoFactorRecoveryCodes String    @default("[]")
+
   // Metadata
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

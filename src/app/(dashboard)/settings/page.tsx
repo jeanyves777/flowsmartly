@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Settings, User, Bell, Shield, Palette, CreditCard, Link2, Moon, Sun, Smartphone, Camera, Save, Check, ExternalLink, Instagram, Twitter, Linkedin, Facebook, AlertTriangle, RefreshCw, Coins, Zap, Crown, Star, Package, ArrowUpRight, Plus, Trash2, MoreVertical, Upload, History, Receipt, ArrowRight } from "lucide-react";
+import { Settings, User, Bell, Shield, Palette, CreditCard, Link2, Moon, Sun, Smartphone, Camera, Save, Check, ExternalLink, Instagram, Twitter, Linkedin, Facebook, AlertTriangle, RefreshCw, Coins, Zap, Crown, Star, Package, ArrowUpRight, Plus, Trash2, MoreVertical, Upload, History, Receipt, ArrowRight, Copy, KeyRound, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type SettingsTab = "profile" | "notifications" | "security" | "billing" | "connections" | "appearance";
@@ -51,6 +59,8 @@ interface UserProfile {
   theme: string | null;
   notificationPrefs: NotificationPrefs;
   emailVerified: boolean;
+  twoFactorEnabled: boolean;
+  twoFactorEnabledAt: string | null;
   postsCount: number;
   followersCount: number;
   followingCount: number;
@@ -149,6 +159,16 @@ export default function SettingsPage() {
     newPassword: "",
     confirmPassword: "",
   });
+  const [twoFactorDialogOpen, setTwoFactorDialogOpen] = useState(false);
+  const [twoFactorMode, setTwoFactorMode] = useState<"setup" | "disable">("setup");
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{
+    secret: string;
+    qrCodeDataUrl: string;
+    recoveryCodes: string[];
+  } | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorPassword, setTwoFactorPassword] = useState("");
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -584,6 +604,124 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const startTwoFactorSetup = async () => {
+    setTwoFactorLoading(true);
+    setTwoFactorCode("");
+    setTwoFactorPassword("");
+    setTwoFactorSetup(null);
+    try {
+      const response = await fetch("/api/auth/2fa/setup", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Could not start two-factor setup");
+      }
+      setTwoFactorSetup({
+        secret: data.data.secret,
+        qrCodeDataUrl: data.data.qrCodeDataUrl,
+        recoveryCodes: [],
+      });
+      setTwoFactorMode("setup");
+      setTwoFactorDialogOpen(true);
+    } catch (err) {
+      toast({
+        title: "2FA setup failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const enableTwoFactor = async () => {
+    setTwoFactorLoading(true);
+    try {
+      const response = await fetch("/api/auth/2fa/enable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: twoFactorCode }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Could not enable two-factor authentication");
+      }
+      setTwoFactorSetup((current) => ({
+        secret: current?.secret || "",
+        qrCodeDataUrl: current?.qrCodeDataUrl || "",
+        recoveryCodes: data.data.recoveryCodes || [],
+      }));
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              twoFactorEnabled: true,
+              twoFactorEnabledAt: new Date().toISOString(),
+            }
+          : current
+      );
+      toast({ title: "2FA enabled", description: "Your account now requires an authenticator code at sign in." });
+    } catch (err) {
+      toast({
+        title: "2FA was not enabled",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const openDisableTwoFactor = () => {
+    setTwoFactorMode("disable");
+    setTwoFactorCode("");
+    setTwoFactorPassword("");
+    setTwoFactorSetup(null);
+    setTwoFactorDialogOpen(true);
+  };
+
+  const disableTwoFactor = async () => {
+    setTwoFactorLoading(true);
+    try {
+      const response = await fetch("/api/auth/2fa/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: twoFactorCode,
+          currentPassword: twoFactorPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Could not disable two-factor authentication");
+      }
+      setUser((current) =>
+        current
+          ? {
+              ...current,
+              twoFactorEnabled: false,
+              twoFactorEnabledAt: null,
+            }
+          : current
+      );
+      setTwoFactorDialogOpen(false);
+      toast({ title: "2FA disabled" });
+    } catch (err) {
+      toast({
+        title: "2FA was not disabled",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  };
+
+  const copyRecoveryCodes = async () => {
+    if (!twoFactorSetup?.recoveryCodes.length) return;
+    await navigator.clipboard.writeText(twoFactorSetup.recoveryCodes.join("\n"));
+    toast({ title: "Recovery codes copied" });
   };
 
   const handleThemeChange = async (newTheme: string) => {
@@ -1213,17 +1351,39 @@ export default function SettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-muted-foreground" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${user?.twoFactorEnabled ? "bg-emerald-500/10" : "bg-muted"}`}>
+                        {user?.twoFactorEnabled ? (
+                          <Shield className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          <Shield className="w-5 h-5 text-muted-foreground" />
+                        )}
                       </div>
                       <div>
-                        <p className="font-medium">2FA is not enabled</p>
-                        <p className="text-xs text-muted-foreground">Protect your account with 2FA</p>
+                        <p className="font-medium">{user?.twoFactorEnabled ? "2FA is enabled" : "2FA is not enabled"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user?.twoFactorEnabled
+                            ? `Authenticator app required${user.twoFactorEnabledAt ? ` since ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(user.twoFactorEnabledAt))}` : ""}.`
+                            : "Protect your account with an authenticator app."}
+                        </p>
                       </div>
                     </div>
-                    <Button variant="outline">Enable 2FA</Button>
+                    <Button
+                      variant={user?.twoFactorEnabled ? "outline" : "default"}
+                      onClick={user?.twoFactorEnabled ? openDisableTwoFactor : startTwoFactorSetup}
+                      disabled={twoFactorLoading}
+                      className={user?.twoFactorEnabled ? "" : "bg-brand-500 text-white hover:bg-brand-600"}
+                    >
+                      {twoFactorLoading ? (
+                        <AISpinner className="mr-2 h-4 w-4" />
+                      ) : user?.twoFactorEnabled ? (
+                        <KeyRound className="mr-2 h-4 w-4" />
+                      ) : (
+                        <QrCode className="mr-2 h-4 w-4" />
+                      )}
+                      {user?.twoFactorEnabled ? "Manage 2FA" : "Enable 2FA"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1666,6 +1826,131 @@ export default function SettingsPage() {
           }}
         />
       </StripeProvider>
+
+      <Dialog open={twoFactorDialogOpen} onOpenChange={setTwoFactorDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {twoFactorMode === "setup" ? "Set Up Two-Factor Authentication" : "Disable Two-Factor Authentication"}
+            </DialogTitle>
+            <DialogDescription>
+              {twoFactorMode === "setup"
+                ? "Scan the QR code with an authenticator app, then enter the 6-digit code to activate 2FA."
+                : "Confirm this change with an authenticator code, recovery code, or your current password."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {twoFactorMode === "setup" ? (
+            <div className="space-y-5">
+              {twoFactorSetup?.recoveryCodes.length ? (
+                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-emerald-700 dark:text-emerald-300">Save these recovery codes</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Each code can be used once if the authenticator app is unavailable.
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={copyRecoveryCodes}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {twoFactorSetup.recoveryCodes.map((code) => (
+                      <code key={code} className="rounded-lg border bg-background px-3 py-2 text-sm">
+                        {code}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-[240px_minmax(0,1fr)]">
+                    <div className="rounded-xl border bg-white p-3">
+                      {twoFactorSetup?.qrCodeDataUrl ? (
+                        <img src={twoFactorSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-52 w-52" />
+                      ) : (
+                        <div className="grid h-52 w-52 place-items-center text-muted-foreground">
+                          <AISpinner className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-4">
+                      <div className="rounded-xl border bg-muted/30 p-3">
+                        <p className="text-sm font-medium">Manual setup key</p>
+                        <code className="mt-2 block break-all rounded-lg bg-background p-2 text-sm">
+                          {twoFactorSetup?.secret || "Loading..."}
+                        </code>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="twoFactorCode">Authenticator code</Label>
+                        <Input
+                          id="twoFactorCode"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          value={twoFactorCode}
+                          onChange={(event) => setTwoFactorCode(event.target.value)}
+                          placeholder="123456"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="disableTwoFactorCode">Authenticator or recovery code</Label>
+                <Input
+                  id="disableTwoFactorCode"
+                  autoComplete="one-time-code"
+                  value={twoFactorCode}
+                  onChange={(event) => setTwoFactorCode(event.target.value)}
+                  placeholder="123456 or recovery code"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="disableTwoFactorPassword">Current password</Label>
+                <Input
+                  id="disableTwoFactorPassword"
+                  type="password"
+                  value={twoFactorPassword}
+                  onChange={(event) => setTwoFactorPassword(event.target.value)}
+                  placeholder="Optional if you entered a valid code"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTwoFactorDialogOpen(false)} disabled={twoFactorLoading}>
+              {twoFactorSetup?.recoveryCodes.length ? "Done" : "Cancel"}
+            </Button>
+            {twoFactorMode === "setup" && !twoFactorSetup?.recoveryCodes.length && (
+              <Button
+                onClick={enableTwoFactor}
+                disabled={twoFactorLoading || twoFactorCode.trim().length < 6}
+                className="bg-brand-500 text-white hover:bg-brand-600"
+              >
+                {twoFactorLoading ? <AISpinner className="mr-2 h-4 w-4" /> : <Shield className="mr-2 h-4 w-4" />}
+                Verify and enable
+              </Button>
+            )}
+            {twoFactorMode === "disable" && (
+              <Button
+                onClick={disableTwoFactor}
+                disabled={twoFactorLoading || (!twoFactorCode.trim() && !twoFactorPassword.trim())}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {twoFactorLoading ? <AISpinner className="mr-2 h-4 w-4" /> : <KeyRound className="mr-2 h-4 w-4" />}
+                Disable 2FA
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Payment Method Confirmation */}
       <AlertDialog open={!!confirmDeleteMethod} onOpenChange={(open) => !open && setConfirmDeleteMethod(null)}>

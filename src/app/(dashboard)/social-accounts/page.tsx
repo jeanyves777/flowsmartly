@@ -70,6 +70,9 @@ interface SocialAccount {
   connectedAt: string;
   isActive: boolean;
   tokenExpiresAt: string | null;
+  scopes?: string[];
+  missingScopes?: string[];
+  needsReconnect?: boolean;
 }
 
 interface ConnectionSlots {
@@ -389,6 +392,7 @@ export default function SocialAccountsPage() {
   const usagePercent = accountLimit === null || accountLimit === 0 ? 100 : Math.min(100, Math.round((connectedCount / accountLimit) * 100));
   const isAtLimit = accountLimit !== null && connectedCount >= accountLimit;
   const expiredCount = accounts.filter((account) => getTokenStatus(account).expired).length;
+  const reconnectCount = accounts.filter((account) => account.needsReconnect).length;
 
   return (
     <div className="space-y-5 pb-8">
@@ -434,8 +438,8 @@ export default function SocialAccountsPage() {
           <CommandMetric
             icon={ShieldCheck}
             label={connectionSlots.totalUnlockedSlots ? "Unlocked extra slots" : "Connection health"}
-            value={connectionSlots.totalUnlockedSlots ? `+${connectionSlots.totalUnlockedSlots}` : expiredCount ? `${expiredCount} expired` : "Healthy"}
-            tone={expiredCount ? "amber" : "blue"}
+            value={connectionSlots.totalUnlockedSlots ? `+${connectionSlots.totalUnlockedSlots}` : reconnectCount ? `${reconnectCount} reconnect` : expiredCount ? `${expiredCount} expired` : "Healthy"}
+            tone={expiredCount || reconnectCount ? "amber" : "blue"}
           />
         </div>
         {accountLimit !== null && <Progress value={usagePercent} className="mt-4 h-1.5" />}
@@ -538,6 +542,9 @@ export default function SocialAccountsPage() {
                     window.location.href = platform.connectUrl;
                   },
                   onUnlock: () => setUnlockTarget({ platform: platform.id, name: platform.name }),
+                  onReconnect: () => {
+                    window.location.href = platform.connectUrl;
+                  },
                 }];
               }))}
               onDisconnect={(account, platform) => setDisconnectTarget({ id: account.id, platform, name: account.platformDisplayName })}
@@ -806,6 +813,7 @@ function ConnectedAccountsList({
     unlockCost: number;
     onConnect: () => void;
     onUnlock: () => void;
+    onReconnect: () => void;
   }>;
   onDisconnect: (account: SocialAccount, platform: string) => void;
 }) {
@@ -866,6 +874,7 @@ function ConnectedAccountsList({
                   account={account}
                   platform={platform}
                   getTokenStatus={getTokenStatus}
+                  onReconnect={action?.onReconnect}
                   onDisconnect={onDisconnect}
                 />
               ))}
@@ -881,11 +890,13 @@ function AccountRow({
   account,
   platform,
   getTokenStatus,
+  onReconnect,
   onDisconnect,
 }: {
   account: SocialAccount;
   platform: string;
   getTokenStatus: (account: SocialAccount) => { label: string; color: string; expired: boolean };
+  onReconnect?: () => void;
   onDisconnect: (account: SocialAccount, platform: string) => void;
 }) {
   const meta = PLATFORM_META[platform as keyof typeof PLATFORM_META];
@@ -899,13 +910,33 @@ function AccountRow({
           <p className="truncate text-sm font-semibold">{account.platformDisplayName || meta?.label || platform}</p>
           <p className="truncate text-xs text-muted-foreground">{account.platformUsername || account.platformUserId}</p>
           <p className={`mt-0.5 text-xs ${tokenStatus.color}`}>{tokenStatus.label}</p>
+          {account.needsReconnect && (
+            <p className="mt-1 text-xs font-medium text-amber-600">
+              Reconnect to enable media uploads ({account.missingScopes?.join(", ") || "missing permission"})
+            </p>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Badge variant="outline" className={tokenStatus.expired ? "border-red-500/50 text-red-600" : "border-emerald-500/50 text-emerald-600"}>
-          {tokenStatus.expired ? <AlertCircle className="mr-1 h-3 w-3" /> : <Check className="mr-1 h-3 w-3" />}
-          {tokenStatus.expired ? "Expired" : "Connected"}
+        <Badge
+          variant="outline"
+          className={
+            account.needsReconnect
+              ? "border-amber-500/50 text-amber-600"
+              : tokenStatus.expired
+                ? "border-red-500/50 text-red-600"
+                : "border-emerald-500/50 text-emerald-600"
+          }
+        >
+          {account.needsReconnect || tokenStatus.expired ? <AlertCircle className="mr-1 h-3 w-3" /> : <Check className="mr-1 h-3 w-3" />}
+          {account.needsReconnect ? "Reconnect" : tokenStatus.expired ? "Expired" : "Connected"}
         </Badge>
+        {account.needsReconnect && onReconnect && (
+          <Button size="sm" variant="outline" className="h-8" onClick={onReconnect}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Reconnect
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"

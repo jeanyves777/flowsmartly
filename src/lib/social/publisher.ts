@@ -37,6 +37,7 @@ type SocialAccount = {
   tokenExpiresAt: Date | null;
   platformDisplayName: string | null;
   platformUsername: string | null;
+  scopes: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -49,6 +50,15 @@ function hasVideo(post: PostData): boolean {
   return (
     post.mediaType === "video" || post.mediaUrls.some((u) => isVideoUrl(u))
   );
+}
+
+function parseGrantedScopes(scopes: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(scopes || "[]");
+    return Array.isArray(parsed) ? parsed.filter((scope): scope is string => typeof scope === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Refresh an OAuth token and update the DB. Returns new access token or null. */
@@ -555,6 +565,13 @@ async function publishToTwitter(
   const token = await getValidToken(account, "twitter");
   if (!token) {
     return { success: false, error: "Missing or expired Twitter token. Please reconnect." };
+  }
+
+  if (post.mediaUrls.length > 0 && !parseGrantedScopes(account.scopes).includes("media.write")) {
+    return {
+      success: false,
+      error: "Reconnect X / Twitter from Social Accounts to enable image and video uploads. The current connection is missing media.write permission.",
+    };
   }
 
   try {

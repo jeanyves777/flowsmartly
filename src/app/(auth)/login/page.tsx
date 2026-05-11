@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Briefcase } from "lucide-react";
+import { Eye, EyeOff, Briefcase, Shield } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,13 +44,18 @@ function LoginPageContent() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    twoFactorCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<string>("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "email" || name === "password") {
+      setTwoFactorChallenge("");
+    }
     // Clear error when user types
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -66,7 +71,13 @@ function LoginPageContent() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, turnstileToken }),
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          twoFactorCode: formData.twoFactorCode,
+          twoFactorChallenge,
+          turnstileToken,
+        }),
       });
 
       const data = await response.json();
@@ -87,6 +98,17 @@ function LoginPageContent() {
             title: "Verification expired",
             description: "Please solve the CAPTCHA again below, then click Sign in.",
             variant: "destructive",
+          });
+        } else if (data.error?.code === "TWO_FACTOR_REQUIRED" || data.error?.code === "INVALID_TWO_FACTOR") {
+          if (data.data?.twoFactorChallenge) setTwoFactorChallenge(data.data.twoFactorChallenge);
+          setErrors((prev) => ({
+            ...prev,
+            twoFactorCode: data.error?.code === "INVALID_TWO_FACTOR" ? "Invalid authenticator code" : "",
+          }));
+          toast({
+            title: data.error?.code === "INVALID_TWO_FACTOR" ? "Invalid code" : "Two-factor code required",
+            description: data.error?.message || "Enter your authenticator code to continue.",
+            variant: data.error?.code === "INVALID_TWO_FACTOR" ? "destructive" : "default",
           });
         } else {
           toast({
@@ -211,6 +233,30 @@ function LoginPageContent() {
           )}
         </div>
 
+        {(errors.twoFactorCode !== undefined || formData.twoFactorCode) && (
+          <div className="space-y-2">
+            <Label htmlFor="twoFactorCode">Two-factor code</Label>
+            <div className="relative">
+              <Input
+                id="twoFactorCode"
+                name="twoFactorCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456 or recovery code"
+                value={formData.twoFactorCode}
+                onChange={handleChange}
+                error={errors.twoFactorCode}
+                disabled={isLoading}
+                className="pl-10"
+              />
+              <Shield className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            {errors.twoFactorCode && (
+              <p className="text-sm text-destructive">{errors.twoFactorCode}</p>
+            )}
+          </div>
+        )}
+
         {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
           <Turnstile
             siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
@@ -225,6 +271,11 @@ function LoginPageContent() {
             <>
               <AISpinner className="h-4 w-4 animate-spin" />
               Signing in...
+            </>
+          ) : errors.twoFactorCode !== undefined || formData.twoFactorCode ? (
+            <>
+              <Shield className="h-4 w-4 mr-2" />
+              Verify and sign in
             </>
           ) : isAgentFlow ? (
             <>

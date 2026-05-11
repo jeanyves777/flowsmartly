@@ -250,6 +250,54 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
+    if (body.action === "disable_all") {
+      const sourceStrategyId = typeof body.sourceStrategyId === "string" ? body.sourceStrategyId : null;
+      const where: {
+        userId: string;
+        enabled: boolean;
+        OR?: Array<{ sourceStrategyId: string } | { strategyTaskId: { in: string[] } }>;
+      } = {
+        userId: session.userId,
+        enabled: true,
+      };
+
+      if (sourceStrategyId) {
+        const sourceStrategy = await prisma.marketingStrategy.findUnique({
+          where: { id: sourceStrategyId },
+          select: { id: true, userId: true },
+        });
+        if (!sourceStrategy || sourceStrategy.userId !== session.userId) {
+          return NextResponse.json(
+            { success: false, error: { message: "Linked strategy not found" } },
+            { status: 404 }
+          );
+        }
+
+        const taskIds = await prisma.strategyTask.findMany({
+          where: { strategyId: sourceStrategyId },
+          select: { id: true },
+        });
+        where.OR = [
+          { sourceStrategyId },
+          { strategyTaskId: { in: taskIds.map((task) => task.id) } },
+        ];
+      }
+
+      const result = await prisma.postAutomation.updateMany({
+        where,
+        data: { enabled: false },
+      });
+
+      await triggerActivitySyncForUser(session.userId).catch((err) =>
+        console.error("Strategy sync after bulk automation disable failed:", err)
+      );
+
+      return NextResponse.json({
+        success: true,
+        data: { disabledCount: result.count },
+      });
+    }
+
     const {
       id, name, type, schedule, topic, aiPrompt, aiTone, platforms, enabled,
       includeMedia, mediaType, mediaStyle, startDate, endDate,

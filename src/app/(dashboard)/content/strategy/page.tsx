@@ -56,6 +56,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -275,6 +285,11 @@ interface AutomationRunPreview {
   scheduledAt: string;
   result: string;
 }
+
+type StrategyConfirmTarget =
+  | { kind: "delete-task"; id: string; name: string }
+  | { kind: "delete-automation"; id: string; name: string }
+  | { kind: "cancel-automations"; count: number };
 
 interface ReadinessRepairOptions {
   convertToPost: boolean;
@@ -740,6 +755,7 @@ export default function StrategyAutomationPage() {
   const [runConfirmAutomation, setRunConfirmAutomation] = useState<Automation | null>(null);
   const [runPreview, setRunPreview] = useState<AutomationRunPreview | null>(null);
   const [loadingRunPreview, setLoadingRunPreview] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<StrategyConfirmTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedAutomationId, setSelectedAutomationId] = useState<string | null>(null);
@@ -890,6 +906,18 @@ export default function StrategyAutomationPage() {
   }, [searchParams]);
 
   const tasks = strategy?.tasks || [];
+  const strategyTaskIds = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  const activeStrategyAutomations = useMemo(
+    () =>
+      automations.filter(
+        (automation) =>
+          automation.enabled &&
+          (!strategy ||
+            automation.sourceStrategyId === strategy.id ||
+            (automation.strategyTaskId ? strategyTaskIds.has(automation.strategyTaskId) : false))
+      ),
+    [automations, strategy, strategyTaskIds]
+  );
   const selectedTask = selectedTaskId
     ? tasks.find((task) => task.id === selectedTaskId) || null
     : null;
@@ -1803,11 +1831,19 @@ export default function StrategyAutomationPage() {
     }
   };
 
-  const deleteTask = async () => {
+  const requestDeleteTask = () => {
     if (!taskDraft.id) return;
+    setConfirmTarget({
+      kind: "delete-task",
+      id: taskDraft.id,
+      name: taskDraft.title || "this plan item",
+    });
+  };
+
+  const deleteTaskById = async (taskId: string) => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/content/strategy/tasks?id=${taskDraft.id}`, {
+      const res = await fetch(`/api/content/strategy/tasks?id=${taskId}`, {
         method: "DELETE",
       });
       const json = await res.json();
@@ -1934,12 +1970,15 @@ export default function StrategyAutomationPage() {
     }
   };
 
-  const deleteAutomationById = async (automationId: string, automationName?: string) => {
-    const confirmed =
-      typeof window === "undefined" ||
-      window.confirm(`Delete automation${automationName ? ` "${automationName}"` : ""}?`);
-    if (!confirmed) return;
+  const requestDeleteAutomation = (automationId: string, automationName?: string) => {
+    setConfirmTarget({
+      kind: "delete-automation",
+      id: automationId,
+      name: automationName || "this automation",
+    });
+  };
 
+  const deleteAutomationById = async (automationId: string) => {
     setSaving(true);
     try {
       const res = await fetch(`/api/content/automation?id=${automationId}`, {
@@ -1965,7 +2004,56 @@ export default function StrategyAutomationPage() {
 
   const deleteAutomation = async () => {
     if (!automationDraft.id) return;
-    await deleteAutomationById(automationDraft.id, automationDraft.name);
+    requestDeleteAutomation(automationDraft.id, automationDraft.name);
+  };
+
+  const requestCancelAllAutomations = () => {
+    if (activeStrategyAutomations.length === 0) return;
+    setConfirmTarget({ kind: "cancel-automations", count: activeStrategyAutomations.length });
+  };
+
+  const cancelAllAutomations = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/content/automation", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "disable_all",
+          sourceStrategyId: strategy?.id || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Automations were not cancelled");
+      await loadData();
+      toast({
+        title: "Automations cancelled",
+        description: `${json.data?.disabledCount || 0} active automation${json.data?.disabledCount === 1 ? "" : "s"} turned off.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Automations were not cancelled",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmPendingAction = async () => {
+    const target = confirmTarget;
+    if (!target) return;
+    setConfirmTarget(null);
+    if (target.kind === "delete-task") {
+      await deleteTaskById(target.id);
+      return;
+    }
+    if (target.kind === "delete-automation") {
+      await deleteAutomationById(target.id);
+      return;
+    }
+    await cancelAllAutomations();
   };
 
   const openRunConfirmation = async (automation: Automation) => {
@@ -2320,6 +2408,15 @@ export default function StrategyAutomationPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 One-off automation
               </Button>
+              <Button
+                variant="outline"
+                onClick={requestCancelAllAutomations}
+                disabled={saving || activeStrategyAutomations.length === 0}
+                className="border-destructive/30 text-destructive hover:text-destructive"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel all active
+              </Button>
             </>
           )}
         </div>
@@ -2422,7 +2519,7 @@ export default function StrategyAutomationPage() {
                       className="text-destructive hover:text-destructive"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteAutomationById(automation.id, automation.name);
+                        requestDeleteAutomation(automation.id, automation.name);
                       }}
                       disabled={saving}
                     >
@@ -2842,7 +2939,7 @@ export default function StrategyAutomationPage() {
               </div>
             )}
             {taskDraft.id && (
-              <Button variant="ghost" className="w-full text-destructive hover:text-destructive" onClick={deleteTask}>
+              <Button variant="ghost" className="w-full text-destructive hover:text-destructive" onClick={requestDeleteTask}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete item
               </Button>
@@ -4221,6 +4318,46 @@ export default function StrategyAutomationPage() {
     </>
   );
 
+  const renderConfirmActionDialog = () => {
+    const target = confirmTarget;
+    const title =
+      target?.kind === "delete-task"
+        ? "Delete plan item?"
+        : target?.kind === "delete-automation"
+          ? "Delete automation?"
+          : "Cancel active automations?";
+    const description =
+      target?.kind === "delete-task"
+        ? `This will remove "${target.name}" from the strategy plan. This action cannot be undone.`
+        : target?.kind === "delete-automation"
+          ? `This will permanently delete "${target.name}" and stop its future scheduled runs.`
+          : `This will turn off ${target?.count || 0} active automation${target?.count === 1 ? "" : "s"} for this strategy. The saved automation cards will remain so they can be edited or enabled later.`;
+    const actionLabel =
+      target?.kind === "cancel-automations" ? "Cancel automations" : "Delete";
+
+    return (
+      <AlertDialog open={!!target} onOpenChange={(open) => { if (!open) setConfirmTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogDescription>{description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Keep</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPendingAction}
+              disabled={saving}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              {actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[620px] items-center justify-center rounded-2xl border bg-card">
@@ -4391,6 +4528,7 @@ export default function StrategyAutomationPage() {
       {renderReadinessDialog()}
       {renderAutomationConfigDialog()}
       {renderRunConfirmationDialog()}
+      {renderConfirmActionDialog()}
     </>
   );
 }
