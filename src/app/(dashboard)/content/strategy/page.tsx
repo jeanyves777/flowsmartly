@@ -199,6 +199,7 @@ interface AutomationDraft {
 }
 
 interface StrategyBuilderDraft {
+  goalPresetId: string | null;
   goals: string;
   timeframe: Timeframe;
   focusAreas: TaskCategory[];
@@ -206,6 +207,19 @@ interface StrategyBuilderDraft {
   additionalContext: string;
   competitorInfo: string;
   budget: string;
+}
+
+interface StrategyGoalPreset {
+  id: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  goalTemplate: string;
+  focusAreas: TaskCategory[];
+  platforms: string[];
+  timeframe: Timeframe;
+  additionalContext: string;
+  budget?: string;
 }
 
 interface AutomationBuilderDraft {
@@ -334,6 +348,87 @@ const TIMEFRAME_OPTIONS: Array<{ value: Timeframe; label: string }> = [
   { value: "6_MONTHS", label: "6 months" },
 ];
 
+const STRATEGY_GOAL_PRESETS: StrategyGoalPreset[] = [
+  {
+    id: "comprehensive-growth",
+    label: "Comprehensive growth",
+    description: "Full operating plan across content, social, ads, email, and reporting.",
+    icon: Sparkles,
+    goalTemplate:
+      "Create a comprehensive marketing operating strategy for {brand}. Build a complete system for awareness, trust, lead generation, sales follow-up, recurring content, email nurturing, promotional moments, analytics, and automation-ready execution.",
+    focusAreas: ["content", "social", "ads", "email", "analytics"],
+    platforms: ["Instagram", "Facebook", "LinkedIn", "Email", "Blog"],
+    timeframe: "3_MONTHS",
+    additionalContext:
+      "Produce a balanced operating plan with executable weekly content, social posts, email campaigns, lightweight ads, performance review checkpoints, and automation-ready tasks. Every task should be ready for the automation hub to turn into a post, email, image, video, or follow-up action.",
+  },
+  {
+    id: "brand-awareness",
+    label: "Brand awareness",
+    description: "Make the brand visible, trusted, and memorable in the market.",
+    icon: Target,
+    goalTemplate:
+      "Create a brand-awareness strategy for {brand}. Focus on making the brand easier to discover, understand, trust, and remember through consistent educational, proof-based, and community-facing content.",
+    focusAreas: ["content", "social", "analytics"],
+    platforms: ["Instagram", "Facebook", "LinkedIn", "Blog"],
+    timeframe: "3_MONTHS",
+    additionalContext:
+      "Prioritize audience education, founder or team authority, behind-the-scenes proof, customer outcomes, FAQs, brand story posts, shareable visuals, and measurement checkpoints.",
+  },
+  {
+    id: "lead-generation",
+    label: "Lead generation",
+    description: "Turn attention into inquiries, bookings, calls, and qualified leads.",
+    icon: Rocket,
+    goalTemplate:
+      "Create a lead-generation strategy for {brand}. Turn interested people into qualified inquiries, booked calls, form submissions, messages, subscribers, and follow-up opportunities.",
+    focusAreas: ["content", "social", "ads", "email", "analytics"],
+    platforms: ["Facebook", "Instagram", "LinkedIn", "Email"],
+    timeframe: "3_MONTHS",
+    additionalContext:
+      "Include lead magnets, CTA posts, objection-handling content, proof posts, retargeting ideas, email follow-up sequences, and tracking tasks. Tasks must be actionable enough to generate posts and email campaigns.",
+  },
+  {
+    id: "sales-promotion",
+    label: "Sales promotion",
+    description: "Campaign plan for offers, launches, specials, bundles, and urgency.",
+    icon: Zap,
+    goalTemplate:
+      "Create a sales and promotion strategy for {brand}. Plan campaigns that turn offers, product/service launches, limited-time specials, bundles, and seasonal moments into clear demand.",
+    focusAreas: ["content", "social", "ads", "email", "analytics"],
+    platforms: ["Instagram", "Facebook", "TikTok", "Email"],
+    timeframe: "1_MONTH",
+    additionalContext:
+      "Include offer announcements, benefit-focused posts, countdowns, customer proof, urgency reminders, email pushes, and post-campaign reporting. Keep tasks practical for direct publishing and scheduling.",
+  },
+  {
+    id: "event-calendar",
+    label: "Event calendar",
+    description: "Plan posts around holidays, local dates, services, launches, and events.",
+    icon: CalendarDays,
+    goalTemplate:
+      "Create an event-calendar strategy for {brand}. Build a posting and campaign plan around upcoming holidays, observances, local moments, events, launches, services, and seasonal opportunities.",
+    focusAreas: ["content", "social", "email", "analytics"],
+    platforms: ["Instagram", "Facebook", "Email", "Blog"],
+    timeframe: "3_MONTHS",
+    additionalContext:
+      "Create event-based tasks with due dates, countdown posts, day-of reminders, recap posts, email reminders, and reusable calendar prompts. Every item should include timing, audience, message angle, CTA, and whether media is needed.",
+  },
+  {
+    id: "community-engagement",
+    label: "Community engagement",
+    description: "Grow participation, loyalty, testimonials, referrals, and conversations.",
+    icon: Rss,
+    goalTemplate:
+      "Create a community-engagement strategy for {brand}. Strengthen participation, loyalty, referrals, testimonials, conversations, and repeat engagement with the people already around the brand.",
+    focusAreas: ["content", "social", "email"],
+    platforms: ["Instagram", "Facebook", "LinkedIn", "Email"],
+    timeframe: "3_MONTHS",
+    additionalContext:
+      "Include appreciation posts, member/customer spotlights, testimonial prompts, conversation starters, event reminders, referral pushes, recap content, and email touchpoints.",
+  },
+];
+
 const TONE_OPTIONS = ["professional", "friendly", "confident", "educational", "playful"];
 
 const BRAND_HANDLE_PLATFORM: Record<string, string> = {
@@ -458,6 +553,7 @@ const DEFAULT_AUTOMATION: AutomationDraft = {
 };
 
 const DEFAULT_STRATEGY_BUILDER: StrategyBuilderDraft = {
+  goalPresetId: null,
   goals: "",
   timeframe: "3_MONTHS",
   focusAreas: ["content", "social", "ads", "email", "analytics"],
@@ -618,6 +714,21 @@ function buildBrandGoal(brand: BrandSnapshot | null) {
     .join("\n");
 
   return `Create a complete marketing strategy for ${brand.name} from the saved brand identity. Create practical content, social, email, ads, analytics, and automation-ready tasks.${details ? `\n\n${details}` : ""}`;
+}
+
+function goalPresetText(preset: StrategyGoalPreset, brand: BrandSnapshot | null) {
+  const brandName = brand?.name || "this brand";
+  return preset.goalTemplate.replace("{brand}", brandName);
+}
+
+function mergePresetPlatforms(preset: StrategyGoalPreset, activeBrandPlatforms: string[]) {
+  return [
+    ...new Set(
+      [...preset.platforms, ...activeBrandPlatforms].filter((platform) =>
+        STRATEGY_PLATFORM_OPTIONS.includes(platform)
+      )
+    ),
+  ];
 }
 
 function getDefaultAutomationEndDate() {
@@ -1229,18 +1340,31 @@ export default function StrategyAutomationPage() {
   };
 
   const openStrategyBuilder = () => {
+    const defaultPreset = STRATEGY_GOAL_PRESETS[0];
     setStrategyBuilder((draft) => ({
       ...draft,
+      goalPresetId: strategy ? draft.goalPresetId : draft.goalPresetId || defaultPreset.id,
       goals:
         draft.goals ||
         (strategy
           ? `Improve "${strategy.name}" so the open plan items become automation-ready while keeping completed and already automated work intact.`
-          : ""),
+          : goalPresetText(defaultPreset, brand)),
+      timeframe: strategy ? draft.timeframe : draft.timeframe || defaultPreset.timeframe,
+      focusAreas:
+        draft.focusAreas.length > 0
+          ? draft.focusAreas
+          : strategy
+          ? DEFAULT_STRATEGY_BUILDER.focusAreas
+          : defaultPreset.focusAreas,
       platforms: draft.platforms.length
         ? draft.platforms
         : activeBrandPlatforms.length
         ? activeBrandPlatforms
-        : DEFAULT_STRATEGY_BUILDER.platforms,
+        : strategy
+        ? DEFAULT_STRATEGY_BUILDER.platforms
+        : mergePresetPlatforms(defaultPreset, activeBrandPlatforms),
+      additionalContext: draft.additionalContext || (!strategy ? defaultPreset.additionalContext : ""),
+      budget: draft.budget || defaultPreset.budget || "",
     }));
     setStrategyBuilderOpen(true);
   };
@@ -1321,9 +1445,23 @@ export default function StrategyAutomationPage() {
     }
   };
 
+  const applyStrategyGoalPreset = (preset: StrategyGoalPreset) => {
+    setStrategyBuilder((draft) => ({
+      ...draft,
+      goalPresetId: preset.id,
+      goals: goalPresetText(preset, brand),
+      timeframe: preset.timeframe,
+      focusAreas: preset.focusAreas,
+      platforms: mergePresetPlatforms(preset, activeBrandPlatforms),
+      additionalContext: preset.additionalContext,
+      budget: preset.budget || "",
+    }));
+  };
+
   const toggleStrategyFocus = (category: TaskCategory) => {
     setStrategyBuilder((draft) => ({
       ...draft,
+      goalPresetId: null,
       focusAreas: draft.focusAreas.includes(category)
         ? draft.focusAreas.filter((item) => item !== category)
         : [...draft.focusAreas, category],
@@ -1333,6 +1471,7 @@ export default function StrategyAutomationPage() {
   const toggleStrategyPlatform = (platform: string) => {
     setStrategyBuilder((draft) => ({
       ...draft,
+      goalPresetId: null,
       platforms: draft.platforms.includes(platform)
         ? draft.platforms.filter((item) => item !== platform)
         : [...draft.platforms, platform],
@@ -3169,6 +3308,59 @@ export default function StrategyAutomationPage() {
         )}
       </div>
 
+      {!isImprove && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label>Strategy goal</Label>
+            <span className="text-xs text-muted-foreground">Preset focus</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {STRATEGY_GOAL_PRESETS.map((preset) => {
+              const Icon = preset.icon;
+              const selected = strategyBuilder.goalPresetId === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyStrategyGoalPreset(preset)}
+                  className={cn(
+                    "min-h-[118px] rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:border-brand-500/40 hover:bg-muted/40",
+                    selected && "border-brand-500 bg-brand-500/10 ring-2 ring-brand-500/15"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                        selected ? "border-brand-500/30 bg-brand-500 text-white" : "bg-background text-brand-600"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{preset.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                        {preset.description}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {preset.focusAreas.slice(0, 4).map((category) => (
+                      <span
+                        key={category}
+                        className="rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      >
+                        {CATEGORY_CONFIG[category].label}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {isImprove && (
         <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-3">
           <div className="flex items-start gap-3">
@@ -3204,7 +3396,7 @@ export default function StrategyAutomationPage() {
         <Textarea
           value={strategyBuilder.goals}
           onChange={(event) =>
-            setStrategyBuilder((draft) => ({ ...draft, goals: event.target.value }))
+            setStrategyBuilder((draft) => ({ ...draft, goalPresetId: null, goals: event.target.value }))
           }
           placeholder={
             isImprove
