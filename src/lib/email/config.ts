@@ -1,9 +1,14 @@
 import nodemailer from "nodemailer";
 
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || "465", 10);
+
 export const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || "smtp.hostinger.com",
-  port: parseInt(process.env.SMTP_PORT || "465"),
-  secure: true,
+  port: SMTP_PORT,
+  secure:
+    process.env.SMTP_SECURE !== undefined
+      ? process.env.SMTP_SECURE === "true"
+      : SMTP_PORT === 465,
   auth: {
     user: process.env.SMTP_USER || "info@flowsmartly.com",
     pass: process.env.SMTP_PASSWORD,
@@ -11,7 +16,7 @@ export const EMAIL_CONFIG = {
 };
 
 export const FROM_EMAIL = process.env.SMTP_FROM || "FlowSmartly <info@flowsmartly.com>";
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://flowsmartly.com";
 export const APP_NAME = "FlowSmartly";
 
 let transporter: nodemailer.Transporter | null = null;

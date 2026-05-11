@@ -359,11 +359,17 @@ export async function notifyPasswordReset(params: {
   resetUrl: string;
 }) {
   // Send password reset email (no in-app notification - user can't log in)
-  await sendPasswordResetEmail({
+  const result = await sendPasswordResetEmail({
     to: params.email,
     name: params.name,
     resetUrl: params.resetUrl,
   });
+
+  if (!result.success) {
+    throw new Error(result.error || "Password reset email could not be sent");
+  }
+
+  return result;
 }
 
 /**

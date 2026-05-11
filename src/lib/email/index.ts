@@ -91,6 +91,8 @@ export async function sendPasswordResetEmail(params: {
       <a href="${params.resetUrl}" class="button">Reset Password</a>
     </p>
     <p style="color: #71717a; font-size: 14px;">This link will expire in 1 hour for security reasons.</p>
+    <p style="color: #71717a; font-size: 14px;">If the button does not work, copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #0ea5e9; font-size: 14px;">${params.resetUrl}</p>
     <div class="warning">
       <strong>Didn't request this?</strong><br>
       If you didn't request a password reset, please ignore this email or contact support if you have concerns.

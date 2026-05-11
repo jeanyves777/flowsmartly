@@ -5,13 +5,23 @@ import { prisma } from "@/lib/db/client";
 import { notifyPasswordReset } from "@/lib/notifications";
 import { verifyTurnstile } from "@/lib/auth/turnstile";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
 // Validation schema
 const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address").toLowerCase().trim(),
   turnstileToken: z.string().optional(),
 });
+
+function getAppUrl(request: NextRequest) {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/$/, "");
+
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host");
+  if (host) return `${forwardedProto}://${host}`.replace(/\/$/, "");
+
+  return "https://flowsmartly.com";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,14 +115,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send password reset email
-    const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+    // Send password reset email before returning success. This keeps the UI honest:
+    // if the mail provider rejects the message, the user can retry instead of
+    // seeing "check your email" for a message that never left our server.
+    const resetUrl = `${getAppUrl(request)}/reset-password?token=${encodeURIComponent(token)}`;
 
-    notifyPasswordReset({
-      email: user.email,
-      name: user.name,
-      resetUrl,
-    }).catch((err) => console.error("Failed to send password reset email:", err));
+    try {
+      await notifyPasswordReset({
+        email: user.email,
+        name: user.name,
+        resetUrl,
+      });
+    } catch (mailError) {
+      await prisma.passwordReset.update({
+        where: { token },
+        data: { usedAt: new Date() },
+      });
+
+      console.error("Failed to send password reset email:", mailError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "EMAIL_SEND_FAILED",
+            message: "We could not send the reset email right now. Please try again in a few minutes.",
+          },
+        },
+        { status: 502 }
+      );
+    }
 
     return successResponse;
   } catch (error) {
