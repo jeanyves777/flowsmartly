@@ -12,7 +12,7 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
   }
 
   if (!token) {
-    console.warn("[Turnstile] Called with empty token — rejecting without hitting Cloudflare");
+    console.warn("[Turnstile] Called with empty token - rejecting without hitting Cloudflare");
     return false;
   }
 
@@ -40,7 +40,6 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
         JSON.stringify({
           cloudflareResponse: data,
           tokenFingerprint,
-          secretKeyPrefix: TURNSTILE_SECRET.slice(0, 8) + "...",
           ip: ip || "none",
         }),
       );

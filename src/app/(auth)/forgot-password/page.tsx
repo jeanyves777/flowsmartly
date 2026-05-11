@@ -20,6 +20,15 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
+
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const requiresTurnstile = Boolean(turnstileSiteKey);
+
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+    setTurnstileKey((key) => key + 1);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,16 +44,28 @@ export default function ForgotPasswordPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (requiresTurnstile) {
+          resetTurnstile();
+        }
         toast({
           title: "Error",
-          description: data.error?.message || "Something went wrong",
+          description:
+            data.error?.code === "CAPTCHA_FAILED"
+              ? "Verification expired. Please complete it again."
+              : data.error?.message || "Something went wrong",
           variant: "destructive",
         });
         return;
       }
 
+      if (requiresTurnstile) {
+        resetTurnstile();
+      }
       setIsSubmitted(true);
     } catch {
+      if (requiresTurnstile) {
+        resetTurnstile();
+      }
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -113,11 +134,13 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+              {turnstileSiteKey && (
                 <Turnstile
-                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  key={turnstileKey}
+                  siteKey={turnstileSiteKey}
                   onSuccess={setTurnstileToken}
-                  onExpire={() => setTurnstileToken("")}
+                  onExpire={resetTurnstile}
+                  onError={resetTurnstile}
                   options={{ theme: "auto", size: "flexible" }}
                 />
               )}
@@ -126,7 +149,7 @@ export default function ForgotPasswordPage() {
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
+                disabled={isLoading || (requiresTurnstile && !turnstileToken)}
               >
                 {isLoading ? (
                   <>
