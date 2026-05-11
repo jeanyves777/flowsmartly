@@ -9,6 +9,7 @@ import {
 } from "@/lib/strategy/credit-estimator";
 import { qualifyStrategyTaskForAutomation } from "@/lib/strategy/automation-readiness";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
+import { buildStrategyAutomationPrompt } from "@/lib/strategy/automation-execution";
 
 interface TaskConfig {
   taskId: string;
@@ -307,9 +308,18 @@ export async function POST(request: NextRequest) {
       }
 
       // SOCIAL/CONTENT tasks → create PostAutomation record
-      const taskPrompt = config.customPrompt ||
-        `Write an engaging social media post about: ${task.title}. ${task.description || ""} ${brandContext}`;
       const configPlatforms = safePlatforms(config.platforms, platforms);
+      const taskPrompt = buildStrategyAutomationPrompt({
+        taskTitle: task.title,
+        taskDescription: task.description,
+        category,
+        platforms: configPlatforms,
+        brandContext,
+        customPrompt: config.customPrompt,
+        includeMedia: config.includeMedia,
+        mediaType: config.mediaType,
+        mediaStyle: config.mediaStyle,
+      });
 
       const schedule = JSON.stringify({
         frequency: config.frequency,

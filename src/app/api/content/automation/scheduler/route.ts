@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
+import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
 
@@ -252,21 +253,47 @@ async function runScheduler(request: NextRequest) {
       }
 
       try {
-        // Generate AI content
-        const topicContext = automation.topic ? `Topic: ${automation.topic}. ` : "";
-        const prompt = automation.aiPrompt || "Write an engaging social media post";
-        const toneInstruction = automation.aiTone
-          ? `Use a ${automation.aiTone} tone.`
-          : "Use a professional tone.";
+        let platforms: string[] = [];
+        try {
+          platforms = JSON.parse(automation.platforms || "[]");
+        } catch {
+          platforms = ["feed"];
+        }
 
-        const generatedContent = await ai.generate(
-          `${topicContext}${prompt}. ${toneInstruction} Include relevant hashtags. Keep it engaging and concise.`,
-          {
-            maxTokens: 512,
-            systemPrompt:
-              "You are an expert social media content creator. Write engaging, platform-ready posts.",
-          }
-        );
+        let brandKit = await prisma.brandKit.findFirst({
+          where: { userId: automation.userId, isDefault: true },
+        });
+        if (!brandKit) {
+          brandKit = await prisma.brandKit.findFirst({ where: { userId: automation.userId } });
+        }
+        const linkedTask = automation.strategyTaskId
+          ? await prisma.strategyTask.findFirst({
+              where: {
+                id: automation.strategyTaskId,
+                strategy: { userId: automation.userId },
+              },
+              select: {
+                title: true,
+                description: true,
+                category: true,
+                startDate: true,
+                dueDate: true,
+              },
+            })
+          : null;
+
+        const generatedAsset = await generateAutomationAsset({
+          topic: automation.topic,
+          aiPrompt: automation.aiPrompt,
+          aiTone: automation.aiTone,
+          platforms,
+          includeMedia: automation.includeMedia,
+          mediaType: automation.mediaType,
+          mediaStyle: automation.mediaStyle,
+          brand: brandKit,
+          task: linkedTask,
+        });
+        const generatedContent = generatedAsset.caption;
 
         if (!generatedContent?.trim()) {
           results.push({
@@ -278,31 +305,48 @@ async function runScheduler(request: NextRequest) {
           continue;
         }
 
-        const hashtags = generatedContent.match(/#[\w]+/g) || [];
-        const mentions = generatedContent.match(/@[\w]+/g) || [];
+        const hashtags = generatedAsset.hashtags.length ? generatedAsset.hashtags : generatedContent.match(/#[\w]+/g) || [];
+        const mentions = generatedAsset.mentions.length ? generatedAsset.mentions : generatedContent.match(/@[\w]+/g) || [];
 
         // Generate media if enabled
         let mediaUrl: string | null = null;
         let mediaMeta: string | null = null;
         let postMediaType: string | null = null;
 
-        if (automation.includeMedia && automation.mediaType === "image") {
+        if (automation.includeMedia && automation.mediaType) {
           try {
-            const styleHint = automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : "";
             const captionExcerpt = generatedContent.replace(/#[\w]+/g, "").trim().substring(0, 200);
-            const mediaPrompt = `Create a social media visual for: ${captionExcerpt}${styleHint}`;
+            const mediaPrompt =
+              generatedAsset.mediaPrompt ||
+              `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Leave logo space blank for compositing.`;
 
-            const generatedImage = await generateImageXaiFirst(mediaPrompt, 1536, 1024, { quality: "medium" });
-            const base64Image = generatedImage.base64;
+            if (automation.mediaType === "image") {
+              const generatedImage = await generateImageXaiFirst(mediaPrompt, 1536, 1024, { quality: "medium" });
+              const base64Image = generatedImage.base64;
 
-            if (base64Image) {
-              const imageBuffer = Buffer.from(base64Image, "base64");
-              const ext = generatedImage.format === "jpeg" ? "jpg" : "png";
-              const s3Key = `automation/${automation.id}/${Date.now()}.${ext}`;
-              await uploadToS3(s3Key, imageBuffer, generatedImage.format === "jpeg" ? "image/jpeg" : "image/png");
-              mediaUrl = s3Key;
-              mediaMeta = JSON.stringify([s3Key]);
-              postMediaType = "image";
+              if (base64Image) {
+                const imageBuffer = Buffer.from(base64Image, "base64");
+                const ext = generatedImage.format === "jpeg" ? "jpg" : "png";
+                const s3Key = `automation/${automation.id}/${Date.now()}.${ext}`;
+                await uploadToS3(s3Key, imageBuffer, generatedImage.format === "jpeg" ? "image/jpeg" : "image/png");
+                mediaUrl = s3Key;
+                mediaMeta = JSON.stringify([s3Key]);
+                postMediaType = "image";
+              }
+            } else if (automation.mediaType === "video") {
+              const result = await soraClient.generateVideoBuffer(mediaPrompt, {
+                model: "sora-2",
+                seconds: "8",
+                size: "1280x720",
+              });
+
+              if (result?.videoBuffer) {
+                const s3Key = `automation/${automation.id}/${Date.now()}.mp4`;
+                await uploadToS3(s3Key, result.videoBuffer, "video/mp4");
+                mediaUrl = s3Key;
+                mediaMeta = JSON.stringify([s3Key]);
+                postMediaType = "video";
+              }
             }
           } catch (mediaError) {
             console.warn(`[Scheduler] Media generation failed for ${automation.id}:`, mediaError);
@@ -310,13 +354,6 @@ async function runScheduler(request: NextRequest) {
         }
 
         const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
-
-        let platforms: string[] = [];
-        try {
-          platforms = JSON.parse(automation.platforms || "[]");
-        } catch {
-          platforms = ["feed"];
-        }
 
         // Create post + deduct credits + update automation stats
         await prisma.$transaction([

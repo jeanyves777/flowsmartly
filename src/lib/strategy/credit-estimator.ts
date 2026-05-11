@@ -8,7 +8,6 @@
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import {
-  isAutomationCandidate,
   qualifyStrategyTaskForAutomation,
 } from "@/lib/strategy/automation-readiness";
 
@@ -60,11 +59,8 @@ export interface AutomationEstimate {
  * Check if a task category is automatable
  */
 export function isAutomatableCategory(category: string | null): boolean {
-  return isAutomationCandidate({
-    id: "",
-    title: "",
-    category,
-  });
+  const normalized = normalizeTaskCategory(category);
+  return normalized === "content" || normalized === "social" || normalized === "email";
 }
 
 /**

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
+import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -181,21 +181,41 @@ export async function POST(
       );
     }
 
-    // Generate AI text content
-    const topicContext = automation.topic ? `Topic: ${automation.topic}. ` : "";
-    const prompt = automation.aiPrompt || "Write an engaging social media post";
-    const toneInstruction = automation.aiTone
-      ? `Use a ${automation.aiTone} tone.`
-      : "Use a professional tone.";
+    const platforms = parsePlatforms(automation.platforms);
+    let brandKit = await prisma.brandKit.findFirst({
+      where: { userId: session.userId, isDefault: true },
+    });
+    if (!brandKit) {
+      brandKit = await prisma.brandKit.findFirst({ where: { userId: session.userId } });
+    }
+    const linkedTask = automation.strategyTaskId
+      ? await prisma.strategyTask.findFirst({
+          where: {
+            id: automation.strategyTaskId,
+            strategy: { userId: session.userId },
+          },
+          select: {
+            title: true,
+            description: true,
+            category: true,
+            startDate: true,
+            dueDate: true,
+          },
+        })
+      : null;
 
-    const generatedContent = await ai.generate(
-      `${topicContext}${prompt}. ${toneInstruction} Include relevant hashtags. Keep it engaging and concise.`,
-      {
-        maxTokens: 512,
-        systemPrompt:
-          "You are an expert social media content creator. Write engaging, platform-ready posts.",
-      }
-    );
+    const generatedAsset = await generateAutomationAsset({
+      topic: automation.topic,
+      aiPrompt: automation.aiPrompt,
+      aiTone: automation.aiTone,
+      platforms,
+      includeMedia: automation.includeMedia,
+      mediaType: automation.mediaType,
+      mediaStyle: automation.mediaStyle,
+      brand: brandKit,
+      task: linkedTask,
+    });
+    const generatedContent = generatedAsset.caption;
 
     if (!generatedContent?.trim()) {
       return NextResponse.json(
@@ -205,8 +225,8 @@ export async function POST(
     }
 
     // Parse hashtags and mentions
-    const hashtags = generatedContent.match(/#[\w]+/g) || [];
-    const mentions = generatedContent.match(/@[\w]+/g) || [];
+    const hashtags = generatedAsset.hashtags.length ? generatedAsset.hashtags : generatedContent.match(/#[\w]+/g) || [];
+    const mentions = generatedAsset.mentions.length ? generatedAsset.mentions : generatedContent.match(/@[\w]+/g) || [];
 
     // Generate media if enabled
     let mediaUrl: string | null = null;
@@ -215,10 +235,10 @@ export async function POST(
 
     if (automation.includeMedia && automation.mediaType) {
       try {
-        const styleHint = automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : "";
-        // Use the generated caption as context for the media prompt
         const captionExcerpt = generatedContent.replace(/#[\w]+/g, "").trim().substring(0, 200);
-        const mediaPrompt = `Create a social media visual for: ${captionExcerpt}${styleHint}`;
+        const mediaPrompt =
+          generatedAsset.mediaPrompt ||
+          `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Leave logo space blank for compositing.`;
 
         if (automation.mediaType === "image") {
           console.log("[AutomationRun] Generating image with shared image router...");
@@ -261,9 +281,6 @@ export async function POST(
 
     // Schedule for 1 hour from now
     const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
-
-    // Parse platforms
-    const platforms = parsePlatforms(automation.platforms);
 
     // Create the post, deduct credits, and update automation in a transaction
     const [post] = await prisma.$transaction([
@@ -319,6 +336,7 @@ export async function POST(
         creditsUsed: creditCost,
         mediaUrl,
         mediaType: postMediaType,
+        qualityNotes: generatedAsset.qualityNotes,
       },
     });
   } catch (error) {

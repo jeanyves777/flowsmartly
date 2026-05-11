@@ -36,11 +36,11 @@ const SMS_TERMS = /\b(sms|text message|text blast|twilio|whatsapp)\b/i;
 const VIDEO_TERMS = /\b(video|reel|short|youtube|tiktok|animation|animated|story)\b/i;
 const VISUAL_TERMS = /\b(visual|image|photo|graphic|flyer|poster|creative|carousel|banner)\b/i;
 const SOCIAL_PLATFORM_TERMS = /\b(instagram|facebook|linkedin|twitter|x\/twitter|x post|tiktok|youtube|threads|pinterest|social)\b/i;
-const POST_OUTPUT_TERMS = /\b(post|posts|caption|captions|copy|thread|tweet|publish|schedule|scheduled|content calendar|social media|audience post|call to action|cta)\b/i;
+const POST_OUTPUT_TERMS = /\b(post|posts|caption|captions|copy|thread|tweet|publish|schedule|scheduled|social media|audience post|call to action|cta)\b/i;
 const MEDIA_OUTPUT_TERMS = /\b(generate|create|publish|schedule|post|caption|ad copy|campaign creative)\b/i;
 const FEED_ONLY_TERMS = /\b(flowsmartly feed|internal feed|feed post|post to feed)\b/i;
 const MANUAL_WORK_TERMS =
-  /\b(audit|optimi[sz]e|setup|set up|configure|install|connect|review|research|planning|framework|infrastructure|tracking|pixel|ga4|conversion|a\/b test|ab test|layout|layouts|product pages?|website|web pages?|landing pages?|faq|bios?|business account|boards?|channel setup|transparency|customer review sections?|ugc galleries?)\b/i;
+  /\b(audit|optimi[sz]e|setup|set up|configure|install|connect|review|research|planning|plan|recommendation|framework|content calendar|infrastructure|tracking|pixel|ga4|conversion|a\/b test|ab test|layout|layouts|product pages?|website|web pages?|landing pages?|faq|bios?|business account|boards?|channel setup|transparency|customer review sections?|ugc galleries?)\b/i;
 
 function taskText(task: AutomationReadinessTask) {
   return `${task.title || ""} ${task.description || ""}`;

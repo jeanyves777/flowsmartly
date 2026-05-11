@@ -252,7 +252,9 @@ ${additionalContext ? `Additional context: ${additionalContext}` : ""}
 Generate 12-20 open tasks. Most tasks must be category "content" or "social" so they can be automated into recurring posts.
 Use category "email" only if the email sender is ready. Do not create SMS tasks unless SMS is approved.
 Avoid tasks that require manual research, approvals, analytics review, website setup, account setup, or ad budget decisions unless they are clearly not automation tasks.
-For automation-ready post tasks, write a clear recurring content brief: audience, offer/product angle, proof point, call to action, and destination.
+For automation-ready post tasks, write a clear executable content brief: destination, audience, offer/product angle, proof point, call to action, media need, and the next publishable output.
+Do not produce plan/framework/recommendation tasks. If an old item asks for a plan, rewrite it into specific posts, email campaigns, SMS messages, images, or videos that an automation agent can create and schedule.
+Good task titles start with verbs like "Publish", "Schedule", "Send", "Create", or "Launch".
 Avoid visual/video blocker words like visual, image, photo, graphic, flyer, poster, Pinterest, pin, carousel, video, reel, TikTok, YouTube, story unless that task explicitly needs generated media.
 If media is important, create a small number of tasks whose description says "Requires generated media" and explains whether image or video is required.
 Keep dates realistic within the timeframe.

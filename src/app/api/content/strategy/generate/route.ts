@@ -167,14 +167,19 @@ ${focusInstruction}
 ${optionalSections ? `\n${optionalSections}` : ""}
 
 --- INSTRUCTIONS ---
-Generate 15-25 actionable, specific tasks tailored to this brand.
+Generate 15-25 executable, specific work items tailored to this brand.
 Each task should reference the brand's actual products, audience, tone, or niche where possible.
 Distribute tasks across the timeframe with realistic start and due dates.
 Prioritize tasks that directly support the stated goals.
+For social/content/email tasks, write the item as a deliverable the automation system can execute, not as advice.
+Good task titles start with verbs like "Publish", "Schedule", "Send", "Create", or "Launch".
+For each automation-ready task description, include the channel, audience, offer/product angle, proof point, call to action, and whether image/video media is required.
+Do not make a task whose deliverable is a strategy note, recommendation list, content plan, framework, or brainstorm. Convert those into concrete posts, emails, SMS, images, or videos instead.
+Use analytics or ads categories only for truly manual review/setup work; most generated tasks should be publishable content/social/email actions.
 
 For each task provide:
 - title: Short, actionable task title (specific to this brand, not generic)
-- description: Detailed description of what to do, with specific recommendations for this brand
+- description: Detailed execution brief with the exact output needed and enough detail for an automation agent to create the post, email, media, or campaign
 - priority: LOW, MEDIUM, or HIGH
 - category: One of "content", "social", "ads", "email", "analytics"
 - startDate: ISO date string (YYYY-MM-DD)
@@ -189,7 +194,7 @@ Return JSON with this structure:
       {
         maxTokens: 8192,
         systemPrompt:
-          "You are an expert marketing strategist who creates highly personalized, brand-specific strategies. Every task you generate should be tailored to the specific brand, its audience, products, and goals. Avoid generic advice. Return ONLY valid JSON.",
+          "You are an expert marketing strategist and automation architect. Create brand-specific executable work orders, not generic advice or planning notes. Return ONLY valid JSON.",
       }
     );
 

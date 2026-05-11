@@ -603,7 +603,7 @@ function completedWorkHref(match: MatchedActivity) {
 
 function buildBrandGoal(brand: BrandSnapshot | null) {
   if (!brand) {
-    return "Build a complete marketing strategy from my saved brand identity. Prioritize brand awareness, lead generation, content cadence, email follow-up, and automation-ready tasks.";
+    return "Create a complete marketing strategy from my saved brand identity. Prioritize brand awareness, lead generation, content cadence, email follow-up, and automation-ready tasks.";
   }
 
   const details = [
@@ -617,7 +617,7 @@ function buildBrandGoal(brand: BrandSnapshot | null) {
     .filter(Boolean)
     .join("\n");
 
-  return `Build a complete marketing strategy for ${brand.name} from the saved brand identity. Create practical content, social, email, ads, analytics, and automation-ready tasks.${details ? `\n\n${details}` : ""}`;
+  return `Create a complete marketing strategy for ${brand.name} from the saved brand identity. Create practical content, social, email, ads, analytics, and automation-ready tasks.${details ? `\n\n${details}` : ""}`;
 }
 
 function getDefaultAutomationEndDate() {
@@ -3210,8 +3210,8 @@ export default function StrategyAutomationPage() {
             isImprove
               ? "Make this plan automation-ready for recurring posts, email, and connected channels"
               : brand
-              ? `Build a plan for ${brand.name}`
-              : "Build a plan from my brand identity"
+              ? `Create a strategy for ${brand.name}`
+              : "Create a strategy from my brand identity"
           }
           className="min-h-[105px]"
         />
@@ -3327,7 +3327,7 @@ export default function StrategyAutomationPage() {
           className="bg-brand-500 text-white hover:bg-brand-600"
         >
           {generatingStrategy ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          {isImprove ? "Improve active strategy" : "Build from brand"}
+          {isImprove ? "Improve active strategy" : "Create a strategy"}
         </Button>
       </div>
     </div>
@@ -4291,7 +4291,7 @@ export default function StrategyAutomationPage() {
       <FloatingPanel
         open={strategyBuilderOpen}
         onOpenChange={setStrategyBuilderOpen}
-        title={strategy ? "Improve Strategy" : "AI Strategy Builder"}
+        title={strategy ? "Improve Strategy" : "Create Strategy"}
         description={strategy ? "Make the active plan automation-ready" : "Brand identity to plan in one click"}
         icon={strategy ? <Wand2 className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
         defaultSize={{ width: 560, height: 720 }}
@@ -4394,7 +4394,7 @@ export default function StrategyAutomationPage() {
                 <Target className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-semibold">Create the operating plan</p>
+                <p className="font-semibold">Create a strategy</p>
                 <p className="text-sm text-muted-foreground">
                   Strategy items and automations live in one workspace.
                 </p>
@@ -4414,7 +4414,7 @@ export default function StrategyAutomationPage() {
             <div className="mt-3 grid gap-2 sm:grid-cols-1">
               <Button onClick={openStrategyBuilder} variant="outline" className="justify-start">
                 <Sparkles className="mr-2 h-4 w-4" />
-                Build with FlowAI
+                Create a strategy with FlowAI
               </Button>
             </div>
             <div className="mt-3 flex items-center justify-end text-sm">
