@@ -4463,10 +4463,6 @@ export default function StrategyAutomationPage() {
               <span className="hidden sm:inline">Upcoming</span>
             </Button>
           )}
-          <Button variant="outline" onClick={syncNow} disabled={syncing} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Sync">
-            {syncing ? <AISpinner className="h-4 w-4 sm:mr-2" /> : <RefreshCw className="h-4 w-4 sm:mr-2" />}
-            <span className="hidden sm:inline">Sync</span>
-          </Button>
           <Button variant="outline" asChild className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Reports">
             <Link href="/content/strategy/reports">
               <BarChart3 className="h-4 w-4 sm:mr-2" />
@@ -4476,24 +4472,6 @@ export default function StrategyAutomationPage() {
           <Button variant="outline" onClick={() => openNewTask()} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Add item">
             <Plus className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Item</span>
-          </Button>
-          <Button variant="outline" onClick={() => openNewAutomation()} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="One-off automation">
-            <Wand2 className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">One-off automation</span>
-          </Button>
-          <Button
-            onClick={openAutomationBuilder}
-            disabled={saving || tasks.length === 0}
-            className="h-9 bg-brand-500 px-2 text-xs text-white hover:bg-brand-600 sm:px-3 sm:text-sm"
-            title="Strategy planner"
-          >
-            <Sparkles className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Strategy planner</span>
-            {!!qualifiedAutomationTasks.length && (
-              <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px]">
-                {qualifiedAutomationTasks.length}
-              </span>
-            )}
           </Button>
         </div>
       </div>
