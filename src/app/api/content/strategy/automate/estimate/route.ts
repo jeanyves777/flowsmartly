@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const {
       strategyId,
       taskIds,
-      frequency = "WEEKLY",
+      frequency = "ONCE",
       includeMedia = true,
       mediaType = "image",
       endDate,

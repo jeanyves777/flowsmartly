@@ -12,6 +12,7 @@ interface ScheduleConfig {
   frequency?: string;
   dayOfWeek?: number;
   time?: string;
+  triggerType?: string;
 }
 
 interface ZonedParts {
@@ -185,6 +186,12 @@ function isDue(
   startDate: Date,
   timeZone: string
 ): boolean {
+  const frequency = schedule.frequency?.toUpperCase();
+  if (frequency === "ONCE" || schedule.triggerType === "one_time") {
+    if (lastTriggered) return false;
+    return startDate <= now;
+  }
+
   const occurrence = getLastScheduledOccurrence(schedule, now, timeZone || "UTC");
   if (!occurrence || occurrence > now || occurrence < startDate) return false;
   if (lastTriggered && lastTriggered >= occurrence) return false;
@@ -225,6 +232,7 @@ async function runScheduler(request: NextRequest) {
 
     for (const automation of automations) {
       const schedule = parseSchedule(automation.schedule);
+      const isOneTime = schedule.frequency?.toUpperCase() === "ONCE" || schedule.triggerType === "one_time";
       const timeZone = automation.user.timezone || "UTC";
 
       if (!isDue(schedule, automation.lastTriggered, now, automation.startDate, timeZone)) {
@@ -388,6 +396,8 @@ async function runScheduler(request: NextRequest) {
           prisma.postAutomation.update({
             where: { id: automation.id },
             data: {
+              enabled: isOneTime ? false : undefined,
+              endDate: isOneTime ? now : undefined,
               lastTriggered: now,
               totalGenerated: { increment: 1 },
               totalCreditsSpent: { increment: creditCost },

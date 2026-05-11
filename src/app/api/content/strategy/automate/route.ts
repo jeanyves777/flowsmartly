@@ -17,7 +17,7 @@ interface TaskConfig {
   includeMedia: boolean;
   mediaType: "image" | "video";
   mediaStyle: string;
-  frequency: "DAILY" | "WEEKLY" | "MONTHLY";
+  frequency: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
   dayOfWeek: number;
   time: string;
   platforms?: string[];
@@ -44,7 +44,6 @@ function combineDateAndTime(dateValue: Date | string | null | undefined, timeVal
   const date = dateValue ? new Date(dateValue) : new Date();
   const [h, m] = (timeValue || "09:00").split(":");
   date.setHours(parseInt(h || "9", 10), parseInt(m || "0", 10), 0, 0);
-  if (date <= new Date()) date.setDate(date.getDate() + 1);
   return date;
 }
 
@@ -213,7 +212,7 @@ export async function POST(request: NextRequest) {
       ? "video"
       : "image";
     const estimate = await estimateAutomationCredits(strategy.tasks, {
-      frequency: enabledConfigs[0]?.frequency || "WEEKLY",
+      frequency: enabledConfigs[0]?.frequency || "ONCE",
       includeMedia: enabledConfigs.some((config) => config.includeMedia),
       mediaType: mostExpensiveMediaType,
       endDate: globalEndDate || new Date(Date.now() + 90 * 86400000).toISOString(),
@@ -325,15 +324,17 @@ export async function POST(request: NextRequest) {
         frequency: config.frequency,
         dayOfWeek: config.dayOfWeek,
         time: config.time,
+        triggerType: config.frequency === "ONCE" ? "one_time" : "recurring",
         firstRunDate: config.startDate || task.startDate?.toISOString() || null,
         platforms: configPlatforms,
       });
+      const isOneTime = config.frequency === "ONCE";
 
       const automation = await prisma.postAutomation.create({
         data: {
           userId: session.userId,
           name: `Strategy: ${task.title}`,
-          type: "AI_GENERATED",
+          type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
           enabled: true,
           schedule,
           topic: task.title,
@@ -344,7 +345,13 @@ export async function POST(request: NextRequest) {
           mediaStyle: config.includeMedia ? config.mediaStyle : null,
           platforms: JSON.stringify(configPlatforms),
           startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
-          endDate: config.endDate ? new Date(config.endDate) : globalEndDate ? new Date(globalEndDate) : null,
+          endDate: isOneTime
+            ? null
+            : config.endDate
+            ? new Date(config.endDate)
+            : globalEndDate
+            ? new Date(globalEndDate)
+            : null,
           strategyTaskId: task.id,
           sourceStrategyId: strategyId,
         },

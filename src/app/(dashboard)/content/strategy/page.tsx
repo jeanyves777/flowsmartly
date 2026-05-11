@@ -138,7 +138,7 @@ interface Strategy {
 }
 
 type AutomationType = "RECURRING" | "EVENT_BASED" | "AI_GENERATED";
-type Frequency = "DAILY" | "WEEKLY" | "MONTHLY";
+type Frequency = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
 interface Automation {
   id: string;
@@ -538,7 +538,7 @@ const DEFAULT_TASK: TaskDraft = {
 const DEFAULT_AUTOMATION: AutomationDraft = {
   name: "",
   type: "AI_GENERATED",
-  frequency: "WEEKLY",
+  frequency: "ONCE",
   dayOfWeek: 1,
   time: "09:00",
   topic: "",
@@ -570,7 +570,7 @@ const DEFAULT_STRATEGY_BUILDER: StrategyBuilderDraft = {
 
 const DEFAULT_AUTOMATION_BUILDER: AutomationBuilderDraft = {
   selectedTaskIds: [],
-  frequency: "WEEKLY",
+  frequency: "ONCE",
   dayOfWeek: 1,
   time: "09:00",
   aiTone: "professional",
@@ -661,6 +661,15 @@ function getTaskPlanDate(task: StrategyTask) {
   );
 }
 
+function getTaskPlanTime(task: StrategyTask, fallback = "09:00") {
+  const source = task.startDate || task.dueDate || "";
+  const match = source.match(/T(\d{2}):(\d{2})/);
+  if (match && `${match[1]}:${match[2]}` !== "00:00") {
+    return `${match[1]}:${match[2]}`;
+  }
+  return fallback;
+}
+
 function formatPlatformList(platforms: string[]) {
   if (platforms.length === 0) return "None";
   return platforms.map((platform) => PLATFORM_META[platform]?.label || platform).join(", ");
@@ -744,7 +753,9 @@ function getDefaultAutomationEndDate() {
 
 function scheduleLabel(automation: Automation) {
   const time = automation.schedule?.time || "09:00";
-  if (automation.type === "EVENT_BASED") return automation.schedule?.triggerType || "Event trigger";
+  if (automation.schedule?.frequency === "ONCE" || automation.type === "EVENT_BASED") {
+    return `One time ${formatShortDate(automation.startDate)} at ${time}`;
+  }
   if (automation.schedule?.frequency === "DAILY") return `Daily at ${time}`;
   if (automation.schedule?.frequency === "MONTHLY") return `Monthly at ${time}`;
   return `Weekly at ${time}`;
@@ -768,7 +779,7 @@ function automationToDraft(automation: Automation): AutomationDraft {
     id: automation.id,
     name: automation.name,
     type: automation.type || "AI_GENERATED",
-    frequency: automation.schedule?.frequency || "WEEKLY",
+    frequency: automation.schedule?.frequency || "ONCE",
     dayOfWeek: automation.schedule?.dayOfWeek ?? 1,
     time: automation.schedule?.time || "09:00",
     topic: automation.topic || "",
@@ -1111,6 +1122,7 @@ export default function StrategyAutomationPage() {
         connectedPlatformKeys.includes(platform)
       );
       const category = normalizeTaskCategory(task.category);
+      const includeMedia = category === "email" ? false : options.includeMedia;
       const platforms =
         category === "email"
           ? []
@@ -1126,12 +1138,12 @@ export default function StrategyAutomationPage() {
 
       return {
         firstRunDate: getTaskPlanDate(task),
-        time: options.time || "09:00",
+        time: getTaskPlanTime(task, options.time || "09:00"),
         frequency: options.frequency,
         platforms,
         desiredPlatforms,
         missingPlatforms,
-        includeMedia: options.includeMedia,
+        includeMedia,
         mediaType: options.mediaType,
         mediaStyle: options.mediaStyle,
       };
@@ -1396,6 +1408,7 @@ export default function StrategyAutomationPage() {
     );
     setAutomationBuilder((draft) => ({
       ...draft,
+      frequency: "ONCE",
       selectedTaskIds: candidateTasks.map((task) => task.id),
       platforms:
         inferredConnectedPlatforms.length > 0
@@ -1685,6 +1698,7 @@ export default function StrategyAutomationPage() {
         setView("automations");
         setAutomationBuilder((draft) => ({
           ...draft,
+          frequency: "ONCE",
           selectedTaskIds: improvedCandidates.map((task) => task.id),
           platforms: draft.platforms.length ? draft.platforms : ["feed"],
           endDate: draft.endDate || getDefaultAutomationEndDate(),
@@ -1729,6 +1743,7 @@ export default function StrategyAutomationPage() {
           generatedTasks,
           {
             ...automationBuilder,
+            frequency: "ONCE",
             selectedTaskIds: generatedTasks.map((task) => task.id),
             endDate: automationBuilder.endDate || getDefaultAutomationEndDate(),
           },
@@ -3143,7 +3158,7 @@ export default function StrategyAutomationPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Frequency</Label>
+              <Label>Run pattern</Label>
               <Select
                 value={automationDraft.frequency}
                 onValueChange={(value) =>
@@ -3152,6 +3167,7 @@ export default function StrategyAutomationPage() {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ONCE">One time</SelectItem>
                   <SelectItem value="DAILY">Daily</SelectItem>
                   <SelectItem value="WEEKLY">Weekly</SelectItem>
                   <SelectItem value="MONTHLY">Monthly</SelectItem>
@@ -3690,7 +3706,7 @@ export default function StrategyAutomationPage() {
                   <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">3 Create saved automations</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Selecting an item only prepares it. The planner modal validates schedule, channels, media, and credits. The final create step saves a reusable automation set linked to this strategy for future AI runs.
+                  Selecting an item only prepares it. The planner validates each item's own date, time, channels, media, and credits before saving one-time automations.
                 </p>
               </div>
               <Button
@@ -4017,13 +4033,13 @@ export default function StrategyAutomationPage() {
     const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
     const readyGroups = Object.entries(
       readySelected.reduce((acc, row) => {
-        const key = `${row.plan.firstRunDate}|${formatPlatformList(row.plan.platforms)}`;
+        const key = `${row.plan.firstRunDate}|${row.plan.time}|${formatPlatformList(row.plan.platforms)}`;
         acc[key] = [...(acc[key] || []), row.task.title];
         return acc;
       }, {} as Record<string, string[]>)
     ).map(([key, titles]) => {
-      const [date, channels] = key.split("|");
-      return { date, channels, titles };
+      const [date, time, channels] = key.split("|");
+      return { date, time, channels, titles };
     });
 
     return (
@@ -4054,11 +4070,11 @@ export default function StrategyAutomationPage() {
                   },
                   {
                     title: "2. Plan",
-                    body: "Set schedule, channels, media, and FlowAI direction for the automation set.",
+                    body: "Use each item's calendar date and time, then set channels, media, and FlowAI direction.",
                   },
                   {
                     title: "3. Save set",
-                    body: "Create stores the automations on this strategy. Credits are charged each time a run generates content.",
+                    body: "Create stores one-time event automations. Credits are charged when each item runs.",
                   },
                 ].map((step) => (
                   <div key={step.title} className="rounded-lg border bg-background p-3">
@@ -4154,9 +4170,9 @@ export default function StrategyAutomationPage() {
                     <p className="text-sm font-semibold">Auto-grouped schedule</p>
                     <div className="mt-2 space-y-2">
                       {readyGroups.map((group) => (
-                        <div key={`${group.date}-${group.channels}`} className="rounded-lg bg-muted/30 p-2">
+                        <div key={`${group.date}-${group.time}-${group.channels}`} className="rounded-lg bg-muted/30 p-2">
                           <p className="text-xs font-medium">
-                            {formatShortDate(group.date)} - {group.channels}
+                            {formatShortDate(group.date)} at {group.time} - {group.channels}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {group.titles.length} item{group.titles.length === 1 ? "" : "s"}: {group.titles.slice(0, 2).join(", ")}
@@ -4211,33 +4227,39 @@ export default function StrategyAutomationPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="rounded-xl border bg-emerald-500/5 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Smart schedule</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          One-time runs are created from each selected item&apos;s own calendar date and time.
+                          Items without a saved time use 09:00.
+                        </p>
+                      </div>
+                      <Badge className="bg-emerald-600 text-white">Auto</Badge>
+                    </div>
+                    {readyGroups.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {readyGroups.slice(0, 3).map((group) => (
+                          <div key={`smart-${group.date}-${group.time}-${group.channels}`} className="rounded-lg bg-background px-3 py-2">
+                            <p className="text-xs font-medium">
+                              {formatShortDate(group.date)} at {group.time}
+                            </p>
+                            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                              {group.titles.length} item{group.titles.length === 1 ? "" : "s"} - {group.channels}
+                            </p>
+                          </div>
+                        ))}
+                        {readyGroups.length > 3 && (
+                          <p className="text-xs text-muted-foreground">+ {readyGroups.length - 3} more scheduled group{readyGroups.length - 3 === 1 ? "" : "s"}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Frequency</Label>
-                    <Select
-                      value={automationBuilder.frequency}
-                      onValueChange={(value) =>
-                        setAutomationBuilder((draft) => ({ ...draft, frequency: value as Frequency }))
-                      }
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DAILY">Daily</SelectItem>
-                        <SelectItem value="WEEKLY">Weekly</SelectItem>
-                        <SelectItem value="MONTHLY">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Time</Label>
-                    <Input
-                      type="time"
-                      value={automationBuilder.time}
-                      onChange={(event) =>
-                        setAutomationBuilder((draft) => ({ ...draft, time: event.target.value }))
-                      }
-                    />
-                  </div>
                   <div className="space-y-2">
                     <Label>Tone</Label>
                     <Select
@@ -4255,16 +4277,6 @@ export default function StrategyAutomationPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End</Label>
-                    <Input
-                      type="date"
-                      value={automationBuilder.endDate}
-                      onChange={(event) =>
-                        setAutomationBuilder((draft) => ({ ...draft, endDate: event.target.value }))
-                      }
-                    />
                   </div>
                 </div>
 
@@ -4335,9 +4347,9 @@ export default function StrategyAutomationPage() {
                       </p>
                       <p>
                         Projection: <span className="font-medium text-foreground">{projectedCredits}</span> credits across{" "}
-                        <span className="font-medium text-foreground">{projectedRuns}</span> planned run{projectedRuns === 1 ? "" : "s"} through {formatShortDate(automationBuilder.endDate)}.
+                        <span className="font-medium text-foreground">{projectedRuns}</span> one-time run{projectedRuns === 1 ? "" : "s"}.
                       </p>
-                      <p>Saving the automation does not deduct the full projection. Credits are deducted only when each automation run generates content.</p>
+                      <p>Saving the automation does not deduct credits. Credits are deducted when each dated item runs.</p>
                     </div>
                   </div>
                 )}

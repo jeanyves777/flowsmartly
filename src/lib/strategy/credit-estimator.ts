@@ -36,7 +36,7 @@ interface TaskEstimate {
 
 export interface AutomationTaskCreditConfig {
   taskId: string;
-  frequency?: "DAILY" | "WEEKLY" | "MONTHLY";
+  frequency?: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
   includeMedia?: boolean;
   mediaType?: "image" | "video";
   endDate?: string;
@@ -77,10 +77,12 @@ export function isEmailCategory(category: string | null): boolean {
  * Calculate runs between two dates for a given frequency
  */
 function calculateRuns(
-  frequency: "DAILY" | "WEEKLY" | "MONTHLY",
+  frequency: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY",
   startDate: string | Date,
   endDate: string | Date
 ): number {
+  if (frequency === "ONCE") return 1;
+
   const start = new Date(startDate);
   const end = new Date(endDate);
   if (end <= start) return 1;
@@ -105,7 +107,7 @@ function calculateRuns(
 export async function estimateAutomationCredits(
   tasks: StrategyTaskInput[],
   options: {
-    frequency: "DAILY" | "WEEKLY" | "MONTHLY";
+    frequency: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
     includeMedia: boolean;
     mediaType: "image" | "video";
     endDate: string;
@@ -173,10 +175,11 @@ export async function estimateAutomationCredits(
     const frequency = taskConfig?.frequency || options.frequency;
 
     const runs = calculateRuns(frequency, startDate, endDate);
+    const chargesMedia = includeMedia && readiness.type !== "email" && readiness.type !== "sms";
     const perRunCost =
-      includeMedia && mediaType === "video"
+      chargesMedia && mediaType === "video"
         ? costPerPostWithVideo
-        : textCost + (includeMedia ? imageCost : 0);
+        : textCost + (chargesMedia ? imageCost : 0);
 
     automatableTasks.push({
       taskId: task.id,
