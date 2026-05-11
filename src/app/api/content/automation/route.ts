@@ -77,7 +77,7 @@ export async function GET() {
 
     const automations = await prisma.postAutomation.findMany({
       where: { userId: session.userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ startDate: "asc" }, { createdAt: "desc" }],
     });
 
     return NextResponse.json({

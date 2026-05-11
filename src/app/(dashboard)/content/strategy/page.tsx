@@ -761,6 +761,29 @@ function scheduleLabel(automation: Automation) {
   return `Weekly at ${time}`;
 }
 
+function getAutomationStartMs(automation: Automation) {
+  const parsed = new Date(automation.startDate).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+function sortAutomationsByUpcoming(a: Automation, b: Automation, nowMs: number) {
+  const aStart = getAutomationStartMs(a);
+  const bStart = getAutomationStartMs(b);
+  const aPending = a.enabled && !a.lastTriggered;
+  const bPending = b.enabled && !b.lastTriggered;
+  const aUpcoming = aPending && aStart >= nowMs;
+  const bUpcoming = bPending && bStart >= nowMs;
+  const aOverdue = aPending && aStart < nowMs;
+  const bOverdue = bPending && bStart < nowMs;
+
+  if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+  if (aUpcoming && bUpcoming) return aStart - bStart;
+  if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+  if (aOverdue && bOverdue) return bStart - aStart;
+  if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+  return bStart - aStart;
+}
+
 function taskToDraft(task: StrategyTask): TaskDraft {
   return {
     id: task.id,
@@ -1035,6 +1058,10 @@ export default function StrategyAutomationPage() {
 
   const tasks = strategy?.tasks || [];
   const strategyTaskIds = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  const sortedAutomations = useMemo(
+    () => [...automations].sort((a, b) => sortAutomationsByUpcoming(a, b, Date.now())),
+    [automations]
+  );
   const activeStrategyAutomations = useMemo(
     () =>
       automations.filter(
@@ -2597,7 +2624,7 @@ export default function StrategyAutomationPage() {
         renderAutomationBuilderPanel()
       ) : (
       <div className="grid gap-3 xl:grid-cols-2">
-        {automations.map((automation) => {
+        {sortedAutomations.map((automation) => {
           const linkedTask = automation.strategyTaskId
             ? tasks.find((task) => task.id === automation.strategyTaskId)
             : null;
@@ -2704,7 +2731,7 @@ export default function StrategyAutomationPage() {
           );
         })}
 
-        {automations.length === 0 && (
+        {sortedAutomations.length === 0 && (
           <button
             onClick={openAutomationBuilder}
             className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center hover:border-brand-500/40"
