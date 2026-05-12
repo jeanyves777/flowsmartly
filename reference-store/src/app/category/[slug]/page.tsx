@@ -1,13 +1,15 @@
-// SERVER component — exports generateStaticParams() for static export.
-// PATTERN: Dynamic [slug] routes with "output: export" MUST split like this.
+// SERVER component. Next 15 provides dynamic params as a Promise, so resolve
+// them before passing to the client component.
 
-import { categories } from "@/lib/data";
 import CategoryClient from "./CategoryClient";
 
-export function generateStaticParams() {
-  return categories.map((c) => ({ slug: c.slug }));
-}
+export const dynamic = "force-dynamic";
 
-export default function CategoryPage({ params }: { params: { slug: string } }) {
-  return <CategoryClient params={params} />;
+export default async function CategoryPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const resolvedParams = await params;
+  return <CategoryClient params={resolvedParams} />;
 }

@@ -1,46 +1,45 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import Header from "@/components/Header";
 import ProductGrid from "@/components/ProductGrid";
-import Footer from "@/components/Footer";
-import CartDrawer from "@/components/CartDrawer";
 import { categories } from "@/lib/data";
 
 export default function CategoryClient({ params }: { params: { slug: string } }) {
-  const [cartOpen, setCartOpen] = useState(false);
-  const category = categories.find(c => c.slug === params.slug);
+  const category = categories.find((c) => c.slug === params.slug);
 
   if (!category) {
     return (
-      <>
-        <Header onCartOpen={() => setCartOpen(true)} />
-        <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Category Not Found</h1>
-          <Link href="/products" className="text-primary-600 hover:underline">Browse all products</Link>
-        </main>
-        <Footer />
-      </>
+      <main className="px-4 py-16 text-center">
+        <h1 className="mb-3 text-2xl font-bold text-gray-900 dark:text-white">Category not found</h1>
+        <Link href="/products" className="text-sm font-medium text-primary hover:underline">
+          Browse all products
+        </Link>
+      </main>
     );
   }
 
   return (
-    <>
-      <Header onCartOpen={() => setCartOpen(true)} />
-      <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 mb-6">
-          <ChevronLeft size={14} />All Products
-        </Link>
-        <div className="mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-2">{category.name}</h1>
-          <p className="text-gray-500 dark:text-gray-400">{category.description}</p>
-        </div>
-        <ProductGrid initialCategory={category.id} />
-      </main>
-      <Footer />
-      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} storeSlug="example-store" />
-    </>
+    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <Link
+        href="/products"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-primary dark:text-gray-400"
+      >
+        <ChevronLeft size={14} />
+        All products
+      </Link>
+      <div className="mb-10">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          Category
+        </p>
+        <h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
+          {category.name}
+        </h1>
+        {category.description && (
+          <p className="max-w-2xl text-gray-500 dark:text-gray-400">{category.description}</p>
+        )}
+      </div>
+      <ProductGrid initialCategory={category.id} />
+    </main>
   );
 }

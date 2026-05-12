@@ -7,7 +7,7 @@ import { ArrowLeft, ExternalLink, RefreshCw, Check, AlertCircle, Globe, Save, Pl
 import { SectionUpdater } from "@/components/shared/section-updater";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface StoreRecord {
   id: string;
@@ -53,7 +53,6 @@ const TABS = [
   { id: "faq", label: "FAQ", icon: HelpCircle },
   { id: "pages", label: "Pages", icon: FileText },
   { id: "ai-update", label: "AI Update", icon: Sparkles },
-  { id: "rebuild", label: "Rebuild", icon: RefreshCw },
   { id: "domains", label: "Domains", icon: Globe },
 ];
 
@@ -65,13 +64,17 @@ export default function StoreDesignPage() {
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [changed, setChanged] = useState(false);
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "preview");
+  const initialTab = searchParams.get("tab") || "preview";
+  const [activeTab, setActiveTab] = useState(
+    TABS.some((tab) => tab.id === initialTab) ? initialTab : "preview"
+  );
   const [buildResult, setBuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [buildStage, setBuildStage] = useState<"idle" | "saving" | "building" | "deploying" | "done" | "error">("idle");
   const [buildMessage, setBuildMessage] = useState<string>("");
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(Date.now());
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const storeUrl = store?.storeUrl || (store?.slug ? `/stores/${store.slug}/` : null);
@@ -79,7 +82,7 @@ export default function StoreDesignPage() {
   const previewUrl = storeUrl
     ? `/api/proxy?url=${encodeURIComponent(
         storeUrl.startsWith("http") ? storeUrl : `${typeof window !== "undefined" ? window.location.origin : ""}${storeUrl}`
-      )}`
+      )}&preview=${previewRefreshKey}`
     : null;
 
   async function loadStoreData(storeId: string, forceRefresh = false) {
@@ -179,9 +182,8 @@ export default function StoreDesignPage() {
       if (r.ok) {
         setChanged(false);
         setSaving(false);
-        // Save succeeded — chain directly into rebuild so "Save & Rebuild" does
-        // what it says. The rebuild() function drives its own branded progress
-        // UI, polls status, and refreshes the iframe when the new build is live.
+        // Save succeeded; update the generated storefront automatically and
+        // refresh the iframe when the new build is live.
         await rebuild();
         return;
       } else {
@@ -203,7 +205,7 @@ export default function StoreDesignPage() {
     if (!store) return;
     setRebuilding(true);
     setBuildStage("building");
-    setBuildMessage("Starting rebuild...");
+    setBuildMessage("Starting store update...");
 
     // Capture the lastBuildAt BEFORE triggering rebuild so we can detect a NEW completion
     const baselineStatus = await fetch(`/api/ecommerce/store/${store.id}/generate`)
@@ -214,10 +216,10 @@ export default function StoreDesignPage() {
     try {
       const r = await fetch(`/api/ecommerce/store/${store.id}/rebuild`, { method: "POST" });
       if (!r.ok) {
-        const e = await r.json().catch(() => ({ error: "Rebuild failed" }));
+        const e = await r.json().catch(() => ({ error: "Store update failed" }));
         setBuildStage("error");
-        setBuildMessage(e.error || "Rebuild failed");
-        setBuildResult({ type: "error", message: e.error || "Rebuild failed" });
+        setBuildMessage(e.error || "Store update failed");
+        setBuildResult({ type: "error", message: e.error || "Store update failed" });
         setRebuilding(false);
         return;
       }
@@ -230,7 +232,7 @@ export default function StoreDesignPage() {
       const poll = async (): Promise<void> => {
         if (Date.now() - startTime > MAX_POLL_MS) {
           setBuildStage("error");
-          setBuildMessage("Build is taking longer than expected. Check the Rebuild tab for status.");
+          setBuildMessage("The update is taking longer than expected. Please try again in a moment.");
           setRebuilding(false);
           return;
         }
@@ -258,9 +260,10 @@ export default function StoreDesignPage() {
             setBuildMessage("Deploying to your live store...");
             setTimeout(() => {
               setBuildStage("done");
-              setBuildMessage("Your store is updated and live!");
+              setBuildMessage("Your store is updated and live.");
               setBuildResult({ type: "success", message: "Your store has been updated successfully." });
               setRebuilding(false);
+              setPreviewRefreshKey(Date.now());
               if (iframeRef.current) {
                 iframeRef.current.src = iframeRef.current.src;
               }
@@ -274,8 +277,8 @@ export default function StoreDesignPage() {
 
           if (isNewError) {
             setBuildStage("error");
-            setBuildMessage(status.lastBuildError?.substring(0, 300) || "Build failed — check the Rebuild tab for details.");
-            setBuildResult({ type: "error", message: status.lastBuildError || "Build failed" });
+            setBuildMessage(status.lastBuildError?.substring(0, 300) || "Store update failed. Please try again.");
+            setBuildResult({ type: "error", message: status.lastBuildError || "Store update failed" });
             setRebuilding(false);
             return;
           }
@@ -320,44 +323,69 @@ export default function StoreDesignPage() {
 
   return (
     <div className="flex flex-col h-full min-h-screen">
-      {/* Build status overlay — fixed center, uses shared AIGenerationLoader (branded FlowSmartly loader) */}
+      {/* Store update overlay */}
       {buildStage !== "idle" && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-background border border-border rounded-2xl p-8 max-w-md w-[90%] shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-2xl">
             {(buildStage === "saving" || buildStage === "building" || buildStage === "deploying") && (
-              <AIGenerationLoader
-                currentStep={
-                  buildStage === "saving" ? "Saving Changes" :
-                  buildStage === "building" ? "Rebuilding Your Store" :
-                  "Deploying to Live Site"
-                }
-                subtitle={buildMessage || "Please don't close this page"}
-                progress={
-                  buildStage === "saving" ? 25 :
-                  buildStage === "building" ? 65 :
-                  90
-                }
-              />
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <AISpinner className="h-5 w-5 animate-spin" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold">
+                      {buildStage === "saving"
+                        ? "Saving changes"
+                        : buildStage === "building"
+                          ? "Updating live store"
+                          : "Finalizing update"}
+                    </h2>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {buildMessage || "Your storefront will refresh when the update is live."}
+                    </p>
+                  </div>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    style={{
+                      width:
+                        buildStage === "saving"
+                          ? "28%"
+                          : buildStage === "building"
+                            ? "68%"
+                            : "92%",
+                    }}
+                  />
+                </div>
+              </div>
             )}
             {buildStage === "done" && (
-              <div className="flex flex-col items-center text-center py-4">
-                <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-                  <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30">
+                  <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
                 </div>
-                <h2 className="text-lg font-semibold mb-2 text-green-700 dark:text-green-400">Store Updated!</h2>
-                <p className="text-sm text-muted-foreground">{buildMessage}</p>
+                <div>
+                  <h2 className="text-sm font-semibold text-green-700 dark:text-green-400">Store updated</h2>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{buildMessage}</p>
+                </div>
               </div>
             )}
             {buildStage === "error" && (
-              <div className="flex flex-col items-center text-center py-4">
-                <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                  <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-red-700 dark:text-red-400">Update failed</h2>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground break-words">{buildMessage}</p>
+                  </div>
                 </div>
-                <h2 className="text-lg font-semibold mb-2 text-red-700 dark:text-red-400">Something Went Wrong</h2>
-                <p className="text-sm text-muted-foreground mb-4 break-words">{buildMessage}</p>
                 <button
                   onClick={() => { setBuildStage("idle"); setBuildMessage(""); }}
-                  className="px-4 py-2 text-sm font-medium bg-muted hover:bg-accent rounded-lg transition-colors"
+                  className="w-full rounded-lg bg-muted px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
                 >
                   Close
                 </button>
@@ -391,7 +419,7 @@ export default function StoreDesignPage() {
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">
             {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            Save & Rebuild
+            Save
           </button>
         )}
       </div>
@@ -493,7 +521,7 @@ export default function StoreDesignPage() {
               </div>
               <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-xs text-blue-700 dark:text-blue-400 space-y-1">
                 <p className="font-semibold text-blue-800 dark:text-blue-300">After editing</p>
-                <p>Click <strong>Save &amp; Rebuild</strong> to publish your changes. Rebuilds take 1–2 minutes.</p>
+                <p>Click <strong>Save</strong> to apply your changes. The live store updates automatically.</p>
               </div>
             </div>
           </div>
@@ -626,7 +654,7 @@ export default function StoreDesignPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold">Categories <span className="text-muted-foreground font-normal text-sm">({(data.categories || []).length})</span></h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Edit names, images, and descriptions. Changes apply after Save &amp; Rebuild.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Edit names, images, and descriptions. Changes apply after Save.</p>
               </div>
               <Link href="/ecommerce/categories" className="text-xs text-primary hover:underline flex items-center gap-1">Manage Categories →</Link>
             </div>
@@ -791,7 +819,7 @@ export default function StoreDesignPage() {
               </div>
             </div>
             {(data.pages || []).length === 0 ? (
-              <div className="bg-card border border-dashed border-border rounded-xl p-8 text-center text-sm text-muted-foreground">No pages found. Rebuild your store to scan pages.</div>
+              <div className="bg-card border border-dashed border-border rounded-xl p-8 text-center text-sm text-muted-foreground">No pages found. Save your store to refresh the page list.</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {(data.pages || []).map((p) => (
@@ -835,7 +863,7 @@ export default function StoreDesignPage() {
               </div>
               <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-xs text-amber-800 dark:text-amber-300">
                 <p className="font-semibold mb-1">After AI Update</p>
-                <p className="text-amber-700 dark:text-amber-400">Changes trigger an automatic rebuild (~1–2 min). Your store stays live during the rebuild.</p>
+                <p className="text-amber-700 dark:text-amber-400">Changes update the live store automatically. Your current store stays available while the update runs.</p>
               </div>
             </div>
           </div>
@@ -936,11 +964,11 @@ export default function StoreDesignPage() {
 
       {/* Unsaved changes bar */}
       {changed && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-50 dark:bg-amber-900/30 border-t border-amber-200 px-6 py-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Unsaved changes</p>
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 shadow-2xl">
+          <p className="text-sm font-medium text-foreground">Unsaved changes</p>
           <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
-            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50">
+            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
           </button>
         </div>
       )}

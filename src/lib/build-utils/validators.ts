@@ -697,6 +697,94 @@ export function fixStoreCartDrawerProps(siteDir: string): void {
   }
 }
 
+/**
+ * Next 15 passes dynamic route params as a Promise. Older generated category
+ * pages passed that Promise directly to the client component, so
+ * `params.slug` was undefined and valid category pages showed "not found".
+ * Also keep Header/Footer/CartDrawer in RootLayoutClient only to avoid
+ * duplicate footers on category routes.
+ */
+export function fixStoreCategoryRoute(siteDir: string): void {
+  const pagePath = join(siteDir, "src", "app", "category", "[slug]", "page.tsx");
+  const clientPath = join(siteDir, "src", "app", "category", "[slug]", "CategoryClient.tsx");
+
+  if (existsSync(pagePath)) {
+    writeFileSync(
+      pagePath,
+      `// SERVER component. Next 15 provides dynamic params as a Promise, so resolve
+// them before passing to the client component.
+
+import CategoryClient from "./CategoryClient";
+
+export const dynamic = "force-dynamic";
+
+export default async function CategoryPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const resolvedParams = await params;
+  return <CategoryClient params={resolvedParams} />;
+}
+`,
+      "utf-8"
+    );
+  }
+
+  if (existsSync(clientPath)) {
+    writeFileSync(
+      clientPath,
+      `"use client";
+
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
+import ProductGrid from "@/components/ProductGrid";
+import { categories } from "@/lib/data";
+
+export default function CategoryClient({ params }: { params: { slug: string } }) {
+  const category = categories.find((c) => c.slug === params.slug);
+
+  if (!category) {
+    return (
+      <main className="px-4 py-16 text-center">
+        <h1 className="mb-3 text-2xl font-bold text-gray-900 dark:text-white">Category not found</h1>
+        <Link href="/products" className="text-sm font-medium text-primary hover:underline">
+          Browse all products
+        </Link>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <Link
+        href="/products"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-primary dark:text-gray-400"
+      >
+        <ChevronLeft size={14} />
+        All products
+      </Link>
+      <div className="mb-10">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          Category
+        </p>
+        <h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
+          {category.name}
+        </h1>
+        {category.description && (
+          <p className="max-w-2xl text-gray-500 dark:text-gray-400">{category.description}</p>
+        )}
+      </div>
+      <ProductGrid initialCategory={category.id} />
+    </main>
+  );
+}
+`,
+      "utf-8"
+    );
+  }
+}
+
 function addStoreApiImport(content: string, needsStorePage: boolean): string {
   const names = needsStorePage ? "storeApi, storePage" : "storeApi";
   if (content.includes("@/lib/api-client")) {

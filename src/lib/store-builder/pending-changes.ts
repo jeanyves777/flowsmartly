@@ -26,6 +26,12 @@ export async function markStoreAsPending(storeId: string): Promise<void> {
     // Don't block the user's save on a bookkeeping failure.
     console.error("[pending-changes] Failed to mark store as pending:", err);
   });
+
+  import("./auto-rebuild")
+    .then(({ scheduleStoreRebuild }) => scheduleStoreRebuild(storeId))
+    .catch((err) => {
+      console.error("[pending-changes] Failed to schedule auto-update:", err);
+    });
 }
 
 /**

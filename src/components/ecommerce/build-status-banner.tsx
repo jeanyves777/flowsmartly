@@ -79,14 +79,14 @@ export function BuildStatusBanner() {
               sawBuilding.current = true;
               if (!cancelled) {
                 setStatus("building");
-                setMessage("Your store is rebuilding — changes will go live in 30-90 seconds. You can keep working.");
+                setMessage("Your store is updating in the background. You can keep working.");
                 setDismissed(false);
               }
             } else if (s.buildStatus === "built" && sawBuilding.current) {
               sawBuilding.current = false;
               if (!cancelled) {
                 setStatus("done");
-                setMessage("Your store has been updated and is live!");
+                setMessage("Your store has been updated and is live.");
                 setTimeout(() => {
                   if (!cancelled) {
                     setStatus(s.hasPendingChanges ? "pending" : "idle");
@@ -101,7 +101,7 @@ export function BuildStatusBanner() {
                 setStatus("error");
                 setMessage(
                   s.lastBuildError?.substring(0, 200) ||
-                  "Your last rebuild failed. Open Design → Rebuild for details."
+                  "Your store update failed. Open Design for details."
                 );
               }
             } else if (s.hasPendingChanges && !sawBuilding.current) {
@@ -165,16 +165,15 @@ export function BuildStatusBanner() {
     }
   };
 
-  if (status === "idle" || dismissed || suppressed) return null;
+  const shouldHideBanner = status === "idle" || status === "pending" || dismissed || suppressed;
+  if (shouldHideBanner) return null;
 
   const bgColor =
-    status === "pending" ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" :
     status === "building" ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" :
     status === "done" ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" :
     "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800";
 
   const textColor =
-    status === "pending" ? "text-amber-900 dark:text-amber-100" :
     status === "building" ? "text-blue-900 dark:text-blue-100" :
     status === "done" ? "text-green-900 dark:text-green-100" :
     "text-red-900 dark:text-red-100";
@@ -183,9 +182,6 @@ export function BuildStatusBanner() {
     <>
       <div className={`sticky top-0 z-50 border-b ${bgColor}`}>
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          {status === "pending" && (
-            <Upload className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          )}
           {status === "building" && (
             <AISpinner className="w-5 h-5 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
           )}
@@ -197,17 +193,9 @@ export function BuildStatusBanner() {
           )}
 
           <div className={`flex-1 text-sm ${textColor}`}>
-            {status === "pending" && (
-              <>
-                <span className="font-semibold mr-2">
-                  You have {pendingCount} {pendingCount === 1 ? "change" : "changes"} not yet published
-                </span>
-                <span className="opacity-80">— your live store will stay on the previous version until you publish.</span>
-              </>
-            )}
             {status === "building" && (
               <>
-                <span className="font-semibold mr-2">Publishing your changes…</span>
+                <span className="font-semibold mr-2">Updating your store...</span>
                 <span className="opacity-80">{message}</span>
               </>
             )}
@@ -219,21 +207,12 @@ export function BuildStatusBanner() {
             )}
             {status === "error" && (
               <>
-                <span className="font-semibold mr-2">Rebuild failed</span>
+                <span className="font-semibold mr-2">Store update failed</span>
                 <span className="opacity-80">{message}</span>
               </>
             )}
           </div>
 
-          {status === "pending" && (
-            <button
-              onClick={() => setConfirmingPublish(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-full transition-colors"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Publish Now
-            </button>
-          )}
           {(status === "done" || status === "error") && (
             <button
               onClick={() => setDismissed(true)}

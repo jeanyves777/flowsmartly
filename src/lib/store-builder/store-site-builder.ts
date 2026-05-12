@@ -50,6 +50,7 @@ import {
   fixFooterLogoSize,
   fixStoreCartDrawerProps,
   fixStoreClientApiProxyUsage,
+  fixStoreCategoryRoute,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -367,6 +368,7 @@ export async function buildStoreFromDir(
     }
     fixStoreClientApiProxyUsage(storeDir);
     fixStoreCartDrawerProps(storeDir);
+    fixStoreCategoryRoute(storeDir);
     fixCartImports(storeDir);
     fixHeaderLayout(storeDir); // Fix tiny logo + misaligned icon row in Header
     fixFooterLogoSize(storeDir); // Fix tiny logo in Footer

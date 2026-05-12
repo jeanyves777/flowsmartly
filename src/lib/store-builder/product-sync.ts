@@ -43,6 +43,12 @@ export async function triggerStoreRebuildIfV2(storeId: string): Promise<void> {
     const buildResult = await buildStoreV3(storeId);
     if (buildResult.success) {
       await deployStoreV3(storeId, store.slug);
+      await prisma.store.update({
+        where: { id: storeId },
+        data: { hasPendingChanges: false, pendingChangeCount: 0 },
+      }).catch((err) => {
+        console.error(`[ProductSync] Failed to clear pending changes for ${storeId}:`, err);
+      });
       console.log(`[ProductSync] Store ${storeId} rebuilt and deployed`);
     } else {
       // Keep 2000 chars so prerender / TypeError stacks survive. The old
