@@ -158,6 +158,30 @@ export function injectAnalytics(siteDir: string): void {
 
   let content = readFileSync(layoutPath, "utf-8");
   let modified = false;
+  const rootLayoutClientPaths = [
+    join(siteDir, "src", "app", "RootLayoutClient.tsx"),
+    join(siteDir, "src", "components", "RootLayoutClient.tsx"),
+  ];
+  const clientShellHandlesAnalytics = rootLayoutClientPaths.some((file) => {
+    if (!existsSync(file)) return false;
+    const clientContent = readFileSync(file, "utf-8");
+    return clientContent.includes("<Analytics") && clientContent.includes("<CookieConsent");
+  });
+
+  if (clientShellHandlesAnalytics) {
+    const original = content;
+    content = content
+      .replace(/^import\s+Analytics\s+from\s+['"]@\/components\/Analytics['"];?\r?\n/gm, "")
+      .replace(/^import\s+CookieConsent\s+from\s+['"]@\/components\/CookieConsent['"];?\r?\n/gm, "")
+      .replace(/\s*<Analytics\s*\/>\s*/g, "\n")
+      .replace(/\s*<CookieConsent\s*\/>\s*/g, "\n");
+
+    if (content !== original) {
+      writeFileSync(layoutPath, content, "utf-8");
+      console.log("[BuildUtils] Removed duplicate Analytics + CookieConsent from layout.tsx");
+    }
+    return;
+  }
 
   if (!content.includes("Analytics") && existsSync(join(siteDir, "src", "components", "Analytics.tsx"))) {
     const lastImportIdx = content.lastIndexOf("\nimport ");
