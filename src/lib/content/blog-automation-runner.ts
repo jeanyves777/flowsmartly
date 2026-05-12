@@ -82,8 +82,7 @@ export async function runBlogAutomationPublication(params: {
       }
 
       const s3Key = `website-blog/${blogReadiness.website.id}/${automation.id}/${Date.now()}.png`;
-      await uploadToS3(s3Key, imageBuffer, "image/png");
-      imageUrl = s3Key;
+      imageUrl = await uploadToS3(s3Key, imageBuffer, "image/png");
     }
   }
 
