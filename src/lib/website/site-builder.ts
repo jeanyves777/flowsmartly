@@ -20,9 +20,9 @@ import {
   getTrackingScript,
 } from "./templates";
 import {
-  TEMPLATE_SSR_NEXT_CONFIG,
   TEMPLATE_WEBSITE_API_CLIENT,
   TEMPLATE_WEBSITE_API_PROXY,
+  getWebsiteSSRNextConfig,
   getWebsiteEnvLocal,
   getWebsiteSSRTrackingScript,
 } from "./templates/ssr-templates";
@@ -345,7 +345,7 @@ export function initSiteDirV3(websiteId: string, slug: string): string {
   // Identical template files
   writeFileSync(join(siteDir, "package.json"), TEMPLATE_PACKAGE_JSON);
   writeFileSync(join(siteDir, "tsconfig.json"), TEMPLATE_TSCONFIG);
-  writeFileSync(join(siteDir, "next.config.ts"), TEMPLATE_SSR_NEXT_CONFIG);
+  writeFileSync(join(siteDir, "next.config.ts"), getWebsiteSSRNextConfig(slug));
   writeFileSync(join(siteDir, "postcss.config.mjs"), TEMPLATE_POSTCSS_CONFIG);
 
   // Environment config
@@ -388,7 +388,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
 
     if (website?.slug) {
       const apiBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
-      writeFileSync(join(siteDir, "next.config.ts"), TEMPLATE_SSR_NEXT_CONFIG);
+      writeFileSync(join(siteDir, "next.config.ts"), getWebsiteSSRNextConfig(website.slug));
       writeFileSync(join(siteDir, ".env.local"), getWebsiteEnvLocal(websiteId, website.slug, apiBaseUrl));
     }
 

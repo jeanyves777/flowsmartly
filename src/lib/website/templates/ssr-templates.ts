@@ -23,6 +23,21 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 `;
 
+export function getWebsiteSSRNextConfig(slug: string): string {
+  return `import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  basePath: "/sites/${slug}",
+  skipTrailingSlashRedirect: true,
+  images: { unoptimized: true },
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
+};
+
+export default nextConfig;
+`;
+}
+
 // ─── .env.local ──────────────────────────────────────────────────────────────
 
 export function getWebsiteEnvLocal(
