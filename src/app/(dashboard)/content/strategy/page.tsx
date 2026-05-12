@@ -235,6 +235,7 @@ interface AutomationBuilderDraft {
   mediaStyle: string;
   endDate: string;
   customPrompt: string;
+  emailContactListIds: Record<string, string>;
 }
 
 interface BrandSnapshot {
@@ -257,6 +258,14 @@ interface ConnectedPlatform {
   connected: boolean;
   username?: string | null;
   displayName?: string | null;
+}
+
+interface ContactListOption {
+  id: string;
+  name: string;
+  totalCount: number;
+  activeCount: number;
+  contactCount?: number;
 }
 
 interface MarketingReadiness {
@@ -580,7 +589,10 @@ const DEFAULT_AUTOMATION_BUILDER: AutomationBuilderDraft = {
   mediaStyle: "",
   endDate: DEFAULT_AUTOMATION.endDate,
   customPrompt: "",
+  emailContactListIds: {},
 };
+
+const ALL_EMAIL_CONTACTS = "__all_email_contacts__";
 
 function formatDate(value?: string | null) {
   if (!value) return "No date";
@@ -923,6 +935,7 @@ export default function StrategyAutomationPage() {
   const [brand, setBrand] = useState<BrandSnapshot | null>(null);
   const [brandLoading, setBrandLoading] = useState(true);
   const [connectedPlatforms, setConnectedPlatforms] = useState<ConnectedPlatform[]>([]);
+  const [contactLists, setContactLists] = useState<ContactListOption[]>([]);
   const [marketingReadiness, setMarketingReadiness] = useState<MarketingReadiness>({
     emailReady: false,
     smsReady: false,
@@ -948,17 +961,19 @@ export default function StrategyAutomationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [strategyRes, automationRes, socialRes, marketingRes] = await Promise.all([
+      const [strategyRes, automationRes, socialRes, marketingRes, contactListsRes] = await Promise.all([
         fetch("/api/content/strategy"),
         fetch("/api/content/automation"),
         fetch("/api/social-accounts"),
         fetch("/api/marketing-config"),
+        fetch("/api/contact-lists"),
       ]);
-      const [strategyJson, automationJson, socialJson, marketingJson] = await Promise.all([
+      const [strategyJson, automationJson, socialJson, marketingJson, contactListsJson] = await Promise.all([
         strategyRes.json(),
         automationRes.json(),
         socialRes.json().catch(() => null),
         marketingRes.json().catch(() => null),
+        contactListsRes.json().catch(() => null),
       ]);
 
       if (!strategyRes.ok || !strategyJson.success) {
@@ -993,6 +1008,9 @@ export default function StrategyAutomationPage() {
             config.smsComplianceStatus === "APPROVED"
           ),
         });
+      }
+      if (contactListsRes.ok && contactListsJson?.success) {
+        setContactLists(contactListsJson.data?.lists || []);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the workspace");
@@ -1150,6 +1168,7 @@ export default function StrategyAutomationPage() {
       );
       const category = normalizeTaskCategory(task.category);
       const includeMedia = category === "email" ? false : options.includeMedia;
+      const contactListId = category === "email" ? options.emailContactListIds[task.id] || null : null;
       const platforms =
         category === "email"
           ? []
@@ -1173,6 +1192,7 @@ export default function StrategyAutomationPage() {
         includeMedia,
         mediaType: options.mediaType,
         mediaStyle: options.mediaStyle,
+        contactListId,
       };
     },
     [automationBuilder, connectedPlatformKeys]
@@ -1437,6 +1457,11 @@ export default function StrategyAutomationPage() {
       ...draft,
       frequency: "ONCE",
       selectedTaskIds: candidateTasks.map((task) => task.id),
+      emailContactListIds: candidateTasks.reduce((acc, task) => {
+        if (normalizeTaskCategory(task.category) !== "email") return acc;
+        acc[task.id] = draft.emailContactListIds[task.id] || (contactLists.length === 1 ? contactLists[0].id : "");
+        return acc;
+      }, {} as Record<string, string>),
       platforms:
         inferredConnectedPlatforms.length > 0
           ? [...new Set(inferredConnectedPlatforms)]
@@ -1549,6 +1574,16 @@ export default function StrategyAutomationPage() {
     }));
   };
 
+  const setEmailContactListForTask = (taskId: string, value: string) => {
+    setAutomationBuilder((draft) => ({
+      ...draft,
+      emailContactListIds: {
+        ...draft.emailContactListIds,
+        [taskId]: value === ALL_EMAIL_CONTACTS ? "" : value,
+      },
+    }));
+  };
+
   const createAutomationsForTasks = async (
     sourceStrategy: Strategy,
     candidateTasks: StrategyTask[],
@@ -1592,7 +1627,8 @@ export default function StrategyAutomationPage() {
       return false;
     }
 
-    if (options.platforms.length === 0) {
+    const needsPublishingChannel = selectedTasks.some((task) => normalizeTaskCategory(task.category) !== "email");
+    if (needsPublishingChannel && options.platforms.length === 0) {
       toast({
         title: "Select at least one channel",
         variant: "destructive",
@@ -1619,6 +1655,7 @@ export default function StrategyAutomationPage() {
           customPrompt: [options.customPrompt, task.title, task.description]
             .filter(Boolean)
             .join("\n\n"),
+          contactListId: normalizeTaskCategory(task.category) === "email" ? plan.contactListId : undefined,
         };
       });
 
@@ -2320,6 +2357,7 @@ export default function StrategyAutomationPage() {
             startDate: plan.firstRunDate,
             endDate: automationBuilder.endDate,
             platforms: plan.platforms,
+            contactListId: normalizeTaskCategory(task.category) === "email" ? plan.contactListId : undefined,
           };
         });
         const res = await fetch("/api/content/strategy/automate/estimate", {
@@ -4058,9 +4096,12 @@ export default function StrategyAutomationPage() {
       automationEstimate?.automatableTasks.reduce((sum, task) => sum + (task.costPerRun ?? 0), 0) ||
       requiredCredits;
     const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
+    const readyNeedsPublishingChannel = readySelected.some((row) => row.readiness.type !== "email");
+    const readyEmailRows = readySelected.filter((row) => row.readiness.type === "email");
     const readyGroups = Object.entries(
       readySelected.reduce((acc, row) => {
-        const key = `${row.plan.firstRunDate}|${row.plan.time}|${formatPlatformList(row.plan.platforms)}`;
+        const channelLabel = row.readiness.type === "email" ? "Email" : formatPlatformList(row.plan.platforms);
+        const key = `${row.plan.firstRunDate}|${row.plan.time}|${channelLabel}`;
         acc[key] = [...(acc[key] || []), row.task.title];
         return acc;
       }, {} as Record<string, string[]>)
@@ -4172,11 +4213,41 @@ export default function StrategyAutomationPage() {
                                 {readiness.type} automation - {formatShortDate(plan.firstRunDate)} at {plan.time}
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                Planned for {formatPlatformList(plan.platforms)}
+                                Planned for {readiness.type === "email" ? "Email recipients" : formatPlatformList(plan.platforms)}
                               </p>
                             </div>
                             <Badge className="bg-emerald-600 text-white">Ready</Badge>
                           </div>
+                          {readiness.type === "email" && (
+                            <div className="mt-3 space-y-1.5">
+                              <Label className="text-xs">Recipient list</Label>
+                              {contactLists.length > 0 ? (
+                                <Select
+                                  value={plan.contactListId || ALL_EMAIL_CONTACTS}
+                                  onValueChange={(value) => setEmailContactListForTask(task.id, value)}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={ALL_EMAIL_CONTACTS}>All opted-in contacts</SelectItem>
+                                    {contactLists.map((list) => (
+                                      <SelectItem key={list.id} value={list.id}>
+                                        {list.name} ({list.activeCount || list.contactCount || list.totalCount || 0})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
+                                  No saved lists yet. This email automation will target all opted-in email contacts.
+                                  <Link href="/contacts?tab=lists" className="ml-1 font-medium text-brand-600 hover:text-brand-700">
+                                    Create list
+                                  </Link>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {readiness.requirements.length > 0 && (
                             <p className="mt-2 text-xs text-muted-foreground">
                               {readiness.requirements.join(" ")}
@@ -4326,6 +4397,36 @@ export default function StrategyAutomationPage() {
                   )}
                 </div>
 
+                {readyEmailRows.length > 0 && (
+                  <div className="rounded-xl border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Email recipients</p>
+                        <p className="text-xs text-muted-foreground">{readyEmailRows.length} email item{readyEmailRows.length === 1 ? "" : "s"}</p>
+                      </div>
+                      <Badge variant="secondary">{contactLists.length} list{contactLists.length === 1 ? "" : "s"}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {readyEmailRows.slice(0, 4).map(({ task, plan }) => {
+                        const selectedList = contactLists.find((list) => list.id === plan.contactListId);
+                        return (
+                          <div key={`email-summary-${task.id}`} className="rounded-lg bg-muted/30 px-3 py-2">
+                            <p className="line-clamp-1 text-xs font-medium">{task.title}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {selectedList
+                                ? `${selectedList.name} (${selectedList.activeCount || selectedList.contactCount || selectedList.totalCount || 0})`
+                                : "All opted-in contacts"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                      {readyEmailRows.length > 4 && (
+                        <p className="text-xs text-muted-foreground">+ {readyEmailRows.length - 4} more email item{readyEmailRows.length - 4 === 1 ? "" : "s"}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-xl border p-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -4420,7 +4521,7 @@ export default function StrategyAutomationPage() {
                 saving ||
                 estimatingAutomation ||
                 readySelected.length === 0 ||
-                automationBuilder.platforms.length === 0 ||
+                (readyNeedsPublishingChannel && automationBuilder.platforms.length === 0) ||
                 estimateBlocked
               }
               className="bg-brand-500 text-white hover:bg-brand-600"

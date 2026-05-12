@@ -104,6 +104,74 @@ function addDaysToDate(
   return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
+function parseTrigger(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseScheduledDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getLocalDateKey(date: Date, timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
+function isCustomAutomationDue(
+  automation: { trigger: string; lastTriggered: Date | null; sendTime: string; timezone: string },
+  now: Date
+) {
+  const trigger = parseTrigger(automation.trigger);
+  const scheduledAt = parseScheduledDate(trigger.scheduledAt);
+  const frequency = typeof trigger.frequency === "string" ? trigger.frequency.toUpperCase() : "ONCE";
+
+  if (scheduledAt && scheduledAt > now) return false;
+
+  if (frequency === "ONCE") {
+    return !automation.lastTriggered;
+  }
+
+  const timeZone = automation.timezone || "UTC";
+  const todayKey = getLocalDateKey(now, timeZone);
+  const lastKey = automation.lastTriggered ? getLocalDateKey(automation.lastTriggered, timeZone) : null;
+  if (lastKey === todayKey) return false;
+
+  if (frequency === "DAILY") return true;
+  if (frequency === "WEEKLY") {
+    const targetDay = typeof trigger.dayOfWeek === "number" ? trigger.dayOfWeek : null;
+    if (targetDay === null) return true;
+    try {
+      const today = getTodayInTimezone(timeZone);
+      const utcFallback = now.getUTCDay();
+      return targetDay === utcFallback || targetDay === new Date(Date.UTC(today.year, today.month - 1, today.day)).getUTCDay();
+    } catch {
+      return targetDay === now.getUTCDay();
+    }
+  }
+  if (frequency === "MONTHLY") {
+    return !scheduledAt || scheduledAt.getUTCDate() === now.getUTCDate();
+  }
+
+  return !automation.lastTriggered;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/automations/trigger
 // ---------------------------------------------------------------------------
@@ -128,8 +196,8 @@ export async function POST(request: NextRequest) {
       // Empty body is fine — defaults to "all"
     }
 
-    const filterType = body.type || "all"; // "birthday" | "holiday" | "anniversary" | "inactivity" | "trial_ending" | "all"
-    const validFilterTypes = ["birthday", "holiday", "anniversary", "inactivity", "trial_ending", "all"];
+    const filterType = body.type || "all"; // "birthday" | "holiday" | "anniversary" | "inactivity" | "trial_ending" | "custom" | "all"
+    const validFilterTypes = ["birthday", "holiday", "anniversary", "inactivity", "trial_ending", "custom", "all"];
     if (!validFilterTypes.includes(filterType)) {
       return NextResponse.json(
         { success: false, error: { message: `Invalid type. Use one of: ${validFilterTypes.join(", ")}` } },
@@ -147,7 +215,8 @@ export async function POST(request: NextRequest) {
       anniversary: ["ANNIVERSARY"],
       inactivity: ["INACTIVITY"],
       trial_ending: ["TRIAL_ENDING"],
-      all: ["BIRTHDAY", "HOLIDAY", "ANNIVERSARY", "INACTIVITY", "TRIAL_ENDING"],
+      custom: ["CUSTOM"],
+      all: ["BIRTHDAY", "HOLIDAY", "ANNIVERSARY", "INACTIVITY", "TRIAL_ENDING", "CUSTOM"],
     };
     const typeFilter: string[] = cronTypes[filterType] || cronTypes.all;
 
@@ -480,6 +549,30 @@ export async function POST(request: NextRequest) {
           const result = await sendToContacts(
             automation,
             expiringContacts,
+            today.startOfDay,
+            getMarketingConfig
+          );
+          detail.sent = result.sent;
+          detail.failed = result.failed;
+          detail.skipped = result.skipped;
+        } else if (automation.type === "CUSTOM") {
+          if (!isCustomAutomationDue(automation, new Date())) {
+            detail.skipped = 1;
+            details.push(detail);
+            totalSkipped++;
+            continue;
+          }
+
+          const contacts = await getMatchingContacts(
+            automation.userId,
+            automation.contactListId,
+            automation.campaignType,
+            {}
+          );
+
+          const result = await sendToContacts(
+            automation,
+            contacts,
             today.startOfDay,
             getMarketingConfig
           );

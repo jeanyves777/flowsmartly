@@ -7,6 +7,7 @@ import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
+import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 
 interface ScheduleConfig {
   frequency?: string;
@@ -333,10 +334,21 @@ async function runScheduler(request: NextRequest) {
               const base64Image = generatedImage.base64;
 
               if (base64Image) {
-                const imageBuffer = Buffer.from(base64Image, "base64");
-                const ext = generatedImage.format === "jpeg" ? "jpg" : "png";
-                const s3Key = `automation/${automation.id}/${Date.now()}.${ext}`;
-                await uploadToS3(s3Key, imageBuffer, generatedImage.format === "jpeg" ? "image/jpeg" : "image/png");
+                let imageBuffer: Buffer = Buffer.from(base64Image, "base64");
+                const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
+                if (brandLogo) {
+                  try {
+                    imageBuffer = await compositeBrandLogoOnImageBuffer({
+                      imageBuffer,
+                      logoSource: brandLogo,
+                      placement: { x: 0.03, y: 0.03, sizePercent: 14 },
+                    });
+                  } catch (logoError) {
+                    console.warn(`[Scheduler] Logo compositing failed for ${automation.id}:`, logoError);
+                  }
+                }
+                const s3Key = `automation/${automation.id}/${Date.now()}.png`;
+                await uploadToS3(s3Key, imageBuffer, "image/png");
                 mediaUrl = s3Key;
                 mediaMeta = JSON.stringify([s3Key]);
                 postMediaType = "image";

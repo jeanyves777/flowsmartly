@@ -21,6 +21,7 @@ import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background
 import { saveDesignImage } from "@/lib/utils/file-storage";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { compositeBrandLogoOnImageBase64 } from "@/lib/media/brand-logo-compositor";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 
 /**
@@ -1854,69 +1855,32 @@ async function compositeLogo(
   sizePercent?: number,
   placement?: LogoPlacement,
 ): Promise<string> {
-  const [imgW, imgH] = targetSize.split("x").map(Number);
+  void targetSize;
+  return compositeBrandLogoOnImageBase64({
+    imageBase64,
+    logoSource,
+    placement: {
+      x: placement?.x,
+      y: placement?.y,
+      sizePercent: placement?.sizePercent || sizePercent,
+    },
+  });
+
 
   // Logo size = user-chosen % of image WIDTH (most intuitive for horizontal logos).
   // Default 12%, minimum 30px. No upper pixel cap — respect what the user asked for.
-  const pct = (sizePercent && sizePercent >= 1 && sizePercent <= 80) ? sizePercent : 12;
-  const logoMaxW = Math.max(30, Math.round(imgW * (pct / 100)));
   // Max height = same as max width (prevents extremely tall logos from dominating)
-  const logoMaxH = logoMaxW;
   // Position: flush to top edge (y=0) and 1% from left — sits above all design content
-  const normalizedX = Math.max(0, Math.min(0.95, typeof placement?.x === "number" ? placement.x : 0.03));
-  const normalizedY = Math.max(0, Math.min(0.95, typeof placement?.y === "number" ? placement.y : 0.03));
-
-  console.log(`[Visual] Logo: maxW=${logoMaxW}px at ${normalizedX},${normalizedY} on ${imgW}x${imgH}`);
 
   // Get logo buffer
-  let logoBuffer: Buffer;
-
-  if (logoSource.startsWith("data:")) {
-    const logoBase64 = logoSource.replace(/^data:image\/[^;]+;base64,/, "");
-    if (!logoBase64) throw new Error("Invalid logo data URI");
-    logoBuffer = Buffer.from(logoBase64, "base64");
-  } else if (logoSource.startsWith("/") || logoSource.startsWith("http")) {
-    if (logoSource.startsWith("/")) {
-      const localPath = path.join(process.cwd(), "public", logoSource);
-      logoBuffer = await readFile(localPath);
-    } else {
-      const response = await fetch(logoSource);
-      if (!response.ok) throw new Error(`Failed to fetch logo: ${response.status}`);
-      logoBuffer = Buffer.from(await response.arrayBuffer());
-    }
-  } else {
-    throw new Error(`Unknown logo source format: ${logoSource.substring(0, 50)}...`);
-  }
 
   // Trim transparent padding
-  let trimmedLogo: Buffer;
-  try {
-    trimmedLogo = await sharp(logoBuffer).trim({ threshold: 10 }).png().toBuffer();
-  } catch {
-    trimmedLogo = logoBuffer;
-  }
 
   // Resize logo: fit INSIDE the bounding box preserving aspect ratio — no padding added.
   // "inside" means the logo's actual rendered width/height matches what the user requested,
   // unlike "contain" which pads wide/tall logos into a square (making them look tiny).
-  const resizedLogo = await sharp(trimmedLogo)
-    .resize(logoMaxW, logoMaxH, { fit: "inside", withoutEnlargement: false })
-    .png()
-    .toBuffer();
-  const resizedMeta = await sharp(resizedLogo).metadata();
-  const renderedW = resizedMeta.width || logoMaxW;
-  const renderedH = resizedMeta.height || logoMaxH;
-  const logoX = Math.max(0, Math.min(Math.round(imgW * normalizedX), imgW - renderedW));
-  const logoY = Math.max(0, Math.min(Math.round(imgH * normalizedY), imgH - renderedH));
 
   // Composite onto design
-  const designBuffer = Buffer.from(imageBase64, "base64");
-  const result = await sharp(designBuffer)
-    .composite([{ input: resizedLogo, left: logoX, top: logoY }])
-    .png()
-    .toBuffer();
-
-  return result.toString("base64");
 }
 
 // ═══════════════════════════════════════════════════════════════

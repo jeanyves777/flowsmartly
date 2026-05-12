@@ -12,6 +12,9 @@ import {
   Mail,
   MessageSquare,
   Send,
+  Pencil,
+  Ban,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,15 +24,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface AutomationItem {
   id: string;
+  source: "email" | "content";
   name: string;
   type: string;
   campaignType: string;
+  channelLabel: string;
   enabled: boolean;
   totalSent: number;
   lastTriggered: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string };
   logCount: number;
+  contactList?: { id: string; name: string; totalCount: number; activeCount: number } | null;
 }
 
 interface Stats { total: number; active: number; totalSent: number; totalLogs: number; }
@@ -66,6 +72,38 @@ export default function AdminAutomationsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const updateAutomation = async (automation: AutomationItem, payload: Record<string, unknown>) => {
+    const res = await fetch("/api/admin/automations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: automation.id, source: automation.source, ...payload }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error?.message || "Automation update failed");
+    }
+    await fetchData();
+  };
+
+  const renameAutomation = async (automation: AutomationItem) => {
+    const nextName = window.prompt("Automation name", automation.name);
+    if (nextName === null || nextName.trim() === automation.name) return;
+    try {
+      await updateAutomation(automation, { name: nextName.trim() });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Automation update failed");
+    }
+  };
+
+  const cancelAutomation = async (automation: AutomationItem) => {
+    if (!window.confirm(`Cancel "${automation.name}"?`)) return;
+    try {
+      await updateAutomation(automation, { action: "cancel" });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Automation update failed");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -91,6 +129,9 @@ export default function AdminAutomationsPage() {
           <Input placeholder="Search automations..." className="pl-10" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} /></div>
           <select className="px-3 py-2 border rounded-lg bg-background text-sm" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}>
             <option value="">All Types</option>
+            <option value="CONTENT">Strategy Content</option>
+            <option value="EMAIL">Email</option>
+            <option value="SMS">SMS</option>
             <option value="BIRTHDAY">Birthday</option>
             <option value="HOLIDAY">Holiday</option>
             <option value="WELCOME">Welcome</option>
@@ -119,17 +160,25 @@ export default function AdminAutomationsPage() {
                     <th className="text-left p-3 font-medium">Sent</th>
                     <th className="text-left p-3 font-medium">Last Triggered</th>
                     <th className="text-left p-3 font-medium">Created</th>
+                    <th className="text-right p-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {automations.map((a) => (
                     <tr key={a.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3 font-medium">{a.name}</td>
+                      <td className="p-3">
+                        <p className="font-medium">{a.name}</p>
+                        {a.contactList && (
+                          <p className="text-xs text-muted-foreground">{a.contactList.name}</p>
+                        )}
+                      </td>
                       <td className="p-3"><p className="text-xs font-medium">{a.user.name}</p><p className="text-xs text-muted-foreground">{a.user.email}</p></td>
                       <td className="p-3"><Badge variant="outline">{a.type}</Badge></td>
                       <td className="p-3">
                         {a.campaignType === "EMAIL" ? (
                           <Badge className="bg-blue-500/10 text-blue-500"><Mail className="w-3 h-3 mr-1" />Email</Badge>
+                        ) : a.campaignType === "CONTENT" ? (
+                          <Badge className="bg-cyan-500/10 text-cyan-500"><FileText className="w-3 h-3 mr-1" />{a.channelLabel}</Badge>
                         ) : (
                           <Badge className="bg-green-500/10 text-green-500"><MessageSquare className="w-3 h-3 mr-1" />SMS</Badge>
                         )}
@@ -144,6 +193,16 @@ export default function AdminAutomationsPage() {
                       <td className="p-3"><span className="flex items-center gap-1"><Send className="w-3 h-3" />{a.totalSent.toLocaleString()}</span></td>
                       <td className="p-3 text-xs text-muted-foreground">{a.lastTriggered ? new Date(a.lastTriggered).toLocaleDateString() : "Never"}</td>
                       <td className="p-3 text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</td>
+                      <td className="p-3">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => renameAutomation(a)}>
+                            <Pencil className="w-3 h-3 mr-1" />Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => cancelAutomation(a)} disabled={!a.enabled} className="text-red-500 hover:text-red-600">
+                            <Ban className="w-3 h-3 mr-1" />Cancel
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

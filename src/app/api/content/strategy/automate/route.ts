@@ -25,6 +25,7 @@ interface TaskConfig {
   startDate?: string;
   endDate?: string;
   customPrompt: string;
+  contactListId?: string | null;
 }
 
 function normalizePlatform(platform: string) {
@@ -234,7 +235,7 @@ export async function POST(request: NextRequest) {
     const [user, socialAccounts, marketingConfig] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
-        select: { aiCredits: true },
+        select: { aiCredits: true, timezone: true },
       }),
       prisma.socialAccount.findMany({
         where: { userId: session.userId, isActive: true },
@@ -365,9 +366,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Create automations for each enabled task
-    const createdAutomations: string[] = [];
-    const createdCampaigns: string[] = [];
+    const createdPostAutomations: string[] = [];
+    const createdEmailAutomations: string[] = [];
     const taskUpdates: Array<{ taskId: string; automationId: string; status: string }> = [];
+    const selectedContactListIds = [
+      ...new Set(
+        enabledConfigs
+          .map((config) => config.contactListId)
+          .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+      ),
+    ];
+    const validContactListIds =
+      selectedContactListIds.length > 0
+        ? new Set(
+            (
+              await prisma.contactList.findMany({
+                where: { id: { in: selectedContactListIds }, userId: session.userId },
+                select: { id: true },
+              })
+            ).map((list) => list.id)
+          )
+        : new Set<string>();
+    const invalidContactListId = selectedContactListIds.find((id) => !validContactListIds.has(id));
+    if (invalidContactListId) {
+      return NextResponse.json(
+        { success: false, error: { message: "One selected contact list was not found" } },
+        { status: 404 }
+      );
+    }
 
     for (const config of taskConfigs) {
       const task = taskMap.get(config.taskId);
@@ -379,7 +405,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // EMAIL tasks → create Campaign (email blast) record
+      // EMAIL tasks -> create real Email Automation records, not draft campaigns.
       if (isEmailCategory(category)) {
         const emailDraft = await buildStrategyEmailDraft({
           title: task.title,
@@ -392,27 +418,36 @@ export async function POST(request: NextRequest) {
         // Calculate scheduled send time from frequency config
         const scheduledAt = combineDateAndTime(config.startDate || task.startDate, config.time);
 
-        const campaign = await prisma.campaign.create({
+        const emailAutomation = await prisma.automation.create({
           data: {
             userId: session.userId,
             name: `Strategy: ${task.title}`,
-            type: "EMAIL",
+            type: "CUSTOM",
+            trigger: JSON.stringify({
+              source: "strategy",
+              strategyId,
+              strategyTaskId: task.id,
+              scheduledAt: scheduledAt.toISOString(),
+              frequency: config.frequency,
+              dayOfWeek: config.dayOfWeek,
+              time: config.time,
+            }),
+            enabled: true,
+            campaignType: "EMAIL",
             subject: emailDraft.subject,
-            preheaderText: emailDraft.preheaderText,
             content: emailDraft.content,
             contentHtml: emailDraft.contentHtml,
-            fromName: brandKit?.name || null,
-            imageUrl: null,
-            imageSource: config.includeMedia ? "ai" : null,
-            status: "DRAFT",
-            scheduledAt,
+            sendTime: config.time || "09:00",
+            daysOffset: 0,
+            timezone: user?.timezone || "UTC",
+            contactListId: config.contactListId || null,
           },
         });
 
-        createdCampaigns.push(campaign.id);
+        createdEmailAutomations.push(emailAutomation.id);
         taskUpdates.push({
           taskId: task.id,
-          automationId: campaign.id,
+          automationId: emailAutomation.id,
           status: "AUTOMATED",
         });
         continue;
@@ -469,7 +504,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      createdAutomations.push(automation.id);
+      createdPostAutomations.push(automation.id);
       taskUpdates.push({
         taskId: task.id,
         automationId: automation.id,
@@ -517,12 +552,12 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         type: "STRATEGY_AUTOMATION_STARTED",
         title: "Strategy Automation Launched",
-        message: `${createdAutomations.length + createdCampaigns.length} automation${(createdAutomations.length + createdCampaigns.length) > 1 ? "s" : ""} created from "${strategy.name}"${createdCampaigns.length > 0 ? ` (${createdCampaigns.length} email campaign${createdCampaigns.length > 1 ? "s" : ""})` : ""}`,
+        message: `${createdPostAutomations.length + createdEmailAutomations.length} automation${(createdPostAutomations.length + createdEmailAutomations.length) > 1 ? "s" : ""} created from "${strategy.name}"${createdEmailAutomations.length > 0 ? ` (${createdEmailAutomations.length} email automation${createdEmailAutomations.length > 1 ? "s" : ""})` : ""}`,
         data: JSON.stringify({
           strategyId,
           strategyName: strategy.name,
-          automationCount: createdAutomations.length,
-          campaignCount: createdCampaigns.length,
+          automationCount: createdPostAutomations.length,
+          emailAutomationCount: createdEmailAutomations.length,
           skippedCount: blockedTasks.length,
         }),
       },
@@ -535,11 +570,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        automationIds: createdAutomations,
-        campaignIds: createdCampaigns,
-        automatedTaskCount: createdAutomations.length + createdCampaigns.length,
-        postAutomationCount: createdAutomations.length,
-        emailCampaignCount: createdCampaigns.length,
+        automationIds: [...createdPostAutomations, ...createdEmailAutomations],
+        postAutomationIds: createdPostAutomations,
+        emailAutomationIds: createdEmailAutomations,
+        automatedTaskCount: createdPostAutomations.length + createdEmailAutomations.length,
+        postAutomationCount: createdPostAutomations.length,
+        emailAutomationCount: createdEmailAutomations.length,
         totalTasks: strategy.tasks.length,
         strategyName: strategy.name,
         blockedTasks,
