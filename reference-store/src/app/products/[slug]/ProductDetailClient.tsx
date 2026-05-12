@@ -7,18 +7,19 @@ import ProductCard from "@/components/ProductCard";
 import RecentlyViewed, { trackProductView } from "@/components/RecentlyViewed";
 import Link from "next/link";
 import { formatPrice, storeInfo } from "@/lib/data";
+import { storeApi } from "@/lib/api-client";
 import type { Product, ProductVariant } from "@/lib/products";
 import { useLiveProduct, useLiveProducts } from "@/lib/products-store";
 import { addToCart } from "@/lib/cart";
 
 const STORE_SLUG = (() => {
-  if (typeof window === "undefined") return "";
+  const fallback = storeInfo.logoUrl.match(/\/stores\/([^/]+)\//)?.[1] || (storeInfo as any).slug || "";
+  if (typeof window === "undefined") return fallback;
   try {
     const m = window.location.pathname.match(/\/stores\/([^/]+)/);
-    return m?.[1] || "";
-  } catch { return ""; }
+    return m?.[1] || fallback;
+  } catch { return fallback; }
 })();
-const API_BASE = "https://flowsmartly.com";
 
 interface Review {
   id: string;
@@ -107,7 +108,7 @@ export default function ProductDetailClient({ params }: { params: { slug: string
   // Fetch reviews
   useEffect(() => {
     if (!product || !STORE_SLUG) return;
-    fetch(`${API_BASE}/api/store/${STORE_SLUG}/products/${product.slug}/reviews`)
+    fetch(storeApi(`/products/${product.slug}/reviews`))
       .then(r => r.json())
       .then(json => {
         if (json.success) {
@@ -187,10 +188,10 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     setWishlistLoading(true);
     try {
       if (wishlisted) {
-        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id }) });
+        await fetch(storeApi("/account/wishlist"), { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id }) });
         window.__storeWishlist = (window.__storeWishlist || []).filter(id => id !== product.id);
       } else {
-        await fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id }) });
+        await fetch(storeApi("/account/wishlist"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id }) });
         window.__storeWishlist = [...(window.__storeWishlist || []), product.id];
       }
       window.dispatchEvent(new CustomEvent("wishlist-updated"));
@@ -204,7 +205,7 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     }
     setSubmittingReview(true);
     try {
-      const res = await fetch(`${API_BASE}/api/store/${STORE_SLUG}/products/${product.slug}/reviews`, {
+      const res = await fetch(storeApi(`/products/${product.slug}/reviews`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

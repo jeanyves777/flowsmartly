@@ -49,6 +49,7 @@ import {
   fixHeaderLayout,
   fixFooterLogoSize,
   fixStoreCartDrawerProps,
+  fixStoreClientApiProxyUsage,
 } from "@/lib/build-utils/validators";
 import {
   allocatePort,
@@ -364,6 +365,7 @@ export async function buildStoreFromDir(
     if (stubs.length > 0) {
       console.log(`[StoreBuilder] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
     }
+    fixStoreClientApiProxyUsage(storeDir);
     fixStoreCartDrawerProps(storeDir);
     fixCartImports(storeDir);
     fixHeaderLayout(storeDir); // Fix tiny logo + misaligned icon row in Header

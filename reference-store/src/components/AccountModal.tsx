@@ -7,6 +7,7 @@ import {
   ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield, Heart, Bookmark, CreditCard
 } from "lucide-react";
 import { storeInfo } from "@/lib/data";
+import { storeApi, storePage } from "@/lib/api-client";
 
 function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   e.currentTarget.style.display = "none";
@@ -48,7 +49,7 @@ async function syncCartToServer(storeSlug: string) {
     const cartKey = `flowshop-cart-${storeSlug}`;
     const raw = localStorage.getItem(cartKey);
     const localItems = raw ? JSON.parse(raw) : [];
-    const res = await fetch(`${API_BASE}/api/store/${storeSlug}/account/cart/sync`, {
+    const res = await fetch(storeApi("/account/cart/sync"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -77,7 +78,7 @@ async function syncCartToServer(storeSlug: string) {
 // Load wishlist productIds into window.__storeWishlist
 async function loadWishlist(storeSlug: string) {
   try {
-    const res = await fetch(`${API_BASE}/api/store/${storeSlug}/account/wishlist`, { credentials: "include" });
+    const res = await fetch(storeApi("/account/wishlist"), { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
       window.__storeWishlist = data.productIds || [];
@@ -103,7 +104,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
   // Check real session on mount
   useEffect(() => {
     if (!STORE_SLUG) { setCheckingAuth(false); return; }
-    fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/profile`, { credentials: "include" })
+    fetch(storeApi("/account/profile"), { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.customer) {
@@ -193,7 +194,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
     if (!turnstileToken) { setError("Please complete the robot check."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/store/${STORE_SLUG}/auth/login`, {
+      const res = await fetch(storeApi("/auth/login"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -220,7 +221,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
     if (registerData.password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/store/${STORE_SLUG}/auth/register`, {
+      const res = await fetch(storeApi("/auth/register"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -242,7 +243,7 @@ export default function AccountModal({ isOpen, onClose }: Props) {
   };
 
   const handleLogout = async () => {
-    await fetch(`${API_BASE}/api/store/${STORE_SLUG}/auth/logout`, { method: "POST", credentials: "include" });
+    await fetch(storeApi("/auth/logout"), { method: "POST", credentials: "include" });
     setUser(null);
     window.__storeCustomer = null;
     window.__storeWishlist = [];
@@ -296,12 +297,12 @@ export default function AccountModal({ isOpen, onClose }: Props) {
                   </div>
                   <div className="space-y-2">
                     {[
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/orders`, icon: Package, label: "My Orders" },
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/wishlist`, icon: Heart, label: "Wishlist" },
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/saved`, icon: Bookmark, label: "Saved for Later" },
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/payment-methods`, icon: CreditCard, label: "Payment Methods" },
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/addresses`, icon: MapPin, label: "Addresses" },
-                      { href: `${API_BASE}/store/${STORE_SLUG}/account/settings`, icon: Settings, label: "Account Settings" },
+                      { href: storePage("/account/orders"), icon: Package, label: "My Orders" },
+                      { href: storePage("/account/wishlist"), icon: Heart, label: "Wishlist" },
+                      { href: storePage("/account/saved"), icon: Bookmark, label: "Saved for Later" },
+                      { href: storePage("/account/payment-methods"), icon: CreditCard, label: "Payment Methods" },
+                      { href: storePage("/account/addresses"), icon: MapPin, label: "Addresses" },
+                      { href: storePage("/account/settings"), icon: Settings, label: "Account Settings" },
                     ].map(({ href, icon: Icon, label }) => (
                       <a key={href} href={href} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-primary/40 hover:bg-primary/5 transition-colors group">
                         <div className="flex items-center gap-3">

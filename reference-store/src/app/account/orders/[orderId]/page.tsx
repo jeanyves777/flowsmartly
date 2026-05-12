@@ -8,6 +8,7 @@ import {
   MapPin, CreditCard, Loader2, AlertTriangle, Printer,
 } from "lucide-react";
 import { formatPrice } from "@/lib/data";
+import { storeApi } from "@/lib/api-client";
 
 interface OrderItem {
   productId: string;
@@ -99,7 +100,7 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   const [returnSuccess, setReturnSuccess] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/account/orders/${orderId}`, { credentials: "include" })
+    fetch(storeApi(`/account/orders/${orderId}`), { credentials: "include" })
       .then(async res => {
         if (res.status === 401) { window.location.href = `${getBasePath()}/account/login`; return; }
         if (!res.ok) { setErr("Order not found."); return; }
@@ -112,7 +113,7 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   async function handleCancel() {
     setCancelling(true); setCancelError("");
     try {
-      const res = await fetch(`/api/account/orders/${orderId}`, {
+      const res = await fetch(storeApi(`/account/orders/${orderId}`), {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "cancel" }),
@@ -128,7 +129,7 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   async function handleAddressChange(e: React.FormEvent) {
     e.preventDefault(); setSavingAddr(true); setAddrError("");
     try {
-      const res = await fetch(`/api/account/orders/${orderId}`, {
+      const res = await fetch(storeApi(`/account/orders/${orderId}`), {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_address", address: addrForm }),
@@ -144,7 +145,7 @@ export default function OrderDetailPage({ params }: { params: { orderId: string 
   async function handleReturn(e: React.FormEvent) {
     e.preventDefault(); setSubmittingReturn(true); setReturnError("");
     try {
-      const res = await fetch(`/api/account/orders/${orderId}`, {
+      const res = await fetch(storeApi(`/account/orders/${orderId}`), {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: returnReason.trim() }),

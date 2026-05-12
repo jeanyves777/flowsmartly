@@ -556,13 +556,14 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
   - isReady = !!turnstileToken; button disabled={loading || !isReady}; Google <a> gets href={isReady ? url : undefined} onClick={(e) => { if (!isReady) e.preventDefault(); }}
 - REAL AUTH (MANDATORY — NOT localStorage):
   Extract storeSlug from storeInfo.logoUrl: const STORE_SLUG = storeInfo.logoUrl.match(/\\/stores\\/([^/]+)\\//)?.[1] || "";
-  const API_BASE = "https://flowsmartly.com";
-  Login: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/login" with credentials: "include"
-  Register: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/register" with credentials: "include"
-  Logout: POST to API_BASE + "/api/store/" + STORE_SLUG + "/auth/logout" with credentials: "include"
-  Check session: GET API_BASE + "/api/store/" + STORE_SLUG + "/account/profile" with credentials: "include" (on mount)
+  Import { storeApi, storePage } from "@/lib/api-client".
+  Login: POST to storeApi("/auth/login") with credentials: "include"
+  Register: POST to storeApi("/auth/register") with credentials: "include"
+  Logout: POST to storeApi("/auth/logout") with credentials: "include"
+  Check session: GET storeApi("/account/profile") with credentials: "include" (on mount)
+  For Google OAuth navigation only: const API_BASE = "https://flowsmartly.com";
   Google OAuth: href = API_BASE + "/api/store-auth/google?storeSlug=" + STORE_SLUG + "&callbackUrl=" + encodeURIComponent(window.location.href)
-- If user IS logged in: show logged-in view with links to /store/SLUG/account/orders, /addresses, /settings on flowsmartly.com
+- If user IS logged in: show logged-in view with same-origin links using storePage("/account/orders"), storePage("/account/addresses"), storePage("/account/settings")
 - AccountModal context provider: wrap in layout.tsx — provides openAccountModal() function
 - Header and MobileBottomNav call openAccountModal() if !user, else navigate to account page
 

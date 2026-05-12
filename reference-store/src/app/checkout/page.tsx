@@ -15,20 +15,20 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import CartDrawer from "@/components/CartDrawer";
 import { getCart, getCartTotal, clearCart } from "@/lib/cart";
 import { formatPrice, storeInfo, shippingMethods } from "@/lib/data";
+import { storeApi, storePage } from "@/lib/api-client";
 import type { CartItem } from "@/lib/cart";
-
-const API_BASE = "https://flowsmartly.com";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
 function getStoreSlug(): string {
-  if (typeof window === "undefined") return "";
+  const fallback = (storeInfo as any).slug || "";
+  if (typeof window === "undefined") return fallback;
   try {
-    return window.location.pathname.match(/\/stores\/([^/]+)/)?.[1] || "";
+    return window.location.pathname.match(/\/stores\/([^/]+)/)?.[1] || fallback;
   } catch {
-    return "";
+    return fallback;
   }
 }
 
@@ -86,14 +86,11 @@ function InlineStripeForm({
     setSubmitting(true);
     onError("");
 
-    const storeSlug = getStoreSlug();
-    const storeBase = storeSlug ? `/stores/${storeSlug}` : "";
-
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: "if_required",
       confirmParams: {
-        return_url: `${window.location.origin}${storeBase}/account/orders`,
+        return_url: `${window.location.origin}${storePage("/account/orders")}`,
       },
     });
 
@@ -196,7 +193,7 @@ export default function CheckoutPage() {
     }
 
     if (slug) {
-      fetch(`${API_BASE}/api/store/${slug}/account/profile`, { credentials: "include" })
+      fetch(storeApi("/account/profile"), { credentials: "include" })
         .then(r => r.json())
         .then(json => {
           if (json.customer) {
@@ -211,7 +208,7 @@ export default function CheckoutPage() {
         .catch(() => {});
 
       // Pull the shopper's saved cards so we can offer one-click reorder.
-      fetch(`${API_BASE}/api/store/${slug}/account/payment-methods`, { credentials: "include" })
+      fetch(storeApi("/account/payment-methods"), { credentials: "include" })
         .then(r => r.ok ? r.json() : { paymentMethods: [] })
         .then(json => {
           const pms: SavedPM[] = Array.isArray(json?.paymentMethods) ? json.paymentMethods : [];
@@ -222,7 +219,7 @@ export default function CheckoutPage() {
         })
         .catch(() => setSavedPMsLoaded(true));
 
-      fetch(`${API_BASE}/api/store/${slug}/account/addresses`, { credentials: "include" })
+      fetch(storeApi("/account/addresses"), { credentials: "include" })
         .then(r => r.json())
         .then(json => {
           const saved = json.addresses?.[0];
@@ -245,7 +242,7 @@ export default function CheckoutPage() {
     }
 
     if (items.length > 0 && slug) {
-      fetch(`${API_BASE}/api/store/${slug}/cart/validate`, {
+      fetch(storeApi("/cart/validate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -267,7 +264,7 @@ export default function CheckoutPage() {
     if (!slug) return;
 
     setLoadingPaymentMethods(true);
-    fetch(`${API_BASE}/api/store/${slug}/checkout/options`)
+    fetch(storeApi("/checkout/options"))
       .then(r => r.json())
       .then(json => {
         if (json.success && json.data?.paymentMethods?.length > 0) {
@@ -319,7 +316,7 @@ export default function CheckoutPage() {
     setCreatingIntent(true);
     setError("");
 
-    fetch(`${API_BASE}/api/store/${slug}/checkout`, {
+    fetch(storeApi("/checkout"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -374,13 +371,13 @@ export default function CheckoutPage() {
     const slug = getStoreSlug() || (storeInfo as any).slug || "";
     if (slug) {
       if (currentStepId === "info") {
-        fetch(`${API_BASE}/api/store/${slug}/account/profile`, {
+        fetch(storeApi("/account/profile"), {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: form.name, phone: form.phone }),
         }).catch(() => {});
       } else if (currentStepId === "shipping") {
-        fetch(`${API_BASE}/api/store/${slug}/account/addresses`, {
+        fetch(storeApi("/account/addresses"), {
           method: "PUT", credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -400,7 +397,7 @@ export default function CheckoutPage() {
     setError("");
     try {
       const slug = getStoreSlug() || (storeInfo as any).slug || "";
-      const res = await fetch(`${API_BASE}/api/store/${slug}/checkout`, {
+      const res = await fetch(storeApi("/checkout"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -454,7 +451,7 @@ export default function CheckoutPage() {
     setError("");
     try {
       const slug = getStoreSlug() || (storeInfo as any).slug || "";
-      const res = await fetch(`${API_BASE}/api/store/${slug}/checkout`, {
+      const res = await fetch(storeApi("/checkout"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

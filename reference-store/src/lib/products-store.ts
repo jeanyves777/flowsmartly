@@ -14,11 +14,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { storeInfo } from "./data";
+import { storeApi } from "./api-client";
 import type { Product } from "./products";
 
-const STORE_SLUG = storeInfo.logoUrl.match(/\/stores\/([^/]+)\//)?.[1] || "";
-const API_BASE = "https://flowsmartly.com";
 const CACHE_TTL_MS = 15_000;
 
 let cache: Product[] | null = null;
@@ -51,7 +49,7 @@ export async function loadLiveProducts(force = false): Promise<Product[]> {
   if (fresh && !force) return cache!;
   if (inflight) return inflight;
 
-  inflight = fetch(`${API_BASE}/api/store/${STORE_SLUG}/products?limit=500`, {
+  inflight = fetch(storeApi("/products?limit=500"), {
     cache: "no-store",
   })
     .then((r) => r.json())
@@ -96,10 +94,7 @@ export async function loadLiveProductBySlug(slug: string): Promise<Product | nul
     // turn that into "foo%2F" and the API would 404.
     const cleanSlug = slug.replace(/\/+$/, "");
     if (!cleanSlug) return null;
-    const res = await fetch(
-      `${API_BASE}/api/store/${STORE_SLUG}/products/${encodeURIComponent(cleanSlug)}`,
-      { cache: "no-store" }
-    );
+    const res = await fetch(storeApi(`/products/${encodeURIComponent(cleanSlug)}`), { cache: "no-store" });
     const json = await res.json();
     if (!json?.success || !json?.data?.product) return null;
     const p = json.data.product as Record<string, unknown>;

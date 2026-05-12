@@ -4,18 +4,10 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ShoppingBag, Heart, Check } from "lucide-react";
 import { formatPrice } from "@/lib/data";
+import { storeApi, storePage } from "@/lib/api-client";
 import { addToCart } from "@/lib/cart";
 import type { Product } from "@/lib/products";
 import VariantPickerModal from "./VariantPickerModal";
-
-const STORE_SLUG = (() => {
-  if (typeof window === "undefined") return "";
-  try {
-    const m = window.location.pathname.match(/\/stores\/([^/]+)/);
-    return m?.[1] || "";
-  } catch { return ""; }
-})();
-const API_BASE = "https://flowsmartly.com";
 
 interface ProductCardProps {
   product: Product;
@@ -41,9 +33,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
       (product.variants[0]?.options && Object.keys(product.variants[0].options).length > 0))
   );
 
-  const productUrl = STORE_SLUG
-    ? `/stores/${STORE_SLUG}/products/${product.slug}`
-    : `/products/${product.slug}`;
+  const productUrl = storePage(`/products/${product.slug}`);
 
   useEffect(() => {
     const sync = () => {
@@ -85,7 +75,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
     if (wishlistLoading) return;
     setWishlistLoading(true);
     const action = wishlisted ? "DELETE" : "POST";
-    fetch(`${API_BASE}/api/store/${STORE_SLUG}/account/wishlist`, {
+    fetch(storeApi("/account/wishlist"), {
       method: action,
       credentials: "include",
       headers: { "Content-Type": "application/json" },

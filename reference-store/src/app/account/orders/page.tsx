@@ -8,6 +8,7 @@ import {
   Package, Truck, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { formatPrice } from "@/lib/data";
+import { storeApi } from "@/lib/api-client";
 
 interface OrderItem {
   name: string;
@@ -63,7 +64,7 @@ export default function OrdersPage() {
   async function fetchOrders(p: number) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/account/orders?page=${p}`, { credentials: "include" });
+      const res = await fetch(storeApi(`/account/orders?page=${p}`), { credentials: "include" });
       if (res.status === 401) {
         const base = getBasePath();
         window.location.href = `${base}/account/login?return=${base}/account/orders`;
@@ -84,7 +85,7 @@ export default function OrdersPage() {
     setResumingId(order.id);
     setResumeError(null);
     try {
-      const res = await fetch(`/api/orders/${order.id}/resume-payment`, { credentials: "include" });
+      const res = await fetch(storeApi(`/orders/${order.id}/resume-payment`), { credentials: "include" });
       const data = await res.json();
       if (!res.ok) { setResumeError(data.error || "Unable to resume payment"); return; }
       const { clientSecret, amount, orderId } = data.data;
@@ -101,7 +102,7 @@ export default function OrdersPage() {
     if (!confirm("Cancel this order? This action cannot be undone.")) return;
     setCancellingId(order.id);
     try {
-      const res = await fetch(`/api/account/orders/${order.id}`, {
+      const res = await fetch(storeApi(`/account/orders/${order.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

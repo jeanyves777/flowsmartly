@@ -302,6 +302,25 @@ export async function gatewayJSON<T = any>(path: string, init?: RequestInit): Pr
 /** API base URL for client-side calls (relative to current origin) */
 export const API_URL = "/api";
 
+/** Base path used when the store is served under flowsmartly.com/stores/{slug}. */
+export function getStoreBasePath(): string {
+  if (typeof window === "undefined") return "";
+  const match = window.location.pathname.match(/^\\/stores\\/[^/]+/);
+  return match ? match[0] : "";
+}
+
+/** Same-origin client URL for the generated store API proxy. */
+export function storeApi(path: string): string {
+  const normalized = path.startsWith("/") ? path : \`/\${path}\`;
+  return \`\${getStoreBasePath()}/api\${normalized}\`;
+}
+
+/** Same-origin page URL that respects flowsmartly.com/stores/{slug}. */
+export function storePage(path: string): string {
+  const normalized = path.startsWith("/") ? path : \`/\${path}\`;
+  return \`\${getStoreBasePath()}\${normalized}\`;
+}
+
 /** Gateway base URL (for server-side use) */
 export const GATEWAY_BASE = API_BASE;
 export const STORE_SLUG = SLUG;

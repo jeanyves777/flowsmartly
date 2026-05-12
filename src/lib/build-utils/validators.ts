@@ -673,6 +673,126 @@ export function fixStoreCartDrawerProps(siteDir: string): void {
   }
 }
 
+function addStoreApiImport(content: string, needsStorePage: boolean): string {
+  const names = needsStorePage ? "storeApi, storePage" : "storeApi";
+  if (content.includes("@/lib/api-client")) {
+    if (needsStorePage && !content.includes("storePage")) {
+      return content.replace(
+        /import\s+\{([^}]+)\}\s+from\s+["']@\/lib\/api-client["'];/,
+        (_match, imports: string) => `import { ${imports.trim()}, storePage } from "@/lib/api-client";`
+      );
+    }
+    return content;
+  }
+
+  const statement = `import { ${names} } from "@/lib/api-client";`;
+  const importMatches = Array.from(content.matchAll(/^import\s+.*?;$/gm));
+  if (importMatches.length === 0) {
+    if (content.startsWith('"use client";')) {
+      return content.replace('"use client";', `"use client";\n\n${statement}`);
+    }
+    return `${statement}\n${content}`;
+  }
+
+  const last = importMatches[importMatches.length - 1];
+  const insertAt = (last.index || 0) + last[0].length;
+  return `${content.slice(0, insertAt)}\n${statement}${content.slice(insertAt)}`;
+}
+
+function storeApiCall(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return normalized.includes("${") ? `storeApi(\`${normalized}\`)` : `storeApi("${normalized}")`;
+}
+
+function storePageCall(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return normalized.includes("${") ? `storePage(\`${normalized}\`)` : `storePage("${normalized}")`;
+}
+
+/**
+ * Generated stores must call their same-origin /api proxy, not
+ * https://flowsmartly.com/api/store/... directly. Custom domains otherwise hit
+ * browser CORS blocks and checkout/account buttons appear broken.
+ */
+export function fixStoreClientApiProxyUsage(siteDir: string): void {
+  const apiClientPath = join(siteDir, "src", "lib", "api-client.ts");
+  if (existsSync(apiClientPath)) {
+    let apiClient = readFileSync(apiClientPath, "utf-8");
+    if (!apiClient.includes("export function storeApi(")) {
+      const helper = `
+
+/** Base path used when the store is served under flowsmartly.com/stores/{slug}. */
+export function getStoreBasePath(): string {
+  if (typeof window === "undefined") return "";
+  const match = window.location.pathname.match(/^\\/stores\\/[^/]+/);
+  return match ? match[0] : "";
+}
+
+/** Same-origin client URL for the generated store API proxy. */
+export function storeApi(path: string): string {
+  const normalized = path.startsWith("/") ? path : \`/\${path}\`;
+  return \`\${getStoreBasePath()}/api\${normalized}\`;
+}
+
+/** Same-origin page URL that respects flowsmartly.com/stores/{slug}. */
+export function storePage(path: string): string {
+  const normalized = path.startsWith("/") ? path : \`/\${path}\`;
+  return \`\${getStoreBasePath()}\${normalized}\`;
+}
+`;
+
+      if (apiClient.includes('export const API_URL = "/api";')) {
+        apiClient = apiClient.replace('export const API_URL = "/api";', `export const API_URL = "/api";${helper}`);
+      } else {
+        apiClient += helper;
+      }
+      writeFileSync(apiClientPath, apiClient, "utf-8");
+    }
+  }
+
+  const srcDir = join(siteDir, "src");
+  const apiRouteSegment = `${join("src", "app", "api")}${process.platform === "win32" ? "\\" : "/"}`;
+  const files = collectSourceFiles(srcDir).filter((file) => !file.includes(apiRouteSegment));
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+    let needsStoreApi = false;
+    let needsStorePage = false;
+
+    content = content.replace(/`\$\{API_BASE\}\/api\/store\/\$\{[^}]+\}\/([^`]*)`/g, (_match, path: string) => {
+      needsStoreApi = true;
+      return storeApiCall(path);
+    });
+
+    content = content.replace(/fetch\(\s*`\/api\/([^`]*)`/g, (_match, path: string) => {
+      needsStoreApi = true;
+      return `fetch(${storeApiCall(path)}`;
+    });
+
+    content = content.replace(/fetch\(\s*"\/api\/([^"]*)"/g, (_match, path: string) => {
+      needsStoreApi = true;
+      return `fetch(${storeApiCall(path)}`;
+    });
+
+    content = content.replace(/`\$\{API_BASE\}\/store\/\$\{[^}]+\}\/([^`]*)`/g, (_match, path: string) => {
+      needsStorePage = true;
+      return storePageCall(path);
+    });
+
+    if (content !== original && (needsStoreApi || needsStorePage)) {
+      content = addStoreApiImport(content, needsStorePage);
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Routed store client API calls through local proxy in ${fixCount} files`);
+  }
+}
+
 /**
  * Fixes tiny logo in Footer component — same h-4/h-6/h-8 problem as Header.
  */
