@@ -3,9 +3,15 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { storeInfo } from "@/lib/data";
+import { heroConfig, storeInfo } from "@/lib/data";
 
 export default function AboutSection() {
+  const aboutImage =
+    storeInfo.bannerUrl ||
+    heroConfig.backgroundImage ||
+    heroConfig.slides?.[0] ||
+    storeInfo.logoUrl;
+
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900/50">
       <div className="max-w-7xl mx-auto">
@@ -34,7 +40,6 @@ export default function AboutSection() {
             </Link>
           </motion.div>
 
-          {/* Image placeholder */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -42,12 +47,20 @@ export default function AboutSection() {
             className="relative"
           >
             <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
-              <img
-                src={storeInfo.bannerUrl}
-                alt={`About ${storeInfo.name}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
+              {aboutImage ? (
+                <img
+                  src={aboutImage}
+                  alt={`About ${storeInfo.name}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 via-gray-100 to-gray-200 p-8 text-center dark:from-primary/20 dark:via-gray-800 dark:to-gray-900">
+                  <p className="max-w-xs text-lg font-semibold text-gray-900 dark:text-white">
+                    {storeInfo.name}
+                  </p>
+                </div>
+              )}
             </div>
             {/* Decorative accent */}
             <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-primary-100 dark:bg-primary-900/30 rounded-2xl -z-10" />
