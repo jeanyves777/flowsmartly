@@ -172,7 +172,35 @@ server {
         proxy_buffering off;
     }
 
-    # Everything else → basePath + original path
+    # BasePath URLs are already emitted by Next.js for CSS, JS, images, and links.
+    # Proxy them as-is so custom domains do not double-prefix the path.
+    location = ${basePath} {
+        proxy_pass http://${upstreamName}${basePath}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+
+    location ${basePath}/ {
+        proxy_pass http://${upstreamName};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+
+    # Everything else gets the app basePath prepended.
     location / {
         proxy_pass http://${upstreamName}${basePath}$request_uri;
         proxy_set_header Host $host;
@@ -249,6 +277,8 @@ export async function regenerateAndReload(): Promise<void> {
   const [stores, websites, storeDomains] = await Promise.all([
     prisma.store.findMany({
       where: {
+        deletedAt: null,
+        isActive: true,
         ssrPort: { not: null },
         ssrStatus: { in: ["running", "starting"] },
         storeVersion: "independent",
