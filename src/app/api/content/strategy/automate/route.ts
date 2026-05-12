@@ -10,6 +10,7 @@ import {
 import { qualifyStrategyTaskForAutomation } from "@/lib/strategy/automation-readiness";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { buildStrategyAutomationPrompt } from "@/lib/strategy/automation-execution";
+import { ai } from "@/lib/ai/client";
 
 interface TaskConfig {
   taskId: string;
@@ -45,6 +46,115 @@ function combineDateAndTime(dateValue: Date | string | null | undefined, timeVal
   const [h, m] = (timeValue || "09:00").split(":");
   date.setHours(parseInt(h || "9", 10), parseInt(m || "0", 10), 0, 0);
   return date;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function plainTextToHtml(value: string) {
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("\n");
+}
+
+function fallbackStrategyEmailDraft(params: {
+  title: string;
+  description?: string | null;
+  brandName: string;
+  brandContext: string;
+  customPrompt?: string;
+}) {
+  const topic = (params.customPrompt || params.description || params.title).replace(/\s+/g, " ").trim();
+  const subject = params.title.replace(/^(create|build|design|launch|write)\s+/i, "").slice(0, 90);
+  const content = [
+    "Hi {{firstName}},",
+    `${params.brandName} has something useful to share with you.`,
+    topic,
+    "Take a moment to review it today, and reply if you would like help choosing the next best step.",
+    `- ${params.brandName}`,
+  ].join("\n\n");
+
+  return {
+    subject: subject || `${params.brandName} update`,
+    preheaderText: topic.slice(0, 140),
+    content,
+    contentHtml: plainTextToHtml(content),
+  };
+}
+
+async function buildStrategyEmailDraft(params: {
+  title: string;
+  description?: string | null;
+  brandName: string;
+  brandContext: string;
+  customPrompt?: string;
+  tone: string;
+}) {
+  const fallback = fallbackStrategyEmailDraft(params);
+
+  try {
+    const generated = await ai.generateJSON<{
+      subject?: string;
+      preheaderText?: string;
+      content?: string;
+      contentHtml?: string;
+    }>(
+      `Turn this strategy task into one ready-to-send email campaign draft.
+
+Brand context:
+${params.brandContext || `Brand: ${params.brandName}`}
+
+Tone: ${params.tone}
+Task title: ${params.title}
+Task description: ${params.description || ""}
+Extra instruction: ${params.customPrompt || ""}
+
+Rules:
+- Do not return a plan, checklist, framework, or instructions.
+- Write the actual email the customer receives.
+- Use {{firstName}} only if personalization helps.
+- Keep the subject under 90 characters.
+- Return JSON with subject, preheaderText, content, and contentHtml.`,
+      {
+        maxTokens: 1400,
+        temperature: 0.4,
+        systemPrompt:
+          "You are a lifecycle email copywriter. Produce finished customer-facing email copy, not planning notes.",
+      }
+    );
+
+    const subject = typeof generated?.subject === "string" ? generated.subject.trim().slice(0, 120) : "";
+    const content = typeof generated?.content === "string" ? generated.content.trim() : "";
+    if (!subject || content.length < 80 || /\b(create|build|design|segment|launch)\b.+\b(email|sequence|flow|track)\b/i.test(content.slice(0, 220))) {
+      return fallback;
+    }
+
+    const html = typeof generated?.contentHtml === "string" && generated.contentHtml.trim().length > 20
+      ? generated.contentHtml.trim()
+      : plainTextToHtml(content);
+
+    return {
+      subject,
+      preheaderText:
+        typeof generated?.preheaderText === "string" && generated.preheaderText.trim()
+          ? generated.preheaderText.trim().slice(0, 180)
+          : fallback.preheaderText,
+      content,
+      contentHtml: html,
+    };
+  } catch (error) {
+    console.warn("Strategy email draft generation failed; using fallback copy:", error);
+    return fallback;
+  }
 }
 
 // POST /api/content/strategy/automate - Create automations from strategy tasks
@@ -271,13 +381,14 @@ export async function POST(request: NextRequest) {
 
       // EMAIL tasks → create Campaign (email blast) record
       if (isEmailCategory(category)) {
-        const emailSubject = config.customPrompt
-          ? config.customPrompt.substring(0, 150)
-          : `${task.title} — ${brandKit?.name || "Update"}`;
-
-        const emailContent = config.customPrompt ||
-          `Email campaign about: ${task.title}. ${task.description || ""}\n\n${brandContext}`;
-
+        const emailDraft = await buildStrategyEmailDraft({
+          title: task.title,
+          description: task.description,
+          brandName: brandKit?.name || "FlowSmartly",
+          brandContext,
+          customPrompt: config.customPrompt,
+          tone: globalTone,
+        });
         // Calculate scheduled send time from frequency config
         const scheduledAt = combineDateAndTime(config.startDate || task.startDate, config.time);
 
@@ -286,9 +397,10 @@ export async function POST(request: NextRequest) {
             userId: session.userId,
             name: `Strategy: ${task.title}`,
             type: "EMAIL",
-            subject: emailSubject,
-            content: emailContent,
-            contentHtml: null,
+            subject: emailDraft.subject,
+            preheaderText: emailDraft.preheaderText,
+            content: emailDraft.content,
+            contentHtml: emailDraft.contentHtml,
             fromName: brandKit?.name || null,
             imageUrl: null,
             imageSource: config.includeMedia ? "ai" : null,

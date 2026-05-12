@@ -128,20 +128,32 @@ function StudioPageInner() {
         await addImageToCanvas(canvas, imageUrl, fabric, { left: 0, top: 0, selectable: true });
         const img = canvas.getObjects()[canvas.getObjects().length - 1];
         if (img) {
-          const scaleX = canvas.width / (img.width || canvas.width);
-          const scaleY = canvas.height / (img.height || canvas.height);
+          const canvasW = canvas.getWidth?.() || canvas.width || 1080;
+          const canvasH = canvas.getHeight?.() || canvas.height || 1080;
+          const scaleX = canvasW / (img.width || canvasW);
+          const scaleY = canvasH / (img.height || canvasH);
           const scale = Math.min(scaleX, scaleY);
           img.set({
             scaleX: scale,
             scaleY: scale,
-            left: (canvas.width - (img.width || 0) * scale) / 2,
-            top: (canvas.height - (img.height || 0) * scale) / 2,
+            left: (canvasW - (img.width || 0) * scale) / 2,
+            top: (canvasH - (img.height || 0) * scale) / 2,
           });
           img.setCoords();
         }
         canvas.renderAll();
         const store = useCanvasStore.getState();
         store.setDesignName("FlowCreative Design");
+        store.setPages([
+          {
+            id: `page-${Date.now()}`,
+            canvasJSON: JSON.stringify(canvas.toJSON(["id", "customName", "selectable", "visible"])),
+            thumbnailDataUrl: null,
+            width: store.canvasWidth,
+            height: store.canvasHeight,
+          },
+        ]);
+        store.setActivePageIndex(0);
         store.refreshLayers();
         store.setDirty(true);
         toast({ title: "FlowCreative image loaded", description: "You can now edit it in Studio." });

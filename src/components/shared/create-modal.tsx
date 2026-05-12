@@ -74,6 +74,7 @@ type BrandKit = {
 type GeneratedMedia = {
   type: FlowMediaMode;
   url: string;
+  designId?: string;
 };
 
 export type CreateModalTarget =
@@ -1005,6 +1006,11 @@ function FlowCreativeModal({
 
   const handleOpenInStudio = () => {
     if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image") return;
+    if (generatedFlowMedia.designId) {
+      closeCreateModal();
+      router.push(`/studio?id=${encodeURIComponent(generatedFlowMedia.designId)}`);
+      return;
+    }
     try {
       sessionStorage.setItem("flowcreative-import-image", generatedFlowMedia.url);
     } catch {
@@ -1133,7 +1139,7 @@ function FlowCreativeModal({
       }
       const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
-      setGeneratedFlowMedia({ type: "image", url: imageUrl });
+      setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
       setFlowMediaImprovePrompt("");
       setPendingFlowMediaEditPlan(null);
       setFlowMediaStatus("Improved image ready.");
@@ -1305,7 +1311,7 @@ function FlowCreativeModal({
 
         const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
         if (!imageUrl) throw new Error("Image generated but no media URL was returned");
-        setGeneratedFlowMedia({ type: "image", url: imageUrl });
+        setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
         setFlowMediaStatus("Image ready.");
         if (data.data?.creditsRemaining !== undefined) {
           setCreditsRemaining(data.data.creditsRemaining);

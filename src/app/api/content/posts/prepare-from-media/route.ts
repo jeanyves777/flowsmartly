@@ -178,6 +178,64 @@ function normalizeKeywords(value: unknown, fallback: string, limit = 10): string
     .slice(0, limit);
 }
 
+function extractBrandName(brandBrief: string) {
+  const match = brandBrief.match(/^Brand:\s*(.+)$/im);
+  return match?.[1]?.trim().slice(0, 80) || "the brand";
+}
+
+function extractHashtagTerms(text: string, limit = 8) {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  const words = text
+    .replace(/https?:\/\/\S+/gi, " ")
+    .split(/[^a-zA-Z0-9]+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4 && !/^(with|from|that|this|your|have|will|into|video|image|media)$/i.test(word));
+
+  for (const word of words) {
+    const tag = `#${word.replace(/[^a-zA-Z0-9]/g, "")}`;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+    if (tags.length >= limit) break;
+  }
+
+  return tags;
+}
+
+function buildFallbackPreparedPost(params: {
+  mediaType: "image" | "video";
+  brandBrief: string;
+  userPrompt?: string;
+  platforms: string[];
+}): PreparedPost {
+  const brandName = extractBrandName(params.brandBrief);
+  const promptText = (params.userPrompt || "").trim();
+  const cleanPrompt = promptText
+    .replace(/\s+/g, " ")
+    .replace(/^user prompt:\s*/i, "")
+    .slice(0, 260);
+  const mediaLabel = params.mediaType === "video" ? "video" : "visual";
+  const topic = cleanPrompt || `a new ${mediaLabel} from ${brandName}`;
+  const hashtags = extractHashtagTerms(`${brandName} ${topic}`).slice(0, 8);
+  const finalHashtags = hashtags.length ? hashtags : ["#Marketing", "#SmallBusiness", "#BrandStory"];
+
+  const caption = [
+    `${brandName} just put together a fresh ${mediaLabel} for this offer.`,
+    topic,
+    "Take a look, save it for later, and reach out when you are ready to learn more.",
+    finalHashtags.join(" "),
+  ].join("\n\n");
+
+  return {
+    mediaDescription: `FlowCreative ${mediaLabel} prepared from the generated media and brand context.`,
+    caption: caption.slice(0, 2000),
+    hashtags: finalHashtags,
+    seoKeywords: normalizeKeywords([], `${brandName}. ${topic}`, 10),
+  };
+}
+
 function normalizePreparedPost(raw: unknown): PreparedPost | null {
   if (!raw || typeof raw !== "object") return null;
   const item = raw as Record<string, unknown>;
@@ -353,20 +411,30 @@ async function generatePreparedPost(params: {
     }
   }
 
-  const fallback = await ai.generateJSON<PreparedPost>(
-    `${prompt}\n\nMedia URL/context: ${params.mediaUrl.startsWith("data:") ? "FlowCreative generated image data" : params.mediaUrl}`,
-    {
-      maxTokens: 1600,
-      temperature: 0.6,
-      systemPrompt:
-        "You are FlowCreative's social strategist. Return strict JSON with ready-to-post caption, hashtags, SEO keywords, and a factual media description.",
-    }
-  );
-  const prepared = normalizePreparedPost(fallback);
-  if (!prepared) throw new Error("AI did not return usable post copy.");
+  let fallback: PreparedPost | null = null;
+  try {
+    fallback = await ai.generateJSON<PreparedPost>(
+      `${prompt}\n\nMedia URL/context: ${params.mediaUrl.startsWith("data:") ? "FlowCreative generated image data" : params.mediaUrl}`,
+      {
+        maxTokens: 1600,
+        temperature: 0.6,
+        systemPrompt:
+          "You are FlowCreative's social strategist. Return strict JSON with ready-to-post caption, hashtags, SEO keywords, and a factual media description.",
+      }
+    );
+  } catch (error) {
+    console.warn("[PrepareFromMedia] Text generation attempt failed:", error);
+  }
+
+  const prepared = normalizePreparedPost(fallback) || buildFallbackPreparedPost({
+    mediaType: params.mediaType,
+    brandBrief: params.brandBrief,
+    userPrompt: params.userPrompt,
+    platforms: params.platforms,
+  });
   return {
     prepared,
-    model: "gemini-2.5-flash",
+    model: fallback ? "gemini-2.5-flash" : "deterministic-fallback",
     prompt,
     raw: JSON.stringify(fallback || {}),
   };

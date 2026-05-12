@@ -58,9 +58,19 @@ class GrokVideoClient {
       resolution?: VideoResolution;
       /** URL of a reference image to animate into video (image-to-video) */
       imageUrl?: string;
+      /** Progress callback used by SSE routes to keep the browser connection alive. */
+      onStatus?: (message: string) => void;
+      timeoutMs?: number;
     } = {}
   ): Promise<GrokVideoResult> {
-    const { duration = 8, aspectRatio = "16:9", resolution = "720p", imageUrl } = options;
+    const {
+      duration = 8,
+      aspectRatio = "16:9",
+      resolution = "720p",
+      imageUrl,
+      onStatus,
+      timeoutMs,
+    } = options;
 
     if (!this.apiKey) {
       throw new Error("XAI_API_KEY is not configured");
@@ -106,8 +116,10 @@ class GrokVideoClient {
     }
 
     console.log(`[GrokVideo] Job created: ${requestId}, polling for completion...`);
+    onStatus?.("Video job started. Waiting for the video provider to finish rendering...");
 
-    const result = await this.pollUntilDone(requestId);
+    const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
+    onStatus?.("Video rendered. Downloading the final MP4...");
     const videoBuffer = await this.downloadVideo(result.url);
 
     return { requestId, videoBuffer, duration: result.duration };
@@ -118,7 +130,8 @@ class GrokVideoClient {
    */
   private async pollUntilDone(
     requestId: string,
-    timeoutMs: number = 300000 // 5 minutes
+    timeoutMs: number = 600000, // 10 minutes; image-to-video jobs often exceed 5 minutes.
+    onStatus?: (message: string) => void
   ): Promise<{ url: string; duration: number }> {
     const pollInterval = 3000; // 3 seconds
     const startTime = Date.now();
@@ -162,7 +175,10 @@ class GrokVideoClient {
 
       // Log progress every ~15 seconds
       if (attempts % 5 === 0) {
-        console.log(`[GrokVideo] Job ${requestId}: status=${status || "processing"} (${attempts * 3}s elapsed)`);
+        const elapsed = attempts * 3;
+        const message = `Video provider is still rendering (${elapsed}s elapsed)...`;
+        console.log(`[GrokVideo] Job ${requestId}: status=${status || "processing"} (${elapsed}s elapsed)`);
+        onStatus?.(message);
       }
     }
 

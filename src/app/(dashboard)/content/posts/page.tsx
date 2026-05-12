@@ -1037,7 +1037,7 @@ export default function ContentPostsPage() {
   const [flowVideoSpeechMode, setFlowVideoSpeechMode] = useState<FlowVideoSpeechMode>("talking_review");
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
-  const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string } | null>(null);
+  const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string; designId?: string } | null>(null);
   const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
@@ -1560,12 +1560,17 @@ export default function ContentPostsPage() {
     setFlowMediaStatus("");
   };
 
-  const setGeneratedFlowMediaResult = (type: FlowMediaMode, url: string) => {
-    setGeneratedFlowMedia({ type, url });
+  const setGeneratedFlowMediaResult = (type: FlowMediaMode, url: string, designId?: string) => {
+    setGeneratedFlowMedia({ type, url, designId });
   };
 
   const handleOpenFlowMediaInStudio = () => {
     if (!generatedFlowMedia?.url || generatedFlowMedia.type !== "image") return;
+    if (generatedFlowMedia.designId) {
+      setShowFlowAIMediaModal(false);
+      router.push(`/studio?id=${encodeURIComponent(generatedFlowMedia.designId)}`);
+      return;
+    }
     try {
       sessionStorage.setItem("flowcreative-import-image", generatedFlowMedia.url);
     } catch {
@@ -1685,7 +1690,7 @@ export default function ContentPostsPage() {
       const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
 
-      setGeneratedFlowMedia({ type: "image", url: imageUrl });
+      setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
       setFlowMediaImprovePrompt("");
       setFlowMediaStatus("Improved image ready.");
       toast({ title: "FlowCreative image improved", description: "Review the edited version, then attach it to the post." });
@@ -1860,6 +1865,11 @@ export default function ContentPostsPage() {
 
   const handleOpenProductAdInStudio = () => {
     if (!generatedProductAd?.url) return;
+    if (generatedProductAd.designId) {
+      setShowAIPilotModal(false);
+      router.push(`/studio?id=${encodeURIComponent(generatedProductAd.designId)}`);
+      return;
+    }
     try {
       sessionStorage.setItem("flowcreative-import-image", generatedProductAd.url);
     } catch {
@@ -1996,7 +2006,7 @@ export default function ContentPostsPage() {
         const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
         if (!imageUrl) throw new Error("Image generated but no media URL was returned");
 
-        setGeneratedFlowMediaResult("image", imageUrl);
+        setGeneratedFlowMediaResult("image", imageUrl, data.data?.design?.id);
         setFlowMediaStatus("Image ready.");
         toast({
           title: "Image generated",

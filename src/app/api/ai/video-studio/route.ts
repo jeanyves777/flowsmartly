@@ -224,6 +224,7 @@ export async function POST(req: NextRequest) {
                 aspectRatio: normalizeVideoAspect(aspectRatio),
                 resolution: "720p",
                 imageUrl: refImage,
+                onStatus: (message) => send({ type: "status", message }),
               });
               finalVideoBuffer = result.videoBuffer;
               totalDuration = result.duration || duration;
@@ -241,6 +242,7 @@ export async function POST(req: NextRequest) {
                 referenceImageUrl: refImage,
                 skipGrok: true,
                 allowExperimentalSlideshow: false,
+                onStatus: (message) => send({ type: "status", message }),
               });
               finalVideoBuffer = fallbackResult.videoBuffer;
               totalDuration = fallbackResult.duration;
@@ -341,6 +343,7 @@ export async function POST(req: NextRequest) {
                 duration,
                 referenceImageUrl: refImage,
                 allowExperimentalSlideshow: false,
+                onStatus: (message) => send({ type: "status", message }),
               });
               finalVideoBuffer = fallbackResult.videoBuffer;
               totalDuration = fallbackResult.duration;
@@ -927,6 +930,7 @@ async function generateFallbackVideoBuffer(opts: {
   referenceImageUrl?: string | null;
   skipGrok?: boolean;
   allowExperimentalSlideshow?: boolean;
+  onStatus?: (message: string) => void;
 }): Promise<{ videoBuffer: Buffer; duration: number; provider: string }> {
   const errors: string[] = [];
   const aspect = normalizeVideoAspect(opts.aspectRatio);
@@ -939,6 +943,7 @@ async function generateFallbackVideoBuffer(opts: {
         aspectRatio: aspect,
         resolution: "720p",
         imageUrl: opts.referenceImageUrl || undefined,
+        onStatus: opts.onStatus,
       });
       return {
         videoBuffer: result.videoBuffer,
