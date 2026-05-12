@@ -25,22 +25,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Query PageViews linked to this website
     // Match by websiteId (custom domain tracking) OR path prefix (direct access)
     const sitePrefix = `/sites/${website.slug}`;
-    const pageViews = await prisma.pageView.findMany({
-      where: {
-        OR: [
-          { websiteId: website.id },
-          { path: { startsWith: sitePrefix } },
-        ],
-        createdAt: { gte: since },
-      },
-      select: {
-        id: true, visitorId: true, path: true, country: true, countryCode: true, city: true, deviceType: true,
-        browser: true, os: true, referrer: true, createdAt: true,
-        utmSource: true, utmMedium: true, utmCampaign: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10000,
-    });
+    const pageViewWhere = {
+      OR: [
+        { websiteId: website.id },
+        { path: { startsWith: sitePrefix } },
+      ],
+    };
+
+    const [pageViews, allTimeViews] = await Promise.all([
+      prisma.pageView.findMany({
+        where: {
+          ...pageViewWhere,
+          createdAt: { gte: since },
+        },
+        select: {
+          id: true, visitorId: true, path: true, country: true, countryCode: true, city: true, deviceType: true,
+          browser: true, os: true, referrer: true, createdAt: true,
+          utmSource: true, utmMedium: true, utmCampaign: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10000,
+      }),
+      prisma.pageView.count({ where: pageViewWhere }),
+    ]);
+
+    const totalAllTimeViews = Math.max(website.totalViews, allTimeViews);
+    if (totalAllTimeViews > website.totalViews) {
+      await prisma.website.update({
+        where: { id: website.id },
+        data: { totalViews: totalAllTimeViews },
+      }).catch(() => {});
+    }
 
     // Aggregate stats
     const totalViews = pageViews.length;
@@ -97,7 +112,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({
       overview: {
-        totalViews: website.totalViews,
+        totalViews: totalAllTimeViews,
         periodViews: totalViews,
         uniqueVisitors,
         realtimeVisitors,

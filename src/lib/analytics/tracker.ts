@@ -279,6 +279,7 @@ export async function trackPageView(data: {
   const ip = await getClientIp();
   const geo = await getGeoFromIp(ip);
   const device = parseUserAgent(data.userAgent || "");
+  let websiteSlug: string | null = null;
 
   await prisma.pageView.create({
     data: {
@@ -354,6 +355,32 @@ export async function trackPageView(data: {
       lastActiveAt: new Date(),
     },
   });
+
+  if (data.websiteId) {
+    const website = await prisma.website.update({
+      where: { id: data.websiteId },
+      data: { totalViews: { increment: 1 } },
+      select: { slug: true },
+    }).catch(() => null);
+
+    websiteSlug = website?.slug || null;
+    if (websiteSlug) {
+      const pageSlug = normalizeWebsitePageSlug(data.path, websiteSlug);
+      await prisma.websitePage.updateMany({
+        where: { websiteId: data.websiteId, slug: pageSlug },
+        data: { views: { increment: 1 } },
+      }).catch(() => {});
+    }
+  }
+}
+
+function normalizeWebsitePageSlug(path: string, websiteSlug: string): string {
+  const cleanPath = (path || "/").split("?")[0].split("#")[0];
+  const withoutBase = cleanPath.startsWith(`/sites/${websiteSlug}`)
+    ? cleanPath.slice(`/sites/${websiteSlug}`.length) || "/"
+    : cleanPath;
+  const firstSegment = withoutBase.replace(/^\/+|\/+$/g, "").split("/")[0] || "";
+  return firstSegment;
 }
 
 /**

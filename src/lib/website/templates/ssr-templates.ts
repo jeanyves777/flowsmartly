@@ -14,6 +14,7 @@ export const TEMPLATE_SSR_NEXT_CONFIG = `import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   basePath: process.env.WEBSITE_BASE_PATH || "",
+  skipTrailingSlashRedirect: true,
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },

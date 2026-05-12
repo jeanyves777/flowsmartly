@@ -91,6 +91,12 @@ ${sharedProxyHeaders("        ")}
         client_max_body_size 50M;
     }
 
+    location = /sites/${slug} {
+        proxy_pass http://${upstreamName};
+${sharedProxyHeaders("        ")}
+        client_max_body_size 50M;
+    }
+
     location /sites/${slug}/ {
         proxy_pass http://${upstreamName};
 ${sharedProxyHeaders("        ")}
@@ -187,7 +193,9 @@ function websiteLocationBlock(slug: string, port: number | null | undefined): st
     const safeName = `site_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
     return `# Website: ${slug} -> independent SSR app on port ${port}
 location = /sites/${slug} {
-    return 301 /sites/${slug}/;
+    proxy_pass http://${safeName};
+    proxy_set_header X-Website-Slug ${slug};
+${sharedProxyHeaders()}
 }
 location /sites/${slug}/ {
     proxy_pass http://${safeName};

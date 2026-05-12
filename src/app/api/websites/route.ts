@@ -27,7 +27,27 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    return NextResponse.json({ websites });
+    const websitesWithAnalytics = await Promise.all(websites.map(async (website) => {
+      const sitePrefix = `/sites/${website.slug}`;
+      const trackedViews = await prisma.pageView.count({
+        where: {
+          OR: [
+            { websiteId: website.id },
+            { path: { startsWith: sitePrefix } },
+          ],
+        },
+      });
+      const totalViews = Math.max(website.totalViews, trackedViews);
+      if (totalViews > website.totalViews) {
+        await prisma.website.update({
+          where: { id: website.id },
+          data: { totalViews },
+        }).catch(() => {});
+      }
+      return { ...website, totalViews };
+    }));
+
+    return NextResponse.json({ websites: websitesWithAnalytics });
   } catch (err) {
     console.error("GET /api/websites error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
