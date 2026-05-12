@@ -8,6 +8,7 @@ import {
   qualifyStrategyTaskForAutomation,
   type AutomationReadiness,
 } from "@/lib/strategy/automation-readiness";
+import { getBlogReadinessForUser } from "@/lib/website/blog-posting";
 
 interface ReadyTask {
   title: string;
@@ -119,7 +120,8 @@ function readinessForTask(
     automationStatus?: string | null;
   },
   emailReady: boolean,
-  smsReady: boolean
+  smsReady: boolean,
+  blogReady: boolean
 ): AutomationReadiness {
   return qualifyStrategyTaskForAutomation(task, {
     selectedPlatforms: [],
@@ -128,6 +130,7 @@ function readinessForTask(
     mediaType: "image",
     emailReady,
     smsReady,
+    blogReady,
     requireDestination: false,
   });
 }
@@ -204,17 +207,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const marketingConfig = await prisma.marketingConfig.findUnique({
-      where: { userId: session.userId },
-      select: {
-        emailEnabled: true,
-        emailVerified: true,
-        emailProvider: true,
-        smsEnabled: true,
-        smsVerified: true,
-        smsComplianceStatus: true,
-      },
-    });
+    const [marketingConfig, blogReadiness] = await Promise.all([
+      prisma.marketingConfig.findUnique({
+        where: { userId: session.userId },
+        select: {
+          emailEnabled: true,
+          emailVerified: true,
+          emailProvider: true,
+          smsEnabled: true,
+          smsVerified: true,
+          smsComplianceStatus: true,
+        },
+      }),
+      getBlogReadinessForUser(session.userId),
+    ]);
     const emailReady = !!(
       marketingConfig?.emailEnabled &&
       marketingConfig.emailVerified &&
@@ -226,8 +232,9 @@ export async function POST(request: NextRequest) {
       marketingConfig.smsVerified &&
       marketingConfig.smsComplianceStatus === "APPROVED"
     );
+    const blogReady = blogReadiness.ready;
 
-    const currentReadiness = readinessForTask(task, emailReady, smsReady);
+    const currentReadiness = readinessForTask(task, emailReady, smsReady, blogReady);
     if (currentReadiness.qualified) {
       const updatedTask = await prisma.strategyTask.update({
         where: { id: task.id },
@@ -312,11 +319,13 @@ Keep dates and priority: ${options.keepDates !== false ? "yes" : "no"}
 Selected channel: none yet. The user must choose a real connected channel in the automation planner before scheduling.
 Email ready: ${emailReady ? "yes" : "no"}
 SMS ready: ${smsReady ? "yes" : "no"}
+Website blog ready: ${blogReady ? "yes" : "no"}
 
 --- RULES ---
 Return one item only.
 Prefer category "content" or "social" only when the repaired item can automate into a real social post or content draft.
 Use category "email" only if email is ready.
+Keep blog/article items as website blog content only if Website blog ready is yes; otherwise convert them to supported social content or leave them blocked.
 Do not use SMS unless SMS is ready.
 Do not claim this completes manual website, analytics, product page, setup, account creation, platform setup, or channel-building work. Convert only into a supported content, email, or social output brief.
 If media is not enabled, avoid visual/video blocker words like visual, image, photo, graphic, flyer, poster, Pinterest, pin, carousel, video, reel, TikTok, YouTube, story.
@@ -360,7 +369,7 @@ Return ONLY JSON:
       automationId: null,
       automationStatus: "AUTOMATABLE",
     };
-    let readiness = readinessForTask(candidate, emailReady, smsReady);
+    let readiness = readinessForTask(candidate, emailReady, smsReady, blogReady);
 
     let readyTask: ReadyTaskUpdate = {
       title: candidate.title || fallback.title,
@@ -395,7 +404,8 @@ Return ONLY JSON:
           automationStatus: "AUTOMATABLE",
         },
         emailReady,
-        smsReady
+        smsReady,
+        blogReady
       );
     }
 

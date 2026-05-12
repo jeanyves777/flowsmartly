@@ -5,11 +5,11 @@ import { normalizeTaskCategory } from "@/lib/strategy/categories";
 import {
   estimateAutomationCredits,
   isAutomatableCategory,
-  isEmailCategory,
 } from "@/lib/strategy/credit-estimator";
 import { qualifyStrategyTaskForAutomation } from "@/lib/strategy/automation-readiness";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { buildStrategyAutomationPrompt } from "@/lib/strategy/automation-execution";
+import { getBlogReadinessForUser } from "@/lib/website/blog-posting";
 import { ai } from "@/lib/ai/client";
 
 interface TaskConfig {
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join("\n")
       : "";
 
-    const [user, socialAccounts, marketingConfig] = await Promise.all([
+    const [user, socialAccounts, marketingConfig, blogReadiness] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
         select: { aiCredits: true, timezone: true },
@@ -253,6 +253,7 @@ export async function POST(request: NextRequest) {
           smsComplianceStatus: true,
         },
       }),
+      getBlogReadinessForUser(session.userId),
     ]);
     const connectedPlatforms = [...new Set(socialAccounts.map((account) => normalizePlatform(account.platform)))];
     const emailReady = !!(
@@ -267,11 +268,13 @@ export async function POST(request: NextRequest) {
       marketingConfig.smsPhoneNumber &&
       marketingConfig.smsComplianceStatus === "APPROVED"
     );
+    const blogReady = blogReadiness.ready;
 
     // Build task map for quick lookup
     const taskMap = new Map(strategy.tasks.map((t) => [t.id, t]));
     const enabledConfigs = taskConfigs.filter((config) => config.enabled);
     const readyTaskIds = new Set<string>();
+    const readyTypes = new Map<string, string>();
     const blockedTasks: Array<{ taskId: string; title: string; blockers: string[] }> = [];
 
     for (const config of enabledConfigs) {
@@ -280,7 +283,7 @@ export async function POST(request: NextRequest) {
 
       const configPlatforms = safePlatforms(config.platforms, platforms);
       const missingConnections = configPlatforms.filter(
-        (platform) => platform !== "feed" && !connectedPlatforms.includes(platform)
+        (platform) => platform !== "feed" && platform !== "blog" && !connectedPlatforms.includes(platform)
       );
       const readiness = qualifyStrategyTaskForAutomation(task, {
         includeMedia: config.includeMedia,
@@ -289,17 +292,20 @@ export async function POST(request: NextRequest) {
         connectedPlatforms,
         emailReady,
         smsReady,
+        blogReady,
         requireDestination: true,
       });
 
       if (readiness.qualified && missingConnections.length === 0) {
         readyTaskIds.add(task.id);
+        readyTypes.set(task.id, readiness.type);
       } else {
         blockedTasks.push({
           taskId: task.id,
           title: task.title,
           blockers: [
             ...readiness.blockers,
+            ...(readiness.type === "blog" ? blogReadiness.blockers : []),
             ...missingConnections.map((platform) => `Connect ${platform} before scheduling this item`),
           ],
         });
@@ -339,6 +345,7 @@ export async function POST(request: NextRequest) {
       connectedPlatforms,
       emailReady,
       smsReady,
+      blogReady,
       taskConfigs: enabledConfigs
         .filter((config) => readyTaskIds.has(config.taskId))
         .map((config) => ({
@@ -400,13 +407,14 @@ export async function POST(request: NextRequest) {
       if (!task) continue;
 
       const category = normalizeTaskCategory(task.category);
+      const automationType = readyTypes.get(task.id) || "post";
 
       if (!config.enabled || !readyTaskIds.has(task.id) || !isAutomatableCategory(category)) {
         continue;
       }
 
       // EMAIL tasks -> create real Email Automation records, not draft campaigns.
-      if (isEmailCategory(category)) {
+      if (automationType === "email") {
         const emailDraft = await buildStrategyEmailDraft({
           title: task.title,
           description: task.description,
@@ -455,6 +463,76 @@ export async function POST(request: NextRequest) {
 
       // SOCIAL/CONTENT tasks → create PostAutomation record
       const configPlatforms = safePlatforms(config.platforms, platforms);
+      if (automationType === "blog") {
+        if (!blogReadiness.website) {
+          blockedTasks.push({
+            taskId: task.id,
+            title: task.title,
+            blockers: blogReadiness.blockers.length
+              ? blogReadiness.blockers
+              : ["Publish a website with an active Blog page before scheduling blog automation"],
+          });
+          continue;
+        }
+
+        const schedule = JSON.stringify({
+          frequency: config.frequency,
+          dayOfWeek: config.dayOfWeek,
+          time: config.time,
+          triggerType: config.frequency === "ONCE" ? "one_time" : "recurring",
+          firstRunDate: config.startDate || task.startDate?.toISOString() || null,
+          platforms: ["blog"],
+          contentType: "blog",
+          websiteId: blogReadiness.website.id,
+        });
+        const isOneTime = config.frequency === "ONCE";
+        const blogPrompt = [
+          "BLOG AUTOMATION EXECUTION BRIEF",
+          "Write one complete website blog article when this automation runs.",
+          `Primary task: ${task.title}`,
+          task.description ? `Task details: ${task.description}` : null,
+          config.customPrompt ? `User direction: ${config.customPrompt}` : null,
+          `Target website: ${blogReadiness.website.name}`,
+          brandContext ? `Brand context:\n${brandContext}` : null,
+          "Execution rule: write the real article and optional hero image direction. Do not output a plan, outline, draft note, or placeholder link.",
+        ].filter(Boolean).join("\n");
+
+        const automation = await prisma.postAutomation.create({
+          data: {
+            userId: session.userId,
+            name: `Strategy: ${task.title}`,
+            type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
+            enabled: true,
+            schedule,
+            topic: task.title,
+            aiPrompt: blogPrompt,
+            aiTone: globalTone,
+            includeMedia: config.includeMedia,
+            mediaType: config.includeMedia ? "image" : null,
+            mediaStyle: config.includeMedia ? config.mediaStyle : null,
+            platforms: JSON.stringify(["blog"]),
+            startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
+            endDate: isOneTime
+              ? null
+              : config.endDate
+              ? new Date(config.endDate)
+              : globalEndDate
+              ? new Date(globalEndDate)
+              : null,
+            strategyTaskId: task.id,
+            sourceStrategyId: strategyId,
+          },
+        });
+
+        createdPostAutomations.push(automation.id);
+        taskUpdates.push({
+          taskId: task.id,
+          automationId: automation.id,
+          status: "AUTOMATED",
+        });
+        continue;
+      }
+
       const taskPrompt = buildStrategyAutomationPrompt({
         taskTitle: task.title,
         taskDescription: task.description,
@@ -533,6 +611,7 @@ export async function POST(request: NextRequest) {
         connectedPlatforms,
         emailReady,
         smsReady,
+        blogReady,
         requireDestination: false,
       });
       const status = readiness.type !== "manual" && isAutomatableCategory(normalizeTaskCategory(task.category))

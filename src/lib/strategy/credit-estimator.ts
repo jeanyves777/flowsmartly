@@ -117,6 +117,7 @@ export async function estimateAutomationCredits(
     connectedPlatforms?: string[];
     emailReady?: boolean;
     smsReady?: boolean;
+    blogReady?: boolean;
     taskConfigs?: AutomationTaskCreditConfig[];
   }
 ): Promise<AutomationEstimate> {
@@ -155,6 +156,7 @@ export async function estimateAutomationCredits(
       connectedPlatforms: options.connectedPlatforms,
       emailReady: options.emailReady,
       smsReady: options.smsReady,
+      blogReady: options.blogReady,
     });
 
     if (!readiness.qualified) {

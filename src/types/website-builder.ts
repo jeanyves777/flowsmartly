@@ -63,6 +63,7 @@ export interface SiteData {
   }>;
   blogPosts?: Array<{
     id: string;
+    slug?: string;
     title: string;
     excerpt: string;
     content?: string;
@@ -70,6 +71,8 @@ export interface SiteData {
     date?: string;
     author?: string;
     image?: string;
+    source?: string;
+    automationId?: string;
   }>;
   galleryImages?: Array<{
     src: string;

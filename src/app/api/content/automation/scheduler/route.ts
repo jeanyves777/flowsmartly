@@ -8,6 +8,10 @@ import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import {
+  shouldPublishAsBlogAutomation,
+  runBlogAutomationPublication,
+} from "@/lib/content/blog-automation-runner";
 
 interface ScheduleConfig {
   frequency?: string;
@@ -290,6 +294,53 @@ async function runScheduler(request: NextRequest) {
               },
             })
           : null;
+
+        if (shouldPublishAsBlogAutomation(platforms, linkedTask)) {
+          const blogResult = await runBlogAutomationPublication({
+            automation,
+            brandKit,
+            linkedTask,
+          });
+
+          await prisma.$transaction([
+            prisma.user.update({
+              where: { id: automation.userId },
+              data: { aiCredits: { decrement: creditCost } },
+            }),
+            prisma.creditTransaction.create({
+              data: {
+                userId: automation.userId,
+                type: "USAGE",
+                amount: -creditCost,
+                balanceAfter: automation.user.aiCredits - creditCost,
+                referenceType: "ai_usage",
+                referenceId: blogResult.blogPostId,
+                description: `Published website blog automation: ${automation.name}`,
+              },
+            }),
+            prisma.postAutomation.update({
+              where: { id: automation.id },
+              data: {
+                enabled: isOneTime ? false : undefined,
+                endDate: isOneTime ? now : undefined,
+                lastTriggered: now,
+                totalGenerated: { increment: 1 },
+                totalCreditsSpent: { increment: creditCost },
+              },
+            }),
+          ]);
+
+          triggerActivitySyncForUser(automation.userId).catch((err) =>
+            console.error("Activity sync failed for blog automation:", err)
+          );
+
+          results.push({
+            automationId: automation.id,
+            name: automation.name,
+            status: "triggered",
+          });
+          continue;
+        }
 
         const generatedAsset = await generateAutomationAsset({
           topic: automation.topic,

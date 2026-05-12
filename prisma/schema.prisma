@@ -142,6 +142,7 @@ model User {
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
+  websiteBlogPosts      WebsiteBlogPost[]
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
 
@@ -4673,6 +4674,7 @@ model Website {
   user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   brandKit        BrandKit?               @relation(fields: [brandKitId], references: [id], onDelete: SetNull)
   pages           WebsitePage[]
+  blogPosts       WebsiteBlogPost[]
   members         WebsiteMember[]
   domains         WebsiteDomain[]
   formSubmissions WebsiteFormSubmission[]
@@ -4681,6 +4683,38 @@ model Website {
   @@index([slug])
   @@index([customDomain])
   @@index([status])
+}
+
+model WebsiteBlogPost {
+  id        String @id @default(cuid())
+  websiteId String
+  userId    String
+
+  automationId   String?
+  strategyTaskId String?
+
+  title    String
+  slug     String
+  excerpt  String?
+  content  String
+  category String?
+  image    String?
+  author   String?
+
+  status      String    @default("PUBLISHED")
+  source      String    @default("MANUAL")
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, slug])
+  @@index([userId, createdAt])
+  @@index([automationId])
+  @@index([strategyTaskId])
 }
 
 model WebsitePage {

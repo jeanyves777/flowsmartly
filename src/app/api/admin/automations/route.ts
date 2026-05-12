@@ -18,6 +18,7 @@ function matchesType(item: { type: string; campaignType: string; source: AdminAu
   if (!type) return true;
   const normalized = type.toUpperCase();
   if (normalized === "CONTENT") return item.source === "content";
+  if (normalized === "BLOG") return item.source === "content" && item.campaignType === "BLOG";
   if (normalized === "EMAIL" || normalized === "SMS") return item.campaignType === normalized;
   return item.type === normalized;
 }
@@ -73,13 +74,14 @@ export async function GET(request: NextRequest) {
       })),
       ...contentAutomations.map((a) => {
         const platforms = parseStringArray(a.platforms);
+        const isBlog = platforms.some((platform) => platform.toLowerCase() === "blog");
         return {
           id: a.id,
           source: "content" as AdminAutomationSource,
           name: a.name,
           type: a.type,
-          campaignType: "CONTENT",
-          channelLabel: platforms.length ? platforms.join(", ") : "Feed",
+          campaignType: isBlog ? "BLOG" : "CONTENT",
+          channelLabel: isBlog ? "Website Blog" : platforms.length ? platforms.join(", ") : "Feed",
           enabled: a.enabled,
           totalSent: a.totalGenerated,
           lastTriggered: a.lastTriggered?.toISOString() || null,

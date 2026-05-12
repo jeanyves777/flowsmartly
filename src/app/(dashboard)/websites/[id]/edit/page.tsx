@@ -44,6 +44,16 @@ interface SiteData {
   footerLinks?: Array<{ href: string; label: string }>;
 }
 
+interface WebsiteBlogActivity {
+  id: string;
+  title: string;
+  source: string;
+  status: string;
+  automationId?: string | null;
+  publishedAt?: string | null;
+  createdAt: string;
+}
+
 export default function WebsiteEditPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
@@ -57,6 +67,7 @@ export default function WebsiteEditPage() {
   const [data, setData] = useState<SiteData | null>(null);
   const [changed, setChanged] = useState(false);
   const [pages, setPages] = useState<Array<{ slug: string; label: string }>>([]);
+  const [blogActivity, setBlogActivity] = useState<WebsiteBlogActivity[]>([]);
   const [previewPage, setPreviewPage] = useState("");
   const [buildStep, setBuildStep] = useState("");
   const [buildResult, setBuildResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -73,6 +84,14 @@ export default function WebsiteEditPage() {
   useEffect(() => {
     if (!id) return;
     fetch(`/api/websites/${id}/site-data`).then((r) => r.json()).then((d) => { if (d.data) setData(d.data); if (d.pages) setPages(d.pages); }).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/websites/${id}/blog-posts`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setBlogActivity(d.posts || []); })
+      .catch(() => {});
   }, [id]);
 
   const save = async () => {
@@ -635,6 +654,29 @@ export default function WebsiteEditPage() {
             <h2 className="text-lg font-semibold">Blog Posts ({data.blogPosts?.length || 0})</h2>
             <button onClick={() => update("blogPosts", [...(data.blogPosts || []), { id: `post-${Date.now()}`, title: "", excerpt: "", content: "", category: "", date: new Date().toISOString().split("T")[0], author: "", image: "" }])} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Post</button>
           </div>
+          {blogActivity.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Automation activity</h3>
+                <span className="text-xs text-muted-foreground">{blogActivity.length} generated</span>
+              </div>
+              <div className="space-y-2">
+                {blogActivity.slice(0, 5).map((post) => (
+                  <div key={post.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{post.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {post.source === "AUTOMATION" ? "Strategy automation" : "Manual"} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : new Date(post.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600">
+                      {post.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {(data.blogPosts || []).map((post, i) => (
             <div key={i} className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-start gap-4">

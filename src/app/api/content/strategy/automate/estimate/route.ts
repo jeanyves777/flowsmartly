@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { estimateAutomationCredits } from "@/lib/strategy/credit-estimator";
+import { getBlogReadinessForUser } from "@/lib/website/blog-posting";
 
 // POST /api/content/strategy/automate/estimate - Get credit estimate for automating a strategy
 export async function POST(request: NextRequest) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       where: { id: session.userId },
       select: { aiCredits: true },
     });
-    const [socialAccounts, marketingConfig] = await Promise.all([
+    const [socialAccounts, marketingConfig, blogReadiness] = await Promise.all([
       prisma.socialAccount.findMany({
         where: { userId: session.userId, isActive: true },
         select: { platform: true },
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
           smsComplianceStatus: true,
         },
       }),
+      getBlogReadinessForUser(session.userId),
     ]);
     const connectedPlatforms = socialAccounts.map((account) =>
       account.platform.startsWith("facebook_")
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
       connectedPlatforms,
       emailReady,
       smsReady,
+      blogReady: blogReadiness.ready,
       taskConfigs: Array.isArray(taskConfigs) ? taskConfigs : undefined,
     });
 

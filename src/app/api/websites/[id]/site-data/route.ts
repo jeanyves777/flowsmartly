@@ -92,7 +92,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       data.faq = extractObjectArray(content, "faqItems", ["question", "answer"]);
       if (!data.faq?.length) data.faq = extractObjectArray(content, "faqs", ["question", "answer"]);
       if (!data.faq?.length) data.faq = extractObjectArray(content, "faq", ["question", "answer"]);
-      data.blogPosts = extractObjectArray(content, "blogPosts", ["id", "title", "excerpt", "content", "category", "date", "author", "image"]);
+      data.blogPosts = extractObjectArray(content, "blogPosts", ["id", "slug", "title", "excerpt", "content", "category", "date", "author", "image", "source", "automationId"]);
       data.galleryImages = extractObjectArray(content, "galleryImages", ["src", "alt", "category"]);
 
       // Extract hero images from data.ts

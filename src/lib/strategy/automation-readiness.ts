@@ -19,12 +19,13 @@ export interface AutomationReadinessOptions {
   connectedPlatforms?: string[];
   emailReady?: boolean;
   smsReady?: boolean;
+  blogReady?: boolean;
   requireDestination?: boolean;
 }
 
 export interface AutomationReadiness {
   qualified: boolean;
-  type: "post" | "email" | "visual" | "video" | "sms" | "manual";
+  type: "post" | "email" | "blog" | "visual" | "video" | "sms" | "manual";
   requirements: string[];
   blockers: string[];
   warnings: string[];
@@ -33,6 +34,7 @@ export interface AutomationReadiness {
 const POST_CATEGORIES = new Set(["content", "social"]);
 const EMAIL_TERMS = /\b(email|newsletter|drip|inbox|subscriber|email campaign|welcome series|cart recovery)\b/i;
 const SMS_TERMS = /\b(sms|text message|text blast|twilio|whatsapp)\b/i;
+const BLOG_TERMS = /\b(blog post|blog article|website blog|publish blog|post to blog|article|long-form|long form)\b/i;
 const VIDEO_TERMS = /\b(video|reel|short|youtube|tiktok|animation|animated|story)\b/i;
 const VISUAL_TERMS = /\b(visual|image|photo|graphic|flyer|poster|creative|carousel|banner)\b/i;
 const SOCIAL_PLATFORM_TERMS = /\b(instagram|facebook|linkedin|twitter|x\/twitter|x post|tiktok|youtube|threads|pinterest|social)\b/i;
@@ -61,6 +63,7 @@ export function inferAutomationType(task: AutomationReadinessTask): AutomationRe
 
   if (SMS_TERMS.test(text)) return "sms";
   if (category === "email" || EMAIL_TERMS.test(text)) return "email";
+  if (BLOG_TERMS.test(text)) return "blog";
   if (VIDEO_TERMS.test(text) && hasMediaIntent) return "video";
   if (VISUAL_TERMS.test(text) && hasMediaIntent) return "visual";
   if (POST_CATEGORIES.has(category) && hasPostIntent) return "post";
@@ -95,6 +98,13 @@ export function qualifyStrategyTaskForAutomation(
     if (!options.emailReady) blockers.push("Email sender is not verified");
   }
 
+  if (type === "blog") {
+    requirements.push("Published website blog");
+    if (!options.blogReady) {
+      blockers.push("Publish a website with an active Blog page before scheduling blog automation");
+    }
+  }
+
   if (type === "sms") {
     requirements.push("Approved SMS setup");
     blockers.push(options.smsReady ? "SMS strategy automation is not enabled yet" : "SMS setup is not approved");
@@ -109,7 +119,7 @@ export function qualifyStrategyTaskForAutomation(
     }
   }
 
-  if (POST_CATEGORIES.has(category) && type !== "email" && type !== "sms" && requireDestination) {
+  if (POST_CATEGORIES.has(category) && type !== "email" && type !== "blog" && type !== "sms" && requireDestination) {
     const publishTargets = selectedPlatforms.filter((platform) => platform !== "feed");
     const missingConnections = publishTargets.filter(
       (platform) => !connectedPlatforms.includes(platform)

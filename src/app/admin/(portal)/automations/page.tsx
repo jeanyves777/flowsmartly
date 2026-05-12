@@ -130,6 +130,7 @@ export default function AdminAutomationsPage() {
           <select className="px-3 py-2 border rounded-lg bg-background text-sm" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}>
             <option value="">All Types</option>
             <option value="CONTENT">Strategy Content</option>
+            <option value="BLOG">Website Blog</option>
             <option value="EMAIL">Email</option>
             <option value="SMS">SMS</option>
             <option value="BIRTHDAY">Birthday</option>
@@ -177,7 +178,7 @@ export default function AdminAutomationsPage() {
                       <td className="p-3">
                         {a.campaignType === "EMAIL" ? (
                           <Badge className="bg-blue-500/10 text-blue-500"><Mail className="w-3 h-3 mr-1" />Email</Badge>
-                        ) : a.campaignType === "CONTENT" ? (
+                        ) : a.campaignType === "CONTENT" || a.campaignType === "BLOG" ? (
                           <Badge className="bg-cyan-500/10 text-cyan-500"><FileText className="w-3 h-3 mr-1" />{a.channelLabel}</Badge>
                         ) : (
                           <Badge className="bg-green-500/10 text-green-500"><MessageSquare className="w-3 h-3 mr-1" />SMS</Badge>

@@ -287,6 +287,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (data.blogPosts) {
         const code = data.blogPosts.map((b: any) => `  {
     id: '${escapeStr(b.id || "")}',
+    slug: '${escapeStr(b.slug || b.id || "")}',
     title: '${escapeStr(b.title || "")}',
     excerpt: '${escapeStr(b.excerpt || "")}',
     content: '${escapeStr(b.content || "")}',
@@ -294,6 +295,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     date: '${escapeStr(b.date || "")}',
     author: '${escapeStr(b.author || "")}',
     image: '${escapeStr(b.image || "")}',
+    source: '${escapeStr(b.source || "")}',
+    automationId: '${escapeStr(b.automationId || "")}',
   }`).join(",\n");
         content = content.replace(/export const blogPosts\s*=\s*\[[\s\S]*?\n\]/, `export const blogPosts = [\n${code}\n]`);
       }

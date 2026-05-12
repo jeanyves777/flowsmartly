@@ -17,6 +17,8 @@ export interface AutomationExecutionBrand {
   personality?: Jsonish;
   handles?: Jsonish;
   guidelines?: string | null;
+  logo?: string | null;
+  iconLogo?: string | null;
 }
 
 export interface AutomationExecutionTask {
@@ -47,11 +49,30 @@ export interface AutomationGeneratedAsset {
   qualityNotes: string[];
 }
 
+export interface AutomationGeneratedBlogPost {
+  title: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  imagePrompt: string | null;
+  socialCaption: string;
+  qualityNotes: string[];
+}
+
 interface GeneratedAssetJSON {
   caption?: string;
   hashtags?: string[];
   mentions?: string[];
   mediaPrompt?: string | null;
+}
+
+interface GeneratedBlogPostJSON {
+  title?: string;
+  excerpt?: string;
+  content?: string;
+  category?: string;
+  imagePrompt?: string | null;
+  socialCaption?: string;
 }
 
 const META_OUTPUT_PATTERNS = [
@@ -337,4 +358,119 @@ Return ONLY JSON with caption, hashtags, mentions, and mediaPrompt. No markdown,
     mediaPrompt: buildMediaPrompt(input, caption, asset?.mediaPrompt),
     qualityNotes,
   };
+}
+
+function cleanTitle(value: string | null | undefined, fallback: string) {
+  return cleanCaption(value)
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140) || fallback;
+}
+
+function cleanLongForm(value: string | null | undefined) {
+  return (value || "")
+    .replace(/```(?:markdown|md|text)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/^\s*(blog post|article|content)\s*:\s*/i, "")
+    .trim();
+}
+
+function fallbackBlogContent(input: AutomationExecutionInput) {
+  const brandName = input.brand?.name?.trim() || "our team";
+  const title = cleanTitle(input.task?.title || input.topic, `${brandName} update`);
+  const detail = input.task?.description || input.aiPrompt || title;
+  const content = [
+    `${title}`,
+    `${brandName} is sharing this update for the people we serve and the community around us.`,
+    detail,
+    "This article highlights the main idea, why it matters now, and how readers can take a practical next step. The goal is to make the message useful, clear, and easy to act on.",
+    `To learn more, connect with ${brandName} or visit us for the latest updates.`,
+  ].join("\n\n");
+
+  return {
+    title,
+    excerpt: detail.replace(/\s+/g, " ").slice(0, 180),
+    content,
+    category: "Blog",
+    imagePrompt: `Create a professional blog hero image for ${brandName}: ${title}. Use brand-relevant atmosphere and leave a clean logo-safe area for compositing.`,
+    socialCaption: `${brandName} published a new blog article: ${title}. Read the latest update on our website.`,
+  };
+}
+
+export async function generateAutomationBlogPost(input: AutomationExecutionInput): Promise<AutomationGeneratedBlogPost> {
+  const fallback = fallbackBlogContent(input);
+  const prompt = `You are the FlowSmartly website blog automation writer. Turn this strategy item into one complete blog article for the user's website blog.
+
+--- BRAND ---
+${formatBrandContext(input.brand)}
+
+--- LINKED STRATEGY ITEM ---
+${formatTaskContext(input.task)}
+
+--- AUTOMATION BRIEF ---
+Topic: ${input.topic || input.task?.title || "Website blog update"}
+Saved prompt: ${input.aiPrompt || "Write one website blog post for the linked strategy item."}
+Tone: ${input.aiTone || input.brand?.voiceTone || "professional"}
+
+--- OUTPUT CONTRACT ---
+Write the real blog article, not instructions, an outline, a draft note, a strategy, or a social caption only.
+Personalize the article with the brand name, brand-specific value, audience, location/contact/service details when available in the brand context.
+Use clear paragraphs. No markdown headings are required, but the content should read like a polished website blog post.
+Do not include placeholder links like [Link to Blog Post Here].
+For imagePrompt, describe a brand-relevant hero image and leave a clean logo-safe area for the real logo to be composited.
+
+Return ONLY valid JSON:
+{
+  "title": "blog article title",
+  "excerpt": "short teaser under 220 characters",
+  "content": "complete blog article text",
+  "category": "category",
+  "imagePrompt": "hero image prompt or null",
+  "socialCaption": "optional caption for sharing the article"
+}`;
+
+  const qualityNotes: string[] = [];
+
+  try {
+    const generated = await geminiText.generateJSON<GeneratedBlogPostJSON>(prompt, {
+      maxTokens: 2600,
+      temperature: 0.35,
+      systemPrompt:
+        "You write finished website blog articles for automation. Return only valid JSON and never return placeholders, instructions, or planning notes.",
+    });
+
+    const title = cleanTitle(generated?.title, fallback.title);
+    const content = cleanLongForm(generated?.content);
+    const excerpt = cleanCaption(generated?.excerpt).slice(0, 240) || fallback.excerpt;
+    const looksPlaceholder =
+      /\[(?:link|blog|insert|placeholder)[^\]]*\]/i.test(content) ||
+      /\b(here is|outline|draft note|instructions?|plan below|content plan)\b/i.test(content.slice(0, 250));
+
+    if (!content || content.length < 500 || looksPlaceholder) {
+      qualityNotes.push("fallback_blog_content_used");
+      return { ...fallback, qualityNotes };
+    }
+
+    return {
+      title,
+      excerpt,
+      content,
+      category: cleanTitle(generated?.category, "Blog").slice(0, 80),
+      imagePrompt:
+        typeof generated?.imagePrompt === "string" && generated.imagePrompt.trim()
+          ? buildMediaPrompt(
+              { ...input, includeMedia: true, mediaType: "image" },
+              content,
+              generated.imagePrompt
+            )
+          : fallback.imagePrompt,
+      socialCaption: cleanCaption(generated?.socialCaption) || fallback.socialCaption,
+      qualityNotes,
+    };
+  } catch (error) {
+    qualityNotes.push("fallback_blog_content_used");
+    console.warn("[AutomationExecution] Blog generation failed; using fallback:", error);
+    return { ...fallback, qualityNotes };
+  }
 }

@@ -273,6 +273,20 @@ interface MarketingReadiness {
   smsReady: boolean;
 }
 
+interface BlogReadinessState {
+  ready: boolean;
+  blockers: string[];
+  website: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    buildStatus: string;
+    generatorVersion: string;
+    ssrStatus?: string | null;
+  } | null;
+}
+
 interface AutomationCreditEstimate {
   totalCredits: number;
   requiredCredits?: number;
@@ -684,7 +698,7 @@ function getTaskPlanTime(task: StrategyTask, fallback = "09:00") {
 
 function formatPlatformList(platforms: string[]) {
   if (platforms.length === 0) return "None";
-  return platforms.map((platform) => PLATFORM_META[platform]?.label || platform).join(", ");
+  return platforms.map((platform) => platform === "blog" ? "Website Blog" : PLATFORM_META[platform]?.label || platform).join(", ");
 }
 
 function completedWorkLabel(match: MatchedActivity) {
@@ -940,6 +954,11 @@ export default function StrategyAutomationPage() {
     emailReady: false,
     smsReady: false,
   });
+  const [blogReadiness, setBlogReadiness] = useState<BlogReadinessState>({
+    ready: false,
+    blockers: [],
+    website: null,
+  });
   const [automationEstimate, setAutomationEstimate] = useState<AutomationCreditEstimate | null>(null);
   const [estimatingAutomation, setEstimatingAutomation] = useState(false);
   const [generatingStrategy, setGeneratingStrategy] = useState(false);
@@ -961,19 +980,21 @@ export default function StrategyAutomationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [strategyRes, automationRes, socialRes, marketingRes, contactListsRes] = await Promise.all([
+      const [strategyRes, automationRes, socialRes, marketingRes, contactListsRes, blogReadyRes] = await Promise.all([
         fetch("/api/content/strategy"),
         fetch("/api/content/automation"),
         fetch("/api/social-accounts"),
         fetch("/api/marketing-config"),
         fetch("/api/contact-lists"),
+        fetch("/api/websites/blog-ready"),
       ]);
-      const [strategyJson, automationJson, socialJson, marketingJson, contactListsJson] = await Promise.all([
+      const [strategyJson, automationJson, socialJson, marketingJson, contactListsJson, blogReadyJson] = await Promise.all([
         strategyRes.json(),
         automationRes.json(),
         socialRes.json().catch(() => null),
         marketingRes.json().catch(() => null),
         contactListsRes.json().catch(() => null),
+        blogReadyRes.json().catch(() => null),
       ]);
 
       if (!strategyRes.ok || !strategyJson.success) {
@@ -1011,6 +1032,13 @@ export default function StrategyAutomationPage() {
       }
       if (contactListsRes.ok && contactListsJson?.success) {
         setContactLists(contactListsJson.data?.lists || []);
+      }
+      if (blogReadyRes.ok && blogReadyJson?.success) {
+        setBlogReadiness({
+          ready: !!blogReadyJson.data?.ready,
+          blockers: blogReadyJson.data?.blockers || [],
+          website: blogReadyJson.data?.website || null,
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load the workspace");
@@ -1150,15 +1178,26 @@ export default function StrategyAutomationPage() {
         connectedPlatforms: connectedPlatformKeys,
         emailReady: marketingReadiness.emailReady,
         smsReady: marketingReadiness.smsReady,
+        blogReady: blogReadiness.ready,
         requireDestination: false,
       }),
-    [automationBuilder, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
+    [automationBuilder, blogReadiness.ready, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
   );
   const getTaskAutomationPlan = useCallback(
     (task: StrategyTask, options: AutomationBuilderDraft = automationBuilder) => {
       const desiredPlatforms = inferTaskPlatformIds(task);
+      const taskType = qualifyStrategyTaskForAutomation(task, {
+        includeMedia: options.includeMedia,
+        mediaType: options.mediaType,
+        selectedPlatforms: [],
+        connectedPlatforms: connectedPlatformKeys,
+        emailReady: marketingReadiness.emailReady,
+        smsReady: marketingReadiness.smsReady,
+        blogReady: blogReadiness.ready,
+        requireDestination: false,
+      }).type;
       const missingPlatforms = desiredPlatforms.filter(
-        (platform) => platform !== "feed" && !connectedPlatformKeys.includes(platform)
+        (platform) => platform !== "feed" && platform !== "blog" && !connectedPlatformKeys.includes(platform)
       );
       const connectedDesiredPlatforms = desiredPlatforms.filter(
         (platform) => platform === "feed" || connectedPlatformKeys.includes(platform)
@@ -1167,11 +1206,13 @@ export default function StrategyAutomationPage() {
         connectedPlatformKeys.includes(platform)
       );
       const category = normalizeTaskCategory(task.category);
-      const includeMedia = category === "email" ? false : options.includeMedia;
-      const contactListId = category === "email" ? options.emailContactListIds[task.id] || null : null;
+      const includeMedia = taskType === "email" ? false : options.includeMedia;
+      const contactListId = taskType === "email" ? options.emailContactListIds[task.id] || null : null;
       const platforms =
-        category === "email"
+        taskType === "email"
           ? []
+          : taskType === "blog"
+          ? ["blog"]
           : [
               ...new Set(
                 connectedDesiredPlatforms.length > 0
@@ -1190,12 +1231,12 @@ export default function StrategyAutomationPage() {
         desiredPlatforms,
         missingPlatforms,
         includeMedia,
-        mediaType: options.mediaType,
+        mediaType: taskType === "blog" ? "image" : options.mediaType,
         mediaStyle: options.mediaStyle,
         contactListId,
       };
     },
-    [automationBuilder, connectedPlatformKeys]
+    [automationBuilder, blogReadiness.ready, connectedPlatformKeys, marketingReadiness.emailReady, marketingReadiness.smsReady]
   );
   const getTaskPlanReadiness = useCallback(
     (task: StrategyTask, options: AutomationBuilderDraft = automationBuilder) => {
@@ -1207,10 +1248,11 @@ export default function StrategyAutomationPage() {
         connectedPlatforms: connectedPlatformKeys,
         emailReady: marketingReadiness.emailReady,
         smsReady: marketingReadiness.smsReady,
+        blogReady: blogReadiness.ready,
         requireDestination: true,
       });
     },
-    [automationBuilder, connectedPlatformKeys, getTaskAutomationPlan, marketingReadiness.emailReady, marketingReadiness.smsReady]
+    [automationBuilder, blogReadiness.ready, connectedPlatformKeys, getTaskAutomationPlan, marketingReadiness.emailReady, marketingReadiness.smsReady]
   );
   const qualifiedAutomationTasks = useMemo(
     () =>
@@ -1606,9 +1648,10 @@ export default function StrategyAutomationPage() {
         readiness: getTaskPlanReadiness(task, options),
       };
     });
-    const selectedTasks = validationResults
-      .filter((item) => item.readiness.qualified && item.plan.missingPlatforms.length === 0)
-      .map((item) => item.task);
+    const selectedReadyResults = validationResults.filter(
+      (item) => item.readiness.qualified && item.plan.missingPlatforms.length === 0
+    );
+    const selectedTasks = selectedReadyResults.map((item) => item.task);
     const blocked = validationResults.filter(
       (item) => !item.readiness.qualified || item.plan.missingPlatforms.length > 0
     );
@@ -1627,7 +1670,9 @@ export default function StrategyAutomationPage() {
       return false;
     }
 
-    const needsPublishingChannel = selectedTasks.some((task) => normalizeTaskCategory(task.category) !== "email");
+    const needsPublishingChannel = selectedReadyResults.some(
+      (item) => item.readiness.type !== "email" && item.readiness.type !== "blog"
+    );
     if (needsPublishingChannel && options.platforms.length === 0) {
       toast({
         title: "Select at least one channel",
@@ -1638,8 +1683,7 @@ export default function StrategyAutomationPage() {
 
     setSaving(true);
     try {
-      const taskConfigs = selectedTasks.map((task) => {
-        const plan = getTaskAutomationPlan(task, options);
+      const taskConfigs = selectedReadyResults.map(({ task, plan, readiness }) => {
         return {
           taskId: task.id,
           enabled: true,
@@ -1655,7 +1699,7 @@ export default function StrategyAutomationPage() {
           customPrompt: [options.customPrompt, task.title, task.description]
             .filter(Boolean)
             .join("\n\n"),
-          contactListId: normalizeTaskCategory(task.category) === "email" ? plan.contactListId : undefined,
+          contactListId: readiness.type === "email" ? plan.contactListId : undefined,
         };
       });
 
@@ -2117,12 +2161,14 @@ export default function StrategyAutomationPage() {
         connectedPlatforms: connectedPlatformKeys,
         emailReady: marketingReadiness.emailReady,
         smsReady: marketingReadiness.smsReady,
+        blogReady: blogReadiness.ready,
         requireDestination: true,
       });
       if (
         !readiness.qualified ||
         readiness.type === "manual" ||
         readiness.type === "email" ||
+        readiness.type === "blog" ||
         readiness.type === "sms"
       ) {
         toast({
@@ -2130,6 +2176,8 @@ export default function StrategyAutomationPage() {
           description:
             readiness.type === "email"
               ? "Email items must be created through the email automation planner."
+              : readiness.type === "blog"
+              ? "Blog items must be created through the strategy planner so FlowSmartly can verify the website blog first."
               : readiness.blockers[0] || "This item is manual/setup work and cannot be automated as a social post.",
           variant: "destructive",
         });
@@ -4096,11 +4144,19 @@ export default function StrategyAutomationPage() {
       automationEstimate?.automatableTasks.reduce((sum, task) => sum + (task.costPerRun ?? 0), 0) ||
       requiredCredits;
     const selectedTypes = [...new Set(readySelected.map((row) => row.readiness.type))];
-    const readyNeedsPublishingChannel = readySelected.some((row) => row.readiness.type !== "email");
+    const readyNeedsPublishingChannel = readySelected.some(
+      (row) => row.readiness.type !== "email" && row.readiness.type !== "blog"
+    );
     const readyEmailRows = readySelected.filter((row) => row.readiness.type === "email");
+    const readyBlogRows = readySelected.filter((row) => row.readiness.type === "blog");
     const readyGroups = Object.entries(
       readySelected.reduce((acc, row) => {
-        const channelLabel = row.readiness.type === "email" ? "Email" : formatPlatformList(row.plan.platforms);
+        const channelLabel =
+          row.readiness.type === "email"
+            ? "Email"
+            : row.readiness.type === "blog"
+            ? "Website blog"
+            : formatPlatformList(row.plan.platforms);
         const key = `${row.plan.firstRunDate}|${row.plan.time}|${channelLabel}`;
         acc[key] = [...(acc[key] || []), row.task.title];
         return acc;
@@ -4213,7 +4269,7 @@ export default function StrategyAutomationPage() {
                                 {readiness.type} automation - {formatShortDate(plan.firstRunDate)} at {plan.time}
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                Planned for {readiness.type === "email" ? "Email recipients" : formatPlatformList(plan.platforms)}
+                                Planned for {readiness.type === "email" ? "Email recipients" : readiness.type === "blog" ? "Website blog" : formatPlatformList(plan.platforms)}
                               </p>
                             </div>
                             <Badge className="bg-emerald-600 text-white">Ready</Badge>
@@ -4424,6 +4480,32 @@ export default function StrategyAutomationPage() {
                         <p className="text-xs text-muted-foreground">+ {readyEmailRows.length - 4} more email item{readyEmailRows.length - 4 === 1 ? "" : "s"}</p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {readyBlogRows.length > 0 && (
+                  <div className="rounded-xl border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Website blog</p>
+                        <p className="text-xs text-muted-foreground">
+                          {blogReadiness.website
+                            ? `${readyBlogRows.length} article${readyBlogRows.length === 1 ? "" : "s"} will publish to ${blogReadiness.website.name}.`
+                            : "A published website with a Blog page is required."}
+                        </p>
+                      </div>
+                      <Badge className={blogReadiness.ready ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"}>
+                        {blogReadiness.ready ? "Active" : "Setup"}
+                      </Badge>
+                    </div>
+                    {!blogReadiness.ready && (
+                      <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">
+                        {blogReadiness.blockers[0] || "Publish your website blog before scheduling this item."}
+                        <Link href="/websites" className="ml-1 font-medium underline underline-offset-2">
+                          Open websites
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
 

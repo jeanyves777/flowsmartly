@@ -8,6 +8,11 @@ import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import {
+  isBlogAutomationPlatform,
+  runBlogAutomationPublication,
+  shouldPublishAsBlogAutomation,
+} from "@/lib/content/blog-automation-runner";
 
 function parsePlatforms(raw: string | null) {
   try {
@@ -73,6 +78,8 @@ export async function GET(
 
     const creditCost = await calculateRunCreditCost(automation);
     const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+    const platforms = parsePlatforms(automation.platforms);
+    const isBlogRun = isBlogAutomationPlatform(platforms);
     const linkedTask = automation.strategyTaskId
       ? await prisma.strategyTask.findFirst({
           where: {
@@ -95,14 +102,18 @@ export async function GET(
           includeMedia: automation.includeMedia,
           mediaType: automation.mediaType,
           mediaStyle: automation.mediaStyle,
-          platforms: parsePlatforms(automation.platforms),
+          platforms,
           linkedTask,
         },
         creditCost,
         userCredits: session.user.aiCredits,
         hasEnoughCredits: session.user.aiCredits >= creditCost,
         scheduledAt: scheduledAt.toISOString(),
-        result: automation.includeMedia
+        result: isBlogRun
+          ? automation.includeMedia
+            ? "Generate a full website blog article, create a branded hero image, then publish it to the website blog."
+            : "Generate a full website blog article, then publish it to the website blog."
+          : automation.includeMedia
           ? `Generate one AI caption, create ${automation.mediaType || "media"}, then schedule a post.`
           : "Generate one AI caption, then schedule a text post.",
       },
@@ -204,6 +215,58 @@ export async function POST(
           },
         })
       : null;
+
+    if (shouldPublishAsBlogAutomation(platforms, linkedTask)) {
+      const blogResult = await runBlogAutomationPublication({
+        automation,
+        brandKit,
+        linkedTask,
+      });
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { aiCredits: { decrement: creditCost } },
+        }),
+        prisma.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -creditCost,
+            balanceAfter: session.user.aiCredits - creditCost,
+            referenceType: "ai_usage",
+            referenceId: blogResult.blogPostId,
+            description: `Published website blog automation: ${automation.name}`,
+          },
+        }),
+        prisma.postAutomation.update({
+          where: { id },
+          data: {
+            lastTriggered: new Date(),
+            totalGenerated: { increment: 1 },
+            totalCreditsSpent: { increment: creditCost },
+          },
+        }),
+      ]);
+
+      triggerActivitySyncForUser(session.userId).catch((err) =>
+        console.error("Activity sync hook (blog automation) failed:", err)
+      );
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          generatedContent: blogResult.title,
+          blogPostId: blogResult.blogPostId,
+          websiteId: blogResult.websiteId,
+          websiteName: blogResult.websiteName,
+          creditsUsed: creditCost,
+          mediaUrl: blogResult.imageUrl,
+          mediaType: blogResult.imageUrl ? "image" : null,
+          qualityNotes: blogResult.qualityNotes,
+        },
+      });
+    }
 
     const generatedAsset = await generateAutomationAsset({
       topic: automation.topic,
