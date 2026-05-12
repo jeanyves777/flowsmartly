@@ -914,17 +914,17 @@ export default function StoreDesignPage() {
               )}
               <button onClick={rebuild} disabled={rebuilding}
                 className="flex items-center gap-1.5 px-5 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
-                {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Rebuilding...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild Store</>}
+                {rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Updating...</> : <><RefreshCw className="w-3.5 h-3.5" /> Update Store</>}
               </button>
             </Section>
             <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-3 h-fit">
-              <h3 className="text-sm font-semibold">When to rebuild</h3>
+              <h3 className="text-sm font-semibold">Automatic updates</h3>
               <ul className="text-xs text-muted-foreground space-y-2">
                 {["After editing store info, hero, or navigation","After adding or editing categories","After an AI Update completes","After uploading new images or logos"].map((item) => (
                   <li key={item} className="flex items-start gap-2"><RefreshCw className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />{item}</li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground pt-1">Builds take 1–3 minutes. Your store stays live during a rebuild.</p>
+              <p className="text-xs text-muted-foreground pt-1">Updates take 1-3 minutes. Your store stays live while changes are applied.</p>
             </div>
           </div>
         )}
