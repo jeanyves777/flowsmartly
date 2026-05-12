@@ -642,6 +642,38 @@ export function fixGalleryOverlayLayout(siteDir: string): void {
 }
 
 /**
+ * Older generated store layouts used the prop name `open` for CartDrawer while
+ * the shared drawer expects `isOpen`. The visible badge updated, but the cart
+ * drawer never opened, blocking checkout.
+ */
+export function fixStoreCartDrawerProps(siteDir: string): void {
+  const files = [
+    join(siteDir, "src", "app", "RootLayoutClient.tsx"),
+    join(siteDir, "src", "components", "RootLayoutClient.tsx"),
+  ];
+  let fixCount = 0;
+
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+
+    let content = readFileSync(file, "utf-8");
+    if (!content.includes("<CartDrawer") || !content.includes("open=")) continue;
+
+    const original = content;
+    content = content.replace(/<CartDrawer\s+open=/g, "<CartDrawer isOpen=");
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Fixed CartDrawer open prop in ${fixCount} files`);
+  }
+}
+
+/**
  * Fixes tiny logo in Footer component — same h-4/h-6/h-8 problem as Header.
  */
 export function fixFooterLogoSize(siteDir: string): void {
