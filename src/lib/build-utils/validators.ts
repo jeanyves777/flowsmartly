@@ -490,6 +490,7 @@ export function fixHeaderLayout(siteDir: string): void {
   const normalizeLogoClasses = (classes: string): string => {
     const cleaned = classes
       .replace(/\b(?:sm:|md:|lg:|xl:)?h-(?:\[[^\]]+\]|\d+|auto|full|screen)\b/g, "")
+      .replace(/\b(?:sm:|md:|lg:|xl:)?w-(?:\[[^\]]+\]|\d+|auto|full|screen)\b/g, "")
       .replace(/\bmax-w-(?:\[[^\]]+\]|[^\s"]+)\b/g, "")
       .replace(/\bobject-(?:contain|cover|fill|none|scale-down)\b/g, "")
       .replace(/\s+/g, " ")
@@ -568,6 +569,47 @@ export function fixHeaderLayout(siteDir: string): void {
 }
 
 // ─── Fix Footer Logo Size ────────────────────────────────────────────────────
+
+/**
+ * Remove duplicated basePath prefixes from generated image URLs.
+ *
+ * Older generated components sometimes wrapped data images like:
+ *   src={`/sites/my-slug/${testimonial.image}`}
+ * while testimonial.image already equals "/sites/my-slug/images/...".
+ * Next then requests /sites/my-slug/sites/my-slug/images/..., causing 404s.
+ */
+export function fixDuplicateBasePathImages(siteDir: string): void {
+  const srcDir = join(siteDir, "src");
+  const files = collectSourceFiles(srcDir);
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    const original = content;
+
+    content = content.replace(
+      /src=\{\s*`\/sites\/[^`$]+\/\$\{([^}]+)\}`\s*\}/g,
+      "src={$1}"
+    );
+    content = content.replace(
+      /src=\{\s*`\/sites\/[^`$]+\$\{([^}]+)\}`\s*\}/g,
+      "src={$1}"
+    );
+    content = content.replace(
+      /(\/sites\/([^/"'`{}]+))\/sites\/\2\//g,
+      "$1/"
+    );
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Fixed duplicated basePath image URLs in ${fixCount} files`);
+  }
+}
 
 /**
  * Fixes tiny logo in Footer component — same h-4/h-6/h-8 problem as Header.

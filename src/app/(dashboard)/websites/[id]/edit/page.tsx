@@ -62,7 +62,6 @@ export default function WebsiteEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
-  const [fixingLinks, setFixingLinks] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "preview");
   const [data, setData] = useState<SiteData | null>(null);
   const [changed, setChanged] = useState(false);
@@ -74,6 +73,7 @@ export default function WebsiteEditPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [previewNonce, setPreviewNonce] = useState(() => Date.now());
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -115,15 +115,6 @@ export default function WebsiteEditPage() {
     poll("rebuild");
   };
 
-  const fixLinks = async () => {
-    setFixingLinks(true);
-    setBuildResult(null);
-    setBuildStep("Fixing internal links...");
-    await fetch(`/api/websites/${id}/fix-links`, { method: "POST" });
-    setBuildStep("Rebuilding site with fixed links...");
-    poll("fix-links");
-  };
-
   const handleUpgradeToV3 = async () => {
     setIsUpgrading(true);
     setBuildResult(null);
@@ -142,7 +133,7 @@ export default function WebsiteEditPage() {
       setWebsite(d.website);
 
       if (d.website.buildStatus === "deploying") setBuildStep("Deploying site files...");
-      else if (elapsed < 15) setBuildStep(action === "fix-links" ? "Rewriting links and rebuilding..." : "Building your website...");
+      else if (elapsed < 15) setBuildStep("Building your website...");
       else if (elapsed < 30) setBuildStep("Compiling pages...");
       else if (elapsed < 60) setBuildStep("Generating static files...");
       else setBuildStep("Almost done...");
@@ -150,13 +141,14 @@ export default function WebsiteEditPage() {
       if (d.website.buildStatus !== "building" && d.website.buildStatus !== "deploying") {
         clearInterval(iv);
         setRebuilding(false);
-        setFixingLinks(false);
         setIsUpgrading(false);
         setBuildStep("");
 
         if (d.website.buildStatus === "built") {
           setBuildResult({ type: "success", message: "Site updated successfully!" });
-          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src;
+          const nonce = Date.now();
+          setPreviewNonce(nonce);
+          if (iframeRef.current) iframeRef.current.src = `/sites/${d.website.slug}/${previewPage}?preview=${nonce}`;
           // Auto-dismiss after 5s
           setTimeout(() => setBuildResult(null), 5000);
         } else {
@@ -220,7 +212,11 @@ export default function WebsiteEditPage() {
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><AISpinner className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
-  const busy = rebuilding || fixingLinks || saving || isUpgrading;
+  const busy = rebuilding || saving || isUpgrading;
+  const getPreviewSrc = (page = previewPage, nonce = previewNonce) => {
+    const pagePath = page ? `/${page}` : "/";
+    return `/sites/${website.slug}${pagePath}?preview=${encodeURIComponent(`${website.lastBuildAt || website.buildStatus}-${nonce}`)}`;
+  };
   // Build tabs dynamically from detected pages + data sections
   const hasImageHero = !!(data?.heroImages?.length || data?.logo);
   const tabs: Array<{ id: string; label: string; icon: any }> = [
@@ -251,10 +247,9 @@ export default function WebsiteEditPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {changed && <button onClick={save} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> Save & Rebuild</button>}
+          {changed && <button onClick={save} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> Save</button>}
           {website.buildStatus === "built" && <a href={website.customDomain ? `https://${website.customDomain}` : `/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> View</a>}
-          <button onClick={fixLinks} disabled={busy} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted disabled:opacity-50">{fixingLinks ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : "Fix Links"}</button>
-          <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Building...</> : <><RefreshCw className="w-3.5 h-3.5" /> Rebuild</>}</button>
+          <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><RefreshCw className="w-3.5 h-3.5" /> Save</>}</button>
         </div>
       </div>
 
@@ -289,7 +284,7 @@ export default function WebsiteEditPage() {
       </div>
 
       {/* Build Progress Overlay */}
-      {(rebuilding || fixingLinks || saving || isUpgrading) && buildStep && (
+      {(rebuilding || saving || isUpgrading) && buildStep && (
         <div className="mb-4">
           <AIGenerationLoader
             currentStep={buildStep}
@@ -321,7 +316,7 @@ export default function WebsiteEditPage() {
               {pages.map((p) => (
                 <button
                   key={p.slug}
-                  onClick={() => { setPreviewPage(p.slug); if (iframeRef.current) iframeRef.current.src = `/sites/${website.slug}/${p.slug}`; }}
+                  onClick={() => { const nonce = Date.now(); setPreviewNonce(nonce); setPreviewPage(p.slug); if (iframeRef.current) iframeRef.current.src = getPreviewSrc(p.slug, nonce); }}
                   className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${previewPage === p.slug ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80 text-muted-foreground"}`}
                 >
                   {p.label}
@@ -329,7 +324,7 @@ export default function WebsiteEditPage() {
               ))}
             </div>
           )}
-          {website.buildStatus === "built" ? <iframe ref={iframeRef} src={`/sites/${website.slug}/${previewPage}`} className="w-full h-[75vh] border-0" /> : website.buildStatus === "error" ? (
+          {website.buildStatus === "built" ? <iframe key={`${website.slug}-${previewPage}-${previewNonce}`} ref={iframeRef} src={getPreviewSrc()} className="w-full h-[75vh] border-0" /> : website.buildStatus === "error" ? (
             <div className="text-center py-16 px-6">
               <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />

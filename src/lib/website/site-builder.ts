@@ -36,6 +36,7 @@ import {
   fixGlobalsCss,
   fixHeaderLayout,
   fixFooterLogoSize,
+  fixDuplicateBasePathImages,
   fixUseSearchParams,
 } from "@/lib/build-utils/validators";
 import { ensureWebsiteBlogRoutes } from "@/lib/build-utils/website-blog-routes";
@@ -416,6 +417,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     fixGlobalsCss(siteDir);
     fixHeaderLayout(siteDir);
     fixFooterLogoSize(siteDir);
+    fixDuplicateBasePathImages(siteDir);
     fixUseSearchParams(siteDir);
     ensureWebsiteBlogRoutes(siteDir, "ssr");
     const stubs = validateAndFixImports(siteDir);
