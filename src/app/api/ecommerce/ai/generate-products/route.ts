@@ -6,6 +6,7 @@ import { SYSTEM_PROMPTS } from "@/lib/ai/prompts";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { getProductListingCapacity, productListingLimitError } from "@/lib/ecommerce/product-listing-limits";
 import { z } from "zod";
 
 // ── Validation ──
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
         industry: true,
         currency: true,
         description: true,
+        settings: true,
       },
     });
 
@@ -109,6 +111,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: "NO_STORE", message: "Store not found. Please set up your store first." } },
         { status: 404 }
+      );
+    }
+
+    const listingLimit = await getProductListingCapacity(store, count);
+    if (!listingLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: productListingLimitError(listingLimit) },
+        { status: 403 }
       );
     }
 
@@ -334,6 +344,11 @@ Return ONLY a valid JSON array of product objects.`;
         products: createdProducts,
         count: createdProducts.length,
         creditsUsed: actualCost,
+        listingLimit: {
+          ...listingLimit,
+          used: listingLimit.used + createdProducts.length,
+          remaining: Math.max(0, listingLimit.remaining - createdProducts.length),
+        },
       },
     }, { status: 201 });
   } catch (error: unknown) {

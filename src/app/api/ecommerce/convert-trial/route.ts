@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { getOrCreateStripeCustomer } from "@/lib/stripe";
-import { convertFreeTrialToSubscription } from "@/lib/stripe/ecommerce";
 
 /**
  * POST /api/ecommerce/convert-trial
- * Convert a free trial to a paid Basic subscription by adding a card.
- * Called when a user on free_trial or expired adds a payment method.
+ * Legacy compatibility endpoint. Store trials were retired when FlowShop
+ * became included with an active FlowSmartly account.
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const session = await getSession();
     if (!session) {
@@ -19,18 +17,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-    const paymentMethodId = body.paymentMethodId as string | undefined;
-
-    if (!paymentMethodId) {
-      return NextResponse.json(
-        { success: false, error: { code: "CARD_REQUIRED", message: "A payment method is required." } },
-        { status: 400 }
-      );
-    }
-
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
+      select: { id: true },
     });
 
     if (!store) {
@@ -40,27 +29,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!["free_trial", "expired"].includes(store.ecomSubscriptionStatus)) {
-      return NextResponse.json(
-        { success: false, error: { code: "INVALID_STATUS", message: "Store is not on a free trial." } },
-        { status: 400 }
-      );
-    }
-
-    const customerId = await getOrCreateStripeCustomer(session.userId);
-
-    const result = await convertFreeTrialToSubscription({
-      userId: session.userId,
-      customerId,
-      paymentMethodId,
-    });
-
     await prisma.store.update({
       where: { id: store.id },
       data: {
-        ecomSubscriptionId: result.subscriptionId,
-        ecomSubscriptionStatus: result.status === "active" ? "active" : "inactive",
-        isActive: result.status === "active",
+        ecomSubscriptionId: null,
+        ecomSubscriptionStatus: "active",
+        ecomPlan: "free",
+        isActive: true,
         freeTrialStartedAt: null,
         freeTrialEndsAt: null,
         freeTrialRemindersSent: "[]",
@@ -70,14 +45,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        subscriptionId: result.subscriptionId,
-        status: result.status,
+        subscriptionId: null,
+        status: "active",
+        plan: "free",
       },
     });
   } catch (error) {
-    console.error("Convert trial error:", error);
+    console.error("Convert trial compatibility error:", error);
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to convert trial." } },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to activate FlowShop." } },
       { status: 500 }
     );
   }

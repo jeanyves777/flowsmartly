@@ -50,6 +50,18 @@ ${proxyHeaders}
 `;
 }
 
+function sharedProxyHeaders(indent = "    "): string {
+  return `${indent}proxy_set_header Host $host;
+${indent}proxy_set_header X-Real-IP $remote_addr;
+${indent}proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+${indent}proxy_set_header X-Forwarded-Proto $scheme;
+${indent}proxy_http_version 1.1;
+${indent}proxy_set_header Upgrade $http_upgrade;
+${indent}proxy_set_header Connection "upgrade";
+${indent}proxy_read_timeout 60s;
+${indent}proxy_buffering off;`;
+}
+
 /**
  * Custom domain server block for a website. Proxies to the main Next.js
  * app (port 3000) which has middleware that detects the Host header and
@@ -60,7 +72,38 @@ ${proxyHeaders}
  * internal links like /sites/{slug}/about being clicked from within the
  * served HTML on the custom domain.
  */
-function customWebsiteDomainServerBlock(domain: string, _slug: string): string {
+function customWebsiteDomainServerBlock(domain: string, slug: string, upstreamName?: string): string {
+  if (upstreamName) {
+    return `# Custom domain: ${domain} -> ${upstreamName} (website basePath /sites/${slug})
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ${domain} www.${domain};
+
+    # Use flowsmartly.com cert - Cloudflare 'Full' mode doesn't require hostname match
+    ssl_certificate /etc/letsencrypt/live/flowsmartly.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/flowsmartly.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = / {
+        proxy_pass http://${upstreamName}/sites/${slug}/;
+${sharedProxyHeaders("        ")}
+        client_max_body_size 50M;
+    }
+
+    location /sites/${slug}/ {
+        proxy_pass http://${upstreamName};
+${sharedProxyHeaders("        ")}
+        client_max_body_size 50M;
+    }
+
+    location / {
+        proxy_pass http://${upstreamName}/sites/${slug}$request_uri;
+${sharedProxyHeaders("        ")}
+        client_max_body_size 50M;
+    }
+}`;
+  }
   return `# Custom domain: ${domain} → main app (middleware rewrites by Host)
 server {
     listen 80;
@@ -139,7 +182,21 @@ server {
 }`;
 }
 
-function websiteLocationBlock(slug: string, _port: number): string {
+function websiteLocationBlock(slug: string, port: number | null | undefined): string {
+  if (port) {
+    const safeName = `site_${slug.replace(/[^a-z0-9_-]/gi, "_")}`;
+    return `# Website: ${slug} -> independent SSR app on port ${port}
+location = /sites/${slug} {
+    return 301 /sites/${slug}/;
+}
+location /sites/${slug}/ {
+    proxy_pass http://${safeName};
+    proxy_set_header X-Website-Slug ${slug};
+${sharedProxyHeaders()}
+}
+`;
+  }
+
   // Websites proxy to the main Next.js app (port 3000). The main app's
   // src/app/sites/[...path]/route.ts serves files from
   // /var/www/flowsmartly/sites-output/{slug}/ and also honors the
@@ -221,7 +278,12 @@ export async function regenerateAndReload(): Promise<void> {
       upstreams += upstreamBlock(safeName, store.ssrPort);
     }
   }
-  // Websites are static-export served by nginx directly — no upstream needed.
+  for (const website of websites) {
+    if (website.ssrPort) {
+      const safeName = `site_${website.slug.replace(/[^a-z0-9_-]/gi, "_")}`;
+      upstreams += upstreamBlock(safeName, website.ssrPort);
+    }
+  }
   writeFileSync(UPSTREAMS_CONF, upstreams, "utf-8");
 
   // 2. Write per-app location files (included inside the server block)
@@ -239,7 +301,7 @@ export async function regenerateAndReload(): Promise<void> {
     }
   }
   for (const website of websites) {
-    const content = header + websiteLocationBlock(website.slug, 0);
+    const content = header + websiteLocationBlock(website.slug, website.ssrPort);
     writeFileSync(join(LOCATIONS_DIR, `site-${website.slug}.conf`), content, "utf-8");
   }
 
@@ -255,10 +317,10 @@ export async function regenerateAndReload(): Promise<void> {
     const basePath = `/stores/${store.slug}`;
     domainBlocks.push(customDomainServerBlock(sd.domainName, safeName, basePath));
   }
-  // Website custom domains are static-file served (no PM2 proxy needed).
   for (const site of websites) {
     if (!site.customDomain) continue;
-    domainBlocks.push(customWebsiteDomainServerBlock(site.customDomain, site.slug));
+    const safeName = site.ssrPort ? `site_${site.slug.replace(/[^a-z0-9_-]/gi, "_")}` : undefined;
+    domainBlocks.push(customWebsiteDomainServerBlock(site.customDomain, site.slug, safeName));
   }
 
   // Write one custom-domains.conf with all per-domain server blocks

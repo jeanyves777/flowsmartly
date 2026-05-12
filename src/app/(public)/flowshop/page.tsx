@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 const heroStats = [
   { value: "10", label: "storefront themes" },
   { value: "AI", label: "copy, SEO, pricing" },
-  { value: "$5", label: "starter plan" },
+  { value: "20", label: "products included" },
 ];
 
 const featureCards = [
@@ -92,20 +92,13 @@ const aiSignals = [
   { icon: ShieldCheck, title: "Checkout trust", value: "Ready" },
 ];
 
-const basicFeatures = [
-  "Full AI store",
+const includedFeatures = [
+  "No separate FlowShop subscription",
+  "20 product listings included",
+  "Unlock 5 more listings for 50 credits",
   "Product management with AI",
   "Mobile-first storefront",
-  "AI recommendations",
-  "Free subdomain",
-];
-
-const proFeatures = [
-  "Everything in Basic",
-  "Free custom domain",
-  "Advanced analytics",
-  "AI customer chatbot",
-  "Abandoned cart recovery",
+  "Secure checkout tools",
 ];
 
 export default function FlowShopPage() {
@@ -318,42 +311,44 @@ export default function FlowShopPage() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-300">
-              FlowShop plans
+              FlowShop access
             </p>
             <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
-              Start small, keep the store professional
+              Included with your active FlowSmartly account
             </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+              Start with a professional store at no extra monthly store fee. Keep the catalog lean with 20 included product listings, then unlock more capacity with credits as you grow.
+            </p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2">
-            {[
-              ["FlowShop Basic", "$5", "For launching the first storefront", basicFeatures],
-              ["FlowShop Pro", "$12", "For growing with automation and domains", proFeatures],
-            ].map(([name, price, description, features]) => (
-              <article key={name as string} className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
-                <h3 className="text-xl font-bold">{name as string}</h3>
+          <article className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
+            <div className="grid gap-8 md:grid-cols-[0.9fr_1.1fr] md:items-center">
+              <div>
+                <h3 className="text-xl font-bold">FlowShop Free Access</h3>
                 <div className="mt-4 flex items-end gap-1">
-                  <span className="text-5xl font-black tracking-tight">{price as string}</span>
-                  <span className="pb-2 text-sm text-muted-foreground">/month</span>
+                  <span className="text-5xl font-black tracking-tight">$0</span>
+                  <span className="pb-2 text-sm text-muted-foreground">/month store fee</span>
                 </div>
-                <p className="mt-3 text-muted-foreground">{description as string}</p>
-                <ul className="mt-6 space-y-3">
-                  {(features as string[]).map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-3 text-muted-foreground">
+                  Available to FlowSmartly users with an active account. Store capacity grows by credit unlocks instead of a store subscription.
+                </p>
                 <Link
                   href="/login?redirect=/ecommerce"
-                  className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-6 font-bold text-white transition-colors hover:bg-violet-700"
+                  className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-violet-600 px-6 font-bold text-white transition-colors hover:bg-violet-700"
                 >
-                  Start free trial
+                  Activate FlowShop
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-              </article>
-            ))}
-          </div>
+              </div>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {includedFeatures.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 rounded-lg border bg-background p-4 text-sm">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                    <span className="text-muted-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </article>
         </div>
       </section>
 

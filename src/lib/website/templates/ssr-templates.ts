@@ -8,11 +8,12 @@
  * - Member auth (if gated content enabled)
  */
 
-// ─── next.config.ts (SSR — NO output: 'export', NO basePath) ────────────────
+// ─── next.config.ts (SSR — no static export; basePath keeps previews stable) ─
 
 export const TEMPLATE_SSR_NEXT_CONFIG = `import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  basePath: process.env.WEBSITE_BASE_PATH || "",
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
@@ -34,6 +35,7 @@ API_GATEWAY_URL=${apiGatewayUrl}
 # Website identifier
 WEBSITE_ID=${websiteId}
 WEBSITE_SLUG=${slug}
+WEBSITE_BASE_PATH=/sites/${slug}
 `;
 }
 

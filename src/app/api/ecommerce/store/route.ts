@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { getProductListingCapacity, withProductListingLimit } from "@/lib/ecommerce/product-listing-limits";
 
 const createStoreSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters").max(100),
@@ -69,22 +70,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Passive trial expiration check
-    if (
-      store.ecomSubscriptionStatus === "free_trial" &&
-      store.freeTrialEndsAt &&
-      new Date(store.freeTrialEndsAt) <= new Date()
-    ) {
-      await prisma.store.update({
-        where: { id: store.id },
-        data: {
-          ecomSubscriptionStatus: "expired",
-          isActive: false,
-        },
-      });
-      store.ecomSubscriptionStatus = "expired";
-      store.isActive = false;
-    }
+    const listingLimit = await getProductListingCapacity(store);
 
     return NextResponse.json({
       success: true,
@@ -93,6 +79,7 @@ export async function GET(request: NextRequest) {
           ...store,
           theme: JSON.parse(store.theme || "{}"),
           settings: JSON.parse(store.settings || "{}"),
+          listingLimit,
         },
         hasStore: true,
       }),
@@ -186,6 +173,11 @@ export async function POST(request: NextRequest) {
         currency: data.currency || "USD",
         region: data.region || null,
         country: data.country || null,
+        ecomSubscriptionId: null,
+        ecomSubscriptionStatus: "active",
+        ecomPlan: "free",
+        isActive: true,
+        settings: withProductListingLimit(null, 20),
       },
     });
 

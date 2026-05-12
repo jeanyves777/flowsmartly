@@ -3,21 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Settings, Save, CreditCard, Palette, ReceiptText, Truck, Globe, Crown, ArrowUpRight, AlertCircle, Check, X, Link2, Shield, Trash2, Plus, Star, Search, Sparkles, ImageIcon, Target } from "lucide-react";
+import { Settings, Save, CreditCard, Palette, ReceiptText, Truck, Globe, Crown, ArrowUpRight, AlertCircle, Check, X, Link2, Trash2, Plus, Star, Search, Sparkles, ImageIcon, Target } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import PixelSettings from "@/components/ecommerce/pixel-settings";
-import {
-  PRODUCT_CATEGORIES,
-  ECOM_SUBSCRIPTION_PRICE_CENTS,
-} from "@/lib/constants/ecommerce";
-import {
-  ECOM_PLAN_NAMES,
-  ECOM_PLAN_FEATURES,
-  ECOM_BASIC_PRICE_CENTS,
-  ECOM_PRO_PRICE_CENTS,
-  type EcomPlan,
-} from "@/lib/domains/pricing";
+import { PRODUCT_CATEGORIES } from "@/lib/constants/ecommerce";
 import { cn } from "@/lib/utils/cn";
 import { StripeConnectOnboarding } from "@/components/shared/stripe-connect-onboarding";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
@@ -81,7 +71,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "branding", label: "Branding", icon: Palette },
   { id: "domain", label: "Domain", icon: Globe },
   { id: "pixels", label: "Pixels", icon: Target },
-  { id: "subscription", label: "Subscription", icon: ReceiptText },
+  { id: "subscription", label: "Access", icon: ReceiptText },
 ];
 
 const BASE_FONT_OPTIONS = [
@@ -142,8 +132,6 @@ export default function EcommerceSettingsPage() {
     clientSecret: string;
     domainName: string;
   } | null>(null);
-
-  // Upgrade state
   const [upgrading, setUpgrading] = useState(false);
 
   // General tab fields
@@ -352,25 +340,10 @@ export default function EcommerceSettingsPage() {
     finally { setSaving(false); }
   }
 
-  async function handleUpgrade(newPlan: EcomPlan) {
+  async function handleUpgrade(_newPlan: "basic" | "pro") {
     setUpgrading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/ecommerce/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: newPlan }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMessage(`Plan ${newPlan === "pro" ? "upgraded" : "downgraded"} to ${ECOM_PLAN_NAMES[newPlan]}!`);
-        loadStore();
-      } else {
-        setError(data.error?.message || "Failed to change plan");
-      }
-    } catch {
-      setError("Failed to change plan");
-    } finally { setUpgrading(false); }
+    setError("FlowShop plan upgrades were removed. Use product listing credit unlocks when you need more capacity.");
+    setUpgrading(false);
   }
 
   const loadPaymentMethods = useCallback(async () => {
@@ -1204,22 +1177,11 @@ export default function EcommerceSettingsPage() {
             <div className="p-4 rounded-lg border space-y-4">
               <div>
                 <h3 className="text-sm font-semibold flex items-center gap-2">
-                  {store.ecomPlan === "pro" && !store.freeDomainClaimed ? (
-                    <>
-                      <Star className="h-4 w-4 text-amber-500" />
-                      Claim Your FREE Domain
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 text-violet-500" />
-                      Buy a Domain
-                    </>
-                  )}
+                  <Search className="h-4 w-4 text-violet-500" />
+                  Buy a Domain
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {store.ecomPlan === "pro" && !store.freeDomainClaimed
-                    ? "You have 1 free domain included with your Pro plan (.com, .store, .shop, .online, .co)"
-                    : "Search and register a domain starting at $9.99/year"}
+                  Search and register a domain starting at $9.99/year. Domain purchases are separate from FlowShop access.
                 </p>
               </div>
 
@@ -1246,8 +1208,6 @@ export default function EcommerceSettingsPage() {
               {domainResults.length > 0 && (
                 <div className="space-y-2">
                   {domainResults.map((r) => {
-                    const isPro = store.ecomPlan === "pro";
-                    const canClaimFree = isPro && !store.freeDomainClaimed && r.isFreeEligible && r.available;
                     return (
                       <div
                         key={r.domain}
@@ -1268,20 +1228,16 @@ export default function EcommerceSettingsPage() {
                           </span>
                         )}
                         <span className="ml-auto text-sm font-semibold">
-                          {canClaimFree ? (
-                            <span className="text-emerald-600">FREE</span>
-                          ) : (
-                            `$${(r.retailCents / 100).toFixed(2)}/yr`
-                          )}
+                          ${((r.retailCents || 0) / 100).toFixed(2)}/yr
                         </span>
                         {r.available && (
                           <button
-                            onClick={() => handlePurchaseDomain(r.domain, r.tld, canClaimFree)}
+                            onClick={() => handlePurchaseDomain(r.domain, r.tld, false)}
                             disabled={saving}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50"
                           >
                             {saving ? <AISpinner className="h-3 w-3 animate-spin" /> : null}
-                            {canClaimFree ? "Claim Free" : "Purchase"}
+                            Purchase
                           </button>
                         )}
                       </div>
@@ -1319,26 +1275,6 @@ export default function EcommerceSettingsPage() {
                 </div>
               )}
 
-              {/* Upgrade nudge for Basic users */}
-              {store.ecomPlan === "basic" && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800">
-                  <Crown className="h-5 w-5 text-violet-500 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-violet-800 dark:text-violet-300">
-                      Get a FREE domain with FlowShop Pro
-                    </p>
-                    <p className="text-xs text-violet-600 dark:text-violet-400">
-                      Upgrade to Pro ($12/mo) and get 1 free domain included
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab("subscription")}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700"
-                  >
-                    Upgrade <ArrowUpRight className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Connect Own Domain (BYOD) */}
@@ -1402,7 +1338,7 @@ export default function EcommerceSettingsPage() {
                           )}
                           {d.isFree && (
                             <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                              Free with Pro
+                              Included
                             </span>
                           )}
                           <span className={cn(
@@ -1446,92 +1382,57 @@ export default function EcommerceSettingsPage() {
         {/* TRACKING PIXELS TAB */}
         {activeTab === "pixels" && <PixelSettings />}
 
-        {/* SUBSCRIPTION TAB */}
+        {/* ACCESS TAB */}
         {activeTab === "subscription" && (
           <div className="space-y-6">
-            {/* Current Plan */}
-            <div className="flex items-center justify-between p-4 rounded-lg border">
+            <div className="flex items-center justify-between gap-4 p-4 rounded-lg border">
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-medium">{ECOM_PLAN_NAMES[(store.ecomPlan || "basic") as EcomPlan] || "FlowShop Basic"}</p>
-                  {store.ecomPlan === "pro" && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-semibold">
-                      <Crown className="h-3 w-3" /> PRO
-                    </span>
-                  )}
+                  <p className="font-medium">FlowShop Free Access</p>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-xs font-semibold">
+                    Included
+                  </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  ${((store.ecomPlan === "pro" ? ECOM_PRO_PRICE_CENTS : ECOM_BASIC_PRICE_CENTS) / 100).toFixed(2)}/month
+                  No separate monthly FlowShop subscription.
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <div
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    ["active", "trialing", "free_trial"].includes(store.ecomSubscriptionStatus) ? "bg-green-500" : "bg-red-500"
+                    store.isActive ? "bg-green-500" : "bg-red-500"
                   )}
                 />
                 <span className="text-sm font-medium capitalize">
-                  {store.ecomSubscriptionStatus === "free_trial" ? "Free Trial" : store.ecomSubscriptionStatus}
+                  {store.isActive ? "Active" : "Inactive"}
                 </span>
               </div>
             </div>
 
-            {/* Free Trial Banner */}
-            {store.ecomSubscriptionStatus === "free_trial" && store.freeTrialEndsAt && (
-              <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-amber-600" />
-                  <h3 className="font-medium text-amber-800 dark:text-amber-300">
-                    Free Trial &mdash; {Math.max(0, Math.ceil((new Date(store.freeTrialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} days remaining
-                  </h3>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                ["Included listings", "20", "Products before unlocks"],
+                ["Unlock size", "+5", "Extra listings per unlock"],
+                ["Unlock cost", "50", "FlowSmartly credits"],
+              ].map(([label, value, detail]) => (
+                <div key={label} className="rounded-lg border bg-muted/30 p-4">
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-3xl font-bold">{value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
                 </div>
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Your trial ends on {new Date(store.freeTrialEndsAt).toLocaleDateString()}.
-                  Add a payment method to keep your store active after the trial.
-                </p>
-                <button
-                  onClick={() => {
-                    // Redirect to the payment methods page with convert context
-                    window.location.href = "/billing";
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  Add Payment Method
-                </button>
-              </div>
-            )}
+              ))}
+            </div>
 
-            {/* Expired Trial Banner */}
-            {store.ecomSubscriptionStatus === "expired" && (
-              <div className="p-4 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-red-600" />
-                  <h3 className="font-medium text-red-800 dark:text-red-300">
-                    Trial Expired &mdash; Store Inactive
-                  </h3>
-                </div>
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  Your free trial has ended. Add a payment method to reactivate your store. No data has been lost.
-                </p>
-                <button
-                  onClick={() => {
-                    window.location.href = "/billing";
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  Add Payment Method & Reactivate
-                </button>
-              </div>
-            )}
-
-            {/* Plan Features */}
             <div className="p-4 rounded-lg bg-muted/50">
-              <h3 className="text-sm font-medium mb-2">Your plan includes:</h3>
+              <h3 className="text-sm font-medium mb-2">FlowShop includes:</h3>
               <ul className="space-y-1.5 text-sm text-muted-foreground">
-                {ECOM_PLAN_FEATURES[(store.ecomPlan || "basic") as EcomPlan]?.map((feature) => (
+                {[
+                  "Store builder and live storefront management",
+                  "Product, category, inventory, and order tools",
+                  "AI product support and product media workflow",
+                  "Domain connection and marketplace domain purchase options",
+                ].map((feature) => (
                   <li key={feature} className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500 shrink-0" />
                     {feature}
@@ -1542,7 +1443,7 @@ export default function EcommerceSettingsPage() {
 
             {/* Upgrade/Downgrade */}
             {store.ecomPlan === "basic" ? (
-              <div className="p-4 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800 space-y-3">
+              <div className="hidden p-4 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 border border-violet-200 dark:border-violet-800 space-y-3">
                 <div className="flex items-center gap-2">
                   <Crown className="h-5 w-5 text-violet-500" />
                   <h3 className="text-sm font-semibold text-violet-800 dark:text-violet-300">
@@ -1562,7 +1463,7 @@ export default function EcommerceSettingsPage() {
                 </button>
               </div>
             ) : (
-              <div>
+              <div className="hidden">
                 <button
                   onClick={async () => {
                     if (store.freeDomainClaimed) {
@@ -1584,7 +1485,7 @@ export default function EcommerceSettingsPage() {
             )}
 
             {/* Cancel */}
-            {["active", "trialing", "free_trial"].includes(store.ecomSubscriptionStatus) && (
+            {false && ["active", "trialing", "free_trial"].includes(store?.ecomSubscriptionStatus || "") && (
               <div className="pt-2 border-t">
                 {!cancelConfirm ? (
                   <button
@@ -1600,7 +1501,7 @@ export default function EcommerceSettingsPage() {
                     </p>
                     <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-1">
                       Your store will remain active until the end of the current billing period.
-                      {store.freeDomainClaimed && " Your free domain will convert to paid renewal."}
+                      {store?.freeDomainClaimed && " Your free domain will convert to paid renewal."}
                     </p>
                     <div className="flex gap-2 mt-3">
                       <button

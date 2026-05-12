@@ -143,7 +143,7 @@ export default function EcommerceTermsPage() {
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground leading-relaxed mb-4">
                   <li><strong>Payment Processor:</strong> Stripe handles all payment card processing, ensuring PCI DSS compliance. FlowSmartly does not store, process, or transmit cardholder data directly.</li>
                   <li><strong>Merchant Payouts:</strong> Merchants receive payouts according to Stripe&apos;s standard payout schedule. Payout timing may vary by region and account history.</li>
-                  <li><strong>Subscription Fee:</strong> FlowShop charges a monthly subscription fee of $5.00 USD (Basic) or $12.00 USD (Pro) for store access, billed monthly. A 14-day free trial is provided for new stores on both plans &mdash; a valid payment method (card on file) is required but will not be charged during the trial period.</li>
+                  <li><strong>FlowShop Access:</strong> FlowShop is included with an active FlowSmartly account. There is no separate monthly FlowShop subscription fee or store free trial requirement.</li>
                   <li><strong>Processing Fees:</strong> Standard Stripe processing fees (currently 2.9% + $0.30 per transaction) apply to all customer payments. These fees are passed through at Stripe&apos;s published rates and are deducted from each transaction before payout.</li>
                   <li><strong>Refunds:</strong> Refunds are processed through the FlowShop platform and returned to the customer&apos;s original payment method. Stripe processing fees on refunded transactions are not returned by Stripe.</li>
                   <li><strong>Chargebacks:</strong> Merchants are responsible for any chargebacks and associated fees. Excessive chargebacks (exceeding 1% of transactions) may result in store suspension.</li>
@@ -243,20 +243,14 @@ export default function EcommerceTermsPage() {
                   9. Fees & Billing
                 </h2>
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground leading-relaxed mb-4">
-                  <li><strong>Subscription Plans:</strong> FlowShop offers two plans:
-                    <ul className="list-disc pl-6 space-y-1 mt-1">
-                      <li><strong>FlowShop Basic</strong> &mdash; $5.00 USD per month. Includes all core store features, themes, AI tools, and the ability to connect your own domain.</li>
-                      <li><strong>FlowShop Pro</strong> &mdash; $12.00 USD per month. Includes everything in Basic plus 1 free domain registration (.com, .store, or .shop), domain auto-configuration with SSL, WHOIS privacy, priority AI processing, advanced analytics, AI customer chatbot, and abandoned cart recovery.</li>
-                    </ul>
-                  </li>
-                  <li><strong>Free Trial:</strong> Both plans include a 14-day free trial. A valid payment method (credit or debit card) must be on file, but will not be charged until the trial period ends.</li>
-                  <li><strong>Domain Registration:</strong> Domain registration is available at marketplace pricing ($9.99&ndash;$16.99/year depending on TLD). The Pro plan includes 1 free domain (up to $14.99/year value) with free renewal for the duration of your subscription.</li>
-                  <li><strong>Domain on Cancellation:</strong> If you cancel FlowShop Pro, your free domain converts to paid renewal at $14.99/year. You may transfer your domain to another registrar for free at any time.</li>
-                  <li><strong>Billing Cycle:</strong> Subscriptions are billed monthly on the anniversary of your activation date. Payment is automatically charged to your card on file.</li>
-                  <li><strong>Cancellation:</strong> You may cancel your FlowShop subscription at any time. Your store will remain active through the end of your current billing period. No partial refunds are provided for unused portions of a billing cycle.</li>
+                  <li><strong>Included Store Access:</strong> FlowShop access is included with an active FlowSmartly account and does not require a separate store subscription.</li>
+                  <li><strong>Product Listing Limit:</strong> Each FlowShop store includes 20 product listings. Merchants may unlock 5 additional product listing slots for 50 FlowSmartly credits.</li>
+                  <li><strong>Domain Registration:</strong> Domain registration is available at marketplace pricing ($9.99&ndash;$16.99/year depending on TLD). Domain renewals remain separate from FlowShop access.</li>
+                  <li><strong>Billing Cycle:</strong> FlowShop itself has no monthly store billing cycle. Credit purchases, domain registrations, and any separate FlowSmartly account subscription are handled under the applicable FlowSmartly billing terms.</li>
+                  <li><strong>Cancellation:</strong> Merchants may close their FlowShop store at any time. Closing a store does not cancel the merchant&apos;s broader FlowSmartly account plan.</li>
                   <li><strong>Transaction Fees:</strong> Stripe payment processing fees (currently 2.9% + $0.30 per transaction) are deducted by Stripe from each customer payment before payout to the Merchant.</li>
-                  <li><strong>No Hidden Charges:</strong> There are no setup fees, listing fees, commission on sales, or hidden charges beyond the monthly subscription and standard Stripe processing fees.</li>
-                  <li><strong>Failed Payments:</strong> If a subscription payment fails, FlowSmartly will attempt to charge your card up to 3 times over 7 days. If all attempts fail, your store may be temporarily deactivated until payment is resolved.</li>
+                  <li><strong>No Hidden Charges:</strong> There are no setup fees, commission on sales, or hidden monthly store charges beyond credit unlocks, domain purchases, and standard Stripe processing fees.</li>
+                  <li><strong>Account Standing:</strong> FlowShop access may be limited if the merchant&apos;s FlowSmartly account is inactive, suspended, or otherwise not in good standing.</li>
                 </ul>
               </section>
 
@@ -300,14 +294,14 @@ export default function EcommerceTermsPage() {
                   <li>Repeated customer complaints about product quality, fulfillment, or customer service</li>
                   <li>Sale of prohibited items</li>
                   <li>Legal or regulatory compliance requirements</li>
-                  <li>Non-payment of subscription fees</li>
+                  <li>Inactive, suspended, or non-compliant FlowSmartly account status</li>
                 </ul>
                 <h3 className="text-lg font-medium text-foreground mb-3">Voluntary Closure</h3>
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground leading-relaxed mb-4">
                   <li>Merchants may close their store at any time through their dashboard settings.</li>
                   <li>All active orders must be fulfilled or refunded before store closure.</li>
                   <li>Store data (products, orders, customer information) will be available for export for 30 days after closure.</li>
-                  <li>The subscription will be cancelled at the end of the current billing period.</li>
+                  <li>Any separately purchased domains, credits, or FlowSmartly account subscriptions are managed under their own billing terms.</li>
                   <li>After the 30-day export window, store data will be permanently deleted in accordance with our data retention policies.</li>
                 </ul>
               </section>
@@ -343,7 +337,7 @@ export default function EcommerceTermsPage() {
                   <li>Continued use of FlowShop after changes take effect constitutes acceptance of the updated terms.</li>
                   <li>Material changes that significantly affect Merchant rights or obligations will require explicit acknowledgment before taking effect.</li>
                   <li>Previous versions of these terms are archived and available upon request.</li>
-                  <li>If you do not agree to updated terms, you may close your store and cancel your subscription before the changes take effect.</li>
+                  <li>If you do not agree to updated terms, you may close your store before the changes take effect.</li>
                 </ul>
                 <p className="text-muted-foreground leading-relaxed">
                   For questions about these terms or to request archived versions, contact us at{" "}

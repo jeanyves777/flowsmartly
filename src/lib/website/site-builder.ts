@@ -36,6 +36,7 @@ import {
   fixGlobalsCss,
   fixUseSearchParams,
 } from "@/lib/build-utils/validators";
+import { ensureWebsiteBlogRoutes } from "@/lib/build-utils/website-blog-routes";
 import {
   allocatePort,
   startApp,
@@ -226,6 +227,9 @@ export async function buildSite(websiteId: string): Promise<{ success: boolean; 
     // Pre-build: inject Analytics + CookieConsent into layout.tsx if missing
     injectAnalytics(siteDir);
 
+    // Pre-build: replace AI-written blog pages with builder-owned working routes.
+    ensureWebsiteBlogRoutes(siteDir, "static");
+
     // Clear build cache so changes are picked up
     const nextCacheDir = join(siteDir, ".next");
     try { const { rmSync } = await import("fs"); rmSync(nextCacheDir, { recursive: true, force: true }); } catch {}
@@ -377,6 +381,17 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
   }
 
   try {
+    const website = await prisma.website.findUnique({
+      where: { id: websiteId },
+      select: { slug: true },
+    });
+
+    if (website?.slug) {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
+      writeFileSync(join(siteDir, "next.config.ts"), TEMPLATE_SSR_NEXT_CONFIG);
+      writeFileSync(join(siteDir, ".env.local"), getWebsiteEnvLocal(websiteId, website.slug, apiBaseUrl));
+    }
+
     await prisma.website.update({
       where: { id: websiteId },
       data: { buildStatus: "building" },
@@ -398,6 +413,7 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     fixTailwindV4Classes(siteDir);
     fixGlobalsCss(siteDir);
     fixUseSearchParams(siteDir);
+    ensureWebsiteBlogRoutes(siteDir, "ssr");
     const stubs = validateAndFixImports(siteDir);
     if (stubs.length > 0) {
       console.log(`[SiteBuilder:V3] Auto-fixed ${stubs.length} missing imports: ${stubs.join(", ")}`);
@@ -602,4 +618,3 @@ export function upgradeToV3(websiteId: string, slug: string): void {
     execSync("npm install --legacy-peer-deps", { cwd: siteDir, stdio: "ignore" });
   }
 }
-

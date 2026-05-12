@@ -5,6 +5,7 @@ import { generateSlug } from "@/lib/constants/ecommerce";
 import { triggerStoreRebuildIfV2 } from "@/lib/store-builder/product-sync";
 import { markStoreAsPending } from "@/lib/store-builder/pending-changes";
 import { scheduleStoreRebuild } from "@/lib/store-builder/auto-rebuild";
+import { getProductListingCapacity, productListingLimitError } from "@/lib/ecommerce/product-listing-limits";
 import { z } from "zod";
 
 // ── Validation Schemas ──
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true },
+      select: { id: true, settings: true },
     });
 
     if (!store) {
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    const [products, total] = await Promise.all([
+    const [products, total, listingLimit] = await Promise.all([
       prisma.product.findMany({
         where,
         orderBy,
@@ -152,6 +153,7 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.product.count({ where }),
+      getProductListingCapacity(store),
     ]);
 
     const totalPages = Math.ceil(total / limit);
@@ -172,6 +174,7 @@ export async function GET(request: NextRequest) {
         total,
         page,
         totalPages,
+        listingLimit,
       },
     });
   } catch (error) {
@@ -197,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     const store = await prisma.store.findUnique({
       where: { userId: session.userId },
-      select: { id: true },
+      select: { id: true, settings: true },
     });
 
     if (!store) {
@@ -218,6 +221,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
+    const listingLimit = await getProductListingCapacity(store);
+    if (!listingLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: productListingLimitError(listingLimit) },
+        { status: 403 }
+      );
+    }
 
     // Generate unique slug
     let slug = generateSlug(data.name);
@@ -300,6 +310,11 @@ export async function POST(request: NextRequest) {
         images: JSON.parse(product?.images || "[]"),
         tags: JSON.parse(product?.tags || "[]"),
         labels: JSON.parse(product?.labels || "[]"),
+        listingLimit: {
+          ...listingLimit,
+          used: listingLimit.used + 1,
+          remaining: Math.max(0, listingLimit.remaining - 1),
+        },
       },
     }, { status: 201 });
   } catch (error) {

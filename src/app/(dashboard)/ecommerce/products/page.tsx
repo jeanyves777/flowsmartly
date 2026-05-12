@@ -42,6 +42,14 @@ interface CategoryOption {
   children: CategoryOption[];
 }
 
+interface ListingLimit {
+  limit: number;
+  used: number;
+  remaining: number;
+  unlockCost: number;
+  unlockSize: number;
+}
+
 // ── Helpers ──
 
 function statusBadge(status: string) {
@@ -78,6 +86,8 @@ export default function ProductsListPage() {
 
   // Stats
   const [stats, setStats] = useState({ total: 0, active: 0, draft: 0, archived: 0 });
+  const [listingLimit, setListingLimit] = useState<ListingLimit | null>(null);
+  const [unlockingLimit, setUnlockingLimit] = useState(false);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -188,6 +198,7 @@ export default function ProductsListPage() {
         setProducts(json.data.products);
         setTotal(json.data.total);
         setTotalPages(json.data.totalPages);
+        if (json.data.listingLimit) setListingLimit(json.data.listingLimit);
       } else {
         toast({ title: json.error?.message || "Failed to load products", variant: "destructive" });
       }
@@ -262,6 +273,31 @@ export default function ProductsListPage() {
     }
   };
 
+  const unlockMoreListings = async () => {
+    setUnlockingLimit(true);
+    try {
+      const res = await fetch("/api/ecommerce/products/unlock-limit", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "Failed to unlock product listings");
+      }
+      setListingLimit(json.data);
+      toast({
+        title: "Product listings unlocked",
+        description: `Your store can now list ${json.data.limit} products.`,
+      });
+      fetchProducts();
+    } catch (error) {
+      toast({
+        title: "Could not unlock listings",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUnlockingLimit(false);
+    }
+  };
+
   // Flatten categories for dropdown
   const flatCategories: { id: string; name: string; depth: number }[] = [];
   function flattenCats(cats: CategoryOption[], depth = 0) {
@@ -289,11 +325,18 @@ export default function ProductsListPage() {
             AI Generate Products
           </button>
           <button
-            onClick={() => router.push("/ecommerce/products/new")}
+            onClick={() => {
+              if (listingLimit && listingLimit.remaining <= 0) {
+                unlockMoreListings();
+                return;
+              }
+              router.push("/ecommerce/products/new");
+            }}
+            disabled={unlockingLimit}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            New Product
+            {listingLimit && listingLimit.remaining <= 0 ? "Unlock More" : "New Product"}
           </button>
         </div>
       </div>
@@ -312,6 +355,27 @@ export default function ProductsListPage() {
           </div>
         ))}
       </div>
+
+      {listingLimit ? (
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Product listing capacity</p>
+            <p className="text-sm text-muted-foreground">
+              {listingLimit.used}/{listingLimit.limit} used. {listingLimit.remaining} remaining.
+            </p>
+          </div>
+          <button
+            onClick={unlockMoreListings}
+            disabled={unlockingLimit}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Package className="h-4 w-4" />
+            {unlockingLimit
+              ? "Unlocking..."
+              : `Unlock ${listingLimit.unlockSize} more for ${listingLimit.unlockCost} credits`}
+          </button>
+        </div>
+      ) : null}
 
       {/* Filter Bar */}
       <div className="bg-card rounded-lg border border-border p-4 space-y-3">

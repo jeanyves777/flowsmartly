@@ -23,15 +23,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
-import { StripeProvider } from "@/components/providers/stripe-provider";
-import { SubscriptionCheckoutModal } from "@/components/ecommerce/subscription-checkout-modal";
-import {
-  ECOM_PLAN_FEATURES,
-  ECOM_PLAN_NAMES,
-  ECOM_BASIC_PRICE_CENTS,
-  ECOM_PRO_PRICE_CENTS,
-  type EcomPlan,
-} from "@/lib/domains/pricing";
 
 interface StoreData {
   id: string;
@@ -93,8 +84,7 @@ export default function EcommercePage() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<EcomPlan | undefined>(undefined);
+  const [activating, setActivating] = useState(false);
   const [store, setStore] = useState<StoreData | null>(null);
 
   useEffect(() => {
@@ -127,13 +117,30 @@ export default function EcommercePage() {
     }
   }
 
-  function handleCheckoutSuccess() {
-    toast({
-      title: "FlowShop activated!",
-      description: "Your free trial has started. Let's set up your store!",
-    });
-    setCheckoutOpen(false);
-    router.push("/ecommerce/onboarding");
+  async function activateFlowShop() {
+    try {
+      setActivating(true);
+      const res = await fetch("/api/ecommerce/activate", { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "Failed to activate FlowShop");
+      }
+
+      toast({
+        title: "FlowShop activated",
+        description: "Your store includes 20 product listings. Add 5 more anytime for 50 credits.",
+      });
+      router.push("/ecommerce/onboarding");
+    } catch (error) {
+      toast({
+        title: "Could not activate FlowShop",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActivating(false);
+    }
   }
 
   if (loading) {
@@ -377,130 +384,52 @@ export default function EcommercePage() {
         </div>
       </section>
 
-      {/* ── Plan Cards ── */}
+      {/* ── Included Access ── */}
       <section id="activate">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold">Choose Your Plan</h2>
-          <p className="text-muted-foreground mt-2">Start free. Choose the plan that fits your business.</p>
+          <h2 className="text-3xl font-bold">Included With Your FlowSmartly Account</h2>
+          <p className="text-muted-foreground mt-2">No separate FlowShop subscription. Start with 20 product listings and unlock more with credits.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {/* Basic Plan */}
-          <div className="rounded-2xl border-2 border-border bg-card shadow-lg overflow-hidden hover:border-violet-300 transition-colors">
-            <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-5 text-center text-white">
-              <ShoppingBag className="h-8 w-8 mx-auto mb-2" />
-              <h3 className="text-xl font-bold">{ECOM_PLAN_NAMES.basic}</h3>
-              <p className="text-white/70 text-xs mt-1">Everything you need to start selling</p>
+        <div className="mx-auto max-w-3xl rounded-2xl border bg-card p-6 shadow-lg sm:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                No monthly store fee
+              </div>
+              <h3 className="text-2xl font-bold">FlowShop Free Access</h3>
+              <p className="mt-2 text-muted-foreground">
+                Build your storefront, connect payments, publish up to 20 products, and unlock 5 extra listings for 50 credits when you grow.
+              </p>
             </div>
-
-            <div className="p-6">
-              <div className="text-center mb-5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
-                  30-Day Free Trial
-                </div>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold">${(ECOM_BASIC_PRICE_CENTS / 100).toFixed(0)}</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">No credit card required</p>
-              </div>
-
-              <div className="space-y-2.5 mb-6">
-                {ECOM_PLAN_FEATURES.basic.map((feature) => (
-                  <div key={feature} className="flex items-start gap-2.5">
-                    <div className="h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <span className="text-sm">{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <Button
-                onClick={() => {
-                  setSelectedPlan("basic");
-                  setCheckoutOpen(true);
-                }}
-                variant="outline"
-                className="w-full h-11 text-base"
-                size="lg"
-              >
-                Start Free Trial
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+            <div className="rounded-2xl bg-muted/60 px-6 py-5 text-center">
+              <p className="text-4xl font-extrabold">$0</p>
+              <p className="text-sm text-muted-foreground">with active account</p>
             </div>
           </div>
 
-          {/* Pro Plan */}
-          <div className="relative rounded-2xl border-2 border-violet-400 dark:border-violet-600 bg-card shadow-xl overflow-hidden">
-            {/* Best value badge */}
-            <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 text-white text-xs font-semibold shadow-md">
-              <Star className="h-3 w-3" />
-              BEST VALUE
-            </div>
-
-            <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600 px-6 py-5 text-center text-white">
-              <ShoppingBag className="h-8 w-8 mx-auto mb-2" />
-              <h3 className="text-xl font-bold">{ECOM_PLAN_NAMES.pro}</h3>
-              <p className="text-white/80 text-xs mt-1">Grow faster with premium features</p>
-            </div>
-
-            <div className="p-6">
-              <div className="text-center mb-5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
-                  14-Day Free Trial
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {["20 products included", "50 credits unlock 5 more", "AI product support", "Secure checkout ready"].map((feature) => (
+              <div key={feature} className="flex items-start gap-2.5 rounded-lg border bg-background p-3">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold">${(ECOM_PRO_PRICE_CENTS / 100).toFixed(0)}</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">After trial ends. Cancel anytime.</p>
+                <span className="text-sm font-medium">{feature}</span>
               </div>
-
-              <div className="space-y-2.5 mb-6">
-                {ECOM_PLAN_FEATURES.pro.map((feature) => (
-                  <div key={feature} className="flex items-start gap-2.5">
-                    <div className="h-5 w-5 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Check className="h-3 w-3 text-violet-600 dark:text-violet-400" />
-                    </div>
-                    <span className="text-sm">{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <Button
-                onClick={() => {
-                  setSelectedPlan("pro");
-                  setCheckoutOpen(true);
-                }}
-                className="w-full h-11 text-base bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 shadow-lg shadow-violet-500/25"
-                size="lg"
-              >
-                Start Free Trial
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
+            ))}
           </div>
-        </div>
 
-        <p className="text-xs text-center text-muted-foreground mt-4">
-          Basic: 30-day trial, no card required. Pro: 14-day trial, card required.
-        </p>
+          <Button
+            onClick={activateFlowShop}
+            disabled={activating}
+            className="mt-7 h-12 w-full text-base"
+            size="lg"
+          >
+            {activating ? "Activating..." : "Activate FlowShop"}
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
       </section>
-
-      {/* Subscription Checkout Modal */}
-      <StripeProvider>
-        <SubscriptionCheckoutModal
-          open={checkoutOpen}
-          onClose={() => {
-            setCheckoutOpen(false);
-            setSelectedPlan(undefined);
-          }}
-          onSuccess={handleCheckoutSuccess}
-          initialPlan={selectedPlan}
-        />
-      </StripeProvider>
 
       {/* ── Dashboard Preview SVG ── */}
       <section>
