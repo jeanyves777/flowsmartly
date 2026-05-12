@@ -612,6 +612,36 @@ export function fixDuplicateBasePathImages(siteDir: string): void {
 }
 
 /**
+ * Keep gallery card hover overlays scoped to the image card. Without `relative`
+ * on the clickable card, an `absolute inset-0` hover layer can cover the whole
+ * gallery page and steal clicks from category filters.
+ */
+export function fixGalleryOverlayLayout(siteDir: string): void {
+  const files = collectSourceFiles(join(siteDir, "src"));
+  let fixCount = 0;
+
+  for (const file of files) {
+    let content = readFileSync(file, "utf-8");
+    if (!content.includes("setSelectedImage") || !content.includes("absolute inset-0")) continue;
+
+    const original = content;
+    content = content.replace(
+      /className="((?=[^"]*\bgroup\b)(?=[^"]*\bcursor-pointer\b)(?![^"]*\brelative\b)[^"]*)"/g,
+      'className="relative $1"'
+    );
+
+    if (content !== original) {
+      writeFileSync(file, content, "utf-8");
+      fixCount++;
+    }
+  }
+
+  if (fixCount > 0) {
+    console.log(`[BuildUtils] Fixed gallery overlay layout in ${fixCount} files`);
+  }
+}
+
+/**
  * Fixes tiny logo in Footer component — same h-4/h-6/h-8 problem as Header.
  */
 export function fixFooterLogoSize(siteDir: string): void {

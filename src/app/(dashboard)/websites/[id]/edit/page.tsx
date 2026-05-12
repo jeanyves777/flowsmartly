@@ -74,6 +74,8 @@ export default function WebsiteEditPage() {
   const [pickerCallback, setPickerCallback] = useState<((url: string) => void) | null>(null);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [previewNonce, setPreviewNonce] = useState(() => Date.now());
+  const [selectedGalleryCategory, setSelectedGalleryCategory] = useState("All");
+  const [pendingGalleryCategories, setPendingGalleryCategories] = useState<string[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -207,6 +209,19 @@ export default function WebsiteEditPage() {
     const res = await fetch(`/api/websites/${id}/upload-image`, { method: "POST", body: fd });
     const d = await res.json();
     return d.path || "";
+  };
+
+  const addGalleryCategory = () => {
+    const category = window.prompt("Gallery category name");
+    const name = category?.trim();
+    if (!name) return;
+    setPendingGalleryCategories((categories) => categories.includes(name) ? categories : [...categories, name]);
+    setSelectedGalleryCategory(name);
+  };
+
+  const addGalleryImage = (category?: string) => {
+    const nextCategory = category && category !== "All" ? category : selectedGalleryCategory !== "All" ? selectedGalleryCategory : "";
+    openPicker((url) => update("galleryImages", [...(data?.galleryImages || []), { src: url, alt: "", category: nextCategory }]));
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><AISpinner className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -701,12 +716,50 @@ export default function WebsiteEditPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Gallery Images ({data.galleryImages?.length || 0})</h2>
-            <button onClick={() => openPicker((url) => update("galleryImages", [...(data.galleryImages || []), { src: url, alt: "", category: "" }]))} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Image</button>
+            <div className="flex items-center gap-2">
+              <button onClick={addGalleryCategory} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted"><Plus className="w-3.5 h-3.5" /> New Category</button>
+              <button onClick={() => addGalleryImage()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Image</button>
+            </div>
           </div>
+          {(() => {
+            const categories = Array.from(new Set([
+              ...(data.galleryImages || []).map((img) => String(img.category || "").trim()).filter(Boolean),
+              ...pendingGalleryCategories,
+            ]));
+            const activeCategory = selectedGalleryCategory === "All" || categories.includes(selectedGalleryCategory) ? selectedGalleryCategory : "All";
+            const images = (data.galleryImages || [])
+              .map((img, index) => ({ img, index }))
+              .filter(({ img }) => activeCategory === "All" || String(img.category || "").trim() === activeCategory);
+
+            return (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {["All", ...categories].map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedGalleryCategory(category)}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${activeCategory === category ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:bg-muted text-muted-foreground"}`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                  {categories.length === 0 && (
+                    <span className="text-sm text-muted-foreground">Create a category, then add images to it.</span>
+                  )}
+                </div>
+                {activeCategory !== "All" && (
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+                    <div>
+                      <p className="text-sm font-medium">{activeCategory}</p>
+                      <p className="text-xs text-muted-foreground">{images.length} image{images.length === 1 ? "" : "s"} in this category</p>
+                    </div>
+                    <button onClick={() => addGalleryImage(activeCategory)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add to Category</button>
+                  </div>
+                )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {(data.galleryImages || []).map((img, i) => (
-              <div key={i} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+            {images.map(({ img, index: i }) => (
+              <div key={i} className="group">
+                <div className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted">
                   {img.src ? (
                     <img src={img.src} alt={img.alt} className="w-full h-full object-cover" />
                   ) : (
@@ -722,6 +775,15 @@ export default function WebsiteEditPage() {
               </div>
             ))}
           </div>
+          {images.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border p-8 text-center">
+              <p className="text-sm text-muted-foreground mb-3">No images in this category yet.</p>
+              <button onClick={() => addGalleryImage(activeCategory)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg"><Plus className="w-3.5 h-3.5" /> Add Image</button>
+            </div>
+          )}
+              </>
+            );
+          })()}
         </div>
       )}
 
