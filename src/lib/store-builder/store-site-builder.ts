@@ -16,7 +16,10 @@ import { join } from "path";
 const REFERENCE_BASE = process.env.REFERENCE_STORE_PATH
   || (process.platform === "win32"
     ? join(process.cwd(), "reference-store", "src")
-    : "/opt/reference-store/src");
+    : [
+        "/opt/flowsmartly/reference-store/src",
+        "/opt/reference-store/src",
+      ].find((candidate) => existsSync(candidate)) || "/opt/reference-store/src");
 import { prisma } from "@/lib/db/client";
 import {
   TEMPLATE_STORE_PACKAGE_JSON,

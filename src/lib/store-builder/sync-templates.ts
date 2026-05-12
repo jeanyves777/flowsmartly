@@ -18,8 +18,8 @@ import { join, dirname } from "path";
 import { injectColorScale } from "./inject-color-scale";
 
 const REFERENCE_CANDIDATES = [
-  "/opt/reference-store",
   "/opt/flowsmartly/reference-store",
+  "/opt/reference-store",
 ];
 
 const TEMPLATE_FILES: readonly string[] = [
