@@ -487,6 +487,28 @@ export function fixHeaderLayout(siteDir: string): void {
   let content = readFileSync(headerPath, "utf-8");
   const original = content;
 
+  const normalizeLogoClasses = (classes: string): string => {
+    const cleaned = classes
+      .replace(/\b(?:sm:|md:|lg:|xl:)?h-(?:\[[^\]]+\]|\d+|auto|full|screen)\b/g, "")
+      .replace(/\bmax-w-(?:\[[^\]]+\]|[^\s"]+)\b/g, "")
+      .replace(/\bobject-(?:contain|cover|fill|none|scale-down)\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const pieces = ["h-10", "sm:h-12", "md:h-14", "max-w-[200px]", "w-auto", "object-contain"];
+    if (cleaned) pieces.push(cleaned);
+    return pieces.join(" ");
+  };
+
+  content = content.replace(/<img\b[^>]*>/g, (tag) => {
+    if (!/(alt=["']Logo["']|src=["'][^"']*(?:brand|logo)[^"']*["'])/i.test(tag)) return tag;
+    if (/className=["'][^"']*["']/.test(tag)) {
+      return tag.replace(/className=(["'])([^"']*)\1/, (_match, quote, classes) => {
+        return `className=${quote}${normalizeLogoClasses(classes)}${quote}`;
+      });
+    }
+    return tag.replace("<img", `<img className="${normalizeLogoClasses("")}"`);
+  });
+
   // 1. Fix tiny logo: replace small h- values on <img> tags that are the logo
   //    Matches: h-4, h-5, h-6, h-7, h-8, h-9 NOT followed by 0 (keeps h-10+)
   //    Only targets <img className="...h-{4-9}..." (not other imgs)
@@ -597,6 +619,31 @@ export function fixGlobalsCss(siteDir: string): void {
 
   let css = readFileSync(globalsCss, "utf-8");
   const original = css;
+
+  // Tailwind v4 no longer uses the v3 `@tailwind base/components/utilities`
+  // entrypoint. Older generated sites may still have those directives, which
+  // compiles into an almost-empty stylesheet and makes the public site render
+  // like raw HTML after a rebuild.
+  const hasTailwindImport = /@import\s+["']tailwindcss["'];?/i.test(css);
+  const hasV3Directives = /@tailwind\s+(base|components|utilities)\s*;/i.test(css);
+  if (!hasTailwindImport || hasV3Directives) {
+    css = css.replace(/^\s*@tailwind\s+(base|components|utilities)\s*;\s*/gim, "");
+
+    const rootThemeVars = Array.from(
+      css.match(/:root\s*\{([\s\S]*?)\}/)?.[1].matchAll(/^\s*(--(?:color|font)-[\w-]+)\s*:\s*([^;]+);/gim) || []
+    )
+      .map((match) => `  ${match[1]}: ${match[2].trim()};`)
+      .filter((line, index, lines) => lines.indexOf(line) === index);
+
+    const tailwindHeader = [
+      `@import "tailwindcss";`,
+      css.includes(`@plugin "@tailwindcss/typography"`) ? "" : `@plugin "@tailwindcss/typography";`,
+      css.includes("@custom-variant dark") ? "" : `@custom-variant dark (&:where(.dark, .dark *));`,
+      css.includes("@theme") || rootThemeVars.length === 0 ? "" : `@theme {\n${rootThemeVars.join("\n")}\n}`,
+    ].filter(Boolean).join("\n");
+
+    css = `${tailwindHeader}\n\n${css.trimStart()}`;
+  }
 
   // 1. Replace @apply inside @keyframes with raw CSS equivalents
   css = css.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}/g, (match) => {

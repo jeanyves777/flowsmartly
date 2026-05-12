@@ -34,6 +34,8 @@ import {
   cleanupV3Patterns,
   fixTailwindV4Classes,
   fixGlobalsCss,
+  fixHeaderLayout,
+  fixFooterLogoSize,
   fixUseSearchParams,
 } from "@/lib/build-utils/validators";
 import { ensureWebsiteBlogRoutes } from "@/lib/build-utils/website-blog-routes";
@@ -412,6 +414,8 @@ export async function buildSiteV3(websiteId: string): Promise<{ success: boolean
     cleanupV3Patterns(siteDir);
     fixTailwindV4Classes(siteDir);
     fixGlobalsCss(siteDir);
+    fixHeaderLayout(siteDir);
+    fixFooterLogoSize(siteDir);
     fixUseSearchParams(siteDir);
     ensureWebsiteBlogRoutes(siteDir, "ssr");
     const stubs = validateAndFixImports(siteDir);
