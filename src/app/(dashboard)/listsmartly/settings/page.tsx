@@ -41,10 +41,18 @@ interface ProfileData {
 }
 
 interface SubscriptionData {
-  plan: "basic" | "pro";
-  status: "trialing" | "active" | "canceled" | "past_due";
-  trialEndsAt: string | null;
-  currentPeriodEnd: string | null;
+  active: boolean;
+  status: string;
+  creditStatus: string;
+  planName: string;
+  unlockCost: number;
+  monthlyCost: number;
+  creditsAvailable: number;
+  planEligible: boolean;
+  unlockedAt: string | null;
+  lastCreditChargeAt: string | null;
+  nextCreditChargeAt: string | null;
+  creditFailureReason: string | null;
 }
 
 const INDUSTRIES = [
@@ -104,25 +112,28 @@ export default function ListSmartlySettingsPage() {
       const res = await fetch("/api/listsmartly/profile");
       if (!res.ok) throw new Error("Failed to fetch profile");
       const data = await res.json();
+      const profileData = data.data?.profile || {};
+      const hours = profileData.hours || {};
+      const socialLinks = profileData.socialLinks || {};
       setProfile({
-        businessName: data.businessName || "",
-        phone: data.phone || "",
-        email: data.email || "",
-        website: data.website || "",
-        address: data.address || "",
-        city: data.city || "",
-        state: data.state || "",
-        zip: data.zip || "",
-        country: data.country || "US",
-        industry: data.industry || "",
-        description: data.description || "",
-        hoursMonFri: data.hoursMonFri || "",
-        hoursSat: data.hoursSat || "",
-        hoursSun: data.hoursSun || "",
-        socialFacebook: data.socialFacebook || "",
-        socialInstagram: data.socialInstagram || "",
-        socialTwitter: data.socialTwitter || "",
-        socialLinkedin: data.socialLinkedin || "",
+        businessName: profileData.businessName || "",
+        phone: profileData.phone || "",
+        email: profileData.email || "",
+        website: profileData.website || "",
+        address: profileData.address || "",
+        city: profileData.city || "",
+        state: profileData.state || "",
+        zip: profileData.zip || "",
+        country: profileData.country || "US",
+        industry: profileData.industry || "",
+        description: profileData.description || "",
+        hoursMonFri: hours.monFri || profileData.hoursMonFri || "",
+        hoursSat: hours.sat || profileData.hoursSat || "",
+        hoursSun: hours.sun || profileData.hoursSun || "",
+        socialFacebook: socialLinks.facebook || profileData.socialFacebook || "",
+        socialInstagram: socialLinks.instagram || profileData.socialInstagram || "",
+        socialTwitter: socialLinks.twitter || profileData.socialTwitter || "",
+        socialLinkedin: socialLinks.linkedin || profileData.socialLinkedin || "",
       });
     } catch {
       toast({ title: "Error", description: "Failed to load profile", variant: "destructive" });
@@ -134,7 +145,7 @@ export default function ListSmartlySettingsPage() {
       const res = await fetch("/api/listsmartly/subscription");
       if (!res.ok) return;
       const data = await res.json();
-      setSubscription(data);
+      setSubscription(data.data || null);
     } catch {
       // Non-critical
     }
@@ -159,9 +170,22 @@ export default function ListSmartlySettingsPage() {
     setSaving(true);
     try {
       const res = await fetch("/api/listsmartly/profile", {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({
+          ...profile,
+          hours: {
+            monFri: profile.hoursMonFri,
+            sat: profile.hoursSat,
+            sun: profile.hoursSun,
+          },
+          socialLinks: {
+            facebook: profile.socialFacebook,
+            instagram: profile.socialInstagram,
+            twitter: profile.socialTwitter,
+            linkedin: profile.socialLinkedin,
+          },
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -282,7 +306,7 @@ export default function ListSmartlySettingsPage() {
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">ListSmartly Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage your profile, subscription, and preferences.</p>
+        <p className="text-sm text-muted-foreground">Manage your profile, credit-backed access, and preferences.</p>
       </div>
 
       {/* Profile Form */}
@@ -536,12 +560,12 @@ export default function ListSmartlySettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Subscription */}
+      {/* Access */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Subscription
+            ListSmartly Access
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -550,62 +574,75 @@ export default function ListSmartlySettingsPage() {
               <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {subscription.plan === "pro" ? "Pro" : "Basic"} Plan
+                    {subscription.planName || "Included with FlowSmartly"}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge
                       variant="secondary"
                       className={
-                        subscription.status === "active" || subscription.status === "trialing"
+                        subscription.active
                           ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                          : subscription.status === "canceled"
+                          : subscription.status === "past_due" || subscription.status === "plan_required"
                           ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                           : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                       }
                     >
-                      {subscription.status === "trialing" ? "Trial" : subscription.status}
+                      {subscription.status.replace("_", " ")}
                     </Badge>
-                    {subscription.trialEndsAt && subscription.status === "trialing" && (
+                    {subscription.nextCreditChargeAt && subscription.active && (
                       <span className="text-xs text-muted-foreground">
-                        Trial ends {new Date(subscription.trialEndsAt).toLocaleDateString()}
+                        Next credit charge {new Date(subscription.nextCreditChargeAt).toLocaleDateString()}
                       </span>
                     )}
                   </div>
+                  {subscription.creditFailureReason && (
+                    <p className="text-xs text-red-500 mt-2">{subscription.creditFailureReason}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-foreground">
-                    ${subscription.plan === "pro" ? "15" : "7"}
+                    {subscription.creditsAvailable.toLocaleString()}
                   </p>
-                  <p className="text-xs text-muted-foreground">/month</p>
+                  <p className="text-xs text-muted-foreground">credits available</p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {subscription.plan === "basic" && subscription.status !== "canceled" && (
-                  <Button size="sm" onClick={() => handlePlanChange("pro")}>
-                    <ArrowUp className="h-4 w-4 mr-1" />
-                    Upgrade to Pro
-                  </Button>
-                )}
-                {subscription.plan === "pro" && subscription.status !== "canceled" && (
-                  <Button size="sm" variant="outline" onClick={() => handlePlanChange("basic")}>
-                    <ArrowDown className="h-4 w-4 mr-1" />
-                    Downgrade to Basic
-                  </Button>
-                )}
-                {subscription.status !== "canceled" && (
-                  <Button size="sm" variant="outline" onClick={handleCancel}>
-                    Cancel Subscription
-                  </Button>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">First unlock</p>
+                  <p className="font-semibold text-foreground">{subscription.unlockCost} credits</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Monthly keep-active</p>
+                  <p className="font-semibold text-foreground">{subscription.monthlyCost} credits</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Last charge</p>
+                  <p className="font-semibold text-foreground">
+                    {subscription.lastCreditChargeAt
+                      ? new Date(subscription.lastCreditChargeAt).toLocaleDateString()
+                      : "Not charged yet"}
+                  </p>
+                </div>
               </div>
+
+              {!subscription.planEligible && (
+                <Button size="sm" onClick={() => router.push("/settings/upgrade")}>
+                  Upgrade FlowSmartly Plan
+                </Button>
+              )}
+              {subscription.status === "past_due" && (
+                <Button size="sm" onClick={() => router.push("/buy-credits")}>
+                  Buy Credits
+                </Button>
+              )}
             </>
           ) : (
             <div className="text-center py-6">
               <CreditCard className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No active subscription</p>
+              <p className="text-sm text-muted-foreground">ListSmartly access is not active</p>
               <Button size="sm" className="mt-3" onClick={() => router.push("/listsmartly/onboarding")}>
-                Choose a Plan
+                Unlock Access
               </Button>
             </div>
           )}

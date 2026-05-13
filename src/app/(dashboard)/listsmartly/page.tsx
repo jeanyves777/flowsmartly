@@ -82,21 +82,18 @@ const DIRECTORY_TIERS = [
 ];
 
 const BASIC_FEATURES = [
-  "Manual listing management",
-  "Consistency checking across directories",
-  "Citation score tracking",
-  "Basic analytics dashboard",
-  "Email support",
+  "Included with any active FlowSmartly plan",
+  "First-time unlock costs 500 credits",
+  "Listing sync, reviews, AI Autopilot, and reports are included",
+  "No separate ListSmartly Stripe subscription",
 ];
 
 const PRO_FEATURES = [
-  "Everything in Basic",
+  "250 credits are deducted monthly",
   "AI Autopilot — auto-fix inconsistencies",
-  "Review Command Center with AI responses",
-  "Monthly AI presence reports",
-  "Sentiment analysis on reviews",
-  "Competitor tracking & benchmarking",
-  "Priority support",
+  "Credits are taken from the user's available balance",
+  "Access pauses if the main plan or credits are missing",
+  "Admins can see credit status and next renewal date",
 ];
 
 const HOW_IT_WORKS = [
@@ -125,7 +122,6 @@ export default function ListSmartlyEntryPage() {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro" | null>(null);
   const [activating, setActivating] = useState(false);
 
   useEffect(() => {
@@ -138,16 +134,16 @@ export default function ListSmartlyEntryPage() {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
-          const profile = json.data;
-          const status = profile.lsSubscriptionStatus || profile.subscriptionStatus || "inactive";
-          const isSubscribed = ["active", "trialing", "free_trial"].includes(status);
+          const profile = json.data.profile;
+          const access = json.data.access;
+          const isActive = Boolean(access?.active);
 
-          if (isSubscribed && profile.setupComplete) {
+          if (isActive && profile?.setupComplete) {
             router.replace("/listsmartly/dashboard");
             return;
           }
           // Profile exists but onboarding not complete — resume
-          if (isSubscribed || status !== "inactive") {
+          if (isActive) {
             router.replace("/listsmartly/onboarding");
             return;
           }
@@ -161,36 +157,30 @@ export default function ListSmartlyEntryPage() {
     }
   }
 
-  async function handleActivate(plan: "basic" | "pro") {
-    setSelectedPlan(plan);
+  async function handleActivate() {
     setActivating(true);
     try {
       const res = await fetch("/api/listsmartly/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({}),
       });
       const json = await res.json();
 
       // Profile already exists (409) — just resume onboarding
-      if (res.status === 409) {
-        router.push("/listsmartly/onboarding");
-        return;
-      }
-
       if (json.success) {
         toast({
           title: "ListSmartly activated!",
           description:
-            plan === "basic"
-              ? "Your 30-day free trial has started. Let's set up your business!"
-              : "Your 14-day free trial has started. Let's set up your business!",
+            json.data?.chargedCredits > 0
+              ? `${json.data.chargedCredits} credits were used to unlock ListSmartly.`
+              : "Your included ListSmartly access is active.",
         });
         router.push("/listsmartly/onboarding");
       } else {
         toast({
           title: "Activation failed",
-          description: json.error?.message || "Something went wrong. Please try again.",
+          description: json.error?.message || json.error || "Something went wrong. Please try again.",
           variant: "destructive",
         });
       }
@@ -560,9 +550,9 @@ export default function ListSmartlyEntryPage() {
       {/* ── Pricing Plans ── */}
       <section id="pricing">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold">Choose Your Plan</h2>
+          <h2 className="text-3xl font-bold">Included With Your FlowSmartly Plan</h2>
           <p className="text-muted-foreground mt-2">
-            Start free. Choose the plan that fits your business.
+            Unlock once with credits, then keep ListSmartly active from the user's available credit balance.
           </p>
         </div>
 
@@ -571,26 +561,26 @@ export default function ListSmartlyEntryPage() {
           <div className="rounded-2xl border-2 border-border bg-card shadow-lg overflow-hidden hover:border-teal-300 transition-colors">
             <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-6 py-5 text-center text-white">
               <MapPin className="h-8 w-8 mx-auto mb-2" />
-              <h3 className="text-xl font-bold">Basic</h3>
+              <h3 className="text-xl font-bold">First-Time Unlock</h3>
               <p className="text-white/70 text-xs mt-1">
-                Everything you need to manage your listings
+                One credit unlock for FlowSmartly plan users
               </p>
             </div>
 
             <div className="p-6">
               <div className="text-center mb-5">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
-                  30-Day Free Trial
+                  No separate subscription
                 </div>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold">$7</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
+                  <span className="text-4xl font-extrabold">500</span>
+                  <span className="text-muted-foreground text-lg">credits</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  After trial ends. Cancel anytime.
+                  Charged once when ListSmartly is first unlocked.
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                  No credit card required
+                  Requires an active FlowSmartly plan
                 </p>
               </div>
 
@@ -606,18 +596,14 @@ export default function ListSmartlyEntryPage() {
               </div>
 
               <Button
-                onClick={() => handleActivate("basic")}
+                onClick={handleActivate}
                 disabled={activating}
                 variant="outline"
                 className="w-full h-11 text-base"
                 size="lg"
               >
-                {activating && selectedPlan === "basic"
-                  ? "Activating..."
-                  : "Start Free Trial"}
-                {!(activating && selectedPlan === "basic") && (
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                )}
+                {activating ? "Unlocking..." : "Unlock ListSmartly"}
+                {!activating && <ArrowRight className="h-4 w-4 ml-2" />}
               </Button>
             </div>
           </div>
@@ -627,28 +613,28 @@ export default function ListSmartlyEntryPage() {
             {/* Best value badge */}
             <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white text-xs font-semibold shadow-md">
               <Star className="h-3 w-3" />
-              BEST VALUE
+              KEEP ACTIVE
             </div>
 
             <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 px-6 py-5 text-center text-white">
               <MapPin className="h-8 w-8 mx-auto mb-2" />
-              <h3 className="text-xl font-bold">Pro</h3>
+              <h3 className="text-xl font-bold">Monthly Keep-Active</h3>
               <p className="text-white/80 text-xs mt-1">
-                Grow faster with AI-powered features
+                Automatic credit billing keeps the listing system running
               </p>
             </div>
 
             <div className="p-6">
               <div className="text-center mb-5">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium mb-3">
-                  14-Day Free Trial
+                  Automatic monthly credit deduction
                 </div>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-extrabold">$15</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
+                  <span className="text-4xl font-extrabold">250</span>
+                  <span className="text-muted-foreground text-lg">credits/month</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  After trial ends. Cancel anytime.
+                  Deducted from available credits while the main plan is active.
                 </p>
               </div>
 
@@ -664,25 +650,20 @@ export default function ListSmartlyEntryPage() {
               </div>
 
               <Button
-                onClick={() => handleActivate("pro")}
+                onClick={handleActivate}
                 disabled={activating}
                 className="w-full h-11 text-base bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 shadow-lg shadow-teal-500/25"
                 size="lg"
               >
-                {activating && selectedPlan === "pro"
-                  ? "Activating..."
-                  : "Start Free Trial"}
-                {!(activating && selectedPlan === "pro") && (
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                )}
+                {activating ? "Unlocking..." : "Unlock ListSmartly"}
+                {!activating && <ArrowRight className="h-4 w-4 ml-2" />}
               </Button>
             </div>
           </div>
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-4">
-          Basic: 30-day trial, no card required. Pro: 14-day trial, card
-          required.
+          ListSmartly no longer has its own paid plan. It is tied to the main FlowSmartly subscription.
         </p>
       </section>
 

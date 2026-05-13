@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { buildListSmartlyAccess } from "@/lib/listsmartly/billing";
 
 // GET /api/listsmartly/profile - Fetch user's ListSmartly profile
 export async function GET() {
@@ -13,9 +14,15 @@ export async function GET() {
       );
     }
 
-    const profile = await prisma.listSmartlyProfile.findUnique({
-      where: { userId: session.userId },
-    });
+    const [profile, user] = await Promise.all([
+      prisma.listSmartlyProfile.findUnique({
+        where: { userId: session.userId },
+      }),
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { plan: true, aiCredits: true, deletedAt: true },
+      }),
+    ]);
 
     // Fetch brand kit as fallback data source
     const brandKit = await prisma.brandKit.findFirst({
@@ -45,6 +52,7 @@ export async function GET() {
               description: brandKit.description,
             }
           : null,
+        access: buildListSmartlyAccess(profile, user),
       },
     });
   } catch (error) {
@@ -99,7 +107,7 @@ export async function PUT(request: NextRequest) {
       "businessName", "phone", "email", "website", "address",
       "city", "state", "zip", "country", "industry", "categories",
       "description", "shortDescription", "hours", "serviceArea",
-      "yearFounded", "socialLinks", "lsPlan", "setupComplete",
+      "yearFounded", "socialLinks", "setupComplete",
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -136,6 +144,35 @@ export async function PUT(request: NextRequest) {
     console.error("Update ListSmartly profile error:", error);
     return NextResponse.json(
       { success: false, error: { message: "Failed to update profile" } },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  return PUT(request);
+}
+
+// DELETE /api/listsmartly/profile - Remove ListSmartly profile data
+export async function DELETE() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { message: "Unauthorized" } },
+        { status: 401 }
+      );
+    }
+
+    await prisma.listSmartlyProfile.deleteMany({
+      where: { userId: session.userId },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete ListSmartly profile error:", error);
+    return NextResponse.json(
+      { success: false, error: { message: "Failed to delete profile" } },
       { status: 500 }
     );
   }

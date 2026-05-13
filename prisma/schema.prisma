@@ -4399,12 +4399,20 @@ model ListSmartlyProfile {
   photos           String  @default("[]")
   socialLinks      String  @default("{}")
 
-  // Subscription (add-on)
+  // Legacy add-on subscription fields (kept for historical Stripe records)
   lsSubscriptionId     String?
   lsSubscriptionStatus String    @default("inactive")
   lsPlan               String    @default("basic")
   freeTrialStartedAt   DateTime?
   freeTrialEndsAt      DateTime?
+
+  // Credit-backed access
+  listSmartlyCreditStatus        String    @default("locked") // locked, active, past_due
+  listSmartlyUnlockedAt          DateTime?
+  listSmartlyLastCreditChargeAt  DateTime?
+  listSmartlyNextCreditChargeAt  DateTime?
+  listSmartlyLastCreditFailureAt DateTime?
+  listSmartlyCreditFailureReason String?
 
   // Onboarding
   setupComplete  Boolean @default(false)
@@ -4427,6 +4435,8 @@ model ListSmartlyProfile {
   syncJobs        ListingSyncJob[]
 
   @@index([userId])
+  @@index([listSmartlyCreditStatus])
+  @@index([listSmartlyNextCreditChargeAt])
 }
 
 model ListingDirectory {

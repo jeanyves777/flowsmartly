@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
+import {
+  buildListSmartlyAccess,
+  LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+} from "@/lib/listsmartly/billing";
 
 // GET /api/admin/listsmartly - List all ListSmartly profiles
 export async function GET(request: NextRequest) {
@@ -31,7 +35,7 @@ export async function GET(request: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, plan: true, aiCredits: true, deletedAt: true } },
           _count: { select: { listings: true, reviews: true } },
         },
       }),
@@ -39,7 +43,14 @@ export async function GET(request: NextRequest) {
       Promise.all([
         prisma.listSmartlyProfile.count(),
         prisma.listSmartlyProfile.count({ where: { setupComplete: true } }),
-        prisma.listSmartlyProfile.count({ where: { lsSubscriptionStatus: "active" } }),
+        prisma.listSmartlyProfile.count({
+          where: {
+            OR: [
+              { listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_ACTIVE },
+              { lsSubscriptionStatus: { in: ["active", "trialing"] } },
+            ],
+          },
+        }),
         prisma.businessListing.count(),
         prisma.listSmartlyProfile.aggregate({ _avg: { citationScore: true, averageRating: true } }),
       ]),
@@ -56,6 +67,13 @@ export async function GET(request: NextRequest) {
           state: p.state,
           lsPlan: p.lsPlan,
           lsSubscriptionStatus: p.lsSubscriptionStatus,
+          listSmartlyCreditStatus: p.listSmartlyCreditStatus,
+          listSmartlyUnlockedAt: p.listSmartlyUnlockedAt?.toISOString() || null,
+          listSmartlyLastCreditChargeAt: p.listSmartlyLastCreditChargeAt?.toISOString() || null,
+          listSmartlyNextCreditChargeAt: p.listSmartlyNextCreditChargeAt?.toISOString() || null,
+          listSmartlyLastCreditFailureAt: p.listSmartlyLastCreditFailureAt?.toISOString() || null,
+          listSmartlyCreditFailureReason: p.listSmartlyCreditFailureReason,
+          access: buildListSmartlyAccess(p, p.user),
           setupComplete: p.setupComplete,
           totalListings: p.totalListings,
           liveListings: p.liveListings,

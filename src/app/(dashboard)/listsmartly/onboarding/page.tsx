@@ -24,7 +24,7 @@ const STEP_CONFIG = [
   { label: "Business Info", icon: Building2 },
   { label: "Industry", icon: Tag },
   { label: "Scan", icon: Search },
-  { label: "Plan", icon: CreditCard },
+  { label: "Access", icon: CreditCard },
   { label: "Launch", icon: Rocket },
 ];
 
@@ -184,7 +184,7 @@ export default function ListSmartlyOnboardingPage() {
   const [expandedFindings, setExpandedFindings] = useState<Set<number>>(new Set());
 
   // Step 4
-  const [selectedPlan, setSelectedPlan] = useState<"basic" | "pro" | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<"included" | null>(null);
 
   // ── Pre-fill from brand kit ──
 
@@ -410,25 +410,25 @@ export default function ListSmartlyOnboardingPage() {
     }
   }
 
-  async function selectPlan(plan: "basic" | "pro") {
-    setSelectedPlan(plan);
+  async function confirmAccess() {
+    setSelectedPlan("included");
     setLoading(true);
     try {
       const res = await fetch("/api/listsmartly/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lsPlan: plan }),
+        body: JSON.stringify({ setupComplete: true }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || "Failed to select plan");
+        throw new Error(err.error?.message || "Failed to confirm access");
       }
-      toast({ title: "Plan selected", description: `${plan === "pro" ? "Pro" : "Basic"} plan activated with free trial.` });
+      toast({ title: "Access confirmed", description: "ListSmartly is included with your FlowSmartly plan." });
       setStep(4);
     } catch (err: unknown) {
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : "Failed to select plan",
+        description: err instanceof Error ? err.message : "Failed to confirm access",
         variant: "destructive",
       });
       setSelectedPlan(null);
@@ -1070,36 +1070,30 @@ export default function ListSmartlyOnboardingPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold text-foreground mb-1">Choose your plan</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-1">Confirm ListSmartly access</h2>
           <p className="text-sm text-muted-foreground">
-            Start with a free trial. Cancel anytime.
+            ListSmartly is included with your FlowSmartly plan after a one-time 500 credit unlock.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Basic Plan */}
-          <Card
-            className={`relative cursor-pointer transition-all ${
-              selectedPlan === "basic" ? "ring-2 ring-primary" : "hover:border-primary/50"
-            }`}
-            onClick={() => !loading && selectPlan("basic")}
-          >
+          <Card className="relative">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Basic</span>
-                <Badge variant="secondary">30-day free trial</Badge>
+                <span>Included Access</span>
+                <Badge variant="secondary">FlowSmartly plan</Badge>
               </CardTitle>
               <div className="mt-2">
-                <span className="text-3xl font-bold text-foreground">$7</span>
-                <span className="text-muted-foreground">/month</span>
+                <span className="text-3xl font-bold text-foreground">500</span>
+                <span className="text-muted-foreground"> credits once</span>
               </div>
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
                 {[
-                  { icon: Search, text: "Manual listing management" },
-                  { icon: Shield, text: "Consistency checking" },
-                  { icon: BarChart3, text: "Citation score tracking" },
+                  { icon: Search, text: "Directory scan and listing management" },
+                  { icon: Shield, text: "Consistency checks across directories" },
+                  { icon: BarChart3, text: "Citation score tracking and reports" },
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-foreground">
                     <item.icon className="h-4 w-4 text-primary shrink-0" />
@@ -1109,48 +1103,41 @@ export default function ListSmartlyOnboardingPage() {
               </ul>
               <Button
                 className="w-full mt-6"
-                variant={selectedPlan === "basic" ? "default" : "outline"}
+                onClick={confirmAccess}
                 disabled={loading}
               >
-                {loading && selectedPlan === "basic" ? (
+                {loading && selectedPlan === "included" ? (
                   <AISpinner className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
-                Start Free Trial
+                Continue
               </Button>
             </CardContent>
           </Card>
 
-          {/* Pro Plan */}
-          <Card
-            className={`relative cursor-pointer transition-all ${
-              selectedPlan === "pro" ? "ring-2 ring-primary" : "hover:border-primary/50"
-            }`}
-            onClick={() => !loading && selectPlan("pro")}
-          >
+          <Card className="relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <Badge className="bg-primary text-primary-foreground">
                 <Star className="h-3 w-3 mr-1" />
-                Recommended
+                Automatic
               </Badge>
             </div>
             <CardHeader className="pt-8">
               <CardTitle className="flex items-center justify-between">
-                <span>Pro</span>
-                <Badge variant="secondary">14-day free trial</Badge>
+                <span>Keep Active</span>
+                <Badge variant="secondary">Monthly</Badge>
               </CardTitle>
               <div className="mt-2">
-                <span className="text-3xl font-bold text-foreground">$15</span>
-                <span className="text-muted-foreground">/month</span>
+                <span className="text-3xl font-bold text-foreground">250</span>
+                <span className="text-muted-foreground"> credits/month</span>
               </div>
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
                 {[
-                  { icon: Search, text: "Everything in Basic" },
-                  { icon: Sparkles, text: "AI Autopilot submissions" },
-                  { icon: MessageSquare, text: "Review Command Center" },
-                  { icon: FileText, text: "AI-generated reports" },
-                  { icon: Zap, text: "Priority support" },
+                  { icon: Sparkles, text: "AI Autopilot remains available" },
+                  { icon: MessageSquare, text: "Review Command Center stays active" },
+                  { icon: FileText, text: "Monthly reports continue automatically" },
+                  { icon: Zap, text: "Access pauses if credits run low" },
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-foreground">
                     <item.icon className="h-4 w-4 text-primary shrink-0" />
@@ -1158,16 +1145,6 @@ export default function ListSmartlyOnboardingPage() {
                   </li>
                 ))}
               </ul>
-              <Button
-                className="w-full mt-6"
-                variant={selectedPlan === "pro" ? "default" : "outline"}
-                disabled={loading}
-              >
-                {loading && selectedPlan === "pro" ? (
-                  <AISpinner className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Start Free Trial
-              </Button>
             </CardContent>
           </Card>
         </div>
@@ -1186,7 +1163,7 @@ export default function ListSmartlyOnboardingPage() {
           <h2 className="text-2xl font-bold text-foreground">You&apos;re all set!</h2>
           <p className="text-muted-foreground max-w-md">
             Your ListSmartly profile is ready. We&apos;ve identified your directory opportunities and
-            your {selectedPlan === "pro" ? "Pro" : "Basic"} trial is active.
+            your included ListSmartly access is active.
           </p>
         </div>
 
@@ -1205,8 +1182,8 @@ export default function ListSmartlyOnboardingPage() {
               <span className="text-foreground font-medium">{scanResults?.relevant || 0}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Plan</span>
-              <Badge variant="secondary">{selectedPlan === "pro" ? "Pro" : "Basic"} Trial</Badge>
+              <span className="text-muted-foreground">Access</span>
+              <Badge variant="secondary">Included</Badge>
             </div>
           </CardContent>
         </Card>

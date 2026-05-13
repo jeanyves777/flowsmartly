@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import {
+  addListSmartlyBillingMonth,
+  LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+  LISTSMARTLY_CREDIT_STATUS_LOCKED,
+  LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
+} from "@/lib/listsmartly/billing";
 
 // Non-subscriber roles — these get free access, not counted as "paid"
 const FREE_ROLES = ["STARTER", "ADMIN", "SUPER_ADMIN", "AGENT"];
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
         flowshopPastDue,
         // ListSmartly
         listsmartlyActive,
-        listsmartlyTrialing,
+        listsmartlyPastDue,
         // Domains
         activeDomains,
         // Referrals
@@ -73,8 +79,22 @@ export async function GET(request: NextRequest) {
         prisma.store.count({ where: { ecomSubscriptionStatus: "trialing", deletedAt: null } }),
         prisma.store.count({ where: { ecomSubscriptionStatus: "past_due", deletedAt: null } }),
         // ListSmartly stats
-        prisma.listSmartlyProfile.count({ where: { lsSubscriptionStatus: "active" } }),
-        prisma.listSmartlyProfile.count({ where: { lsSubscriptionStatus: "trialing" } }),
+        prisma.listSmartlyProfile.count({
+          where: {
+            OR: [
+              { listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_ACTIVE },
+              { lsSubscriptionStatus: { in: ["active", "trialing"] } },
+            ],
+          },
+        }),
+        prisma.listSmartlyProfile.count({
+          where: {
+            OR: [
+              { listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_PAST_DUE },
+              { lsSubscriptionStatus: "past_due" },
+            ],
+          },
+        }),
         // Domains
         prisma.storeDomain.count({ where: { registrarStatus: "active" } }),
         // Referrals
@@ -91,7 +111,7 @@ export async function GET(request: NextRequest) {
           expiringIn7Days,
           expiredNotReset,
           flowshop: { active: flowshopActive, trialing: flowshopTrialing, pastDue: flowshopPastDue },
-          listsmartly: { active: listsmartlyActive, trialing: listsmartlyTrialing },
+          listsmartly: { active: listsmartlyActive, pastDue: listsmartlyPastDue },
           domains: { active: activeDomains },
           referrals: { active: activeReferrals, pendingCommissions },
         },
@@ -192,7 +212,10 @@ export async function GET(request: NextRequest) {
 
       const where: Record<string, unknown> = {};
       if (status && status !== "all") {
-        where.lsSubscriptionStatus = status;
+        where.OR = [
+          { listSmartlyCreditStatus: status },
+          { lsSubscriptionStatus: status },
+        ];
       }
 
       const [profiles, total] = await Promise.all([
@@ -206,11 +229,17 @@ export async function GET(request: NextRequest) {
             lsSubscriptionStatus: true,
             freeTrialStartedAt: true,
             freeTrialEndsAt: true,
+            listSmartlyCreditStatus: true,
+            listSmartlyUnlockedAt: true,
+            listSmartlyLastCreditChargeAt: true,
+            listSmartlyNextCreditChargeAt: true,
+            listSmartlyLastCreditFailureAt: true,
+            listSmartlyCreditFailureReason: true,
             totalListings: true,
             liveListings: true,
             citationScore: true,
             createdAt: true,
-            user: { select: { id: true, email: true, name: true } },
+            user: { select: { id: true, email: true, name: true, plan: true, aiCredits: true } },
           },
           orderBy: { createdAt: "desc" },
           skip: offset,
@@ -412,7 +441,10 @@ export async function GET(request: NextRequest) {
           select: {
             id: true, businessName: true, lsPlan: true, lsSubscriptionId: true,
             lsSubscriptionStatus: true, freeTrialEndsAt: true, totalListings: true,
-            liveListings: true, citationScore: true,
+            liveListings: true, citationScore: true, listSmartlyCreditStatus: true,
+            listSmartlyUnlockedAt: true, listSmartlyLastCreditChargeAt: true,
+            listSmartlyNextCreditChargeAt: true, listSmartlyLastCreditFailureAt: true,
+            listSmartlyCreditFailureReason: true,
           },
         }),
         prisma.storeDomain.findMany({
@@ -545,6 +577,18 @@ export async function POST(request: NextRequest) {
     if (action === "cancel_subscription") {
       const { product } = params; // "platform", "flowshop", "listsmartly"
 
+      if (product === "listsmartly") {
+        await prisma.listSmartlyProfile.updateMany({
+          where: { userId },
+          data: {
+            lsSubscriptionStatus: "inactive",
+            listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_LOCKED,
+            listSmartlyCreditFailureReason: null,
+          },
+        });
+        return NextResponse.json({ success: true, message: "ListSmartly access deactivated" });
+      }
+
       const { stripe } = await import("@/lib/stripe");
       if (!stripe) return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
 
@@ -578,18 +622,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, message: "FlowShop subscription cancelled" });
       }
 
-      if (product === "listsmartly") {
-        const profile = await prisma.listSmartlyProfile.findFirst({ where: { userId }, select: { lsSubscriptionId: true } });
-        if (profile?.lsSubscriptionId) {
-          await stripe.subscriptions.cancel(profile.lsSubscriptionId);
-        }
-        await prisma.listSmartlyProfile.updateMany({
-          where: { userId },
-          data: { lsSubscriptionStatus: "cancelled" },
-        });
-        return NextResponse.json({ success: true, message: "ListSmartly subscription cancelled" });
-      }
-
       return NextResponse.json({ error: "Invalid product" }, { status: 400 });
     }
 
@@ -608,9 +640,17 @@ export async function POST(request: NextRequest) {
       if (product === "listsmartly") {
         await prisma.listSmartlyProfile.updateMany({
           where: { userId },
-          data: { lsSubscriptionStatus: "active" },
+          data: {
+            lsPlan: "included",
+            lsSubscriptionStatus: "active",
+            listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+            listSmartlyUnlockedAt: new Date(),
+            listSmartlyNextCreditChargeAt: addListSmartlyBillingMonth(new Date()),
+            listSmartlyLastCreditFailureAt: null,
+            listSmartlyCreditFailureReason: null,
+          },
         });
-        return NextResponse.json({ success: true, message: "ListSmartly reactivated" });
+        return NextResponse.json({ success: true, message: "ListSmartly access reactivated" });
       }
 
       return NextResponse.json({ error: "Invalid product" }, { status: 400 });
@@ -663,15 +703,12 @@ export async function POST(request: NextRequest) {
 
     // ── Update ListSmartly plan ──
     if (action === "change_listsmartly_plan") {
-      const { plan } = params;
-      if (plan !== "basic" && plan !== "pro") return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-
       await prisma.listSmartlyProfile.updateMany({
         where: { userId },
-        data: { lsPlan: plan },
+        data: { lsPlan: "included" },
       });
 
-      return NextResponse.json({ success: true, message: `ListSmartly plan changed to ${plan}` });
+      return NextResponse.json({ success: true, message: "ListSmartly is included with the platform plan" });
     }
 
     // ── Pay/approve referral commission ──

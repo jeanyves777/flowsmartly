@@ -20,7 +20,7 @@ interface Stats {
   expiringIn7Days: number;
   expiredNotReset: number;
   flowshop: { active: number; trialing: number; pastDue: number };
-  listsmartly: { active: number; trialing: number };
+  listsmartly: { active: number; pastDue: number };
   domains: { active: number };
   referrals: { active: number; pendingCommissions: number };
 }
@@ -40,7 +40,9 @@ interface UserDetail {
   listsmartly: {
     id: string; businessName: string; lsPlan: string; lsSubscriptionId: string | null;
     lsSubscriptionStatus: string; freeTrialEndsAt: string | null; totalListings: number;
-    liveListings: number; citationScore: number;
+    liveListings: number; citationScore: number; listSmartlyCreditStatus: string;
+    listSmartlyUnlockedAt: string | null; listSmartlyLastCreditChargeAt: string | null;
+    listSmartlyNextCreditChargeAt: string | null; listSmartlyCreditFailureReason: string | null;
   } | null;
   domains: Array<{
     id: string; domainName: string; tld: string; registrarStatus: string;
@@ -69,6 +71,7 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
   inactive: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   past_due: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  locked: "bg-gray-500/20 text-gray-400 border-gray-500/30",
 };
 
 function formatDate(d: string | null) {
@@ -205,7 +208,7 @@ export default function AdminSubscriptionsPage() {
     { id: "overview", label: "Overview", icon: TrendingUp },
     { id: "plans", label: "Platform Plans", icon: CreditCard, count: stats?.paidPlanUsers },
     { id: "flowshop", label: "FlowShop", icon: ShoppingBag, count: stats ? stats.flowshop.active + stats.flowshop.trialing : undefined },
-    { id: "listsmartly", label: "ListSmartly", icon: MapPin, count: stats ? stats.listsmartly.active + stats.listsmartly.trialing : undefined },
+    { id: "listsmartly", label: "ListSmartly", icon: MapPin, count: stats ? stats.listsmartly.active + stats.listsmartly.pastDue : undefined },
     { id: "domains", label: "Domains", icon: Globe, count: stats?.domains.active },
     { id: "agents", label: "Agent Plans", icon: Shield },
     { id: "vps", label: "VPS Hosting", icon: Clock },
@@ -391,33 +394,35 @@ export default function AdminSubscriptionsPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-400" /> ListSmartly</h3>
                 {selectedUser.listsmartly ? (
-                  <Badge variant="outline" className={statusColors[selectedUser.listsmartly.lsSubscriptionStatus] || ""}>{selectedUser.listsmartly.lsSubscriptionStatus}</Badge>
+                  <Badge variant="outline" className={statusColors[selectedUser.listsmartly.listSmartlyCreditStatus || selectedUser.listsmartly.lsSubscriptionStatus] || ""}>{selectedUser.listsmartly.listSmartlyCreditStatus || selectedUser.listsmartly.lsSubscriptionStatus}</Badge>
                 ) : <Badge variant="outline" className="text-gray-400">None</Badge>}
               </div>
               {selectedUser.listsmartly ? (
                 <>
                   <div className="space-y-1.5 text-sm">
                     <p>Business: <span className="font-medium">{selectedUser.listsmartly.businessName}</span></p>
-                    <p>Plan: <Badge className={selectedUser.listsmartly.lsPlan === "pro" ? "bg-violet-500/20 text-violet-400" : "bg-gray-500/20 text-gray-400"}>{selectedUser.listsmartly.lsPlan}</Badge></p>
+                    <p>Access: <Badge className="bg-blue-500/20 text-blue-400">Included</Badge></p>
                     <p>Listings: {selectedUser.listsmartly.liveListings}/{selectedUser.listsmartly.totalListings}</p>
                     <p>Citation Score: <span className="font-semibold">{selectedUser.listsmartly.citationScore}%</span></p>
-                    {selectedUser.listsmartly.freeTrialEndsAt && (
-                      <p>Trial ends: {formatDate(selectedUser.listsmartly.freeTrialEndsAt)}</p>
+                    {selectedUser.listsmartly.listSmartlyNextCreditChargeAt && (
+                      <p>Next credit charge: {formatDate(selectedUser.listsmartly.listSmartlyNextCreditChargeAt)}</p>
+                    )}
+                    {selectedUser.listsmartly.listSmartlyLastCreditChargeAt && (
+                      <p>Last credit charge: {formatDate(selectedUser.listsmartly.listSmartlyLastCreditChargeAt)}</p>
+                    )}
+                    {selectedUser.listsmartly.listSmartlyCreditFailureReason && (
+                      <p className="text-amber-400">{selectedUser.listsmartly.listSmartlyCreditFailureReason}</p>
                     )}
                   </div>
                   <div className="flex gap-2 mt-3 pt-3 border-t border-border">
                     {selectedUser.listsmartly.lsSubscriptionStatus === "active" && (
-                      <Button size="sm" variant="outline" className="text-red-400 text-xs" onClick={() => runAction("cancel_subscription", u.id, { product: "listsmartly" })} disabled={actionLoading}>Cancel</Button>
+                      <Button size="sm" variant="outline" className="text-red-400 text-xs" onClick={() => runAction("cancel_subscription", u.id, { product: "listsmartly" })} disabled={actionLoading}>Deactivate</Button>
                     )}
                     {(selectedUser.listsmartly.lsSubscriptionStatus === "cancelled" || selectedUser.listsmartly.lsSubscriptionStatus === "inactive") && (
                       <Button size="sm" variant="outline" className="text-green-400 text-xs" onClick={() => runAction("reactivate", u.id, { product: "listsmartly" })} disabled={actionLoading}>
                         <RotateCcw className="h-3 w-3 mr-1" /> Reactivate
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="text-xs"
-                      onClick={() => runAction("change_listsmartly_plan", u.id, { plan: selectedUser.listsmartly!.lsPlan === "pro" ? "basic" : "pro" })} disabled={actionLoading}>
-                      Switch to {selectedUser.listsmartly.lsPlan === "pro" ? "Basic" : "Pro"}
-                    </Button>
                   </div>
                 </>
               ) : <p className="text-xs text-muted-foreground">No ListSmartly profile</p>}
@@ -638,7 +643,7 @@ export default function AdminSubscriptionsPage() {
           <CreditCard className="h-6 w-6 text-orange-500" />
           Subscription Management
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">All subscriptions across platform plans, FlowShop, ListSmartly, domains, and referrals</p>
+        <p className="text-sm text-muted-foreground mt-1">All subscriptions across platform plans, FlowShop, ListSmartly credit access, domains, and referrals</p>
       </div>
 
       {/* Overview Stats */}
@@ -654,7 +659,7 @@ export default function AdminSubscriptionsPage() {
           </CardContent></Card>
           <Card><CardContent className="pt-3 pb-2 px-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">ListSmartly</div>
-            <div className="text-xl font-bold text-blue-400">{stats.listsmartly.active}<span className="text-xs text-muted-foreground ml-1">+{stats.listsmartly.trialing} trial</span></div>
+            <div className="text-xl font-bold text-blue-400">{stats.listsmartly.active}<span className="text-xs text-muted-foreground ml-1">+{stats.listsmartly.pastDue} past due</span></div>
           </CardContent></Card>
           <Card><CardContent className="pt-3 pb-2 px-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Domains</div>
@@ -733,7 +738,13 @@ export default function AdminSubscriptionsPage() {
                   {p === "paid" ? "Paid Only" : p === "all" ? "All" : p}
                 </button>
               ))}
-              {(activeTab === "flowshop" || activeTab === "listsmartly") && ["all", "active", "trialing", "cancelled", "inactive", "past_due"].map((s) => (
+              {activeTab === "flowshop" && ["all", "active", "trialing", "cancelled", "inactive", "past_due"].map((s) => (
+                <button key={s} onClick={() => { setFilter(s); setPage(0); }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === s ? (statusColors[s] || "bg-orange-500/20 text-orange-400") : "bg-muted text-muted-foreground hover:bg-accent"}`}>
+                  {s === "all" ? "All" : s}
+                </button>
+              ))}
+              {activeTab === "listsmartly" && ["all", "active", "past_due", "locked", "inactive"].map((s) => (
                 <button key={s} onClick={() => { setFilter(s); setPage(0); }}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === s ? (statusColors[s] || "bg-orange-500/20 text-orange-400") : "bg-muted text-muted-foreground hover:bg-accent"}`}>
                   {s === "all" ? "All" : s}
@@ -821,12 +832,12 @@ export default function AdminSubscriptionsPage() {
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-lg bg-blue-500/20"><MapPin className="h-5 w-5 text-blue-400" /></div>
                         <div>
-                          <p className="font-medium text-sm">{p.businessName} <Badge className={p.lsPlan === "pro" ? "bg-violet-500/20 text-violet-400" : "bg-gray-500/20 text-gray-400"}>{p.lsPlan}</Badge></p>
+                          <p className="font-medium text-sm">{p.businessName} <Badge className="bg-blue-500/20 text-blue-400">Included</Badge></p>
                           <p className="text-xs text-muted-foreground">{p.user?.email} • {p.liveListings}/{p.totalListings} listings • Score: {p.citationScore}%</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={statusColors[p.lsSubscriptionStatus] || ""}>{p.lsSubscriptionStatus}</Badge>
+                        <Badge variant="outline" className={statusColors[p.listSmartlyCreditStatus || p.lsSubscriptionStatus] || ""}>{p.listSmartlyCreditStatus || p.lsSubscriptionStatus}</Badge>
                         <Button size="sm" variant="ghost" onClick={() => loadUserDetail(p.user?.id)}><Eye className="h-3.5 w-3.5" /></Button>
                       </div>
                     </CardContent></Card>

@@ -2,6 +2,9 @@
 // ListSmartly Constants
 // =============================================================================
 
+export const LISTSMARTLY_UNLOCK_CREDIT_COST = 500;
+export const LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST = 250;
+
 // -----------------------------------------------------------------------------
 // Listing Statuses
 // -----------------------------------------------------------------------------

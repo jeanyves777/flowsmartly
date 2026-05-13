@@ -1,82 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { getOrCreateStripeCustomer, stripe } from "@/lib/stripe";
-
-// ListSmartly pricing
-const LS_PLANS = {
-  basic: {
-    name: "ListSmartly Basic",
-    priceCentsMonthly: 700,  // $7/mo
-    stripePriceId: process.env.STRIPE_LISTSMARTLY_BASIC_PRICE_ID || "",
-  },
-  pro: {
-    name: "ListSmartly Pro",
-    priceCentsMonthly: 1500, // $15/mo
-    stripePriceId: process.env.STRIPE_LISTSMARTLY_PRO_PRICE_ID || "",
-  },
-};
+import {
+  addListSmartlyBillingMonth,
+  buildListSmartlyAccess,
+  getListSmartlyCreditStatus,
+  isListSmartlyPlanEligible,
+  LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+  LISTSMARTLY_CREDIT_STATUS_LOCKED,
+  LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
+} from "@/lib/listsmartly/billing";
+import {
+  LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
+  LISTSMARTLY_UNLOCK_CREDIT_COST,
+} from "@/lib/constants/listsmartly";
 
 /**
  * GET /api/listsmartly/subscription
- * Get current user's ListSmartly subscription details.
+ * Returns credit-backed ListSmartly access details.
  */
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const profile = await prisma.listSmartlyProfile.findFirst({
-      where: { userId: session.userId },
-      select: {
-        id: true,
-        lsPlan: true,
-        lsSubscriptionId: true,
-        lsSubscriptionStatus: true,
-        freeTrialStartedAt: true,
-        freeTrialEndsAt: true,
-      },
-    });
-
-    if (!profile) {
-      return NextResponse.json({ error: "No ListSmartly profile found" }, { status: 404 });
-    }
-
-    // Check if trial has expired
-    if (profile.lsSubscriptionStatus === "trialing" && profile.freeTrialEndsAt) {
-      if (new Date(profile.freeTrialEndsAt) < new Date()) {
-        // Trial expired — update status
-        await prisma.listSmartlyProfile.update({
-          where: { id: profile.id },
-          data: { lsSubscriptionStatus: "inactive" },
-        });
-        profile.lsSubscriptionStatus = "inactive";
-      }
-    }
-
-    const planConfig = LS_PLANS[profile.lsPlan as keyof typeof LS_PLANS] || LS_PLANS.basic;
+    const [user, profile] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { plan: true, aiCredits: true, deletedAt: true },
+      }),
+      prisma.listSmartlyProfile.findFirst({
+        where: { userId: session.userId },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
       data: {
-        plan: profile.lsPlan,
-        planName: planConfig.name,
-        priceMonthly: planConfig.priceCentsMonthly,
-        subscriptionId: profile.lsSubscriptionId,
-        status: profile.lsSubscriptionStatus,
-        trialStartedAt: profile.freeTrialStartedAt,
-        trialEndsAt: profile.freeTrialEndsAt,
+        ...buildListSmartlyAccess(profile, user),
+        subscriptionId: profile?.lsSubscriptionId || null,
+        trialStartedAt: null,
+        trialEndsAt: null,
+        priceMonthly: 0,
       },
     });
   } catch (err) {
     console.error("[ListSmartly Subscription] GET error:", err);
-    return NextResponse.json({ error: "Failed to fetch subscription" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch ListSmartly access" }, { status: 500 });
   }
 }
-
 /**
  * PATCH /api/listsmartly/subscription
- * Change plan or subscribe via Stripe.
+ * Reactivates ListSmartly access with credits. New profiles should use /activate.
  */
 export async function PATCH(request: NextRequest) {
   const session = await getSession();
@@ -84,101 +59,142 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { plan, action } = body;
+    const action = body.action || "reactivate";
 
-    const profile = await prisma.listSmartlyProfile.findFirst({
-      where: { userId: session.userId },
-      select: { id: true, lsPlan: true, lsSubscriptionId: true, lsSubscriptionStatus: true },
-    });
+    if (!["unlock", "reactivate"].includes(action)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
 
-    if (!profile) return NextResponse.json({ error: "No ListSmartly profile" }, { status: 404 });
-
-    // ── Subscribe (create Stripe subscription) ──
-    if (action === "subscribe") {
-      const targetPlan = plan || profile.lsPlan;
-      const planConfig = LS_PLANS[targetPlan as keyof typeof LS_PLANS];
-      if (!planConfig) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-
-      if (!stripe) return NextResponse.json({ error: "Stripe not configured" }, { status: 500 });
-
-      if (!planConfig.stripePriceId) {
-        // No Stripe price ID configured — just activate the plan directly
-        await prisma.listSmartlyProfile.update({
-          where: { id: profile.id },
-          data: { lsPlan: targetPlan, lsSubscriptionStatus: "active" },
-        });
-        return NextResponse.json({ success: true, message: "Plan activated" });
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, plan: true, aiCredits: true, deletedAt: true },
+      });
+      if (!user || !isListSmartlyPlanEligible(user)) {
+        throw new Error("PLAN_REQUIRED");
       }
 
-      const customerId = await getOrCreateStripeCustomer(session.userId);
+      const profile = await tx.listSmartlyProfile.findFirst({
+        where: { userId: session.userId },
+      });
+      if (!profile) throw new Error("PROFILE_REQUIRED");
 
-      const checkoutSession = await stripe.checkout.sessions.create({
-        customer: customerId,
-        mode: "subscription",
-        line_items: [{ price: planConfig.stripePriceId, quantity: 1 }],
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/listsmartly/settings?subscription=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/listsmartly/settings?subscription=cancelled`,
-        metadata: {
-          type: "listsmartly_subscription",
-          userId: session.userId,
-          profileId: profile.id,
-          plan: targetPlan,
+      const creditStatus = getListSmartlyCreditStatus(profile);
+      const isActive = creditStatus === LISTSMARTLY_CREDIT_STATUS_ACTIVE;
+      const chargeAmount = isActive
+        ? 0
+        : profile.listSmartlyUnlockedAt
+          ? LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST
+          : LISTSMARTLY_UNLOCK_CREDIT_COST;
+
+      if (chargeAmount > 0 && user.aiCredits < chargeAmount) {
+        throw new Error("INSUFFICIENT_CREDITS");
+      }
+
+      const updatedUser =
+        chargeAmount > 0
+          ? await tx.user.update({
+              where: { id: session.userId },
+              data: { aiCredits: { decrement: chargeAmount } },
+              select: { aiCredits: true, plan: true, deletedAt: true },
+            })
+          : user;
+
+      const now = new Date();
+      const updatedProfile = await tx.listSmartlyProfile.update({
+        where: { id: profile.id },
+        data: {
+          lsPlan: "included",
+          lsSubscriptionStatus: "active",
+          lsSubscriptionId: null,
+          freeTrialStartedAt: null,
+          freeTrialEndsAt: null,
+          listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+          listSmartlyUnlockedAt: profile.listSmartlyUnlockedAt || now,
+          listSmartlyLastCreditChargeAt: chargeAmount > 0 ? now : profile.listSmartlyLastCreditChargeAt,
+          listSmartlyNextCreditChargeAt: addListSmartlyBillingMonth(now),
+          listSmartlyLastCreditFailureAt: null,
+          listSmartlyCreditFailureReason: null,
         },
       });
 
-      return NextResponse.json({ success: true, data: { checkoutUrl: checkoutSession.url } });
-    }
+      if (chargeAmount > 0) {
+        await tx.creditTransaction.create({
+          data: {
+            userId: session.userId,
+            type: "USAGE",
+            amount: -chargeAmount,
+            balanceAfter: updatedUser.aiCredits,
+            description:
+              chargeAmount === LISTSMARTLY_UNLOCK_CREDIT_COST
+                ? "ListSmartly first-time unlock"
+                : "ListSmartly access reactivation",
+            referenceType:
+              chargeAmount === LISTSMARTLY_UNLOCK_CREDIT_COST
+                ? "listsmartly_unlock"
+                : "listsmartly_reactivation",
+            referenceId: updatedProfile.id,
+            metadata: JSON.stringify({ creditCost: chargeAmount }),
+          },
+        });
+      }
 
-    // ── Change plan (local only, for admin or trial users) ──
-    if (plan && (plan === "basic" || plan === "pro")) {
-      await prisma.listSmartlyProfile.update({
-        where: { id: profile.id },
-        data: { lsPlan: plan },
-      });
+      return { profile: updatedProfile, user: updatedUser, chargedCredits: chargeAmount };
+    });
 
-      return NextResponse.json({ success: true, message: `Plan changed to ${plan}` });
-    }
-
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...buildListSmartlyAccess(result.profile, result.user),
+        chargedCredits: result.chargedCredits,
+      },
+    });
   } catch (err) {
+    if (err instanceof Error && err.message === "PLAN_REQUIRED") {
+      return NextResponse.json(
+        { success: false, error: "A FlowSmartly plan is required to use ListSmartly." },
+        { status: 403 }
+      );
+    }
+    if (err instanceof Error && err.message === "PROFILE_REQUIRED") {
+      return NextResponse.json({ success: false, error: "No ListSmartly profile" }, { status: 404 });
+    }
+    if (err instanceof Error && err.message === "INSUFFICIENT_CREDITS") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Not enough credits. Unlock costs ${LISTSMARTLY_UNLOCK_CREDIT_COST} credits and reactivation costs ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} credits.`,
+        },
+        { status: 402 }
+      );
+    }
+
     console.error("[ListSmartly Subscription] PATCH error:", err);
-    return NextResponse.json({ error: "Failed to update subscription" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update ListSmartly access" }, { status: 500 });
   }
 }
 
 /**
  * DELETE /api/listsmartly/subscription
- * Cancel ListSmartly subscription.
+ * Deactivates credit-backed ListSmartly access locally. No Stripe cancellation.
  */
 export async function DELETE() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const profile = await prisma.listSmartlyProfile.findFirst({
+    await prisma.listSmartlyProfile.updateMany({
       where: { userId: session.userId },
-      select: { id: true, lsSubscriptionId: true, lsSubscriptionStatus: true },
+      data: {
+        lsSubscriptionStatus: "inactive",
+        listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_LOCKED,
+        listSmartlyCreditFailureReason: null,
+      },
     });
 
-    if (!profile) return NextResponse.json({ error: "No ListSmartly profile" }, { status: 404 });
-
-    // Cancel Stripe subscription if exists
-    if (profile.lsSubscriptionId && stripe) {
-      try {
-        await stripe.subscriptions.cancel(profile.lsSubscriptionId);
-      } catch (err) {
-        console.error("[ListSmartly] Failed to cancel Stripe subscription:", err);
-      }
-    }
-
-    await prisma.listSmartlyProfile.update({
-      where: { id: profile.id },
-      data: { lsSubscriptionStatus: "cancelled", lsSubscriptionId: null },
-    });
-
-    return NextResponse.json({ success: true, message: "Subscription cancelled" });
+    return NextResponse.json({ success: true, message: "ListSmartly access deactivated" });
   } catch (err) {
     console.error("[ListSmartly Subscription] DELETE error:", err);
-    return NextResponse.json({ error: "Failed to cancel subscription" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to deactivate ListSmartly access" }, { status: 500 });
   }
 }

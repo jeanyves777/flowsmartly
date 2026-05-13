@@ -27,6 +27,9 @@ interface ProfileItem {
   state: string | null;
   lsPlan: string;
   lsSubscriptionStatus: string;
+  listSmartlyCreditStatus: string;
+  listSmartlyNextCreditChargeAt: string | null;
+  listSmartlyCreditFailureReason: string | null;
   setupComplete: boolean;
   totalListings: number;
   liveListings: number;
@@ -34,7 +37,7 @@ interface ProfileItem {
   totalReviews: number;
   averageRating: number;
   createdAt: string;
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string; email: string; plan: string; aiCredits: number };
   _count: { listings: number; reviews: number };
 }
 
@@ -84,7 +87,7 @@ export default function AdminListSmartlyPage() {
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Profiles</p><p className="text-2xl font-bold">{stats.totalProfiles}</p></CardContent></Card>
           <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Setup Complete</p><p className="text-2xl font-bold text-green-500">{stats.setupComplete}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Active Subs</p><p className="text-2xl font-bold text-blue-500">{stats.activeSubscriptions}</p></CardContent></Card>
+          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Active Access</p><p className="text-2xl font-bold text-blue-500">{stats.activeSubscriptions}</p></CardContent></Card>
           <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total Listings</p><p className="text-2xl font-bold text-purple-500">{stats.totalListings}</p></CardContent></Card>
           <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Avg Citation</p><p className="text-2xl font-bold text-orange-500">{stats.avgCitationScore}%</p></CardContent></Card>
           <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Avg Rating</p><p className="text-2xl font-bold flex items-center gap-1"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />{stats.avgRating}</p></CardContent></Card>
@@ -109,7 +112,7 @@ export default function AdminListSmartlyPage() {
                   <tr className="border-b bg-muted/50">
                     <th className="text-left p-3 font-medium">Business</th>
                     <th className="text-left p-3 font-medium">Owner</th>
-                    <th className="text-left p-3 font-medium">Plan</th>
+                    <th className="text-left p-3 font-medium">Access</th>
                     <th className="text-left p-3 font-medium">Status</th>
                     <th className="text-left p-3 font-medium">Listings</th>
                     <th className="text-left p-3 font-medium">Citation</th>
@@ -128,14 +131,20 @@ export default function AdminListSmartlyPage() {
                           {p.city && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{p.city}{p.state ? `, ${p.state}` : ""}</span>}
                         </div>
                       </td>
-                      <td className="p-3"><p className="text-xs font-medium">{p.user.name}</p><p className="text-xs text-muted-foreground">{p.user.email}</p></td>
-                      <td className="p-3"><Badge variant="outline">{p.lsPlan}</Badge></td>
                       <td className="p-3">
-                        {p.lsSubscriptionStatus === "active" ? (
+                        <p className="text-xs font-medium">{p.user.name}</p>
+                        <p className="text-xs text-muted-foreground">{p.user.email}</p>
+                        <p className="text-xs text-muted-foreground">{p.user.aiCredits?.toLocaleString?.() || 0} credits</p>
+                      </td>
+                      <td className="p-3"><Badge variant="outline">Included</Badge></td>
+                      <td className="p-3">
+                        {(p.listSmartlyCreditStatus === "active" || p.lsSubscriptionStatus === "active" || p.lsSubscriptionStatus === "trialing") ? (
                           <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>
                         ) : (
-                          <Badge variant="secondary">{p.lsSubscriptionStatus}</Badge>
+                          <Badge variant="secondary">{p.listSmartlyCreditStatus || p.lsSubscriptionStatus}</Badge>
                         )}
+                        {p.listSmartlyNextCreditChargeAt && <p className="text-xs text-muted-foreground mt-1">Next {new Date(p.listSmartlyNextCreditChargeAt).toLocaleDateString()}</p>}
+                        {p.listSmartlyCreditFailureReason && <p className="text-xs text-red-500 mt-1">{p.listSmartlyCreditFailureReason}</p>}
                         {!p.setupComplete && <p className="text-xs text-yellow-500 mt-1">Setup incomplete</p>}
                       </td>
                       <td className="p-3">

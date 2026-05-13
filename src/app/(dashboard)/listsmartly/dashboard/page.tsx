@@ -968,27 +968,10 @@ export default function ListSmartlyDashboardPage() {
   // ── Autopilot Tab ──
 
   function renderAutopilot() {
-    const isPro = stats?.plan === "pro";
+    const hasAccess = true;
 
     return (
       <div className="space-y-6">
-        {!isPro && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="py-4 flex items-center gap-3">
-              <Lock className="h-5 w-5 text-primary shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">AI Autopilot requires Pro plan</p>
-                <p className="text-xs text-muted-foreground">
-                  Upgrade to unlock automatic listing management and AI-powered features.
-                </p>
-              </div>
-              <Button size="sm" onClick={() => router.push("/listsmartly/settings")}>
-                Upgrade
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -1005,11 +988,11 @@ export default function ListSmartlyDashboardPage() {
                 </p>
               </div>
               <button
-                onClick={() => isPro && toggleAutopilot("autoFix", !autoFixEnabled)}
-                disabled={!isPro}
+                onClick={() => hasAccess && toggleAutopilot("autoFix", !autoFixEnabled)}
+                disabled={!hasAccess}
                 className={`relative w-11 h-6 rounded-full transition-colors ${
-                  autoFixEnabled && isPro ? "bg-primary" : "bg-muted"
-                } ${!isPro ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  autoFixEnabled && hasAccess ? "bg-primary" : "bg-muted"
+                } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
@@ -1027,11 +1010,11 @@ export default function ListSmartlyDashboardPage() {
                 </p>
               </div>
               <button
-                onClick={() => isPro && toggleAutopilot("autoDescriptions", !autoDescEnabled)}
-                disabled={!isPro}
+                onClick={() => hasAccess && toggleAutopilot("autoDescriptions", !autoDescEnabled)}
+                disabled={!hasAccess}
                 className={`relative w-11 h-6 rounded-full transition-colors ${
-                  autoDescEnabled && isPro ? "bg-primary" : "bg-muted"
-                } ${!isPro ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  autoDescEnabled && hasAccess ? "bg-primary" : "bg-muted"
+                } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
@@ -1053,9 +1036,9 @@ export default function ListSmartlyDashboardPage() {
                 <Zap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm font-medium text-foreground">No AI actions yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isPro
+                  {hasAccess
                     ? "Enable a toggle above to start automated management."
-                    : "Upgrade to Pro to unlock AI-powered automation."}
+                    : "Activate ListSmartly to unlock AI-powered automation."}
                 </p>
               </div>
             ) : (

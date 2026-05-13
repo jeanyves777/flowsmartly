@@ -119,18 +119,18 @@ const workflow = [
 ];
 
 const basicFeatures = [
+  "Requires an active FlowSmartly plan",
   "Sync to 150+ directories",
   "Citation score dashboard",
   "AI drift monitoring",
-  "Duplicate issue tracking",
-  "Basic review monitoring",
+  "No standalone ListSmartly payment",
 ];
 
 const proFeatures = [
-  "Everything in Basic",
+  "Runs from available user credits",
   "Review response drafts",
   "Competitor tracking",
-  "Weekly AI reports",
+  "Monthly AI reports",
   "Bulk update tools",
 ];
 
@@ -339,22 +339,21 @@ export default function ListSmartlyDetailsPage() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
-              ListSmartly plans
+              Included access
             </p>
             <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
-              Start with clean listings, scale into review control
+              ListSmartly is part of the main FlowSmartly subscription
             </h2>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             {[
-              ["ListSmartly Basic", "$7", "For cleaning and monitoring your local profiles", basicFeatures],
-              ["ListSmartly Pro", "$15", "For review response, competitors, and deeper reporting", proFeatures],
+              ["First-time unlock", "500 credits", "Unlock the listing system once after a user has a FlowSmartly plan", basicFeatures],
+              ["Monthly keep-active", "250 credits", "Deducted monthly from available credits to keep ListSmartly active", proFeatures],
             ].map(([name, price, description, features]) => (
               <article key={name as string} className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
                 <h3 className="text-xl font-bold">{name as string}</h3>
                 <div className="mt-4 flex items-end gap-1">
-                  <span className="text-5xl font-black tracking-tight">{price as string}</span>
-                  <span className="pb-2 text-sm text-muted-foreground">/month</span>
+                  <span className="text-4xl font-black tracking-tight">{price as string}</span>
                 </div>
                 <p className="mt-3 text-muted-foreground">{description as string}</p>
                 <ul className="mt-6 space-y-3">
@@ -369,7 +368,7 @@ export default function ListSmartlyDetailsPage() {
                   href="/register"
                   className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 font-bold text-white transition-colors hover:bg-teal-700"
                 >
-                  Start free trial
+                  Get started
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </article>
