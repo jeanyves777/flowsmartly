@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { categories, formatPrice } from "@/lib/data";
-import { products, searchProducts } from "@/lib/products";
+import { categories } from "@/lib/data";
+import { useLiveProducts } from "@/lib/products-store";
 import ProductCard from "./ProductCard";
 
 interface ProductGridProps {
@@ -11,13 +11,27 @@ interface ProductGridProps {
 }
 
 export default function ProductGrid({ initialCategory }: ProductGridProps) {
+  const { products, loading } = useLiveProducts();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || "all");
   const [sortBy, setSortBy] = useState<"default" | "price-asc" | "price-desc" | "name">("default");
   const [showFilters, setShowFilters] = useState(false);
 
   const filtered = useMemo(() => {
-    let result = search ? searchProducts(search) : [...products];
+    const term = search.trim().toLowerCase();
+    let result = [...products];
+
+    if (term) {
+      result = result.filter((product) => {
+        const searchable = [
+          product.name,
+          product.shortDescription,
+          product.description,
+          ...product.tags,
+        ].join(" ").toLowerCase();
+        return searchable.includes(term);
+      });
+    }
 
     if (selectedCategory !== "all") {
       result = result.filter(p => p.categoryId === selectedCategory);
@@ -36,7 +50,7 @@ export default function ProductGrid({ initialCategory }: ProductGridProps) {
     }
 
     return result;
-  }, [search, selectedCategory, sortBy]);
+  }, [products, search, selectedCategory, sortBy]);
 
   return (
     <div>
@@ -127,13 +141,23 @@ export default function ProductGrid({ initialCategory }: ProductGridProps) {
 
       {/* Results count */}
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        {filtered.length} {filtered.length === 1 ? "product" : "products"}
-        {search && ` matching "${search}"`}
-        {selectedCategory !== "all" && ` in ${categories.find(c => c.id === selectedCategory)?.name}`}
+        {loading ? "Loading products..." : `${filtered.length} ${filtered.length === 1 ? "product" : "products"}`}
+        {!loading && search && ` matching "${search}"`}
+        {!loading && selectedCategory !== "all" && ` in ${categories.find(c => c.id === selectedCategory)?.name}`}
       </p>
 
       {/* Grid */}
-      {filtered.length > 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="space-y-3">
+              <div className="aspect-square rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+              <div className="h-4 rounded bg-gray-100 dark:bg-gray-800 animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-gray-100 dark:bg-gray-800 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
           {filtered.map((product, i) => (
             <ProductCard key={product.id} product={product} index={i} />

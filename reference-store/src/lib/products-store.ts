@@ -28,10 +28,10 @@ function normalizeProduct(raw: unknown): Product {
   const p = raw as Record<string, unknown>;
   const trackInventory = Boolean(p.trackInventory);
   const quantity = p.quantity === null || p.quantity === undefined ? null : Number(p.quantity);
-  const inStock = typeof p.inStock === "boolean"
-    ? p.inStock
-    : trackInventory
-      ? Number(quantity || 0) > 0
+  const baseInStock = trackInventory && quantity !== null
+    ? quantity > 0
+    : typeof p.inStock === "boolean"
+      ? p.inStock
       : true;
   const variants = Array.isArray(p.variants)
     ? (p.variants as Array<Record<string, unknown>>).map((variant) => {
@@ -39,20 +39,24 @@ function normalizeProduct(raw: unknown): Product {
         const variantQuantity = variant.quantity === null || variant.quantity === undefined
           ? null
           : Number(variant.quantity);
+        const variantInStock = variantTrackInventory && variantQuantity !== null
+          ? variantQuantity > 0
+          : typeof variant.inStock === "boolean"
+            ? variant.inStock
+            : baseInStock;
         return {
           ...variant,
           priceCents: Number(variant.priceCents || p.priceCents || 0),
           comparePriceCents: variant.comparePriceCents ? Number(variant.comparePriceCents) : undefined,
           trackInventory: variantTrackInventory,
           quantity: variantQuantity,
-          inStock: typeof variant.inStock === "boolean"
-            ? variant.inStock
-            : variantTrackInventory
-              ? Number(variantQuantity || 0) > 0
-              : inStock,
+          inStock: variantInStock,
         } as Product["variants"][number];
       })
     : [];
+  const inStock = variants.length > 0
+    ? variants.some((variant) => variant.inStock && (variant.quantity == null || variant.quantity > 0))
+    : baseInStock;
 
   return {
     id: String(p.id || ""),

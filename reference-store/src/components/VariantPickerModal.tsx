@@ -34,6 +34,10 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
   const [quantity, setQuantity] = useState(1);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [added, setAdded] = useState(false);
+  const variantHasStock = (variant?: Product["variants"][number] | null) => {
+    if (!variant) return false;
+    return variant.inStock !== false && (variant.quantity == null || variant.quantity > 0);
+  };
 
   // Build a map of option-dimension → unique values across all variants.
   // Stable iteration order based on first-seen so the picker row order
@@ -74,7 +78,7 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
     if (!open || !product) return;
     setQuantity(1);
     setAdded(false);
-    const first = product.variants?.find((v) => v.inStock) || product.variants?.[0];
+    const first = product.variants?.find(variantHasStock) || product.variants?.[0];
     if (first?.options) {
       const next: Record<string, string> = {};
       for (const [k, val] of Object.entries(first.options as Record<string, string>)) {
@@ -110,15 +114,16 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
         if (d.key === dimKey) continue;
         if (selected[d.key] && String(opts[d.key] ?? "") !== selected[d.key]) return false;
       }
-      return v.inStock;
+      return variantHasStock(v);
     });
   };
 
   const availableQuantity = matchedVariant?.quantity ?? null;
   const hasEnoughStock = availableQuantity == null || availableQuantity >= quantity;
+  const matchedVariantAvailable = variantHasStock(matchedVariant);
 
   const handleAdd = () => {
-    if (!product || !matchedVariant || !matchedVariant.inStock || !hasEnoughStock) return;
+    if (!product || !matchedVariant || !matchedVariantAvailable || !hasEnoughStock) return;
     const priceCents = matchedVariant.priceCents ?? product.priceCents;
     for (let i = 0; i < quantity; i++) {
       addToCart({
@@ -276,11 +281,11 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                 <button
                   type="button"
                   onClick={handleAdd}
-                  disabled={!matchedVariant?.inStock || !hasEnoughStock || added}
+                  disabled={!matchedVariantAvailable || !hasEnoughStock || added}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold text-white transition-all ${
                     added
                       ? "bg-green-600"
-                      : matchedVariant?.inStock && hasEnoughStock
+                      : matchedVariantAvailable && hasEnoughStock
                         ? "bg-primary-700 hover:bg-primary-800 shadow-lg shadow-primary-900/15"
                         : "bg-gray-300 text-gray-600 cursor-not-allowed"
                   }`}
@@ -292,7 +297,7 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                     </>
                   ) : !matchedVariant ? (
                     "Select options"
-                  ) : !matchedVariant.inStock ? (
+                  ) : !matchedVariantAvailable ? (
                     "Out of stock"
                   ) : !hasEnoughStock ? (
                     `Only ${availableQuantity} left`

@@ -139,12 +139,17 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     );
   }
 
-  const defaultVariant = product.variants.find((variant) => variant.inStock) || product.variants[0];
+  const isVariantPurchasable = (variant?: ProductVariant | null) => {
+    if (!variant) return false;
+    return variant.inStock !== false && (variant.quantity == null || variant.quantity > 0);
+  };
+
+  const defaultVariant = product.variants.find(isVariantPurchasable) || product.variants[0];
   const activeVariant = selectedVariant || defaultVariant;
   const price = activeVariant?.priceCents || product.priceCents;
   const comparePrice = activeVariant?.comparePriceCents || product.comparePriceCents;
-  const variantAvailable = !activeVariant || activeVariant.inStock !== false;
-  const availableQuantity = activeVariant?.quantity ?? product.quantity ?? null;
+  const variantAvailable = activeVariant ? isVariantPurchasable(activeVariant) : product.inStock;
+  const availableQuantity = activeVariant ? activeVariant.quantity ?? null : product.quantity ?? null;
   const hasEnoughStock = availableQuantity == null || availableQuantity >= quantity;
   const isPurchasable = product.inStock && variantAvailable && hasEnoughStock;
   const relatedProducts: Product[] = allLiveProducts
@@ -374,15 +379,19 @@ export default function ProductDetailClient({ params }: { params: { slug: string
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Options</h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.variants.map(variant => (
-                    <button key={variant.id} onClick={() => setSelectedVariant(variant)} disabled={!variant.inStock}
-                      className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all ${
-                        activeVariant?.id === variant.id ? "border-primary-700 bg-primary-700 text-white shadow-sm" :
-                        variant.inStock ? "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-primary-600 text-gray-800 dark:text-gray-200" :
-                        "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 line-through cursor-not-allowed"
-                      }`}
-                    >{variant.name}</button>
-                  ))}
+                  {product.variants.map(variant => {
+                    const optionAvailable = isVariantPurchasable(variant);
+                    const isActive = activeVariant?.id === variant.id;
+                    return (
+                      <button key={variant.id} onClick={() => setSelectedVariant(variant)} disabled={!optionAvailable}
+                        className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all ${
+                          !optionAvailable ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 line-through cursor-not-allowed" :
+                          isActive ? "border-primary-700 bg-primary-700 text-white shadow-sm" :
+                          "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-primary-600 text-gray-800 dark:text-gray-200"
+                        }`}
+                      >{variant.name}</button>
+                    );
+                  })}
                 </div>
                 {activeVariant && !variantAvailable && (
                   <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400">

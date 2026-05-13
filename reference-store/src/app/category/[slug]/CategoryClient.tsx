@@ -6,7 +6,8 @@ import ProductGrid from "@/components/ProductGrid";
 import { categories } from "@/lib/data";
 
 export default function CategoryClient({ params }: { params: { slug: string } }) {
-  const category = categories.find((c) => c.slug === params.slug);
+  const slug = params.slug.replace(/\/+$/, "");
+  const category = categories.find((c) => c.slug === slug);
 
   if (!category) {
     return (
