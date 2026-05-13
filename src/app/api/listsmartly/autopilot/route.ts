@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import {
   getAutopilotState,
   handleAutopilotAction,
+  processAutopilotTask,
   updateAutopilotSettings,
 } from "@/lib/listsmartly/autopilot-agent";
 
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const result = await handleAutopilotAction(session.userId, body.action, body);
+    if (body.action === "run_next" && result && typeof result === "object" && "status" in result && result.status === "started" && "task" in result && result.task && typeof result.task === "object" && "id" in result.task) {
+      void processAutopilotTask(session.userId, String(result.task.id)).catch((error) => {
+        console.error("Background ListSmartly autopilot processing failed:", error);
+      });
+    }
     const state = await getAutopilotState(session.userId);
 
     return NextResponse.json({ success: true, data: { result, state } });

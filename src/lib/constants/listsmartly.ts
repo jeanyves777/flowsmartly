@@ -92,21 +92,21 @@ export interface DirectoryEntry {
 // -----------------------------------------------------------------------------
 
 const TIER_1_DIRECTORIES: DirectoryEntry[] = [
-  { slug: "google-business", name: "Google Business Profile", url: "https://business.google.com", tier: 1, category: "critical", industries: [], claimUrl: "https://business.google.com", apiAvailable: true },
-  { slug: "yelp", name: "Yelp", url: "https://www.yelp.com", tier: 1, category: "critical", industries: [], claimUrl: "https://biz.yelp.com", apiAvailable: true },
+  { slug: "google-business", name: "Google Business Profile", url: "https://business.google.com", tier: 1, category: "critical", industries: [], claimUrl: "https://business.google.com" },
+  { slug: "yelp", name: "Yelp", url: "https://www.yelp.com", tier: 1, category: "critical", industries: [], claimUrl: "https://biz.yelp.com" },
   { slug: "apple-maps", name: "Apple Business Connect", url: "https://mapsconnect.apple.com", tier: 1, category: "critical", industries: [], claimUrl: "https://businessconnect.apple.com" },
-  { slug: "bing-places", name: "Bing Places", url: "https://www.bingplaces.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.bingplaces.com", apiAvailable: true },
+  { slug: "bing-places", name: "Bing Places", url: "https://www.bingplaces.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.bingplaces.com" },
   { slug: "bbb", name: "Better Business Bureau", url: "https://www.bbb.org", tier: 1, category: "critical", industries: [], claimUrl: "https://www.bbb.org/get-listed" },
   { slug: "linkedin", name: "LinkedIn", url: "https://www.linkedin.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.linkedin.com/company/setup/new/" },
   { slug: "nextdoor", name: "Nextdoor", url: "https://nextdoor.com", tier: 1, category: "critical", industries: [], claimUrl: "https://business.nextdoor.com" },
-  { slug: "foursquare", name: "Foursquare", url: "https://foursquare.com", tier: 1, category: "critical", industries: [], claimUrl: "https://business.foursquare.com", apiAvailable: true },
+  { slug: "foursquare", name: "Foursquare", url: "https://foursquare.com", tier: 1, category: "critical", industries: [], claimUrl: "https://business.foursquare.com" },
   { slug: "yahoo-local", name: "Yahoo Local", url: "https://local.yahoo.com", tier: 1, category: "critical", industries: [] },
   { slug: "alignable", name: "Alignable", url: "https://www.alignable.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.alignable.com/biz/signup" },
   { slug: "thumbtack", name: "Thumbtack", url: "https://www.thumbtack.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.thumbtack.com/pro" },
   { slug: "bark", name: "Bark", url: "https://www.bark.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.bark.com/en/us/pro-signup/" },
   { slug: "angi", name: "Angi", url: "https://www.angi.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.angi.com/pro" },
   { slug: "expertise", name: "Expertise", url: "https://www.expertise.com", tier: 1, category: "critical", industries: [] },
-  { slug: "dandb", name: "Dun & Bradstreet", url: "https://www.dnb.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.dnb.com/duns/get-a-duns.html", apiAvailable: true },
+  { slug: "dandb", name: "Dun & Bradstreet", url: "https://www.dnb.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.dnb.com/duns/get-a-duns.html" },
   // ZoomInfo is a B2B data/search platform, not a normal local citation or listing directory.
   // Keep the slug inactive so older DB rows are suppressed and not queued for account creation.
   { slug: "zoominfo", name: "ZoomInfo", url: "https://www.zoominfo.com", tier: 1, category: "critical", industries: [], isActive: false },
@@ -184,16 +184,16 @@ const TIER_3_DIRECTORIES: DirectoryEntry[] = [
 // -----------------------------------------------------------------------------
 
 const TIER_4_DIRECTORIES: DirectoryEntry[] = [
-  { slug: "trustpilot", name: "Trustpilot", url: "https://www.trustpilot.com", tier: 4, category: "review", industries: [], claimUrl: "https://business.trustpilot.com", apiAvailable: true },
-  { slug: "reviews-io", name: "Reviews.io", url: "https://www.reviews.io", tier: 4, category: "review", industries: [], submitUrl: "https://www.reviews.io/front/sign-up", apiAvailable: true },
+  { slug: "trustpilot", name: "Trustpilot", url: "https://www.trustpilot.com", tier: 4, category: "review", industries: [], claimUrl: "https://business.trustpilot.com" },
+  { slug: "reviews-io", name: "Reviews.io", url: "https://www.reviews.io", tier: 4, category: "review", industries: [], submitUrl: "https://www.reviews.io/front/sign-up" },
   { slug: "sitejabber", name: "Sitejabber", url: "https://www.sitejabber.com", tier: 4, category: "review", industries: [], claimUrl: "https://www.sitejabber.com/biz" },
   { slug: "consumeraffairs", name: "ConsumerAffairs", url: "https://www.consumeraffairs.com", tier: 4, category: "review", industries: [], submitUrl: "https://www.consumeraffairs.com/for-brands" },
-  { slug: "birdeye", name: "Birdeye", url: "https://birdeye.com", tier: 4, category: "review", industries: [], submitUrl: "https://birdeye.com/signup", apiAvailable: true },
-  { slug: "g2", name: "G2", url: "https://www.g2.com", tier: 4, category: "review", industries: [], claimUrl: "https://sell.g2.com", apiAvailable: true },
+  { slug: "birdeye", name: "Birdeye", url: "https://birdeye.com", tier: 4, category: "review", industries: [], submitUrl: "https://birdeye.com/signup" },
+  { slug: "g2", name: "G2", url: "https://www.g2.com", tier: 4, category: "review", industries: [], claimUrl: "https://sell.g2.com" },
   { slug: "clutch", name: "Clutch", url: "https://clutch.co", tier: 4, category: "review", industries: [], submitUrl: "https://clutch.co/register" },
   { slug: "goodfirms", name: "GoodFirms", url: "https://www.goodfirms.co", tier: 4, category: "review", industries: [], submitUrl: "https://www.goodfirms.co/register" },
   { slug: "upcity", name: "UpCity", url: "https://upcity.com", tier: 4, category: "review", industries: [], submitUrl: "https://upcity.com/signup" },
-  { slug: "podium", name: "Podium", url: "https://www.podium.com", tier: 4, category: "review", industries: [], apiAvailable: true },
+  { slug: "podium", name: "Podium", url: "https://www.podium.com", tier: 4, category: "review", industries: [] },
 ];
 
 // -----------------------------------------------------------------------------
@@ -202,9 +202,9 @@ const TIER_4_DIRECTORIES: DirectoryEntry[] = [
 
 const TIER_5_DIRECTORIES: DirectoryEntry[] = [
   { slug: "waze", name: "Waze", url: "https://www.waze.com", tier: 5, category: "maps", industries: [], claimUrl: "https://ads.waze.com" },
-  { slug: "here-maps", name: "HERE Maps", url: "https://www.here.com", tier: 5, category: "maps", industries: [], submitUrl: "https://mapcreator.here.com", apiAvailable: true },
+  { slug: "here-maps", name: "HERE Maps", url: "https://www.here.com", tier: 5, category: "maps", industries: [], submitUrl: "https://mapcreator.here.com" },
   { slug: "mapquest", name: "MapQuest", url: "https://www.mapquest.com", tier: 5, category: "maps", industries: [], submitUrl: "https://www.mapquest.com/my-business" },
-  { slug: "tomtom", name: "TomTom", url: "https://www.tomtom.com", tier: 5, category: "maps", industries: [], submitUrl: "https://www.tomtom.com/mapshare", apiAvailable: true },
+  { slug: "tomtom", name: "TomTom", url: "https://www.tomtom.com", tier: 5, category: "maps", industries: [], submitUrl: "https://www.tomtom.com/mapshare" },
   { slug: "openstreetmap", name: "OpenStreetMap", url: "https://www.openstreetmap.org", tier: 5, category: "maps", industries: [], submitUrl: "https://www.openstreetmap.org/user/new" },
 ];
 
@@ -213,17 +213,17 @@ const TIER_5_DIRECTORIES: DirectoryEntry[] = [
 // -----------------------------------------------------------------------------
 
 const TIER_6_DIRECTORIES: DirectoryEntry[] = [
-  { slug: "instagram", name: "Instagram", url: "https://www.instagram.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "twitter-x", name: "X (Twitter)", url: "https://x.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "pinterest", name: "Pinterest", url: "https://www.pinterest.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "tiktok", name: "TikTok", url: "https://www.tiktok.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "youtube", name: "YouTube", url: "https://www.youtube.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "tumblr", name: "Tumblr", url: "https://www.tumblr.com", tier: 6, category: "social", industries: [], apiAvailable: true },
+  { slug: "instagram", name: "Instagram", url: "https://www.instagram.com", tier: 6, category: "social", industries: [] },
+  { slug: "twitter-x", name: "X (Twitter)", url: "https://x.com", tier: 6, category: "social", industries: [] },
+  { slug: "pinterest", name: "Pinterest", url: "https://www.pinterest.com", tier: 6, category: "social", industries: [] },
+  { slug: "tiktok", name: "TikTok", url: "https://www.tiktok.com", tier: 6, category: "social", industries: [] },
+  { slug: "youtube", name: "YouTube", url: "https://www.youtube.com", tier: 6, category: "social", industries: [] },
+  { slug: "tumblr", name: "Tumblr", url: "https://www.tumblr.com", tier: 6, category: "social", industries: [] },
   { slug: "medium", name: "Medium", url: "https://medium.com", tier: 6, category: "social", industries: [] },
   { slug: "about-me", name: "About.me", url: "https://about.me", tier: 6, category: "social", industries: [], submitUrl: "https://about.me/signup" },
   { slug: "quora", name: "Quora", url: "https://www.quora.com", tier: 6, category: "social", industries: [] },
-  { slug: "reddit", name: "Reddit", url: "https://www.reddit.com", tier: 6, category: "social", industries: [], apiAvailable: true },
-  { slug: "crunchbase", name: "Crunchbase", url: "https://www.crunchbase.com", tier: 6, category: "social", industries: [], submitUrl: "https://www.crunchbase.com/register", apiAvailable: true },
+  { slug: "reddit", name: "Reddit", url: "https://www.reddit.com", tier: 6, category: "social", industries: [] },
+  { slug: "crunchbase", name: "Crunchbase", url: "https://www.crunchbase.com", tier: 6, category: "social", industries: [], submitUrl: "https://www.crunchbase.com/register" },
   { slug: "glassdoor", name: "Glassdoor", url: "https://www.glassdoor.com", tier: 6, category: "social", industries: [], claimUrl: "https://www.glassdoor.com/employers" },
   { slug: "indeed", name: "Indeed", url: "https://www.indeed.com", tier: 6, category: "social", industries: [], claimUrl: "https://employers.indeed.com" },
   { slug: "wordpress-com", name: "WordPress.com", url: "https://wordpress.com", tier: 6, category: "social", industries: [] },
@@ -303,7 +303,7 @@ const SUBMITTED_DIRECTORIES: DirectoryEntry[] = [
   { slug: "yellowpagesonlinedirectory", name: "Yellow Pages Online Directory", url: "https://www.yellowpagesonlinedirectory.com", tier: 2, category: "submitted", industries: [] },
   { slug: "myserviceprofile", name: "MyServiceProfile", url: "https://www.myserviceprofile.com", tier: 2, category: "submitted", industries: [] },
   { slug: "localbusinessdirectory", name: "Local Business Directory", url: "https://www.localbusinessdirectory.com", tier: 2, category: "submitted", industries: [] },
-  { slug: "facebook", name: "Facebook", url: "https://www.facebook.com", tier: 2, category: "submitted", industries: [], apiAvailable: true },
+  { slug: "facebook", name: "Facebook", url: "https://www.facebook.com", tier: 2, category: "submitted", industries: [] },
 ];
 
 // -----------------------------------------------------------------------------

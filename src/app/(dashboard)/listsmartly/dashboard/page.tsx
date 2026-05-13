@@ -222,10 +222,10 @@ function sentimentIcon(sentiment: string) {
 
 function formatWorkflowMode(mode?: string): string {
   if (!mode) return "Directory web workflow";
-  if (mode === "api_or_web_workflow") return "API or web workflow";
+  if (mode === "api_or_web_workflow") return "Web workflow";
   if (mode === "web_workflow") return "Web workflow";
   if (mode === "assisted_manual_handoff") return "Web workflow with user validation";
-  if (mode === "official_api_or_assisted") return "API or web workflow";
+  if (mode === "official_api_or_assisted") return "Web workflow";
   return mode.replaceAll("_", " ");
 }
 
@@ -601,13 +601,17 @@ export default function ListSmartlyDashboardPage() {
         setAutoFixEnabled(json.data.state.settings.autoFix || false);
         setAutoDescEnabled(json.data.state.settings.autoDescriptions || false);
       }
+      const resultMessage =
+        action === "run_next"
+          ? "Agent started. The live status panel will refresh as it inspects the directory workflow."
+          : json.data?.result?.message || (
+              action === "prepare_queue"
+                ? "The agent queue is ready."
+                : "The workflow has been updated."
+            );
       toast({
-        title: "Autopilot updated",
-        description: json.data?.result?.message || (
-          action === "prepare_queue"
-            ? "The agent queue is ready."
-            : "The workflow has been updated."
-        ),
+        title: action === "run_next" ? "Autopilot started" : "Autopilot updated",
+        description: resultMessage,
       });
     } catch {
       toast({ title: "Error", description: "Failed to run autopilot action", variant: "destructive" });
@@ -1371,8 +1375,8 @@ export default function ListSmartlyDashboardPage() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Controlled, human-safe submission flow</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    The agent uses approved APIs when available, otherwise it uses low-rate public directory web workflows
-                    and submit/claim pages. It runs one account or listing workflow per day and pauses only for real
+                    The agent uses low-rate public directory web workflows and submit/claim pages. It runs one account
+                    or listing workflow per day and pauses only for real
                     validation requirements like email, SMS, phone, CAPTCHA, payment, or owner approval.
                   </p>
                 </div>
@@ -1393,7 +1397,7 @@ export default function ListSmartlyDashboardPage() {
                 disabled={!canRunAutopilot}
               >
                 <Play className="h-4 w-4 mr-2" />
-                {activeTask ? "Autopilot Running" : nextRunAt ? "Runs Daily" : "Run Autopilot"}
+                {activeTask ? "Autopilot Running" : needsUserTask ? "Action Needed" : nextRunAt ? "Runs Daily" : "Run Autopilot"}
               </Button>
               <div className="min-w-[220px] text-xs text-muted-foreground">
                 {activeTask ? (
@@ -1405,6 +1409,10 @@ export default function ListSmartlyDashboardPage() {
                       {activeTask.statusMessage || formatWorkflowMode(activeTask.stage)}
                     </p>
                   </>
+                ) : needsUserTask ? (
+                  <p>
+                    Action needed: <span className="text-foreground font-medium">{needsUserTask.title}</span>
+                  </p>
                 ) : nextRunAt ? (
                   <p>
                     Next daily run: <span className="text-foreground font-medium">{formatNextRun(nextRunAt)}</span>
@@ -1474,7 +1482,7 @@ export default function ListSmartlyDashboardPage() {
                       {needsUserTask.result?.accountCreated === false && (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                           <div className="rounded-md border border-border bg-card/60 p-2">
-                            <p className="text-[11px] text-muted-foreground">Agent tried sign-up</p>
+                            <p className="text-[11px] text-muted-foreground">Portal inspected</p>
                             <p className={`text-xs font-semibold ${needsUserTask.result?.agentAttemptedAccountCreation ? "text-emerald-300" : "text-red-300"}`}>
                               {needsUserTask.result?.agentAttemptedAccountCreation ? "Yes" : "No"}
                             </p>

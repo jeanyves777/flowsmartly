@@ -63,6 +63,7 @@ type AccountCreationAttempt = {
   creationUrl: string | null;
   blocker: string;
   blockerMessage: string;
+  requiresUserAction: boolean;
   userActionTitle: string;
   userActionMessage: string;
   userActionButtonLabel: string;
@@ -137,6 +138,19 @@ function looksLikeAccountCreationUrl(value: string | null | undefined): boolean 
   );
 }
 
+function hasSsoPrompt(html: string): boolean {
+  const withoutScripts = html.replace(/<script\b[\s\S]*?<\/script>/gi, " ");
+  return /single sign[\s-]?on|\bsso\b|sign in with google|continue with google|log in with google|sign up with google|sign in with microsoft|continue with microsoft|log in with microsoft|office 365/i.test(
+    withoutScripts
+  );
+}
+
+function hasClaimWorkflowLanguage(value: string): boolean {
+  return /(claim your|claim this|claim listing|claim profile|claim your free|get a duns|get a d u n s|get a d n b|d u n s number|duns number|request.*number|start.*application|register your business|add your business)/i.test(
+    value
+  );
+}
+
 function scoreSearchCandidate(profile: BusinessSignalInput, candidate: { link: string; title?: string; snippet?: string }): number {
   const rawHaystack = `${candidate.title || ""} ${candidate.snippet || ""} ${candidate.link}`;
   const haystack = normalizeText(rawHaystack);
@@ -193,7 +207,7 @@ function taskTitle(status: string, directoryName: string): string {
 
 function requiredActionForStatus(status: string): string {
   if (status === "missing") {
-    return "Autopilot will create or claim this listing and pause only if the directory requires email, SMS, phone, payment, or CAPTCHA verification.";
+    return "Autopilot will use the public web submit or claim flow and pause only if the directory requires email, SMS, phone, payment, or CAPTCHA verification.";
   }
   if (status === "needs_update") {
     return "Autopilot will update the listing with the approved business profile and pause only if the directory requires user validation.";
@@ -245,12 +259,11 @@ function buildDirectoryPayload(profile: {
       submitUrl: listing.directory.submitUrl,
       claimUrl: listing.directory.claimUrl,
       tier: listing.directory.tier,
-      apiAvailable: listing.directory.apiAvailable,
     },
     safety: {
-      mode: listing.directory.apiAvailable ? "api_or_web_workflow" : "web_workflow",
+      mode: "web_workflow",
       policy:
-        "Use official APIs when available, otherwise use public directory pages, submit/claim URLs, and low-rate web research. Do not bypass login protections, CAPTCHAs, email/SMS/phone verification, rate limits, payment requirements, or directory terms.",
+        "Use public directory pages, submit/claim URLs, and low-rate web research only. Do not bypass login protections, CAPTCHAs, email/SMS/phone verification, rate limits, payment requirements, or directory terms.",
       pacing: "One account or listing workflow per day with verification checkpoints.",
     },
     steps: [
@@ -388,6 +401,7 @@ async function inspectAccountCreationPage(
       accountCreated: false,
       credentialSaved: false,
       emailSentByFlowSmartly: false,
+      requiresUserAction: false,
       blocker: "missing_creation_url",
       blockerMessage: `No public create, claim, or sign-up URL was found for ${directoryName}.`,
       userActionTitle: `${directoryName} account creation path not found`,
@@ -404,6 +418,7 @@ async function inspectAccountCreationPage(
       accountCreated: false,
       credentialSaved: false,
       emailSentByFlowSmartly: false,
+      requiresUserAction: true,
       blocker: "business_email_missing",
       blockerMessage: "The business profile does not have an email address for account creation.",
       userActionTitle: "Business email needed",
@@ -423,10 +438,11 @@ async function inspectAccountCreationPage(
     const page = normalizeText(html);
     const hasCaptcha = /(captcha|recaptcha|hcaptcha|turnstile|cloudflare)/i.test(html);
     const hasPassword = /type=["']password["']|name=["'][^"']*password/i.test(html);
-    const hasSso = /(single sign on|single sign-on|sso|google|office 365|microsoft)/i.test(html);
+    const hasSso = hasSsoPrompt(html);
     const hasEmailField = /type=["']email["']|name=["'][^"']*(email|user(name)?)["']/i.test(html);
     const hasSignupLanguage = /(sign up|signup|free trial|create account|register|claim)/.test(page);
     const isSignupPath = looksLikeAccountCreationUrl(url);
+    const hasClaimWorkflow = hasClaimWorkflowLanguage(`${url} ${page}`);
 
     if (!res.ok && res.status >= 400) {
       return {
@@ -434,6 +450,7 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
+        requiresUserAction: false,
         blocker: "creation_page_unreachable",
         blockerMessage: `${directoryName} returned HTTP ${res.status} for the account creation page.`,
         userActionTitle: `${directoryName} account creation blocked`,
@@ -450,6 +467,7 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
+        requiresUserAction: true,
         blocker: "captcha_required",
         blockerMessage: `${directoryName} requires CAPTCHA or bot-protection before account creation can continue.`,
         userActionTitle: `${directoryName} CAPTCHA required`,
@@ -466,6 +484,7 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
+        requiresUserAction: true,
         blocker: "email_confirmation_required",
         blockerMessage:
           `${directoryName} exposes an account creation flow, and completing it can send email verification to ${profile.email}.`,
@@ -477,12 +496,31 @@ async function inspectAccountCreationPage(
       };
     }
 
+    if (hasClaimWorkflow || (isSignupPath && hasSignupLanguage)) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        requiresUserAction: false,
+        blocker: "browser_claim_workflow_required",
+        blockerMessage:
+          `${directoryName} exposes a public claim or sign-up workflow, but the form is dynamic and must be handled by the agent browser workflow before asking the user for anything.`,
+        userActionTitle: `${directoryName} claim workflow found`,
+        userActionMessage:
+          `The agent found the ${directoryName} public claim or sign-up path. No account has been created yet, and no user action is required at this step. ` +
+          "The next step belongs to the agent browser workflow; it should only ask you if the directory later requires email, SMS, phone, CAPTCHA, payment, or owner approval.",
+        userActionButtonLabel: "Agent should continue",
+      };
+    }
+
     if (hasPassword || hasSso) {
       return {
         attempted: true,
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
+        requiresUserAction: true,
         blocker: hasPassword ? "account_credentials_required" : "sso_required",
         blockerMessage: `${directoryName} requires account credentials or SSO before an account can be created or claimed.`,
         userActionTitle: `${directoryName} credentials required`,
@@ -499,6 +537,7 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
+        requiresUserAction: true,
         blocker: "email_confirmation_required",
         blockerMessage:
           `${directoryName} exposes an account creation flow, but completing it can send email verification to ${profile.email}.`,
@@ -514,6 +553,7 @@ async function inspectAccountCreationPage(
       accountCreated: false,
       credentialSaved: false,
       emailSentByFlowSmartly: false,
+      requiresUserAction: false,
       blocker: "manual_portal_review_required",
       blockerMessage: `${directoryName} did not expose a safe standard account creation form to the agent.`,
       userActionTitle: `${directoryName} portal review needed`,
@@ -528,6 +568,7 @@ async function inspectAccountCreationPage(
       accountCreated: false,
       credentialSaved: false,
       emailSentByFlowSmartly: false,
+      requiresUserAction: false,
       blocker: "account_creation_request_failed",
       blockerMessage: error instanceof Error ? error.message : `${directoryName} account creation request failed.`,
       userActionTitle: `${directoryName} account creation could not continue`,
@@ -556,9 +597,9 @@ async function attemptAccountCreation(
   await updateTaskProgress(
     taskId,
     "attempting_account_creation",
-    `Trying the ${listing.directory.name} create, sign-up, or claim path before asking the user for help.`,
+    `Inspecting the ${listing.directory.name} create, sign-up, or claim path before asking the user for help.`,
     {
-      label: "Account creation attempt",
+      label: "Portal workflow inspection",
       status: "active",
       detail: creationUrl || "No account creation URL found yet.",
     },
@@ -577,8 +618,8 @@ async function attemptAccountCreation(
     "account_creation_blocked",
     inspection.blockerMessage,
     {
-      label: "Account creation blocked",
-      status: "waiting",
+      label: inspection.requiresUserAction ? "User validation required" : "Agent follow-up needed",
+      status: inspection.requiresUserAction ? "waiting" : "active",
       detail: inspection.blockerMessage,
     },
     {
@@ -1094,6 +1135,18 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     return { status: "idle", message: "No in-progress ListSmartly autopilot task is waiting.", task: null };
   }
 
+  const existingResult = parseJsonObject(task.result);
+  if (existingResult.stage === "agent_browser_workflow_pending") {
+    return {
+      status: "pending_agent_browser",
+      message:
+        typeof existingResult.statusMessage === "string"
+          ? existingResult.statusMessage
+          : `${task.title} is waiting for the agent browser workflow.`,
+      task,
+    };
+  }
+
   if (!task.listing) {
     const failed = await prisma.listSmartlyAutopilotTask.update({
       where: { id: task.id },
@@ -1291,8 +1344,55 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     select: { result: true },
   }))?.result);
 
+  if (!creationAttempt.requiresUserAction) {
+    const agentMessage =
+      `${task.listing.directory.name} was inspected. ${creationAttempt.blockerMessage} ` +
+      "No account was created by FlowSmartly, no credentials were saved, and FlowSmartly did not send an email. " +
+      "No user action is required yet.";
+    const agentResult = appendProgress(
+      {
+        ...current,
+        stage: "agent_browser_workflow_pending",
+        statusMessage: agentMessage,
+        agentAttemptedAccountCreation: false,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        accountCreationBlocker: creationAttempt.blocker,
+        userActionTitle: creationAttempt.userActionTitle,
+        userActionMessage: creationAttempt.userActionMessage,
+        userActionButtonLabel: creationAttempt.userActionButtonLabel,
+        portalUrl: creationAttempt.creationUrl || handoffUrl,
+        discoveredLinks: research.discoveredLinks,
+        searched: research.searched,
+        match: null,
+        error: research.error,
+      },
+      {
+        stage: "agent_browser_workflow_pending",
+        label: "Agent browser step queued",
+        status: "active",
+        detail: creationAttempt.blockerMessage,
+      }
+    );
+
+    const pendingAgent = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "in_progress",
+        assignedTo: "agent",
+        requiredAction:
+          "The public directory workflow was found. The next step belongs to the agent browser workflow; user validation is not required yet.",
+        failureReason: null,
+        result: safeJson(agentResult),
+      },
+    });
+
+    return { status: "pending_agent_browser", message: agentMessage, task: pendingAgent };
+  }
+
   const validationMessage =
-    `${task.listing.directory.name} account creation was attempted but not completed. ${creationAttempt.blockerMessage} ` +
+    `${task.listing.directory.name} portal workflow was inspected but not completed. ${creationAttempt.blockerMessage} ` +
     "No account was created by FlowSmartly, no credentials were saved, and FlowSmartly did not send an email. " +
     (research.searched
       ? "No confirmed public listing was found from the directory search. "
@@ -1432,7 +1532,7 @@ export async function runNextAutopilotStep(userId: string) {
       lastAttemptAt: new Date(),
       startedAt: task.startedAt || new Date(),
       requiredAction:
-        "Autopilot is running a compliant directory web workflow. It will pause only if email, SMS, phone, CAPTCHA, payment, or owner approval is required.",
+        "Autopilot is running a compliant public directory web workflow. It will pause only if email, SMS, phone, CAPTCHA, payment, or owner approval is required.",
     },
   });
 
@@ -1445,12 +1545,10 @@ export async function runNextAutopilotStep(userId: string) {
     data: { feature: "listsmartly", taskId: task.id },
   });
 
-  const processed = await processAutopilotTask(userId, updated.id);
-
   return {
     status: "started",
-    message: processed.message || `${task.title} started. Autopilot runs one listing workflow per day.`,
-    task: processed.task || updated,
+    message: `${task.title} started. Autopilot is inspecting the directory workflow and the status panel will refresh automatically.`,
+    task: updated,
     nextRunAt: addMs(new Date(), DAILY_AUTOPILOT_INTERVAL_MS),
   };
 }

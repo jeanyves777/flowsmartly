@@ -51,7 +51,13 @@ export async function GET(request: NextRequest) {
 
       if (activeTaskCount === 0) {
         const next = await runNextAutopilotStep(profile.userId);
-        if (next.task) started++;
+        if (next.task) {
+          started++;
+          if (next.status === "started" && next.task.id) {
+            await processAutopilotTask(profile.userId, next.task.id);
+            processed++;
+          }
+        }
       }
     }
 
