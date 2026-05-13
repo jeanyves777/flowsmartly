@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
 const DAILY_AUTOPILOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const AUTOPILOT_FETCH_TIMEOUT_MS = 10000;
+const AUTOPILOT_BROWSER_TIMEOUT_MS = 45000;
 const AUTOPILOT_USER_AGENT = "Mozilla/5.0 (compatible; FlowSmartlyListSmartly/1.0)";
 const MIN_DIRECTORY_MATCH_SCORE = 5;
+const SECURE_NOTE_PREFIX = "fs-vault:v1:";
 
 type AutopilotAction =
   | "prepare_queue"
@@ -30,12 +33,18 @@ type SaveCredentialInput = {
 
 type BusinessSignalInput = {
   businessName: string;
+  contactName?: string | null;
   email?: string | null;
   phone?: string | null;
   website?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  industry?: string | null;
+  yearFounded?: string | null;
+  description?: string | null;
 };
 
 type SearchCandidate = {
@@ -69,6 +78,22 @@ type AccountCreationAttempt = {
   userActionButtonLabel: string;
 };
 
+type BrowserWorkflowOutcome = {
+  status: "submitted" | "needs_user" | "blocked" | "pending";
+  stage: string;
+  message: string;
+  actionTitle: string;
+  actionButtonLabel: string;
+  portalUrl: string;
+  accountCreated: boolean;
+  credentialSaved: boolean;
+  emailSentByFlowSmartly: boolean;
+  generatedPassword?: string;
+  passwordHint?: string;
+  screenshotLabel?: string;
+  diagnostics?: Record<string, unknown>;
+};
+
 function safeJson(value: unknown): string {
   return JSON.stringify(value || {});
 }
@@ -81,6 +106,65 @@ function parseJsonObject(value: string | null | undefined): Record<string, unkno
   } catch {
     return {};
   }
+}
+
+function getVaultKey(): Buffer | null {
+  const secret =
+    process.env.LISTSMARTLY_VAULT_SECRET ||
+    process.env.ENCRYPTION_KEY ||
+    process.env.JWT_SECRET ||
+    process.env.STORE_CUSTOMER_JWT_SECRET;
+  if (!secret || secret.length < 16) return null;
+  return createHash("sha256").update(secret).digest();
+}
+
+function encryptSecureNote(value: string | null | undefined): string | null {
+  if (!value) return value || null;
+  if (value.startsWith(SECURE_NOTE_PREFIX)) return value;
+  const key = getVaultKey();
+  if (!key) return value;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${SECURE_NOTE_PREFIX}${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
+}
+
+function decryptSecureNote(value: string | null | undefined): string | null {
+  if (!value) return value || null;
+  if (!value.startsWith(SECURE_NOTE_PREFIX)) return value;
+  const key = getVaultKey();
+  if (!key) return "Encrypted secure note is unavailable because the vault secret is not configured.";
+  const payload = value.slice(SECURE_NOTE_PREFIX.length);
+  const [ivRaw, tagRaw, encryptedRaw] = payload.split(".");
+  if (!ivRaw || !tagRaw || !encryptedRaw) return "Encrypted secure note could not be decoded.";
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivRaw, "base64url"));
+    decipher.setAuthTag(Buffer.from(tagRaw, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedRaw, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return "Encrypted secure note could not be decrypted.";
+  }
+}
+
+function generateAutopilotPassword(): string {
+  const core = randomBytes(8).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
+  return `Fs!${core}7Aa`;
+}
+
+function splitContactName(profile: BusinessSignalInput): { firstName: string; lastName: string } {
+  const raw = normalizeText(profile.contactName || "").length > 2 ? profile.contactName : profile.businessName;
+  const parts = (raw || profile.businessName || "Business Admin")
+    .replace(/[^a-zA-Z0-9' -]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const firstName = parts[0] || "Business";
+  const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "Admin";
+  return { firstName, lastName };
 }
 
 function appendProgress(
@@ -634,6 +718,792 @@ async function attemptAccountCreation(
   return { ...inspection, creationUrl };
 }
 
+async function waitForBrowserSettled(page: any, timeout = 12000) {
+  try {
+    await page.waitForNetworkIdle({ idleTime: 700, timeout });
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+}
+
+async function getBrowserSnapshot(page: any) {
+  return page.evaluate(() => {
+    const visible = (el: Element) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+    };
+    const controlLabel = (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+      const id = el.getAttribute("id");
+      const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+      const parentLabel = el.closest("label")?.textContent || "";
+      return [
+        label,
+        parentLabel,
+        el.getAttribute("aria-label") || "",
+        el.getAttribute("placeholder") || "",
+        el.getAttribute("name") || "",
+        el.getAttribute("autocomplete") || "",
+        id || "",
+      ]
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+    const controls = Array.from(document.querySelectorAll("input, textarea, select"))
+      .filter((el) => visible(el))
+      .map((el: any, index) => ({
+        index,
+        tag: el.tagName,
+        type: (el.getAttribute("type") || "").toLowerCase(),
+        name: el.getAttribute("name") || "",
+        id: el.getAttribute("id") || "",
+        placeholder: el.getAttribute("placeholder") || "",
+        autocomplete: el.getAttribute("autocomplete") || "",
+        label: controlLabel(el),
+        value: el.value || "",
+        required: Boolean(el.required || el.getAttribute("aria-required") === "true"),
+      }));
+    const buttons = Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]"))
+      .filter((el) => visible(el))
+      .map((el: any, index) => ({
+        index,
+        tag: el.tagName,
+        text: (el.innerText || el.getAttribute("value") || el.getAttribute("aria-label") || "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        href: el.href || "",
+        type: el.getAttribute("type") || "",
+      }))
+      .filter((item) => item.text || item.href);
+    const text = document.body.innerText.replace(/\s+/g, " ").trim();
+    return {
+      url: location.href,
+      title: document.title,
+      text: text.slice(0, 6000),
+      controls,
+      buttons,
+      hasCaptcha: /(captcha|recaptcha|hcaptcha|turnstile|cloudflare challenge)/i.test(text + " " + document.body.innerHTML),
+      hasEmailVerification: /(verify your email|verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(text),
+      hasPhoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(text),
+      hasPayment: /(payment|credit card|checkout|billing information|expedite)/i.test(text),
+      hasInvalidBusinessEmail: /(business email|required.*business email|valid business email|work email|company email|invalid email)/i.test(text),
+      hasRequiredError: /(required|missing|invalid|please enter|please select)/i.test(text),
+    };
+  });
+}
+
+async function clickBrowserControl(page: any, patterns: RegExp[], options: { avoid?: RegExp[] } = {}) {
+  return page.evaluate(
+    ({ patternSources, avoidSources }: { patternSources: string[]; avoidSources: string[] }) => {
+      const patterns = patternSources.map((source) => new RegExp(source, "i"));
+      const avoid = avoidSources.map((source) => new RegExp(source, "i"));
+      const visible = (el: Element) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+      };
+      const candidates = Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]")) as HTMLElement[];
+      for (const el of candidates) {
+        if (!visible(el)) continue;
+        const text = (
+          el.innerText ||
+          el.getAttribute("value") ||
+          el.getAttribute("aria-label") ||
+          (el as HTMLAnchorElement).href ||
+          ""
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!text) continue;
+        if (avoid.some((pattern) => pattern.test(text))) continue;
+        if (!patterns.some((pattern) => pattern.test(text))) continue;
+        el.click();
+        return { clicked: true, text, href: (el as HTMLAnchorElement).href || "" };
+      }
+      return { clicked: false, text: "", href: "" };
+    },
+    {
+      patternSources: patterns.map((pattern) => pattern.source),
+      avoidSources: (options.avoid || []).map((pattern) => pattern.source),
+    }
+  );
+}
+
+async function fillBrowserForm(page: any, profile: BusinessSignalInput, generatedPassword: string) {
+  const { firstName, lastName } = splitContactName(profile);
+  return page.evaluate(
+    ({ values }: { values: Record<string, string> }) => {
+      const visible = (el: Element) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+      };
+      const setValue = (el: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+        const prototype = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+        if (setter) setter.call(el, value);
+        else el.value = value;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      const labelFor = (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+        const id = el.getAttribute("id");
+        const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+        const implicit = el.closest("label")?.textContent || "";
+        return [
+          explicit,
+          implicit,
+          el.getAttribute("aria-label") || "",
+          el.getAttribute("placeholder") || "",
+          el.getAttribute("name") || "",
+          el.getAttribute("id") || "",
+          el.getAttribute("autocomplete") || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+      };
+      const filled: string[] = [];
+      const missingRequired: string[] = [];
+      const inputs = Array.from(document.querySelectorAll("input, textarea")) as Array<HTMLInputElement | HTMLTextAreaElement>;
+      for (const input of inputs) {
+        if (!visible(input) || input.disabled || input.readOnly) continue;
+        const type = (input.getAttribute("type") || "text").toLowerCase();
+        if (["hidden", "submit", "button", "checkbox", "radio", "file"].includes(type)) continue;
+        if (input.value) continue;
+        const label = labelFor(input);
+        let value = "";
+        if (type === "email" || /\b(e-?mail|email address|business email|work email)\b/.test(label)) value = values.email;
+        else if (type === "password" || /password/.test(label)) value = values.password;
+        else if (/first name|given name/.test(label)) value = values.firstName;
+        else if (/last name|surname|family name/.test(label)) value = values.lastName;
+        else if (/full name|your name|contact name|owner name|president|ceo/.test(label)) value = values.fullName;
+        else if (/business name|company name|organization|legal name|business legal/.test(label)) value = values.businessName;
+        else if (/phone|telephone|mobile/.test(label)) value = values.phone;
+        else if (/street|address line 1|business address|mailing address/.test(label)) value = values.address;
+        else if (/\bcity\b/.test(label)) value = values.city;
+        else if (/\bstate\b|province|region/.test(label)) value = values.state;
+        else if (/zip|postal/.test(label)) value = values.zip;
+        else if (/website|url|domain/.test(label)) value = values.website;
+        else if (/industry|category|business type/.test(label)) value = values.industry;
+        else if (/year founded|founded|established/.test(label)) value = values.yearFounded;
+        else if (/description|about|summary/.test(label)) value = values.description;
+
+        if (value) {
+          setValue(input, value);
+          filled.push(label.replace(/\s+/g, " ").trim().slice(0, 80));
+        } else if (input.required || input.getAttribute("aria-required") === "true") {
+          missingRequired.push(label.replace(/\s+/g, " ").trim().slice(0, 80) || type);
+        }
+      }
+
+      const selects = Array.from(document.querySelectorAll("select")) as HTMLSelectElement[];
+      for (const select of selects) {
+        if (!visible(select) || select.disabled || select.value) continue;
+        const label = labelFor(select);
+        let desired = "";
+        if (/country/.test(label)) desired = values.country || "United States";
+        else if (/state|province|region/.test(label)) desired = values.state;
+        else if (/industry|category|business type/.test(label)) desired = values.industry;
+        if (!desired) continue;
+        const option = Array.from(select.options).find((item) => {
+          const text = `${item.textContent || ""} ${item.value || ""}`.toLowerCase();
+          return text.includes(desired.toLowerCase()) || (desired === "US" && /united states|usa|\bus\b/.test(text));
+        });
+        if (option) {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          filled.push(label.replace(/\s+/g, " ").trim().slice(0, 80));
+        }
+      }
+      return { filled, missingRequired };
+    },
+    {
+      values: {
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`.trim(),
+        businessName: profile.businessName || "",
+        email: profile.email || "",
+        password: generatedPassword,
+        phone: profile.phone || "",
+        website: profile.website || "",
+        address: profile.address || "",
+        city: profile.city || "",
+        state: profile.state || "",
+        zip: profile.zip || "",
+        country: profile.country || "United States",
+        industry: profile.industry || "",
+        yearFounded: profile.yearFounded || "",
+        description: profile.description || "",
+      },
+    }
+  );
+}
+
+function browserOutcomeForValidation(params: {
+  status: BrowserWorkflowOutcome["status"];
+  stage: string;
+  portalUrl: string;
+  message: string;
+  actionTitle: string;
+  actionButtonLabel: string;
+  accountCreated?: boolean;
+  generatedPassword?: string;
+  passwordHint?: string;
+  diagnostics?: Record<string, unknown>;
+}): BrowserWorkflowOutcome {
+  return {
+    status: params.status,
+    stage: params.stage,
+    portalUrl: params.portalUrl,
+    message: params.message,
+    actionTitle: params.actionTitle,
+    actionButtonLabel: params.actionButtonLabel,
+    accountCreated: Boolean(params.accountCreated),
+    credentialSaved: Boolean(params.generatedPassword),
+    emailSentByFlowSmartly: false,
+    generatedPassword: params.generatedPassword,
+    passwordHint: params.passwordHint,
+    diagnostics: params.diagnostics,
+  };
+}
+
+async function runBrowserSignupWorkflow(params: {
+  profile: BusinessSignalInput;
+  directoryName: string;
+  directorySlug?: string | null;
+  startUrl: string;
+}): Promise<BrowserWorkflowOutcome> {
+  const { profile, directoryName, directorySlug, startUrl } = params;
+  const generatedPassword = generateAutopilotPassword();
+  const puppeteer = (await import("puppeteer")).default;
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(AUTOPILOT_BROWSER_TIMEOUT_MS);
+    await page.setViewport({ width: 1365, height: 900 });
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+    );
+    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AUTOPILOT_BROWSER_TIMEOUT_MS });
+    await waitForBrowserSettled(page);
+
+    await clickBrowserControl(page, [/agree.+proceed|required only|accept/i]);
+    await waitForBrowserSettled(page, 5000);
+
+    if (directorySlug === "dandb" || /dnb\.com/i.test(startUrl)) {
+      const usChoice = await clickBrowserControl(page, [/u\.?s\.?-based business|united states|us-based business/i], {
+        avoid: [/canada|international|apple|google|fda/i],
+      });
+      if (usChoice.clicked) await waitForBrowserSettled(page, 8000);
+      const generalPurpose = await clickBrowserControl(page, [/registering for general purposes|general purposes/i], {
+        avoid: [/apple|google|fda/i],
+      });
+      if (generalPurpose.clicked) await waitForBrowserSettled(page, 12000);
+    } else {
+      const signupClick = await clickBrowserControl(
+        page,
+        [/sign up with email|sign up|create account|register|claim|add business|add listing|get started|start application/i],
+        { avoid: [/google|microsoft|office|facebook|apple|sign in|log in|login|sso|back/i] }
+      );
+      if (signupClick.clicked) await waitForBrowserSettled(page, 12000);
+    }
+
+    let lastSnapshot = await getBrowserSnapshot(page);
+    const filledSteps: Array<Record<string, unknown>> = [];
+
+    for (let step = 0; step < 3; step++) {
+      lastSnapshot = await getBrowserSnapshot(page);
+
+      if (lastSnapshot.hasCaptcha) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_captcha",
+          portalUrl: lastSnapshot.url,
+          message: `${directoryName} is showing CAPTCHA or bot protection. The agent stopped and needs the user to complete that challenge in the portal before it continues.`,
+          actionTitle: `${directoryName} CAPTCHA required`,
+          actionButtonLabel: "I completed the CAPTCHA",
+          generatedPassword: step > 0 ? generatedPassword : undefined,
+          passwordHint: step > 0 ? "Generated by FlowSmartly for this directory sign-up." : undefined,
+          diagnostics: { title: lastSnapshot.title, step },
+        });
+      }
+
+      if (lastSnapshot.hasEmailVerification) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_email_verification",
+          portalUrl: lastSnapshot.url,
+          message: `${directoryName} accepted the sign-up step and is asking for email verification. Check ${profile.email}, complete the verification, then return to ListSmartly so the agent can continue.`,
+          actionTitle: `Verify ${directoryName} email`,
+          actionButtonLabel: "I verified the email",
+          accountCreated: true,
+          generatedPassword,
+          passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+          diagnostics: { title: lastSnapshot.title, step },
+        });
+      }
+
+      const fill = await fillBrowserForm(page, profile, generatedPassword);
+      filledSteps.push({ step, url: lastSnapshot.url, filled: fill.filled, missingRequired: fill.missingRequired });
+      await waitForBrowserSettled(page, 3000);
+
+      const hasVisibleControls = lastSnapshot.controls.some((control: { type?: string; tag?: string }) => {
+        const type = (control.type || "").toLowerCase();
+        return !["hidden", "submit", "button", "checkbox", "radio", "file"].includes(type);
+      });
+
+      if (fill.filled.length === 0 && !hasVisibleControls) {
+        const nextClick = await clickBrowserControl(
+          page,
+          [/continue|next|submit|start|create account|sign up|get started|claim|apply/i],
+          { avoid: [/back|cancel|sign in|log in|login|google|microsoft|office|apple|facebook/i] }
+        );
+        if (!nextClick.clicked) break;
+        await waitForBrowserSettled(page, 12000);
+        continue;
+      }
+
+      const submit = await clickBrowserControl(
+        page,
+        [/continue|next|submit|create account|sign up|start application|apply|get started|claim/i],
+        { avoid: [/back|cancel|sign in|log in|login|google|microsoft|office|apple|facebook/i] }
+      );
+      if (!submit.clicked) {
+        if (fill.missingRequired.length > 0) {
+          return browserOutcomeForValidation({
+            status: "needs_user",
+            stage: "waiting_for_missing_business_data",
+            portalUrl: lastSnapshot.url,
+            message: `${directoryName} needs additional required fields that are not saved in the ListSmartly profile: ${fill.missingRequired.join(", ")}.`,
+            actionTitle: `${directoryName} needs profile data`,
+            actionButtonLabel: "I added the missing data",
+            generatedPassword,
+            passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+            diagnostics: { title: lastSnapshot.title, filledSteps },
+          });
+        }
+        break;
+      }
+
+      await waitForBrowserSettled(page, 15000);
+      const afterSubmit = await getBrowserSnapshot(page);
+
+      if (afterSubmit.hasInvalidBusinessEmail) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_business_email",
+          portalUrl: afterSubmit.url,
+          message: `${directoryName} rejected or requested a valid business/work email. Update the ListSmartly business email, then the agent can retry the sign-up.`,
+          actionTitle: `${directoryName} needs a business email`,
+          actionButtonLabel: "I updated the email",
+          generatedPassword,
+          passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+          diagnostics: { title: afterSubmit.title, filledSteps },
+        });
+      }
+
+      if (afterSubmit.hasEmailVerification) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_email_verification",
+          portalUrl: afterSubmit.url,
+          message: `${directoryName} accepted the sign-up step and is asking for email verification. Check ${profile.email}, complete the verification, then return to ListSmartly so the agent can continue.`,
+          actionTitle: `Verify ${directoryName} email`,
+          actionButtonLabel: "I verified the email",
+          accountCreated: true,
+          generatedPassword,
+          passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+          diagnostics: { title: afterSubmit.title, filledSteps },
+        });
+      }
+
+      if (afterSubmit.hasPhoneVerification) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_phone_verification",
+          portalUrl: afterSubmit.url,
+          message: `${directoryName} advanced to phone or SMS verification. Complete that validation, then the agent can continue.`,
+          actionTitle: `${directoryName} phone verification`,
+          actionButtonLabel: "I completed phone verification",
+          accountCreated: true,
+          generatedPassword,
+          passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+          diagnostics: { title: afterSubmit.title, filledSteps },
+        });
+      }
+
+      if (afterSubmit.hasPayment) {
+        return browserOutcomeForValidation({
+          status: "needs_user",
+          stage: "waiting_for_payment_or_owner_choice",
+          portalUrl: afterSubmit.url,
+          message: `${directoryName} advanced to a payment, expedite, or owner approval choice. The agent stopped so the user can make that decision.`,
+          actionTitle: `${directoryName} user decision needed`,
+          actionButtonLabel: "I completed the decision",
+          accountCreated: true,
+          generatedPassword,
+          passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+          diagnostics: { title: afterSubmit.title, filledSteps },
+        });
+      }
+    }
+
+    const finalSnapshot = await getBrowserSnapshot(page);
+    return browserOutcomeForValidation({
+      status: "pending",
+      stage: "agent_browser_workflow_running",
+      portalUrl: finalSnapshot.url,
+      message: `${directoryName} was opened in the agent browser and the available public fields were processed. The workflow is still on a dynamic directory step, so the agent will keep it in progress instead of asking the user for fake credentials.`,
+      actionTitle: `${directoryName} browser workflow running`,
+      actionButtonLabel: "Agent should continue",
+      generatedPassword,
+      passwordHint: "Generated by FlowSmartly for this directory sign-up.",
+      diagnostics: { title: finalSnapshot.title, filledSteps },
+    });
+  } catch (error) {
+    return browserOutcomeForValidation({
+      status: "pending",
+      stage: "agent_browser_retry_needed",
+      portalUrl: startUrl,
+      message:
+        `${directoryName} could not finish the browser step in this run: ` +
+        (error instanceof Error ? error.message : "Unknown browser workflow error") +
+        ". The task remains assigned to the agent for a later retry; no user action is required yet.",
+      actionTitle: `${directoryName} browser retry queued`,
+      actionButtonLabel: "Agent should retry",
+      diagnostics: { error: error instanceof Error ? error.message : String(error) },
+    });
+  } finally {
+    await browser.close().catch(() => undefined);
+  }
+}
+
+async function saveAgentGeneratedCredential(params: {
+  profileId: string;
+  listingId: string | null;
+  directoryName: string;
+  loginUrl: string;
+  accountEmail: string | null | undefined;
+  generatedPassword: string;
+  passwordHint?: string;
+  verificationStatus: string;
+}) {
+  const secureNotes = encryptSecureNote(
+    [
+      `Generated password: ${params.generatedPassword}`,
+      `Generated by FlowSmartly ListSmartly Autopilot on ${new Date().toISOString()}.`,
+      "Use only for the associated directory account. Rotate it in the directory portal when ownership is fully verified.",
+    ].join("\n")
+  );
+
+  if (params.listingId) {
+    return prisma.listSmartlyAccountCredential.upsert({
+      where: { listingId: params.listingId },
+      update: {
+        directoryName: params.directoryName,
+        loginUrl: params.loginUrl,
+        accountEmail: params.accountEmail || null,
+        username: params.accountEmail || null,
+        passwordHint: params.passwordHint || "Generated by FlowSmartly Autopilot.",
+        secureNotes,
+        verificationStatus: params.verificationStatus,
+        status: "active",
+        createdBy: "agent",
+      },
+      create: {
+        profileId: params.profileId,
+        listingId: params.listingId,
+        directoryName: params.directoryName,
+        loginUrl: params.loginUrl,
+        accountEmail: params.accountEmail || null,
+        username: params.accountEmail || null,
+        passwordHint: params.passwordHint || "Generated by FlowSmartly Autopilot.",
+        secureNotes,
+        verificationStatus: params.verificationStatus,
+        status: "active",
+        createdBy: "agent",
+      },
+    });
+  }
+
+  return prisma.listSmartlyAccountCredential.create({
+    data: {
+      profileId: params.profileId,
+      directoryName: params.directoryName,
+      loginUrl: params.loginUrl,
+      accountEmail: params.accountEmail || null,
+      username: params.accountEmail || null,
+      passwordHint: params.passwordHint || "Generated by FlowSmartly Autopilot.",
+      secureNotes,
+      verificationStatus: params.verificationStatus,
+      status: "active",
+      createdBy: "agent",
+    },
+  });
+}
+
+async function runAgentBrowserWorkflow(
+  userId: string,
+  profile: BusinessSignalInput & { id: string },
+  task: {
+    id: string;
+    title: string;
+    result: string;
+    listingId: string | null;
+    listing: {
+      id: string;
+      status: string;
+      directory: {
+        name: string;
+        url: string;
+        submitUrl: string | null;
+        claimUrl: string | null;
+        slug?: string | null;
+      };
+    } | null;
+  },
+  existingResult: Record<string, unknown>
+) {
+  if (!task.listing) {
+    return { status: "failed", message: "Listing record missing.", task };
+  }
+
+  const startUrl =
+    (typeof existingResult.portalUrl === "string" && existingResult.portalUrl) ||
+    (typeof existingResult.creationUrl === "string" && existingResult.creationUrl) ||
+    normalizeUrl(task.listing.directory.submitUrl) ||
+    normalizeUrl(task.listing.directory.claimUrl) ||
+    normalizeUrl(task.listing.directory.url);
+
+  if (!startUrl) {
+    const message = `${task.listing.directory.name} has no usable public workflow URL configured.`;
+    const result = appendProgress(
+      {
+        ...existingResult,
+        stage: "blocked_missing_portal_url",
+        statusMessage: message,
+      },
+      {
+        stage: "blocked_missing_portal_url",
+        label: "Portal URL missing",
+        status: "failed",
+        detail: message,
+      }
+    );
+    const blocked = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "blocked",
+        assignedTo: "admin",
+        requiredAction: message,
+        failureReason: message,
+        result: safeJson(result),
+      },
+    });
+    return { status: "blocked", message, task: blocked };
+  }
+
+  await updateTaskProgress(
+    task.id,
+    "agent_browser_workflow_running",
+    `Opening ${task.listing.directory.name} in the agent browser and processing the public submit or claim workflow.`,
+    {
+      label: "Agent browser opened",
+      status: "active",
+      detail: startUrl,
+    },
+    {
+      portalUrl: startUrl,
+      agentAttemptedAccountCreation: true,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+    }
+  );
+
+  const outcome = await runBrowserSignupWorkflow({
+    profile,
+    directoryName: task.listing.directory.name,
+    directorySlug: task.listing.directory.slug,
+    startUrl,
+  });
+
+  const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
+    where: { id: task.id },
+    select: { result: true },
+  }))?.result);
+
+  let credentialSaved = false;
+  if (outcome.accountCreated && outcome.generatedPassword) {
+    await saveAgentGeneratedCredential({
+      profileId: profile.id,
+      listingId: task.listingId,
+      directoryName: task.listing.directory.name,
+      loginUrl: outcome.portalUrl || task.listing.directory.url,
+      accountEmail: profile.email,
+      generatedPassword: outcome.generatedPassword,
+      passwordHint: outcome.passwordHint,
+      verificationStatus: outcome.stage === "waiting_for_email_verification" ? "email_required" : "pending",
+    });
+    credentialSaved = true;
+  }
+
+  if (outcome.status === "needs_user") {
+    const waitingResult = appendProgress(
+      {
+        ...current,
+        stage: outcome.stage,
+        statusMessage: outcome.message,
+        agentAttemptedAccountCreation: true,
+        accountCreated: outcome.accountCreated,
+        credentialSaved,
+        emailSentByFlowSmartly: outcome.emailSentByFlowSmartly,
+        accountCreationBlocker: outcome.stage,
+        userActionTitle: outcome.actionTitle,
+        userActionMessage: outcome.message,
+        userActionButtonLabel: outcome.actionButtonLabel,
+        portalUrl: outcome.portalUrl,
+        browserDiagnostics: outcome.diagnostics,
+      },
+      {
+        stage: outcome.stage,
+        label:
+          outcome.stage === "waiting_for_email_verification"
+            ? "Email verification needed"
+            : outcome.stage === "waiting_for_business_email"
+              ? "Business email needed"
+              : "User validation needed",
+        status: "waiting",
+        detail: outcome.message,
+      }
+    );
+
+    const needsUser = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "needs_user",
+        assignedTo: "user",
+        requiredAction: outcome.message,
+        failureReason: null,
+        result: safeJson(waitingResult),
+      },
+    });
+
+    await createNotification({
+      userId,
+      type: NOTIFICATION_TYPES.SYSTEM,
+      title: outcome.actionTitle,
+      message: outcome.message,
+      actionUrl: "/listsmartly/dashboard",
+      data: { feature: "listsmartly", taskId: task.id, portalUrl: outcome.portalUrl },
+    });
+
+    return { status: "needs_user", message: outcome.message, task: needsUser };
+  }
+
+  if (outcome.status === "submitted") {
+    if (task.listingId) {
+      await prisma.businessListing.update({
+        where: { id: task.listingId },
+        data: {
+          status: "submitted",
+          listingUrl: outcome.portalUrl,
+          submittedAt: new Date(),
+          lastUpdatedAt: new Date(),
+        },
+      });
+    }
+
+    const completedResult = appendProgress(
+      {
+        ...current,
+        stage: "completed",
+        statusMessage: outcome.message,
+        agentAttemptedAccountCreation: true,
+        accountCreated: outcome.accountCreated,
+        credentialSaved,
+        emailSentByFlowSmartly: false,
+        portalUrl: outcome.portalUrl,
+        browserDiagnostics: outcome.diagnostics,
+        completedAt: new Date().toISOString(),
+      },
+      {
+        stage: "completed",
+        label: "Submission complete",
+        status: "done",
+        detail: outcome.message,
+      }
+    );
+
+    const completed = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "completed",
+        assignedTo: "agent",
+        requiredAction: null,
+        failureReason: null,
+        completedAt: new Date(),
+        result: safeJson(completedResult),
+      },
+    });
+
+    return { status: "completed", message: outcome.message, task: completed };
+  }
+
+  const pendingResult = appendProgress(
+    {
+      ...current,
+      stage: outcome.stage,
+      statusMessage: outcome.message,
+      agentAttemptedAccountCreation: true,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      accountCreationBlocker: outcome.stage,
+      userActionTitle: outcome.actionTitle,
+      userActionMessage: outcome.message,
+      userActionButtonLabel: outcome.actionButtonLabel,
+      portalUrl: outcome.portalUrl,
+      browserDiagnostics: outcome.diagnostics,
+    },
+    {
+      stage: outcome.stage,
+      label: outcome.stage === "agent_browser_retry_needed" ? "Browser retry queued" : "Agent browser working",
+      status: "active",
+      detail: outcome.message,
+    }
+  );
+
+  const pending = await prisma.listSmartlyAutopilotTask.update({
+    where: { id: task.id },
+    data: {
+      status: "in_progress",
+      assignedTo: "agent",
+      requiredAction:
+        "The agent browser workflow is still responsible for this directory. No user action is required yet.",
+      failureReason: null,
+      result: safeJson(pendingResult),
+    },
+  });
+
+  return { status: "pending_agent_browser", message: outcome.message, task: pending };
+}
+
 async function findPublicDirectoryMatch(
   profile: BusinessSignalInput,
   directory: { name: string; url: string }
@@ -966,7 +1836,7 @@ export async function getAutopilotState(userId: string) {
       username: credential.username,
       recoveryEmail: credential.recoveryEmail,
       passwordHint: credential.passwordHint,
-      secureNotes: credential.secureNotes,
+      secureNotes: decryptSecureNote(credential.secureNotes),
       status: credential.status,
       verificationStatus: credential.verificationStatus,
       lastVerifiedAt: credential.lastVerifiedAt,
@@ -1101,8 +1971,16 @@ export async function prepareAutopilotQueue(userId: string) {
 }
 
 export async function processAutopilotTask(userId: string, taskId?: string) {
-  const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
+  const profile = await prisma.listSmartlyProfile.findUnique({
+    where: { userId },
+    include: { user: { select: { name: true, email: true } } },
+  });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
+  const businessSignal: BusinessSignalInput & { id: string } = {
+    ...profile,
+    contactName: profile.user?.name || profile.businessName,
+    email: profile.email || profile.user?.email || null,
+  };
 
   const task = await prisma.listSmartlyAutopilotTask.findFirst({
     where: {
@@ -1136,16 +2014,6 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
   }
 
   const existingResult = parseJsonObject(task.result);
-  if (existingResult.stage === "agent_browser_workflow_pending") {
-    return {
-      status: "pending_agent_browser",
-      message:
-        typeof existingResult.statusMessage === "string"
-          ? existingResult.statusMessage
-          : `${task.title} is waiting for the agent browser workflow.`,
-      task,
-    };
-  }
 
   if (!task.listing) {
     const failed = await prisma.listSmartlyAutopilotTask.update({
@@ -1199,6 +2067,13 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     return { status: "completed", message: completedMessage, task: skipped };
   }
 
+  if (
+    typeof existingResult.stage === "string" &&
+    existingResult.stage.startsWith("agent_browser_")
+  ) {
+    return runAgentBrowserWorkflow(userId, businessSignal, task, existingResult);
+  }
+
   console.log(`ListSmartly autopilot: processing ${task.title} for ${profile.businessName}`);
 
   await updateTaskProgress(
@@ -1213,7 +2088,7 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     { startedAt: task.startedAt?.toISOString() || new Date().toISOString() }
   );
 
-  const research = await researchDirectoryWorkflow(profile, task.listing);
+  const research = await researchDirectoryWorkflow(businessSignal, task.listing);
 
   if (research.match) {
     await updateTaskProgress(
@@ -1338,7 +2213,7 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     return { status: "blocked", message: blockedMessage, task: blocked };
   }
 
-  const creationAttempt = await attemptAccountCreation(task.id, profile, task.listing, research);
+  const creationAttempt = await attemptAccountCreation(task.id, businessSignal, task.listing, research);
   const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
     where: { id: task.id },
     select: { result: true },
@@ -1388,7 +2263,18 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
       },
     });
 
-    return { status: "pending_agent_browser", message: agentMessage, task: pendingAgent };
+    return runAgentBrowserWorkflow(
+      userId,
+      businessSignal,
+      {
+        id: pendingAgent.id,
+        title: pendingAgent.title,
+        result: pendingAgent.result,
+        listingId: pendingAgent.listingId,
+        listing: task.listing,
+      },
+      agentResult
+    );
   }
 
   const validationMessage =
@@ -1702,7 +2588,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
           username: input.username || null,
           recoveryEmail: input.recoveryEmail || null,
           passwordHint: input.passwordHint || null,
-          secureNotes: input.secureNotes || null,
+          secureNotes: encryptSecureNote(input.secureNotes),
           verificationStatus: input.verificationStatus || "pending",
           lastVerifiedAt: input.verificationStatus === "verified" ? new Date() : undefined,
         },
@@ -1715,7 +2601,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
           username: input.username || null,
           recoveryEmail: input.recoveryEmail || null,
           passwordHint: input.passwordHint || null,
-          secureNotes: input.secureNotes || null,
+          secureNotes: encryptSecureNote(input.secureNotes),
           verificationStatus: input.verificationStatus || "pending",
           lastVerifiedAt: input.verificationStatus === "verified" ? new Date() : undefined,
           createdBy: "user",
@@ -1730,7 +2616,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
           username: input.username || null,
           recoveryEmail: input.recoveryEmail || null,
           passwordHint: input.passwordHint || null,
-          secureNotes: input.secureNotes || null,
+          secureNotes: encryptSecureNote(input.secureNotes),
           verificationStatus: input.verificationStatus || "pending",
           lastVerifiedAt: input.verificationStatus === "verified" ? new Date() : undefined,
           createdBy: "user",
