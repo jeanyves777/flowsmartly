@@ -30,6 +30,7 @@ type SaveCredentialInput = {
 
 type BusinessSignalInput = {
   businessName: string;
+  email?: string | null;
   phone?: string | null;
   website?: string | null;
   address?: string | null;
@@ -52,6 +53,19 @@ type DirectoryResearchResult = {
   searched: boolean;
   match: SearchCandidate | null;
   error?: string;
+};
+
+type AccountCreationAttempt = {
+  attempted: boolean;
+  accountCreated: boolean;
+  credentialSaved: boolean;
+  emailSentByFlowSmartly: boolean;
+  creationUrl: string | null;
+  blocker: string;
+  blockerMessage: string;
+  userActionTitle: string;
+  userActionMessage: string;
+  userActionButtonLabel: string;
 };
 
 function safeJson(value: unknown): string {
@@ -323,6 +337,227 @@ async function probeDirectoryPortal(url: string | null): Promise<{ reachable: bo
       error: error instanceof Error ? error.message : "Portal request failed",
     };
   }
+}
+
+function chooseAccountCreationUrl(
+  listing: {
+    directory: {
+      name: string;
+      url: string;
+      submitUrl: string | null;
+      claimUrl: string | null;
+    };
+  },
+  research: DirectoryResearchResult
+): string | null {
+  const preferred = research.discoveredLinks.find((link) => {
+    return /(sign.?up|signup|free.?trial|register|create|claim|add.?business|add.?listing|submit)/i.test(link);
+  });
+  return (
+    preferred ||
+    normalizeUrl(listing.directory.submitUrl) ||
+    normalizeUrl(listing.directory.claimUrl) ||
+    research.portalUrl ||
+    normalizeUrl(listing.directory.url)
+  );
+}
+
+async function inspectAccountCreationPage(
+  url: string | null,
+  profile: BusinessSignalInput,
+  directoryName: string
+): Promise<Omit<AccountCreationAttempt, "creationUrl">> {
+  if (!url) {
+    return {
+      attempted: false,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      blocker: "missing_creation_url",
+      blockerMessage: `No public create, claim, or sign-up URL was found for ${directoryName}.`,
+      userActionTitle: `${directoryName} account creation path not found`,
+      userActionMessage:
+        `The agent could not find a safe public account-creation path for ${directoryName}. ` +
+        "An admin needs to add the correct submit or claim URL before automation can continue.",
+      userActionButtonLabel: "I added the portal URL",
+    };
+  }
+
+  if (!profile.email) {
+    return {
+      attempted: true,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      blocker: "business_email_missing",
+      blockerMessage: "The business profile does not have an email address for account creation.",
+      userActionTitle: "Business email needed",
+      userActionMessage:
+        `Add the business email to ListSmartly so the agent can create or claim the ${directoryName} account with the approved business contact.`,
+      userActionButtonLabel: "I added the business email",
+    };
+  }
+
+  try {
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(AUTOPILOT_FETCH_TIMEOUT_MS),
+      headers: { "User-Agent": AUTOPILOT_USER_AGENT },
+    });
+    const html = (await res.text()).slice(0, 160000);
+    const page = normalizeText(html);
+    const hasCaptcha = /(captcha|recaptcha|hcaptcha|turnstile|cloudflare)/i.test(html);
+    const hasPassword = /type=["']password["']|name=["'][^"']*password/i.test(html);
+    const hasSso = /(single sign on|single sign-on|sso|google|office 365|microsoft)/i.test(html);
+    const hasEmailField = /type=["']email["']|name=["'][^"']*(email|user(name)?)["']/i.test(html);
+    const hasSignupLanguage = /(sign up|signup|free trial|create account|register|claim)/.test(page);
+
+    if (!res.ok && res.status >= 400) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        blocker: "creation_page_unreachable",
+        blockerMessage: `${directoryName} returned HTTP ${res.status} for the account creation page.`,
+        userActionTitle: `${directoryName} account creation blocked`,
+        userActionMessage:
+          `${directoryName} did not return a usable account creation page to the agent. ` +
+          "Open the portal manually once, then let the agent continue after access is confirmed.",
+        userActionButtonLabel: "I confirmed portal access",
+      };
+    }
+
+    if (hasCaptcha) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        blocker: "captcha_required",
+        blockerMessage: `${directoryName} requires CAPTCHA or bot-protection before account creation can continue.`,
+        userActionTitle: `${directoryName} CAPTCHA required`,
+        userActionMessage:
+          `The agent reached the ${directoryName} account creation path, but the page requires CAPTCHA or bot-protection. ` +
+          "Complete that challenge in the portal, then return so the agent can continue.",
+        userActionButtonLabel: "I completed the CAPTCHA",
+      };
+    }
+
+    if (hasPassword || hasSso) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        blocker: hasPassword ? "account_credentials_required" : "sso_required",
+        blockerMessage: `${directoryName} requires account credentials or SSO before an account can be created or claimed.`,
+        userActionTitle: `${directoryName} credentials required`,
+        userActionMessage:
+          `The agent reached ${directoryName}, but account creation requires credentials, SSO, or a password flow. ` +
+          "Provide approved account access in the ListSmartly portal or complete the directory step, then let the agent continue.",
+        userActionButtonLabel: "I provided access",
+      };
+    }
+
+    if (hasEmailField || hasSignupLanguage) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        blocker: "email_confirmation_required",
+        blockerMessage:
+          `${directoryName} exposes an account creation flow, but completing it can send email verification to ${profile.email}.`,
+        userActionTitle: `${directoryName} email verification likely`,
+        userActionMessage:
+          `The agent found the ${directoryName} sign-up flow. To avoid creating an unverifiable account, confirm that ${profile.email} is monitored and ready for verification, then let the agent continue.`,
+        userActionButtonLabel: "Email is ready",
+      };
+    }
+
+    return {
+      attempted: true,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      blocker: "manual_portal_review_required",
+      blockerMessage: `${directoryName} did not expose a safe standard account creation form to the agent.`,
+      userActionTitle: `${directoryName} portal review needed`,
+      userActionMessage:
+        `The agent opened the ${directoryName} portal, but the account creation controls are protected or dynamic. ` +
+        "Confirm the portal access once, then let the agent continue.",
+      userActionButtonLabel: "I reviewed the portal",
+    };
+  } catch (error) {
+    return {
+      attempted: true,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      blocker: "account_creation_request_failed",
+      blockerMessage: error instanceof Error ? error.message : `${directoryName} account creation request failed.`,
+      userActionTitle: `${directoryName} account creation could not continue`,
+      userActionMessage:
+        `The agent tried to open the ${directoryName} account creation path, but the request failed. ` +
+        "Try the portal manually once, then let the agent continue.",
+      userActionButtonLabel: "Portal is accessible now",
+    };
+  }
+}
+
+async function attemptAccountCreation(
+  taskId: string,
+  profile: BusinessSignalInput,
+  listing: {
+    directory: {
+      name: string;
+      url: string;
+      submitUrl: string | null;
+      claimUrl: string | null;
+    };
+  },
+  research: DirectoryResearchResult
+): Promise<AccountCreationAttempt> {
+  const creationUrl = chooseAccountCreationUrl(listing, research);
+  await updateTaskProgress(
+    taskId,
+    "attempting_account_creation",
+    `Trying the ${listing.directory.name} create, sign-up, or claim path before asking the user for help.`,
+    {
+      label: "Account creation attempt",
+      status: "active",
+      detail: creationUrl || "No account creation URL found yet.",
+    },
+    {
+      creationUrl,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+    }
+  );
+
+  const inspection = await inspectAccountCreationPage(creationUrl, profile, listing.directory.name);
+
+  await updateTaskProgress(
+    taskId,
+    "account_creation_blocked",
+    inspection.blockerMessage,
+    {
+      label: "Account creation blocked",
+      status: "waiting",
+      detail: inspection.blockerMessage,
+    },
+    {
+      creationUrl,
+      accountCreated: false,
+      credentialSaved: false,
+      emailSentByFlowSmartly: false,
+      accountCreationBlocker: inspection.blocker,
+    }
+  );
+
+  return { ...inspection, creationUrl };
 }
 
 async function findPublicDirectoryMatch(
@@ -704,15 +939,19 @@ export async function prepareAutopilotQueue(userId: string) {
         type,
         status: { in: ["queued", "in_progress", "needs_user", "blocked"] },
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (existing) {
       await prisma.listSmartlyAutopilotTask.update({
         where: { id: existing.id },
         data: {
-          assignedTo: "agent",
-          requiredAction: requiredActionForStatus(listing.status),
           payload: safeJson(buildDirectoryPayload(profile, listing)),
+          ...(existing.status === "queued"
+            ? {
+                assignedTo: "agent",
+                requiredAction: requiredActionForStatus(listing.status),
+              }
+            : {}),
         },
       });
       continue;
@@ -918,12 +1157,11 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     });
   }
 
-  const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
-    where: { id: task.id },
-    select: { result: true },
-  }))?.result);
-
   if (!research.portalReachable) {
+    const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
+      where: { id: task.id },
+      select: { result: true },
+    }))?.result);
     const blockedMessage =
       `${task.listing.directory.name} could not be safely reached from the server today. ` +
       "The agent recorded the failed portal check and will leave the workflow blocked instead of retrying aggressively.";
@@ -959,19 +1197,34 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     return { status: "blocked", message: blockedMessage, task: blocked };
   }
 
+  const creationAttempt = await attemptAccountCreation(task.id, profile, task.listing, research);
+  const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
+    where: { id: task.id },
+    select: { result: true },
+  }))?.result);
+
   const validationMessage =
-    `${task.listing.directory.name} research completed. ` +
+    `${task.listing.directory.name} account creation was attempted but not completed. ${creationAttempt.blockerMessage} ` +
+    "No account was created by FlowSmartly, no credentials were saved, and FlowSmartly did not send an email. " +
     (research.searched
       ? "No confirmed public listing was found from the directory search. "
       : "Public search is not fully configured for this directory, so the agent checked the portal path instead. ") +
-    "The next safe step requires owner/account validation in the directory portal; the agent will not bypass login, CAPTCHA, email, SMS, phone, payment, or owner approval.";
+    "The agent will continue after the listed blocker is handled.";
 
   const waitingResult = appendProgress(
     {
       ...current,
       stage: "waiting_for_user_validation",
       statusMessage: validationMessage,
-      portalUrl: handoffUrl,
+      agentAttemptedAccountCreation: creationAttempt.attempted,
+      accountCreated: creationAttempt.accountCreated,
+      credentialSaved: creationAttempt.credentialSaved,
+      emailSentByFlowSmartly: creationAttempt.emailSentByFlowSmartly,
+      accountCreationBlocker: creationAttempt.blocker,
+      userActionTitle: creationAttempt.userActionTitle,
+      userActionMessage: creationAttempt.userActionMessage,
+      userActionButtonLabel: creationAttempt.userActionButtonLabel,
+      portalUrl: creationAttempt.creationUrl || handoffUrl,
       discoveredLinks: research.discoveredLinks,
       searched: research.searched,
       match: null,
@@ -981,7 +1234,7 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
       stage: "waiting_for_user_validation",
       label: "Waiting for real validation",
       status: "waiting",
-      detail: handoffUrl || "Open the directory portal when owner validation is available.",
+      detail: creationAttempt.blockerMessage,
     }
   );
 

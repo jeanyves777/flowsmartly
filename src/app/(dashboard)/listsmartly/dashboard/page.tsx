@@ -108,6 +108,14 @@ interface AutopilotTask {
     discoveredLinks?: string[];
     listingUrl?: string;
     error?: string;
+    agentAttemptedAccountCreation?: boolean;
+    accountCreationBlocker?: string;
+    accountCreated?: boolean;
+    credentialSaved?: boolean;
+    emailSentByFlowSmartly?: boolean;
+    userActionTitle?: string;
+    userActionMessage?: string;
+    userActionButtonLabel?: string;
   };
   directory?: { name: string; url: string; tier: number; slug: string } | null;
   listingStatus?: string | null;
@@ -1448,11 +1456,38 @@ export default function ListSmartlyDashboardPage() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">Action needed</Badge>
-                        <p className="text-sm font-semibold text-foreground">{needsUserTask.title}</p>
+                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">Portal step needed</Badge>
+                        <p className="text-sm font-semibold text-foreground">
+                          {needsUserTask.result?.userActionTitle || needsUserTask.title}
+                        </p>
                       </div>
+                      {needsUserTask.result?.accountCreated === false && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-md border border-border bg-card/60 p-2">
+                            <p className="text-[11px] text-muted-foreground">Agent tried sign-up</p>
+                            <p className={`text-xs font-semibold ${needsUserTask.result?.agentAttemptedAccountCreation ? "text-emerald-300" : "text-red-300"}`}>
+                              {needsUserTask.result?.agentAttemptedAccountCreation ? "Yes" : "No"}
+                            </p>
+                          </div>
+                          <div className="rounded-md border border-border bg-card/60 p-2">
+                            <p className="text-[11px] text-muted-foreground">Account created</p>
+                            <p className="text-xs font-semibold text-red-300">No</p>
+                          </div>
+                          <div className="rounded-md border border-border bg-card/60 p-2">
+                            <p className="text-[11px] text-muted-foreground">Credentials saved</p>
+                            <p className="text-xs font-semibold text-red-300">No</p>
+                          </div>
+                          <div className="rounded-md border border-border bg-card/60 p-2">
+                            <p className="text-[11px] text-muted-foreground">FlowSmartly email sent</p>
+                            <p className="text-xs font-semibold text-red-300">No</p>
+                          </div>
+                        </div>
+                      )}
                       <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                        {needsUserTask.result?.statusMessage || needsUserTask.requiredAction || "Complete the required verification step, then let the agent continue."}
+                        {needsUserTask.result?.userActionMessage ||
+                          needsUserTask.result?.statusMessage ||
+                          needsUserTask.requiredAction ||
+                          "Complete the required portal step, then let the agent continue."}
                       </p>
                       {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.claimUrl || needsUserTask.payload?.directory?.submitUrl) && (
                         <a
@@ -1476,7 +1511,7 @@ export default function ListSmartlyDashboardPage() {
                       className="w-full lg:w-auto"
                     >
                       <Check className="h-4 w-4 mr-2" />
-                      I completed verification
+                      {needsUserTask.result?.userActionButtonLabel || "I completed the portal step"}
                     </Button>
                   </div>
                 ) : null}
@@ -1661,7 +1696,7 @@ export default function ListSmartlyDashboardPage() {
                                               disabled={autopilotActionLoading}
                                             >
                                               <Check className="h-3 w-3 mr-1" />
-                                              I Completed Verification
+                                              {task.result?.userActionButtonLabel || "I Completed Portal Step"}
                                             </Button>
                                           </>
                                         ) : canWork ? (
