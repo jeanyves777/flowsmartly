@@ -16,6 +16,9 @@ interface ReviewImportInput {
   externalId?: string | null;
   reviewUrl?: string | null;
   authorAvatarUrl?: string | null;
+  sentiment?: string | null;
+  sentimentScore?: number | null;
+  keywords?: string[] | null;
 }
 
 interface ImportResult {
@@ -69,6 +72,9 @@ export async function importReviews(
           text: review.text || null,
           reviewUrl: review.reviewUrl || null,
           authorAvatarUrl: review.authorAvatarUrl || null,
+          sentiment: review.sentiment || inferSentiment(review.rating),
+          sentimentScore: review.sentimentScore ?? inferSentimentScore(review.rating),
+          keywords: JSON.stringify(review.keywords || []),
           publishedAt: review.publishedAt ? new Date(review.publishedAt) : null,
         },
       });
@@ -82,6 +88,16 @@ export async function importReviews(
   await refreshReviewStats(profileId);
 
   return { imported, skipped, duplicates };
+}
+
+function inferSentiment(rating: number): string {
+  if (rating >= 4) return "positive";
+  if (rating <= 2) return "negative";
+  return "neutral";
+}
+
+function inferSentimentScore(rating: number): number {
+  return Math.max(0, Math.min(1, rating / 5));
 }
 
 /**

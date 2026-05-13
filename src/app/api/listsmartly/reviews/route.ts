@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { importReviews } from "@/lib/listsmartly/review-aggregator";
 
 // GET /api/listsmartly/reviews - List reviews for profile
 export async function GET(request: NextRequest) {
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
     const platform = searchParams.get("platform");
     const sentiment = searchParams.get("sentiment");
     const responseStatus = searchParams.get("responseStatus");
+    const responded = searchParams.get("responded");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
     const skip = (page - 1) * limit;
@@ -35,9 +37,11 @@ export async function GET(request: NextRequest) {
       profileId: profile.id,
       isArchived: false,
     };
-    if (platform) where.platform = platform;
-    if (sentiment) where.sentiment = sentiment;
+    if (platform && platform !== "all") where.platform = platform;
+    if (sentiment && sentiment !== "all") where.sentiment = sentiment;
     if (responseStatus) where.responseStatus = responseStatus;
+    if (responded === "true") where.responseStatus = { not: "none" };
+    if (responded === "false") where.responseStatus = "none";
 
     const [reviews, total] = await Promise.all([
       prisma.listingReview.findMany({
@@ -54,6 +58,9 @@ export async function GET(request: NextRequest) {
       data: {
         reviews: reviews.map((r) => ({
           ...r,
+          hasResponse: r.responseStatus !== "none",
+          responseText: r.postedResponse || r.aiDraftResponse || null,
+          createdAt: (r.publishedAt || r.createdAt).toISOString(),
           keywords: JSON.parse(r.keywords),
         })),
         pagination: {
@@ -104,69 +111,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let imported = 0;
-    let skipped = 0;
-
-    for (const review of reviews) {
-      const { platform, authorName, rating, text, publishedAt, externalId } = review;
-
-      if (!platform || !authorName || rating === undefined) {
-        skipped++;
-        continue;
-      }
-
-      // Deduplicate via profileId + platform + externalId
-      const dedupeId = externalId || `manual_${authorName}_${rating}_${publishedAt || ""}`;
-
-      try {
-        await prisma.listingReview.upsert({
-          where: {
-            profileId_platform_externalId: {
-              profileId: profile.id,
-              platform,
-              externalId: dedupeId,
-            },
-          },
-          update: {
-            authorName,
-            rating: parseInt(String(rating), 10),
-            text: text || null,
-            publishedAt: publishedAt ? new Date(publishedAt) : null,
-          },
-          create: {
-            profileId: profile.id,
-            platform,
-            externalId: dedupeId,
-            authorName,
-            rating: parseInt(String(rating), 10),
-            text: text || null,
-            publishedAt: publishedAt ? new Date(publishedAt) : null,
-          },
-        });
-        imported++;
-      } catch {
-        skipped++;
-      }
-    }
-
-    // Update profile review stats
-    const allReviews = await prisma.listingReview.findMany({
-      where: { profileId: profile.id },
-      select: { rating: true },
-    });
-    const totalReviews = allReviews.length;
-    const averageRating = totalReviews > 0
-      ? allReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
-      : 0;
-
-    await prisma.listSmartlyProfile.update({
-      where: { id: profile.id },
-      data: { totalReviews, averageRating },
-    });
+    const result = await importReviews(profile.id, reviews);
+    const totalReviews = await prisma.listingReview.count({ where: { profileId: profile.id } });
 
     return NextResponse.json({
       success: true,
-      data: { imported, skipped, totalReviews },
+      data: { ...result, totalReviews },
     });
   } catch (error) {
     console.error("Import reviews error:", error);

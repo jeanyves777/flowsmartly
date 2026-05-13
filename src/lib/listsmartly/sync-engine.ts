@@ -5,6 +5,7 @@
 import { prisma } from "@/lib/db/client";
 import { checkConsistency } from "./consistency-checker";
 import { seedDirectories } from "./directories";
+import { importReviews } from "./review-aggregator";
 
 const LIVE_LISTING_STATUSES = new Set(["live", "submitted", "claimed"]);
 
@@ -396,6 +397,9 @@ async function enrichGoogleListing(
       text: string;
       relative_time_description: string;
       author_name: string;
+      author_url?: string;
+      profile_photo_url?: string;
+      time?: number;
     }>) || [];
   const hours = (result.opening_hours as { weekday_text?: string[]; open_now?: boolean }) || {};
 
@@ -433,6 +437,25 @@ async function enrichGoogleListing(
         totalReviews: (result.user_ratings_total as number) || 0,
       },
     });
+  }
+
+  if (reviews.length > 0) {
+    await importReviews(
+      profileId,
+      reviews.map((review) => ({
+        platform: "google",
+        authorName: review.author_name || "Google reviewer",
+        rating: review.rating,
+        text: review.text || null,
+        reviewUrl: (result.url as string) || mapsUrl,
+        authorAvatarUrl: review.profile_photo_url || null,
+        externalId: `google_${placeId}_${review.author_name || "anonymous"}_${review.time || review.relative_time_description || review.rating}`,
+        publishedAt: review.time ? new Date(review.time * 1000).toISOString() : null,
+        sentiment: review.rating >= 4 ? "positive" : review.rating <= 2 ? "negative" : "neutral",
+        sentimentScore: Math.max(0, Math.min(1, review.rating / 5)),
+        keywords: [],
+      }))
+    );
   }
 }
 

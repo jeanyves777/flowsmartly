@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           directory: {
-            select: { id: true, slug: true, name: true, url: true, tier: true, category: true, iconUrl: true },
+            select: { id: true, slug: true, name: true, url: true, tier: true, category: true, iconUrl: true, submitUrl: true, claimUrl: true },
           },
         },
         orderBy: [{ directory: { tier: "asc" } }, { directory: { name: "asc" } }],
@@ -66,6 +66,8 @@ export async function GET(request: NextRequest) {
           ...l,
           directoryName: l.directory.name,
           directoryUrl: l.directory.url,
+          submitUrl: l.directory.submitUrl,
+          claimUrl: l.directory.claimUrl,
           tier: l.directory.tier,
           lastChecked: l.lastCheckedAt,
           inconsistencies: JSON.parse(l.inconsistencies),

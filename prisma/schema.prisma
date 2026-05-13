@@ -4414,6 +4414,13 @@ model ListSmartlyProfile {
   listSmartlyLastCreditFailureAt DateTime?
   listSmartlyCreditFailureReason String?
 
+  // Autopilot workflow
+  listSmartlyAutopilotEnabled       Boolean   @default(false)
+  listSmartlyAutoFixEnabled         Boolean   @default(false)
+  listSmartlyAutoDescriptionEnabled Boolean   @default(false)
+  listSmartlyAutopilotMode          String    @default("assisted")
+  listSmartlyAutopilotLastRunAt     DateTime?
+
   // Onboarding
   setupComplete  Boolean @default(false)
   onboardingStep Int     @default(0)
@@ -4428,11 +4435,13 @@ model ListSmartlyProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
   listings        BusinessListing[]
   reviews         ListingReview[]
   presenceReports PresenceReport[]
   syncJobs        ListingSyncJob[]
+  autopilotTasks  ListSmartlyAutopilotTask[]
+  accountVault    ListSmartlyAccountCredential[]
 
   @@index([userId])
   @@index([listSmartlyCreditStatus])
@@ -4491,9 +4500,11 @@ model BusinessListing {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile       ListSmartlyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  directory     ListingDirectory   @relation(fields: [directoryId], references: [id], onDelete: Cascade)
-  changeHistory ListingChange[]
+  profile           ListSmartlyProfile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  directory         ListingDirectory              @relation(fields: [directoryId], references: [id], onDelete: Cascade)
+  changeHistory     ListingChange[]
+  autopilotTasks    ListSmartlyAutopilotTask[]
+  accountCredential ListSmartlyAccountCredential?
 
   @@unique([profileId, directoryId])
   @@index([profileId, status])
@@ -4580,6 +4591,68 @@ model ListingReview {
   @@index([profileId, sentiment])
   @@index([profileId, responseStatus])
   @@index([publishedAt])
+}
+
+model ListSmartlyAutopilotTask {
+  id        String  @id @default(cuid())
+  profileId String
+  listingId String?
+
+  type        String
+  status      String  @default("queued") // queued, in_progress, needs_user, blocked, completed, failed
+  priority    Int     @default(50)
+  title       String
+  description String?
+
+  requiredAction String?
+  assignedTo     String  @default("agent") // agent, user, admin
+  payload        String  @default("{}")
+  result         String  @default("{}")
+  failureReason  String?
+
+  attemptCount  Int       @default(0)
+  lastAttemptAt DateTime?
+  dueAt         DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile ListSmartlyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  listing BusinessListing?   @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, status])
+  @@index([profileId, priority])
+  @@index([listingId])
+}
+
+model ListSmartlyAccountCredential {
+  id        String  @id @default(cuid())
+  profileId String
+  listingId String? @unique
+
+  directoryName String
+  loginUrl      String?
+  accountEmail  String?
+  username      String?
+  recoveryEmail String?
+  passwordHint  String?
+  secureNotes   String?
+
+  status             String    @default("active")
+  verificationStatus String    @default("pending") // pending, email_required, verified, blocked
+  lastVerifiedAt     DateTime?
+
+  createdBy String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile ListSmartlyProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  listing BusinessListing?   @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, verificationStatus])
+  @@index([profileId, directoryName])
 }
 
 model PresenceReport {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Globe, AlertTriangle, Star, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Check, X, Clock, Eye, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, Shield, Lock, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
+import { BarChart3, Globe, AlertTriangle, Star, Search, RefreshCw, ChevronLeft, ChevronRight, Check, Clock, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, ThumbsUp, ThumbsDown, Minus, Play, ClipboardCheck, KeyRound, Bell, CheckCircle2, ShieldCheck, Inbox, PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -42,8 +42,11 @@ interface Listing {
   id: string;
   directoryName: string;
   directoryUrl: string;
+  listingUrl?: string;
+  submitUrl?: string;
+  claimUrl?: string;
   tier: number;
-  status: "live" | "missing" | "unverified" | "needs_update" | "submitted" | "error";
+  status: "live" | "missing" | "unverified" | "needs_update" | "submitted" | "claimed" | "error";
   lastChecked: string;
   iconUrl?: string;
 }
@@ -74,6 +77,59 @@ interface TierBreakdown {
   total: number;
 }
 
+interface AutopilotTask {
+  id: string;
+  listingId?: string;
+  type: string;
+  status: "queued" | "in_progress" | "needs_user" | "blocked" | "completed" | "failed";
+  priority: number;
+  title: string;
+  description?: string;
+  requiredAction?: string;
+  assignedTo: "agent" | "user" | "admin";
+  payload?: {
+    directory?: { url?: string; submitUrl?: string; claimUrl?: string; apiAvailable?: boolean };
+    safety?: { mode?: string; pacing?: string; policy?: string };
+    steps?: string[];
+  };
+  directory?: { name: string; url: string; tier: number; slug: string } | null;
+  listingStatus?: string | null;
+  listingUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AccountCredential {
+  id: string;
+  listingId?: string;
+  directoryName: string;
+  loginUrl?: string;
+  accountEmail?: string;
+  username?: string;
+  recoveryEmail?: string;
+  passwordHint?: string;
+  secureNotes?: string;
+  verificationStatus: "pending" | "email_required" | "verified" | "blocked";
+  updatedAt: string;
+}
+
+interface AutopilotState {
+  settings: {
+    enabled: boolean;
+    autoFix: boolean;
+    autoDescriptions: boolean;
+    mode: string;
+    lastRunAt?: string;
+  };
+  stats: {
+    taskCounts: Record<string, number>;
+    listingStatusCounts: Record<string, number>;
+    savedAccounts: number;
+  };
+  tasks: AutopilotTask[];
+  credentials: AccountCredential[];
+}
+
 // ── Constants ──
 
 const LISTING_STATUSES: Record<string, { label: string; color: string }> = {
@@ -82,6 +138,7 @@ const LISTING_STATUSES: Record<string, { label: string; color: string }> = {
   unverified: { label: "Needs Verification", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   needs_update: { label: "Needs Update", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
   submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
+  claimed: { label: "Claimed", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400" },
   error: { label: "Error", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
 };
 
@@ -214,9 +271,22 @@ export default function ListSmartlyDashboardPage() {
   // Autopilot
   const [autoFixEnabled, setAutoFixEnabled] = useState(false);
   const [autoDescEnabled, setAutoDescEnabled] = useState(false);
-  const [autopilotLog, setAutopilotLog] = useState<ActivityItem[]>([]);
+  const [autopilotState, setAutopilotState] = useState<AutopilotState | null>(null);
+  const [autopilotLoading, setAutopilotLoading] = useState(false);
+  const [autopilotActionLoading, setAutopilotActionLoading] = useState(false);
+  const [credentialDraft, setCredentialDraft] = useState<{
+    listingId: string;
+    directoryName: string;
+    loginUrl: string;
+    accountEmail: string;
+    username: string;
+    recoveryEmail: string;
+    passwordHint: string;
+    secureNotes: string;
+    verificationStatus: string;
+  } | null>(null);
 
-  const LIMIT = 50;
+  const LIMIT = 250;
   const totalPages = Math.max(1, Math.ceil(listingsTotal / LIMIT));
 
   // ── Data Fetching ──
@@ -287,7 +357,8 @@ export default function ListSmartlyDashboardPage() {
       if (res.status === 404) { setReviewsLoading(false); return; }
       if (!res.ok) throw new Error("Failed to fetch reviews");
       const data = await res.json();
-      setReviews(data.reviews || []);
+      const payload = data.data || data;
+      setReviews(payload.reviews || []);
     } catch {
       toast({ title: "Error", description: "Failed to load reviews", variant: "destructive" });
     } finally {
@@ -328,15 +399,19 @@ export default function ListSmartlyDashboardPage() {
   }, []);
 
   const fetchAutopilotSettings = useCallback(async () => {
+    setAutopilotLoading(true);
     try {
-      const res = await fetch("/api/listsmartly/profile");
+      const res = await fetch("/api/listsmartly/autopilot");
       if (!res.ok) return;
-      const data = await res.json();
-      setAutoFixEnabled(data.autoFix || false);
-      setAutoDescEnabled(data.autoDescriptions || false);
-      setAutopilotLog(data.log || []);
+      const json = await res.json();
+      const state = json.data as AutopilotState;
+      setAutopilotState(state);
+      setAutoFixEnabled(state.settings.autoFix || false);
+      setAutoDescEnabled(state.settings.autoDescriptions || false);
     } catch {
       // Non-critical
+    } finally {
+      setAutopilotLoading(false);
     }
   }, []);
 
@@ -388,6 +463,7 @@ export default function ListSmartlyDashboardPage() {
       // Refresh after a short delay
       setTimeout(() => {
         fetchListings();
+        fetchReviews();
         fetchStats();
       }, 3000);
     } catch {
@@ -405,12 +481,49 @@ export default function ListSmartlyDashboardPage() {
         body: JSON.stringify({ [setting]: value }),
       });
       if (!res.ok) throw new Error("Failed to update");
+      const json = await res.json();
+      if (json.success && json.data) setAutopilotState(json.data);
       if (setting === "autoFix") setAutoFixEnabled(value);
       else setAutoDescEnabled(value);
       toast({ title: "Updated", description: `${setting === "autoFix" ? "Auto-fix" : "Auto-descriptions"} ${value ? "enabled" : "disabled"}.` });
     } catch {
       toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
     }
+  }
+
+  async function runAutopilotAction(action: string, body: Record<string, unknown> = {}) {
+    setAutopilotActionLoading(true);
+    try {
+      const res = await fetch("/api/listsmartly/autopilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...body }),
+      });
+      if (!res.ok) throw new Error("Action failed");
+      const json = await res.json();
+      if (json.success && json.data?.state) {
+        setAutopilotState(json.data.state);
+        setAutoFixEnabled(json.data.state.settings.autoFix || false);
+        setAutoDescEnabled(json.data.state.settings.autoDescriptions || false);
+      }
+      toast({
+        title: "Autopilot updated",
+        description:
+          action === "prepare_queue"
+            ? "The guided listing queue is ready."
+            : "The workflow has been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to run autopilot action", variant: "destructive" });
+    } finally {
+      setAutopilotActionLoading(false);
+    }
+  }
+
+  async function saveCredentialDraft() {
+    if (!credentialDraft) return;
+    await runAutopilotAction("save_credential", { credential: credentialDraft });
+    setCredentialDraft(null);
   }
 
   // ── Loading State ──
@@ -614,6 +727,44 @@ export default function ListSmartlyDashboardPage() {
   // ── Listings Tab ──
 
   function renderListings() {
+    const groups = [
+      {
+        title: "Action Queue",
+        description: "Directories that need creation, claiming, or correction.",
+        icon: AlertTriangle,
+        statuses: ["missing", "needs_update"],
+        accent: "border-red-500/20 bg-red-500/5",
+      },
+      {
+        title: "Needs Verification",
+        description: "Not confirmed missing yet. These need another check before submission.",
+        icon: Search,
+        statuses: ["unverified"],
+        accent: "border-amber-500/20 bg-amber-500/5",
+      },
+      {
+        title: "Live & Submitted",
+        description: "Listings already found, claimed, or submitted.",
+        icon: CheckCircle2,
+        statuses: ["live", "submitted", "claimed"],
+        accent: "border-green-500/20 bg-green-500/5",
+      },
+      {
+        title: "Needs Attention",
+        description: "Errors or blocked records that need a manual review.",
+        icon: PauseCircle,
+        statuses: ["error"],
+        accent: "border-border bg-card",
+      },
+    ];
+
+    const filteredGroups = groups
+      .map((group) => ({
+        ...group,
+        items: listings.filter((listing) => group.statuses.includes(listing.status)),
+      }))
+      .filter((group) => group.items.length > 0);
+
     return (
       <div className="space-y-4">
         {/* Toolbar */}
@@ -665,11 +816,11 @@ export default function ListSmartlyDashboardPage() {
           </Button>
         </div>
 
-        {/* Listings grid */}
+        {/* Listings grouped by workflow state */}
         {listingsLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-40" />
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-44" />
             ))}
           </div>
         ) : listings.length === 0 ? (
@@ -686,50 +837,98 @@ export default function ListSmartlyDashboardPage() {
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {listings.map((listing) => {
-                const statusInfo = LISTING_STATUSES[listing.status] || LISTING_STATUSES.error;
+            <div className="space-y-5">
+              {filteredGroups.map((group) => {
+                const Icon = group.icon;
                 return (
-                  <Card key={listing.id} className="hover:border-primary/30 transition-colors">
-                    <CardContent className="py-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                            <Globe className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {listing.directoryName}
-                            </p>
-                            <Badge variant="secondary" className="text-[10px] mt-0.5">
-                              Tier {listing.tier} - {TIER_NAMES[listing.tier] || "Other"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {listing.lastChecked
-                            ? new Date(listing.lastChecked).toLocaleDateString()
-                            : "Never"}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1" asChild>
-                          <a href={listing.directoryUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            View
-                          </a>
-                        </Button>
+                  <Card key={group.title} className={group.accent}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center justify-between text-base">
+                        <span className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          {group.title}
+                        </span>
+                        <Badge variant="secondary">{group.items.length}</Badge>
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">{group.description}</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                        {group.items.map((listing) => {
+                          const statusInfo = LISTING_STATUSES[listing.status] || LISTING_STATUSES.error;
+                          const primaryUrl =
+                            listing.listingUrl ||
+                            listing.submitUrl ||
+                            listing.claimUrl ||
+                            listing.directoryUrl;
+                          return (
+                            <div
+                              key={listing.id}
+                              className="flex items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2"
+                            >
+                              <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                                <Globe className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">
+                                    {listing.directoryName}
+                                  </p>
+                                  <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
+                                    Tier {listing.tier}
+                                  </Badge>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <Badge className={`text-[10px] h-5 ${statusInfo.color}`}>{statusInfo.label}</Badge>
+                                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    {listing.lastChecked
+                                      ? new Date(listing.lastChecked).toLocaleDateString()
+                                      : "Never checked"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {listing.status !== "live" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="hidden sm:inline-flex"
+                                    onClick={() => {
+                                      setActiveTab("autopilot");
+                                      setTimeout(() => {
+                                        void runAutopilotAction("prepare_queue");
+                                      }, 0);
+                                    }}
+                                  >
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    Queue
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="ghost" asChild>
+                                  <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
                 );
               })}
+
+              {filteredGroups.length === 0 && (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-foreground font-medium mb-1">No matching listings</p>
+                    <p className="text-sm text-muted-foreground">Try a broader filter or search term.</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Pagination */}
@@ -807,6 +1006,15 @@ export default function ListSmartlyDashboardPage() {
             <option value="true">Responded</option>
             <option value="false">Not Responded</option>
           </select>
+
+          <Button variant="outline" onClick={runScan} disabled={scanRunning}>
+            {scanRunning ? (
+              <AISpinner className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Sync Reviews
+          </Button>
         </div>
 
         {/* Reviews list */}
@@ -973,6 +1181,20 @@ export default function ListSmartlyDashboardPage() {
 
   function renderAutopilot() {
     const hasAccess = true;
+    const state = autopilotState;
+    const tasks = state?.tasks || [];
+    const credentials = state?.credentials || [];
+    const nextTask = tasks.find((task) => ["queued", "needs_user", "in_progress"].includes(task.status));
+    const taskGroups = [
+      { key: "needs_user", title: "Needs Your Validation", icon: Bell },
+      { key: "in_progress", title: "Agent Working", icon: Sparkles },
+      { key: "queued", title: "Queued", icon: ClipboardCheck },
+      { key: "blocked", title: "Blocked", icon: PauseCircle },
+      { key: "completed", title: "Completed", icon: CheckCircle2 },
+    ].map((group) => ({
+      ...group,
+      items: tasks.filter((task) => task.status === group.key),
+    }));
 
     return (
       <div className="space-y-6">
@@ -980,81 +1202,311 @@ export default function ListSmartlyDashboardPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              AI Autopilot Settings
+              AI Listing Agent
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-              <div>
-                <p className="text-sm font-medium text-foreground">Auto-fix Inconsistencies</p>
-                <p className="text-xs text-muted-foreground">
-                  Automatically correct NAP inconsistencies across directories.
-                </p>
-              </div>
-              <button
-                onClick={() => hasAccess && toggleAutopilot("autoFix", !autoFixEnabled)}
-                disabled={!hasAccess}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  autoFixEnabled && hasAccess ? "bg-primary" : "bg-muted"
-                } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
-                    autoFixEnabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {[
+                { label: "Queued", value: state?.stats.taskCounts.queued || 0, icon: ClipboardCheck },
+                { label: "Needs Validation", value: state?.stats.taskCounts.needs_user || 0, icon: Bell },
+                { label: "Saved Accounts", value: state?.stats.savedAccounts || 0, icon: KeyRound },
+                { label: "Completed", value: state?.stats.taskCounts.completed || 0, icon: CheckCircle2 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-md border border-border bg-background/60 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <item.icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="mt-2 text-2xl font-bold text-foreground">{item.value}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-              <div>
-                <p className="text-sm font-medium text-foreground">Auto-generate Descriptions</p>
-                <p className="text-xs text-muted-foreground">
-                  Use AI to generate and optimize business descriptions for each directory.
-                </p>
+            <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-cyan-500 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Controlled, human-safe submission flow</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    The agent prepares each directory, stores account progress, and pauses for email, SMS, CAPTCHA,
+                    phone, or admin approval. It uses official integrations or guided handoff only.
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => hasAccess && toggleAutopilot("autoDescriptions", !autoDescEnabled)}
-                disabled={!hasAccess}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  autoDescEnabled && hasAccess ? "bg-primary" : "bg-muted"
-                } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                onClick={() => runAutopilotAction("prepare_queue")}
+                disabled={autopilotActionLoading || autopilotLoading}
               >
-                <span
-                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
-                    autoDescEnabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                Prepare Queue
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => runAutopilotAction("run_next")}
+                disabled={autopilotActionLoading || autopilotLoading}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start Next Step
+              </Button>
+              {nextTask && (
+                <p className="text-xs text-muted-foreground">
+                  Next: <span className="text-foreground font-medium">{nextTask.title}</span>
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">AI Activity Log</CardTitle>
+            <CardTitle className="text-base">Workflow Settings</CardTitle>
           </CardHeader>
-          <CardContent>
-            {autopilotLog.length === 0 ? (
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              {
+                key: "autoFix" as const,
+                enabled: autoFixEnabled,
+                title: "Auto-fix Inconsistencies",
+                description: "Prepare correction tasks when NAP data does not match your business profile.",
+              },
+              {
+                key: "autoDescriptions" as const,
+                enabled: autoDescEnabled,
+                title: "Auto-generate Descriptions",
+                description: "Draft directory-specific descriptions for approval before submission.",
+              },
+            ].map((setting) => (
+              <div key={setting.key} className="flex items-center justify-between rounded-md border border-border p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{setting.title}</p>
+                  <p className="text-xs text-muted-foreground">{setting.description}</p>
+                </div>
+                <button
+                  onClick={() => hasAccess && toggleAutopilot(setting.key, !setting.enabled)}
+                  disabled={!hasAccess}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    setting.enabled && hasAccess ? "bg-primary" : "bg-muted"
+                  } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
+                      setting.enabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Progressive Work Queue</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {autopilotLoading ? (
+              <Skeleton className="h-40" />
+            ) : tasks.length === 0 ? (
               <div className="text-center py-8">
                 <Zap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm font-medium text-foreground">No AI actions yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {hasAccess
-                    ? "Enable a toggle above to start automated management."
-                    : "Activate ListSmartly to unlock AI-powered automation."}
-                </p>
+                <p className="text-sm font-medium text-foreground">No workflow yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Prepare the queue to build a careful listing plan.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {autopilotLog.map((item) => (
-                  <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted">
-                    <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm text-foreground">{item.message}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleDateString()}
+              taskGroups.filter((group) => group.items.length > 0).map((group) => {
+                const Icon = group.icon;
+                return (
+                  <div key={group.key} className="rounded-md border border-border">
+                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Icon className="h-4 w-4" />
+                        {group.title}
                       </p>
+                      <Badge variant="secondary">{group.items.length}</Badge>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {group.items.slice(0, 12).map((task) => (
+                        <div key={task.id} className="p-4">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-foreground">{task.title}</p>
+                                <Badge variant="outline" className="text-[10px]">Priority {task.priority}</Badge>
+                                <Badge variant="secondary" className="text-[10px]">{task.assignedTo}</Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{task.requiredAction || task.description}</p>
+                              {task.payload?.safety?.mode && (
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  Mode: {task.payload.safety.mode.replaceAll("_", " ")}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const directoryUrl =
+                                    task.payload?.directory?.submitUrl ||
+                                    task.payload?.directory?.claimUrl ||
+                                    task.payload?.directory?.url ||
+                                    task.directory?.url ||
+                                    "";
+                                  setCredentialDraft({
+                                    listingId: task.listingId || "",
+                                    directoryName: task.directory?.name || task.title,
+                                    loginUrl: directoryUrl,
+                                    accountEmail: "",
+                                    username: "",
+                                    recoveryEmail: "",
+                                    passwordHint: "",
+                                    secureNotes: "",
+                                    verificationStatus: "pending",
+                                  });
+                                }}
+                              >
+                                <KeyRound className="h-3 w-3 mr-1" />
+                                Save Account
+                              </Button>
+                              {task.status !== "completed" && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      runAutopilotAction("request_validation", {
+                                        taskId: task.id,
+                                        reason: "Email, phone, CAPTCHA, or directory approval is required before this step can continue.",
+                                      })
+                                    }
+                                  >
+                                    <Bell className="h-3 w-3 mr-1" />
+                                    Needs Validation
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => runAutopilotAction("complete_task", { taskId: task.id, result: { completedBy: "user" } })}
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Complete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              Listing Account Portal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {credentialDraft && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Save account details</p>
+                    <p className="text-xs text-muted-foreground">{credentialDraft.directoryName}</p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setCredentialDraft(null)}>
+                    Cancel
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Login URL"
+                    value={credentialDraft.loginUrl}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, loginUrl: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Account email"
+                    value={credentialDraft.accountEmail}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, accountEmail: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Username"
+                    value={credentialDraft.username}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, username: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Recovery email"
+                    value={credentialDraft.recoveryEmail}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, recoveryEmail: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Password hint or vault reference"
+                    value={credentialDraft.passwordHint}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, passwordHint: e.target.value })}
+                  />
+                  <select
+                    value={credentialDraft.verificationStatus}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, verificationStatus: e.target.value })}
+                    className="rounded-md border border-border bg-card text-foreground px-3 py-2 text-sm"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="email_required">Email verification required</option>
+                    <option value="verified">Verified</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                  <Input
+                    className="md:col-span-2"
+                    placeholder="Verification notes or vault reference (no raw passwords)"
+                    value={credentialDraft.secureNotes}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, secureNotes: e.target.value })}
+                  />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button onClick={saveCredentialDraft} disabled={autopilotActionLoading}>
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    Save Details
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {credentials.length === 0 ? (
+              <div className="text-center py-8">
+                <KeyRound className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">No listing accounts saved yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Saved listing access and verification data will appear here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {credentials.map((credential) => (
+                  <div key={credential.id} className="rounded-md border border-border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{credential.directoryName}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {credential.accountEmail || credential.username || "Account details saved"}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{credential.verificationStatus.replace("_", " ")}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                      {credential.loginUrl && (
+                        <a className="inline-flex items-center gap-1 text-blue-500 hover:underline" href={credential.loginUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3" />
+                          Open portal
+                        </a>
+                      )}
+                      {credential.passwordHint && <p>Hint: {credential.passwordHint}</p>}
+                      {credential.secureNotes && <p>{credential.secureNotes}</p>}
                     </div>
                   </div>
                 ))}
