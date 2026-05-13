@@ -309,6 +309,12 @@ export default function ListSmartlyOnboardingPage() {
     }, 200);
 
     try {
+      const profilePayload = {
+        ...business,
+        industry,
+        categories: JSON.stringify(categories),
+      };
+
       // Try to activate (create profile + seed directories + initialize listings)
       const activateRes = await fetch("/api/listsmartly/activate", {
         method: "POST",
@@ -325,15 +331,17 @@ export default function ListSmartlyOnboardingPage() {
         await fetch("/api/listsmartly/profile", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...business,
-            industry,
-            categories: JSON.stringify(categories),
-          }),
+          body: JSON.stringify(profilePayload),
         });
       } else if (!activateRes.ok) {
         const err = await activateRes.json().catch(() => ({}));
         throw new Error(err.error?.message || "Activation failed");
+      } else {
+        await fetch("/api/listsmartly/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(profilePayload),
+        });
       }
 
       // Run the REAL scan — this calls Google Places API + Custom Search
