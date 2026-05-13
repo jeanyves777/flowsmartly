@@ -999,7 +999,9 @@ async function runBrowserSignupWorkflow(params: {
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
     );
+    await page.evaluateOnNewDocument("window.__name = function(fn) { return fn; };");
     await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AUTOPILOT_BROWSER_TIMEOUT_MS });
+    await page.addScriptTag({ content: "window.__name = function(fn) { return fn; };" }).catch(() => undefined);
     await waitForBrowserSettled(page);
 
     await clickBrowserControl(page, [/agree.+proceed|required only|accept/i]);
