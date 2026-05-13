@@ -134,6 +134,8 @@ interface AutopilotState {
       id: string;
       title: string;
       status: string;
+      stage?: string;
+      statusMessage?: string;
       updatedAt: string;
       directory?: { name: string; url: string; tier: number; slug: string } | null;
     } | null;
@@ -1345,9 +1347,14 @@ export default function ListSmartlyDashboardPage() {
               </Button>
               <div className="min-w-[220px] text-xs text-muted-foreground">
                 {activeTask ? (
-                  <p>
-                    Working: <span className="text-foreground font-medium">{activeTask.title}</span>
-                  </p>
+                  <>
+                    <p>
+                      Working: <span className="text-foreground font-medium">{activeTask.title}</span>
+                    </p>
+                    <p className="mt-1">
+                      {activeTask.statusMessage || formatWorkflowMode(activeTask.stage)}
+                    </p>
+                  </>
                 ) : nextRunAt ? (
                   <p>
                     Next daily run: <span className="text-foreground font-medium">{formatNextRun(nextRunAt)}</span>

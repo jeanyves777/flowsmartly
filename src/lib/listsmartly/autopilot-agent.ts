@@ -28,6 +28,16 @@ function safeJson(value: unknown): string {
   return JSON.stringify(value || {});
 }
 
+function parseJsonObject(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function taskPriority(status: string, tier: number): number {
   const statusWeight: Record<string, number> = {
     missing: 0,
@@ -209,11 +219,24 @@ export async function getAutopilotState(userId: string) {
     : null;
   const dailyLimitActive = Boolean(nextRunAt && nextRunAt > now);
   const queuedCount = taskCounts.queued || 0;
+  const activeTaskResult = activeTask ? parseJsonObject(activeTask.result) : {};
   const activeTaskSummary = activeTask
     ? {
         id: activeTask.id,
         title: activeTask.title,
         status: activeTask.status,
+        stage:
+          typeof activeTaskResult.stage === "string"
+            ? activeTaskResult.stage
+            : activeTask.status === "needs_user"
+              ? "waiting_for_user_validation"
+              : "running_directory_workflow",
+        statusMessage:
+          typeof activeTaskResult.statusMessage === "string"
+            ? activeTaskResult.statusMessage
+            : activeTask.status === "needs_user"
+              ? activeTask.requiredAction || "Waiting for user validation."
+              : "Researching the directory workflow and preparing the next safe action.",
         directory: activeTask.listing?.directory || null,
         updatedAt: activeTask.updatedAt,
       }
@@ -465,6 +488,13 @@ export async function runNextAutopilotStep(userId: string) {
     data: {
       status: "in_progress",
       assignedTo: "agent",
+      result: safeJson({
+        stage: "running_directory_workflow",
+        statusMessage:
+          "Researching the public directory workflow, submit/claim path, and validation requirements.",
+        cadence: "one_workflow_per_day",
+        startedAt: new Date().toISOString(),
+      }),
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
       startedAt: task.startedAt || new Date(),
