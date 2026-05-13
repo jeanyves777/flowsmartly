@@ -414,8 +414,8 @@ export default function ProductDetailClient({ params }: { params: { slug: string
                 <button onClick={() => setQuantity(quantity + 1)} className="p-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"><Plus size={16} /></button>
               </div>
               <button onClick={handleAddToCart} disabled={!isPurchasable}
-                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-full font-semibold text-white transition-all ${
-                  added ? "bg-green-600" : isPurchasable ? "bg-primary-700 hover:bg-primary-800 shadow-lg shadow-primary-900/15" : "bg-gray-300 text-gray-600 cursor-not-allowed"
+                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-full font-semibold transition-all ${
+                  added ? "bg-green-600 text-white" : isPurchasable ? "bg-primary-700 hover:bg-primary-800 text-white shadow-lg shadow-primary-900/15" : "bg-gray-300 text-gray-700 cursor-not-allowed"
                 }`}
               >
                 {added ? (<><Check size={18} />Added!</>) : (<><ShoppingBag size={18} />{isPurchasable ? "Add to Cart" : "Out of Stock"}</>)}
@@ -582,8 +582,8 @@ export default function ProductDetailClient({ params }: { params: { slug: string
           <button
             onClick={handleAddToCart}
             disabled={!isPurchasable}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-white text-sm transition-all flex-shrink-0 ${
-              added ? "bg-green-600" : isPurchasable ? "bg-primary-700 active:bg-primary-800" : "bg-gray-300 text-gray-600"
+            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-sm transition-all flex-shrink-0 ${
+              added ? "bg-green-600 text-white" : isPurchasable ? "bg-primary-700 active:bg-primary-800 text-white" : "bg-gray-300 text-gray-700"
             }`}
           >
             {added ? (

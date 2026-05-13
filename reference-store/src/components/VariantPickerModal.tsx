@@ -282,12 +282,12 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                   type="button"
                   onClick={handleAdd}
                   disabled={!matchedVariantAvailable || !hasEnoughStock || added}
-                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold text-white transition-all ${
+                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold transition-all ${
                     added
-                      ? "bg-green-600"
+                      ? "bg-green-600 text-white"
                       : matchedVariantAvailable && hasEnoughStock
-                        ? "bg-primary-700 hover:bg-primary-800 shadow-lg shadow-primary-900/15"
-                        : "bg-gray-300 text-gray-600 cursor-not-allowed"
+                        ? "bg-primary-700 hover:bg-primary-800 text-white shadow-lg shadow-primary-900/15"
+                        : "bg-gray-300 text-gray-700 cursor-not-allowed"
                   }`}
                 >
                   {added ? (
