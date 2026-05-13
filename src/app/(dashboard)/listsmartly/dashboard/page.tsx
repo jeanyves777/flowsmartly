@@ -765,6 +765,18 @@ export default function ListSmartlyDashboardPage() {
       }))
       .filter((group) => group.items.length > 0);
 
+    const groupByTier = (items: Listing[]) => {
+      const grouped = new Map<number, Listing[]>();
+      for (const item of items) {
+        const current = grouped.get(item.tier) || [];
+        current.push(item);
+        grouped.set(item.tier, current);
+      }
+      return Array.from(grouped.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([tier, tierItems]) => ({ tier, items: tierItems }));
+    };
+
     return (
       <div className="space-y-4">
         {/* Toolbar */}
@@ -837,86 +849,99 @@ export default function ListSmartlyDashboardPage() {
           </Card>
         ) : (
           <>
-            <div className="space-y-5">
+            <div className="space-y-4">
               {filteredGroups.map((group) => {
                 const Icon = group.icon;
                 return (
-                  <Card key={group.title} className={group.accent}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center justify-between text-base">
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-4 w-4" />
+                  <details
+                    key={group.title}
+                    className={`rounded-md border ${group.accent}`}
+                    open={group.items.length <= 12}
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 [&::-webkit-details-marker]:hidden">
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          <Icon className="h-4 w-4 shrink-0" />
                           {group.title}
                         </span>
-                        <Badge variant="secondary">{group.items.length}</Badge>
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">{group.description}</p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                        {group.items.map((listing) => {
-                          const statusInfo = LISTING_STATUSES[listing.status] || LISTING_STATUSES.error;
-                          const primaryUrl =
-                            listing.listingUrl ||
-                            listing.submitUrl ||
-                            listing.claimUrl ||
-                            listing.directoryUrl;
-                          return (
-                            <div
-                              key={listing.id}
-                              className="flex items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2"
-                            >
-                              <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                                <Globe className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <p className="text-sm font-medium text-foreground truncate">
-                                    {listing.directoryName}
-                                  </p>
-                                  <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
-                                    Tier {listing.tier}
-                                  </Badge>
+                        <span className="mt-1 block text-xs text-muted-foreground">{group.description}</span>
+                      </span>
+                      <Badge variant="secondary" className="shrink-0">{group.items.length}</Badge>
+                    </summary>
+                    <div className="space-y-3 border-t border-border p-4">
+                      {groupByTier(group.items).map(({ tier, items }) => (
+                        <details
+                          key={`${group.title}-${tier}`}
+                          className="rounded-md border border-border bg-background/60"
+                          open={items.length <= 6}
+                        >
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
+                            <span className="text-sm font-medium text-foreground">
+                              Tier {tier} - {TIER_NAMES[tier] || "Directory"}
+                            </span>
+                            <Badge variant="outline" className="shrink-0">{items.length}</Badge>
+                          </summary>
+                          <div className="max-h-[420px] space-y-2 overflow-y-auto border-t border-border p-3">
+                            {items.map((listing) => {
+                              const statusInfo = LISTING_STATUSES[listing.status] || LISTING_STATUSES.error;
+                              const primaryUrl =
+                                listing.listingUrl ||
+                                listing.submitUrl ||
+                                listing.claimUrl ||
+                                listing.directoryUrl;
+                              return (
+                                <div
+                                  key={listing.id}
+                                  className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2"
+                                >
+                                  <div className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+                                    <Globe className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium text-foreground">
+                                      {listing.directoryName}
+                                    </p>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <Badge className={`text-[10px] h-5 ${statusInfo.color}`}>{statusInfo.label}</Badge>
+                                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                        <Clock className="h-3 w-3" />
+                                        {listing.lastChecked
+                                          ? new Date(listing.lastChecked).toLocaleDateString()
+                                          : "Never checked"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {listing.status !== "live" && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="hidden sm:inline-flex"
+                                        onClick={() => {
+                                          setActiveTab("autopilot");
+                                          setTimeout(() => {
+                                            void runAutopilotAction("prepare_queue");
+                                          }, 0);
+                                        }}
+                                      >
+                                        <Sparkles className="h-3 w-3 mr-1" />
+                                        Queue
+                                      </Button>
+                                    )}
+                                    <Button size="sm" variant="ghost" asChild>
+                                      <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="h-4 w-4" />
+                                      </a>
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-2">
-                                  <Badge className={`text-[10px] h-5 ${statusInfo.color}`}>{statusInfo.label}</Badge>
-                                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    {listing.lastChecked
-                                      ? new Date(listing.lastChecked).toLocaleDateString()
-                                      : "Never checked"}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {listing.status !== "live" && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="hidden sm:inline-flex"
-                                    onClick={() => {
-                                      setActiveTab("autopilot");
-                                      setTimeout(() => {
-                                        void runAutopilotAction("prepare_queue");
-                                      }, 0);
-                                    }}
-                                  >
-                                    <Sparkles className="h-3 w-3 mr-1" />
-                                    Queue
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="ghost" asChild>
-                                  <a href={primaryUrl} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </details>
                 );
               })}
 
@@ -1188,13 +1213,27 @@ export default function ListSmartlyDashboardPage() {
     const taskGroups = [
       { key: "needs_user", title: "Needs Your Validation", icon: Bell },
       { key: "in_progress", title: "Agent Working", icon: Sparkles },
-      { key: "queued", title: "Queued", icon: ClipboardCheck },
+      { key: "queued", title: "Prepared Queue", icon: ClipboardCheck },
       { key: "blocked", title: "Blocked", icon: PauseCircle },
-      { key: "completed", title: "Completed", icon: CheckCircle2 },
+      { key: "completed", title: "Verified Done", icon: CheckCircle2 },
     ].map((group) => ({
       ...group,
       items: tasks.filter((task) => task.status === group.key),
+      count: state?.stats.taskCounts[group.key] || 0,
     }));
+
+    const groupTasksByTier = (items: AutopilotTask[]) => {
+      const grouped = new Map<number, AutopilotTask[]>();
+      for (const item of items) {
+        const tier = item.directory?.tier || Math.max(1, Math.min(7, item.priority % 10 || 7));
+        const current = grouped.get(tier) || [];
+        current.push(item);
+        grouped.set(tier, current);
+      }
+      return Array.from(grouped.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([tier, tierItems]) => ({ tier, items: tierItems }));
+    };
 
     return (
       <div className="space-y-6">
@@ -1208,10 +1247,10 @@ export default function ListSmartlyDashboardPage() {
           <CardContent className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {[
-                { label: "Queued", value: state?.stats.taskCounts.queued || 0, icon: ClipboardCheck },
-                { label: "Needs Validation", value: state?.stats.taskCounts.needs_user || 0, icon: Bell },
-                { label: "Saved Accounts", value: state?.stats.savedAccounts || 0, icon: KeyRound },
-                { label: "Completed", value: state?.stats.taskCounts.completed || 0, icon: CheckCircle2 },
+                { label: "Prepared", value: state?.stats.taskCounts.queued || 0, icon: ClipboardCheck },
+                { label: "Autopilot Working", value: state?.stats.taskCounts.in_progress || 0, icon: Sparkles },
+                { label: "Needs User", value: state?.stats.taskCounts.needs_user || 0, icon: Bell },
+                { label: "Verified Done", value: state?.stats.taskCounts.completed || 0, icon: CheckCircle2 },
               ].map((item) => (
                 <div key={item.label} className="rounded-md border border-border bg-background/60 p-3">
                   <div className="flex items-center justify-between">
@@ -1242,7 +1281,7 @@ export default function ListSmartlyDashboardPage() {
                 disabled={autopilotActionLoading || autopilotLoading}
               >
                 <ClipboardCheck className="h-4 w-4 mr-2" />
-                Prepare Queue
+                Prepare Agent Queue
               </Button>
               <Button
                 variant="outline"
@@ -1250,11 +1289,11 @@ export default function ListSmartlyDashboardPage() {
                 disabled={autopilotActionLoading || autopilotLoading}
               >
                 <Play className="h-4 w-4 mr-2" />
-                Start Next Step
+                Run Autopilot
               </Button>
               {nextTask && (
                 <p className="text-xs text-muted-foreground">
-                  Next: <span className="text-foreground font-medium">{nextTask.title}</span>
+                  Active: <span className="text-foreground font-medium">{nextTask.title}</span>
                 </p>
               )}
             </div>
@@ -1317,91 +1356,116 @@ export default function ListSmartlyDashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1">Prepare the queue to build a careful listing plan.</p>
               </div>
             ) : (
-              taskGroups.filter((group) => group.items.length > 0).map((group) => {
+              taskGroups.filter((group) => group.count > 0).map((group) => {
                 const Icon = group.icon;
                 return (
-                  <div key={group.key} className="rounded-md border border-border">
-                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <details
+                    key={group.key}
+                    className="rounded-md border border-border bg-background/50"
+                    open={group.key === "in_progress" || group.key === "needs_user"}
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <Icon className="h-4 w-4" />
                         {group.title}
-                      </p>
-                      <Badge variant="secondary">{group.items.length}</Badge>
-                    </div>
-                    <div className="divide-y divide-border">
-                      {group.items.slice(0, 12).map((task) => (
-                        <div key={task.id} className="p-4">
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-medium text-foreground">{task.title}</p>
-                                <Badge variant="outline" className="text-[10px]">Priority {task.priority}</Badge>
-                                <Badge variant="secondary" className="text-[10px]">{task.assignedTo}</Badge>
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground">{task.requiredAction || task.description}</p>
-                              {task.payload?.safety?.mode && (
-                                <p className="mt-1 text-[11px] text-muted-foreground">
-                                  Mode: {task.payload.safety.mode.replaceAll("_", " ")}
-                                </p>
-                              )}
+                      </span>
+                      <Badge variant="secondary">{group.count}</Badge>
+                    </summary>
+                    <div className="space-y-3 border-t border-border p-4">
+                      {group.items.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No preview rows loaded for this status. Use the summary count to track it.
+                        </p>
+                      ) : (
+                        groupTasksByTier(group.items).map(({ tier, items }) => (
+                          <details
+                            key={`${group.key}-${tier}`}
+                            className="rounded-md border border-border bg-card"
+                            open={items.length <= 4}
+                          >
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
+                              <span className="text-sm font-medium text-foreground">
+                                Tier {tier} - {TIER_NAMES[tier] || "Directory"}
+                              </span>
+                              <Badge variant="outline">{items.length}</Badge>
+                            </summary>
+                            <div className="max-h-[420px] divide-y divide-border overflow-y-auto border-t border-border">
+                              {items.map((task) => {
+                                const canWork = task.status === "in_progress" || task.status === "needs_user";
+                                return (
+                                  <div key={task.id} className="p-4">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className="text-sm font-medium text-foreground">{task.title}</p>
+                                          <Badge variant="outline" className="text-[10px]">Priority {task.priority}</Badge>
+                                          <Badge variant="secondary" className="text-[10px]">{task.assignedTo}</Badge>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">{task.requiredAction || task.description}</p>
+                                        {task.payload?.safety?.mode && (
+                                          <p className="mt-1 text-[11px] text-muted-foreground">
+                                            Mode: {task.payload.safety.mode.replaceAll("_", " ")}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {task.status === "needs_user" ? (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => {
+                                                const directoryUrl =
+                                                  task.payload?.directory?.submitUrl ||
+                                                  task.payload?.directory?.claimUrl ||
+                                                  task.payload?.directory?.url ||
+                                                  task.directory?.url ||
+                                                  "";
+                                                setCredentialDraft({
+                                                  listingId: task.listingId || "",
+                                                  directoryName: task.directory?.name || task.title,
+                                                  loginUrl: directoryUrl,
+                                                  accountEmail: "",
+                                                  username: "",
+                                                  recoveryEmail: "",
+                                                  passwordHint: "",
+                                                  secureNotes: "",
+                                                  verificationStatus: "pending",
+                                                });
+                                              }}
+                                            >
+                                              <KeyRound className="h-3 w-3 mr-1" />
+                                              Save Verification Result
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => runAutopilotAction("complete_task", { taskId: task.id, result: { completedBy: "user" } })}
+                                            >
+                                              <Check className="h-3 w-3 mr-1" />
+                                              Mark Verified
+                                            </Button>
+                                          </>
+                                        ) : canWork ? (
+                                          <Badge variant="secondary">Autopilot working</Badge>
+                                        ) : (
+                                          <Badge variant="secondary">Prepared</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  const directoryUrl =
-                                    task.payload?.directory?.submitUrl ||
-                                    task.payload?.directory?.claimUrl ||
-                                    task.payload?.directory?.url ||
-                                    task.directory?.url ||
-                                    "";
-                                  setCredentialDraft({
-                                    listingId: task.listingId || "",
-                                    directoryName: task.directory?.name || task.title,
-                                    loginUrl: directoryUrl,
-                                    accountEmail: "",
-                                    username: "",
-                                    recoveryEmail: "",
-                                    passwordHint: "",
-                                    secureNotes: "",
-                                    verificationStatus: "pending",
-                                  });
-                                }}
-                              >
-                                <KeyRound className="h-3 w-3 mr-1" />
-                                Save Account
-                              </Button>
-                              {task.status !== "completed" && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      runAutopilotAction("request_validation", {
-                                        taskId: task.id,
-                                        reason: "Email, phone, CAPTCHA, or directory approval is required before this step can continue.",
-                                      })
-                                    }
-                                  >
-                                    <Bell className="h-3 w-3 mr-1" />
-                                    Needs Validation
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => runAutopilotAction("complete_task", { taskId: task.id, result: { completedBy: "user" } })}
-                                  >
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Complete
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                          </details>
+                        ))
+                      )}
+                      {group.items.length > 0 && group.count > group.items.length && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing {group.items.length} preview item{group.items.length === 1 ? "" : "s"} of {group.count}.
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  </details>
                 );
               })
             )}
@@ -1420,7 +1484,7 @@ export default function ListSmartlyDashboardPage() {
               <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Save account details</p>
+                    <p className="text-sm font-medium text-foreground">Save verified listing access</p>
                     <p className="text-xs text-muted-foreground">{credentialDraft.directoryName}</p>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => setCredentialDraft(null)}>
@@ -1434,12 +1498,12 @@ export default function ListSmartlyDashboardPage() {
                     onChange={(e) => setCredentialDraft({ ...credentialDraft, loginUrl: e.target.value })}
                   />
                   <Input
-                    placeholder="Account email"
+                    placeholder="Account email used after creation"
                     value={credentialDraft.accountEmail}
                     onChange={(e) => setCredentialDraft({ ...credentialDraft, accountEmail: e.target.value })}
                   />
                   <Input
-                    placeholder="Username"
+                    placeholder="Username after creation"
                     value={credentialDraft.username}
                     onChange={(e) => setCredentialDraft({ ...credentialDraft, username: e.target.value })}
                   />
@@ -1483,7 +1547,9 @@ export default function ListSmartlyDashboardPage() {
               <div className="text-center py-8">
                 <KeyRound className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm font-medium text-foreground">No listing accounts saved yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Saved listing access and verification data will appear here.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Verified created accounts appear here after the agent or user saves real access details.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

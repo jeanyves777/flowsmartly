@@ -128,7 +128,7 @@ export async function getAutopilotState(userId: string) {
   });
   if (!profile) return null;
 
-  const [tasks, credentials, statusCounts] = await Promise.all([
+  const [tasks, credentials, statusCounts, taskStatusCounts, savedAccounts] = await Promise.all([
     prisma.listSmartlyAutopilotTask.findMany({
       where: { profileId: profile.id },
       include: {
@@ -141,7 +141,7 @@ export async function getAutopilotState(userId: string) {
         },
       },
       orderBy: [{ status: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
-      take: 80,
+      take: 120,
     }),
     prisma.listSmartlyAccountCredential.findMany({
       where: { profileId: profile.id },
@@ -158,10 +158,18 @@ export async function getAutopilotState(userId: string) {
       where: { profileId: profile.id },
       _count: { status: true },
     }),
+    prisma.listSmartlyAutopilotTask.groupBy({
+      by: ["status"],
+      where: { profileId: profile.id },
+      _count: { status: true },
+    }),
+    prisma.listSmartlyAccountCredential.count({
+      where: { profileId: profile.id },
+    }),
   ]);
 
-  const taskCounts = tasks.reduce<Record<string, number>>((acc, task) => {
-    acc[task.status] = (acc[task.status] || 0) + 1;
+  const taskCounts = taskStatusCounts.reduce<Record<string, number>>((acc, item) => {
+    acc[item.status] = item._count.status;
     return acc;
   }, {});
 
@@ -179,7 +187,7 @@ export async function getAutopilotState(userId: string) {
         return acc;
       }, {}),
       taskCounts,
-      savedAccounts: credentials.length,
+      savedAccounts,
     },
     tasks: tasks.map((task) => ({
       id: task.id,
@@ -341,30 +349,6 @@ export async function runNextAutopilotStep(userId: string) {
   });
 
   if (!task) return { task: null };
-
-  const loginUrl = task.listing?.directory.submitUrl || task.listing?.directory.claimUrl || task.listing?.directory.url || null;
-
-  if (task.listing) {
-    await prisma.listSmartlyAccountCredential.upsert({
-      where: { listingId: task.listing.id },
-      update: {
-        directoryName: task.listing.directory.name,
-        loginUrl,
-        accountEmail: profile.email || null,
-        username: profile.email || null,
-      },
-      create: {
-        profileId: profile.id,
-        listingId: task.listing.id,
-        directoryName: task.listing.directory.name,
-        loginUrl,
-        accountEmail: profile.email || null,
-        username: profile.email || null,
-        verificationStatus: "pending",
-        createdBy: "agent",
-      },
-    });
-  }
 
   const updated = await prisma.listSmartlyAutopilotTask.update({
     where: { id: task.id },
