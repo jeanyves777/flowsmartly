@@ -1065,6 +1065,16 @@ export function fixGlobalsCss(siteDir: string): void {
   css = css.replace(/@apply\s+;/g, "/* removed empty @apply */");
   css = css.replace(/@apply\s{2,}/g, "@apply ");
 
+  // Store agents sometimes add a base `a { @apply text-primary/... }` rule.
+  // That makes every footer/legal/contact link inherit a pale brand color and
+  // overrides component-level gray text classes. Links should inherit their
+  // surrounding component color unless a component explicitly opts into brand
+  // color with its own className.
+  css = css.replace(
+    /(^\s*)a\s*\{\s*@apply\s+[^;{}]*(?:text-primary|text-secondary|text-accent)[^;{}]*;\s*\}/gm,
+    (_match, indent) => `${indent}a {\n${indent}  color: inherit;\n${indent}  text-decoration: none;\n${indent}}\n\n${indent}a:hover {\n${indent}  text-decoration: underline;\n${indent}}`
+  );
+
   // 3. Remove *bogus* numbered color-shade CSS vars from @theme.
   //
   // Historically the agent invented raw hex shades like `--color-primary-600: #4f46e5;`
