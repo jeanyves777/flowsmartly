@@ -13,6 +13,30 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function isManagedStorageUrl(source: string) {
+  if (!source.startsWith("http")) return false;
+  try {
+    const bucket = process.env.S3_BUCKET || "flowsmartly-media";
+    const storageUrl = process.env.NEXT_PUBLIC_STORAGE_URL || "";
+    const parsed = new URL(source);
+
+    if (storageUrl && source.split("?")[0].startsWith(storageUrl)) return true;
+    if (parsed.hostname.startsWith(`${bucket}.s3.`) && parsed.hostname.endsWith(".amazonaws.com")) return true;
+    if (parsed.hostname.startsWith("s3.") && parsed.hostname.endsWith(".amazonaws.com") && parsed.pathname.startsWith(`/${bucket}/`)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+async function fetchLogoUrl(url: string, label = "logo"): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch ${label}: ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
 async function loadLogoBuffer(logoSource: string): Promise<Buffer> {
   if (logoSource.startsWith("data:")) {
     const logoBase64 = logoSource.replace(/^data:image\/[^;]+;base64,/, "");
@@ -25,15 +49,15 @@ async function loadLogoBuffer(logoSource: string): Promise<Buffer> {
   }
 
   if (logoSource.startsWith("http")) {
-    const response = await fetch(logoSource);
-    if (!response.ok) throw new Error(`Failed to fetch logo: ${response.status}`);
-    return Buffer.from(await response.arrayBuffer());
+    if (isManagedStorageUrl(logoSource)) {
+      return fetchLogoUrl(await getPresignedUrl(logoSource), "S3 logo");
+    }
+
+    return fetchLogoUrl(logoSource);
   }
 
   const signedUrl = await getPresignedUrl(logoSource);
-  const response = await fetch(signedUrl);
-  if (!response.ok) throw new Error(`Failed to fetch S3 logo: ${response.status}`);
-  return Buffer.from(await response.arrayBuffer());
+  return fetchLogoUrl(signedUrl, "S3 logo");
 }
 
 export async function compositeBrandLogoOnImageBuffer(params: {
