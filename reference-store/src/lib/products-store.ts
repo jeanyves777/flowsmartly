@@ -26,6 +26,34 @@ const listeners = new Set<(p: Product[]) => void>();
 
 function normalizeProduct(raw: unknown): Product {
   const p = raw as Record<string, unknown>;
+  const trackInventory = Boolean(p.trackInventory);
+  const quantity = p.quantity === null || p.quantity === undefined ? null : Number(p.quantity);
+  const inStock = typeof p.inStock === "boolean"
+    ? p.inStock
+    : trackInventory
+      ? Number(quantity || 0) > 0
+      : true;
+  const variants = Array.isArray(p.variants)
+    ? (p.variants as Array<Record<string, unknown>>).map((variant) => {
+        const variantTrackInventory = Boolean(variant.trackInventory ?? trackInventory);
+        const variantQuantity = variant.quantity === null || variant.quantity === undefined
+          ? null
+          : Number(variant.quantity);
+        return {
+          ...variant,
+          priceCents: Number(variant.priceCents || p.priceCents || 0),
+          comparePriceCents: variant.comparePriceCents ? Number(variant.comparePriceCents) : undefined,
+          trackInventory: variantTrackInventory,
+          quantity: variantQuantity,
+          inStock: typeof variant.inStock === "boolean"
+            ? variant.inStock
+            : variantTrackInventory
+              ? Number(variantQuantity || 0) > 0
+              : inStock,
+        } as Product["variants"][number];
+      })
+    : [];
+
   return {
     id: String(p.id || ""),
     slug: String(p.slug || ""),
@@ -37,10 +65,12 @@ function normalizeProduct(raw: unknown): Product {
     categoryId: String(p.categoryId || ""),
     tags: Array.isArray(p.tags) ? (p.tags as string[]) : [],
     images: Array.isArray(p.images) ? (p.images as Product["images"]) : [],
-    variants: Array.isArray(p.variants) ? (p.variants as Product["variants"]) : [],
+    variants,
     labels: Array.isArray(p.labels) ? (p.labels as Product["labels"]) : [],
     featured: Boolean(p.featured),
-    inStock: Boolean(p.inStock),
+    inStock,
+    trackInventory,
+    quantity,
   };
 }
 

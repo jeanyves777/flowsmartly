@@ -114,7 +114,7 @@ function InlineStripeForm({
       <button
         onClick={handlePay}
         disabled={!stripe || !elements || submitting}
-        className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
+        className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-700 text-white rounded-full font-semibold hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-900/15"
       >
         {submitting ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
         {submitting ? "Processing..." : `Pay ${formatPrice(amount)}`}
@@ -361,6 +361,7 @@ export default function CheckoutPage() {
   const paymentStepIndex = STEPS.findIndex(s => s.id === STEP_PAYMENT.id);
 
   const canNext = () => {
+    if (cartIssues.length > 0) return false;
     if (currentStepId === "info") return !!(form.name && form.email);
     if (currentStepId === "shipping") return !!(form.street && form.city && form.zip && form.shippingMethodId);
     return true;
@@ -509,7 +510,7 @@ export default function CheckoutPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Order Placed!</h1>
           {orderNumber && <p className="text-gray-500 dark:text-gray-400 mb-6">Order #{orderNumber}</p>}
-          <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors">
+          <Link href="/products" className="inline-flex items-center gap-2 px-6 py-3 bg-primary-700 text-white rounded-full font-medium hover:bg-primary-800 transition-colors shadow-lg shadow-primary-900/15">
             Continue Shopping
           </Link>
         </motion.div>
@@ -541,6 +542,9 @@ export default function CheckoutPage() {
                 {issue.issue === "insufficient_stock" && ` — only ${issue.available} left in stock`}
               </p>
             ))}
+            <p className="text-sm text-amber-800 dark:text-amber-200 ml-6">
+              Remove or update unavailable items before continuing to payment.
+            </p>
           </div>
         )}
 
@@ -552,7 +556,7 @@ export default function CheckoutPage() {
                 onClick={() => i < step && setStep(i)}
                 aria-label={s.label}
                 className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
-                  i === step ? "bg-primary text-white shadow-lg shadow-primary/25" :
+                  i === step ? "bg-primary-700 text-white shadow-lg shadow-primary-900/15" :
                   i < step ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-pointer" :
                   "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                 }`}
@@ -644,7 +648,7 @@ export default function CheckoutPage() {
                       return (
                         <label key={method.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           form.shippingMethodId === method.id
-                            ? "border-primary bg-primary/10"
+                            ? "border-primary-700 bg-primary-50 dark:bg-primary-900/20"
                             : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}>
                           <input type="radio" name="shippingMethodId" value={method.id} checked={form.shippingMethodId === method.id} onChange={handleChange} className="w-4 h-4 text-primary" />
@@ -683,7 +687,7 @@ export default function CheckoutPage() {
                       key={pm.id}
                       className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                         selectedSavedPM === pm.id
-                          ? "border-primary bg-primary/10"
+                          ? "border-primary-700 bg-primary-50 dark:bg-primary-900/20"
                           : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                       }`}
                     >
@@ -711,8 +715,8 @@ export default function CheckoutPage() {
 
                 <button
                   onClick={handleSavedPMPay}
-                  disabled={!selectedSavedPM || savedPayLoading}
-                  className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
+                  disabled={!selectedSavedPM || savedPayLoading || cartIssues.length > 0}
+                  className="w-full inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-700 text-white rounded-full font-semibold hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-900/15"
                 >
                   {savedPayLoading ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
                   {savedPayLoading ? "Processing..." : `Pay ${formatPrice(total)}`}
@@ -745,7 +749,7 @@ export default function CheckoutPage() {
                         key={pm.stripeMethodId || pm.method}
                         className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                           selectedPayment === pm.method
-                            ? "border-primary bg-primary/10"
+                            ? "border-primary-700 bg-primary-50 dark:bg-primary-900/20"
                             : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         }`}
                       >
@@ -851,17 +855,17 @@ export default function CheckoutPage() {
                 <button
                   onClick={handleNext}
                   disabled={!canNext()}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary/25"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-700 text-white rounded-full font-semibold hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-900/15"
                 >
-                  Continue <ArrowRight size={16} />
+                  {cartIssues.length > 0 ? "Fix cart first" : "Continue"} <ArrowRight size={16} />
                 </button>
               ) : currentStepId === "payment" && !isStripeMethod ? (
                 // Stripe inline form owns its own "Pay" button. For non-Stripe
                 // methods (COD / mobile money / bank transfer) we own it here.
                 <button
                   onClick={handleNonCardSubmit}
-                  disabled={loading || loadingPaymentMethods}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-white rounded-full font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-lg shadow-primary/25"
+                  disabled={loading || loadingPaymentMethods || cartIssues.length > 0}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary-700 text-white rounded-full font-semibold hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed transition-colors shadow-lg shadow-primary-900/15"
                 >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingBag size={16} />}
                   {loading ? "Processing..." : "Place Order"}
@@ -889,7 +893,7 @@ export default function CheckoutPage() {
                         <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
                         {hasIssue && <p className="text-xs text-red-500">Item unavailable</p>}
                       </div>
-                      <p className="text-sm font-semibold text-primary flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white flex-shrink-0">{formatPrice(item.priceCents * item.quantity)}</p>
                     </div>
                   );
                 })}
@@ -906,7 +910,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white pt-2 border-t border-gray-100 dark:border-gray-800">
                   <span>Total</span>
-                  <span className="text-primary">{formatPrice(total)}</span>
+                  <span className="text-gray-900 dark:text-white">{formatPrice(total)}</span>
                 </div>
               </div>
             </div>

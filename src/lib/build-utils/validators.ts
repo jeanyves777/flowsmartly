@@ -276,12 +276,10 @@ export function cleanupV3Patterns(siteDir: string): void {
  * Fix invalid Tailwind v4 utility classes that agents generate.
  *
  * Common mistakes:
- * - bg-primary-950, text-primary-600, etc. (primary is a single color, not a scale)
- * - hover:bg-primary-700 → hover:bg-primary/70
- * - Same for secondary, accent, etc.
- *
- * In Tailwind v4 with @theme { --color-primary: #xxx }, only `bg-primary` works,
- * not `bg-primary-500`. Numbered variants need opacity modifiers: bg-primary/50.
+ * Older generated stores may still contain numbered shade classes for custom
+ * colors that do not have a scale. The store builder now injects primary,
+ * secondary, and accent scales from the brand hue, so those shades must be
+ * preserved. Rewriting them to opacity makes pale brands look disabled.
  */
 export function fixTailwindV4Classes(siteDir: string): void {
   const srcDir = join(siteDir, "src");
@@ -297,8 +295,10 @@ export function fixTailwindV4Classes(siteDir: string): void {
     "500": "", "600": "/80", "700": "/70", "800": "/50", "900": "/30", "950": "/20",
   };
 
-  // Custom theme colors that are single values (not scales)
-  const customColors = ["primary", "secondary", "accent", "muted", "destructive"];
+  // Custom theme colors that are still single values in generated stores.
+  // primary/secondary/accent are intentionally excluded because
+  // injectColorScale() derives real 50..900 shades for them.
+  const customColors = ["muted", "destructive"];
 
   for (const file of files) {
     let content = readFileSync(file, "utf-8");

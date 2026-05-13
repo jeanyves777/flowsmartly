@@ -114,8 +114,11 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
     });
   };
 
+  const availableQuantity = matchedVariant?.quantity ?? null;
+  const hasEnoughStock = availableQuantity == null || availableQuantity >= quantity;
+
   const handleAdd = () => {
-    if (!product || !matchedVariant || !matchedVariant.inStock) return;
+    if (!product || !matchedVariant || !matchedVariant.inStock || !hasEnoughStock) return;
     const priceCents = matchedVariant.priceCents ?? product.priceCents;
     for (let i = 0; i < quantity; i++) {
       addToCart({
@@ -273,13 +276,13 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                 <button
                   type="button"
                   onClick={handleAdd}
-                  disabled={!matchedVariant?.inStock || added}
+                  disabled={!matchedVariant?.inStock || !hasEnoughStock || added}
                   className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-semibold text-white transition-all ${
                     added
-                      ? "bg-green-500"
-                      : matchedVariant?.inStock
-                        ? "bg-primary-600 hover:bg-primary-700"
-                        : "bg-gray-400 cursor-not-allowed"
+                      ? "bg-green-600"
+                      : matchedVariant?.inStock && hasEnoughStock
+                        ? "bg-primary-700 hover:bg-primary-800 shadow-lg shadow-primary-900/15"
+                        : "bg-gray-300 text-gray-600 cursor-not-allowed"
                   }`}
                 >
                   {added ? (
@@ -291,6 +294,8 @@ export default function VariantPickerModal({ product, open, onClose }: VariantPi
                     "Select options"
                   ) : !matchedVariant.inStock ? (
                     "Out of stock"
+                  ) : !hasEnoughStock ? (
+                    `Only ${availableQuantity} left`
                   ) : (
                     <>
                       <ShoppingBag size={18} />

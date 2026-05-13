@@ -37,18 +37,33 @@ function FooterLink({ href, label }: { href: string; label: string }) {
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const defaultNavLinks = [
+    { href: "/", label: "Home" },
+    { href: "/products", label: "Shop" },
+    { href: "/about", label: "About" },
+    { href: "/faq", label: "FAQ" },
+  ];
+  const defaultLegalLinks = [
+    { href: "/shipping-policy", label: "Shipping Policy" },
+    { href: "/return-policy", label: "Return Policy" },
+    { href: "/privacy-policy", label: "Privacy Policy" },
+    { href: "/terms", label: "Terms & Conditions" },
+  ];
+
   // Defensive filter — data.ts can ship malformed entries (bare commas that
   // parse as undefined, missing href, etc.). Guard so the build never crashes
   // on a single bad link.
   const safeLinks = (Array.isArray(footerLinks) ? footerLinks : []).filter(
-    (l): l is { href: string; label: string } => !!l && typeof l.href === "string"
+    (l): l is { href: string; label: string } => !!l && typeof l.href === "string" && typeof l.label === "string" && l.label.trim().length > 0
   );
-  const navLinksList = safeLinks.filter(
+  const extractedNavLinks = safeLinks.filter(
     (l) => !l.href.includes("policy") && !l.href.includes("terms")
   );
-  const legalLinks = safeLinks.filter(
+  const extractedLegalLinks = safeLinks.filter(
     (l) => l.href.includes("policy") || l.href.includes("terms")
   );
+  const navLinksList = extractedNavLinks.length > 0 ? extractedNavLinks : defaultNavLinks;
+  const legalLinks = extractedLegalLinks.length > 0 ? extractedLegalLinks : defaultLegalLinks;
 
   return (
     <footer className="bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">

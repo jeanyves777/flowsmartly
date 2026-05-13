@@ -125,7 +125,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             <span className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-full">-{discount}%</span>
           )}
           {product.labels?.includes("new") && (
-            <span className="px-2.5 py-1 bg-primary-600 text-white text-xs font-bold rounded-full">New</span>
+            <span className="px-2.5 py-1 bg-primary-700 text-white text-xs font-bold rounded-full">New</span>
           )}
           {product.labels?.includes("bestseller") && (
             <span className="px-2.5 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">Bestseller</span>
@@ -175,7 +175,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                 className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-full shadow-lg transition-colors ${
                   added
                     ? "bg-green-500 text-white"
-                    : "bg-white dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-primary-600 hover:text-white"
+                    : "bg-white dark:bg-gray-900 text-gray-900 dark:text-white hover:bg-primary-700 hover:text-white"
                 }`}
               >
                 {added ? <Check size={16} /> : <ShoppingBag size={16} />}

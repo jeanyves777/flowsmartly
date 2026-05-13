@@ -139,9 +139,14 @@ export default function ProductDetailClient({ params }: { params: { slug: string
     );
   }
 
-  const activeVariant = selectedVariant || product.variants[0];
+  const defaultVariant = product.variants.find((variant) => variant.inStock) || product.variants[0];
+  const activeVariant = selectedVariant || defaultVariant;
   const price = activeVariant?.priceCents || product.priceCents;
   const comparePrice = activeVariant?.comparePriceCents || product.comparePriceCents;
+  const variantAvailable = !activeVariant || activeVariant.inStock !== false;
+  const availableQuantity = activeVariant?.quantity ?? product.quantity ?? null;
+  const hasEnoughStock = availableQuantity == null || availableQuantity >= quantity;
+  const isPurchasable = product.inStock && variantAvailable && hasEnoughStock;
   const relatedProducts: Product[] = allLiveProducts
     .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
     .slice(0, 4);
@@ -149,6 +154,7 @@ export default function ProductDetailClient({ params }: { params: { slug: string
   const shippingThreshold = (storeInfo as Record<string, unknown>).freeShippingThresholdCents as number || 5000;
 
   const handleAddToCart = () => {
+    if (!isPurchasable) return;
     addToCart({ productId: product.id, variantId: activeVariant?.id, name: product.name, variantName: activeVariant?.name, priceCents: price, imageUrl: activeVariant?.imageUrl || product.images[0]?.url || "" }, quantity);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -371,13 +377,23 @@ export default function ProductDetailClient({ params }: { params: { slug: string
                   {product.variants.map(variant => (
                     <button key={variant.id} onClick={() => setSelectedVariant(variant)} disabled={!variant.inStock}
                       className={`px-4 py-2.5 rounded-full text-sm font-medium border transition-all ${
-                        activeVariant?.id === variant.id ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-600" :
-                        variant.inStock ? "border-gray-200 dark:border-gray-700 hover:border-gray-400 text-gray-700 dark:text-gray-300" :
-                        "border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 line-through cursor-not-allowed"
+                        activeVariant?.id === variant.id ? "border-primary-700 bg-primary-700 text-white shadow-sm" :
+                        variant.inStock ? "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 hover:border-primary-600 text-gray-800 dark:text-gray-200" :
+                        "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 line-through cursor-not-allowed"
                       }`}
                     >{variant.name}</button>
                   ))}
                 </div>
+                {activeVariant && !variantAvailable && (
+                  <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400">
+                    {activeVariant.name} is currently out of stock.
+                  </p>
+                )}
+                {activeVariant && variantAvailable && !hasEnoughStock && (
+                  <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400">
+                    Only {availableQuantity} left for {activeVariant.name}.
+                  </p>
+                )}
               </div>
             )}
 
@@ -388,12 +404,12 @@ export default function ProductDetailClient({ params }: { params: { slug: string
                 <span className="w-10 text-center font-medium text-gray-900 dark:text-white">{quantity}</span>
                 <button onClick={() => setQuantity(quantity + 1)} className="p-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"><Plus size={16} /></button>
               </div>
-              <button onClick={handleAddToCart} disabled={!product.inStock}
+              <button onClick={handleAddToCart} disabled={!isPurchasable}
                 className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-full font-semibold text-white transition-all ${
-                  added ? "bg-green-500" : product.inStock ? "bg-primary-600 hover:bg-primary-700" : "bg-gray-400 cursor-not-allowed"
+                  added ? "bg-green-600" : isPurchasable ? "bg-primary-700 hover:bg-primary-800 shadow-lg shadow-primary-900/15" : "bg-gray-300 text-gray-600 cursor-not-allowed"
                 }`}
               >
-                {added ? (<><Check size={18} />Added!</>) : (<><ShoppingBag size={18} />{product.inStock ? "Add to Cart" : "Out of Stock"}</>)}
+                {added ? (<><Check size={18} />Added!</>) : (<><ShoppingBag size={18} />{isPurchasable ? "Add to Cart" : "Out of Stock"}</>)}
               </button>
               <button onClick={handleWishlist} disabled={wishlistLoading}
                 className={`p-4 rounded-full border transition-all ${
@@ -407,9 +423,9 @@ export default function ProductDetailClient({ params }: { params: { slug: string
 
             {/* Trust badges — dynamic shipping threshold */}
             <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
-              <div className="text-center"><Package size={20} className="mx-auto text-primary-600 mb-1.5" /><p className="text-xs text-gray-500 dark:text-gray-400">Quality Assured</p></div>
-              <div className="text-center"><Truck size={20} className="mx-auto text-primary-600 mb-1.5" /><p className="text-xs text-gray-500 dark:text-gray-400">Free Shipping {formatPrice(shippingThreshold)}+</p></div>
-              <div className="text-center"><RotateCcw size={20} className="mx-auto text-primary-600 mb-1.5" /><p className="text-xs text-gray-500 dark:text-gray-400">30-Day Returns</p></div>
+              <div className="text-center"><Package size={20} strokeWidth={2.2} className="mx-auto text-primary-700 dark:text-primary-300 mb-1.5" /><p className="text-xs text-gray-600 dark:text-gray-300">Quality Assured</p></div>
+              <div className="text-center"><Truck size={20} strokeWidth={2.2} className="mx-auto text-primary-700 dark:text-primary-300 mb-1.5" /><p className="text-xs text-gray-600 dark:text-gray-300">Free Shipping {formatPrice(shippingThreshold)}+</p></div>
+              <div className="text-center"><RotateCcw size={20} strokeWidth={2.2} className="mx-auto text-primary-700 dark:text-primary-300 mb-1.5" /><p className="text-xs text-gray-600 dark:text-gray-300">30-Day Returns</p></div>
             </div>
           </div>
         </div>
@@ -556,9 +572,9 @@ export default function ProductDetailClient({ params }: { params: { slug: string
           </div>
           <button
             onClick={handleAddToCart}
-            disabled={!product.inStock}
+            disabled={!isPurchasable}
             className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-white text-sm transition-all flex-shrink-0 ${
-              added ? "bg-green-500" : product.inStock ? "bg-primary-600 active:bg-primary-700" : "bg-gray-400"
+              added ? "bg-green-600" : isPurchasable ? "bg-primary-700 active:bg-primary-800" : "bg-gray-300 text-gray-600"
             }`}
           >
             {added ? (
@@ -567,7 +583,7 @@ export default function ProductDetailClient({ params }: { params: { slug: string
               </>
             ) : (
               <>
-                <ShoppingBag size={15} /> {product.inStock ? "Add" : "Out"}
+                <ShoppingBag size={15} /> {isPurchasable ? "Add" : "Out"}
               </>
             )}
           </button>

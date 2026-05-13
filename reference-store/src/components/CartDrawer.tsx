@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Minus, ShoppingBag, Trash2 } from "lucide-react";
+import { X, Plus, Minus, ShoppingBag, Trash2, AlertTriangle } from "lucide-react";
 import { formatPrice } from "@/lib/data";
+import { useLiveProducts } from "@/lib/products-store";
 import {
   getCart,
   getCartTotal,
@@ -22,6 +23,7 @@ interface CartDrawerProps {
 
 export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const { products, loading: productsLoading } = useLiveProducts();
 
   // Sync cart state
   useEffect(() => {
@@ -38,6 +40,30 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
 
   const total = getCartTotal(cart);
   const count = getCartCount(cart);
+  const cartIssues = cart
+    .map((item) => {
+      if (productsLoading && products.length === 0) return null;
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) {
+        return { item, message: "This product is no longer available." };
+      }
+      const variant = item.variantId
+        ? product.variants.find((v) => v.id === item.variantId)
+        : undefined;
+      if (item.variantId && !variant) {
+        return { item, message: "This option is no longer available." };
+      }
+      if (!product.inStock || variant?.inStock === false) {
+        return { item, message: "This item is out of stock." };
+      }
+      const available = variant?.quantity ?? product.quantity ?? null;
+      if (available != null && available < item.quantity) {
+        return { item, message: `Only ${available} left in stock.` };
+      }
+      return null;
+    })
+    .filter((issue): issue is { item: CartItem; message: string } => issue !== null);
+  const hasCartIssues = cartIssues.length > 0;
 
   return (
     <AnimatePresence>
@@ -95,6 +121,12 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
                     const key = item.variantId
                       ? `${item.productId}:${item.variantId}`
                       : item.productId;
+                    const issue = cartIssues.find((cartIssue) => {
+                      const issueKey = cartIssue.item.variantId
+                        ? `${cartIssue.item.productId}:${cartIssue.item.variantId}`
+                        : cartIssue.item.productId;
+                      return issueKey === key;
+                    });
 
                     return (
                       <motion.div
@@ -103,7 +135,11 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: 50 }}
-                        className="flex gap-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50"
+                        className={`flex gap-4 p-3 rounded-xl border ${
+                          issue
+                            ? "border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-900/10"
+                            : "border-transparent bg-gray-50 dark:bg-gray-800/50"
+                        }`}
                       >
                         {/* Image */}
                         <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
@@ -129,6 +165,12 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
                           <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">
                             {formatPrice(item.priceCents)}
                           </p>
+                          {issue && (
+                            <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                              <AlertTriangle size={12} />
+                              {issue.message}
+                            </p>
+                          )}
 
                           {/* Quantity controls */}
                           <div className="flex items-center gap-2 mt-2">
@@ -171,6 +213,16 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
             {/* Footer */}
             {cart.length > 0 && (
               <div className="border-t border-gray-100 dark:border-gray-800 px-6 py-4 space-y-4">
+                {hasCartIssues && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/10 dark:text-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                      <p>
+                        Remove or update the unavailable item before checkout.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
                   <span className="text-xl font-bold text-gray-900 dark:text-white">
@@ -181,10 +233,17 @@ export default function CartDrawer({ isOpen, onClose, storeSlug }: CartDrawerPro
                   Shipping and taxes calculated at checkout
                 </p>
                 <button
-                  onClick={() => redirectToCheckout(storeSlug)}
-                  className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full transition-colors"
+                  onClick={() => {
+                    if (!hasCartIssues) redirectToCheckout(storeSlug);
+                  }}
+                  disabled={hasCartIssues}
+                  className={`w-full py-4 font-semibold rounded-full transition-colors ${
+                    hasCartIssues
+                      ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                      : "bg-primary-700 hover:bg-primary-800 text-white shadow-lg shadow-primary-900/15"
+                  }`}
                 >
-                  Checkout
+                  {hasCartIssues ? "Fix cart to checkout" : "Checkout"}
                 </button>
               </div>
             )}

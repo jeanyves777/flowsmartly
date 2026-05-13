@@ -45,6 +45,14 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
     announcementLines.push(`Free shipping on orders over ${formatPrice(freeShippingThreshold)}`);
   }
   for (const m of ANNOUNCEMENT_MESSAGES) announcementLines.push(m);
+  const safeNavLinks = Array.isArray(navLinks) && navLinks.some((link) => link?.href && link?.label)
+    ? navLinks.filter((link) => link?.href && link?.label)
+    : [
+        { href: "/", label: "Home" },
+        { href: "/products", label: "Shop" },
+        { href: "/about", label: "About" },
+        { href: "/faq", label: "FAQ" },
+      ];
 
   return (
     <>
@@ -94,7 +102,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
             </Link>
 
             <nav className="hidden md:flex items-center gap-8">
-              {navLinks.map((link) => (
+              {safeNavLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -185,7 +193,7 @@ export default function Header({ onCartOpen }: { onCartOpen?: () => void }) {
               </div>
 
               <nav className="flex-1 overflow-y-auto py-4">
-                {navLinks.map((link) => (
+                {safeNavLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}

@@ -15,6 +15,8 @@ export interface ProductVariant {
   comparePriceCents?: number;
   imageUrl?: string;
   inStock: boolean;
+  trackInventory?: boolean;
+  quantity?: number | null;
 }
 
 export interface Product {
@@ -32,6 +34,8 @@ export interface Product {
   labels: ("new" | "sale" | "bestseller" | "limited" | "discount" | "featured")[];
   featured: boolean;
   inStock: boolean;
+  trackInventory?: boolean;
+  quantity?: number | null;
 }
 
 // ─── Product catalog ─────────────────────────────────────────────────────────

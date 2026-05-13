@@ -47,6 +47,8 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/app/products/[slug]/ProductDetailClient.tsx",
   "src/app/products/[slug]/page.tsx",
   "src/app/products/page.tsx",
+  "src/app/checkout/page.tsx",
+  "src/app/checkout/confirm/page.tsx",
   "src/app/category/[slug]/page.tsx",
   "src/app/category/[slug]/CategoryClient.tsx",
   "src/app/privacy-policy/page.tsx",

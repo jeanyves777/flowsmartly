@@ -26,7 +26,7 @@ export default function Newsletter() {
           viewport={{ once: true }}
         >
           <div className="inline-flex items-center justify-center w-14 h-14 bg-primary-100 dark:bg-primary-900/30 rounded-2xl mb-6">
-            <Mail size={24} className="text-primary-600" />
+            <Mail size={24} strokeWidth={2.2} className="text-primary-700 dark:text-primary-300" />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Stay in the loop
@@ -56,7 +56,7 @@ export default function Newsletter() {
               />
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-full transition-colors group"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-primary-700 hover:bg-primary-800 text-white font-semibold rounded-full transition-colors shadow-lg shadow-primary-900/15 group"
               >
                 Subscribe
                 <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
