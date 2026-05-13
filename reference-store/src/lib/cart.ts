@@ -16,14 +16,20 @@ export interface CartItem {
   imageUrl: string;
 }
 
-const CART_KEY = "flowshop-cart-example-store"; // slug-specific key
+const CART_KEY_PREFIX = "flowshop-cart";
+
+function getCartKey(): string {
+  if (typeof window === "undefined") return `${CART_KEY_PREFIX}-default`;
+  const match = window.location.pathname.match(/^\/stores\/([^/]+)/);
+  return `${CART_KEY_PREFIX}-${match?.[1] || "default"}`;
+}
 
 // ─── Cart operations ─────────────────────────────────────────────────────────
 
 export function getCart(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(CART_KEY);
+    const raw = localStorage.getItem(getCartKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -32,7 +38,7 @@ export function getCart(): CartItem[] {
 
 export function saveCart(items: CartItem[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(CART_KEY, JSON.stringify(items));
+  localStorage.setItem(getCartKey(), JSON.stringify(items));
   // Dispatch custom event so CartDrawer/CartButton re-render
   window.dispatchEvent(new CustomEvent("cart-updated"));
 }
