@@ -253,6 +253,14 @@ function progressDotClass(status: AutopilotProgressEvent["status"]): string {
   return "bg-red-500";
 }
 
+function userActionBadgeLabel(blocker?: string): string {
+  if (blocker === "business_email_required" || blocker === "business_email_missing") return "Profile info needed";
+  if (blocker === "email_confirmation_required") return "Email validation likely";
+  if (blocker === "captcha_required") return "CAPTCHA needed";
+  if (blocker === "creation_page_unreachable") return "Portal access needed";
+  return "Portal step needed";
+}
+
 function sentimentColor(sentiment: string): string {
   switch (sentiment) {
     case "positive":
@@ -1456,7 +1464,9 @@ export default function ListSmartlyDashboardPage() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">Portal step needed</Badge>
+                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          {userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker)}
+                        </Badge>
                         <p className="text-sm font-semibold text-foreground">
                           {needsUserTask.result?.userActionTitle || needsUserTask.title}
                         </p>
@@ -1489,13 +1499,13 @@ export default function ListSmartlyDashboardPage() {
                           needsUserTask.requiredAction ||
                           "Complete the required portal step, then let the agent continue."}
                       </p>
-                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.claimUrl || needsUserTask.payload?.directory?.submitUrl) && (
+                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.submitUrl || needsUserTask.payload?.directory?.claimUrl) && (
                         <a
                           className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
                           href={
                             needsUserTask.result?.portalUrl ||
-                            needsUserTask.payload?.directory?.claimUrl ||
-                            needsUserTask.payload?.directory?.submitUrl
+                            needsUserTask.payload?.directory?.submitUrl ||
+                            needsUserTask.payload?.directory?.claimUrl
                           }
                           target="_blank"
                           rel="noopener noreferrer"

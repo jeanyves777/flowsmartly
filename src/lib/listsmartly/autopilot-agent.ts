@@ -131,6 +131,12 @@ function normalizeUrl(value: string | null | undefined): string | null {
   return trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`;
 }
 
+function looksLikeAccountCreationUrl(value: string | null | undefined): boolean {
+  return /(sign.?up|signup|free.?trial|register|create.?account|claim.?business|add.?business|add.?listing)/i.test(
+    value || ""
+  );
+}
+
 function scoreSearchCandidate(profile: BusinessSignalInput, candidate: { link: string; title?: string; snippet?: string }): number {
   const rawHaystack = `${candidate.title || ""} ${candidate.snippet || ""} ${candidate.link}`;
   const haystack = normalizeText(rawHaystack);
@@ -298,7 +304,9 @@ async function updateTaskProgress(
   });
 }
 
-async function probeDirectoryPortal(url: string | null): Promise<{ reachable: boolean; links: string[]; error?: string }> {
+async function probeDirectoryPortal(
+  url: string | null
+): Promise<{ reachable: boolean; links: string[]; finalUrl?: string; error?: string }> {
   if (!url) return { reachable: false, links: [] };
 
   try {
@@ -312,10 +320,10 @@ async function probeDirectoryPortal(url: string | null): Promise<{ reachable: bo
 
     if (contentType.includes("text/html")) {
       const html = (await res.text()).slice(0, 120000);
-      const linkPattern = /href=["']([^"']+)["'][^>]*>([^<]{0,80})/gi;
+      const linkPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi;
       for (const match of html.matchAll(linkPattern)) {
         const href = match[1] || "";
-        const label = normalizeText(match[2] || "");
+        const label = normalizeText((match[2] || "").replace(/<[^>]*>/g, " "));
         const combined = normalizeText(`${href} ${label}`);
         if (!/(claim|add|submit|business|listing|profile|login|sign in|sign up|register)/.test(combined)) {
           continue;
@@ -325,11 +333,11 @@ async function probeDirectoryPortal(url: string | null): Promise<{ reachable: bo
         } catch {
           // Ignore malformed page links; the portal probe itself still succeeded.
         }
-        if (links.length >= 8) break;
+        if (links.length >= 20) break;
       }
     }
 
-    return { reachable: res.ok || res.status < 500, links: Array.from(new Set(links)) };
+    return { reachable: res.ok || res.status < 500, links: Array.from(new Set(links)), finalUrl: res.url };
   } catch (error) {
     return {
       reachable: false,
@@ -354,16 +362,16 @@ function chooseAccountCreationUrl(
     return !/(privacy|legal|terms|cookie|status|blog|resources|learn|press|security|compliance)/i.test(link);
   });
   const preferred = usableLinks.find((link) => {
-    return /(sign.?up|signup|free.?trial|register|create.?account|claim.?business|add.?business|add.?listing)/i.test(link);
+    return looksLikeAccountCreationUrl(link);
   });
   const secondary = usableLinks.find((link) => {
     return /(claim|submit|add)/i.test(link);
   });
   return (
-    preferred ||
-    secondary ||
     normalizeUrl(listing.directory.submitUrl) ||
+    preferred ||
     normalizeUrl(listing.directory.claimUrl) ||
+    secondary ||
     research.portalUrl ||
     normalizeUrl(listing.directory.url)
   );
@@ -418,6 +426,7 @@ async function inspectAccountCreationPage(
     const hasSso = /(single sign on|single sign-on|sso|google|office 365|microsoft)/i.test(html);
     const hasEmailField = /type=["']email["']|name=["'][^"']*(email|user(name)?)["']/i.test(html);
     const hasSignupLanguage = /(sign up|signup|free trial|create account|register|claim)/.test(page);
+    const isSignupPath = looksLikeAccountCreationUrl(url);
 
     if (!res.ok && res.status >= 400) {
       return {
@@ -448,6 +457,23 @@ async function inspectAccountCreationPage(
           `The agent reached the ${directoryName} account creation path, but the page requires CAPTCHA or bot-protection. ` +
           "Complete that challenge in the portal, then return so the agent can continue.",
         userActionButtonLabel: "I completed the CAPTCHA",
+      };
+    }
+
+    if ((hasEmailField && (hasSignupLanguage || isSignupPath)) || (isSignupPath && hasSignupLanguage)) {
+      return {
+        attempted: true,
+        accountCreated: false,
+        credentialSaved: false,
+        emailSentByFlowSmartly: false,
+        blocker: "email_confirmation_required",
+        blockerMessage:
+          `${directoryName} exposes an account creation flow, and completing it can send email verification to ${profile.email}.`,
+        userActionTitle: `${directoryName} email sign-up ready`,
+        userActionMessage:
+          `The agent found the ${directoryName} sign-up flow. Password fields on sign-up pages are part of account creation, ` +
+          "not a reason to stop as if the user already needs login credentials. Confirm the email is monitored, then the agent can continue.",
+        userActionButtonLabel: "Email is ready",
       };
     }
 
@@ -631,23 +657,35 @@ async function researchDirectoryWorkflow(profile: BusinessSignalInput, listing: 
     claimUrl: string | null;
   };
 }): Promise<DirectoryResearchResult> {
-  const portalUrl =
-    normalizeUrl(listing.directory.claimUrl) ||
-    normalizeUrl(listing.directory.submitUrl) ||
-    normalizeUrl(listing.directory.url);
+  const portalCandidates = Array.from(
+    new Set(
+      [
+        normalizeUrl(listing.directory.submitUrl),
+        normalizeUrl(listing.directory.claimUrl),
+        normalizeUrl(listing.directory.url),
+      ].filter((url): url is string => Boolean(url))
+    )
+  );
+  const fallbackPortalUrl = portalCandidates[0] || null;
 
-  const [portal, search] = await Promise.all([
-    probeDirectoryPortal(portalUrl),
+  const [portalResults, search] = await Promise.all([
+    Promise.all(portalCandidates.map((url) => probeDirectoryPortal(url))),
     findPublicDirectoryMatch(profile, listing.directory),
   ]);
+  const reachablePortalIndex = portalResults.findIndex((portal) => portal.reachable);
+  const primaryPortal = reachablePortalIndex >= 0 ? portalResults[reachablePortalIndex] : portalResults[0];
+  const portalUrl =
+    primaryPortal?.finalUrl ||
+    (reachablePortalIndex >= 0 ? portalCandidates[reachablePortalIndex] : fallbackPortalUrl);
+  const discoveredLinks = Array.from(new Set(portalResults.flatMap((portal) => portal.links)));
 
   return {
     portalUrl,
-    portalReachable: portal.reachable,
-    discoveredLinks: portal.links,
+    portalReachable: portalResults.some((portal) => portal.reachable),
+    discoveredLinks,
     searched: search.searched,
     match: search.match,
-    error: portal.error || search.error,
+    error: portalResults.find((portal) => portal.error)?.error || search.error,
   };
 }
 
@@ -713,6 +751,15 @@ export async function getAutopilotState(userId: string) {
   });
   if (!profile) return null;
 
+  const activeListings = await prisma.businessListing.findMany({
+    where: { profileId: profile.id, directory: { isActive: true } },
+    select: { id: true },
+  });
+  const visibleTaskWhere = {
+    profileId: profile.id,
+    OR: [{ listingId: null }, { listingId: { in: activeListings.map((listing) => listing.id) } }],
+  };
+
   const [
     tasks,
     credentials,
@@ -723,7 +770,7 @@ export async function getAutopilotState(userId: string) {
     lastStartedTask,
   ] = await Promise.all([
     prisma.listSmartlyAutopilotTask.findMany({
-      where: { profileId: profile.id },
+      where: visibleTaskWhere,
       include: {
         listing: {
           include: {
@@ -737,7 +784,7 @@ export async function getAutopilotState(userId: string) {
       take: 120,
     }),
     prisma.listSmartlyAccountCredential.findMany({
-      where: { profileId: profile.id },
+      where: visibleTaskWhere,
       include: {
         listing: {
           include: { directory: { select: { slug: true, name: true, url: true, tier: true } } },
@@ -748,19 +795,19 @@ export async function getAutopilotState(userId: string) {
     }),
     prisma.businessListing.groupBy({
       by: ["status"],
-      where: { profileId: profile.id },
+      where: { profileId: profile.id, directory: { isActive: true } },
       _count: { status: true },
     }),
     prisma.listSmartlyAutopilotTask.groupBy({
       by: ["status"],
-      where: { profileId: profile.id },
+      where: visibleTaskWhere,
       _count: { status: true },
     }),
     prisma.listSmartlyAccountCredential.count({
-      where: { profileId: profile.id },
+      where: visibleTaskWhere,
     }),
     prisma.listSmartlyAutopilotTask.findFirst({
-      where: { profileId: profile.id, status: "in_progress" },
+      where: { ...visibleTaskWhere, status: "in_progress" },
       orderBy: { updatedAt: "desc" },
       include: {
         listing: {
@@ -773,7 +820,7 @@ export async function getAutopilotState(userId: string) {
       },
     }),
     prisma.listSmartlyAutopilotTask.findFirst({
-      where: { profileId: profile.id, startedAt: { not: null } },
+      where: { ...visibleTaskWhere, startedAt: { not: null } },
       orderBy: { startedAt: "desc" },
       select: { id: true, startedAt: true, title: true },
     }),
@@ -920,6 +967,7 @@ export async function prepareAutopilotQueue(userId: string) {
     where: {
       profileId: profile.id,
       status: { in: WORKABLE_STATUSES },
+      directory: { isActive: true },
     },
     include: {
       directory: {
@@ -1032,6 +1080,7 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
               claimUrl: true,
               tier: true,
               slug: true,
+              isActive: true,
               apiAvailable: true,
             },
           },
@@ -1063,6 +1112,38 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
       },
     });
     return { status: "failed", message: failed.failureReason || "Task failed.", task: failed };
+  }
+
+  if (!task.listing.directory.isActive) {
+    const completedMessage =
+      `${task.listing.directory.name} is no longer an active ListSmartly directory, so the agent skipped this workflow.`;
+    const skipped = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "completed",
+        assignedTo: "agent",
+        requiredAction: null,
+        failureReason: null,
+        completedAt: new Date(),
+        result: safeJson(
+          appendProgress(
+            {
+              ...parseJsonObject(task.result),
+              stage: "skipped_inactive_directory",
+              statusMessage: completedMessage,
+              completedAt: new Date().toISOString(),
+            },
+            {
+              stage: "skipped_inactive_directory",
+              label: "Skipped inactive directory",
+              status: "done",
+              detail: completedMessage,
+            }
+          )
+        ),
+      },
+    });
+    return { status: "completed", message: completedMessage, task: skipped };
   }
 
   console.log(`ListSmartly autopilot: processing ${task.title} for ${profile.businessName}`);
@@ -1273,7 +1354,11 @@ export async function runNextAutopilotStep(userId: string) {
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
 
   const activeTask = await prisma.listSmartlyAutopilotTask.findFirst({
-    where: { profileId: profile.id, status: { in: ["in_progress", "needs_user"] } },
+    where: {
+      profileId: profile.id,
+      status: { in: ["in_progress", "needs_user"] },
+      listing: { directory: { isActive: true } },
+    },
     orderBy: { updatedAt: "desc" },
   });
   if (activeTask) {
@@ -1288,7 +1373,7 @@ export async function runNextAutopilotStep(userId: string) {
   }
 
   const lastStartedTask = await prisma.listSmartlyAutopilotTask.findFirst({
-    where: { profileId: profile.id, startedAt: { not: null } },
+    where: { profileId: profile.id, startedAt: { not: null }, listing: { directory: { isActive: true } } },
     orderBy: { startedAt: "desc" },
     select: { id: true, title: true, startedAt: true },
   });
@@ -1305,7 +1390,7 @@ export async function runNextAutopilotStep(userId: string) {
   }
 
   const task = await prisma.listSmartlyAutopilotTask.findFirst({
-    where: { profileId: profile.id, status: "queued" },
+    where: { profileId: profile.id, status: "queued", listing: { directory: { isActive: true } } },
     include: {
       listing: {
         include: {
@@ -1379,6 +1464,7 @@ export async function continueAutopilotTask(userId: string, taskId: string) {
       id: taskId,
       profileId: profile.id,
       status: "needs_user",
+      listing: { directory: { isActive: true } },
     },
     select: { id: true, result: true, title: true },
   });
@@ -1498,7 +1584,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
 
   const listing = input.listingId
     ? await prisma.businessListing.findFirst({
-        where: { id: input.listingId, profileId: profile.id },
+        where: { id: input.listingId, profileId: profile.id, directory: { isActive: true } },
         include: { directory: { select: { name: true, url: true } } },
       })
     : null;

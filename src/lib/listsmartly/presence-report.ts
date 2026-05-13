@@ -36,7 +36,7 @@ export async function generatePresenceReport(
   if (!profile) throw new Error("Profile not found");
 
   const listings = await prisma.businessListing.findMany({
-    where: { profileId },
+    where: { profileId, directory: { isActive: true } },
     include: { directory: { select: { name: true, tier: true } } },
   });
 

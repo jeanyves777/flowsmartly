@@ -55,7 +55,7 @@ export async function POST() {
 
     // Recalculate citation score
     const listings = await prisma.businessListing.findMany({
-      where: { profileId: profile.id },
+      where: { profileId: profile.id, directory: { isActive: true } },
       include: { directory: { select: { tier: true, name: true, slug: true } } },
     });
 

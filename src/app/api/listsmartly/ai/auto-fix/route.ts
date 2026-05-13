@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       where: {
         profileId: profile.id,
         status: { in: ["live", "submitted", "claimed"] },
+        directory: { isActive: true },
       },
       include: { directory: { select: { name: true } } },
     });

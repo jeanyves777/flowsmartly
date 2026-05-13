@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Verify all listings belong to this profile
     const ownedCount = await prisma.businessListing.count({
-      where: { id: { in: listingIds }, profileId: profile.id },
+      where: { id: { in: listingIds }, profileId: profile.id, directory: { isActive: true } },
     });
     if (ownedCount !== listingIds.length) {
       return NextResponse.json(

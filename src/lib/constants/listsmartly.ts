@@ -84,6 +84,7 @@ export interface DirectoryEntry {
   submitUrl?: string;
   claimUrl?: string;
   apiAvailable?: boolean;
+  isActive?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -106,7 +107,9 @@ const TIER_1_DIRECTORIES: DirectoryEntry[] = [
   { slug: "angi", name: "Angi", url: "https://www.angi.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.angi.com/pro" },
   { slug: "expertise", name: "Expertise", url: "https://www.expertise.com", tier: 1, category: "critical", industries: [] },
   { slug: "dandb", name: "Dun & Bradstreet", url: "https://www.dnb.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.dnb.com/duns/get-a-duns.html", apiAvailable: true },
-  { slug: "zoominfo", name: "ZoomInfo", url: "https://www.zoominfo.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.zoominfo.com", apiAvailable: true },
+  // ZoomInfo is a B2B data/search platform, not a normal local citation or listing directory.
+  // Keep the slug inactive so older DB rows are suppressed and not queued for account creation.
+  { slug: "zoominfo", name: "ZoomInfo", url: "https://www.zoominfo.com", tier: 1, category: "critical", industries: [], isActive: false },
 ];
 
 // -----------------------------------------------------------------------------

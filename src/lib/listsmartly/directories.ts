@@ -19,7 +19,7 @@ export async function seedDirectories(): Promise<number> {
         submitUrl: dir.submitUrl || null,
         claimUrl: dir.claimUrl || null,
         apiAvailable: dir.apiAvailable || false,
-        isActive: true,
+        isActive: dir.isActive ?? true,
       },
       create: {
         slug: dir.slug,
@@ -31,6 +31,7 @@ export async function seedDirectories(): Promise<number> {
         submitUrl: dir.submitUrl || null,
         claimUrl: dir.claimUrl || null,
         apiAvailable: dir.apiAvailable || false,
+        isActive: dir.isActive ?? true,
       },
     });
     count++;

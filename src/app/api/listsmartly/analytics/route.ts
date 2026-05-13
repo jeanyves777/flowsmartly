@@ -26,7 +26,7 @@ export async function GET() {
 
     // Fetch listings with directory tier
     const listings = await prisma.businessListing.findMany({
-      where: { profileId: profile.id },
+      where: { profileId: profile.id, directory: { isActive: true } },
       include: { directory: { select: { tier: true } } },
     });
 

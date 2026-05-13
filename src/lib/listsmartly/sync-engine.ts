@@ -82,7 +82,7 @@ export async function runConsistencyCheck(profileId: string): Promise<{ checked:
   if (!profile) throw new Error("Profile not found");
 
   const listings = await prisma.businessListing.findMany({
-    where: { profileId, status: { in: ["live", "submitted", "claimed"] } },
+    where: { profileId, status: { in: ["live", "submitted", "claimed"] }, directory: { isActive: true } },
   });
 
   let inconsistent = 0;
@@ -134,9 +134,9 @@ export async function updateSyncJob(
 /** Update profile denormalized listing stats. */
 export async function refreshProfileStats(profileId: string): Promise<void> {
   const [total, live] = await Promise.all([
-    prisma.businessListing.count({ where: { profileId } }),
+    prisma.businessListing.count({ where: { profileId, directory: { isActive: true } } }),
     prisma.businessListing.count({
-      where: { profileId, status: { in: ["live", "submitted", "claimed"] } },
+      where: { profileId, status: { in: ["live", "submitted", "claimed"] }, directory: { isActive: true } },
     }),
   ]);
   await prisma.listSmartlyProfile.update({
@@ -160,7 +160,7 @@ export async function detectExistingPresence(
   if (!profile) throw new Error("Profile not found");
 
   const listings = await prisma.businessListing.findMany({
-    where: { profileId, status: { not: "error" } },
+    where: { profileId, status: { not: "error" }, directory: { isActive: true } },
     include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
   });
 
@@ -331,7 +331,7 @@ export async function detectExistingPresence(
 
   if (searchCx) {
     const remainingListings = await prisma.businessListing.findMany({
-      where: { profileId, status: { in: ["missing", "unverified", "needs_update"] } },
+      where: { profileId, status: { in: ["missing", "unverified", "needs_update"] }, directory: { isActive: true } },
       include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
     });
 
@@ -364,7 +364,9 @@ export async function detectExistingPresence(
   }
 
   await refreshProfileStats(profileId);
-  const unverified = await prisma.businessListing.count({ where: { profileId, status: "unverified" } });
+  const unverified = await prisma.businessListing.count({
+    where: { profileId, status: "unverified", directory: { isActive: true } },
+  });
   console.log(`ListSmartly: verified ${detected} existing listings for "${businessName}"`);
 
   return { detected, searched, unverified };
@@ -604,11 +606,12 @@ async function markUnsearchedMissingAsUnverified(profileId: string): Promise<num
       profileId,
       status: "missing",
       lastCheckedAt: null,
+      directory: { isActive: true },
     },
     data: { status: "unverified" },
   });
 
-  return prisma.businessListing.count({ where: { profileId, status: "unverified" } });
+  return prisma.businessListing.count({ where: { profileId, status: "unverified", directory: { isActive: true } } });
 }
 
 async function markListingMissing(listingId: string, source: string): Promise<void> {

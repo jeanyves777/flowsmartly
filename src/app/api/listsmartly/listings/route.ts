@@ -35,14 +35,12 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status;
 
     // Tier and search require filtering on the directory relation
-    const directoryWhere: Record<string, unknown> = {};
+    const directoryWhere: Record<string, unknown> = { isActive: true };
     if (tier) directoryWhere.tier = parseInt(tier, 10);
     if (search) {
       directoryWhere.name = { contains: search, mode: "insensitive" };
     }
-    if (Object.keys(directoryWhere).length > 0) {
-      where.directory = directoryWhere;
-    }
+    where.directory = directoryWhere;
 
     const [listings, total] = await Promise.all([
       prisma.businessListing.findMany({
@@ -124,7 +122,7 @@ export async function POST(request: NextRequest) {
     const directory = await prisma.listingDirectory.findUnique({
       where: { id: directoryId },
     });
-    if (!directory) {
+    if (!directory || !directory.isActive) {
       return NextResponse.json(
         { success: false, error: { message: "Directory not found" } },
         { status: 404 }
