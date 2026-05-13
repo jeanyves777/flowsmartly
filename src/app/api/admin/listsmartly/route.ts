@@ -35,7 +35,17 @@ export async function GET(request: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          user: { select: { id: true, name: true, email: true, plan: true, aiCredits: true, deletedAt: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              plan: true,
+              aiCredits: true,
+              deletedAt: true,
+              stripeCustomerId: true,
+            },
+          },
           _count: { select: { listings: true, reviews: true } },
         },
       }),
@@ -73,7 +83,11 @@ export async function GET(request: NextRequest) {
           listSmartlyNextCreditChargeAt: p.listSmartlyNextCreditChargeAt?.toISOString() || null,
           listSmartlyLastCreditFailureAt: p.listSmartlyLastCreditFailureAt?.toISOString() || null,
           listSmartlyCreditFailureReason: p.listSmartlyCreditFailureReason,
-          access: buildListSmartlyAccess(p, p.user),
+          access: buildListSmartlyAccess(p, {
+            ...p.user,
+            paymentBackupReady: Boolean(p.user.stripeCustomerId),
+            paymentBackupLabel: p.user.stripeCustomerId ? "Saved Stripe customer" : null,
+          }),
           setupComplete: p.setupComplete,
           totalListings: p.totalListings,
           liveListings: p.liveListings,

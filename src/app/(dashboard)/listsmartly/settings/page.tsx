@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { StripeProvider } from "@/components/providers/stripe-provider";
+import { AddCardForm } from "@/components/payments/add-card-form";
 
 // ── Types ──
 
@@ -49,6 +51,11 @@ interface SubscriptionData {
   monthlyCost: number;
   creditsAvailable: number;
   planEligible: boolean;
+  subscriptionBacked: boolean;
+  backupPaymentRequired: boolean;
+  paymentBackupReady: boolean | null;
+  paymentBackupLabel: string | null;
+  paymentBackupReason: string | null;
   unlockedAt: string | null;
   lastCreditChargeAt: string | null;
   nextCreditChargeAt: string | null;
@@ -72,7 +79,7 @@ const INDUSTRIES = [
 
 // ── Component ──
 
-export default function ListSmartlySettingsPage() {
+function ListSmartlySettingsContent() {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -81,6 +88,7 @@ export default function ListSmartlySettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
 
   const [profile, setProfile] = useState<ProfileData>({
     businessName: "",
@@ -263,6 +271,14 @@ export default function ListSmartlySettingsPage() {
     } catch {
       toast({ title: "Error", description: "Failed to cancel subscription", variant: "destructive" });
     }
+  }
+
+  async function handleCardAdded() {
+    toast({
+      title: "Payment method saved",
+      description: "ListSmartly can use it as backup if monthly credits run low.",
+    });
+    await fetchSubscription();
   }
 
   async function handleDelete() {
@@ -582,7 +598,9 @@ export default function ListSmartlySettingsPage() {
                       className={
                         subscription.active
                           ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                          : subscription.status === "past_due" || subscription.status === "plan_required"
+                          : subscription.status === "past_due" ||
+                              subscription.status === "account_inactive" ||
+                              subscription.status === "payment_method_required"
                           ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                           : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                       }
@@ -626,9 +644,30 @@ export default function ListSmartlySettingsPage() {
                 </div>
               </div>
 
-              {!subscription.planEligible && (
-                <Button size="sm" onClick={() => router.push("/settings/upgrade")}>
-                  Upgrade FlowSmartly Plan
+              {subscription.backupPaymentRequired && (
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Backup payment method</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {subscription.paymentBackupReady
+                          ? subscription.paymentBackupLabel || "Saved and ready for monthly credit backup."
+                          : subscription.paymentBackupReason ||
+                            "Required because this account does not have a paid FlowSmartly subscription."}
+                      </p>
+                    </div>
+                    {!subscription.paymentBackupReady && (
+                      <Button size="sm" variant="outline" onClick={() => setShowAddCardModal(true)}>
+                        Add Card
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!subscription.subscriptionBacked && (
+                <Button size="sm" variant="outline" onClick={() => router.push("/settings/upgrade")}>
+                  Add Main Plan Instead
                 </Button>
               )}
               {subscription.status === "past_due" && (
@@ -702,6 +741,19 @@ export default function ListSmartlySettingsPage() {
           </div>
         </CardContent>
       </Card>
+      <AddCardForm
+        open={showAddCardModal}
+        onClose={() => setShowAddCardModal(false)}
+        onSuccess={handleCardAdded}
+      />
     </div>
+  );
+}
+
+export default function ListSmartlySettingsPage() {
+  return (
+    <StripeProvider>
+      <ListSmartlySettingsContent />
+    </StripeProvider>
   );
 }

@@ -1080,7 +1080,7 @@ export default function ListSmartlyOnboardingPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-1">Confirm ListSmartly access</h2>
           <p className="text-sm text-muted-foreground">
-            ListSmartly is included with your FlowSmartly plan after a one-time 500 credit unlock.
+            ListSmartly unlocks with 500 credits. Paid plans are subscription-backed; Starter users need a saved backup card.
           </p>
         </div>
 
@@ -1089,7 +1089,7 @@ export default function ListSmartlyOnboardingPage() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Included Access</span>
-                <Badge variant="secondary">FlowSmartly plan</Badge>
+                <Badge variant="secondary">Credit backed</Badge>
               </CardTitle>
               <div className="mt-2">
                 <span className="text-3xl font-bold text-foreground">500</span>
@@ -1145,7 +1145,7 @@ export default function ListSmartlyOnboardingPage() {
                   { icon: Sparkles, text: "AI Autopilot remains available" },
                   { icon: MessageSquare, text: "Review Command Center stays active" },
                   { icon: FileText, text: "Monthly reports continue automatically" },
-                  { icon: Zap, text: "Access pauses if credits run low" },
+                  { icon: Zap, text: "Starter users can fall back to a saved card if credits run low" },
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-foreground">
                     <item.icon className="h-4 w-4 text-primary shrink-0" />

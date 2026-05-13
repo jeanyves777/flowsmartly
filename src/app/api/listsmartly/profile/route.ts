@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { buildListSmartlyAccess } from "@/lib/listsmartly/billing";
+import { buildListSmartlyAccess, requiresListSmartlyPaymentBackup } from "@/lib/listsmartly/billing";
+import { getListSmartlyPaymentBackup } from "@/lib/listsmartly/payment-backup";
 
 // GET /api/listsmartly/profile - Fetch user's ListSmartly profile
 export async function GET() {
@@ -20,9 +21,14 @@ export async function GET() {
       }),
       prisma.user.findUnique({
         where: { id: session.userId },
-        select: { plan: true, aiCredits: true, deletedAt: true },
+        select: { plan: true, aiCredits: true, deletedAt: true, stripeCustomerId: true },
       }),
     ]);
+
+    const backupPaymentRequired = requiresListSmartlyPaymentBackup(user || null);
+    const paymentBackup = backupPaymentRequired
+      ? await getListSmartlyPaymentBackup(user?.stripeCustomerId)
+      : { ready: true, paymentMethodId: null, label: null, reason: null };
 
     // Fetch brand kit as fallback data source
     const brandKit = await prisma.brandKit.findFirst({
@@ -52,7 +58,12 @@ export async function GET() {
               description: brandKit.description,
             }
           : null,
-        access: buildListSmartlyAccess(profile, user),
+        access: buildListSmartlyAccess(profile, {
+          ...(user || {}),
+          paymentBackupReady: paymentBackup.ready,
+          paymentBackupLabel: paymentBackup.label,
+          paymentBackupReason: paymentBackup.reason,
+        }),
       },
     });
   } catch (error) {

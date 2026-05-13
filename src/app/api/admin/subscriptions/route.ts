@@ -239,7 +239,16 @@ export async function GET(request: NextRequest) {
             liveListings: true,
             citationScore: true,
             createdAt: true,
-            user: { select: { id: true, email: true, name: true, plan: true, aiCredits: true } },
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                plan: true,
+                aiCredits: true,
+                stripeCustomerId: true,
+              },
+            },
           },
           orderBy: { createdAt: "desc" },
           skip: offset,

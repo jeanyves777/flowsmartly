@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 const heroStats = [
   { value: "161", label: "directories covered" },
   { value: "AI", label: "auto-fix support" },
-  { value: "$7", label: "starter plan" },
+  { value: "500", label: "credit unlock" },
 ];
 
 const problems = [
@@ -119,7 +119,8 @@ const workflow = [
 ];
 
 const basicFeatures = [
-  "Requires an active FlowSmartly plan",
+  "Paid FlowSmartly plans are subscription-backed",
+  "Starter users can unlock with credits and a backup card",
   "Sync to 150+ directories",
   "Citation score dashboard",
   "AI drift monitoring",
@@ -128,6 +129,7 @@ const basicFeatures = [
 
 const proFeatures = [
   "Runs from available user credits",
+  "Backup card can cover monthly credits for Starter users",
   "Review response drafts",
   "Competitor tracking",
   "Monthly AI reports",
@@ -342,13 +344,13 @@ export default function ListSmartlyDetailsPage() {
               Included access
             </p>
             <h2 className="text-balance text-2xl font-black tracking-tight sm:text-4xl">
-              ListSmartly is part of the main FlowSmartly subscription
+              ListSmartly is credit-backed inside FlowSmartly
             </h2>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             {[
-              ["First-time unlock", "500 credits", "Unlock the listing system once after a user has a FlowSmartly plan", basicFeatures],
-              ["Monthly keep-active", "250 credits", "Deducted monthly from available credits to keep ListSmartly active", proFeatures],
+              ["First-time unlock", "500 credits", "Unlock the listing system once with credits. Starter users need a saved backup card.", basicFeatures],
+              ["Monthly keep-active", "250 credits", "Deducted monthly from credits. No-subscription users can use the backup card if credits run low.", proFeatures],
             ].map(([name, price, description, features]) => (
               <article key={name as string} className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
                 <h3 className="text-xl font-bold">{name as string}</h3>

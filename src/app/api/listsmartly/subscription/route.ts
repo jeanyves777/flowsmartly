@@ -5,11 +5,12 @@ import {
   addListSmartlyBillingMonth,
   buildListSmartlyAccess,
   getListSmartlyCreditStatus,
-  isListSmartlyPlanEligible,
+  isListSmartlyAccountEligible,
   LISTSMARTLY_CREDIT_STATUS_ACTIVE,
   LISTSMARTLY_CREDIT_STATUS_LOCKED,
-  LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
+  requiresListSmartlyPaymentBackup,
 } from "@/lib/listsmartly/billing";
+import { getListSmartlyPaymentBackup } from "@/lib/listsmartly/payment-backup";
 import {
   LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
   LISTSMARTLY_UNLOCK_CREDIT_COST,
@@ -27,17 +28,31 @@ export async function GET() {
     const [user, profile] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
-        select: { plan: true, aiCredits: true, deletedAt: true },
+        select: { plan: true, aiCredits: true, deletedAt: true, stripeCustomerId: true },
       }),
       prisma.listSmartlyProfile.findFirst({
         where: { userId: session.userId },
       }),
     ]);
 
+    const backupPaymentRequired = requiresListSmartlyPaymentBackup(user || null);
+    const paymentBackup = backupPaymentRequired
+      ? await getListSmartlyPaymentBackup(user?.stripeCustomerId)
+      : { ready: true, paymentMethodId: null, label: null, reason: null };
+
     return NextResponse.json({
       success: true,
       data: {
-        ...buildListSmartlyAccess(profile, user),
+        ...buildListSmartlyAccess(profile, {
+          ...(user || {}),
+          paymentBackupReady: paymentBackup.ready,
+          paymentBackupLabel: paymentBackup.label,
+          paymentBackupReason: paymentBackup.reason,
+        }),
+        paymentBackupRequired: backupPaymentRequired,
+        paymentBackupReady: paymentBackup.ready,
+        paymentBackupLabel: paymentBackup.label,
+        paymentBackupReason: paymentBackup.reason,
         subscriptionId: profile?.lsSubscriptionId || null,
         trialStartedAt: null,
         trialEndsAt: null,
@@ -65,13 +80,37 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
+    const billingUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        plan: true,
+        aiCredits: true,
+        deletedAt: true,
+        stripeCustomerId: true,
+      },
+    });
+
+    if (!billingUser || !isListSmartlyAccountEligible(billingUser)) {
+      throw new Error("ACCOUNT_INACTIVE");
+    }
+
+    const backupPaymentRequired = requiresListSmartlyPaymentBackup(billingUser);
+    const paymentBackup = backupPaymentRequired
+      ? await getListSmartlyPaymentBackup(billingUser.stripeCustomerId)
+      : { ready: true, paymentMethodId: null, label: null, reason: null };
+
+    if (backupPaymentRequired && !paymentBackup.ready) {
+      throw new Error("PAYMENT_METHOD_REQUIRED");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: session.userId },
         select: { id: true, plan: true, aiCredits: true, deletedAt: true },
       });
-      if (!user || !isListSmartlyPlanEligible(user)) {
-        throw new Error("PLAN_REQUIRED");
+      if (!user || !isListSmartlyAccountEligible(user)) {
+        throw new Error("ACCOUNT_INACTIVE");
       }
 
       const profile = await tx.listSmartlyProfile.findFirst({
@@ -145,14 +184,29 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        ...buildListSmartlyAccess(result.profile, result.user),
+        ...buildListSmartlyAccess(result.profile, {
+          ...result.user,
+          paymentBackupReady: paymentBackup.ready,
+          paymentBackupLabel: paymentBackup.label,
+          paymentBackupReason: paymentBackup.reason,
+        }),
         chargedCredits: result.chargedCredits,
       },
     });
   } catch (err) {
-    if (err instanceof Error && err.message === "PLAN_REQUIRED") {
+    if (err instanceof Error && err.message === "ACCOUNT_INACTIVE") {
       return NextResponse.json(
-        { success: false, error: "A FlowSmartly plan is required to use ListSmartly." },
+        { success: false, error: "Your account must be active to use ListSmartly." },
+        { status: 403 }
+      );
+    }
+    if (err instanceof Error && err.message === "PAYMENT_METHOD_REQUIRED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Add a valid payment method before using ListSmartly without a FlowSmartly subscription.",
+          code: "PAYMENT_METHOD_REQUIRED",
+        },
         { status: 403 }
       );
     }

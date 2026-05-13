@@ -7,9 +7,11 @@ import {
   addListSmartlyBillingMonth,
   buildListSmartlyAccess,
   getListSmartlyCreditStatus,
-  isListSmartlyPlanEligible,
+  isListSmartlyAccountEligible,
   LISTSMARTLY_CREDIT_STATUS_ACTIVE,
+  requiresListSmartlyPaymentBackup,
 } from "@/lib/listsmartly/billing";
+import { getListSmartlyPaymentBackup } from "@/lib/listsmartly/payment-backup";
 import { LISTSMARTLY_UNLOCK_CREDIT_COST } from "@/lib/constants/listsmartly";
 
 // POST /api/listsmartly/activate - Unlock ListSmartly with credits.
@@ -42,14 +44,38 @@ export async function POST(request: NextRequest) {
       name = user?.name || "My Business";
     }
 
+    const billingUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        plan: true,
+        aiCredits: true,
+        deletedAt: true,
+        stripeCustomerId: true,
+      },
+    });
+
+    if (!billingUser || !isListSmartlyAccountEligible(billingUser)) {
+      throw new Error("ACCOUNT_INACTIVE");
+    }
+
+    const backupPaymentRequired = requiresListSmartlyPaymentBackup(billingUser);
+    const paymentBackup = backupPaymentRequired
+      ? await getListSmartlyPaymentBackup(billingUser.stripeCustomerId)
+      : { ready: true, paymentMethodId: null, label: null, reason: null };
+
+    if (backupPaymentRequired && !paymentBackup.ready) {
+      throw new Error("PAYMENT_METHOD_REQUIRED");
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: session.userId },
         select: { id: true, plan: true, aiCredits: true, deletedAt: true },
       });
 
-      if (!user || !isListSmartlyPlanEligible(user)) {
-        throw new Error("PLAN_REQUIRED");
+      if (!user || !isListSmartlyAccountEligible(user)) {
+        throw new Error("ACCOUNT_INACTIVE");
       }
 
       const existing = await tx.listSmartlyProfile.findUnique({
@@ -147,18 +173,38 @@ export async function POST(request: NextRequest) {
           photos: JSON.parse(result.profile.photos),
           socialLinks: JSON.parse(result.profile.socialLinks),
         },
-        access: buildListSmartlyAccess(result.profile, result.user),
+        access: buildListSmartlyAccess(result.profile, {
+          ...result.user,
+          paymentBackupReady: paymentBackup.ready,
+          paymentBackupLabel: paymentBackup.label,
+          paymentBackupReason: paymentBackup.reason,
+        }),
+        paymentBackup,
         chargedCredits: result.chargedCredits,
       },
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "PLAN_REQUIRED") {
+    if (error instanceof Error && error.message === "ACCOUNT_INACTIVE") {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: "PLAN_REQUIRED",
-            message: "A FlowSmartly plan is required to unlock ListSmartly.",
+            code: "ACCOUNT_INACTIVE",
+            message: "Your account must be active to unlock ListSmartly.",
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error instanceof Error && error.message === "PAYMENT_METHOD_REQUIRED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "PAYMENT_METHOD_REQUIRED",
+            message:
+              "Add a valid payment method before unlocking ListSmartly without a FlowSmartly subscription.",
           },
         },
         { status: 403 }

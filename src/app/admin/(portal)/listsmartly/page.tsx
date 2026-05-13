@@ -37,7 +37,20 @@ interface ProfileItem {
   totalReviews: number;
   averageRating: number;
   createdAt: string;
-  user: { id: string; name: string; email: string; plan: string; aiCredits: number };
+  access?: {
+    subscriptionBacked?: boolean;
+    backupPaymentRequired?: boolean;
+    paymentBackupReady?: boolean | null;
+    status?: string;
+  };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    plan: string;
+    aiCredits: number;
+    stripeCustomerId?: string | null;
+  };
   _count: { listings: number; reviews: number };
 }
 
@@ -136,7 +149,16 @@ export default function AdminListSmartlyPage() {
                         <p className="text-xs text-muted-foreground">{p.user.email}</p>
                         <p className="text-xs text-muted-foreground">{p.user.aiCredits?.toLocaleString?.() || 0} credits</p>
                       </td>
-                      <td className="p-3"><Badge variant="outline">Included</Badge></td>
+                      <td className="p-3">
+                        <Badge variant="outline">
+                          {p.access?.subscriptionBacked ? "Main plan" : "Credit + backup"}
+                        </Badge>
+                        {p.access?.backupPaymentRequired && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {p.access.paymentBackupReady ? "Backup customer saved" : "Backup card needed"}
+                          </p>
+                        )}
+                      </td>
                       <td className="p-3">
                         {(p.listSmartlyCreditStatus === "active" || p.lsSubscriptionStatus === "active" || p.lsSubscriptionStatus === "trialing") ? (
                           <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />Active</Badge>

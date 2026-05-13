@@ -5,10 +5,15 @@ import { createNotification } from "@/lib/notifications";
 import { LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST } from "@/lib/constants/listsmartly";
 import {
   addListSmartlyBillingMonth,
-  isListSmartlyPlanEligible,
+  isListSmartlyAccountEligible,
   LISTSMARTLY_CREDIT_STATUS_ACTIVE,
   LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
+  requiresListSmartlyPaymentBackup,
 } from "@/lib/listsmartly/billing";
+import {
+  chargeListSmartlyBackupCredits,
+  getListSmartlyPaymentBackup,
+} from "@/lib/listsmartly/payment-backup";
 
 /**
  * GET /api/cron/listsmartly-monthly
@@ -35,7 +40,17 @@ export async function GET(request: NextRequest) {
         ],
       },
       include: {
-        user: { select: { id: true, email: true, name: true, aiCredits: true, plan: true, deletedAt: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            aiCredits: true,
+            plan: true,
+            deletedAt: true,
+            stripeCustomerId: true,
+          },
+        },
       },
     });
 
@@ -51,22 +66,50 @@ export async function GET(request: NextRequest) {
       processed++;
 
       try {
-        if (!isListSmartlyPlanEligible(profile.user)) {
+        if (!isListSmartlyAccountEligible(profile.user)) {
           await prisma.listSmartlyProfile.update({
             where: { id: profile.id },
             data: {
               lsSubscriptionStatus: "inactive",
               listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
               listSmartlyLastCreditFailureAt: now,
-              listSmartlyCreditFailureReason: "A FlowSmartly plan is required to keep ListSmartly active.",
+              listSmartlyCreditFailureReason: "The FlowSmartly account is inactive.",
             },
           });
           await createNotification({
             userId: profile.user.id,
             type: "SYSTEM",
             title: "ListSmartly paused",
-            message: "A FlowSmartly plan is required to keep ListSmartly active.",
+            message: "Your FlowSmartly account must be active to keep ListSmartly running.",
             actionUrl: "/settings/upgrade",
+            data: { profileId: profile.id },
+          });
+          pastDue++;
+          continue;
+        }
+
+        const backupPaymentRequired = requiresListSmartlyPaymentBackup(profile.user);
+        const paymentBackup = backupPaymentRequired
+          ? await getListSmartlyPaymentBackup(profile.user.stripeCustomerId)
+          : { ready: true, paymentMethodId: null, label: null, reason: null };
+
+        if (backupPaymentRequired && !paymentBackup.ready) {
+          await prisma.listSmartlyProfile.update({
+            where: { id: profile.id },
+            data: {
+              lsSubscriptionStatus: "past_due",
+              listSmartlyCreditStatus: LISTSMARTLY_CREDIT_STATUS_PAST_DUE,
+              listSmartlyLastCreditFailureAt: now,
+              listSmartlyCreditFailureReason:
+                paymentBackup.reason || "A valid backup payment method is required to keep ListSmartly active.",
+            },
+          });
+          await createNotification({
+            userId: profile.user.id,
+            type: "SYSTEM",
+            title: "ListSmartly needs a payment method",
+            message: "Add a valid payment method so ListSmartly can stay active when your credits run low.",
+            actionUrl: "/settings",
             data: { profileId: profile.id },
           });
           pastDue++;
@@ -95,17 +138,79 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        const freshUser = await prisma.user.findUnique({
+          where: { id: profile.userId },
+          select: {
+            aiCredits: true,
+            plan: true,
+            deletedAt: true,
+            stripeCustomerId: true,
+          },
+        });
+
+        if (!freshUser || !isListSmartlyAccountEligible(freshUser)) {
+          throw new Error("ACCOUNT_INACTIVE");
+        }
+
+        const freshBackupRequired = requiresListSmartlyPaymentBackup(freshUser);
+        const freshPaymentBackup = freshBackupRequired
+          ? await getListSmartlyPaymentBackup(freshUser.stripeCustomerId)
+          : { ready: true, paymentMethodId: null, label: null, reason: null };
+
+        if (freshBackupRequired && !freshPaymentBackup.ready) {
+          throw new Error("PAYMENT_METHOD_REQUIRED");
+        }
+
+        const backupCharge =
+          freshUser.aiCredits < LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST && freshBackupRequired
+            ? await chargeListSmartlyBackupCredits({
+                userId: profile.userId,
+                profileId: profile.id,
+                stripeCustomerId: freshUser.stripeCustomerId!,
+                paymentMethodId: freshPaymentBackup.paymentMethodId!,
+                credits: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
+                description: `ListSmartly monthly keep-active credits for ${profile.businessName}`,
+              })
+            : null;
+
         const chargeResult = await prisma.$transaction(async (tx) => {
           const user = await tx.user.findUnique({
             where: { id: profile.userId },
             select: { aiCredits: true, plan: true, deletedAt: true },
           });
 
-          if (!user || !isListSmartlyPlanEligible(user)) {
-            throw new Error("PLAN_REQUIRED");
+          if (!user || !isListSmartlyAccountEligible(user)) {
+            throw new Error("ACCOUNT_INACTIVE");
           }
 
-          if (user.aiCredits < LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST) {
+          let currentCredits = user.aiCredits;
+
+          if (backupCharge) {
+            const toppedUpUser = await tx.user.update({
+              where: { id: profile.userId },
+              data: { aiCredits: { increment: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST } },
+              select: { aiCredits: true },
+            });
+            currentCredits = toppedUpUser.aiCredits;
+
+            await tx.creditTransaction.create({
+              data: {
+                userId: profile.userId,
+                type: "PURCHASE",
+                amount: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
+                balanceAfter: currentCredits,
+                description: "ListSmartly backup card credit top-up",
+                referenceType: "listsmartly_backup_charge",
+                referenceId: backupCharge.paymentIntentId,
+                metadata: JSON.stringify({
+                  monthlyCost: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
+                  amountCents: backupCharge.amountCents,
+                }),
+              },
+            });
+          }
+
+          if (currentCredits < LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST) {
             throw new Error("INSUFFICIENT_CREDITS");
           }
 
@@ -137,12 +242,16 @@ export async function GET(request: NextRequest) {
               balanceAfter: updatedUser.aiCredits,
               description: "ListSmartly monthly active access",
               referenceType: "listsmartly_monthly",
-              referenceId: profile.id,
-              metadata: JSON.stringify({ monthlyCost: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST }),
+              referenceId: backupCharge?.paymentIntentId || profile.id,
+              metadata: JSON.stringify({
+                monthlyCost: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
+                backupPaymentCharged: Boolean(backupCharge),
+                backupPaymentIntentId: backupCharge?.paymentIntentId || null,
+              }),
             },
           });
 
-          return updatedUser;
+          return { ...updatedUser, backupPaymentCharged: Boolean(backupCharge) };
         });
 
         const report = await generatePresenceReport(profile.id, "cron");
@@ -155,7 +264,9 @@ export async function GET(request: NextRequest) {
           userId: profile.user.id,
           type: "SYSTEM",
           title: "Monthly Presence Report Ready",
-          message: `Your ${profile.businessName} presence report is ready. ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} credits were deducted to keep ListSmartly active.`,
+          message: chargeResult.backupPaymentCharged
+            ? `Your ${profile.businessName} presence report is ready. Your backup payment method funded and used ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} ListSmartly credits.`
+            : `Your ${profile.businessName} presence report is ready. ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} credits were deducted to keep ListSmartly active.`,
           actionUrl: "/listsmartly/reports",
           data: {
             reportId: report.reportId,
@@ -168,11 +279,24 @@ export async function GET(request: NextRequest) {
         charged++;
         success++;
       } catch (error) {
-        if (error instanceof Error && ["PLAN_REQUIRED", "INSUFFICIENT_CREDITS"].includes(error.message)) {
+        if (
+          error instanceof Error &&
+          [
+            "ACCOUNT_INACTIVE",
+            "PAYMENT_METHOD_REQUIRED",
+            "BACKUP_PAYMENT_FAILED",
+            "STRIPE_NOT_CONFIGURED",
+            "INSUFFICIENT_CREDITS",
+          ].includes(error.message)
+        ) {
           const reason =
-            error.message === "PLAN_REQUIRED"
-              ? "A FlowSmartly plan is required to keep ListSmartly active."
-              : `At least ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} credits are required to keep ListSmartly active.`;
+            error.message === "ACCOUNT_INACTIVE"
+              ? "The FlowSmartly account must be active to keep ListSmartly active."
+              : error.message === "PAYMENT_METHOD_REQUIRED" || error.message === "STRIPE_NOT_CONFIGURED"
+                ? "A valid backup payment method is required to keep ListSmartly active without a FlowSmartly subscription."
+                : error.message === "BACKUP_PAYMENT_FAILED"
+                  ? "The backup payment method could not be charged for the monthly ListSmartly credits."
+                  : `At least ${LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST} credits are required to keep ListSmartly active.`;
 
           await prisma.listSmartlyProfile.update({
             where: { id: profile.id },
@@ -189,7 +313,14 @@ export async function GET(request: NextRequest) {
             type: "SYSTEM",
             title: "ListSmartly needs attention",
             message: reason,
-            actionUrl: error.message === "PLAN_REQUIRED" ? "/settings/upgrade" : "/buy-credits",
+            actionUrl:
+              error.message === "PAYMENT_METHOD_REQUIRED" ||
+              error.message === "BACKUP_PAYMENT_FAILED" ||
+              error.message === "STRIPE_NOT_CONFIGURED"
+                ? "/settings"
+                : error.message === "ACCOUNT_INACTIVE"
+                  ? "/settings/upgrade"
+                  : "/buy-credits",
             data: { profileId: profile.id },
           });
 

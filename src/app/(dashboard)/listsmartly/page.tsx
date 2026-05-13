@@ -19,10 +19,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/shared/page-loader";
 import { useToast } from "@/hooks/use-toast";
+import { StripeProvider } from "@/components/providers/stripe-provider";
+import { AddCardForm } from "@/components/payments/add-card-form";
 
 const FEATURES = [
   {
@@ -83,6 +86,7 @@ const DIRECTORY_TIERS = [
 
 const BASIC_FEATURES = [
   "Included with any active FlowSmartly plan",
+  "Starter users can unlock with credits and a saved backup card",
   "First-time unlock costs 500 credits",
   "Listing sync, reviews, AI Autopilot, and reports are included",
   "No separate ListSmartly Stripe subscription",
@@ -92,7 +96,7 @@ const PRO_FEATURES = [
   "250 credits are deducted monthly",
   "AI Autopilot — auto-fix inconsistencies",
   "Credits are taken from the user's available balance",
-  "Access pauses if the main plan or credits are missing",
+  "No-subscription accounts use a backup card if credits run low",
   "Admins can see credit status and next renewal date",
 ];
 
@@ -117,12 +121,24 @@ const HOW_IT_WORKS = [
   },
 ];
 
-export default function ListSmartlyEntryPage() {
+type ListSmartlyAccessData = {
+  active: boolean;
+  status: string;
+  subscriptionBacked?: boolean;
+  backupPaymentRequired?: boolean;
+  paymentBackupReady?: boolean | null;
+  paymentBackupLabel?: string | null;
+  creditsAvailable?: number;
+};
+
+function ListSmartlyEntryContent() {
   const router = useRouter();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [access, setAccess] = useState<ListSmartlyAccessData | null>(null);
 
   useEffect(() => {
     checkProfile();
@@ -136,6 +152,7 @@ export default function ListSmartlyEntryPage() {
         if (json.success && json.data) {
           const profile = json.data.profile;
           const access = json.data.access;
+          setAccess(access || null);
           const isActive = Boolean(access?.active);
 
           if (isActive && profile?.setupComplete) {
@@ -169,6 +186,7 @@ export default function ListSmartlyEntryPage() {
 
       // Profile already exists (409) — just resume onboarding
       if (json.success) {
+        setAccess(json.data?.access || null);
         toast({
           title: "ListSmartly activated!",
           description:
@@ -178,8 +196,12 @@ export default function ListSmartlyEntryPage() {
         });
         router.push("/listsmartly/onboarding");
       } else {
+        const errorCode = json.error?.code || json.code;
+        if (errorCode === "PAYMENT_METHOD_REQUIRED") {
+          setShowAddCardModal(true);
+        }
         toast({
-          title: "Activation failed",
+          title: errorCode === "PAYMENT_METHOD_REQUIRED" ? "Backup card required" : "Activation failed",
           description: json.error?.message || json.error || "Something went wrong. Please try again.",
           variant: "destructive",
         });
@@ -193,6 +215,14 @@ export default function ListSmartlyEntryPage() {
     } finally {
       setActivating(false);
     }
+  }
+
+  async function handleCardAdded() {
+    toast({
+      title: "Payment method saved",
+      description: "We will use it only as backup for ListSmartly monthly credits.",
+    });
+    await handleActivate();
   }
 
   if (loading) {
@@ -550,9 +580,9 @@ export default function ListSmartlyEntryPage() {
       {/* ── Pricing Plans ── */}
       <section id="pricing">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold">Included With Your FlowSmartly Plan</h2>
+          <h2 className="text-3xl font-bold">Credit-Backed ListSmartly Access</h2>
           <p className="text-muted-foreground mt-2">
-            Unlock once with credits, then keep ListSmartly active from the user's available credit balance.
+            Paid-plan users are subscription-backed. Starter users can unlock with credits after saving a backup card.
           </p>
         </div>
 
@@ -563,7 +593,7 @@ export default function ListSmartlyEntryPage() {
               <MapPin className="h-8 w-8 mx-auto mb-2" />
               <h3 className="text-xl font-bold">First-Time Unlock</h3>
               <p className="text-white/70 text-xs mt-1">
-                One credit unlock for FlowSmartly plan users
+                One credit unlock for eligible FlowSmartly accounts
               </p>
             </div>
 
@@ -580,9 +610,25 @@ export default function ListSmartlyEntryPage() {
                   Charged once when ListSmartly is first unlocked.
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                  Requires an active FlowSmartly plan
+                  Active plan or saved backup card accepted
                 </p>
               </div>
+
+              {access?.backupPaymentRequired && (
+                <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-left">
+                  <div className="flex items-start gap-2">
+                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Backup payment method</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {access.paymentBackupReady
+                          ? access.paymentBackupLabel || "Saved and ready for monthly credit backup."
+                          : "Required because this account does not have a paid FlowSmartly subscription."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2.5 mb-6">
                 {BASIC_FEATURES.map((feature) => (
@@ -634,7 +680,7 @@ export default function ListSmartlyEntryPage() {
                   <span className="text-muted-foreground text-lg">credits/month</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Deducted from available credits while the main plan is active.
+                  Deducted from available credits. Starter accounts use the backup card only when credits run low.
                 </p>
               </div>
 
@@ -663,7 +709,7 @@ export default function ListSmartlyEntryPage() {
         </div>
 
         <p className="text-xs text-center text-muted-foreground mt-4">
-          ListSmartly no longer has its own paid plan. It is tied to the main FlowSmartly subscription.
+          ListSmartly no longer has its own paid plan. It uses credits, with a saved card required only for accounts without a paid FlowSmartly subscription.
         </p>
       </section>
 
@@ -738,6 +784,19 @@ export default function ListSmartlyEntryPage() {
           }
         }
       `}</style>
+      <AddCardForm
+        open={showAddCardModal}
+        onClose={() => setShowAddCardModal(false)}
+        onSuccess={handleCardAdded}
+      />
     </div>
+  );
+}
+
+export default function ListSmartlyEntryPage() {
+  return (
+    <StripeProvider>
+      <ListSmartlyEntryContent />
+    </StripeProvider>
   );
 }
