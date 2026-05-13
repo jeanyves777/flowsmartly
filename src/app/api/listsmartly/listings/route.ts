@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const tier = searchParams.get("tier");
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 250);
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = { profileId: profile.id };
@@ -64,6 +64,10 @@ export async function GET(request: NextRequest) {
       data: {
         listings: listings.map((l) => ({
           ...l,
+          directoryName: l.directory.name,
+          directoryUrl: l.directory.url,
+          tier: l.directory.tier,
+          lastChecked: l.lastCheckedAt,
           inconsistencies: JSON.parse(l.inconsistencies),
         })),
         pagination: {

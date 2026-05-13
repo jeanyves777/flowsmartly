@@ -28,16 +28,21 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    const syncJob = latestJob
+      ? {
+          ...latestJob,
+          details: latestJob.details ? JSON.parse(latestJob.details) : {},
+        }
+      : null;
+
     return NextResponse.json({
       success: true,
-      data: {
-        syncJob: latestJob
-          ? {
-              ...latestJob,
-              details: JSON.parse(latestJob.details),
-            }
-          : null,
-      },
+      data: syncJob
+        ? {
+            ...syncJob,
+            syncJob,
+          }
+        : { syncJob: null },
     });
   } catch (error) {
     console.error("Get sync status error:", error);

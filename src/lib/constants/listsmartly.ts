@@ -20,6 +20,11 @@ export const LISTING_STATUSES = {
     color: "bg-yellow-500/10 text-yellow-500",
     icon: "AlertTriangle",
   },
+  unverified: {
+    label: "Needs Verification",
+    color: "bg-amber-500/10 text-amber-500",
+    icon: "Search",
+  },
   missing: {
     label: "Missing",
     color: "bg-red-500/10 text-red-500",

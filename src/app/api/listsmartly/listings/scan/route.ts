@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { runConsistencyCheck, refreshProfileStats, initializeListings, detectExistingPresence } from "@/lib/listsmartly/sync-engine";
-import { seedDirectories } from "@/lib/listsmartly/directories";
+import {
+  detectExistingPresence,
+  reconcileListingCatalog,
+  refreshProfileStats,
+  runConsistencyCheck,
+} from "@/lib/listsmartly/sync-engine";
 import { calculateCitationScore } from "@/lib/listsmartly/citation-scorer";
 
 // POST /api/listsmartly/listings/scan - Trigger a full consistency scan
@@ -26,17 +30,9 @@ export async function POST() {
       );
     }
 
-    // Ensure directories are seeded
-    const dirCount = await prisma.listingDirectory.count();
-    if (dirCount === 0) {
-      await seedDirectories();
-    }
-
-    // Ensure listings are initialized
-    const listingCount = await prisma.businessListing.count({ where: { profileId: profile.id } });
-    if (listingCount === 0) {
-      await initializeListings(profile.id, profile.industry || undefined);
-    }
+    // Always reconcile the full catalog. Older profiles may have only a partial
+    // directory set from a previous scan/catalog version.
+    const catalog = await reconcileListingCatalog(profile.id);
 
     // Create sync job record BEFORE scan starts
     const job = await prisma.listingSyncJob.create({
@@ -108,6 +104,7 @@ export async function POST() {
 
     const liveCount = findings.filter((f) => ["live", "submitted", "claimed"].includes(f.status)).length;
     const missingCount = findings.filter((f) => f.status === "missing").length;
+    const unverifiedCount = findings.filter((f) => f.status === "unverified").length;
     const inconsistentCount = findings.filter((f) => !f.isConsistent && f.status === "live").length;
 
     // Save complete scan report to ListingSyncJob
@@ -132,8 +129,11 @@ export async function POST() {
             total: listings.length,
             live: liveCount,
             missing: missingCount,
+            unverified: unverifiedCount,
             inconsistent: inconsistentCount,
             detected: detection.detected,
+            searched: detection.searched,
+            catalogCreated: catalog.created,
             averageRating,
             totalReviews,
           },
@@ -161,6 +161,7 @@ export async function POST() {
           total: listings.length,
           live: liveCount,
           missing: missingCount,
+          unverified: unverifiedCount,
           inconsistent: inconsistentCount,
         },
       },

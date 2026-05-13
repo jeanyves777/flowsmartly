@@ -4,37 +4,75 @@
  */
 import { prisma } from "@/lib/db/client";
 import { checkConsistency } from "./consistency-checker";
-// Real web verification only — no guessing
+import { seedDirectories } from "./directories";
 
-/** Create listing records for all directories matching a profile's industry. */
-export async function initializeListings(profileId: string, industry?: string): Promise<number> {
-  const directories = await prisma.listingDirectory.findMany({
-    where: { isActive: true },
-    select: { id: true, industries: true },
-  });
+const LIVE_LISTING_STATUSES = new Set(["live", "submitted", "claimed"]);
 
-  const relevantDirs = directories.filter((d) => {
-    const industries: string[] = JSON.parse(d.industries || "[]");
-    return industries.length === 0 || (industry && industries.includes(industry.toLowerCase()));
-  });
+type BusinessSignalInput = {
+  businessName: string;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+};
 
-  let count = 0;
-  for (const dir of relevantDirs) {
-    await prisma.businessListing.upsert({
-      where: { profileId_directoryId: { profileId, directoryId: dir.id } },
-      update: {},
-      create: { profileId, directoryId: dir.id, status: "missing" },
+type DirectorySearchInput = {
+  slug: string;
+  name: string;
+  url: string;
+};
+
+type SearchResultItem = {
+  link: string;
+  title?: string;
+  snippet?: string;
+};
+
+/** Reconcile every active catalog directory into a profile without overwriting existing listing state. */
+export async function reconcileListingCatalog(profileId: string): Promise<{ total: number; created: number }> {
+  await seedDirectories();
+
+  const [directories, existingListings] = await Promise.all([
+    prisma.listingDirectory.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    }),
+    prisma.businessListing.findMany({
+      where: { profileId },
+      select: { directoryId: true },
+    }),
+  ]);
+
+  const existingDirectoryIds = new Set(existingListings.map((listing) => listing.directoryId));
+  let created = 0;
+
+  for (const directory of directories) {
+    if (existingDirectoryIds.has(directory.id)) continue;
+
+    await prisma.businessListing.create({
+      data: {
+        profileId,
+        directoryId: directory.id,
+        status: "unverified",
+      },
     });
-    count++;
+    created++;
   }
 
-  // Update profile stats
   await prisma.listSmartlyProfile.update({
     where: { id: profileId },
-    data: { totalListings: count },
+    data: { totalListings: directories.length },
   });
 
-  return count;
+  return { total: directories.length, created };
+}
+
+/** Create listing records for all active catalog directories. */
+export async function initializeListings(profileId: string, industry?: string): Promise<number> {
+  void industry;
+  const result = await reconcileListingCatalog(profileId);
+  return result.total;
 }
 
 /** Run a consistency check across all live listings for a profile. */
@@ -49,7 +87,10 @@ export async function runConsistencyCheck(profileId: string): Promise<{ checked:
   let inconsistent = 0;
   for (const listing of listings) {
     const result = checkConsistency(profile, listing);
-    if (result.isConsistent !== listing.isConsistent || JSON.stringify(result.inconsistencies) !== listing.inconsistencies) {
+    if (
+      result.isConsistent !== listing.isConsistent ||
+      JSON.stringify(result.inconsistencies) !== listing.inconsistencies
+    ) {
       await prisma.businessListing.update({
         where: { id: listing.id },
         data: {
@@ -66,10 +107,7 @@ export async function runConsistencyCheck(profileId: string): Promise<{ checked:
 }
 
 /** Create a sync job record. */
-export async function createSyncJob(
-  profileId: string,
-  type: string
-): Promise<string> {
+export async function createSyncJob(profileId: string, type: string): Promise<string> {
   const job = await prisma.listingSyncJob.create({
     data: { profileId, type, status: "pending" },
   });
@@ -79,7 +117,15 @@ export async function createSyncJob(
 /** Update sync job status. */
 export async function updateSyncJob(
   jobId: string,
-  data: { status?: string; checkedCount?: number; fixedCount?: number; errorCount?: number; details?: string; errorMessage?: string; completedAt?: Date }
+  data: {
+    status?: string;
+    checkedCount?: number;
+    fixedCount?: number;
+    errorCount?: number;
+    details?: string;
+    errorMessage?: string;
+    completedAt?: Date;
+  }
 ) {
   await prisma.listingSyncJob.update({ where: { id: jobId }, data });
 }
@@ -99,33 +145,40 @@ export async function refreshProfileStats(profileId: string): Promise<void> {
 }
 
 /**
- * Real web presence detection using Google Places API + Google Search.
- * Same APIs used by the Pitch Board lead finder (src/lib/pitch/researcher.ts).
- * Only marks listings as "live" when verified with a real URL.
+ * Real web presence detection using Google Places API, business website crawl,
+ * connected socials, Brand Kit handles, and optional Google Custom Search.
+ *
+ * A listing is "missing" only after a directory-specific search actually ran
+ * and found no confident match. Unsearched rows remain "unverified" so the UI
+ * does not show false negatives as confirmed missing.
  */
-export async function detectExistingPresence(profileId: string): Promise<{ detected: number }> {
+export async function detectExistingPresence(
+  profileId: string
+): Promise<{ detected: number; searched: number; unverified: number }> {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { id: profileId } });
   if (!profile) throw new Error("Profile not found");
 
   const listings = await prisma.businessListing.findMany({
-    where: { profileId, status: "missing" },
+    where: { profileId, status: { not: "error" } },
     include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
   });
 
-  if (listings.length === 0) return { detected: 0 };
+  if (listings.length === 0) return { detected: 0, searched: 0, unverified: 0 };
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey = getGoogleApiKey();
+  const searchCx = getGoogleSearchCx();
   if (!apiKey) {
     console.error("ListSmartly: No Google API key available for presence detection");
-    return { detected: 0 };
+    const unverified = await markUnsearchedMissingAsUnverified(profileId);
+    return { detected: 0, searched: 0, unverified };
   }
 
   const businessName = profile.businessName;
   const location = [profile.city, profile.state].filter(Boolean).join(", ");
   let detected = 0;
+  let searched = 0;
 
-  // ── Step 1: Verify Google Business Profile via Places API ──
-  const googleListing = listings.find((l) => l.directory.slug === "google-business");
+  const googleListing = listings.find((listing) => listing.directory.slug === "google-business");
   if (googleListing) {
     try {
       const searchQuery = `${businessName}${location ? ` ${location}` : ""}`;
@@ -134,125 +187,44 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
       textSearchUrl.searchParams.set("key", apiKey);
 
       const searchRes = await fetch(textSearchUrl.toString(), { signal: AbortSignal.timeout(8000) });
-      const searchData = await searchRes.json() as { results: Array<{ place_id: string; name: string }>; status: string };
+      const searchData = (await searchRes.json()) as {
+        results?: Array<{ place_id: string; name: string; formatted_address?: string }>;
+        status: string;
+      };
+      searched++;
 
-      if (searchData.status === "OK" && searchData.results?.length > 0) {
-        const placeId = searchData.results[0].place_id;
-        const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+      if (searchData.status === "OK" && searchData.results?.length) {
+        const bestPlace = searchData.results
+          .map((result) => ({
+            result,
+            score: scoreBusinessMatch(profile, result.name, result.formatted_address || ""),
+          }))
+          .sort((a, b) => b.score - a.score)[0];
 
-        await markListingLive(googleListing.id, mapsUrl, "google_places_api");
-        detected++;
+        if (!bestPlace || bestPlace.score < 4) {
+          await markListingMissing(googleListing.id, "google_places_api");
+        } else {
+          const placeId = bestPlace.result.place_id;
+          const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
 
-        // Also fetch details to enrich the profile
-        const detailUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-        detailUrl.searchParams.set("place_id", placeId);
-        detailUrl.searchParams.set("fields", "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url,reviews,opening_hours,business_status");
-        detailUrl.searchParams.set("key", apiKey);
-
-        const detailRes = await fetch(detailUrl.toString(), { signal: AbortSignal.timeout(8000) });
-        const detailData = await detailRes.json() as { result: Record<string, unknown>; status: string };
-
-        if (detailData.status === "OK" && detailData.result) {
-          const r = detailData.result;
-          // Extract reviews and hours
-          const reviews = (r.reviews as Array<{ rating: number; text: string; relative_time_description: string; author_name: string }>) || [];
-          const hours = (r.opening_hours as { weekday_text?: string[]; open_now?: boolean }) || {};
-          const isOpenNow = hours.open_now;
-
-          // Store rich data: reviews in aiDescription (JSON), hours in description
-          const recentReviews = reviews.slice(0, 3).map(rv => ({
-            rating: rv.rating,
-            text: rv.text,
-            timeAgo: rv.relative_time_description,
-            author: rv.author_name,
-          }));
-
-          await prisma.businessListing.update({
-            where: { id: googleListing.id },
-            data: {
-              listingUrl: (r.url as string) || mapsUrl,
-              businessName: r.name as string || undefined,
-              phone: r.formatted_phone_number as string || undefined,
-              address: r.formatted_address as string || undefined,
-              website: r.website as string || undefined,
-              // Store rich Google data as JSON
-              aiDescription: JSON.stringify({
-                rating: r.rating,
-                reviewCount: r.user_ratings_total,
-                recentReviews,
-                hours: hours.weekday_text || [],
-                isOpenNow,
-                businessStatus: r.business_status,
-              }),
-            },
-          });
-
-          // Store review data on profile
-          if (r.rating || r.user_ratings_total) {
-            await prisma.listSmartlyProfile.update({
-              where: { id: profileId },
-              data: {
-                averageRating: (r.rating as number) || 0,
-                totalReviews: (r.user_ratings_total as number) || 0,
-              },
-            });
-          }
+          if (await markListingLive(googleListing.id, mapsUrl, "google_places_api")) detected++;
+          await enrichGoogleListing(profileId, googleListing.id, placeId, mapsUrl, apiKey);
         }
+      } else {
+        await markListingMissing(googleListing.id, "google_places_api");
       }
     } catch (err) {
       console.error("ListSmartly: Google Places check failed:", err);
     }
   }
 
-  // ── Step 2: Crawl business website for social links ──
-  // Reuses the same technique as Pitch Board researcher (extractSocialLinks)
-  const websiteUrl = profile.website;
-  const discoveredSocials: Record<string, string> = {}; // slug → URL
+  const discoveredSocials = await crawlWebsiteForSocialLinks(profile.website);
 
-  if (websiteUrl) {
-    try {
-      const fullUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`;
-      const res = await fetch(fullUrl, {
-        signal: AbortSignal.timeout(10000),
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
-      });
-      if (res.ok) {
-        const html = await res.text();
-
-        // Extract social links using same regex as pitch board researcher.ts
-        const socialPatterns: Array<{ slug: string; pattern: RegExp }> = [
-          { slug: "facebook", pattern: /href=["'](https?:\/\/(?:www\.)?facebook\.com\/(?!share|sharer|tr\?|login)[^"'\s?#]+)/gi },
-          { slug: "instagram", pattern: /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
-          { slug: "twitter-x", pattern: /href=["'](https?:\/\/(?:www\.)?(?:twitter|x)\.com\/(?!intent|share)[^"'\s?#/][^"'\s?#]*)/gi },
-          { slug: "linkedin", pattern: /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[^"'\s?#]*)/gi },
-          { slug: "youtube", pattern: /href=["'](https?:\/\/(?:www\.)?youtube\.com\/@?[^"'\s?#/][^"'\s?#]*)/gi },
-          { slug: "tiktok", pattern: /href=["'](https?:\/\/(?:www\.)?tiktok\.com\/@[^"'\s?#]*)/gi },
-          { slug: "pinterest", pattern: /href=["'](https?:\/\/(?:www\.)?pinterest\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
-        ];
-
-        for (const { slug, pattern } of socialPatterns) {
-          const matches = [...html.matchAll(pattern)];
-          if (matches.length > 0) {
-            const url = matches[0][1]?.split(/['"]/)[0];
-            if (url && url.length < 200) {
-              discoveredSocials[slug] = url;
-            }
-          }
-        }
-        console.log(`ListSmartly: crawled website, found ${Object.keys(discoveredSocials).length} social links`);
-      }
-    } catch (err) {
-      console.error("ListSmartly: website crawl failed:", err);
-    }
-  }
-
-  // ── Step 3: Check connected social accounts (SocialAccount table) ──
   const connectedAccounts = await prisma.socialAccount.findMany({
     where: { userId: profile.userId, isActive: true },
     select: { platform: true, platformUsername: true },
   });
 
-  // Map connected platform to directory slug + build URL
   const platformToSlug: Record<string, string> = {
     facebook: "facebook",
     instagram: "instagram",
@@ -263,15 +235,15 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
   };
 
   for (const account of connectedAccounts) {
-    // Platform field can be "facebook_107144437295885" or just "facebook"
     const basePlatform = account.platform.split("_")[0].toLowerCase();
     const slug = platformToSlug[basePlatform];
     if (!slug) continue;
 
-    const listing = listings.find((l) => l.directory.slug === slug && l.status === "missing");
+    const listing = listings.find(
+      (item) => item.directory.slug === slug && !LIVE_LISTING_STATUSES.has(item.status)
+    );
     if (!listing) continue;
 
-    // Build URL from username
     const username = (account.platformUsername || "").replace(/^@/, "");
     if (!username) continue;
 
@@ -285,13 +257,11 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
     };
 
     const url = urlMap[slug];
-    if (url) {
-      await markListingLive(listing.id, url, `connected_account_${basePlatform}`);
+    if (url && (await markListingLive(listing.id, url, `connected_account_${basePlatform}`))) {
       detected++;
     }
   }
 
-  // ── Step 4: Check BrandKit handles + website crawl results ──
   const brandKit = await prisma.brandKit.findFirst({
     where: { userId: profile.userId },
     select: { handles: true },
@@ -300,9 +270,10 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
   const handles: Record<string, string> = {};
   try {
     if (brandKit?.handles) Object.assign(handles, JSON.parse(brandKit.handles as string));
-  } catch { /* not JSON */ }
+  } catch {
+    // Non-JSON handle data should not break a scan.
+  }
 
-  // Website-discovered links take priority, then BrandKit handles as fallback
   const socialMapping: Record<string, string> = {
     facebook: "facebook",
     instagram: "instagram",
@@ -313,27 +284,27 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
   };
 
   for (const [platform, slug] of Object.entries(socialMapping)) {
-    const listing = listings.find((l) => l.directory.slug === slug);
-    if (!listing || listing.status !== "missing") continue;
+    const listing = listings.find((item) => item.directory.slug === slug);
+    if (!listing || LIVE_LISTING_STATUSES.has(listing.status)) continue;
 
-    // Priority 1: URL discovered from website crawl (real verified link)
     if (discoveredSocials[slug]) {
-      await markListingLive(listing.id, discoveredSocials[slug], `website_crawl_${platform}`);
-      detected++;
+      if (await markListingLive(listing.id, discoveredSocials[slug], `website_crawl_${platform}`)) {
+        detected++;
+      }
       continue;
     }
 
-    // Priority 2: BrandKit handle — build URL and verify with HEAD request
     const handle = handles[platform];
     if (!handle) continue;
 
+    const cleanHandle = handle.replace(/^@/, "");
     const profileUrls: Record<string, string> = {
-      facebook: `https://facebook.com/${handle}`,
-      instagram: `https://instagram.com/${handle}`,
-      "twitter-x": `https://x.com/${handle}`,
-      linkedin: handle.startsWith("http") ? handle : `https://linkedin.com/company/${handle}`,
-      youtube: handle.startsWith("http") ? handle : `https://youtube.com/@${handle}`,
-      tiktok: `https://tiktok.com/@${handle}`,
+      facebook: cleanHandle.startsWith("http") ? cleanHandle : `https://facebook.com/${cleanHandle}`,
+      instagram: cleanHandle.startsWith("http") ? cleanHandle : `https://instagram.com/${cleanHandle}`,
+      "twitter-x": cleanHandle.startsWith("http") ? cleanHandle : `https://x.com/${cleanHandle}`,
+      linkedin: cleanHandle.startsWith("http") ? cleanHandle : `https://linkedin.com/company/${cleanHandle}`,
+      youtube: cleanHandle.startsWith("http") ? cleanHandle : `https://youtube.com/@${cleanHandle}`,
+      tiktok: cleanHandle.startsWith("http") ? cleanHandle : `https://tiktok.com/@${cleanHandle}`,
     };
 
     const url = profileUrls[slug];
@@ -346,59 +317,314 @@ export async function detectExistingPresence(profileId: string): Promise<{ detec
         signal: AbortSignal.timeout(6000),
         headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
       });
-      if (res.ok || res.status === 302 || res.status === 301) {
-        await markListingLive(listing.id, url, `verified_handle_${platform}`);
+      if (
+        (res.ok || res.status === 302 || res.status === 301) &&
+        (await markListingLive(listing.id, url, `verified_handle_${platform}`))
+      ) {
         detected++;
       }
     } catch {
-      // HEAD failed — do NOT mark as live, leave as "missing"
-      // User can manually verify and update later
+      // Leave it unverified for directory search or manual review.
     }
   }
 
-  // ── Step 4: Google Custom Search for remaining directories (if CX is set) ──
-  if (process.env.GOOGLE_SEARCH_CX) {
+  if (searchCx) {
     const remainingListings = await prisma.businessListing.findMany({
-      where: { profileId, status: "missing" },
-      include: { directory: { select: { id: true, slug: true, url: true, tier: true } } },
+      where: { profileId, status: { in: ["missing", "unverified", "needs_update"] } },
+      include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
     });
-    const searchable = remainingListings.filter((l) => l.directory.tier <= 2);
 
-    const BATCH_SIZE = 5;
-    const DELAY_MS = 1000;
+    const searchable = remainingListings.filter((listing) => Boolean(extractDomain(listing.directory.url)));
+    const batchSize = 5;
+    const delayMs = 1000;
 
-    for (let i = 0; i < searchable.length; i += BATCH_SIZE) {
-      const batch = searchable.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < searchable.length; i += batchSize) {
+      const batch = searchable.slice(i, i + batchSize);
       for (const listing of batch) {
         try {
-          const domain = extractDomain(listing.directory.url);
-          const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
-          searchUrl.searchParams.set("key", apiKey);
-          searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX!);
-          searchUrl.searchParams.set("q", `site:${domain} "${businessName}"`);
-          searchUrl.searchParams.set("num", "3");
+          const match = await findDirectoryListingWithGoogleSearch(apiKey, searchCx, profile, listing.directory);
+          searched++;
 
-          const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(8000) });
-          if (!res.ok) continue;
-          const data = await res.json() as { items?: Array<{ link: string }> };
-          if (data.items?.length) {
-            await markListingLive(listing.id, data.items[0].link, "google_custom_search");
-            detected++;
+          if (match) {
+            if (await markListingLive(listing.id, match.link, "google_custom_search")) detected++;
+          } else {
+            await markListingMissing(listing.id, "google_custom_search");
           }
-        } catch { /* skip */ }
+        } catch (err) {
+          console.error(`ListSmartly: directory search failed for ${listing.directory.slug}:`, err);
+        }
       }
-      if (i + BATCH_SIZE < searchable.length) await new Promise((r) => setTimeout(r, DELAY_MS));
+      if (i + batchSize < searchable.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
+  } else {
+    await markUnsearchedMissingAsUnverified(profileId);
   }
 
   await refreshProfileStats(profileId);
+  const unverified = await prisma.businessListing.count({ where: { profileId, status: "unverified" } });
   console.log(`ListSmartly: verified ${detected} existing listings for "${businessName}"`);
 
-  return { detected };
+  return { detected, searched, unverified };
+}
+
+async function enrichGoogleListing(
+  profileId: string,
+  listingId: string,
+  placeId: string,
+  mapsUrl: string,
+  apiKey: string
+): Promise<void> {
+  const detailUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+  detailUrl.searchParams.set("place_id", placeId);
+  detailUrl.searchParams.set(
+    "fields",
+    "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url,reviews,opening_hours,business_status"
+  );
+  detailUrl.searchParams.set("key", apiKey);
+
+  const detailRes = await fetch(detailUrl.toString(), { signal: AbortSignal.timeout(8000) });
+  const detailData = (await detailRes.json()) as { result?: Record<string, unknown>; status: string };
+
+  if (detailData.status !== "OK" || !detailData.result) return;
+
+  const result = detailData.result;
+  const reviews =
+    (result.reviews as Array<{
+      rating: number;
+      text: string;
+      relative_time_description: string;
+      author_name: string;
+    }>) || [];
+  const hours = (result.opening_hours as { weekday_text?: string[]; open_now?: boolean }) || {};
+
+  const recentReviews = reviews.slice(0, 3).map((review) => ({
+    rating: review.rating,
+    text: review.text,
+    timeAgo: review.relative_time_description,
+    author: review.author_name,
+  }));
+
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      listingUrl: (result.url as string) || mapsUrl,
+      businessName: (result.name as string) || undefined,
+      phone: (result.formatted_phone_number as string) || undefined,
+      address: (result.formatted_address as string) || undefined,
+      website: (result.website as string) || undefined,
+      aiDescription: JSON.stringify({
+        rating: result.rating,
+        reviewCount: result.user_ratings_total,
+        recentReviews,
+        hours: hours.weekday_text || [],
+        isOpenNow: hours.open_now,
+        businessStatus: result.business_status,
+      }),
+    },
+  });
+
+  if (result.rating || result.user_ratings_total) {
+    await prisma.listSmartlyProfile.update({
+      where: { id: profileId },
+      data: {
+        averageRating: (result.rating as number) || 0,
+        totalReviews: (result.user_ratings_total as number) || 0,
+      },
+    });
+  }
+}
+
+async function crawlWebsiteForSocialLinks(websiteUrl: string | null): Promise<Record<string, string>> {
+  const discoveredSocials: Record<string, string> = {};
+  if (!websiteUrl) return discoveredSocials;
+
+  try {
+    const fullUrl = websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`;
+    const res = await fetch(fullUrl, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartlyBot/1.0)" },
+    });
+    if (!res.ok) return discoveredSocials;
+
+    const html = await res.text();
+    const socialPatterns: Array<{ slug: string; pattern: RegExp }> = [
+      { slug: "facebook", pattern: /href=["'](https?:\/\/(?:www\.)?facebook\.com\/(?!share|sharer|tr\?|login)[^"'\s?#]+)/gi },
+      { slug: "instagram", pattern: /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
+      { slug: "twitter-x", pattern: /href=["'](https?:\/\/(?:www\.)?(?:twitter|x)\.com\/(?!intent|share)[^"'\s?#/][^"'\s?#]*)/gi },
+      { slug: "linkedin", pattern: /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[^"'\s?#]*)/gi },
+      { slug: "youtube", pattern: /href=["'](https?:\/\/(?:www\.)?youtube\.com\/@?[^"'\s?#/][^"'\s?#]*)/gi },
+      { slug: "tiktok", pattern: /href=["'](https?:\/\/(?:www\.)?tiktok\.com\/@[^"'\s?#]*)/gi },
+      { slug: "pinterest", pattern: /href=["'](https?:\/\/(?:www\.)?pinterest\.com\/[^"'\s?#/][^"'\s?#]*)/gi },
+    ];
+
+    for (const { slug, pattern } of socialPatterns) {
+      const matches = [...html.matchAll(pattern)];
+      if (matches.length > 0) {
+        const url = matches[0][1]?.split(/['"]/)[0];
+        if (url && url.length < 200) discoveredSocials[slug] = url;
+      }
+    }
+
+    console.log(`ListSmartly: crawled website, found ${Object.keys(discoveredSocials).length} social links`);
+  } catch (err) {
+    console.error("ListSmartly: website crawl failed:", err);
+  }
+
+  return discoveredSocials;
+}
+
+async function findDirectoryListingWithGoogleSearch(
+  apiKey: string,
+  searchCx: string,
+  profile: BusinessSignalInput,
+  directory: DirectorySearchInput
+): Promise<SearchResultItem | null> {
+  const domain = extractDomain(directory.url);
+  const phone = normalizePhone(profile.phone);
+  const websiteDomain = profile.website ? extractDomain(profile.website) : "";
+  const queries = [
+    `site:${domain} "${profile.businessName}"`,
+    phone ? `site:${domain} "${phone}"` : "",
+    websiteDomain ? `site:${domain} "${websiteDomain}"` : "",
+    profile.address ? `site:${domain} "${profile.address}" "${profile.city || ""}"` : "",
+  ].filter(Boolean);
+
+  for (const query of queries) {
+    const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
+    searchUrl.searchParams.set("key", apiKey);
+    searchUrl.searchParams.set("cx", searchCx);
+    searchUrl.searchParams.set("q", query);
+    searchUrl.searchParams.set("num", "5");
+
+    const res = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) continue;
+
+    const data = (await res.json()) as { items?: SearchResultItem[] };
+    const scored = (data.items || [])
+      .filter((item) => extractDomain(item.link).endsWith(domain))
+      .map((item) => ({ item, score: scoreSearchResult(profile, item) }))
+      .sort((a, b) => b.score - a.score);
+
+    if (scored[0] && scored[0].score >= 5) return scored[0].item;
+  }
+
+  return null;
+}
+
+function getGoogleApiKey(): string | undefined {
+  return process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
+}
+
+function getGoogleSearchCx(): string | undefined {
+  return (
+    process.env.GOOGLE_SEARCH_CX ||
+    process.env.GOOGLE_CSE_ID ||
+    process.env.GOOGLE_CUSTOM_SEARCH_CX ||
+    process.env.GOOGLE_SEARCH_ENGINE_ID
+  );
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizePhone(value: string | null | undefined): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function scoreBusinessMatch(profile: BusinessSignalInput, name: string, addressOrSnippet: string): number {
+  const haystack = normalizeText(`${name} ${addressOrSnippet}`);
+  const normalizedName = normalizeText(profile.businessName);
+  const nameTokens = normalizedName.split(" ").filter((token) => token.length > 2);
+  let score = 0;
+
+  if (normalizedName && haystack.includes(normalizedName)) score += 6;
+  score += Math.min(4, nameTokens.filter((token) => haystack.includes(token)).length);
+
+  const normalizedAddress = normalizeText(profile.address);
+  if (normalizedAddress && haystack.includes(normalizedAddress)) score += 4;
+  if (profile.city && haystack.includes(normalizeText(profile.city))) score += 1;
+  if (profile.state && haystack.includes(normalizeText(profile.state))) score += 1;
+
+  return score;
+}
+
+function scoreSearchResult(profile: BusinessSignalInput, item: SearchResultItem): number {
+  const rawHaystack = `${item.title || ""} ${item.snippet || ""} ${item.link}`;
+  const haystack = normalizeText(rawHaystack);
+  const normalizedName = normalizeText(profile.businessName);
+  const nameTokens = normalizedName.split(" ").filter((token) => token.length > 2);
+  const phone = normalizePhone(profile.phone);
+  const haystackDigits = normalizePhone(rawHaystack);
+  let score = 0;
+
+  if (normalizedName && haystack.includes(normalizedName)) score += 6;
+  score += Math.min(4, nameTokens.filter((token) => haystack.includes(token)).length);
+  if (phone && (haystackDigits.includes(phone) || haystackDigits.includes(phone.slice(-7)))) score += 5;
+  if (profile.website && haystack.includes(normalizeText(extractDomain(profile.website)))) score += 4;
+  if (profile.address && haystack.includes(normalizeText(profile.address))) score += 4;
+  if (profile.city && haystack.includes(normalizeText(profile.city))) score += 1;
+  if (profile.state && haystack.includes(normalizeText(profile.state))) score += 1;
+
+  return score;
+}
+
+async function markUnsearchedMissingAsUnverified(profileId: string): Promise<number> {
+  await prisma.businessListing.updateMany({
+    where: {
+      profileId,
+      status: "missing",
+      lastCheckedAt: null,
+    },
+    data: { status: "unverified" },
+  });
+
+  return prisma.businessListing.count({ where: { profileId, status: "unverified" } });
+}
+
+async function markListingMissing(listingId: string, source: string): Promise<void> {
+  const listing = await prisma.businessListing.findUnique({
+    where: { id: listingId },
+    select: { status: true },
+  });
+  if (!listing || LIVE_LISTING_STATUSES.has(listing.status)) return;
+
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      status: "missing",
+      lastCheckedAt: new Date(),
+    },
+  });
+
+  if (listing.status !== "missing") {
+    await prisma.listingChange.create({
+      data: {
+        listingId,
+        changeType: "web_scan",
+        fieldChanged: "status",
+        oldValue: listing.status,
+        newValue: "missing",
+        changedBy: `verified: ${source}`,
+      },
+    });
+  }
 }
 
 /** Mark a listing as live with verified URL and audit trail. */
-async function markListingLive(listingId: string, url: string, source: string): Promise<void> {
+async function markListingLive(listingId: string, url: string, source: string): Promise<boolean> {
+  const listing = await prisma.businessListing.findUnique({
+    where: { id: listingId },
+    select: { status: true },
+  });
+  const oldStatus = listing?.status || null;
+
   await prisma.businessListing.update({
     where: { id: listingId },
     data: {
@@ -409,16 +635,21 @@ async function markListingLive(listingId: string, url: string, source: string): 
       lastCheckedAt: new Date(),
     },
   });
-  await prisma.listingChange.create({
-    data: {
-      listingId,
-      changeType: "web_scan",
-      fieldChanged: "status",
-      oldValue: "missing",
-      newValue: "live",
-      changedBy: `verified: ${source}`,
-    },
-  });
+
+  if (oldStatus !== "live") {
+    await prisma.listingChange.create({
+      data: {
+        listingId,
+        changeType: "web_scan",
+        fieldChanged: "status",
+        oldValue: oldStatus,
+        newValue: "live",
+        changedBy: `verified: ${source}`,
+      },
+    });
+  }
+
+  return oldStatus !== "live";
 }
 
 /** Extract domain from URL. */

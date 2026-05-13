@@ -43,7 +43,7 @@ interface Listing {
   directoryName: string;
   directoryUrl: string;
   tier: number;
-  status: "live" | "missing" | "needs_update" | "submitted" | "error";
+  status: "live" | "missing" | "unverified" | "needs_update" | "submitted" | "error";
   lastChecked: string;
   iconUrl?: string;
 }
@@ -79,6 +79,7 @@ interface TierBreakdown {
 const LISTING_STATUSES: Record<string, { label: string; color: string }> = {
   live: { label: "Live", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
   missing: { label: "Missing", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  unverified: { label: "Needs Verification", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   needs_update: { label: "Needs Update", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
   submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
   error: { label: "Error", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
@@ -264,8 +265,9 @@ export default function ListSmartlyDashboardPage() {
       if (res.status === 404) { setListingsLoading(false); return; }
       if (!res.ok) throw new Error("Failed to fetch listings");
       const data = await res.json();
-      setListings(data.listings || []);
-      setListingsTotal(data.total || 0);
+      const payload = data.data || data;
+      setListings(payload.listings || []);
+      setListingsTotal(payload.pagination?.total || payload.total || 0);
     } catch {
       toast({ title: "Error", description: "Failed to load listings", variant: "destructive" });
     } finally {
@@ -298,12 +300,13 @@ export default function ListSmartlyDashboardPage() {
       const res = await fetch("/api/listsmartly/sync");
       if (!res.ok) return;
       const json = await res.json();
-      if (json.success && json.data) {
+      const syncJob = json.data?.syncJob || json.data;
+      if (json.success && syncJob) {
         setActivities([{
-          id: json.data.id,
-          type: json.data.type,
-          message: `${json.data.type} — checked ${json.data.checkedCount}, fixed ${json.data.fixedCount}`,
-          createdAt: json.data.createdAt,
+          id: syncJob.id,
+          type: syncJob.type,
+          message: `${syncJob.type} - checked ${syncJob.checkedCount}, fixed ${syncJob.fixedCount}`,
+          createdAt: syncJob.createdAt,
         }]);
       }
     } catch {
@@ -636,6 +639,7 @@ export default function ListSmartlyDashboardPage() {
             <option value="all">All Statuses</option>
             <option value="live">Live</option>
             <option value="missing">Missing</option>
+            <option value="unverified">Needs Verification</option>
             <option value="needs_update">Needs Update</option>
             <option value="submitted">Submitted</option>
           </select>

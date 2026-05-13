@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { initializeListings } from "@/lib/listsmartly/sync-engine";
-import { seedDirectories } from "@/lib/listsmartly/directories";
+import { reconcileListingCatalog } from "@/lib/listsmartly/sync-engine";
 import {
   addListSmartlyBillingMonth,
   buildListSmartlyAccess,
@@ -154,11 +153,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      const dirCount = await prisma.listingDirectory.count();
-      if (dirCount === 0) {
-        await seedDirectories();
-      }
-      await initializeListings(result.profile.id, industry);
+      await reconcileListingCatalog(result.profile.id);
     } catch (err) {
       console.error("Failed to initialize listings:", err);
     }

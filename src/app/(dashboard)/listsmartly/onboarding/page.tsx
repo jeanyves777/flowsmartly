@@ -100,6 +100,7 @@ interface ScanResults {
   totalDirectories: number;
   relevant: number;
   alreadySubmitted: number;
+  needsVerification: number;
   missing: number;
   findings: ListingFinding[];
 }
@@ -255,17 +256,20 @@ export default function ListSmartlyOnboardingPage() {
         const res = await fetch("/api/listsmartly/sync");
         if (!res.ok) return;
         const json = await res.json();
-        if (json.success && json.data && json.data.status === "completed" && json.data.details) {
-          const details = typeof json.data.details === "string" ? JSON.parse(json.data.details) : json.data.details;
+        const syncJob = json.data?.syncJob || json.data;
+        if (json.success && syncJob && syncJob.status === "completed" && syncJob.details) {
+          const details = typeof syncJob.details === "string" ? JSON.parse(syncJob.details) : syncJob.details;
           if (details.findings?.length > 0) {
             // We have previous scan results — load them
             const allFindings = details.findings || [];
             const liveCount = allFindings.filter((f: { status: string }) => ["live", "submitted", "claimed"].includes(f.status)).length;
+            const needsVerificationCount = allFindings.filter((f: { status: string }) => f.status === "unverified").length;
             const missingCount = allFindings.filter((f: { status: string }) => f.status === "missing").length;
             setScanResults({
               totalDirectories: allFindings.length,
               relevant: allFindings.length,
               alreadySubmitted: liveCount,
+              needsVerification: needsVerificationCount,
               missing: missingCount,
               findings: allFindings.map((f: { directoryName: string; tier: number; status: string; listingUrl?: string }) => ({
                 directoryName: f.directoryName,
@@ -364,6 +368,7 @@ export default function ListSmartlyOnboardingPage() {
       const profileData = profileJson?.data || {};
 
       const liveCount = allListings.filter((l: { status: string }) => l.status === "live" || l.status === "submitted").length;
+      const needsVerificationCount = allListings.filter((l: { status: string }) => l.status === "unverified").length;
       const missingCount = allListings.filter((l: { status: string }) => l.status === "missing").length;
 
       // Build findings list sorted by tier then status (live first)
@@ -402,6 +407,7 @@ export default function ListSmartlyOnboardingPage() {
         totalDirectories: allListings.length,
         relevant: allListings.length,
         alreadySubmitted: liveCount,
+        needsVerification: needsVerificationCount,
         missing: missingCount,
         findings,
       });
@@ -698,7 +704,7 @@ export default function ListSmartlyOnboardingPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-1">Directory Scan</h2>
           <p className="text-sm text-muted-foreground">
-            We&apos;ll scan 161 directories to find where your business is listed and where it&apos;s missing.
+            We&apos;ll scan 161 directories to find confirmed listings, verified gaps, and directories that need another check.
           </p>
         </div>
 
@@ -769,7 +775,7 @@ export default function ListSmartlyOnboardingPage() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="py-4 text-center">
                   <p className="text-3xl font-bold text-foreground">{scanResults.relevant}</p>
@@ -780,6 +786,12 @@ export default function ListSmartlyOnboardingPage() {
                 <CardContent className="py-4 text-center">
                   <p className="text-3xl font-bold text-green-500">{scanResults.alreadySubmitted}</p>
                   <p className="text-sm text-muted-foreground">Already Listed</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4 text-center">
+                  <p className="text-3xl font-bold text-amber-500">{scanResults.needsVerification}</p>
+                  <p className="text-sm text-muted-foreground">Needs Verification</p>
                 </CardContent>
               </Card>
               <Card>
@@ -827,6 +839,7 @@ export default function ListSmartlyOnboardingPage() {
                 <div className="space-y-2.5 text-sm">
                   {(() => {
                     const missingCritical = scanResults.findings?.filter(f => f.status === "missing" && f.tier === 1) || [];
+                    const unverifiedCritical = scanResults.findings?.filter(f => f.status === "unverified" && f.tier === 1) || [];
                     const foundCritical = scanResults.findings?.filter(f => f.status === "live" && f.tier === 1) || [];
                     const missingNames = missingCritical.slice(0, 3).map(f => f.directoryName).join(", ");
                     return missingCritical.length > 0 ? (
@@ -836,6 +849,15 @@ export default function ListSmartlyOnboardingPage() {
                         </div>
                         <p className="text-muted-foreground">
                           <strong className="text-foreground">{missingCritical.length} critical directories</strong> ({missingNames}{missingCritical.length > 3 ? "..." : ""}) are missing — these drive 80% of local search traffic
+                        </p>
+                      </div>
+                    ) : unverifiedCritical.length > 0 ? (
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Search className="w-3 h-3 text-amber-500" />
+                        </div>
+                        <p className="text-muted-foreground">
+                          <strong className="text-foreground">{unverifiedCritical.length} critical directories</strong> need verification before we call them missing
                         </p>
                       </div>
                     ) : (
@@ -862,7 +884,7 @@ export default function ListSmartlyOnboardingPage() {
                       <Sparkles className="w-3 h-3 text-teal-500" />
                     </div>
                     <p className="text-muted-foreground">
-                      ListSmartly can <strong className="text-foreground">submit your business to all {scanResults.missing} missing directories</strong> and monitor them with AI autopilot
+                      ListSmartly can <strong className="text-foreground">submit missing directories and verify {scanResults.needsVerification} uncertain listings</strong> with AI autopilot
                     </p>
                   </div>
                 </div>
@@ -1039,6 +1061,34 @@ export default function ListSmartlyOnboardingPage() {
                   </div>
                 )}
 
+                {/* Unverified listings need another source before we call them missing */}
+                {scanResults.findings.filter(f => f.status === "unverified").length > 0 && (
+                  <Card>
+                    <CardContent className="py-3">
+                      <p className="text-xs font-semibold text-amber-500 uppercase tracking-wider mb-2">
+                        Needs Verification ({Math.min(20, scanResults.findings.filter(f => f.status === "unverified").length)} of {scanResults.findings.filter(f => f.status === "unverified").length})
+                      </p>
+                      <div className="space-y-1.5">
+                        {scanResults.findings.filter(f => f.status === "unverified").slice(0, 20).map((f, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
+                            <div className="flex items-center gap-2">
+                              <Search className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="text-muted-foreground">{f.directoryName}</span>
+                              <Badge variant="outline" className="text-[10px] h-4">Tier {f.tier}</Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground/60">Not verified yet</span>
+                          </div>
+                        ))}
+                      </div>
+                      {scanResults.findings.filter(f => f.status === "unverified").length > 20 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          + {scanResults.findings.filter(f => f.status === "unverified").length - 20} more listings need verification (view all in dashboard)
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Missing listings (show top 20 by tier importance) */}
                 <Card>
                   <CardContent className="py-3">
@@ -1209,7 +1259,7 @@ export default function ListSmartlyOnboardingPage() {
   const stepRenderers = [renderStep0, renderStep1, renderStep2, renderStep3, renderStep4];
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 md:px-6 lg:px-8 w-full">
+    <div className="w-full max-w-none py-8 px-4 md:px-6 lg:px-8">
       {/* Progress indicator */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
