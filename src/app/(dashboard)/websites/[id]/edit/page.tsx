@@ -6,6 +6,18 @@ import { ArrowLeft, ExternalLink, RefreshCw, Check, AlertCircle, Globe, FileText
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { SectionUpdater } from "@/components/shared/section-updater";
+import { PageLoader } from "@/components/shared/page-loader";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface Website {
   id: string; name: string; slug: string; status: string; buildStatus: string;
@@ -38,6 +50,7 @@ interface SiteData {
   contactInfo?: { mapEmbedUrl?: string; mapAddress?: string };
   faq?: Array<{ question: string; answer: string }>;
   blogPosts?: Array<Record<string, any>>;
+  galleryCategories?: string[];
   galleryImages?: Array<Record<string, any>>;
   expertise?: string[];
   navLinks?: Array<{ href: string; label: string }>;
@@ -75,7 +88,9 @@ export default function WebsiteEditPage() {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [previewNonce, setPreviewNonce] = useState(() => Date.now());
   const [selectedGalleryCategory, setSelectedGalleryCategory] = useState("All");
-  const [pendingGalleryCategories, setPendingGalleryCategories] = useState<string[]>([]);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [categoryDraft, setCategoryDraft] = useState("");
+  const [categoryError, setCategoryError] = useState("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -101,20 +116,44 @@ export default function WebsiteEditPage() {
     setSaving(true);
     setBuildResult(null);
     setBuildStep("Saving your changes...");
-    await fetch(`/api/websites/${id}/update-data`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) });
-    setChanged(false);
-    setSaving(false);
-    setBuildStep("Changes saved. Starting rebuild...");
-    rebuild();
+    try {
+      const response = await fetch(`/api/websites/${id}/update-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to save website changes.");
+      }
+      setChanged(false);
+      setBuildStep("Changes saved. Starting rebuild...");
+      await rebuild();
+    } catch (err: any) {
+      setBuildStep("");
+      setBuildResult({ type: "error", message: err?.message || "Failed to save website changes." });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const rebuild = async () => {
     setRebuilding(true);
     setBuildResult(null);
     setBuildStep("Syncing brand data...");
-    await fetch(`/api/websites/${id}/rebuild`, { method: "POST" });
-    setBuildStep("Installing dependencies & building site...");
-    poll("rebuild");
+    try {
+      const response = await fetch(`/api/websites/${id}/rebuild`, { method: "POST" });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to start website rebuild.");
+      }
+      setBuildStep("Installing dependencies & building site...");
+      poll("rebuild");
+    } catch (err: any) {
+      setRebuilding(false);
+      setBuildStep("");
+      setBuildResult({ type: "error", message: err?.message || "Failed to start website rebuild." });
+    }
   };
 
   const handleUpgradeToV3 = async () => {
@@ -211,12 +250,34 @@ export default function WebsiteEditPage() {
     return d.path || "";
   };
 
+  const getGalleryCategories = (source: SiteData | null) => Array.from(new Set([
+    ...(source?.galleryCategories || []).map((category) => String(category || "").trim()).filter(Boolean),
+    ...(source?.galleryImages || []).map((img) => String(img.category || "").trim()).filter(Boolean),
+  ]));
+
   const addGalleryCategory = () => {
-    const category = window.prompt("Gallery category name");
-    const name = category?.trim();
+    setCategoryDraft("");
+    setCategoryError("");
+    setCategoryDialogOpen(true);
+  };
+
+  const createGalleryCategory = (addImageAfter = false) => {
+    if (!data) return;
+    const name = categoryDraft.trim().replace(/\s+/g, " ");
     if (!name) return;
-    setPendingGalleryCategories((categories) => categories.includes(name) ? categories : [...categories, name]);
+    const existing = getGalleryCategories(data);
+    if (existing.some((category) => category.toLowerCase() === name.toLowerCase())) {
+      setCategoryError("That category already exists.");
+      return;
+    }
+    update("galleryCategories", [...existing, name]);
     setSelectedGalleryCategory(name);
+    setCategoryDialogOpen(false);
+    setCategoryDraft("");
+    setCategoryError("");
+    if (addImageAfter) {
+      setTimeout(() => addGalleryImage(name), 0);
+    }
   };
 
   const addGalleryImage = (category?: string) => {
@@ -224,7 +285,7 @@ export default function WebsiteEditPage() {
     openPicker((url) => update("galleryImages", [...(data?.galleryImages || []), { src: url, alt: "", category: nextCategory }]));
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><AISpinner className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (loading) return <PageLoader tips={["Loading website editor"]} />;
   if (!website) return <div className="text-center py-20"><p className="text-muted-foreground">Website not found</p></div>;
 
   const busy = rebuilding || saving || isUpgrading;
@@ -257,14 +318,41 @@ export default function WebsiteEditPage() {
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/websites")} className="p-2 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></button>
           <div>
-            <h1 className="text-xl font-bold">{website.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold">{website.name}</h1>
+              {changed && (
+                <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                  Unsaved changes
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">{website.customDomain || `/sites/${website.slug}`}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {changed && <button onClick={save} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> Save</button>}
           {website.buildStatus === "built" && <a href={website.customDomain ? `https://${website.customDomain}` : `/sites/${website.slug}/`} target="_blank" className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> View</a>}
-          <button onClick={rebuild} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50">{rebuilding ? <><AISpinner className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><RefreshCw className="w-3.5 h-3.5" /> Save</>}</button>
+          <button
+            onClick={changed ? save : rebuild}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50"
+          >
+            {busy ? (
+              <>
+                <AISpinner className="w-3.5 h-3.5 animate-spin" />
+                {saving ? "Saving..." : isUpgrading ? "Upgrading..." : "Building..."}
+              </>
+            ) : changed ? (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                Save & Rebuild
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3.5 h-3.5" />
+                Rebuild
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -722,10 +810,7 @@ export default function WebsiteEditPage() {
             </div>
           </div>
           {(() => {
-            const categories = Array.from(new Set([
-              ...(data.galleryImages || []).map((img) => String(img.category || "").trim()).filter(Boolean),
-              ...pendingGalleryCategories,
-            ]));
+            const categories = getGalleryCategories(data);
             const activeCategory = selectedGalleryCategory === "All" || categories.includes(selectedGalleryCategory) ? selectedGalleryCategory : "All";
             const images = (data.galleryImages || [])
               .map((img, index) => ({ img, index }))
@@ -1042,15 +1127,45 @@ export default function WebsiteEditPage() {
         </div>
       )}
 
-      {/* Unsaved bar */}
-      {changed && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-50 dark:bg-amber-900/30 border-t border-amber-200 px-6 py-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Unsaved changes</p>
-          <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50">
-            {saving ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save & Rebuild
-          </button>
-        </div>
-      )}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Gallery Category</DialogTitle>
+            <DialogDescription>
+              Add a gallery filter that will be saved with the website and included in the next rebuild.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="gallery-category-name">Category name</Label>
+            <Input
+              id="gallery-category-name"
+              value={categoryDraft}
+              onChange={(event) => {
+                setCategoryDraft(event.target.value);
+                setCategoryError("");
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") createGalleryCategory();
+              }}
+              placeholder="Community events"
+              autoFocus
+              error={categoryError}
+            />
+            {categoryError && <p className="text-xs text-destructive">{categoryError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={() => createGalleryCategory()} disabled={!categoryDraft.trim()}>
+              Create
+            </Button>
+            <Button onClick={() => createGalleryCategory(true)} disabled={!categoryDraft.trim()}>
+              Create & Add Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Media Library Picker */}
       {pickerOpen && (

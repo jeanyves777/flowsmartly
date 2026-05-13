@@ -50,6 +50,18 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      const isOwnProfile = targetUser.id === session.userId;
+      const existingFollow = isOwnProfile
+        ? null
+        : await prisma.follow.findUnique({
+            where: {
+              followerId_followingId: {
+                followerId: session.userId,
+                followingId: targetUser.id,
+              },
+            },
+          });
+
       return NextResponse.json({
         success: true,
         data: await presignAllUrls({
@@ -66,9 +78,10 @@ export async function GET(request: NextRequest) {
             postsCount: targetUser._count.posts,
             followersCount: targetUser._count.followers,
             followingCount: targetUser._count.following,
+            isFollowing: Boolean(existingFollow),
             createdAt: targetUser.createdAt.toISOString(),
           },
-          isOwnProfile: targetUser.id === session.userId,
+          isOwnProfile,
         }),
       });
     }

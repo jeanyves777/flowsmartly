@@ -110,6 +110,8 @@ const defaultNotificationPrefs: NotificationPrefs = {
   productUpdates: true,
 };
 
+const MAX_COVER_IMAGE_SIZE = 25 * 1024 * 1024;
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
@@ -406,8 +408,8 @@ export default function SettingsPage() {
       toast({ title: "Invalid file type", description: "Please upload a PNG, JPEG, or WebP image.", variant: "destructive" });
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+    if (file.size > MAX_COVER_IMAGE_SIZE) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 25MB.", variant: "destructive" });
       return;
     }
 
@@ -940,7 +942,7 @@ export default function SettingsPage() {
                         <FileDropZone
                           onFileDrop={uploadCoverFile}
                           accept="image/png,image/jpeg,image/jpg,image/webp"
-                          maxSize={5 * 1024 * 1024}
+                          maxSize={MAX_COVER_IMAGE_SIZE}
                           disabled={isUploadingCover}
                           dragLabel="Drop cover image here"
                         >
@@ -1000,7 +1002,7 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            JPG, PNG or WebP. Max 5MB. Recommended: 1500x500px. Or drag &amp; drop.
+                            JPG, PNG or WebP. Max 25MB. Recommended: 1500x500px. Or drag &amp; drop.
                           </p>
                         </FileDropZone>
                       </div>

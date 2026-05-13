@@ -47,6 +47,7 @@ import { WhatsAppInbox } from "@/components/whatsapp/whatsapp-inbox";
 import { WhatsAppAutomations } from "@/components/whatsapp/whatsapp-automations";
 import { WhatsAppTemplates } from "@/components/whatsapp/whatsapp-templates";
 import { WhatsAppStatus } from "@/components/whatsapp/whatsapp-status";
+import { PageLoader } from "@/components/shared/page-loader";
 import {
   DEFAULT_WHATSAPP_AGENT_SETTINGS,
   type WhatsAppAgentSettings,
@@ -395,11 +396,8 @@ function WhatsAppAgentControl({ account }: { account: WhatsAppAccount }) {
   if (loadingSettings) {
     return (
       <Card>
-        <CardContent className="flex h-64 items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-green-500" />
-            <p className="text-sm text-muted-foreground">Loading agent workspace...</p>
-          </div>
+        <CardContent>
+          <PageLoader tips={["Loading agent workspace"]} className="min-h-64" />
         </CardContent>
       </Card>
     );
@@ -692,12 +690,5 @@ function CapabilityCard({ icon: Icon, title, active }: { icon: LucideIcon; title
 }
 
 function WhatsAppLoading() {
-  return (
-    <div className="flex h-96 items-center justify-center">
-      <div className="text-center">
-        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-green-500" />
-        <p className="text-muted-foreground">Loading WhatsApp...</p>
-      </div>
-    </div>
-  );
+  return <PageLoader tips={["Loading WhatsApp"]} className="min-h-96" />;
 }

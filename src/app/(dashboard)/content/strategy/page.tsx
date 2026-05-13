@@ -75,6 +75,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { PageLoader } from "@/components/shared/page-loader";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
@@ -4830,14 +4831,7 @@ export default function StrategyAutomationPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[620px] items-center justify-center rounded-2xl border bg-card">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <AISpinner className="h-5 w-5 text-brand-500" />
-          Loading workspace
-        </div>
-      </div>
-    );
+    return <PageLoader tips={["Loading strategy workspace"]} />;
   }
 
   if (error) {

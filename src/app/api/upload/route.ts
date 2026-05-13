@@ -5,7 +5,7 @@ import { uploadToS3, presignAllUrls } from "@/lib/utils/s3-client";
 import { randomUUID } from "crypto";
 
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 function getFileType(mimeType: string): string {
   if (mimeType.startsWith("image/svg")) return "svg";
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { success: false, error: { message: "File too large. Maximum size is 5MB" } },
+        { success: false, error: { message: "File too large. Maximum size is 25MB" } },
         { status: 400 }
       );
     }

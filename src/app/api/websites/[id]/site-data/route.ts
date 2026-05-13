@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (website.siteData && website.siteData !== "{}") {
       try {
         const cached = JSON.parse(website.siteData);
-        if (cached.logo && cached.heroImages?.length && cached.navLinks?.length) {
+        if (cached.logo && cached.heroImages?.length && cached.navLinks?.length && Array.isArray(cached.galleryCategories)) {
           return NextResponse.json({ data: cached, pages });
         }
         // Missing key fields — fall through to re-parse from files
@@ -94,6 +94,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       if (!data.faq?.length) data.faq = extractObjectArray(content, "faq", ["question", "answer"]);
       data.blogPosts = extractObjectArray(content, "blogPosts", ["id", "slug", "title", "excerpt", "content", "category", "date", "author", "image", "source", "automationId"]);
       data.galleryImages = extractObjectArray(content, "galleryImages", ["src", "alt", "category"]);
+      data.galleryCategories = extractExportedStringArray(content, "galleryCategories");
+      if (!data.galleryCategories.length) {
+        data.galleryCategories = extractGalleryPageCategories(siteDir);
+      }
+      if (!data.galleryCategories.length && data.galleryImages?.length) {
+        data.galleryCategories = Array.from(
+          new Set(data.galleryImages.map((image: any) => String(image.category || "").trim()).filter(Boolean))
+        );
+      }
 
       // Extract hero images from data.ts
       const slidesMatch = content.match(/(?:slides|heroImages|heroSlides)\s*=\s*\[([\s\S]*?)\]/);
@@ -237,6 +246,47 @@ function extractArray(text: string, key: string): string[] {
   const match = text.match(new RegExp(`${key}:\\s*\\[([^\\]]*?)\\]`));
   if (!match) return [];
   return [...match[1].matchAll(/['"]([^'"]*)['"]/g)].map((m) => m[1]);
+}
+
+function extractExportedStringArray(content: string, exportName: string): string[] {
+  const match = content.match(new RegExp(`export const ${exportName}\\s*=\\s*\\[([\\s\\S]*?)\\]`));
+  if (!match) return [];
+  return uniqueStrings([...match[1].matchAll(/['"]([^'"]*)['"]/g)].map((m) => m[1]));
+}
+
+function extractGalleryPageCategories(siteDir: string): string[] {
+  const candidates = [
+    join(siteDir, "src", "app", "gallery", "page.tsx"),
+    join(siteDir, "src", "components", "Gallery.tsx"),
+  ];
+  for (const filePath of candidates) {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const match = content.match(/const\s+categories(?:\s*:\s*[^=]+)?\s*=\s*\[([\s\S]*?)\]/);
+      if (!match) continue;
+      const categories = uniqueStrings(
+        [...match[1].matchAll(/['"]([^'"]*)['"]/g)]
+          .map((m) => m[1])
+          .filter((category) => category !== "All")
+      );
+      if (categories.length) return categories;
+    } catch {}
+  }
+  return [];
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const clean = String(value || "").trim().replace(/\s+/g, " ");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(clean);
+  }
+  return result;
 }
 
 /**

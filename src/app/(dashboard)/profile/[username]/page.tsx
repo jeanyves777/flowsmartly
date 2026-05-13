@@ -13,6 +13,7 @@ import {
   FileText,
   Users,
   UserPlus,
+  UserMinus,
   Sparkles,
   Crown,
   Star,
@@ -38,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { PageLoader } from "@/components/shared/page-loader";
 
 interface UserProfile {
   id: string;
@@ -52,6 +54,7 @@ interface UserProfile {
   postsCount: number;
   followersCount: number;
   followingCount: number;
+  isFollowing: boolean;
   createdAt: string;
 }
 
@@ -101,6 +104,8 @@ const planConfig: Record<
   },
 };
 
+const MAX_COVER_IMAGE_SIZE = 25 * 1024 * 1024;
+
 export default function ProfilePage() {
   const params = useParams();
   const username = params.username as string;
@@ -113,6 +118,7 @@ export default function ProfilePage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -164,8 +170,8 @@ export default function ProfilePage() {
   }, [profile?.id, fetchPosts]);
 
   const handleCoverUpload = useCallback(async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
+    if (file.size > MAX_COVER_IMAGE_SIZE) {
+      toast({ title: "File too large", description: "Please upload an image smaller than 25MB.", variant: "destructive" });
       return;
     }
 
@@ -204,6 +210,39 @@ export default function ProfilePage() {
     }
   }, [toast]);
 
+  const handleFollowToggle = useCallback(async () => {
+    if (!profile || isOwnProfile) return;
+    const nextFollowing = !profile.isFollowing;
+    setIsFollowLoading(true);
+    try {
+      const response = await fetch(`/api/users/${profile.id}/follow`, {
+        method: nextFollowing ? "POST" : "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || (nextFollowing ? "Failed to follow user" : "Failed to unfollow user"));
+      }
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              isFollowing: nextFollowing,
+              followersCount: Math.max(0, current.followersCount + (nextFollowing ? 1 : -1)),
+            }
+          : current
+      );
+      toast({ title: nextFollowing ? "Following user" : "Unfollowed user" });
+    } catch (err) {
+      toast({
+        title: nextFollowing ? "Follow failed" : "Unfollow failed",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFollowLoading(false);
+    }
+  }, [isOwnProfile, profile, toast]);
+
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
     return d.toLocaleDateString("en-US", {
@@ -237,29 +276,7 @@ export default function ProfilePage() {
 
   // Loading
   if (isLoading) {
-    return (
-      <div className="flex-1 flex flex-col pb-8">
-        <div className="w-full space-y-6">
-          <Skeleton className="h-56 w-full rounded-xl" />
-          <div className="flex items-end gap-6 -mt-16 px-6">
-            <Skeleton className="w-32 h-32 rounded-full border-4 border-background" />
-            <div className="space-y-2 pb-2">
-              <Skeleton className="h-7 w-48" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 px-6">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-xl" />
-            ))}
-          </div>
-          <div className="grid lg:grid-cols-3 gap-6 px-6">
-            <Skeleton className="h-40 lg:col-span-2 rounded-xl" />
-            <Skeleton className="h-40 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoader tips={["Loading profile"]} />;
   }
 
   // Not found
@@ -380,6 +397,23 @@ export default function ProfilePage() {
                       <Edit2 className="w-3.5 h-3.5 mr-1.5" />
                       Edit Profile
                     </Link>
+                  </Button>
+                )}
+                {!isOwnProfile && (
+                  <Button
+                    variant={profile.isFollowing ? "outline" : "default"}
+                    size="sm"
+                    onClick={handleFollowToggle}
+                    disabled={isFollowLoading}
+                  >
+                    {isFollowLoading ? (
+                      <AISpinner className="w-3.5 h-3.5 mr-1.5" />
+                    ) : profile.isFollowing ? (
+                      <UserMinus className="w-3.5 h-3.5 mr-1.5" />
+                    ) : (
+                      <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                    )}
+                    {profile.isFollowing ? "Unfollow" : "Follow"}
                   </Button>
                 )}
               </div>

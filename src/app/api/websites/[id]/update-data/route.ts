@@ -38,6 +38,62 @@ function escapeStr(s: string): string {
   return (s || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
 }
 
+function toUniqueStrings(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const clean = String(value || "").trim().replace(/\s+/g, " ");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(clean);
+  }
+  return result;
+}
+
+function writeExportedStringArray(source: string, exportName: string, values: string[]) {
+  const code = `export const ${exportName} = [${values.map((value) => `'${escapeStr(value)}'`).join(", ")}]`;
+  const pattern = new RegExp(`export const ${exportName}\\s*=\\s*\\[[\\s\\S]*?\\]`);
+  if (pattern.test(source)) {
+    return source.replace(pattern, code);
+  }
+  return `${source.trimEnd()}\n\n${code}\n`;
+}
+
+function syncGalleryCategoryFilters(siteDir: string, categories: string[]) {
+  if (!categories.length) return;
+
+  const candidates = [
+    join(siteDir, "src", "app", "gallery", "page.tsx"),
+    join(siteDir, "src", "components", "Gallery.tsx"),
+  ];
+  const values = ["All", ...categories];
+  const arrayCode = `[${values.map((value) => `'${escapeStr(value)}'`).join(", ")}]`;
+  const unionCode = values.map((value) => `'${escapeStr(value)}'`).join(" | ");
+
+  for (const filePath of candidates) {
+    if (!existsSync(filePath)) continue;
+    try {
+      let content = readFileSync(filePath, "utf-8");
+      const original = content;
+
+      content = content.replace(/type\s+Category\s*=\s*[^;\n]+/, `type Category = ${unionCode}`);
+      content = content.replace(
+        /const\s+categories(?:\s*:\s*[^=]+)?\s*=\s*\[[\s\S]*?\]/,
+        `const categories: Category[] = ${arrayCode}`
+      );
+
+      if (content !== original) {
+        writeFileSync(filePath, content);
+        console.log(`[UpdateData] Synced gallery category filters in ${filePath}`);
+      }
+    } catch (err) {
+      console.error("[UpdateData] Gallery category sync failed:", err);
+    }
+  }
+}
+
 /**
  * POST /api/websites/[id]/update-data
  *
@@ -311,6 +367,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         content = content.replace(/export const galleryImages\s*=\s*\[[\s\S]*?\n\]/, `export const galleryImages = [\n${code}\n]`);
       }
 
+      const galleryCategories = toUniqueStrings([
+        ...(Array.isArray(data.galleryCategories) ? data.galleryCategories : []),
+        ...(Array.isArray(data.galleryImages) ? data.galleryImages.map((g: any) => g.category) : []),
+      ]);
+      if (galleryCategories.length > 0 || Array.isArray(data.galleryCategories)) {
+        data.galleryCategories = galleryCategories;
+        content = writeExportedStringArray(content, "galleryCategories", galleryCategories);
+      }
+
       writeFileSync(dataPath, content);
       console.log(`[UpdateData] Written data.ts`);
     } catch (err) {
@@ -318,6 +383,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // ========== STEP 4: Update component files ==========
+    if (Array.isArray(data.galleryCategories)) {
+      syncGalleryCategoryFilters(siteDir, data.galleryCategories);
+    }
 
     // Hero slides
     if (data.heroImages?.length) {
