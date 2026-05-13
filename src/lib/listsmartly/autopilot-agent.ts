@@ -350,11 +350,18 @@ function chooseAccountCreationUrl(
   },
   research: DirectoryResearchResult
 ): string | null {
-  const preferred = research.discoveredLinks.find((link) => {
-    return /(sign.?up|signup|free.?trial|register|create|claim|add.?business|add.?listing|submit)/i.test(link);
+  const usableLinks = research.discoveredLinks.filter((link) => {
+    return !/(privacy|legal|terms|cookie|status|blog|resources|learn|press|security|compliance)/i.test(link);
+  });
+  const preferred = usableLinks.find((link) => {
+    return /(sign.?up|signup|free.?trial|register|create.?account|claim.?business|add.?business|add.?listing)/i.test(link);
+  });
+  const secondary = usableLinks.find((link) => {
+    return /(claim|submit|add)/i.test(link);
   });
   return (
     preferred ||
+    secondary ||
     normalizeUrl(listing.directory.submitUrl) ||
     normalizeUrl(listing.directory.claimUrl) ||
     research.portalUrl ||
