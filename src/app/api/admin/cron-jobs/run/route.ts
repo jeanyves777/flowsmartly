@@ -12,6 +12,7 @@ const ALLOWED_CRON_ENDPOINTS = new Set([
   "/api/content/strategy/weekly-digest",
   "/api/cron/intelligence-weekly",
   "/api/cron/listsmartly-monthly",
+  "/api/cron/listsmartly-autopilot",
   "/api/ecommerce/trial-check",
   "/api/admin/stripe-sync",
 ]);

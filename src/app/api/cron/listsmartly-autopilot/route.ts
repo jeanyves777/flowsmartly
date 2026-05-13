@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { prepareAutopilotQueue, runNextAutopilotStep } from "@/lib/listsmartly/autopilot-agent";
+import {
+  prepareAutopilotQueue,
+  processAutopilotTask,
+  runNextAutopilotStep,
+} from "@/lib/listsmartly/autopilot-agent";
 
 function isAuthorized(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
@@ -29,10 +33,14 @@ export async function GET(request: NextRequest) {
 
     let prepared = 0;
     let started = 0;
+    let processed = 0;
 
     for (const profile of profiles) {
       const queue = await prepareAutopilotQueue(profile.userId);
       prepared += queue.created;
+
+      const activeResult = await processAutopilotTask(profile.userId);
+      if (activeResult.task) processed++;
 
       const activeTaskCount = await prisma.listSmartlyAutopilotTask.count({
         where: {
@@ -52,6 +60,7 @@ export async function GET(request: NextRequest) {
       data: {
         profiles: profiles.length,
         prepared,
+        processed,
         started,
       },
     });

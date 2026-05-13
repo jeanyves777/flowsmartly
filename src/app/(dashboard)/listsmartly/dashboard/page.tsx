@@ -70,6 +70,14 @@ interface ActivityItem {
   createdAt: string;
 }
 
+interface AutopilotProgressEvent {
+  stage: string;
+  label: string;
+  status: "done" | "active" | "waiting" | "failed";
+  detail?: string;
+  at?: string;
+}
+
 interface TierBreakdown {
   tier: number;
   name: string;
@@ -91,6 +99,15 @@ interface AutopilotTask {
     directory?: { url?: string; submitUrl?: string; claimUrl?: string; apiAvailable?: boolean };
     safety?: { mode?: string; pacing?: string; policy?: string };
     steps?: string[];
+  };
+  result?: {
+    stage?: string;
+    statusMessage?: string;
+    progress?: AutopilotProgressEvent[];
+    portalUrl?: string;
+    discoveredLinks?: string[];
+    listingUrl?: string;
+    error?: string;
   };
   directory?: { name: string; url: string; tier: number; slug: string } | null;
   listingStatus?: string | null;
@@ -136,6 +153,7 @@ interface AutopilotState {
       status: string;
       stage?: string;
       statusMessage?: string;
+      progress?: AutopilotProgressEvent[];
       updatedAt: string;
       directory?: { name: string; url: string; tier: number; slug: string } | null;
     } | null;
@@ -211,6 +229,20 @@ function formatNextRun(value?: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function progressStatusClass(status: AutopilotProgressEvent["status"]): string {
+  if (status === "done") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  if (status === "active") return "border-sky-500/40 bg-sky-500/10 text-sky-300";
+  if (status === "waiting") return "border-amber-500/40 bg-amber-500/10 text-amber-300";
+  return "border-red-500/40 bg-red-500/10 text-red-300";
+}
+
+function progressDotClass(status: AutopilotProgressEvent["status"]): string {
+  if (status === "done") return "bg-emerald-500";
+  if (status === "active") return "bg-sky-500";
+  if (status === "waiting") return "bg-amber-500";
+  return "bg-red-500";
 }
 
 function sentimentColor(sentiment: string): string {
@@ -1258,6 +1290,8 @@ export default function ListSmartlyDashboardPage() {
     const tasks = state?.tasks || [];
     const credentials = state?.credentials || [];
     const activeTask = state?.runtime?.activeTask || null;
+    const activeProgress = activeTask?.progress || [];
+    const needsUserTask = tasks.find((task) => task.status === "needs_user") || null;
     const nextQueuedTask = tasks.find((task) => task.status === "queued");
     const queueReady = Boolean(state?.runtime?.queueReady || (state?.stats.taskCounts.queued || 0) > 0);
     const canPrepareQueue = Boolean(state?.runtime?.canPrepareQueue && !autopilotActionLoading && !autopilotLoading);
@@ -1372,6 +1406,82 @@ export default function ListSmartlyDashboardPage() {
                 </p>
               </div>
             </div>
+
+            {(activeTask || needsUserTask) && (
+              <div className="rounded-md border border-border bg-background/70 p-4">
+                {activeTask ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Agent is working now</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {activeTask.statusMessage || "Checking the directory and updating this workflow."}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="w-fit">
+                        {formatWorkflowMode(activeTask.stage)}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {(activeProgress.length > 0
+                        ? activeProgress
+                        : [
+                            {
+                              stage: "running_directory_workflow",
+                              label: "Agent started",
+                              status: "active" as const,
+                              detail: "Preparing the directory workflow.",
+                            },
+                          ]
+                      ).map((event) => (
+                        <div key={`${event.stage}-${event.at || ""}`} className={`rounded-md border p-3 ${progressStatusClass(event.status)}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2.5 w-2.5 rounded-full ${progressDotClass(event.status)}`} />
+                            <p className="text-xs font-semibold text-foreground">{event.label}</p>
+                          </div>
+                          {event.detail && <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{event.detail}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : needsUserTask ? (
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">Action needed</Badge>
+                        <p className="text-sm font-semibold text-foreground">{needsUserTask.title}</p>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                        {needsUserTask.result?.statusMessage || needsUserTask.requiredAction || "Complete the required verification step, then let the agent continue."}
+                      </p>
+                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.claimUrl || needsUserTask.payload?.directory?.submitUrl) && (
+                        <a
+                          className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                          href={
+                            needsUserTask.result?.portalUrl ||
+                            needsUserTask.payload?.directory?.claimUrl ||
+                            needsUserTask.payload?.directory?.submitUrl
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open verification portal
+                        </a>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => runAutopilotAction("continue_task", { taskId: needsUserTask.id })}
+                      disabled={autopilotActionLoading}
+                      className="w-full lg:w-auto"
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      I completed verification
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1482,15 +1592,48 @@ export default function ListSmartlyDashboardPage() {
                                             Mode: {formatWorkflowMode(task.payload.safety.mode)}
                                           </p>
                                         )}
+                                        {task.result?.progress && task.result.progress.length > 0 && (
+                                          <div className="mt-3 flex flex-wrap gap-2">
+                                            {task.result.progress.slice(-4).map((event) => (
+                                              <span
+                                                key={`${task.id}-${event.stage}-${event.at || ""}`}
+                                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${progressStatusClass(event.status)}`}
+                                              >
+                                                <span className={`h-1.5 w-1.5 rounded-full ${progressDotClass(event.status)}`} />
+                                                {event.label}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex flex-wrap gap-2">
                                         {task.status === "needs_user" ? (
                                           <>
+                                            {(task.result?.portalUrl || task.payload?.directory?.claimUrl || task.payload?.directory?.submitUrl || task.payload?.directory?.url || task.directory?.url) && (
+                                              <Button size="sm" variant="outline" asChild>
+                                                <a
+                                                  href={
+                                                    task.result?.portalUrl ||
+                                                    task.payload?.directory?.claimUrl ||
+                                                    task.payload?.directory?.submitUrl ||
+                                                    task.payload?.directory?.url ||
+                                                    task.directory?.url ||
+                                                    "#"
+                                                  }
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                >
+                                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                                  Open Portal
+                                                </a>
+                                              </Button>
+                                            )}
                                             <Button
                                               size="sm"
                                               variant="outline"
                                               onClick={() => {
                                                 const directoryUrl =
+                                                  task.result?.portalUrl ||
                                                   task.payload?.directory?.submitUrl ||
                                                   task.payload?.directory?.claimUrl ||
                                                   task.payload?.directory?.url ||
@@ -1510,14 +1653,15 @@ export default function ListSmartlyDashboardPage() {
                                               }}
                                             >
                                               <KeyRound className="h-3 w-3 mr-1" />
-                                              Save Verification Result
+                                              Save Account Details
                                             </Button>
                                             <Button
                                               size="sm"
-                                              onClick={() => runAutopilotAction("complete_task", { taskId: task.id, result: { completedBy: "user" } })}
+                                              onClick={() => runAutopilotAction("continue_task", { taskId: task.id })}
+                                              disabled={autopilotActionLoading}
                                             >
                                               <Check className="h-3 w-3 mr-1" />
-                                              Mark Verified
+                                              I Completed Verification
                                             </Button>
                                           </>
                                         ) : canWork ? (

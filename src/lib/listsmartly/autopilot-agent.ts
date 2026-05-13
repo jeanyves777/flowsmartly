@@ -3,10 +3,14 @@ import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
 const DAILY_AUTOPILOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const AUTOPILOT_FETCH_TIMEOUT_MS = 10000;
+const AUTOPILOT_USER_AGENT = "Mozilla/5.0 (compatible; FlowSmartlyListSmartly/1.0)";
+const MIN_DIRECTORY_MATCH_SCORE = 5;
 
 type AutopilotAction =
   | "prepare_queue"
   | "run_next"
+  | "continue_task"
   | "complete_task"
   | "block_task"
   | "request_validation"
@@ -24,6 +28,32 @@ type SaveCredentialInput = {
   verificationStatus?: string;
 };
 
+type BusinessSignalInput = {
+  businessName: string;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+};
+
+type SearchCandidate = {
+  link: string;
+  title?: string;
+  snippet?: string;
+  score: number;
+  source: string;
+};
+
+type DirectoryResearchResult = {
+  portalUrl: string | null;
+  portalReachable: boolean;
+  discoveredLinks: string[];
+  searched: boolean;
+  match: SearchCandidate | null;
+  error?: string;
+};
+
 function safeJson(value: unknown): string {
   return JSON.stringify(value || {});
 }
@@ -36,6 +66,88 @@ function parseJsonObject(value: string | null | undefined): Record<string, unkno
   } catch {
     return {};
   }
+}
+
+function appendProgress(
+  current: Record<string, unknown>,
+  event: { stage: string; label: string; status: "done" | "active" | "waiting" | "failed"; detail?: string }
+): Record<string, unknown> {
+  const existing = Array.isArray(current.progress) ? current.progress : [];
+  const progress = [
+    ...existing.filter((item) => {
+      return Boolean(item && typeof item === "object" && (item as { stage?: string }).stage !== event.stage);
+    }),
+    {
+      ...event,
+      at: new Date().toISOString(),
+    },
+  ];
+
+  return {
+    ...current,
+    progress,
+  };
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizePhone(value: string | null | undefined): string {
+  return (value || "").replace(/\D/g, "");
+}
+
+function extractDomain(url: string | null | undefined): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0];
+  }
+}
+
+function normalizeUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`;
+}
+
+function scoreSearchCandidate(profile: BusinessSignalInput, candidate: { link: string; title?: string; snippet?: string }): number {
+  const rawHaystack = `${candidate.title || ""} ${candidate.snippet || ""} ${candidate.link}`;
+  const haystack = normalizeText(rawHaystack);
+  const normalizedName = normalizeText(profile.businessName);
+  const nameTokens = normalizedName.split(" ").filter((token) => token.length > 2);
+  const phone = normalizePhone(profile.phone);
+  const haystackDigits = normalizePhone(rawHaystack);
+  let score = 0;
+
+  if (normalizedName && haystack.includes(normalizedName)) score += 6;
+  score += Math.min(4, nameTokens.filter((token) => haystack.includes(token)).length);
+  if (phone && (haystackDigits.includes(phone) || haystackDigits.includes(phone.slice(-7)))) score += 5;
+  if (profile.website && haystack.includes(normalizeText(extractDomain(profile.website)))) score += 4;
+  if (profile.address && haystack.includes(normalizeText(profile.address))) score += 4;
+  if (profile.city && haystack.includes(normalizeText(profile.city))) score += 1;
+  if (profile.state && haystack.includes(normalizeText(profile.state))) score += 1;
+
+  return score;
+}
+
+function getGoogleApiKey(): string | undefined {
+  return process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
+}
+
+function getGoogleSearchCx(): string | undefined {
+  return (
+    process.env.GOOGLE_SEARCH_CX ||
+    process.env.GOOGLE_CSE_ID ||
+    process.env.GOOGLE_CUSTOM_SEARCH_CX ||
+    process.env.GOOGLE_SEARCH_ENGINE_ID
+  );
 }
 
 function taskPriority(status: string, tier: number): number {
@@ -136,6 +248,223 @@ function addMs(date: Date, ms: number): Date {
   return new Date(date.getTime() + ms);
 }
 
+async function updateTaskProgress(
+  taskId: string,
+  stage: string,
+  statusMessage: string,
+  progressEvent: { label: string; status: "done" | "active" | "waiting" | "failed"; detail?: string },
+  extra: Record<string, unknown> = {}
+) {
+  const task = await prisma.listSmartlyAutopilotTask.findUnique({
+    where: { id: taskId },
+    select: { result: true },
+  });
+  const current = parseJsonObject(task?.result);
+  const next = appendProgress(
+    {
+      ...current,
+      ...extra,
+      stage,
+      statusMessage,
+    },
+    {
+      stage,
+      label: progressEvent.label,
+      status: progressEvent.status,
+      detail: progressEvent.detail,
+    }
+  );
+
+  return prisma.listSmartlyAutopilotTask.update({
+    where: { id: taskId },
+    data: {
+      result: safeJson(next),
+      lastAttemptAt: new Date(),
+    },
+  });
+}
+
+async function probeDirectoryPortal(url: string | null): Promise<{ reachable: boolean; links: string[]; error?: string }> {
+  if (!url) return { reachable: false, links: [] };
+
+  try {
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(AUTOPILOT_FETCH_TIMEOUT_MS),
+      headers: { "User-Agent": AUTOPILOT_USER_AGENT },
+    });
+    const contentType = res.headers.get("content-type") || "";
+    const links: string[] = [];
+
+    if (contentType.includes("text/html")) {
+      const html = (await res.text()).slice(0, 120000);
+      const linkPattern = /href=["']([^"']+)["'][^>]*>([^<]{0,80})/gi;
+      for (const match of html.matchAll(linkPattern)) {
+        const href = match[1] || "";
+        const label = normalizeText(match[2] || "");
+        const combined = normalizeText(`${href} ${label}`);
+        if (!/(claim|add|submit|business|listing|profile|login|sign in|sign up|register)/.test(combined)) {
+          continue;
+        }
+        try {
+          links.push(new URL(href, res.url).toString());
+        } catch {
+          // Ignore malformed page links; the portal probe itself still succeeded.
+        }
+        if (links.length >= 8) break;
+      }
+    }
+
+    return { reachable: res.ok || res.status < 500, links: Array.from(new Set(links)) };
+  } catch (error) {
+    return {
+      reachable: false,
+      links: [],
+      error: error instanceof Error ? error.message : "Portal request failed",
+    };
+  }
+}
+
+async function findPublicDirectoryMatch(
+  profile: BusinessSignalInput,
+  directory: { name: string; url: string }
+): Promise<{ searched: boolean; match: SearchCandidate | null; error?: string }> {
+  const apiKey = getGoogleApiKey();
+  const searchCx = getGoogleSearchCx();
+  const domain = extractDomain(directory.url);
+  if (!apiKey || !searchCx || !domain) {
+    return { searched: false, match: null, error: "Google Custom Search is not configured for directory lookup." };
+  }
+
+  const phone = normalizePhone(profile.phone);
+  const websiteDomain = profile.website ? extractDomain(profile.website) : "";
+  const queries = [
+    `site:${domain} "${profile.businessName}"`,
+    phone ? `site:${domain} "${phone}"` : "",
+    websiteDomain ? `site:${domain} "${websiteDomain}"` : "",
+    profile.address ? `site:${domain} "${profile.address}" "${profile.city || ""}"` : "",
+  ].filter(Boolean);
+
+  const candidates: SearchCandidate[] = [];
+  for (const query of queries) {
+    const url = new URL("https://www.googleapis.com/customsearch/v1");
+    url.searchParams.set("key", apiKey);
+    url.searchParams.set("cx", searchCx);
+    url.searchParams.set("q", query);
+    url.searchParams.set("num", "5");
+
+    try {
+      const res = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(AUTOPILOT_FETCH_TIMEOUT_MS),
+        headers: { "User-Agent": AUTOPILOT_USER_AGENT },
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { items?: Array<{ link: string; title?: string; snippet?: string }> };
+      for (const item of data.items || []) {
+        if (!item.link || !extractDomain(item.link).endsWith(domain)) continue;
+        candidates.push({
+          ...item,
+          score: scoreSearchCandidate(profile, item),
+          source: "google_custom_search",
+        });
+      }
+    } catch (error) {
+      return {
+        searched: candidates.length > 0,
+        match: candidates.sort((a, b) => b.score - a.score)[0] || null,
+        error: error instanceof Error ? error.message : "Directory search failed",
+      };
+    }
+  }
+
+  const best = candidates.sort((a, b) => b.score - a.score)[0] || null;
+  return { searched: true, match: best && best.score >= MIN_DIRECTORY_MATCH_SCORE ? best : null };
+}
+
+async function researchDirectoryWorkflow(profile: BusinessSignalInput, listing: {
+  directory: {
+    name: string;
+    url: string;
+    submitUrl: string | null;
+    claimUrl: string | null;
+  };
+}): Promise<DirectoryResearchResult> {
+  const portalUrl =
+    normalizeUrl(listing.directory.claimUrl) ||
+    normalizeUrl(listing.directory.submitUrl) ||
+    normalizeUrl(listing.directory.url);
+
+  const [portal, search] = await Promise.all([
+    probeDirectoryPortal(portalUrl),
+    findPublicDirectoryMatch(profile, listing.directory),
+  ]);
+
+  return {
+    portalUrl,
+    portalReachable: portal.reachable,
+    discoveredLinks: portal.links,
+    searched: search.searched,
+    match: search.match,
+    error: portal.error || search.error,
+  };
+}
+
+async function markListingLiveFromAutopilot(
+  listingId: string,
+  listingUrl: string,
+  oldStatus: string | null,
+  source: string
+) {
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      status: "live",
+      listingUrl,
+      isConsistent: true,
+      verifiedAt: new Date(),
+      lastCheckedAt: new Date(),
+      lastUpdatedAt: new Date(),
+    },
+  });
+
+  if (oldStatus !== "live") {
+    await prisma.listingChange.create({
+      data: {
+        listingId,
+        changeType: "autopilot",
+        fieldChanged: "status",
+        oldValue: oldStatus,
+        newValue: "live",
+        changedBy: source,
+      },
+    });
+  }
+}
+
+async function markListingMissingFromAutopilot(listingId: string, oldStatus: string | null, source: string) {
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      status: "missing",
+      lastCheckedAt: new Date(),
+      lastUpdatedAt: new Date(),
+    },
+  });
+
+  if (oldStatus !== "missing") {
+    await prisma.listingChange.create({
+      data: {
+        listingId,
+        changeType: "autopilot",
+        fieldChanged: "status",
+        oldValue: oldStatus,
+        newValue: "missing",
+        changedBy: source,
+      },
+    });
+  }
+}
+
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
@@ -189,7 +518,7 @@ export async function getAutopilotState(userId: string) {
       where: { profileId: profile.id },
     }),
     prisma.listSmartlyAutopilotTask.findFirst({
-      where: { profileId: profile.id, status: { in: ["in_progress", "needs_user"] } },
+      where: { profileId: profile.id, status: "in_progress" },
       orderBy: { updatedAt: "desc" },
       include: {
         listing: {
@@ -219,6 +548,7 @@ export async function getAutopilotState(userId: string) {
     : null;
   const dailyLimitActive = Boolean(nextRunAt && nextRunAt > now);
   const queuedCount = taskCounts.queued || 0;
+  const waitingCount = taskCounts.needs_user || 0;
   const activeTaskResult = activeTask ? parseJsonObject(activeTask.result) : {};
   const activeTaskSummary = activeTask
     ? {
@@ -237,6 +567,7 @@ export async function getAutopilotState(userId: string) {
             : activeTask.status === "needs_user"
               ? activeTask.requiredAction || "Waiting for user validation."
               : "Researching the directory workflow and preparing the next safe action.",
+        progress: Array.isArray(activeTaskResult.progress) ? activeTaskResult.progress : [],
         directory: activeTask.listing?.directory || null,
         updatedAt: activeTask.updatedAt,
       }
@@ -259,14 +590,16 @@ export async function getAutopilotState(userId: string) {
       savedAccounts,
     },
     runtime: {
-      queueReady: queuedCount > 0 || Boolean(activeTask),
-      canPrepareQueue: queuedCount === 0 && !activeTask,
-      canRun: queuedCount > 0 && !activeTask && !dailyLimitActive,
+      queueReady: queuedCount > 0 || waitingCount > 0 || Boolean(activeTask),
+      canPrepareQueue: queuedCount === 0 && waitingCount === 0 && !activeTask,
+      canRun: queuedCount > 0 && waitingCount === 0 && !activeTask && !dailyLimitActive,
       activeTask: activeTaskSummary,
       lastStartedAt: lastStartedTask?.startedAt || null,
       nextRunAt,
       message: activeTask
         ? `${activeTask.title} is already running. Status refreshes automatically.`
+        : waitingCount > 0
+          ? "Autopilot is waiting for user validation before starting another listing workflow."
         : dailyLimitActive && nextRunAt
           ? `Daily limit reached. Next autopilot run is available ${nextRunAt.toISOString()}.`
           : queuedCount > 0
@@ -283,8 +616,8 @@ export async function getAutopilotState(userId: string) {
       description: task.description,
       requiredAction: task.requiredAction,
       assignedTo: task.assignedTo,
-      payload: JSON.parse(task.payload || "{}"),
-      result: JSON.parse(task.result || "{}"),
+      payload: parseJsonObject(task.payload),
+      result: parseJsonObject(task.result),
       failureReason: task.failureReason,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -432,6 +765,249 @@ export async function prepareAutopilotQueue(userId: string) {
   };
 }
 
+export async function processAutopilotTask(userId: string, taskId?: string) {
+  const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
+  if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  const task = await prisma.listSmartlyAutopilotTask.findFirst({
+    where: {
+      profileId: profile.id,
+      status: "in_progress",
+      ...(taskId ? { id: taskId } : {}),
+    },
+    include: {
+      listing: {
+        include: {
+          directory: {
+            select: {
+              name: true,
+              url: true,
+              submitUrl: true,
+              claimUrl: true,
+              tier: true,
+              slug: true,
+              apiAvailable: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { updatedAt: "asc" },
+  });
+
+  if (!task) {
+    return { status: "idle", message: "No in-progress ListSmartly autopilot task is waiting.", task: null };
+  }
+
+  if (!task.listing) {
+    const failed = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "failed",
+        assignedTo: "admin",
+        failureReason: "The listing record for this autopilot task no longer exists.",
+        result: safeJson(
+          appendProgress(parseJsonObject(task.result), {
+            stage: "failed",
+            label: "Listing record missing",
+            status: "failed",
+            detail: "The task could not continue because the linked listing was removed.",
+          })
+        ),
+      },
+    });
+    return { status: "failed", message: failed.failureReason || "Task failed.", task: failed };
+  }
+
+  console.log(`ListSmartly autopilot: processing ${task.title} for ${profile.businessName}`);
+
+  await updateTaskProgress(
+    task.id,
+    "checking_public_presence",
+    `Checking public search results and ${task.listing.directory.name} pages for an existing business profile.`,
+    {
+      label: "Public listing check",
+      status: "active",
+      detail: `Searching ${task.listing.directory.name} for ${profile.businessName}.`,
+    },
+    { startedAt: task.startedAt?.toISOString() || new Date().toISOString() }
+  );
+
+  const research = await researchDirectoryWorkflow(profile, task.listing);
+
+  if (research.match) {
+    await updateTaskProgress(
+      task.id,
+      "public_listing_verified",
+      `Found a matching ${task.listing.directory.name} public listing.`,
+      {
+        label: "Public listing found",
+        status: "done",
+        detail: research.match.link,
+      },
+      {
+        portalUrl: research.portalUrl,
+        discoveredLinks: research.discoveredLinks,
+        match: research.match,
+      }
+    );
+
+    await markListingLiveFromAutopilot(
+      task.listing.id,
+      research.match.link,
+      task.listing.status,
+      "autopilot_public_research"
+    );
+
+    const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
+      where: { id: task.id },
+      select: { result: true },
+    }))?.result);
+    const completedResult = appendProgress(
+      {
+        ...current,
+        stage: "completed",
+        statusMessage: `${task.listing.directory.name} was verified from public search results.`,
+        listingUrl: research.match.link,
+        completedAt: new Date().toISOString(),
+      },
+      {
+        stage: "completed",
+        label: "Verification complete",
+        status: "done",
+        detail: `${task.listing.directory.name} is now marked live.`,
+      }
+    );
+
+    const completed = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "completed",
+        result: safeJson(completedResult),
+        completedAt: new Date(),
+      },
+    });
+
+    await createNotification({
+      userId,
+      type: NOTIFICATION_TYPES.SYSTEM,
+      title: "ListSmartly listing verified",
+      message: `${task.listing.directory.name} was verified and marked live.`,
+      actionUrl: "/listsmartly/dashboard",
+      data: { feature: "listsmartly", taskId: task.id, listingUrl: research.match.link },
+    });
+
+    return {
+      status: "completed",
+      message: `${task.listing.directory.name} was verified and marked live.`,
+      task: completed,
+    };
+  }
+
+  const handoffUrl = research.discoveredLinks[0] || research.portalUrl || task.listing.directory.url;
+
+  if (research.searched) {
+    await markListingMissingFromAutopilot(task.listing.id, task.listing.status, "autopilot_public_research");
+  } else {
+    await prisma.businessListing.update({
+      where: { id: task.listing.id },
+      data: {
+        lastCheckedAt: new Date(),
+        lastUpdatedAt: new Date(),
+      },
+    });
+  }
+
+  const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
+    where: { id: task.id },
+    select: { result: true },
+  }))?.result);
+
+  if (!research.portalReachable) {
+    const blockedMessage =
+      `${task.listing.directory.name} could not be safely reached from the server today. ` +
+      "The agent recorded the failed portal check and will leave the workflow blocked instead of retrying aggressively.";
+    const blockedResult = appendProgress(
+      {
+        ...current,
+        stage: "blocked_directory_unreachable",
+        statusMessage: blockedMessage,
+        portalUrl: research.portalUrl,
+        discoveredLinks: research.discoveredLinks,
+        searched: research.searched,
+        error: research.error,
+      },
+      {
+        stage: "blocked_directory_unreachable",
+        label: "Portal check blocked",
+        status: "failed",
+        detail: research.error || "Directory portal did not return a reachable response.",
+      }
+    );
+
+    const blocked = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "blocked",
+        assignedTo: "admin",
+        failureReason: blockedMessage,
+        requiredAction: blockedMessage,
+        result: safeJson(blockedResult),
+      },
+    });
+
+    return { status: "blocked", message: blockedMessage, task: blocked };
+  }
+
+  const validationMessage =
+    `${task.listing.directory.name} research completed. ` +
+    (research.searched
+      ? "No confirmed public listing was found from the directory search. "
+      : "Public search is not fully configured for this directory, so the agent checked the portal path instead. ") +
+    "The next safe step requires owner/account validation in the directory portal; the agent will not bypass login, CAPTCHA, email, SMS, phone, payment, or owner approval.";
+
+  const waitingResult = appendProgress(
+    {
+      ...current,
+      stage: "waiting_for_user_validation",
+      statusMessage: validationMessage,
+      portalUrl: handoffUrl,
+      discoveredLinks: research.discoveredLinks,
+      searched: research.searched,
+      match: null,
+      error: research.error,
+    },
+    {
+      stage: "waiting_for_user_validation",
+      label: "Waiting for real validation",
+      status: "waiting",
+      detail: handoffUrl || "Open the directory portal when owner validation is available.",
+    }
+  );
+
+  const needsUser = await prisma.listSmartlyAutopilotTask.update({
+    where: { id: task.id },
+    data: {
+      status: "needs_user",
+      assignedTo: "user",
+      requiredAction: validationMessage,
+      failureReason: null,
+      result: safeJson(waitingResult),
+    },
+  });
+
+  await createNotification({
+    userId,
+    type: NOTIFICATION_TYPES.SYSTEM,
+    title: "ListSmartly validation needed",
+    message: validationMessage,
+    actionUrl: "/listsmartly/dashboard",
+    data: { feature: "listsmartly", taskId: task.id, portalUrl: handoffUrl },
+  });
+
+  return { status: "needs_user", message: validationMessage, task: needsUser };
+}
+
 export async function runNextAutopilotStep(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
@@ -441,9 +1017,12 @@ export async function runNextAutopilotStep(userId: string) {
     orderBy: { updatedAt: "desc" },
   });
   if (activeTask) {
+    const isWaiting = activeTask.status === "needs_user";
     return {
-      status: "already_running",
-      message: `${activeTask.title} is already running. Autopilot will not start another workflow at the same time.`,
+      status: isWaiting ? "waiting_for_user" : "already_running",
+      message: isWaiting
+        ? `${activeTask.title} is waiting for user validation. Autopilot will continue after the user completes that step.`
+        : `${activeTask.title} is already running. Autopilot will not start another workflow at the same time.`,
       task: activeTask,
     };
   }
@@ -494,6 +1073,15 @@ export async function runNextAutopilotStep(userId: string) {
           "Researching the public directory workflow, submit/claim path, and validation requirements.",
         cadence: "one_workflow_per_day",
         startedAt: new Date().toISOString(),
+        progress: [
+          {
+            stage: "running_directory_workflow",
+            label: "Agent started",
+            status: "active",
+            detail: "Preparing the directory workflow.",
+            at: new Date().toISOString(),
+          },
+        ],
       }),
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
@@ -512,12 +1100,59 @@ export async function runNextAutopilotStep(userId: string) {
     data: { feature: "listsmartly", taskId: task.id },
   });
 
+  const processed = await processAutopilotTask(userId, updated.id);
+
   return {
     status: "started",
-    message: `${task.title} started. Autopilot runs one listing workflow per day.`,
-    task: updated,
+    message: processed.message || `${task.title} started. Autopilot runs one listing workflow per day.`,
+    task: processed.task || updated,
     nextRunAt: addMs(new Date(), DAILY_AUTOPILOT_INTERVAL_MS),
   };
+}
+
+export async function continueAutopilotTask(userId: string, taskId: string) {
+  const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
+  if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  const task = await prisma.listSmartlyAutopilotTask.findFirst({
+    where: {
+      id: taskId,
+      profileId: profile.id,
+      status: "needs_user",
+    },
+    select: { id: true, result: true, title: true },
+  });
+  if (!task) throw new Error("TASK_NOT_FOUND");
+
+  const result = appendProgress(
+    {
+      ...parseJsonObject(task.result),
+      stage: "validation_received",
+      statusMessage: "User confirmed the validation step is complete. The agent is checking the directory again.",
+      userConfirmedAt: new Date().toISOString(),
+    },
+    {
+      stage: "validation_received",
+      label: "Validation confirmed",
+      status: "done",
+      detail: "The agent is resuming the listing check.",
+    }
+  );
+
+  await prisma.listSmartlyAutopilotTask.update({
+    where: { id: task.id },
+    data: {
+      status: "in_progress",
+      assignedTo: "agent",
+      result: safeJson(result),
+      requiredAction:
+        "Validation was confirmed. Autopilot is re-checking the directory and will complete the listing or ask for the next real validation step.",
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+    },
+  });
+
+  return processAutopilotTask(userId, task.id);
 }
 
 export async function completeAutopilotTask(userId: string, taskId: string, result: Record<string, unknown> = {}) {
@@ -675,6 +1310,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
 export async function handleAutopilotAction(userId: string, action: AutopilotAction, body: Record<string, unknown>) {
   if (action === "prepare_queue") return prepareAutopilotQueue(userId);
   if (action === "run_next") return runNextAutopilotStep(userId);
+  if (action === "continue_task") return continueAutopilotTask(userId, String(body.taskId));
   if (action === "complete_task") return completeAutopilotTask(userId, String(body.taskId), body.result as Record<string, unknown>);
   if (action === "block_task") return blockAutopilotTask(userId, String(body.taskId), String(body.reason || ""));
   if (action === "request_validation") return requestAutopilotValidation(userId, String(body.taskId), String(body.reason || ""));

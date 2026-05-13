@@ -131,6 +131,16 @@ const CRON_JOBS: CronJob[] = [
     category: "engagement",
   },
   {
+    id: "listsmartly-autopilot",
+    name: "ListSmartly Autopilot",
+    description: "Process active listing-agent tasks and start at most one new listing workflow per profile per day",
+    endpoint: "/api/cron/listsmartly-autopilot",
+    schedule: "17 * * * *",
+    frequency: "Hourly, backend enforces one workflow per day",
+    icon: ListChecks,
+    category: "engagement",
+  },
+  {
     id: "trial-check",
     name: "E-commerce Trial Check",
     description: "Send trial reminders and expire free trials past their end date",
@@ -447,7 +457,10 @@ export default function AdminCronJobsPage() {
 */5 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/cron/publish-scheduled-posts
 
 # Content automation - every 15 minutes
-*/15 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/content/automation/scheduler`}
+*/15 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/content/automation/scheduler
+
+# ListSmartly autopilot - hourly, backend enforces one workflow per day
+17 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/cron/listsmartly-autopilot`}
           </pre>
         </CardContent>
       </Card>
