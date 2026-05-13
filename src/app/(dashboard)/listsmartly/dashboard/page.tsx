@@ -126,6 +126,21 @@ interface AutopilotState {
     listingStatusCounts: Record<string, number>;
     savedAccounts: number;
   };
+  runtime?: {
+    queueReady: boolean;
+    canPrepareQueue: boolean;
+    canRun: boolean;
+    activeTask?: {
+      id: string;
+      title: string;
+      status: string;
+      updatedAt: string;
+      directory?: { name: string; url: string; tier: number; slug: string } | null;
+    } | null;
+    lastStartedAt?: string | null;
+    nextRunAt?: string | null;
+    message?: string;
+  };
   tasks: AutopilotTask[];
   credentials: AccountCredential[];
 }
@@ -175,6 +190,25 @@ function sentimentIcon(sentiment: string) {
     default:
       return <Minus className="h-3.5 w-3.5" />;
   }
+}
+
+function formatWorkflowMode(mode?: string): string {
+  if (!mode) return "Directory web workflow";
+  if (mode === "api_or_web_workflow") return "API or web workflow";
+  if (mode === "web_workflow") return "Web workflow";
+  if (mode === "assisted_manual_handoff") return "Web workflow with user validation";
+  if (mode === "official_api_or_assisted") return "API or web workflow";
+  return mode.replaceAll("_", " ");
+}
+
+function formatNextRun(value?: string | null): string {
+  if (!value) return "";
+  return new Date(value).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function sentimentColor(sentiment: string): string {
@@ -274,6 +308,7 @@ export default function ListSmartlyDashboardPage() {
   const [autopilotState, setAutopilotState] = useState<AutopilotState | null>(null);
   const [autopilotLoading, setAutopilotLoading] = useState(false);
   const [autopilotActionLoading, setAutopilotActionLoading] = useState(false);
+  const [lastAutopilotRefresh, setLastAutopilotRefresh] = useState<string | null>(null);
   const [credentialDraft, setCredentialDraft] = useState<{
     listingId: string;
     directoryName: string;
@@ -398,8 +433,8 @@ export default function ListSmartlyDashboardPage() {
     }
   }, []);
 
-  const fetchAutopilotSettings = useCallback(async () => {
-    setAutopilotLoading(true);
+  const fetchAutopilotSettings = useCallback(async (silent = false) => {
+    if (!silent) setAutopilotLoading(true);
     try {
       const res = await fetch("/api/listsmartly/autopilot");
       if (!res.ok) return;
@@ -408,10 +443,11 @@ export default function ListSmartlyDashboardPage() {
       setAutopilotState(state);
       setAutoFixEnabled(state.settings.autoFix || false);
       setAutoDescEnabled(state.settings.autoDescriptions || false);
+      setLastAutopilotRefresh(new Date().toISOString());
     } catch {
       // Non-critical
     } finally {
-      setAutopilotLoading(false);
+      if (!silent) setAutopilotLoading(false);
     }
   }, []);
 
@@ -450,6 +486,14 @@ export default function ListSmartlyDashboardPage() {
     if (activeTab === "autopilot") {
       fetchAutopilotSettings();
     }
+  }, [activeTab, fetchAutopilotSettings]);
+
+  useEffect(() => {
+    if (activeTab !== "autopilot") return;
+    const interval = window.setInterval(() => {
+      fetchAutopilotSettings(true);
+    }, 15000);
+    return () => window.clearInterval(interval);
   }, [activeTab, fetchAutopilotSettings]);
 
   // ── Actions ──
@@ -492,6 +536,7 @@ export default function ListSmartlyDashboardPage() {
   }
 
   async function runAutopilotAction(action: string, body: Record<string, unknown> = {}) {
+    if (autopilotActionLoading) return;
     setAutopilotActionLoading(true);
     try {
       const res = await fetch("/api/listsmartly/autopilot", {
@@ -508,10 +553,11 @@ export default function ListSmartlyDashboardPage() {
       }
       toast({
         title: "Autopilot updated",
-        description:
+        description: json.data?.result?.message || (
           action === "prepare_queue"
-            ? "The guided listing queue is ready."
-            : "The workflow has been updated.",
+            ? "The agent queue is ready."
+            : "The workflow has been updated."
+        ),
       });
     } catch {
       toast({ title: "Error", description: "Failed to run autopilot action", variant: "destructive" });
@@ -1209,7 +1255,12 @@ export default function ListSmartlyDashboardPage() {
     const state = autopilotState;
     const tasks = state?.tasks || [];
     const credentials = state?.credentials || [];
-    const nextTask = tasks.find((task) => ["queued", "needs_user", "in_progress"].includes(task.status));
+    const activeTask = state?.runtime?.activeTask || null;
+    const nextQueuedTask = tasks.find((task) => task.status === "queued");
+    const queueReady = Boolean(state?.runtime?.queueReady || (state?.stats.taskCounts.queued || 0) > 0);
+    const canPrepareQueue = Boolean(state?.runtime?.canPrepareQueue && !autopilotActionLoading && !autopilotLoading);
+    const canRunAutopilot = Boolean(state?.runtime?.canRun && !autopilotActionLoading && !autopilotLoading);
+    const nextRunAt = state?.runtime?.nextRunAt || null;
     const taskGroups = [
       { key: "needs_user", title: "Needs Your Validation", icon: Bell },
       { key: "in_progress", title: "Agent Working", icon: Sparkles },
@@ -1268,8 +1319,9 @@ export default function ListSmartlyDashboardPage() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Controlled, human-safe submission flow</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    The agent prepares each directory, stores account progress, and pauses for email, SMS, CAPTCHA,
-                    phone, or admin approval. It uses official integrations or guided handoff only.
+                    The agent uses approved APIs when available, otherwise it uses low-rate public directory web workflows
+                    and submit/claim pages. It runs one account or listing workflow per day and pauses only for real
+                    validation requirements like email, SMS, phone, CAPTCHA, payment, or owner approval.
                   </p>
                 </div>
               </div>
@@ -1278,24 +1330,40 @@ export default function ListSmartlyDashboardPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 onClick={() => runAutopilotAction("prepare_queue")}
-                disabled={autopilotActionLoading || autopilotLoading}
+                disabled={!canPrepareQueue}
               >
                 <ClipboardCheck className="h-4 w-4 mr-2" />
-                Prepare Agent Queue
+                {queueReady ? "Queue Ready" : "Prepare Agent Queue"}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => runAutopilotAction("run_next")}
-                disabled={autopilotActionLoading || autopilotLoading}
+                disabled={!canRunAutopilot}
               >
                 <Play className="h-4 w-4 mr-2" />
-                Run Autopilot
+                {activeTask ? "Autopilot Running" : nextRunAt ? "Runs Daily" : "Run Autopilot"}
               </Button>
-              {nextTask && (
-                <p className="text-xs text-muted-foreground">
-                  Active: <span className="text-foreground font-medium">{nextTask.title}</span>
+              <div className="min-w-[220px] text-xs text-muted-foreground">
+                {activeTask ? (
+                  <p>
+                    Working: <span className="text-foreground font-medium">{activeTask.title}</span>
+                  </p>
+                ) : nextRunAt ? (
+                  <p>
+                    Next daily run: <span className="text-foreground font-medium">{formatNextRun(nextRunAt)}</span>
+                  </p>
+                ) : nextQueuedTask ? (
+                  <p>
+                    Ready for: <span className="text-foreground font-medium">{nextQueuedTask.title}</span>
+                  </p>
+                ) : (
+                  <p>{state?.runtime?.message || "No prepared workflow is waiting."}</p>
+                )}
+                <p className="mt-1">
+                  Status auto-refreshes every 15s
+                  {lastAutopilotRefresh ? ` - last checked ${new Date(lastAutopilotRefresh).toLocaleTimeString()}` : ""}
                 </p>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1404,7 +1472,7 @@ export default function ListSmartlyDashboardPage() {
                                         <p className="mt-1 text-xs text-muted-foreground">{task.requiredAction || task.description}</p>
                                         {task.payload?.safety?.mode && (
                                           <p className="mt-1 text-[11px] text-muted-foreground">
-                                            Mode: {task.payload.safety.mode.replaceAll("_", " ")}
+                                            Mode: {formatWorkflowMode(task.payload.safety.mode)}
                                           </p>
                                         )}
                                       </div>

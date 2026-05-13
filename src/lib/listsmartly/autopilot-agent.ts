@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
 
-const LIVE_STATUSES = ["live", "submitted", "claimed"];
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
+const DAILY_AUTOPILOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 type AutopilotAction =
   | "prepare_queue"
@@ -51,12 +51,12 @@ function taskTitle(status: string, directoryName: string): string {
 
 function requiredActionForStatus(status: string): string {
   if (status === "missing") {
-    return "Create or claim the business listing, complete email/phone verification if prompted, then save the account details here.";
+    return "Autopilot will create or claim this listing and pause only if the directory requires email, SMS, phone, payment, or CAPTCHA verification.";
   }
   if (status === "needs_update") {
-    return "Update the listing with the approved business profile, then mark it complete after the directory accepts the change.";
+    return "Autopilot will update the listing with the approved business profile and pause only if the directory requires user validation.";
   }
-  return "Confirm whether the listing exists. If it exists, save the live URL; if it does not, move it into the create/claim queue.";
+  return "Autopilot will verify the public listing state through the directory workflow, then create, claim, or pause if user validation is required.";
 }
 
 function buildDirectoryPayload(profile: {
@@ -106,20 +106,24 @@ function buildDirectoryPayload(profile: {
       apiAvailable: listing.directory.apiAvailable,
     },
     safety: {
-      mode: listing.directory.apiAvailable ? "official_api_or_assisted" : "assisted_manual_handoff",
+      mode: listing.directory.apiAvailable ? "api_or_web_workflow" : "web_workflow",
       policy:
-        "Use official APIs or a human-assisted browser handoff. Do not bypass rate limits, CAPTCHAs, email verification, phone verification, or directory terms.",
-      pacing: "One directory at a time with verification checkpoints.",
+        "Use official APIs when available, otherwise use public directory pages, submit/claim URLs, and low-rate web research. Do not bypass login protections, CAPTCHAs, email/SMS/phone verification, rate limits, payment requirements, or directory terms.",
+      pacing: "One account or listing workflow per day with verification checkpoints.",
     },
     steps: [
-      "Review directory requirements and business data.",
-      "Open the official submit or claim URL.",
-      "Create or claim the account using the approved business contact.",
+      "Research the directory requirements and public business listing state.",
+      "Use the submit, claim, or public directory workflow.",
+      "Create or claim the account using the approved business contact when allowed.",
       "Pause for email, SMS, or phone verification when required.",
       "Save the account details and verification status in ListSmartly.",
       "Validate the public listing URL after approval.",
     ],
   };
+}
+
+function addMs(date: Date, ms: number): Date {
+  return new Date(date.getTime() + ms);
 }
 
 export async function getAutopilotState(userId: string) {
@@ -128,7 +132,15 @@ export async function getAutopilotState(userId: string) {
   });
   if (!profile) return null;
 
-  const [tasks, credentials, statusCounts, taskStatusCounts, savedAccounts] = await Promise.all([
+  const [
+    tasks,
+    credentials,
+    statusCounts,
+    taskStatusCounts,
+    savedAccounts,
+    activeTask,
+    lastStartedTask,
+  ] = await Promise.all([
     prisma.listSmartlyAutopilotTask.findMany({
       where: { profileId: profile.id },
       include: {
@@ -166,12 +178,46 @@ export async function getAutopilotState(userId: string) {
     prisma.listSmartlyAccountCredential.count({
       where: { profileId: profile.id },
     }),
+    prisma.listSmartlyAutopilotTask.findFirst({
+      where: { profileId: profile.id, status: { in: ["in_progress", "needs_user"] } },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        listing: {
+          include: {
+            directory: {
+              select: { name: true, url: true, tier: true, slug: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.listSmartlyAutopilotTask.findFirst({
+      where: { profileId: profile.id, startedAt: { not: null } },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, startedAt: true, title: true },
+    }),
   ]);
 
   const taskCounts = taskStatusCounts.reduce<Record<string, number>>((acc, item) => {
     acc[item.status] = item._count.status;
     return acc;
   }, {});
+
+  const now = new Date();
+  const nextRunAt = lastStartedTask?.startedAt
+    ? addMs(lastStartedTask.startedAt, DAILY_AUTOPILOT_INTERVAL_MS)
+    : null;
+  const dailyLimitActive = Boolean(nextRunAt && nextRunAt > now);
+  const queuedCount = taskCounts.queued || 0;
+  const activeTaskSummary = activeTask
+    ? {
+        id: activeTask.id,
+        title: activeTask.title,
+        status: activeTask.status,
+        directory: activeTask.listing?.directory || null,
+        updatedAt: activeTask.updatedAt,
+      }
+    : null;
 
   return {
     settings: {
@@ -188,6 +234,21 @@ export async function getAutopilotState(userId: string) {
       }, {}),
       taskCounts,
       savedAccounts,
+    },
+    runtime: {
+      queueReady: queuedCount > 0 || Boolean(activeTask),
+      canPrepareQueue: queuedCount === 0 && !activeTask,
+      canRun: queuedCount > 0 && !activeTask && !dailyLimitActive,
+      activeTask: activeTaskSummary,
+      lastStartedAt: lastStartedTask?.startedAt || null,
+      nextRunAt,
+      message: activeTask
+        ? `${activeTask.title} is already running. Status refreshes automatically.`
+        : dailyLimitActive && nextRunAt
+          ? `Daily limit reached. Next autopilot run is available ${nextRunAt.toISOString()}.`
+          : queuedCount > 0
+            ? "Queue is ready. Autopilot runs one listing workflow per day."
+            : "No prepared listing workflow is waiting.",
     },
     tasks: tasks.map((task) => ({
       id: task.id,
@@ -289,7 +350,17 @@ export async function prepareAutopilotQueue(userId: string) {
       },
       select: { id: true },
     });
-    if (existing) continue;
+    if (existing) {
+      await prisma.listSmartlyAutopilotTask.update({
+        where: { id: existing.id },
+        data: {
+          assignedTo: "agent",
+          requiredAction: requiredActionForStatus(listing.status),
+          payload: safeJson(buildDirectoryPayload(profile, listing)),
+        },
+      });
+      continue;
+    }
 
     await prisma.listSmartlyAutopilotTask.create({
       data: {
@@ -301,7 +372,7 @@ export async function prepareAutopilotQueue(userId: string) {
         title: taskTitle(listing.status, listing.directory.name),
         description: `${listing.directory.name} is ${listing.status.replace("_", " ")} and needs a controlled listing workflow.`,
         requiredAction: requiredActionForStatus(listing.status),
-        assignedTo: listing.directory.apiAvailable ? "agent" : "user",
+        assignedTo: "agent",
         payload: safeJson(buildDirectoryPayload(profile, listing)),
       },
     });
@@ -327,12 +398,49 @@ export async function prepareAutopilotQueue(userId: string) {
     });
   }
 
-  return { created, considered: listings.length };
+  return {
+    created,
+    considered: listings.length,
+    status: created > 0 ? "prepared" : "ready",
+    message:
+      created > 0
+        ? `${created} listing workflow${created === 1 ? "" : "s"} prepared.`
+        : "Agent queue is already ready.",
+  };
 }
 
 export async function runNextAutopilotStep(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  const activeTask = await prisma.listSmartlyAutopilotTask.findFirst({
+    where: { profileId: profile.id, status: { in: ["in_progress", "needs_user"] } },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (activeTask) {
+    return {
+      status: "already_running",
+      message: `${activeTask.title} is already running. Autopilot will not start another workflow at the same time.`,
+      task: activeTask,
+    };
+  }
+
+  const lastStartedTask = await prisma.listSmartlyAutopilotTask.findFirst({
+    where: { profileId: profile.id, startedAt: { not: null } },
+    orderBy: { startedAt: "desc" },
+    select: { id: true, title: true, startedAt: true },
+  });
+  if (lastStartedTask?.startedAt) {
+    const nextRunAt = addMs(lastStartedTask.startedAt, DAILY_AUTOPILOT_INTERVAL_MS);
+    if (nextRunAt > new Date()) {
+      return {
+        status: "daily_limit",
+        message: `Autopilot is limited to one account or listing workflow per day. Next run is available ${nextRunAt.toISOString()}.`,
+        task: null,
+        nextRunAt,
+      };
+    }
+  }
 
   const task = await prisma.listSmartlyAutopilotTask.findFirst({
     where: { profileId: profile.id, status: "queued" },
@@ -348,33 +456,38 @@ export async function runNextAutopilotStep(userId: string) {
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
   });
 
-  if (!task) return { task: null };
+  if (!task) {
+    return { status: "empty", message: "No prepared listing workflow is waiting.", task: null };
+  }
 
   const updated = await prisma.listSmartlyAutopilotTask.update({
     where: { id: task.id },
     data: {
-      status: task.listing?.directory.apiAvailable ? "in_progress" : "needs_user",
-      assignedTo: task.listing?.directory.apiAvailable ? "agent" : "user",
+      status: "in_progress",
+      assignedTo: "agent",
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
       startedAt: task.startedAt || new Date(),
       requiredAction:
-        task.listing?.directory.apiAvailable
-          ? "Use the official integration if available; otherwise continue with the guided handoff."
-          : requiredActionForStatus(task.listing?.status || "missing"),
+        "Autopilot is running a compliant directory web workflow. It will pause only if email, SMS, phone, CAPTCHA, payment, or owner approval is required.",
     },
   });
 
   await createNotification({
     userId,
     type: NOTIFICATION_TYPES.SYSTEM,
-    title: "ListSmartly action needs review",
-    message: `${task.title} is ready. Complete any email or phone verification in the guided workflow.`,
+    title: "ListSmartly autopilot started",
+    message: `${task.title} started. The agent will run one listing workflow today and pause only if user validation is required.`,
     actionUrl: "/listsmartly/dashboard",
     data: { feature: "listsmartly", taskId: task.id },
   });
 
-  return { task: updated };
+  return {
+    status: "started",
+    message: `${task.title} started. Autopilot runs one listing workflow per day.`,
+    task: updated,
+    nextRunAt: addMs(new Date(), DAILY_AUTOPILOT_INTERVAL_MS),
+  };
 }
 
 export async function completeAutopilotTask(userId: string, taskId: string, result: Record<string, unknown> = {}) {
