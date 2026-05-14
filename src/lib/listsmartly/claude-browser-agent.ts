@@ -375,6 +375,7 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
       document.querySelectorAll("iframe, div, section, form, input")
     ).some((el) => {
       if (!visible(el)) return false;
+      const rect = el.getBoundingClientRect();
       const marker = [
         el.getAttribute("src") || "",
         el.getAttribute("title") || "",
@@ -383,7 +384,9 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         el.getAttribute("class") || "",
         el.getAttribute("name") || "",
       ].join(" ");
-      return /(recaptcha|hcaptcha|turnstile|captcha|cloudflare challenge)/i.test(marker);
+      if (!/(recaptcha|hcaptcha|turnstile|captcha|cloudflare challenge)/i.test(marker)) return false;
+      if (/badge|invisible|anchor/i.test(marker)) return false;
+      return rect.width >= 180 && rect.height >= 80;
     });
     return {
       url: location.href,
@@ -725,6 +728,21 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 setValue(singleCharInputs[index], char);
               });
               return { filled: true, mode: "split", count: codeValue.length };
+            }
+            const visibleTextInputs = inputs.filter((input) => {
+              if (!visible(input) || input.disabled || input.readOnly) return false;
+              const type = (input.getAttribute("type") || "text").toLowerCase();
+              return ["", "text", "tel", "number"].includes(type);
+            });
+            if (
+              visibleTextInputs.length >= codeValue.length &&
+              visibleTextInputs.length <= 8 &&
+              codeValue.length >= 4
+            ) {
+              codeValue.split("").forEach((char, index) => {
+                setValue(visibleTextInputs[index], char);
+              });
+              return { filled: true, mode: "split_visible_inputs", count: codeValue.length };
             }
             return { filled: false, mode: "not_found", visibleInputs: inputs.filter((input) => visible(input)).length };
           }, code);
