@@ -174,6 +174,28 @@ export async function getListSmartlyAgentBrowserView(workflowId?: string | null)
   };
 }
 
+export async function getListSmartlyAgentBrowserStatus(workflowId?: string | null): Promise<
+  | {
+      active: true;
+      url: string;
+      title: string;
+      text: string;
+      blockers: BrowserSnapshot["blockers"];
+    }
+  | { active: false; reason: string }
+> {
+  const session = getActiveAgentSession(workflowId);
+  if (!session) return { active: false, reason: "No live browser session is currently attached to this workflow." };
+  const snapshot = await observePage(session.page);
+  return {
+    active: true,
+    url: snapshot.url,
+    title: snapshot.title,
+    text: snapshot.text,
+    blockers: snapshot.blockers,
+  };
+}
+
 export async function controlListSmartlyAgentBrowser(
   workflowId: string | null | undefined,
   control: ListSmartlyAgentBrowserControl
@@ -268,7 +290,7 @@ type ProgressCallback = (event: {
   extra?: Record<string, unknown>;
 }) => Promise<void> | void;
 
-type BrowserSnapshot = {
+export type BrowserSnapshot = {
   url: string;
   title: string;
   text: string;
@@ -365,6 +387,10 @@ function valuesForProfile(
     state: profile.state || "",
     zip: profile.zip || "",
     country: profile.country || "United States",
+    birthMonth: "January",
+    birthMonthNumber: "1",
+    birthDay: "1",
+    birthYear: "1990",
     industry: profile.industry || "",
     yearFounded: profile.yearFounded || "",
     description: profile.description || "",
@@ -619,6 +645,35 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
       if (/badge|invisible|anchor/i.test(marker)) return false;
       return rect.width >= 180 && rect.height >= 80;
     });
+    const buttons = Array.from(
+      document.querySelectorAll(
+        'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
+      )
+    )
+      .filter((el) => visible(el))
+      .map((el: any, index) => ({
+        index,
+        tag: el.tagName,
+        text: (el.innerText || el.textContent || el.getAttribute("value") || el.getAttribute("aria-label") || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 140),
+        label: [
+          el.getAttribute("aria-label") || "",
+          el.getAttribute("title") || "",
+          el.getAttribute("name") || "",
+          el.getAttribute("id") || "",
+        ]
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 140),
+        href: el.href || "",
+        type: el.getAttribute("type") || "",
+      }))
+      .filter((item) => item.text || item.label || item.href)
+      .slice(0, 80);
+    const buttonContext = buttons.map((item) => `${item.text} ${item.label}`).join(" ");
     return {
       url: location.href,
       title: document.title,
@@ -637,34 +692,7 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
           value: el.value ? "[filled]" : "",
           required: Boolean(el.required || el.getAttribute("aria-required") === "true"),
         })),
-      buttons: Array.from(
-        document.querySelectorAll(
-          'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
-        )
-      )
-        .filter((el) => visible(el))
-        .map((el: any, index) => ({
-          index,
-          tag: el.tagName,
-          text: (el.innerText || el.textContent || el.getAttribute("value") || el.getAttribute("aria-label") || "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 140),
-          label: [
-            el.getAttribute("aria-label") || "",
-            el.getAttribute("title") || "",
-            el.getAttribute("name") || "",
-            el.getAttribute("id") || "",
-          ]
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 140),
-          href: el.href || "",
-          type: el.getAttribute("type") || "",
-        }))
-        .filter((item) => item.text || item.label || item.href)
-        .slice(0, 80),
+      buttons,
       blockers: {
         captcha:
           visibleCaptchaElement ||
@@ -672,7 +700,9 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         emailVerification: /(verify[-_\s]?email|verify your email|email verification|verification code|one.?time verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageContext),
         phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageContext),
         payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageContext),
-        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|microsoft account|work account|office 365)/i.test(pageContext),
+        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|microsoft account|work account|office 365|continue with facebook)/i.test(
+          buttonContext
+        ),
         businessEmailRejected: /(provide a valid business email|please enter a valid business email|valid work email|company email required|free email domain|business email is required|invalid business email)/i.test(
           `${alertText} ${pageText}`
         ),
@@ -1001,6 +1031,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             "state",
             "zip",
             "country",
+            "birthMonth",
+            "birthMonthNumber",
+            "birthDay",
+            "birthYear",
             "industry",
             "yearFounded",
             "description",
@@ -1065,6 +1099,123 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             extra: { portalUrl: page.url(), valueKey: args.valueKey },
           });
           progressLog.push({ tool: "fill_field", input: args, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "fill_signup_defaults",
+        "Fill ordinary account setup defaults such as country/region and adult birth date. Use on pages like Microsoft 'Add some details'. This is agent work, not a user-validation step.",
+        {},
+        async () => {
+          const defaults = {
+            country: profileValues.country || "United States",
+            birthMonth: profileValues.birthMonth || "January",
+            birthMonthNumber: profileValues.birthMonthNumber || "1",
+            birthDay: profileValues.birthDay || "1",
+            birthYear: profileValues.birthYear || "1990",
+          };
+          const result = await page.evaluate((values: typeof defaults) => {
+            const visible = (el: Element) => {
+              const style = window.getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+            };
+            const labelFor = (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+              const id = el.getAttribute("id");
+              const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+              const implicit = el.closest("label")?.textContent || "";
+              return [
+                explicit,
+                implicit,
+                el.getAttribute("aria-label") || "",
+                el.getAttribute("placeholder") || "",
+                el.getAttribute("name") || "",
+                el.getAttribute("autocomplete") || "",
+                id || "",
+              ]
+                .join(" ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase();
+            };
+            const setValue = (el: HTMLInputElement | HTMLTextAreaElement, next: string) => {
+              const prototype = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+              if (setter) setter.call(el, next);
+              else el.value = next;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+              el.dispatchEvent(new Event("blur", { bubbles: true }));
+            };
+            const selectOption = (select: HTMLSelectElement, optionPatterns: RegExp[]) => {
+              const option = Array.from(select.options).find((item) =>
+                optionPatterns.some((pattern) => pattern.test(`${item.textContent || ""} ${item.value || ""}`))
+              );
+              if (!option) return false;
+              select.value = option.value;
+              select.dispatchEvent(new Event("input", { bubbles: true }));
+              select.dispatchEvent(new Event("change", { bubbles: true }));
+              select.dispatchEvent(new Event("blur", { bubbles: true }));
+              return true;
+            };
+            const filled: string[] = [];
+            const unresolved: string[] = [];
+
+            for (const select of Array.from(document.querySelectorAll("select")) as HTMLSelectElement[]) {
+              if (!visible(select) || select.disabled) continue;
+              const label = labelFor(select);
+              if (/country|region/.test(label)) {
+                if (selectOption(select, [/united states/i, /^us$/i, /^usa$/i])) filled.push("country/region");
+                else unresolved.push("country/region");
+              } else if (/month|birth/.test(label)) {
+                if (selectOption(select, [new RegExp(`^${values.birthMonth}\\b`, "i"), new RegExp(`^0?${values.birthMonthNumber}\\b`, "i")])) {
+                  filled.push("birth month");
+                } else {
+                  unresolved.push("birth month");
+                }
+              } else if (/\bday\b|birth/.test(label)) {
+                if (selectOption(select, [new RegExp(`^0?${values.birthDay}\\b`, "i")])) filled.push("birth day");
+                else unresolved.push("birth day");
+              } else if (/year|birth/.test(label)) {
+                if (selectOption(select, [new RegExp(`^${values.birthYear}\\b`, "i")])) filled.push("birth year");
+                else unresolved.push("birth year");
+              }
+            }
+
+            for (const input of Array.from(document.querySelectorAll("input, textarea")) as Array<HTMLInputElement | HTMLTextAreaElement>) {
+              if (!visible(input) || input.disabled || input.readOnly || input.value) continue;
+              const type = (input.getAttribute("type") || "text").toLowerCase();
+              if (["hidden", "submit", "button", "checkbox", "radio", "file", "password"].includes(type)) continue;
+              const label = labelFor(input);
+              if (/captcha|verification code|otp|one.?time|card|cvv|cvc|payment/.test(label)) continue;
+              if (/country|region/.test(label)) {
+                setValue(input, values.country);
+                filled.push("country/region");
+              } else if (/month|birth month/.test(label)) {
+                setValue(input, values.birthMonth);
+                filled.push("birth month");
+              } else if (/\bday\b|birth day/.test(label)) {
+                setValue(input, values.birthDay);
+                filled.push("birth day");
+              } else if (/year|birth year/.test(label)) {
+                setValue(input, values.birthYear);
+                filled.push("birth year");
+              }
+            }
+
+            return { filled: Array.from(new Set(filled)), unresolved: Array.from(new Set(unresolved)) };
+          }, defaults);
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_filled_signup_defaults",
+            label: "Signup defaults filled",
+            status: result.filled.length ? "active" : "failed",
+            detail: result.filled.length
+              ? result.filled.join(", ")
+              : "No standard country or birthdate fields were found.",
+            extra: { portalUrl: page.url(), unresolved: result.unresolved },
+          });
+          progressLog.push({ tool: "fill_signup_defaults", result, url: page.url() });
           return ok({ ...result, url: page.url() });
         }
       ),
@@ -1217,6 +1368,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 "state",
                 "zip",
                 "country",
+                "birthMonth",
+                "birthMonthNumber",
+                "birthDay",
+                "birthYear",
                 "industry",
                 "yearFounded",
                 "description",
@@ -1270,6 +1425,12 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 if (/\bcity\b/.test(label)) return picked.city;
                 if (/\bstate\b|province|region/.test(label)) return picked.state;
                 if (/zip|postal/.test(label)) return picked.zip;
+                if (/birth|date of birth|\bdob\b/.test(label) && /month/.test(label)) return picked.birthMonth;
+                if (/birth|date of birth|\bdob\b/.test(label) && /\bday\b/.test(label)) return picked.birthDay;
+                if (/birth|date of birth|\bdob\b/.test(label) && /year/.test(label)) return picked.birthYear;
+                if (/^month$|birth month/.test(label)) return picked.birthMonth;
+                if (/^day$|birth day/.test(label)) return picked.birthDay;
+                if (/^year$|birth year/.test(label)) return picked.birthYear;
                 if (/website|url|domain/.test(label)) return picked.website;
                 if (/industry|category|business type/.test(label)) return picked.industry;
                 if (/year founded|founded|established/.test(label)) return picked.yearFounded;
@@ -1499,6 +1660,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       "state",
       "zip",
       "country",
+      "birthMonth",
+      "birthMonthNumber",
+      "birthDay",
+      "birthYear",
       "industry",
       "yearFounded",
       "description",
@@ -1650,6 +1815,7 @@ Rules:
 - Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
 - For Bing Places or Microsoft-gated directory pages, "Microsoft account" and "Work account" are login-provider buttons. Without approved saved credentials, click "Create one" or another public create-account path instead.
 - Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
+- If a sign-up page asks for country/region or birthdate and the profile has no specific value, use the default adult details: United States and January 1, 1990.
 - If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
 - If the page says the account already exists and the workflow has approved saved credentials, try the normal email/password sign-in path before blocking.
 - If a verification code is supplied in approved values, fill it with fill_verification_code and continue the workflow. Do not ask the user to enter that code on the external site.
@@ -1685,6 +1851,8 @@ function buildUserPrompt(params: {
         state: profile.state,
         zip: profile.zip,
         country: profile.country || "United States",
+        defaultAccountCountry: "United States",
+        defaultAdultBirthDate: "January 1, 1990",
         industry: profile.industry,
         yearFounded: profile.yearFounded,
         description: profile.description,
@@ -1697,7 +1865,7 @@ function buildUserPrompt(params: {
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If the page is Bing Places or Microsoft-gated and no saved credential is available, click Create one before any Microsoft account or Work account login-provider button. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If a page asks for ordinary account details such as country/region or birthdate, use fill_signup_defaults with the default adult birthdate January 1, 1990 and continue; do not ask the user for those fields. If the page is Bing Places or Microsoft-gated and no saved credential is available, click Create one before any Microsoft account or Work account login-provider button. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data not covered by defaults, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2

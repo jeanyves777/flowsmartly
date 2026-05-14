@@ -6,6 +6,10 @@ import {
   getListSmartlyAgentBrowserView,
   type ListSmartlyAgentBrowserControl,
 } from "@/lib/listsmartly/claude-browser-agent";
+import {
+  processAutopilotTask,
+  resumeAutopilotTaskAfterBrowserControl,
+} from "@/lib/listsmartly/autopilot-agent";
 
 async function assertTaskAccess(userId: string, taskId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
@@ -156,6 +160,15 @@ export async function POST(request: NextRequest) {
     }
 
     const view = await controlListSmartlyAgentBrowser(taskId, control);
+    const resume = await resumeAutopilotTaskAfterBrowserControl(session.userId, taskId).catch((error) => {
+      console.error("Resume ListSmartly agent after browser control error:", error);
+      return null;
+    });
+    if (resume?.resumed && resume.task?.id) {
+      void processAutopilotTask(session.userId, resume.task.id).catch((error) => {
+        console.error("Background ListSmartly autopilot resume failed:", error);
+      });
+    }
     return NextResponse.json({ success: true, data: view });
   } catch (error) {
     console.error("Control ListSmartly live browser error:", error);

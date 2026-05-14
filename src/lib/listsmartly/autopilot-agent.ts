@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
 import {
+  getListSmartlyAgentBrowserStatus,
   hasActiveListSmartlyAgentSession,
   runClaudeListSmartlyBrowserAgent,
   type ListSmartlyAgentContinuation,
@@ -2837,6 +2838,77 @@ export async function continueAutopilotTask(
       : "Validation confirmed. The agent is continuing the workflow now.",
     task: updated,
   };
+}
+
+export async function resumeAutopilotTaskAfterBrowserControl(userId: string, taskId: string) {
+  const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
+  if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  const task = await prisma.listSmartlyAutopilotTask.findFirst({
+    where: {
+      id: taskId,
+      profileId: profile.id,
+      status: "needs_user",
+      listing: { directory: { isActive: true } },
+    },
+    select: { id: true, result: true },
+  });
+  if (!task) return { resumed: false, task: null, reason: "task_not_waiting_for_user" };
+
+  const existingResult = parseJsonObject(task.result);
+  const wasEmailVerification =
+    existingResult.accountCreationBlocker === "waiting_for_email_verification" ||
+    existingResult.stage === "waiting_for_email_verification";
+  const snapshot = await getListSmartlyAgentBrowserStatus(task.id);
+  if (!snapshot.active) return { resumed: false, task: null, reason: snapshot.reason };
+
+  const snapshotContext = `${snapshot.url} ${snapshot.title} ${snapshot.text}`;
+  const stillNeedsUser =
+    snapshot.blockers.captcha ||
+    snapshot.blockers.emailVerification ||
+    snapshot.blockers.phoneVerification ||
+    snapshot.blockers.payment ||
+    snapshot.blockers.businessEmailRejected;
+  const ordinarySignupDetails = /(add some details|birthdate|birth date|date of birth|country\/region|country region|create your microsoft account)/i.test(
+    snapshotContext
+  );
+
+  if (!wasEmailVerification || (stillNeedsUser && !ordinarySignupDetails)) {
+    return { resumed: false, task: null, reason: "browser_still_requires_user_validation" };
+  }
+
+  const result = appendProgress(
+    {
+      ...existingResult,
+      stage: "agent_browser_workflow_running",
+      statusMessage:
+        "The live browser moved past the user validation step. The AI listing agent is filling the remaining ordinary signup fields.",
+      userValidationCompletedAt: new Date().toISOString(),
+      browserValidationAutoDetected: true,
+      portalUrl: snapshot.url,
+    },
+    {
+      stage: "validation_auto_detected",
+      label: "Validation completed",
+      status: "done",
+      detail: "The live browser is past the verification page, so the agent is taking over again.",
+    }
+  );
+
+  const updated = await prisma.listSmartlyAutopilotTask.update({
+    where: { id: task.id },
+    data: {
+      status: "in_progress",
+      assignedTo: "agent",
+      result: safeJson(result),
+      requiredAction:
+        "Validation completed in the live browser. The AI listing agent is continuing with the remaining signup fields.",
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+    },
+  });
+
+  return { resumed: true, task: updated, reason: "browser_ready_for_agent" };
 }
 
 export async function completeAutopilotTask(userId: string, taskId: string, result: Record<string, unknown> = {}) {
