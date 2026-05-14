@@ -9,6 +9,16 @@ const AGENT_BROWSER_TIMEOUT_MS = 60000;
 const AGENT_SESSION_TTL_MS = 30 * 60 * 1000;
 const AGENT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+const AGENT_BROWSER_ARGS = [
+  "--no-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-dev-shm-usage",
+  "--disable-gpu",
+  "--no-zygote",
+  "--disable-background-timer-throttling",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+];
 
 type ActiveAgentSession = {
   browser: any;
@@ -86,6 +96,35 @@ function getActiveAgentSession(workflowId?: string | null): ActiveAgentSession |
   if (!session || session.expiresAt <= Date.now() || session.page?.isClosed?.()) return null;
   session.expiresAt = Date.now() + AGENT_SESSION_TTL_MS;
   return session;
+}
+
+async function launchAgentBrowser(puppeteer: any, userDataDir?: string, sessionKey?: string | null) {
+  const launchOptions = (dir?: string) => ({
+    headless: true,
+    userDataDir: dir,
+    protocolTimeout: 180000,
+    args: AGENT_BROWSER_ARGS,
+  });
+
+  try {
+    return { browser: await puppeteer.launch(launchOptions(userDataDir)), userDataDir, recoveredStaleProfile: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const profileLocked = Boolean(userDataDir && /browser is already running|userDataDir|SingletonLock/i.test(message));
+    if (!profileLocked) throw error;
+
+    const fallbackDir = path.join(
+      os.tmpdir(),
+      "flowsmartly-listsmartly-agent",
+      `${sessionKey || "workflow"}-${Date.now()}`
+    );
+    mkdirSync(fallbackDir, { recursive: true });
+    return {
+      browser: await puppeteer.launch(launchOptions(fallbackDir)),
+      userDataDir: fallbackDir,
+      recoveredStaleProfile: true,
+    };
+  }
 }
 
 export async function getListSmartlyAgentBrowserView(workflowId?: string | null): Promise<ListSmartlyAgentBrowserView> {
@@ -642,6 +681,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
   let page: any = null;
   let generatedPassword = continuation?.savedLoginPassword || heldSession?.generatedPassword || safePassword();
   let reusedHeldSession = false;
+  let recoveredStaleProfile = false;
 
   if (heldSession && !heldSession.page?.isClosed?.()) {
     browser = heldSession.browser;
@@ -652,21 +692,9 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
   } else {
     if (sessionKey && heldSession) ACTIVE_AGENT_SESSIONS.delete(sessionKey);
     await heldSession?.browser?.close?.().catch(() => undefined);
-    browser = await puppeteer.launch({
-      headless: true,
-      userDataDir,
-      protocolTimeout: 180000,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-zygote",
-        "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-renderer-backgrounding",
-      ],
-    });
+    const launch = await launchAgentBrowser(puppeteer, userDataDir, sessionKey);
+    browser = launch.browser;
+    recoveredStaleProfile = launch.recoveredStaleProfile;
     page = await browser.newPage();
   }
 
@@ -695,8 +723,15 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       status: "active",
       detail: reusedHeldSession
         ? `Agent resumed the open ${directoryName} verification page without requesting a new code.`
-        : `Agent opened ${directoryName}.`,
-      extra: { agentEngine: "claude_agent_sdk", portalUrl: page.url(), browserSessionResumed: reusedHeldSession },
+        : recoveredStaleProfile
+          ? `Agent opened ${directoryName} in a fresh controlled browser because a stale browser profile was locked.`
+          : `Agent opened ${directoryName}.`,
+      extra: {
+        agentEngine: "claude_agent_sdk",
+        portalUrl: page.url(),
+        browserSessionResumed: reusedHeldSession,
+        recoveredStaleProfile,
+      },
     });
 
     const profileValues = valuesForProfile(profile, generatedPassword, continuation);
