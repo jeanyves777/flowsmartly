@@ -548,6 +548,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     browser = await puppeteer.launch({
       headless: true,
       userDataDir,
+      protocolTimeout: 180000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -568,8 +569,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
 
   try {
     page.setDefaultTimeout(AGENT_BROWSER_TIMEOUT_MS);
-    await page.setViewport({ width: 1365, height: 900 });
-    await page.setUserAgent(AGENT_USER_AGENT);
+    if (!reusedHeldSession) {
+      await page.setViewport({ width: 1365, height: 900 });
+      await page.setUserAgent(AGENT_USER_AGENT);
+    }
     if (!reusedHeldSession) {
       await page.evaluateOnNewDocument("window.__name = function(fn) { return fn; };");
       await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS });
