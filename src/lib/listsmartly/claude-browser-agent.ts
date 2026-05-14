@@ -43,6 +43,7 @@ export type ListSmartlyAgentOutcome = {
   accountCreated: boolean;
   credentialSaved: boolean;
   emailSentByFlowSmartly: boolean;
+  verificationCodeAttempted?: boolean;
   generatedPassword?: string;
   passwordHint?: string;
   diagnostics?: Record<string, unknown>;
@@ -226,6 +227,14 @@ function humanList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
+function verificationCodeWasSubmitted(progressLog: Array<Record<string, unknown>>): boolean {
+  return progressLog.some((entry) => {
+    if (entry.tool !== "fill_verification_code") return false;
+    const result = entry.result;
+    return Boolean(result && typeof result === "object" && "filled" in result && result.filled);
+  });
+}
+
 function normalizeNeedsUserOutcome(params: {
   directoryName: string;
   profile: ListSmartlyAgentProfile;
@@ -244,6 +253,7 @@ function normalizeNeedsUserOutcome(params: {
     );
 
   const emailVerificationAccountCreated = Boolean(blockers?.emailVerification);
+  const verificationCodeAttempted = Boolean(blockers?.emailVerification && verificationCodeWasSubmitted(progressLog));
 
   if (blockers?.captcha) reasons.push("complete the CAPTCHA or bot-protection challenge");
   if (blockers?.emailVerification) reasons.push("provide the email verification code");
@@ -284,7 +294,9 @@ function normalizeNeedsUserOutcome(params: {
       : stage === "waiting_for_business_email"
         ? "Business email needed"
         : stage === "waiting_for_email_verification"
-          ? `${directoryName} email verification needed`
+          ? verificationCodeAttempted
+            ? `${directoryName} still needs a valid email code`
+            : `${directoryName} email verification needed`
           : stage === "waiting_for_phone_verification"
             ? `${directoryName} phone verification needed`
             : stage === "waiting_for_payment_confirmation"
@@ -296,7 +308,9 @@ function normalizeNeedsUserOutcome(params: {
       : stage === "waiting_for_business_email"
         ? "I updated the business email"
         : stage === "waiting_for_email_verification"
-          ? "Continue with code"
+          ? verificationCodeAttempted
+            ? "Submit new code"
+            : "Submit code to agent"
           : stage === "waiting_for_phone_verification"
             ? "I verified the phone"
             : stage === "waiting_for_payment_confirmation"
@@ -314,7 +328,9 @@ function normalizeNeedsUserOutcome(params: {
   const reasonText = humanList(reasons);
   const message =
     stage === "waiting_for_email_verification"
-      ? `The account sign-up reached email verification at ${outcome.portalUrl}. Enter the code from the email in ListSmartly, then the AI agent will submit it and continue the remaining listing workflow.`
+      ? verificationCodeAttempted
+        ? `The AI agent entered the last email verification code for ${directoryName}, but the directory kept the verification screen open. The code may be expired or rejected. Enter the newest code from the email in ListSmartly; the agent will submit it and continue.`
+        : `The account sign-up reached email verification at ${outcome.portalUrl}. Enter the code from the email in ListSmartly, then the AI agent will submit it and continue the remaining listing workflow.`
       : `The agent reached ${outcome.portalUrl} and paused because it needs the user to ${reasonText}. ` +
         "Complete only that validation or missing profile detail, " +
         `then click "${actionButtonLabel}" in ListSmartly. The agent will continue the remaining form work.`;
@@ -331,6 +347,7 @@ function normalizeNeedsUserOutcome(params: {
     ...actionInput,
     accountCreated: normalizedAccountCreated,
     credentialSaved: Boolean(normalizedGeneratedPassword),
+    verificationCodeAttempted,
     generatedPassword: normalizedGeneratedPassword,
     passwordHint: normalizedGeneratedPassword ? outcome.passwordHint : undefined,
   };

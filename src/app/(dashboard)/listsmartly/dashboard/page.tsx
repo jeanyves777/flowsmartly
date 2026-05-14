@@ -113,6 +113,7 @@ interface AutopilotTask {
     accountCreated?: boolean;
     credentialSaved?: boolean;
     emailSentByFlowSmartly?: boolean;
+    verificationCodeAttempted?: boolean;
     userActionTitle?: string;
     userActionMessage?: string;
     userActionButtonLabel?: string;
@@ -1369,6 +1370,22 @@ export default function ListSmartlyDashboardPage() {
         .sort(([a], [b]) => a - b)
         .map(([tier, tierItems]) => ({ tier, items: tierItems }));
     };
+    const needsEmailCode =
+      needsUserTask?.result?.accountCreationBlocker === "waiting_for_email_verification" ||
+      needsUserTask?.result?.stage === "waiting_for_email_verification";
+    const needsUserSummary = needsEmailCode
+      ? needsUserTask?.result?.verificationCodeAttempted
+        ? "The agent submitted the last code, but the directory still requires a valid email code."
+        : "The agent started the sign-up and the directory sent an email verification code."
+      : needsUserTask?.result?.accountCreated
+        ? "The agent started the account workflow and is paused at a real validation step."
+        : "The agent is paused at a real validation step.";
+    const needsUserButtonLabel =
+      needsUserTask?.result?.userActionInputKind === "verification_code"
+        ? needsUserTask?.result?.verificationCodeAttempted
+          ? "Submit new code to agent"
+          : "Submit code to agent"
+        : needsUserTask?.result?.userActionButtonLabel || "Continue agent";
 
     return (
       <div className="space-y-6">
@@ -1380,21 +1397,34 @@ export default function ListSmartlyDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {[
-                { label: "Prepared", value: state?.stats.taskCounts.queued || 0, icon: ClipboardCheck },
-                { label: "Autopilot Working", value: state?.stats.taskCounts.in_progress || 0, icon: Sparkles },
-                { label: "Needs User", value: state?.stats.taskCounts.needs_user || 0, icon: Bell },
-                { label: "Verified Done", value: state?.stats.taskCounts.completed || 0, icon: CheckCircle2 },
-              ].map((item) => (
-                <div key={item.label} className="rounded-md border border-border bg-background/60 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <item.icon className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <p className="mt-2 text-2xl font-bold text-foreground">{item.value}</p>
-                </div>
-              ))}
+            <div className="flex flex-col gap-3 rounded-md border border-border bg-background/60 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {activeTask
+                    ? "Agent is working"
+                    : needsUserTask
+                      ? "Agent is waiting for your validation"
+                      : queueReady
+                        ? "Queue is ready"
+                        : "No agent workflow is prepared"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The current workflow stays visible while queued directories remain grouped and collapsed.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "Prepared", value: state?.stats.taskCounts.queued || 0 },
+                  { label: "Working", value: state?.stats.taskCounts.in_progress || 0 },
+                  { label: "Needs you", value: state?.stats.taskCounts.needs_user || 0 },
+                  { label: "Done", value: state?.stats.taskCounts.completed || 0 },
+                ].map((item) => (
+                  <Badge key={item.label} variant="secondary" className="gap-1 px-3 py-1">
+                    <span className="font-semibold text-foreground">{item.value}</span>
+                    <span>{item.label}</span>
+                  </Badge>
+                ))}
+              </div>
             </div>
 
             <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-4">
@@ -1474,9 +1504,9 @@ export default function ListSmartlyDashboardPage() {
                         {formatWorkflowMode(activeTask.stage)}
                       </Badge>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-3">
                       {(activeProgress.length > 0
-                        ? activeProgress
+                        ? activeProgress.slice(-8)
                         : [
                             {
                               stage: "running_directory_workflow",
@@ -1485,90 +1515,142 @@ export default function ListSmartlyDashboardPage() {
                               detail: "Preparing the directory workflow.",
                             },
                           ]
-                      ).map((event) => (
-                        <div key={`${event.stage}-${event.at || ""}`} className={`rounded-md border p-3 ${progressStatusClass(event.status)}`}>
-                          <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 rounded-full ${progressDotClass(event.status)}`} />
-                            <p className="text-xs font-semibold text-foreground">{event.label}</p>
+                      ).map((event, index, events) => (
+                        <div key={`${event.stage}-${event.at || ""}`} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <span className={`mt-1 h-3 w-3 rounded-full ${progressDotClass(event.status)}`} />
+                            {index < events.length - 1 && <span className="mt-1 h-full min-h-8 w-px bg-border" />}
                           </div>
-                          {event.detail && <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{event.detail}</p>}
+                          <div className="min-w-0 pb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">{event.label}</p>
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {event.status}
+                              </Badge>
+                              {event.at && (
+                                <span className="text-[11px] text-muted-foreground">
+                                  {new Date(event.at).toLocaleTimeString()}
+                                </span>
+                              )}
+                            </div>
+                            {event.detail && <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{event.detail}</p>}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : needsUserTask ? (
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                          {userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker)}
-                        </Badge>
-                        <p className="text-sm font-semibold text-foreground">
-                          {needsUserTask.result?.userActionTitle || needsUserTask.title}
-                        </p>
-                      </div>
-                      <div className="mt-3 rounded-md border border-border bg-card/60 p-3">
-                        <p className="text-xs font-semibold text-foreground">
-                          {needsUserTask.result?.accountCreationBlocker === "waiting_for_email_verification"
-                            ? "Account created. Email code needed."
-                            : needsUserTask.result?.accountCreated
-                              ? "Account started. Agent is waiting for validation."
-                              : "Agent paused for a real validation step."}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          The AI agent keeps the workflow. Provide only the requested validation, then it continues the directory work.
-                        </p>
-                      </div>
-                      <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                        {needsUserTask.result?.userActionMessage ||
-                          needsUserTask.result?.statusMessage ||
-                          needsUserTask.requiredAction ||
-                          "Complete the required portal step, then let the agent continue."}
-                      </p>
-                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.submitUrl || needsUserTask.payload?.directory?.claimUrl) && (
-                        <a
-                          className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
-                          href={
-                            needsUserTask.result?.portalUrl ||
-                            needsUserTask.payload?.directory?.submitUrl ||
-                            needsUserTask.payload?.directory?.claimUrl
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Open verification portal
-                        </a>
-                      )}
-                      {needsUserTask.result?.userActionInputKind === "verification_code" && (
-                        <div className="mt-3 max-w-sm">
-                          <Input
-                            value={verificationInputs[needsUserTask.id] || ""}
-                            onChange={(e) =>
-                              setVerificationInputs((prev) => ({
-                                ...prev,
-                                [needsUserTask.id]: e.target.value.replace(/\s+/g, ""),
-                              }))
-                            }
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            placeholder={needsUserTask.result?.userActionInputPlaceholder || "Enter verification code"}
-                            aria-label={needsUserTask.result?.userActionInputLabel || "Verification code"}
-                          />
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            {userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker)}
+                          </Badge>
+                          <p className="text-sm font-semibold text-foreground">
+                            {needsUserTask.result?.userActionTitle || needsUserTask.title}
+                          </p>
                         </div>
+                        <p className="mt-2 text-sm text-foreground">{needsUserSummary}</p>
+                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                          {needsUserTask.result?.userActionMessage ||
+                            needsUserTask.result?.statusMessage ||
+                            needsUserTask.requiredAction ||
+                            "Complete the required validation, then let the agent continue."}
+                        </p>
+                      </div>
+                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.submitUrl || needsUserTask.payload?.directory?.claimUrl) && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={
+                              needsUserTask.result?.portalUrl ||
+                              needsUserTask.payload?.directory?.submitUrl ||
+                              needsUserTask.payload?.directory?.claimUrl
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open portal
+                          </a>
+                        </Button>
                       )}
                     </div>
-                    <Button
-                      onClick={() => continueAutopilotTask(needsUserTask)}
-                      disabled={
-                        autopilotActionLoading ||
-                        Boolean(needsUserTask.result?.userActionInputRequired && !(verificationInputs[needsUserTask.id] || "").trim())
-                      }
-                      className="w-full lg:w-auto"
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      {needsUserTask.result?.userActionButtonLabel || "I completed the portal step"}
-                    </Button>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {[
+                        {
+                          label: needsEmailCode ? "Sign-up started" : "Agent reached portal",
+                          status: "done" as const,
+                          detail: needsUserTask.result?.credentialSaved ? "Login details are saved for this pending workflow." : "The agent prepared the workflow.",
+                        },
+                        {
+                          label: needsEmailCode
+                            ? needsUserTask.result?.verificationCodeAttempted
+                              ? "Fresh code needed"
+                              : "Email code needed"
+                            : userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker),
+                          status: "waiting" as const,
+                          detail: needsEmailCode
+                            ? "Use the newest email code; the agent will submit it."
+                            : "Only the validation step belongs to the user.",
+                        },
+                        {
+                          label: "Agent continues",
+                          status: "active" as const,
+                          detail: "After validation, the agent resumes the listing workflow.",
+                        },
+                      ].map((step) => (
+                        <div key={step.label} className={`rounded-md border p-3 ${progressStatusClass(step.status)}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2.5 w-2.5 rounded-full ${progressDotClass(step.status)}`} />
+                            <p className="text-xs font-semibold text-foreground">{step.label}</p>
+                          </div>
+                          <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{step.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {needsUserTask.result?.userActionInputKind === "verification_code" && (
+                      <div className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <Input
+                          className="sm:max-w-xs"
+                          value={verificationInputs[needsUserTask.id] || ""}
+                          onChange={(e) =>
+                            setVerificationInputs((prev) => ({
+                              ...prev,
+                              [needsUserTask.id]: e.target.value.replace(/\s+/g, ""),
+                            }))
+                          }
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder={needsUserTask.result?.userActionInputPlaceholder || "Enter verification code"}
+                          aria-label={needsUserTask.result?.userActionInputLabel || "Verification code"}
+                        />
+                        <Button
+                          onClick={() => continueAutopilotTask(needsUserTask)}
+                          disabled={
+                            autopilotActionLoading ||
+                            Boolean(needsUserTask.result?.userActionInputRequired && !(verificationInputs[needsUserTask.id] || "").trim())
+                          }
+                          className="w-full sm:w-auto"
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          {needsUserButtonLabel}
+                        </Button>
+                      </div>
+                    )}
+
+                    {needsUserTask.result?.userActionInputKind !== "verification_code" && (
+                      <Button
+                        onClick={() => continueAutopilotTask(needsUserTask)}
+                        disabled={autopilotActionLoading}
+                        className="w-full sm:w-auto"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        {needsUserButtonLabel}
+                      </Button>
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -1699,54 +1781,9 @@ export default function ListSmartlyDashboardPage() {
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         {task.status === "needs_user" ? (
-                                          <>
-                                            {(task.result?.portalUrl || task.payload?.directory?.claimUrl || task.payload?.directory?.submitUrl || task.payload?.directory?.url || task.directory?.url) && (
-                                              <Button size="sm" variant="outline" asChild>
-                                                <a
-                                                  href={
-                                                    task.result?.portalUrl ||
-                                                    task.payload?.directory?.claimUrl ||
-                                                    task.payload?.directory?.submitUrl ||
-                                                    task.payload?.directory?.url ||
-                                                    task.directory?.url ||
-                                                    "#"
-                                                  }
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                >
-                                                  <ExternalLink className="h-3 w-3 mr-1" />
-                                                  Open Portal
-                                                </a>
-                                              </Button>
-                                            )}
-                                            {task.result?.userActionInputKind === "verification_code" && (
-                                              <Input
-                                                className="h-8 w-40"
-                                                value={verificationInputs[task.id] || ""}
-                                                onChange={(e) =>
-                                                  setVerificationInputs((prev) => ({
-                                                    ...prev,
-                                                    [task.id]: e.target.value.replace(/\s+/g, ""),
-                                                  }))
-                                                }
-                                                inputMode="numeric"
-                                                autoComplete="one-time-code"
-                                                placeholder="Email code"
-                                                aria-label={task.result?.userActionInputLabel || "Verification code"}
-                                              />
-                                            )}
-                                            <Button
-                                              size="sm"
-                                              onClick={() => continueAutopilotTask(task)}
-                                              disabled={
-                                                autopilotActionLoading ||
-                                                Boolean(task.result?.userActionInputRequired && !(verificationInputs[task.id] || "").trim())
-                                              }
-                                            >
-                                              <Check className="h-3 w-3 mr-1" />
-                                              {task.result?.userActionButtonLabel || "I Completed Portal Step"}
-                                            </Button>
-                                          </>
+                                          <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                            Waiting in action panel
+                                          </Badge>
                                         ) : canWork ? (
                                           <Badge variant="secondary">Autopilot working</Badge>
                                         ) : (
