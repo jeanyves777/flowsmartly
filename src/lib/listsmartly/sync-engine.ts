@@ -1022,7 +1022,11 @@ function scoreBusinessMatch(profile: BusinessSignalInput, name: string, addressO
 }
 
 function scoreSearchResult(profile: BusinessSignalInput, item: SearchResultItem): number {
-  return scoreIdentityMatch(profile, `${item.title || ""} ${item.snippet || ""} ${item.link}`);
+  const rawHaystack =
+    item.source === "yahoo_public_search"
+      ? item.link
+      : `${item.title || ""} ${item.snippet || ""} ${item.link}`;
+  return scoreIdentityMatch(profile, rawHaystack);
 }
 
 async function markUnsearchedMissingAsUnverified(profileId: string): Promise<number> {
