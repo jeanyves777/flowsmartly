@@ -704,7 +704,7 @@ export default function ListSmartlyOnboardingPage() {
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-1">Directory Scan</h2>
           <p className="text-sm text-muted-foreground">
-            We&apos;ll scan 161 directories to find confirmed listings, verified gaps, and directories that need another check.
+            We&apos;ll scan 161 directories and classify each one as live, missing, or scan error.
           </p>
         </div>
 
@@ -791,7 +791,7 @@ export default function ListSmartlyOnboardingPage() {
               <Card>
                 <CardContent className="py-4 text-center">
                   <p className="text-3xl font-bold text-amber-500">{scanResults.needsVerification}</p>
-                  <p className="text-sm text-muted-foreground">Needs Verification</p>
+                  <p className="text-sm text-muted-foreground">Not Scanned</p>
                 </CardContent>
               </Card>
               <Card>
@@ -857,7 +857,7 @@ export default function ListSmartlyOnboardingPage() {
                           <Search className="w-3 h-3 text-amber-500" />
                         </div>
                         <p className="text-muted-foreground">
-                          <strong className="text-foreground">{unverifiedCritical.length} critical directories</strong> need verification before we call them missing
+                          <strong className="text-foreground">{unverifiedCritical.length} critical directories</strong> were not checked yet. Run Scan will classify them.
                         </p>
                       </div>
                     ) : (
@@ -884,7 +884,7 @@ export default function ListSmartlyOnboardingPage() {
                       <Sparkles className="w-3 h-3 text-teal-500" />
                     </div>
                     <p className="text-muted-foreground">
-                      ListSmartly can <strong className="text-foreground">submit missing directories and verify {scanResults.needsVerification} uncertain listings</strong> with AI autopilot
+                      ListSmartly can <strong className="text-foreground">submit confirmed missing directories and resolve scan errors</strong> with AI autopilot
                     </p>
                   </div>
                 </div>
@@ -1061,12 +1061,12 @@ export default function ListSmartlyOnboardingPage() {
                   </div>
                 )}
 
-                {/* Unverified listings need another source before we call them missing */}
+                {/* Rows that have not been checked yet */}
                 {scanResults.findings.filter(f => f.status === "unverified").length > 0 && (
                   <Card>
                     <CardContent className="py-3">
                       <p className="text-xs font-semibold text-amber-500 uppercase tracking-wider mb-2">
-                        Needs Verification ({Math.min(20, scanResults.findings.filter(f => f.status === "unverified").length)} of {scanResults.findings.filter(f => f.status === "unverified").length})
+                        Not Scanned ({Math.min(20, scanResults.findings.filter(f => f.status === "unverified").length)} of {scanResults.findings.filter(f => f.status === "unverified").length})
                       </p>
                       <div className="space-y-1.5">
                         {scanResults.findings.filter(f => f.status === "unverified").slice(0, 20).map((f, i) => (
@@ -1076,13 +1076,13 @@ export default function ListSmartlyOnboardingPage() {
                               <span className="text-muted-foreground">{f.directoryName}</span>
                               <Badge variant="outline" className="text-[10px] h-4">Tier {f.tier}</Badge>
                             </div>
-                            <span className="text-xs text-muted-foreground/60">Not verified yet</span>
+                            <span className="text-xs text-muted-foreground/60">Waiting for scan</span>
                           </div>
                         ))}
                       </div>
                       {scanResults.findings.filter(f => f.status === "unverified").length > 20 && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          + {scanResults.findings.filter(f => f.status === "unverified").length - 20} more listings need verification (view all in dashboard)
+                          + {scanResults.findings.filter(f => f.status === "unverified").length - 20} more listings waiting for scan (view all in dashboard)
                         </p>
                       )}
                     </CardContent>

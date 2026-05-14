@@ -21,7 +21,7 @@ export const LISTING_STATUSES = {
     icon: "AlertTriangle",
   },
   unverified: {
-    label: "Needs Verification",
+    label: "Not Scanned",
     color: "bg-amber-500/10 text-amber-500",
     icon: "Search",
   },

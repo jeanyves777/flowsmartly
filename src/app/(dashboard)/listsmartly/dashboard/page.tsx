@@ -183,7 +183,7 @@ interface AutopilotState {
 const LISTING_STATUSES: Record<string, { label: string; color: string }> = {
   live: { label: "Live", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
   missing: { label: "Missing", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
-  unverified: { label: "Needs Verification", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
+  unverified: { label: "Not Scanned", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   needs_update: { label: "Needs Update", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
   submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
   claimed: { label: "Claimed", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400" },
@@ -563,13 +563,13 @@ export default function ListSmartlyDashboardPage() {
     try {
       const res = await fetch("/api/listsmartly/listings/scan", { method: "POST" });
       if (!res.ok) throw new Error("Scan failed");
-      toast({ title: "Scan started", description: "Directory scan is running in the background." });
-      // Refresh after a short delay
-      setTimeout(() => {
-        fetchListings();
-        fetchReviews();
-        fetchStats();
-      }, 3000);
+      const json = await res.json();
+      const summary = json.data?.summary || {};
+      await Promise.all([fetchListings(), fetchReviews(), fetchStats()]);
+      toast({
+        title: "Scan completed",
+        description: `${summary.searched || 0} directories checked. ${summary.live || 0} live, ${summary.missing || 0} missing, ${summary.errors || 0} scan errors.`,
+      });
     } catch {
       toast({ title: "Error", description: "Failed to start scan", variant: "destructive" });
     } finally {
@@ -865,8 +865,8 @@ export default function ListSmartlyDashboardPage() {
         accent: "border-red-500/20 bg-red-500/5",
       },
       {
-        title: "Needs Verification",
-        description: "Not confirmed missing yet. These need another check before submission.",
+        title: "Not Scanned Yet",
+        description: "Directories waiting for the next full scan. After Run Scan, these become live, missing, or scan error.",
         icon: Search,
         statuses: ["unverified"],
         accent: "border-amber-500/20 bg-amber-500/5",
@@ -931,7 +931,7 @@ export default function ListSmartlyDashboardPage() {
             <option value="all">All Statuses</option>
             <option value="live">Live</option>
             <option value="missing">Missing</option>
-            <option value="unverified">Needs Verification</option>
+            <option value="unverified">Not Scanned</option>
             <option value="needs_update">Needs Update</option>
             <option value="submitted">Submitted</option>
           </select>

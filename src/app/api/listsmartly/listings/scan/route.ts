@@ -44,7 +44,9 @@ export async function POST() {
       },
     });
 
-    // Run real web presence detection (Google Places API + website crawl)
+    // Run real web presence detection across every catalog directory.
+    // Uses Google Places for GBP when available, then low-rate public web
+    // search per directory so rows do not remain in a vague verification state.
     const detection = await detectExistingPresence(profile.id);
 
     // Run consistency check on found listings
@@ -131,6 +133,7 @@ export async function POST() {
             missing: missingCount,
             unverified: unverifiedCount,
             inconsistent: inconsistentCount,
+            errors: detection.errors,
             detected: detection.detected,
             searched: detection.searched,
             catalogCreated: catalog.created,
@@ -163,6 +166,8 @@ export async function POST() {
           missing: missingCount,
           unverified: unverifiedCount,
           inconsistent: inconsistentCount,
+          errors: detection.errors,
+          searched: detection.searched,
         },
       },
     });

@@ -8,6 +8,11 @@ import { seedDirectories } from "./directories";
 import { importReviews } from "./review-aggregator";
 
 const LIVE_LISTING_STATUSES = new Set(["live", "submitted", "claimed"]);
+const WEB_SEARCH_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+const PUBLIC_SEARCH_TIMEOUT_MS = 12000;
+const PUBLIC_SEARCH_BATCH_SIZE = 4;
+const PUBLIC_SEARCH_DELAY_MS = 750;
 
 type BusinessSignalInput = {
   businessName: string;
@@ -28,6 +33,14 @@ type SearchResultItem = {
   link: string;
   title?: string;
   snippet?: string;
+  source?: string;
+};
+
+type DirectorySearchResult = {
+  searched: boolean;
+  match: SearchResultItem | null;
+  source?: string;
+  error?: string;
 };
 
 /** Reconcile every active catalog directory into a profile without overwriting existing listing state. */
@@ -150,12 +163,13 @@ export async function refreshProfileStats(profileId: string): Promise<void> {
  * connected socials, Brand Kit handles, and optional Google Custom Search.
  *
  * A listing is "missing" only after a directory-specific search actually ran
- * and found no confident match. Unsearched rows remain "unverified" so the UI
- * does not show false negatives as confirmed missing.
+ * and found no confident match. If Google Custom Search is not configured, the
+   * scan falls back to a low-rate public web search so rows do not stay in an
+   * ambiguous holding state after the user pressed Run Scan.
  */
 export async function detectExistingPresence(
   profileId: string
-): Promise<{ detected: number; searched: number; unverified: number }> {
+): Promise<{ detected: number; searched: number; unverified: number; missing: number; errors: number }> {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { id: profileId } });
   if (!profile) throw new Error("Profile not found");
 
@@ -164,14 +178,12 @@ export async function detectExistingPresence(
     include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
   });
 
-  if (listings.length === 0) return { detected: 0, searched: 0, unverified: 0 };
+  if (listings.length === 0) return { detected: 0, searched: 0, unverified: 0, missing: 0, errors: 0 };
 
   const apiKey = getGoogleApiKey();
   const searchCx = getGoogleSearchCx();
   if (!apiKey) {
-    console.error("ListSmartly: No Google API key available for presence detection");
-    const unverified = await markUnsearchedMissingAsUnverified(profileId);
-    return { detected: 0, searched: 0, unverified };
+    console.warn("ListSmartly: No Google API key available; skipping Google Places and using public web search.");
   }
 
   const businessName = profile.businessName;
@@ -180,7 +192,7 @@ export async function detectExistingPresence(
   let searched = 0;
 
   const googleListing = listings.find((listing) => listing.directory.slug === "google-business");
-  if (googleListing) {
+  if (googleListing && apiKey) {
     try {
       const searchQuery = `${businessName}${location ? ` ${location}` : ""}`;
       const textSearchUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
@@ -329,47 +341,63 @@ export async function detectExistingPresence(
     }
   }
 
-  if (searchCx) {
-    const remainingListings = await prisma.businessListing.findMany({
-      where: { profileId, status: { in: ["missing", "unverified", "needs_update"] }, directory: { isActive: true } },
-      include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
-    });
+  const remainingListings = await prisma.businessListing.findMany({
+    where: { profileId, status: { in: ["missing", "unverified", "needs_update"] }, directory: { isActive: true } },
+    include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
+    orderBy: [{ directory: { tier: "asc" } }, { directory: { name: "asc" } }],
+  });
 
-    const searchable = remainingListings.filter((listing) => Boolean(extractDomain(listing.directory.url)));
-    const batchSize = 5;
-    const delayMs = 1000;
+  const searchable = remainingListings.filter((listing) => Boolean(extractDomain(listing.directory.url)));
+  let errors = 0;
 
-    for (let i = 0; i < searchable.length; i += batchSize) {
-      const batch = searchable.slice(i, i + batchSize);
-      for (const listing of batch) {
+  for (let i = 0; i < searchable.length; i += PUBLIC_SEARCH_BATCH_SIZE) {
+    const batch = searchable.slice(i, i + PUBLIC_SEARCH_BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (listing) => {
         try {
-          const match = await findDirectoryListingWithGoogleSearch(apiKey, searchCx, profile, listing.directory);
-          searched++;
+          const search = await findDirectoryListing(profile, listing.directory, {
+            apiKey,
+            searchCx,
+          });
 
-          if (match) {
-            if (await markListingLive(listing.id, match.link, "google_custom_search")) detected++;
+          if (search.searched) searched++;
+
+          if (search.match) {
+            if (await markListingLive(listing.id, search.match.link, search.match.source || "directory_public_search")) {
+              detected++;
+            }
+          } else if (search.searched) {
+            await markListingMissing(listing.id, search.source || "directory_public_search");
           } else {
-            await markListingMissing(listing.id, "google_custom_search");
+            errors++;
+            await markListingScanError(listing.id, search.error || "Directory search could not run.");
           }
         } catch (err) {
+          errors++;
+          const message = err instanceof Error ? err.message : "Directory search failed.";
           console.error(`ListSmartly: directory search failed for ${listing.directory.slug}:`, err);
+          await markListingScanError(listing.id, message);
         }
-      }
-      if (i + batchSize < searchable.length) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
+      })
+    );
+
+    if (i + PUBLIC_SEARCH_BATCH_SIZE < searchable.length) {
+      await new Promise((resolve) => setTimeout(resolve, PUBLIC_SEARCH_DELAY_MS));
     }
-  } else {
-    await markUnsearchedMissingAsUnverified(profileId);
   }
 
   await refreshProfileStats(profileId);
-  const unverified = await prisma.businessListing.count({
-    where: { profileId, status: "unverified", directory: { isActive: true } },
-  });
+  const [unverified, missing] = await Promise.all([
+    prisma.businessListing.count({
+      where: { profileId, status: "unverified", directory: { isActive: true } },
+    }),
+    prisma.businessListing.count({
+      where: { profileId, status: "missing", directory: { isActive: true } },
+    }),
+  ]);
   console.log(`ListSmartly: verified ${detected} existing listings for "${businessName}"`);
 
-  return { detected, searched, unverified };
+  return { detected, searched, unverified, missing, errors };
 }
 
 async function enrichGoogleListing(
@@ -498,6 +526,190 @@ async function crawlWebsiteForSocialLinks(websiteUrl: string | null): Promise<Re
   }
 
   return discoveredSocials;
+}
+
+async function findDirectoryListing(
+  profile: BusinessSignalInput,
+  directory: DirectorySearchInput,
+  options: { apiKey?: string; searchCx?: string }
+): Promise<DirectorySearchResult> {
+  const domain = extractDomain(directory.url);
+  if (!domain) {
+    return { searched: false, match: null, error: "Directory does not have a searchable domain." };
+  }
+
+  if (options.apiKey && options.searchCx) {
+    try {
+      const cseMatch = await findDirectoryListingWithGoogleSearch(
+        options.apiKey,
+        options.searchCx,
+        profile,
+        directory
+      );
+      return {
+        searched: true,
+        match: cseMatch ? { ...cseMatch, source: "google_custom_search" } : null,
+        source: "google_custom_search",
+      };
+    } catch (error) {
+      console.error(`ListSmartly: Google Custom Search failed for ${directory.slug}; falling back to public search`, error);
+    }
+  }
+
+  return findDirectoryListingWithPublicSearch(profile, directory);
+}
+
+async function findDirectoryListingWithPublicSearch(
+  profile: BusinessSignalInput,
+  directory: DirectorySearchInput
+): Promise<DirectorySearchResult> {
+  const domain = extractDomain(directory.url);
+  const queries = buildDirectorySearchQueries(profile, domain);
+  const candidates: SearchResultItem[] = [];
+  let searched = false;
+  let lastError: string | undefined;
+
+  for (const query of queries) {
+    try {
+      const results = await searchYahooReader(query, domain);
+      searched = true;
+      candidates.push(...results);
+
+      const best = candidates
+        .map((item) => ({ item, score: scoreSearchResult(profile, item) }))
+        .sort((a, b) => b.score - a.score)[0];
+
+      if (best && best.score >= 5) {
+        return { searched: true, match: { ...best.item, source: "yahoo_public_search" }, source: "yahoo_public_search" };
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Public directory search failed.";
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return {
+    searched,
+    match: null,
+    source: "yahoo_public_search",
+    error: searched ? undefined : lastError || "Public directory search did not return a usable response.",
+  };
+}
+
+function buildDirectorySearchQueries(profile: BusinessSignalInput, domain: string): string[] {
+  const location = [profile.city, profile.state].filter(Boolean).join(" ");
+  const phone = normalizePhone(profile.phone);
+  const websiteDomain = profile.website ? extractDomain(profile.website) : "";
+  const queries = [
+    `site:${domain} "${profile.businessName}" ${location}`.trim(),
+    profile.address ? `site:${domain} "${profile.businessName}" "${profile.address}"` : "",
+    phone ? `site:${domain} "${phone}"` : "",
+    websiteDomain ? `site:${domain} "${websiteDomain}" "${profile.businessName}"` : "",
+  ].filter(Boolean);
+
+  return Array.from(new Set(queries));
+}
+
+async function searchYahooReader(query: string, targetDomain: string): Promise<SearchResultItem[]> {
+  const yahooUrl = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`;
+  const readerUrl = `https://r.jina.ai/http://r.jina.ai/http://${yahooUrl}`;
+  const res = await fetch(readerUrl, {
+    signal: AbortSignal.timeout(PUBLIC_SEARCH_TIMEOUT_MS),
+    headers: {
+      "User-Agent": WEB_SEARCH_USER_AGENT,
+      Accept: "text/plain",
+    },
+  });
+
+  const body = await res.text();
+  if (!res.ok) {
+    throw new Error(`Public search returned HTTP ${res.status}`);
+  }
+  if (/captcha|confirm you.?re a human|too many requests|access denied/i.test(body) && !/## Search Results/i.test(body)) {
+    throw new Error("Public search provider asked for human validation.");
+  }
+
+  const resultBody = body.includes("## Search Results")
+    ? body.slice(body.indexOf("## Search Results"))
+    : body;
+  const items: SearchResultItem[] = [];
+  const linkPattern = /\]\((https?:\/\/[^)\s]+)\)/g;
+
+  for (const match of resultBody.matchAll(linkPattern)) {
+    const link = decodeHtml(match[1] || "").replace(/&amp;/g, "&");
+    if (!link || isSearchChromeUrl(link)) continue;
+    if (!domainMatches(link, targetDomain)) continue;
+
+    const contextStart = Math.max(0, (match.index || 0) - 280);
+    const contextEnd = Math.min(resultBody.length, (match.index || 0) + match[0].length + 500);
+    const context = resultBody.slice(contextStart, contextEnd);
+    const titleContext = resultBody.slice(Math.max(0, (match.index || 0) - 520), match.index || 0);
+    const snippet = cleanResultText(context);
+    const title = cleanResultText(titleContext.split(/\n/).slice(-3).join(" "));
+    items.push({ link, title, snippet, source: "yahoo_public_search" });
+
+    if (items.length >= 8) break;
+  }
+
+  return dedupeSearchResults(items);
+}
+
+function dedupeSearchResults(items: SearchResultItem[]): SearchResultItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.link.replace(/[?#].*$/, "").replace(/\/$/, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function cleanResultText(value: string): string {
+  return decodeHtml(value)
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[|\]|\(|\)|#+|\*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 800);
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function isSearchChromeUrl(value: string): boolean {
+  const domain = extractDomain(value);
+  return (
+    domain.endsWith("yahoo.com") ||
+    domain.endsWith("bing.com") ||
+    domain.endsWith("yimg.com") ||
+    domain.endsWith("microsoft.com")
+  );
+}
+
+function rootDomain(value: string): string {
+  const parts = extractDomain(value)
+    .split(".")
+    .filter(Boolean);
+  if (parts.length <= 2) return parts.join(".");
+  const tldPair = parts.slice(-2).join(".");
+  if (/^(co|com|org|net|gov|ac)\.[a-z]{2}$/i.test(tldPair) && parts.length >= 3) {
+    return parts.slice(-3).join(".");
+  }
+  return parts.slice(-2).join(".");
+}
+
+function domainMatches(url: string, targetDomain: string): boolean {
+  const host = extractDomain(url);
+  if (!host || !targetDomain) return false;
+  return rootDomain(host) === rootDomain(targetDomain);
 }
 
 async function findDirectoryListingWithGoogleSearch(
@@ -638,6 +850,35 @@ async function markListingMissing(listingId: string, source: string): Promise<vo
         oldValue: listing.status,
         newValue: "missing",
         changedBy: `verified: ${source}`,
+      },
+    });
+  }
+}
+
+async function markListingScanError(listingId: string, reason: string): Promise<void> {
+  const listing = await prisma.businessListing.findUnique({
+    where: { id: listingId },
+    select: { status: true },
+  });
+  if (!listing || LIVE_LISTING_STATUSES.has(listing.status)) return;
+
+  await prisma.businessListing.update({
+    where: { id: listingId },
+    data: {
+      status: "error",
+      lastCheckedAt: new Date(),
+    },
+  });
+
+  if (listing.status !== "error") {
+    await prisma.listingChange.create({
+      data: {
+        listingId,
+        changeType: "web_scan",
+        fieldChanged: "status",
+        oldValue: listing.status,
+        newValue: "error",
+        changedBy: `scan error: ${reason.slice(0, 120)}`,
       },
     });
   }
