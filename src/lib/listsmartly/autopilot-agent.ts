@@ -1850,20 +1850,22 @@ export async function getAutopilotState(userId: string) {
     },
     runtime: {
       queueReady: queuedCount > 0 || waitingCount > 0 || Boolean(activeTask),
-      canPrepareQueue: queuedCount === 0 && waitingCount === 0 && !activeTask,
-      canRun: queuedCount > 0 && waitingCount === 0 && !activeTask && !dailyLimitActive,
+      canPrepareQueue: queuedCount === 0 && !activeTask,
+      canRun: queuedCount > 0 && !activeTask && !dailyLimitActive,
       activeTask: activeTaskSummary,
       lastStartedAt: lastStartedTask?.startedAt || null,
       nextRunAt,
       message: activeTask
         ? `${activeTask.title} is already running. Status refreshes automatically.`
-        : waitingCount > 0
-          ? "Autopilot is waiting for user validation before starting another listing workflow."
         : dailyLimitActive && nextRunAt
           ? `Daily limit reached. Next autopilot run is available ${nextRunAt.toISOString()}.`
-          : queuedCount > 0
-            ? "Queue is ready. Autopilot runs one listing workflow per day."
-            : "No prepared listing workflow is waiting.",
+        : queuedCount > 0 && waitingCount > 0
+          ? `${waitingCount} listing workflow${waitingCount === 1 ? "" : "s"} need user validation. Autopilot can still run one queued workflow per day.`
+        : waitingCount > 0
+          ? "Autopilot is waiting for user validation."
+        : queuedCount > 0
+          ? "Queue is ready. Autopilot runs one listing workflow per day."
+          : "No prepared listing workflow is waiting.",
     },
     tasks: tasks.map((task) => ({
       id: task.id,
@@ -2401,18 +2403,15 @@ export async function runNextAutopilotStep(userId: string) {
   const activeTask = await prisma.listSmartlyAutopilotTask.findFirst({
     where: {
       profileId: profile.id,
-      status: { in: ["in_progress", "needs_user"] },
+      status: "in_progress",
       listing: { directory: { isActive: true } },
     },
     orderBy: { updatedAt: "desc" },
   });
   if (activeTask) {
-    const isWaiting = activeTask.status === "needs_user";
     return {
-      status: isWaiting ? "waiting_for_user" : "already_running",
-      message: isWaiting
-        ? `${activeTask.title} is waiting for user validation. Autopilot will continue after the user completes that step.`
-        : `${activeTask.title} is already running. Autopilot will not start another workflow at the same time.`,
+      status: "already_running",
+      message: `${activeTask.title} is already running. Autopilot will not start another workflow at the same time.`,
       task: activeTask,
     };
   }
