@@ -161,6 +161,40 @@ function decryptSecureNote(value: string | null | undefined): string | null {
   }
 }
 
+function extractGeneratedPasswordFromSecureNote(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = value.match(/Generated password:\s*(.+)/i);
+  return match?.[1]?.trim() || null;
+}
+
+async function getSavedDirectoryCredential(params: {
+  profileId: string;
+  listingId: string | null;
+  directoryName: string;
+}): Promise<{ email: string | null; password: string | null } | null> {
+  const credentialMatches: Prisma.ListSmartlyAccountCredentialWhereInput[] = [
+    { directoryName: params.directoryName },
+  ];
+  if (params.listingId) credentialMatches.unshift({ listingId: params.listingId });
+  const credential = await prisma.listSmartlyAccountCredential.findFirst({
+    where: {
+      profileId: params.profileId,
+      status: "active",
+      OR: credentialMatches,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!credential) return null;
+
+  const secureNotes = decryptSecureNote(credential.secureNotes);
+  const password = extractGeneratedPasswordFromSecureNote(secureNotes);
+  if (!password) return null;
+  return {
+    email: credential.accountEmail || credential.username || null,
+    password,
+  };
+}
+
 function generateAutopilotPassword(): string {
   const core = randomBytes(8).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
   return `Fs!${core}7Aa`;
@@ -1348,13 +1382,24 @@ async function runAgentBrowserWorkflow(
     }
   );
 
-  const outcome = await runClaudeListSmartlyBrowserAgent({
+  const savedCredential = await getSavedDirectoryCredential({
+    profileId: profile.id,
+    listingId: task.listingId,
+    directoryName: task.listing.directory.name,
+  });
+  const agentContinuation: ListSmartlyAgentContinuation = {
+    ...continuation,
+    savedLoginEmail: savedCredential?.email || profile.email || null,
+    savedLoginPassword: savedCredential?.password || null,
+  };
+
+  let outcome = await runClaudeListSmartlyBrowserAgent({
     profile,
     directoryName: task.listing.directory.name,
     directorySlug: task.listing.directory.slug,
     startUrl,
     workflowId: task.id,
-    continuation,
+    continuation: agentContinuation,
     onProgress: async (event) => {
       await updateTaskProgress(
         task.id,
@@ -1373,6 +1418,21 @@ async function runAgentBrowserWorkflow(
       );
     },
   });
+  if (
+    outcome.status === "blocked" &&
+    /(sign in|reset your password|already has|existing account|account creation restriction)/i.test(outcome.message)
+  ) {
+    outcome = {
+      ...outcome,
+      status: "needs_user",
+      stage: "waiting_for_approved_access",
+      actionTitle: `${task.listing.directory.name} account access needed`,
+      actionButtonLabel: "I provided access",
+      message:
+        `${task.listing.directory.name} says this email already has an account or requires password reset. ` +
+        "The agent tried the saved credential when one was available. Reset or approve access for this directory account, then continue in ListSmartly and the agent will resume the listing workflow.",
+    };
+  }
 
   const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
     where: { id: task.id },

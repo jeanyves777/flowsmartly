@@ -75,6 +75,8 @@ export type ListSmartlyAgentProfile = {
 
 export type ListSmartlyAgentContinuation = {
   verificationCode?: string | null;
+  savedLoginEmail?: string | null;
+  savedLoginPassword?: string | null;
 };
 
 export type ListSmartlyAgentOutcome = {
@@ -192,7 +194,9 @@ function valuesForProfile(
     fullName: `${firstName} ${lastName}`.trim(),
     businessName: profile.businessName || "",
     email: profile.email || "",
-    password: generatedPassword,
+    password: continuation?.savedLoginPassword || generatedPassword,
+    savedLoginEmail: continuation?.savedLoginEmail || profile.email || "",
+    savedLoginPassword: continuation?.savedLoginPassword || "",
     phone: profile.phone || "",
     website: profile.website || "",
     address: profile.address || "",
@@ -533,7 +537,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
 
   let browser: any = null;
   let page: any = null;
-  let generatedPassword = heldSession?.generatedPassword || safePassword();
+  let generatedPassword = continuation?.savedLoginPassword || heldSession?.generatedPassword || safePassword();
   let reusedHeldSession = false;
 
   if (heldSession && !heldSession.page?.isClosed?.()) {
@@ -1192,12 +1196,31 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     });
     const allowedTools = tools.map((item) => `mcp__listsmartly_browser_agent__${item.name}`);
     const systemPrompt = buildSystemPrompt(directoryName);
+    const approvedProfileValueKeys = [
+      "firstName",
+      "lastName",
+      "fullName",
+      "businessName",
+      "email",
+      "password",
+      "phone",
+      "website",
+      "address",
+      "city",
+      "state",
+      "zip",
+      "country",
+      "industry",
+      "yearFounded",
+      "description",
+      "verificationCode",
+    ];
     const userPrompt = buildUserPrompt({
       directoryName,
       directorySlug,
       startUrl,
       profile,
-      approvedValues: Object.keys(profileValues).filter((key) => Boolean(profileValues[key as keyof typeof profileValues])),
+      approvedValues: approvedProfileValueKeys.filter((key) => Boolean(profileValues[key as keyof typeof profileValues])),
       continuation,
     });
 
@@ -1332,6 +1355,7 @@ Rules:
 - Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
 - Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
 - If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
+- If the page says the account already exists and the workflow has approved saved credentials, try the normal email/password sign-in path before blocking.
 - If a verification code is supplied in approved values, fill it with fill_verification_code and continue the workflow. Do not ask the user to enter that code on the external site.
 - If CAPTCHA, email/SMS/phone verification, payment, owner approval, or missing profile data blocks you, ask only for that blocker. Tell the user the agent will continue after validation.
 - Never invent account creation. accountCreated=true only after the page accepted a submit step or asks for verification after a submit.
@@ -1372,11 +1396,12 @@ function buildUserPrompt(params: {
       approvedFieldKeys: approvedValues,
       continuation: {
         verificationCodeSupplied: Boolean(continuation?.verificationCode),
+        savedCredentialAvailable: Boolean(continuation?.savedLoginPassword),
       },
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2
