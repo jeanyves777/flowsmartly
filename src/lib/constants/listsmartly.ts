@@ -236,8 +236,8 @@ const TIER_6_DIRECTORIES: DirectoryEntry[] = [
 // -----------------------------------------------------------------------------
 
 const TIER_7_DIRECTORIES: DirectoryEntry[] = [
-  { slug: "local-city", name: "Local City Directory", url: "", tier: 7, category: "local", industries: [] },
-  { slug: "local-chamber", name: "Local Chamber of Commerce", url: "", tier: 7, category: "local", industries: [] },
+  { slug: "local-city", name: "Local City Directory", url: "", tier: 7, category: "local", industries: [], isActive: false },
+  { slug: "local-chamber", name: "Local Chamber of Commerce", url: "", tier: 7, category: "local", industries: [], isActive: false },
   { slug: "massconnect", name: "MassConnect", url: "https://www.massconnect.com", tier: 7, category: "local", industries: [] },
   { slug: "newenglandbusiness", name: "New England Business", url: "https://www.newenglandbusiness.com", tier: 7, category: "local", industries: [] },
   { slug: "smallbizconnect", name: "SmallBizConnect", url: "https://www.smallbizconnect.com", tier: 7, category: "local", industries: [] },
