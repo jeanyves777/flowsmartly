@@ -833,6 +833,22 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             ({ textPattern, avoidPattern }: { textPattern: string; avoidPattern?: string }) => {
               const wanted = new RegExp(textPattern, "i");
               const avoid = avoidPattern ? new RegExp(avoidPattern, "i") : null;
+              const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const literalWanted = new RegExp(escapeRegExp(textPattern), "i");
+              const normalize = (value: string) =>
+                value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, " ")
+                  .trim();
+              const normalizedWanted = normalize(textPattern);
+              const matchesWanted = (value: string) => {
+                const normalizedValue = normalize(value);
+                return (
+                  wanted.test(value) ||
+                  literalWanted.test(value) ||
+                  (normalizedWanted.length > 2 && normalizedValue.includes(normalizedWanted))
+                );
+              };
               const visible = (el: Element) => {
                 const style = window.getComputedStyle(el);
                 const rect = el.getBoundingClientRect();
@@ -860,7 +876,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                   .replace(/\s+/g, " ")
                   .trim();
                 if (text) availableControls.push(text.slice(0, 120));
-                if (!text || !wanted.test(text) || avoid?.test(text)) continue;
+                if (!text || !matchesWanted(text) || avoid?.test(text)) continue;
                 el.click();
                 return { clicked: true, text, href: (el as HTMLAnchorElement).href || "", availableControls };
               }
