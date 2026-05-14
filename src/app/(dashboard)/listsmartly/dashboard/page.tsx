@@ -636,13 +636,41 @@ export default function ListSmartlyDashboardPage() {
       setLiveBrowserError(null);
       return;
     }
-    void fetchLiveBrowser(liveBrowserTaskId, false);
-    const refreshMs = liveBrowserView?.active ? 1800 : 5000;
-    const interval = window.setInterval(() => {
-      void fetchLiveBrowser(liveBrowserTaskId, true);
-    }, refreshMs);
-    return () => window.clearInterval(interval);
-  }, [activeTab, liveBrowserTaskId, liveBrowserView?.active, fetchLiveBrowser]);
+    if (typeof window.EventSource === "undefined") {
+      void fetchLiveBrowser(liveBrowserTaskId, false);
+      const interval = window.setInterval(() => {
+        void fetchLiveBrowser(liveBrowserTaskId, true);
+      }, 1800);
+      return () => window.clearInterval(interval);
+    }
+
+    setLiveBrowserLoading(true);
+    const source = new window.EventSource(
+      `/api/listsmartly/autopilot/browser?taskId=${encodeURIComponent(liveBrowserTaskId)}&stream=1`
+    );
+    const handleView = (event: MessageEvent) => {
+      const view = JSON.parse(event.data) as LiveBrowserView;
+      setLiveBrowserView(view);
+      setLiveBrowserError(null);
+      setLiveBrowserLoading(false);
+    };
+    const handleStreamError = (event: MessageEvent) => {
+      const payload = JSON.parse(event.data) as { message?: string };
+      setLiveBrowserError(payload.message || "Live browser stream interrupted");
+      setLiveBrowserLoading(false);
+    };
+    source.addEventListener("view", handleView);
+    source.addEventListener("stream_error", handleStreamError);
+    source.onerror = () => {
+      setLiveBrowserLoading(false);
+      setLiveBrowserError("Live browser stream is reconnecting.");
+    };
+    return () => {
+      source.removeEventListener("view", handleView);
+      source.removeEventListener("stream_error", handleStreamError);
+      source.close();
+    };
+  }, [activeTab, liveBrowserTaskId, fetchLiveBrowser]);
 
   // ── Actions ──
 

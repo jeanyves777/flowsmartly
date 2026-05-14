@@ -55,6 +55,47 @@ function normalizeControl(body: Record<string, unknown>): ListSmartlyAgentBrowse
   return null;
 }
 
+function createBrowserViewStream(taskId: string, signal: AbortSignal) {
+  const encoder = new TextEncoder();
+  let interval: ReturnType<typeof setInterval> | null = null;
+  let closed = false;
+  let sending = false;
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const sendView = async () => {
+        if (closed || sending) return;
+        sending = true;
+        try {
+          const view = await getListSmartlyAgentBrowserView(taskId);
+          controller.enqueue(encoder.encode(`event: view\ndata: ${JSON.stringify(view)}\n\n`));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to stream live browser";
+          controller.enqueue(encoder.encode(`event: stream_error\ndata: ${JSON.stringify({ message })}\n\n`));
+        } finally {
+          sending = false;
+        }
+      };
+
+      void sendView();
+      interval = setInterval(() => void sendView(), 1200);
+      signal.addEventListener("abort", () => {
+        closed = true;
+        if (interval) clearInterval(interval);
+        try {
+          controller.close();
+        } catch {
+          // Stream may already be closed by the client.
+        }
+      });
+    },
+    cancel() {
+      closed = true;
+      if (interval) clearInterval(interval);
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -70,6 +111,17 @@ export async function GET(request: NextRequest) {
     const task = await assertTaskAccess(session.userId, taskId);
     if (!task) {
       return NextResponse.json({ success: false, error: { message: "Live browser task not found" } }, { status: 404 });
+    }
+
+    if (request.nextUrl.searchParams.get("stream") === "1") {
+      return new Response(createBrowserViewStream(taskId, request.signal), {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
     }
 
     const view = await getListSmartlyAgentBrowserView(taskId);
