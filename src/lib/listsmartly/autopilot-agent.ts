@@ -1560,6 +1560,8 @@ async function runAgentBrowserWorkflow(
     return { status: "completed", message: outcome.message, task: completed };
   }
 
+  const pendingDiagnostics =
+    outcome.diagnostics && typeof outcome.diagnostics === "object" ? outcome.diagnostics : {};
   const pendingResult = appendProgress(
     {
       ...current,
@@ -1578,6 +1580,12 @@ async function runAgentBrowserWorkflow(
       userActionInputLabel: outcome.actionInputLabel,
       userActionInputPlaceholder: outcome.actionInputPlaceholder,
       userActionInputRequired: outcome.actionInputRequired,
+      browserSessionHeld: Boolean((pendingDiagnostics as { browserSessionHeld?: unknown }).browserSessionHeld),
+      browserSessionResumed: Boolean((pendingDiagnostics as { browserSessionResumed?: unknown }).browserSessionResumed),
+      browserSessionExpiresAt:
+        typeof (pendingDiagnostics as { browserSessionExpiresAt?: unknown }).browserSessionExpiresAt === "string"
+          ? (pendingDiagnostics as { browserSessionExpiresAt: string }).browserSessionExpiresAt
+          : null,
       portalUrl: outcome.portalUrl,
       browserDiagnostics: outcome.diagnostics,
     },
@@ -2230,9 +2238,12 @@ export async function processAutopilotTask(
     return { status: "completed", message: completedMessage, task: skipped };
   }
 
+  const existingStage = typeof existingResult.stage === "string" ? existingResult.stage : "";
   if (
-    typeof existingResult.stage === "string" &&
-    existingResult.stage.startsWith("agent_browser_")
+    existingStage.startsWith("agent_browser_") ||
+    existingStage === "agent_sdk_retry_needed" ||
+    existingStage === "agent_review_pending" ||
+    (existingStage.startsWith("agent_") && existingResult.agentAttemptedAccountCreation === true)
   ) {
     return runAgentBrowserWorkflow(userId, businessSignal, task, existingResult, continuation);
   }

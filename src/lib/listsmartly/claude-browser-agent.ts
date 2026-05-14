@@ -41,9 +41,11 @@ function cleanupExpiredAgentSessions(now = Date.now()) {
 
 function shouldHoldAgentSession(outcome: ListSmartlyAgentOutcome | null): boolean {
   return Boolean(
-    outcome?.status === "needs_user" &&
+    (outcome?.status === "needs_user" &&
       outcome.stage === "waiting_for_email_verification" &&
-      outcome.actionInputKind === "verification_code"
+      outcome.actionInputKind === "verification_code") ||
+      (outcome?.status === "pending" &&
+        (outcome.stage === "agent_sdk_retry_needed" || outcome.stage === "agent_review_pending"))
   );
 }
 
@@ -119,7 +121,7 @@ type BrowserSnapshot = {
     value: string;
     required: boolean;
   }>;
-  buttons: Array<{ index: number; tag: string; text: string; href: string; type: string }>;
+  buttons: Array<{ index: number; tag: string; text: string; label: string; href: string; type: string }>;
   blockers: {
     captcha: boolean;
     emailVerification: boolean;
@@ -479,10 +481,20 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 140),
+          label: [
+            el.getAttribute("aria-label") || "",
+            el.getAttribute("title") || "",
+            el.getAttribute("name") || "",
+            el.getAttribute("id") || "",
+          ]
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 140),
           href: el.href || "",
           type: el.getAttribute("type") || "",
         }))
-        .filter((item) => item.text || item.href)
+        .filter((item) => item.text || item.label || item.href)
         .slice(0, 80),
       blockers: {
         captcha:
@@ -512,8 +524,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
   const { profile, directoryName, directorySlug, startUrl, workflowId, continuation, onProgress } = params;
   cleanupExpiredAgentSessions();
   const sessionKey = workflowSessionKey(workflowId);
-  const heldSession =
-    sessionKey && continuation?.verificationCode ? ACTIVE_AGENT_SESSIONS.get(sessionKey) || null : null;
+  const heldSession = sessionKey ? ACTIVE_AGENT_SESSIONS.get(sessionKey) || null : null;
   const puppeteer = (await import("puppeteer")).default;
   const userDataDir = sessionKey
     ? path.join(os.tmpdir(), "flowsmartly-listsmartly-agent", sessionKey)
@@ -636,22 +647,27 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
               };
               const candidates = Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]")) as HTMLElement[];
+              const availableControls: string[] = [];
               for (const el of candidates) {
                 if (!visible(el)) continue;
                 const text = (
                   el.innerText ||
                   el.getAttribute("value") ||
                   el.getAttribute("aria-label") ||
+                  el.getAttribute("title") ||
+                  el.getAttribute("name") ||
+                  el.getAttribute("id") ||
                   (el as HTMLAnchorElement).href ||
                   ""
                 )
                   .replace(/\s+/g, " ")
                   .trim();
+                if (text) availableControls.push(text.slice(0, 120));
                 if (!text || !wanted.test(text) || avoid?.test(text)) continue;
                 el.click();
-                return { clicked: true, text, href: (el as HTMLAnchorElement).href || "" };
+                return { clicked: true, text, href: (el as HTMLAnchorElement).href || "", availableControls };
               }
-              return { clicked: false, text: "", href: "" };
+              return { clicked: false, text: "", href: "", availableControls: availableControls.slice(0, 20) };
             },
             args
           );
@@ -660,9 +676,11 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
           await onProgress?.({
             stage: "agent_clicked",
             label: "Clicked page control",
-            status: result.clicked ? "active" : "failed",
-            detail: result.clicked ? result.text : `No control matched ${args.textPattern}`,
-            extra: { portalUrl: url },
+            status: "active",
+            detail: result.clicked
+              ? result.text
+              : `No matching control for "${args.textPattern}"; agent will inspect the available controls and try another path.`,
+            extra: { portalUrl: url, availableControls: result.availableControls },
           });
           progressLog.push({ tool: "click", input: args, result, url });
           return ok({ ...result, url });
@@ -1191,8 +1209,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
           toolCalls.push(toolName);
           return { behavior: "allow" as const, updatedInput: {} };
         },
-        maxTurns: 16,
-        maxBudgetUsd: 0.35,
+        maxTurns: 32,
+        maxBudgetUsd: 0.7,
         pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
         stderr: (msg: string) => console.error(`[listsmartly-agent/claude] ${msg.trimEnd()}`),
       },
@@ -1246,17 +1264,27 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     });
     return finalOutcome;
   } catch (error) {
+    const currentUrl =
+      page && typeof page.url === "function"
+        ? page.url()
+        : startUrl;
     finalOutcome = defaultOutcome({
       status: "pending",
       stage: "agent_sdk_retry_needed",
-      portalUrl: startUrl,
+      portalUrl: currentUrl,
       message:
         `${directoryName} Claude agent could not finish this run: ` +
         (error instanceof Error ? error.message : String(error)) +
         ". The task remains assigned to the agent for retry; no user action is required yet.",
       actionTitle: `${directoryName} agent retry queued`,
       actionButtonLabel: "Agent should retry",
-      diagnostics: { agentEngine: "claude_agent_sdk", error: error instanceof Error ? error.message : String(error), toolCalls },
+      diagnostics: {
+        agentEngine: "claude_agent_sdk",
+        error: error instanceof Error ? error.message : String(error),
+        toolCalls,
+        progressLog,
+        currentUrl,
+      },
     });
     return finalOutcome;
   } finally {
