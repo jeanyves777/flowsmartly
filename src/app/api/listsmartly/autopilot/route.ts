@@ -92,11 +92,16 @@ export async function POST(request: NextRequest) {
       typeof result.task === "object" &&
       "id" in result.task;
     if (shouldProcess) {
+      const resultObject = result as Record<string, unknown>;
+      const shouldForwardVerificationCode =
+        action !== "continue_task" || resultObject.verificationCodeForwarded !== false;
       const continuation =
         action === "continue_task"
           ? {
               verificationCode:
-                typeof body.verificationCode === "string" && body.verificationCode.trim()
+                shouldForwardVerificationCode &&
+                typeof body.verificationCode === "string" &&
+                body.verificationCode.trim()
                   ? body.verificationCode.trim()
                   : undefined,
             }

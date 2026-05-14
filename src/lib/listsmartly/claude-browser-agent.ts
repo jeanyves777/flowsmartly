@@ -47,6 +47,14 @@ function shouldHoldAgentSession(outcome: ListSmartlyAgentOutcome | null): boolea
   );
 }
 
+export function hasActiveListSmartlyAgentSession(workflowId?: string | null): boolean {
+  cleanupExpiredAgentSessions();
+  const sessionKey = workflowSessionKey(workflowId);
+  if (!sessionKey) return false;
+  const session = ACTIVE_AGENT_SESSIONS.get(sessionKey);
+  return Boolean(session && session.expiresAt > Date.now() && !session.page?.isClosed?.());
+}
+
 export type ListSmartlyAgentProfile = {
   businessName: string;
   contactName?: string | null;
@@ -1177,7 +1185,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
         systemPrompt,
         mcpServers: { listsmartly_browser_agent: server },
         allowedTools,
-        model: process.env.LISTSMARTLY_AGENT_MODEL || "claude-sonnet-4-6",
+        model: process.env.LISTSMARTLY_AGENT_MODEL || "claude-haiku-4-5-20251001",
         canUseTool: async (toolName) => {
           toolCalls.push(toolName);
           return { behavior: "allow" as const, updatedInput: {} };

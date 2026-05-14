@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
 import {
+  hasActiveListSmartlyAgentSession,
   runClaudeListSmartlyBrowserAgent,
   type ListSmartlyAgentContinuation,
 } from "@/lib/listsmartly/claude-browser-agent";
@@ -2618,13 +2619,81 @@ export async function continueAutopilotTask(
       status: "needs_user",
       listing: { directory: { isActive: true } },
     },
-    select: { id: true, result: true, title: true },
+    select: {
+      id: true,
+      result: true,
+      title: true,
+      listing: {
+        select: {
+          directory: {
+            select: { name: true, url: true, submitUrl: true, claimUrl: true },
+          },
+        },
+      },
+    },
   });
   if (!task) throw new Error("TASK_NOT_FOUND");
 
+  const existingResult = parseJsonObject(task.result);
+  const isEmailVerificationStep =
+    existingResult.accountCreationBlocker === "waiting_for_email_verification" ||
+    existingResult.stage === "waiting_for_email_verification";
+  const needsLiveEmailSession = Boolean(continuation.verificationCode && isEmailVerificationStep);
+
+  if (needsLiveEmailSession && !hasActiveListSmartlyAgentSession(task.id)) {
+    const restartUrl =
+      normalizeUrl(task.listing?.directory.submitUrl) ||
+      normalizeUrl(task.listing?.directory.claimUrl) ||
+      normalizeUrl(task.listing?.directory.url) ||
+      (typeof existingResult.portalUrl === "string" ? existingResult.portalUrl : undefined);
+    const restartResult = appendProgress(
+      {
+        ...existingResult,
+        stage: "agent_browser_workflow_running",
+        statusMessage:
+          "The previous email verification browser session expired. The AI listing agent is reopening the directory sign-up flow and will ask for a new code only after the directory sends it.",
+        userConfirmedAt: new Date().toISOString(),
+        verificationCodeProvided: false,
+        verificationCodeNotSubmittedAt: new Date().toISOString(),
+        browserSessionHeld: false,
+        browserSessionResumed: false,
+        browserSessionExpired: true,
+        portalUrl: restartUrl,
+      },
+      {
+        stage: "agent_browser_session_expired",
+        label: "Verification session reopened",
+        status: "active",
+        detail:
+          "The submitted code was not sent to a stale verification page. The agent is reopening the sign-up flow so the next code belongs to the live browser session.",
+      }
+    );
+
+    const updated = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "in_progress",
+        assignedTo: "agent",
+        result: safeJson(restartResult),
+        requiredAction:
+          "The previous email verification page expired. The AI listing agent is reopening the directory flow; wait for the next fresh code prompt before entering another code.",
+        attemptCount: { increment: 1 },
+        lastAttemptAt: new Date(),
+      },
+    });
+
+    return {
+      status: "continuing",
+      verificationCodeForwarded: false,
+      message:
+        "The live verification session had expired, so the agent is reopening the directory flow instead of submitting the code to a stale page.",
+      task: updated,
+    };
+  }
+
   const result = appendProgress(
     {
-      ...parseJsonObject(task.result),
+      ...existingResult,
       stage: "agent_browser_workflow_running",
       statusMessage: continuation.verificationCode
         ? "Verification code received. The AI listing agent is submitting it in the live directory browser session."
@@ -2660,6 +2729,7 @@ export async function continueAutopilotTask(
 
   return {
     status: "continuing",
+    verificationCodeForwarded: Boolean(continuation.verificationCode),
     message: continuation.verificationCode
       ? "Code received. The agent is submitting it in the live browser session now."
       : "Validation confirmed. The agent is continuing the workflow now.",
