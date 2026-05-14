@@ -21,6 +21,10 @@ const AGENT_BROWSER_ARGS = [
   "--disable-renderer-backgrounding",
 ];
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 type ActiveAgentSession = {
   browser: any;
   page: any;
@@ -829,10 +833,25 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             });
           }
 
-          const result = await page.evaluate(
-            ({ textPattern, avoidPattern }: { textPattern: string; avoidPattern?: string }) => {
-              const wanted = new RegExp(textPattern, "i");
-              const avoid = avoidPattern ? new RegExp(avoidPattern, "i") : null;
+          const candidateSelector =
+            'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])';
+          const handles = await page.$$(candidateSelector);
+          const availableControls: string[] = [];
+          let matchedControl: { handle: any; text: string; href: string } | null = null;
+
+          for (const handle of handles) {
+            const info = await handle.evaluate(
+              (el: Element, { textPattern, avoidPattern }: { textPattern: string; avoidPattern?: string }) => {
+                const safeRegex = (value: string | undefined) => {
+                  if (!value) return null;
+                  try {
+                    return new RegExp(value, "i");
+                  } catch {
+                    return null;
+                  }
+                };
+                const wanted = safeRegex(textPattern);
+                const avoid = safeRegex(avoidPattern);
               const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
               const literalWanted = new RegExp(escapeRegExp(textPattern), "i");
               const normalize = (value: string) =>
@@ -844,7 +863,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
               const matchesWanted = (value: string) => {
                 const normalizedValue = normalize(value);
                 return (
-                  wanted.test(value) ||
+                  Boolean(wanted?.test(value)) ||
                   literalWanted.test(value) ||
                   (normalizedWanted.length > 2 && normalizedValue.includes(normalizedWanted))
                 );
@@ -854,37 +873,101 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 const rect = el.getBoundingClientRect();
                 return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
               };
-              const candidates = Array.from(
-                document.querySelectorAll(
-                  'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
-                )
-              ) as HTMLElement[];
-              const availableControls: string[] = [];
-              for (const el of candidates) {
-                if (!visible(el)) continue;
-                const text = (
-                  el.innerText ||
-                  el.textContent ||
-                  el.getAttribute("value") ||
-                  el.getAttribute("aria-label") ||
-                  el.getAttribute("title") ||
-                  el.getAttribute("name") ||
-                  el.getAttribute("id") ||
-                  (el as HTMLAnchorElement).href ||
-                  ""
-                )
-                  .replace(/\s+/g, " ")
-                  .trim();
-                if (text) availableControls.push(text.slice(0, 120));
-                if (!text || !matchesWanted(text) || avoid?.test(text)) continue;
-                el.click();
-                return { clicked: true, text, href: (el as HTMLAnchorElement).href || "", availableControls };
-              }
-              return { clicked: false, text: "", href: "", availableControls: availableControls.slice(0, 20) };
-            },
-            args
-          );
-          if (result.clicked) await settle(page, 15000);
+              if (!visible(el)) return { visible: false, matched: false, text: "", href: "" };
+              const text = (
+                (el as HTMLElement).innerText ||
+                el.textContent ||
+                el.getAttribute("value") ||
+                el.getAttribute("aria-label") ||
+                el.getAttribute("title") ||
+                el.getAttribute("name") ||
+                el.getAttribute("id") ||
+                (el as HTMLAnchorElement).href ||
+                ""
+              )
+                .replace(/\s+/g, " ")
+                .trim();
+              const href = (el as HTMLAnchorElement).href || "";
+              return {
+                visible: true,
+                matched: Boolean(text && matchesWanted(text) && !avoid?.test(text)),
+                text,
+                href,
+              };
+              },
+              args
+            );
+
+            if (!info.visible) continue;
+            if (info.text) availableControls.push(info.text.slice(0, 120));
+            if (!matchedControl && info.matched) {
+              matchedControl = { handle, text: info.text, href: info.href };
+            }
+          }
+
+          let result: {
+            clicked: boolean;
+            text: string;
+            href: string;
+            availableControls: string[];
+            newPageOpened?: boolean;
+            clickFallbackUsed?: boolean;
+          };
+
+          if (matchedControl) {
+            const pageBeforeClick = page;
+            const pagesBeforeClick = new Set(await browser.pages());
+            let popupTimer: ReturnType<typeof setTimeout> | null = null;
+            const popupPromise = new Promise<any | null>((resolve) => {
+              popupTimer = setTimeout(() => resolve(null), 3500);
+              page.once("popup", (popupPage: any) => {
+                if (popupTimer) clearTimeout(popupTimer);
+                resolve(popupPage);
+              });
+            });
+            const navigationPromise = page
+              .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 })
+              .catch(() => null);
+            let clickFallbackUsed = false;
+
+            try {
+              await matchedControl.handle.click({ delay: 60 });
+            } catch {
+              clickFallbackUsed = true;
+              await matchedControl.handle.evaluate((el: HTMLElement) => el.click());
+            }
+
+            await Promise.race([navigationPromise, delay(15000)]);
+            const popupPage = await popupPromise;
+            const pagesAfterClick = await browser.pages().catch(() => []);
+            const newPage =
+              popupPage ||
+              pagesAfterClick.find((candidate: any) => !pagesBeforeClick.has(candidate) && !candidate.isClosed?.());
+
+            if (newPage && !newPage.isClosed?.()) {
+              page = newPage;
+              page.setDefaultTimeout(AGENT_BROWSER_TIMEOUT_MS);
+              await page.bringToFront?.().catch(() => undefined);
+              publishActiveAgentSession(sessionKey, { browser, page, generatedPassword, directoryName });
+            }
+
+            await settle(page, 15000);
+            result = {
+              clicked: true,
+              text: matchedControl.text,
+              href: matchedControl.href,
+              availableControls,
+              newPageOpened: Boolean(newPage && page !== pageBeforeClick),
+              clickFallbackUsed,
+            };
+          } else {
+            result = { clicked: false, text: "", href: "", availableControls: availableControls.slice(0, 20) };
+          }
+
+          for (const handle of handles) {
+            await handle.dispose?.().catch(() => undefined);
+          }
+
           const url = page.url();
           await onProgress?.({
             stage: "agent_clicked",
