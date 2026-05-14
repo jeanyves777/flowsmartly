@@ -169,6 +169,133 @@ function defaultOutcome(params: {
   };
 }
 
+function latestObservedBlockers(progressLog: Array<Record<string, unknown>>): BrowserSnapshot["blockers"] | null {
+  for (let index = progressLog.length - 1; index >= 0; index -= 1) {
+    const blockers = progressLog[index]?.blockers;
+    if (blockers && typeof blockers === "object") return blockers as BrowserSnapshot["blockers"];
+  }
+  return null;
+}
+
+function isLikelyPersonalEmail(email?: string | null): boolean {
+  const domain = (email || "").split("@")[1]?.toLowerCase();
+  if (!domain) return false;
+  return new Set([
+    "gmail.com",
+    "googlemail.com",
+    "yahoo.com",
+    "ymail.com",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "icloud.com",
+    "aol.com",
+    "proton.me",
+    "protonmail.com",
+    "mail.com",
+  ]).has(domain);
+}
+
+function humanList(items: string[]): string {
+  if (items.length <= 1) return items[0] || "a real validation step";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function normalizeNeedsUserOutcome(params: {
+  directoryName: string;
+  profile: ListSmartlyAgentProfile;
+  outcome: ListSmartlyAgentOutcome;
+  progressLog: Array<Record<string, unknown>>;
+}): ListSmartlyAgentOutcome {
+  const { directoryName, profile, outcome, progressLog } = params;
+  if (outcome.status !== "needs_user") return outcome;
+
+  const blockers = latestObservedBlockers(progressLog);
+  const personalEmail = isLikelyPersonalEmail(profile.email);
+  const reasons: string[] = [];
+  const userShouldNotDoAgentWork =
+    /(fill (in|out)|complete the .*form|create .*password|password:|click continue|finish .*sign.?up|enter .*password)/i.test(
+      outcome.message
+    );
+
+  if (blockers?.captcha) reasons.push("complete the CAPTCHA or bot-protection challenge");
+  if (blockers?.emailVerification) reasons.push("verify the email challenge");
+  if (blockers?.phoneVerification) reasons.push("verify the phone or SMS challenge");
+  if (blockers?.businessEmailRejected && personalEmail) {
+    reasons.push(`add or approve a business email because ${profile.email} appears to be a personal email`);
+  } else if (blockers?.businessEmailRejected) {
+    reasons.push("confirm the business email requested by the directory");
+  }
+  if (blockers?.payment) reasons.push("confirm the payment or billing choice");
+  if (blockers?.loginOrSso) reasons.push("provide approved directory login access");
+
+  if (!reasons.length && !userShouldNotDoAgentWork) {
+    return {
+      ...outcome,
+      credentialSaved: outcome.accountCreated && outcome.credentialSaved,
+      generatedPassword: outcome.accountCreated && outcome.credentialSaved ? outcome.generatedPassword : undefined,
+      passwordHint: outcome.accountCreated && outcome.credentialSaved ? outcome.passwordHint : undefined,
+    };
+  }
+
+  const stage = blockers?.captcha
+    ? "waiting_for_captcha"
+    : blockers?.emailVerification
+      ? "waiting_for_email_verification"
+      : blockers?.phoneVerification
+        ? "waiting_for_phone_verification"
+        : blockers?.businessEmailRejected
+          ? "waiting_for_business_email"
+          : blockers?.payment
+            ? "waiting_for_payment_confirmation"
+            : blockers?.loginOrSso
+              ? "waiting_for_approved_access"
+              : outcome.stage || "waiting_for_user_validation";
+  const actionTitle =
+    stage === "waiting_for_captcha"
+      ? `${directoryName} CAPTCHA required`
+      : stage === "waiting_for_business_email"
+        ? "Business email needed"
+        : stage === "waiting_for_email_verification"
+          ? `${directoryName} email verification needed`
+          : stage === "waiting_for_phone_verification"
+            ? `${directoryName} phone verification needed`
+            : stage === "waiting_for_payment_confirmation"
+              ? `${directoryName} payment confirmation needed`
+              : `${directoryName} validation needed`;
+  const actionButtonLabel =
+    stage === "waiting_for_captcha"
+      ? "I completed the CAPTCHA"
+      : stage === "waiting_for_business_email"
+        ? "I updated the business email"
+        : stage === "waiting_for_email_verification"
+          ? "I verified the email"
+          : stage === "waiting_for_phone_verification"
+            ? "I verified the phone"
+            : stage === "waiting_for_payment_confirmation"
+              ? "I confirmed payment"
+              : "I completed validation";
+  const reasonText = humanList(reasons);
+  const message =
+    `The agent reached ${outcome.portalUrl} and paused because it needs the user to ${reasonText}. ` +
+    "No account was created and no credentials were saved. Complete only that validation or missing profile detail, " +
+    `then click "${actionButtonLabel}" in ListSmartly. The agent will continue the remaining form work, generate the password, ` +
+    "and save credentials after the account is actually created.";
+
+  return {
+    ...outcome,
+    stage,
+    message,
+    actionTitle,
+    actionButtonLabel,
+    accountCreated: false,
+    credentialSaved: false,
+    generatedPassword: undefined,
+    passwordHint: undefined,
+  };
+}
+
 async function observePage(page: any): Promise<BrowserSnapshot> {
   return page.evaluate(() => {
     const visible = (el: Element) => {
@@ -701,30 +828,37 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
           shouldSaveGeneratedCredential: z.boolean().optional(),
         },
         async (args) => {
-          finalOutcome = {
-            status: args.status,
-            stage: args.stage,
-            message: args.message,
-            actionTitle: args.actionTitle,
-            actionButtonLabel: args.actionButtonLabel,
-            portalUrl: page.url(),
-            accountCreated: Boolean(args.accountCreated),
-            credentialSaved: Boolean(args.shouldSaveGeneratedCredential),
-            emailSentByFlowSmartly: false,
-            generatedPassword: args.shouldSaveGeneratedCredential ? generatedPassword : undefined,
-            passwordHint: args.shouldSaveGeneratedCredential ? "Generated by FlowSmartly ListSmartly Agent." : undefined,
-            diagnostics: {
-              agentEngine: "claude_agent_sdk",
-              toolCalls,
-              progressLog,
-              directorySlug,
+          const accountCreated = Boolean(args.accountCreated);
+          const shouldSaveCredential = Boolean(accountCreated && args.shouldSaveGeneratedCredential);
+          finalOutcome = normalizeNeedsUserOutcome({
+            directoryName,
+            profile,
+            progressLog,
+            outcome: {
+              status: args.status,
+              stage: args.stage,
+              message: args.message,
+              actionTitle: args.actionTitle,
+              actionButtonLabel: args.actionButtonLabel,
+              portalUrl: page.url(),
+              accountCreated,
+              credentialSaved: shouldSaveCredential,
+              emailSentByFlowSmartly: false,
+              generatedPassword: shouldSaveCredential ? generatedPassword : undefined,
+              passwordHint: shouldSaveCredential ? "Generated by FlowSmartly ListSmartly Agent." : undefined,
+              diagnostics: {
+                agentEngine: "claude_agent_sdk",
+                toolCalls,
+                progressLog,
+                directorySlug,
+              },
             },
-          };
+          });
           await onProgress?.({
-            stage: args.stage,
-            label: args.status === "needs_user" ? "User action needed" : "Agent finished",
-            status: args.status === "needs_user" ? "waiting" : args.status === "blocked" ? "failed" : "done",
-            detail: args.message,
+            stage: finalOutcome.stage,
+            label: finalOutcome.status === "needs_user" ? "User action needed" : "Agent finished",
+            status: finalOutcome.status === "needs_user" ? "waiting" : finalOutcome.status === "blocked" ? "failed" : "done",
+            detail: finalOutcome.message,
             extra: { portalUrl: page.url(), agentEngine: "claude_agent_sdk" },
           });
           return ok({ saved: true, outcome: finalOutcome });
@@ -825,6 +959,9 @@ Capabilities:
 Rules:
 - Never bypass CAPTCHA, bot protection, paywalls, login protections, email/SMS/phone verification, payment choices, or owner approval.
 - Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
+- Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
+- If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
+- If CAPTCHA, email/SMS/phone verification, payment, owner approval, or missing profile data blocks you, ask only for that blocker. Tell the user the agent will continue after validation.
 - Never invent account creation. accountCreated=true only after the page accepted a submit step or asks for verification after a submit.
 - Never claim credentials were saved unless shouldSaveGeneratedCredential=true and accountCreated=true.
 - Do not use APIs. This product uses public directory web workflows only.
@@ -863,7 +1000,7 @@ function buildUserPrompt(params: {
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If CAPTCHA, email/SMS/phone verification, payment, owner approval, missing data, or login-only access appears, stop and output a precise user action.",
+        "If CAPTCHA, email/SMS/phone verification, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2
