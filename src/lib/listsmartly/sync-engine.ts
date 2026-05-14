@@ -15,6 +15,31 @@ const PUBLIC_SEARCH_TIMEOUT_MS = 12000;
 const PUBLIC_SEARCH_BATCH_SIZE = 4;
 const PUBLIC_SEARCH_DELAY_MS = 750;
 const PUBLIC_SEARCH_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
+const MIN_DIRECTORY_MATCH_SCORE = 8;
+const GENERIC_BUSINESS_NAME_TOKENS = new Set([
+  "and",
+  "the",
+  "for",
+  "inc",
+  "llc",
+  "ltd",
+  "co",
+  "corp",
+  "company",
+  "business",
+  "services",
+  "service",
+  "group",
+  "center",
+  "centre",
+  "solutions",
+  "international",
+  "local",
+  "official",
+  "church",
+  "ministries",
+  "ministry",
+]);
 
 let openAiScanClient: OpenAI | null = null;
 let publicSearchBackoffUntil = 0;
@@ -219,7 +244,7 @@ export async function detectExistingPresence(
           }))
           .sort((a, b) => b.score - a.score)[0];
 
-        if (!bestPlace || bestPlace.score < 4) {
+        if (!bestPlace || bestPlace.score < MIN_DIRECTORY_MATCH_SCORE) {
           await markListingMissing(googleListing.id, "google_places_api");
         } else {
           const placeId = bestPlace.result.place_id;
@@ -601,7 +626,7 @@ async function findDirectoryListingWithPublicSearch(
         .map((item) => ({ item, score: scoreSearchResult(profile, item) }))
         .sort((a, b) => b.score - a.score)[0];
 
-      if (best && best.score >= 5) {
+      if (best && best.score >= MIN_DIRECTORY_MATCH_SCORE) {
         return { searched: true, match: { ...best.item, source: "yahoo_public_search" }, source: "yahoo_public_search" };
       }
     } catch (error) {
@@ -673,7 +698,21 @@ async function findDirectoryListingWithAiWebSearch(
       };
     }
 
-    if (parsed.status === "live" && parsed.url && parsed.confidence >= 65 && domainMatches(parsed.url, domain)) {
+    const aiMatchScore = parsed.url
+      ? scoreSearchResult(profile, {
+          link: parsed.url,
+          title: parsed.evidence,
+          snippet: parsed.evidence,
+        })
+      : 0;
+
+    if (
+      parsed.status === "live" &&
+      parsed.url &&
+      parsed.confidence >= 80 &&
+      domainMatches(parsed.url, domain) &&
+      aiMatchScore >= MIN_DIRECTORY_MATCH_SCORE
+    ) {
       return {
         searched: true,
         match: {
@@ -893,7 +932,7 @@ async function findDirectoryListingWithGoogleSearch(
       .map((item) => ({ item, score: scoreSearchResult(profile, item) }))
       .sort((a, b) => b.score - a.score);
 
-    if (scored[0] && scored[0].score >= 5) return scored[0].item;
+    if (scored[0] && scored[0].score >= MIN_DIRECTORY_MATCH_SCORE) return scored[0].item;
   }
 
   return null;
@@ -931,41 +970,59 @@ function normalizePhone(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
 }
 
-function scoreBusinessMatch(profile: BusinessSignalInput, name: string, addressOrSnippet: string): number {
-  const haystack = normalizeText(`${name} ${addressOrSnippet}`);
+function nameTokens(value: string | null | undefined): string[] {
+  return normalizeText(value).split(" ").filter((token) => token.length > 2);
+}
+
+function distinctiveNameTokens(profile: BusinessSignalInput): string[] {
+  const locationTokens = new Set(nameTokens(`${profile.city || ""} ${profile.state || ""}`));
+  return nameTokens(profile.businessName).filter(
+    (token) => !GENERIC_BUSINESS_NAME_TOKENS.has(token) && !locationTokens.has(token)
+  );
+}
+
+function scoreIdentityMatch(profile: BusinessSignalInput, rawHaystack: string): number {
+  const haystack = normalizeText(rawHaystack);
   const normalizedName = normalizeText(profile.businessName);
-  const nameTokens = normalizedName.split(" ").filter((token) => token.length > 2);
-  let score = 0;
-
-  if (normalizedName && haystack.includes(normalizedName)) score += 6;
-  score += Math.min(4, nameTokens.filter((token) => haystack.includes(token)).length);
-
+  const distinctiveTokens = distinctiveNameTokens(profile);
+  const distinctiveMatches = distinctiveTokens.filter((token) => haystack.includes(token));
+  const phone = normalizePhone(profile.phone);
+  const haystackDigits = normalizePhone(rawHaystack);
   const normalizedAddress = normalizeText(profile.address);
-  if (normalizedAddress && haystack.includes(normalizedAddress)) score += 4;
+  const websiteDomain = profile.website ? normalizeText(extractDomain(profile.website)) : "";
+
+  const exactNameMatch = Boolean(normalizedName && haystack.includes(normalizedName));
+  const distinctiveNameMatch =
+    distinctiveTokens.length > 0 &&
+    (distinctiveMatches.length === distinctiveTokens.length ||
+      (distinctiveTokens.length >= 3 && distinctiveMatches.length >= Math.ceil(distinctiveTokens.length * 0.75)));
+  const phoneMatch = Boolean(phone && (haystackDigits.includes(phone) || haystackDigits.includes(phone.slice(-7))));
+  const websiteMatch = Boolean(websiteDomain && haystack.includes(websiteDomain));
+  const addressMatch = Boolean(normalizedAddress && haystack.includes(normalizedAddress));
+
+  if (!exactNameMatch && !distinctiveNameMatch && !phoneMatch && !websiteMatch && !addressMatch) {
+    return 0;
+  }
+
+  let score = 0;
+  if (exactNameMatch) score += 10;
+  else if (distinctiveNameMatch) score += 7 + Math.min(2, distinctiveMatches.length);
+
+  if (phoneMatch) score += 6;
+  if (websiteMatch) score += 5;
+  if (addressMatch) score += 5;
   if (profile.city && haystack.includes(normalizeText(profile.city))) score += 1;
   if (profile.state && haystack.includes(normalizeText(profile.state))) score += 1;
 
   return score;
 }
 
+function scoreBusinessMatch(profile: BusinessSignalInput, name: string, addressOrSnippet: string): number {
+  return scoreIdentityMatch(profile, `${name} ${addressOrSnippet}`);
+}
+
 function scoreSearchResult(profile: BusinessSignalInput, item: SearchResultItem): number {
-  const rawHaystack = `${item.title || ""} ${item.snippet || ""} ${item.link}`;
-  const haystack = normalizeText(rawHaystack);
-  const normalizedName = normalizeText(profile.businessName);
-  const nameTokens = normalizedName.split(" ").filter((token) => token.length > 2);
-  const phone = normalizePhone(profile.phone);
-  const haystackDigits = normalizePhone(rawHaystack);
-  let score = 0;
-
-  if (normalizedName && haystack.includes(normalizedName)) score += 6;
-  score += Math.min(4, nameTokens.filter((token) => haystack.includes(token)).length);
-  if (phone && (haystackDigits.includes(phone) || haystackDigits.includes(phone.slice(-7)))) score += 5;
-  if (profile.website && haystack.includes(normalizeText(extractDomain(profile.website)))) score += 4;
-  if (profile.address && haystack.includes(normalizeText(profile.address))) score += 4;
-  if (profile.city && haystack.includes(normalizeText(profile.city))) score += 1;
-  if (profile.state && haystack.includes(normalizeText(profile.state))) score += 1;
-
-  return score;
+  return scoreIdentityMatch(profile, `${item.title || ""} ${item.snippet || ""} ${item.link}`);
 }
 
 async function markUnsearchedMissingAsUnverified(profileId: string): Promise<number> {
