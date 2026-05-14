@@ -16,6 +16,8 @@ type ActiveAgentSession = {
   generatedPassword: string;
   expiresAt: number;
   directoryName: string;
+  remoteCursor?: { x: number; y: number; at: number };
+  lastHumanActionAt?: number;
 };
 
 type AgentSessionStore = Map<string, ActiveAgentSession>;
@@ -41,9 +43,7 @@ function cleanupExpiredAgentSessions(now = Date.now()) {
 
 function shouldHoldAgentSession(outcome: ListSmartlyAgentOutcome | null): boolean {
   return Boolean(
-    (outcome?.status === "needs_user" &&
-      outcome.stage === "waiting_for_email_verification" &&
-      outcome.actionInputKind === "verification_code") ||
+    (outcome?.status === "needs_user" && outcome.stage?.startsWith("waiting_for_")) ||
       (outcome?.status === "pending" &&
         (outcome.stage === "agent_sdk_retry_needed" || outcome.stage === "agent_review_pending"))
   );
@@ -55,6 +55,109 @@ export function hasActiveListSmartlyAgentSession(workflowId?: string | null): bo
   if (!sessionKey) return false;
   const session = ACTIVE_AGENT_SESSIONS.get(sessionKey);
   return Boolean(session && session.expiresAt > Date.now() && !session.page?.isClosed?.());
+}
+
+export type ListSmartlyAgentBrowserView = {
+  active: boolean;
+  url?: string;
+  title?: string;
+  image?: string;
+  contentType?: string;
+  viewport?: { width: number; height: number };
+  expiresAt?: string;
+  directoryName?: string;
+  cursor?: { x: number; y: number; at: string };
+  lastHumanActionAt?: string;
+  reason?: string;
+};
+
+export type ListSmartlyAgentBrowserControl =
+  | { action: "click"; x: number; y: number }
+  | { action: "type"; text: string }
+  | { action: "key"; key: string }
+  | { action: "scroll"; deltaY: number }
+  | { action: "refresh" };
+
+function getActiveAgentSession(workflowId?: string | null): ActiveAgentSession | null {
+  cleanupExpiredAgentSessions();
+  const sessionKey = workflowSessionKey(workflowId);
+  if (!sessionKey) return null;
+  const session = ACTIVE_AGENT_SESSIONS.get(sessionKey);
+  if (!session || session.expiresAt <= Date.now() || session.page?.isClosed?.()) return null;
+  session.expiresAt = Date.now() + AGENT_SESSION_TTL_MS;
+  return session;
+}
+
+export async function getListSmartlyAgentBrowserView(workflowId?: string | null): Promise<ListSmartlyAgentBrowserView> {
+  const session = getActiveAgentSession(workflowId);
+  if (!session) return { active: false, reason: "No live browser session is currently attached to this workflow." };
+
+  const viewport = session.page.viewport?.() || { width: 1365, height: 900 };
+  const image = await session.page.screenshot({
+    type: "jpeg",
+    quality: 72,
+    encoding: "base64",
+    captureBeyondViewport: false,
+  });
+
+  return {
+    active: true,
+    url: session.page.url?.() || "",
+    title: await session.page.title?.().catch(() => "") || "",
+    image,
+    contentType: "image/jpeg",
+    viewport: { width: viewport.width || 1365, height: viewport.height || 900 },
+    expiresAt: new Date(session.expiresAt).toISOString(),
+    directoryName: session.directoryName,
+    cursor: session.remoteCursor
+      ? { x: session.remoteCursor.x, y: session.remoteCursor.y, at: new Date(session.remoteCursor.at).toISOString() }
+      : undefined,
+    lastHumanActionAt: session.lastHumanActionAt ? new Date(session.lastHumanActionAt).toISOString() : undefined,
+  };
+}
+
+export async function controlListSmartlyAgentBrowser(
+  workflowId: string | null | undefined,
+  control: ListSmartlyAgentBrowserControl
+): Promise<ListSmartlyAgentBrowserView> {
+  const session = getActiveAgentSession(workflowId);
+  if (!session) return { active: false, reason: "The live browser session has expired. Run the agent again to reopen it." };
+
+  const viewport = session.page.viewport?.() || { width: 1365, height: 900 };
+  if (control.action === "click") {
+    const x = Math.max(0, Math.min(viewport.width || 1365, Math.round(control.x)));
+    const y = Math.max(0, Math.min(viewport.height || 900, Math.round(control.y)));
+    await session.page.mouse.move(x, y);
+    await session.page.mouse.click(x, y);
+    session.remoteCursor = { x, y, at: Date.now() };
+  } else if (control.action === "type") {
+    await session.page.keyboard.type(control.text.slice(0, 500), { delay: 20 });
+  } else if (control.action === "key") {
+    const allowedKeys = new Set([
+      "Enter",
+      "Tab",
+      "Escape",
+      "Backspace",
+      "Delete",
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ]);
+    if (allowedKeys.has(control.key)) await session.page.keyboard.press(control.key);
+  } else if (control.action === "scroll") {
+    await session.page.mouse.wheel({ deltaY: Math.max(-2000, Math.min(2000, Math.round(control.deltaY))) });
+  } else if (control.action === "refresh") {
+    await session.page.reload({ waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS }).catch(() => undefined);
+  }
+
+  session.lastHumanActionAt = Date.now();
+  await settle(session.page, 4000);
+  return getListSmartlyAgentBrowserView(workflowId);
 }
 
 export type ListSmartlyAgentProfile = {

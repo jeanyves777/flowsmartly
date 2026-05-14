@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Globe, AlertTriangle, Star, Search, RefreshCw, ChevronLeft, ChevronRight, Check, Clock, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, ThumbsUp, ThumbsDown, Minus, Play, ClipboardCheck, KeyRound, Bell, CheckCircle2, ShieldCheck, Inbox, PauseCircle } from "lucide-react";
+import { BarChart3, Globe, AlertTriangle, Star, Search, RefreshCw, ChevronLeft, ChevronRight, Check, Clock, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, ThumbsUp, ThumbsDown, Minus, Play, ClipboardCheck, KeyRound, Bell, CheckCircle2, ShieldCheck, Inbox, PauseCircle, Monitor, MousePointer2, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -182,6 +182,20 @@ interface AutopilotState {
   credentials: AccountCredential[];
 }
 
+interface LiveBrowserView {
+  active: boolean;
+  url?: string;
+  title?: string;
+  image?: string;
+  contentType?: string;
+  viewport?: { width: number; height: number };
+  expiresAt?: string;
+  directoryName?: string;
+  cursor?: { x: number; y: number; at: string };
+  lastHumanActionAt?: string;
+  reason?: string;
+}
+
 // ── Constants ──
 
 const LISTING_STATUSES: Record<string, { label: string; color: string }> = {
@@ -269,7 +283,7 @@ function userActionBadgeLabel(blocker?: string): string {
   if (blocker === "waiting_for_business_email") return "Profile info needed";
   if (blocker === "business_email_required" || blocker === "business_email_missing") return "Profile info needed";
   if (blocker === "email_confirmation_required") return "Email validation likely";
-  if (blocker === "captcha_required") return "CAPTCHA needed";
+  if (blocker === "captcha_required") return "Portal validation";
   if (blocker === "creation_page_unreachable") return "Portal access needed";
   return "Portal step needed";
 }
@@ -384,9 +398,19 @@ export default function ListSmartlyDashboardPage() {
     secureNotes: string;
     verificationStatus: string;
   } | null>(null);
+  const [liveBrowserView, setLiveBrowserView] = useState<LiveBrowserView | null>(null);
+  const [liveBrowserLoading, setLiveBrowserLoading] = useState(false);
+  const [liveBrowserError, setLiveBrowserError] = useState<string | null>(null);
+  const [liveControlText, setLiveControlText] = useState("");
+  const [liveControlLoading, setLiveControlLoading] = useState(false);
+  const liveBrowserRef = useRef<HTMLImageElement | null>(null);
 
   const LIMIT = 250;
   const totalPages = Math.max(1, Math.ceil(listingsTotal / LIMIT));
+  const liveBrowserTaskId =
+    autopilotState?.runtime?.activeTask?.id ||
+    autopilotState?.tasks.find((task) => task.status === "needs_user")?.id ||
+    null;
 
   // ── Data Fetching ──
 
@@ -515,6 +539,51 @@ export default function ListSmartlyDashboardPage() {
     }
   }, []);
 
+  const fetchLiveBrowser = useCallback(async (taskId?: string | null, silent = true) => {
+    if (!taskId) {
+      setLiveBrowserView(null);
+      setLiveBrowserError(null);
+      return;
+    }
+    if (!silent) setLiveBrowserLoading(true);
+    try {
+      const res = await fetch(`/api/listsmartly/autopilot/browser?taskId=${encodeURIComponent(taskId)}`, {
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message || "Failed to load live browser");
+      setLiveBrowserView(json.data as LiveBrowserView);
+      setLiveBrowserError(null);
+    } catch (error) {
+      setLiveBrowserView(null);
+      setLiveBrowserError(error instanceof Error ? error.message : "Failed to load live browser");
+    } finally {
+      if (!silent) setLiveBrowserLoading(false);
+    }
+  }, []);
+
+  const sendLiveBrowserControl = useCallback(async (taskId: string | null | undefined, control: Record<string, unknown>) => {
+    if (!taskId || liveControlLoading) return;
+    setLiveControlLoading(true);
+    try {
+      const res = await fetch("/api/listsmartly/autopilot/browser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, ...control }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message || "Failed to control live browser");
+      setLiveBrowserView(json.data as LiveBrowserView);
+      setLiveBrowserError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to control live browser";
+      setLiveBrowserError(message);
+      toast({ title: "Live browser control failed", description: message, variant: "destructive" });
+    } finally {
+      setLiveControlLoading(false);
+    }
+  }, [liveControlLoading, toast]);
+
   // Initial load
   useEffect(() => {
     async function init() {
@@ -560,6 +629,20 @@ export default function ListSmartlyDashboardPage() {
     }, refreshMs);
     return () => window.clearInterval(interval);
   }, [activeTab, fetchAutopilotSettings, autopilotState?.runtime?.activeTask?.id]);
+
+  useEffect(() => {
+    if (activeTab !== "autopilot" || !liveBrowserTaskId) {
+      setLiveBrowserView(null);
+      setLiveBrowserError(null);
+      return;
+    }
+    void fetchLiveBrowser(liveBrowserTaskId, false);
+    const refreshMs = liveBrowserView?.active ? 1800 : 5000;
+    const interval = window.setInterval(() => {
+      void fetchLiveBrowser(liveBrowserTaskId, true);
+    }, refreshMs);
+    return () => window.clearInterval(interval);
+  }, [activeTab, liveBrowserTaskId, liveBrowserView?.active, fetchLiveBrowser]);
 
   // ── Actions ──
 
@@ -663,6 +746,22 @@ export default function ListSmartlyDashboardPage() {
     if (!credentialDraft) return;
     await runAutopilotAction("save_credential", { credential: credentialDraft });
     setCredentialDraft(null);
+  }
+
+  function handleLiveBrowserClick(event: MouseEvent<HTMLImageElement>, taskId: string) {
+    const view = liveBrowserView;
+    if (!view?.active || !view.viewport) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * view.viewport.width;
+    const y = ((event.clientY - rect.top) / rect.height) * view.viewport.height;
+    void sendLiveBrowserControl(taskId, { action: "click", x, y });
+  }
+
+  function typeIntoLiveBrowser(taskId: string) {
+    const text = liveControlText;
+    if (!text.trim()) return;
+    setLiveControlText("");
+    void sendLiveBrowserControl(taskId, { action: "type", text });
   }
 
   // ── Loading State ──
@@ -1392,10 +1491,35 @@ export default function ListSmartlyDashboardPage() {
       : needsUserTask?.result?.accountCreated
         ? "The agent started the account workflow and is paused at a real validation step."
         : "The agent is paused at a real validation step.";
+    const needsPortalValidation = Boolean(
+      needsUserTask?.result?.stage === "waiting_for_captcha" ||
+        needsUserTask?.result?.accountCreationBlocker === "waiting_for_captcha" ||
+        needsUserTask?.result?.accountCreationBlocker === "captcha_required"
+    );
     const needsUserButtonLabel =
       needsUserTask?.result?.userActionInputKind === "verification_code"
         ? "Submit code to live agent"
-        : needsUserTask?.result?.userActionButtonLabel || "Continue agent";
+        : needsPortalValidation
+          ? "Continue agent after validation"
+          : needsUserTask?.result?.userActionButtonLabel || "Continue agent";
+    const needsUserDisplayTitle = needsPortalValidation
+      ? `${needsUserTask?.directory?.name || needsUserTask?.title.replace(/^Verify\s+/i, "") || "Directory"} needs portal validation`
+      : needsUserTask?.result?.userActionTitle || needsUserTask?.title || "Agent needs your input";
+    const needsUserDisplayMessage = needsPortalValidation
+      ? "The real portal is shown in the live browser above. Complete the visible validation or required field there, then continue the agent."
+      : needsUserTask?.result?.userActionMessage ||
+        needsUserTask?.result?.statusMessage ||
+        needsUserTask?.requiredAction ||
+        "Complete the required validation, then let the agent continue.";
+    const supervisedTask = activeTask || needsUserTask;
+    const showLiveBrowser = Boolean(supervisedTask);
+    const liveBrowserIsCurrent = Boolean(showLiveBrowser && liveBrowserTaskId === supervisedTask?.id);
+    const liveBrowserConnected = Boolean(liveBrowserIsCurrent && liveBrowserView?.active && liveBrowserView.image);
+    const liveBrowserViewport = liveBrowserView?.viewport || { width: 1365, height: 900 };
+    const liveBrowserSrc =
+      liveBrowserConnected && liveBrowserView?.image
+        ? `data:${liveBrowserView.contentType || "image/jpeg"};base64,${liveBrowserView.image}`
+        : "";
 
     return (
       <div className="space-y-6">
@@ -1479,7 +1603,7 @@ export default function ListSmartlyDashboardPage() {
                   </>
                 ) : needsUserTask ? (
                   <p>
-                    Action needed: <span className="text-foreground font-medium">{needsUserTask.title}</span>
+                    Action needed: <span className="text-foreground font-medium">{needsUserDisplayTitle}</span>
                   </p>
                 ) : nextRunAt ? (
                   <p>
@@ -1498,6 +1622,158 @@ export default function ListSmartlyDashboardPage() {
                 </p>
               </div>
             </div>
+
+            {showLiveBrowser && supervisedTask && (
+              <div className="rounded-md border border-sky-500/25 bg-sky-500/[0.04] p-4">
+                <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Monitor className="h-4 w-4 text-sky-400" />
+                      <p className="text-sm font-semibold text-foreground">Live remote-control browser</p>
+                      <Badge variant={liveBrowserConnected ? "secondary" : "outline"}>
+                        {liveBrowserConnected ? "Connected" : liveBrowserLoading ? "Connecting" : "Waiting"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {liveBrowserConnected
+                        ? `${liveBrowserView?.directoryName || supervisedTask.directory?.name || "Directory"} is open in the agent browser. Click the screen and type only when the portal asks for human input.`
+                        : liveBrowserError || liveBrowserView?.reason || "The live browser appears when the agent is actively holding this workflow."}
+                    </p>
+                    {liveBrowserConnected && liveBrowserView?.url && (
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {liveBrowserView.title ? `${liveBrowserView.title} - ` : ""}
+                        {liveBrowserView.url}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void fetchLiveBrowser(supervisedTask.id, false)}
+                    disabled={liveBrowserLoading}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${liveBrowserLoading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {liveBrowserConnected ? (
+                  <div className="space-y-3">
+                    <div className="relative overflow-hidden rounded-md border border-border bg-black">
+                      <img
+                        ref={liveBrowserRef}
+                        src={liveBrowserSrc}
+                        alt="Live agent browser"
+                        draggable={false}
+                        onClick={(event) => handleLiveBrowserClick(event, supervisedTask.id)}
+                        className="block w-full select-none cursor-crosshair"
+                        style={{ aspectRatio: `${liveBrowserViewport.width} / ${liveBrowserViewport.height}` }}
+                      />
+                      {liveBrowserView?.cursor && (
+                        <span
+                          className="pointer-events-none absolute z-10 -translate-x-1 -translate-y-1 text-sky-300 drop-shadow"
+                          style={{
+                            left: `${(liveBrowserView.cursor.x / liveBrowserViewport.width) * 100}%`,
+                            top: `${(liveBrowserView.cursor.y / liveBrowserViewport.height) * 100}%`,
+                          }}
+                        >
+                          <MousePointer2 className="h-5 w-5 fill-sky-300/20" />
+                        </span>
+                      )}
+                      {liveControlLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/35">
+                          <Badge variant="secondary" className="gap-2">
+                            <AISpinner className="h-3.5 w-3.5 animate-spin" />
+                            Sending control
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                      <div className="flex min-w-0 flex-1 gap-2">
+                        <Input
+                          value={liveControlText}
+                          onChange={(event) => setLiveControlText(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              typeIntoLiveBrowser(supervisedTask.id);
+                            }
+                          }}
+                          placeholder="Type into the focused browser field"
+                          aria-label="Text to type into the live browser"
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => typeIntoLiveBrowser(supervisedTask.id)}
+                          disabled={liveControlLoading || !liveControlText.trim()}
+                        >
+                          <Keyboard className="h-4 w-4 mr-2" />
+                          Type
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["Enter", "Tab", "Backspace"].map((key) => (
+                          <Button
+                            key={key}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "key", key })}
+                            disabled={liveControlLoading}
+                          >
+                            {key}
+                          </Button>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "scroll", deltaY: -650 })}
+                          disabled={liveControlLoading}
+                        >
+                          Scroll up
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "scroll", deltaY: 650 })}
+                          disabled={liveControlLoading}
+                        >
+                          Scroll down
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "refresh" })}
+                          disabled={liveControlLoading}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                          Reload
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-md border border-dashed border-border bg-background/60 p-6 text-center">
+                    {liveBrowserLoading ? (
+                      <AISpinner className="h-8 w-8 animate-spin text-primary" />
+                    ) : (
+                      <Monitor className="h-9 w-9 text-muted-foreground" />
+                    )}
+                    <p className="mt-3 text-sm font-medium text-foreground">
+                      {liveBrowserLoading ? "Opening live browser..." : "No live browser attached yet"}
+                    </p>
+                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                      {liveBrowserError || liveBrowserView?.reason || "Start or resume the agent. When it reaches a real portal step, this panel shows the page itself."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {(activeTask || needsUserTask) && (
               <div className="rounded-md border border-border bg-background/70 p-4">
@@ -1561,21 +1837,20 @@ export default function ListSmartlyDashboardPage() {
                             {userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker)}
                           </Badge>
                           <p className="text-sm font-semibold text-foreground">
-                            {needsUserTask.result?.userActionTitle || needsUserTask.title}
+                            {needsUserDisplayTitle}
                           </p>
                         </div>
                         <p className="mt-2 text-sm text-foreground">{needsUserSummary}</p>
                         <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                          {needsEmailCode && needsUserTask.result?.verificationCodeAttempted
+                          {needsPortalValidation
+                            ? needsUserDisplayMessage
+                            : needsEmailCode && needsUserTask.result?.verificationCodeAttempted
                             ? `${needsUserTask.result?.userActionMessage || needsUserTask.result?.statusMessage || needsUserTask.requiredAction || "The code was not accepted by the directory."} ${
                                 emailSessionHeld
                                   ? "The browser session is still open, so the next code will be submitted without reloading the verification page."
                                   : "The live browser session expired, so the agent may need to reopen the verification page."
                               }`
-                            : needsUserTask.result?.userActionMessage ||
-                              needsUserTask.result?.statusMessage ||
-                              needsUserTask.requiredAction ||
-                              "Complete the required validation, then let the agent continue."}
+                            : needsUserDisplayMessage}
                         </p>
                         {needsEmailCode && codeAttemptCount > 0 && (
                           <p className="mt-2 text-[11px] text-amber-200">
@@ -1599,42 +1874,6 @@ export default function ListSmartlyDashboardPage() {
                           </a>
                         </Button>
                       )}
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {[
-                        {
-                          label: needsEmailCode ? "Sign-up started" : "Agent reached portal",
-                          status: "done" as const,
-                          detail: needsUserTask.result?.credentialSaved ? "Login details are saved for this pending workflow." : "The agent prepared the workflow.",
-                        },
-                        {
-                          label: needsEmailCode
-                            ? needsUserTask.result?.verificationCodeAttempted
-                              ? "Code rejected"
-                              : "Email code needed"
-                            : userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker),
-                          status: "waiting" as const,
-                          detail: needsEmailCode
-                            ? emailSessionHeld
-                              ? "Enter the latest code from the email; the agent will submit it in the open browser session."
-                              : "Enter the latest code from the email; the agent will resume the browser workflow."
-                            : "Only the validation step belongs to the user.",
-                        },
-                        {
-                          label: "Agent continues",
-                          status: "active" as const,
-                          detail: "After validation, the agent resumes the listing workflow.",
-                        },
-                      ].map((step) => (
-                        <div key={step.label} className={`rounded-md border p-3 ${progressStatusClass(step.status)}`}>
-                          <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 rounded-full ${progressDotClass(step.status)}`} />
-                            <p className="text-xs font-semibold text-foreground">{step.label}</p>
-                          </div>
-                          <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">{step.detail}</p>
-                        </div>
-                      ))}
                     </div>
 
                     {needsUserTask.result?.userActionInputKind === "verification_code" && (
