@@ -234,6 +234,10 @@ export async function controlListSmartlyAgentBrowser(
         return null;
       })
       .catch(() => null);
+  const pressHoldChallengeVisible = async (): Promise<boolean> =>
+    session.page
+      .evaluate(() => /help us beat the robots|press\s+and\s+hold|not a robot|human verification/i.test(document.body?.innerText || ""))
+      .catch(() => false);
   let settleMs = 4000;
 
   if (control.action === "click") {
@@ -258,12 +262,21 @@ export async function controlListSmartlyAgentBrowser(
       Number.isFinite(control.x) && Number.isFinite(control.y)
         ? clampPoint(control.x, control.y)
         : (await findPressHoldPoint()) || clampPoint(session.remoteCursor?.x, session.remoteCursor?.y);
-    const durationMs = Math.max(2500, Math.min(12000, Math.round(control.durationMs || 6500)));
+    const durationMs = Math.max(12000, Math.min(24000, Math.round(control.durationMs || 18000)));
+    const minimumHoldMs = Math.min(12000, durationMs);
     await session.page.mouse.move(point.x, point.y);
     await session.page.mouse.down();
     session.remoteCursor = { x: point.x, y: point.y, at: Date.now() };
-    await delay(durationMs);
-    await session.page.mouse.up();
+    const startedAt = Date.now();
+    try {
+      while (Date.now() - startedAt < durationMs) {
+        await delay(750);
+        if (Date.now() - startedAt < minimumHoldMs) continue;
+        if (!(await pressHoldChallengeVisible())) break;
+      }
+    } finally {
+      await session.page.mouse.up().catch(() => undefined);
+    }
     settleMs = 3500;
   } else if (control.action === "type") {
     await session.page.keyboard.type(control.text.slice(0, 500), { delay: 20 });

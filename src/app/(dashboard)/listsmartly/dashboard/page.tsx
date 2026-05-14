@@ -569,7 +569,7 @@ export default function ListSmartlyDashboardPage() {
     const controller = new AbortController();
     const timeout = window.setTimeout(
       () => controller.abort(),
-      action === "press_hold" ? 25000 : 12000
+      action === "press_hold" ? 40000 : 12000
     );
     try {
       const res = await fetch("/api/listsmartly/autopilot/browser", {
@@ -811,7 +811,7 @@ export default function ListSmartlyDashboardPage() {
     void sendLiveBrowserControl(taskId, {
       action: "press_hold",
       ...(cursor ? { x: cursor.x, y: cursor.y } : {}),
-      durationMs: 7000,
+      durationMs: 18000,
     });
   }
 
@@ -1779,7 +1779,7 @@ export default function ListSmartlyDashboardPage() {
                           title="Hold the visible Press and hold challenge button in the live browser"
                         >
                           <MousePointer2 className="h-3.5 w-3.5 mr-1.5" />
-                          Press & hold
+                          Hold 18s
                         </Button>
                         {["Enter", "Tab", "Backspace"].map((key) => (
                           <Button

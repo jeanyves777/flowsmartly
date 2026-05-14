@@ -56,7 +56,7 @@ function normalizeControl(body: Record<string, unknown>): ListSmartlyAgentBrowse
       action,
       x: body.x === undefined ? undefined : Number(body.x || 0),
       y: body.y === undefined ? undefined : Number(body.y || 0),
-      durationMs: Number(body.durationMs || 6500),
+      durationMs: Number(body.durationMs || 18000),
     };
   }
   if (action === "type") {
