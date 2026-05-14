@@ -7,6 +7,7 @@ import { getClaudeCodeBinaryPath } from "@/lib/ai/design-tools/sdk-binary-path";
 
 const AGENT_BROWSER_TIMEOUT_MS = 60000;
 const AGENT_SESSION_TTL_MS = 30 * 60 * 1000;
+const AGENT_RUN_TIMEOUT_MS = Number(process.env.LISTSMARTLY_AGENT_RUN_TIMEOUT_MS || 120000);
 const AGENT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
 const AGENT_BROWSER_ARGS = [
@@ -632,12 +633,16 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
           value: el.value ? "[filled]" : "",
           required: Boolean(el.required || el.getAttribute("aria-required") === "true"),
         })),
-      buttons: Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]"))
+      buttons: Array.from(
+        document.querySelectorAll(
+          'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
+        )
+      )
         .filter((el) => visible(el))
         .map((el: any, index) => ({
           index,
           tag: el.tagName,
-          text: (el.innerText || el.getAttribute("value") || el.getAttribute("aria-label") || "")
+          text: (el.innerText || el.textContent || el.getAttribute("value") || el.getAttribute("aria-label") || "")
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 140),
@@ -663,7 +668,7 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         emailVerification: /(verify[-_\s]?email|verify your email|email verification|verification code|one.?time verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageContext),
         phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageContext),
         payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageContext),
-        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|office 365)/i.test(pageContext),
+        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|microsoft account|work account|office 365)/i.test(pageContext),
         businessEmailRejected: /(provide a valid business email|please enter a valid business email|valid work email|company email required|free email domain|business email is required|invalid business email)/i.test(
           `${alertText} ${pageText}`
         ),
@@ -792,12 +797,38 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       ),
       tool(
         "click",
-        "Click a visible button or link by exact text pattern. Use for Sign up, Get started, U.S.-based business, general purpose, Continue, Next, Submit, Claim, or Add business. Do not click social login/SSO/payment buttons.",
+        "Click a visible button, link, role button, or clickable text by exact text pattern. Use for Create one, Sign up, Get started, Continue, Next, Submit, Claim, or Add business. Do not click social login/SSO/payment buttons.",
         {
           textPattern: z.string().describe("Case-insensitive text pattern to click."),
           avoidPattern: z.string().optional().describe("Optional case-insensitive pattern to avoid."),
         },
         async (args) => {
+          const providerLoginPattern = /(microsoft account|work account|continue with google|continue with facebook|sign in with google|sign in with microsoft|office 365|single sign.?on|\bsso\b)/i;
+          if (!continuation?.savedLoginPassword && providerLoginPattern.test(args.textPattern)) {
+            const snapshot = await observePage(page);
+            await onProgress?.({
+              stage: "agent_login_provider_skipped",
+              label: "Login provider skipped",
+              status: "active",
+              detail:
+                "The agent skipped a provider login button because no approved saved credential exists. It will use a public create-account path if available.",
+              extra: { portalUrl: snapshot.url, availableControls: snapshot.buttons.map((button) => button.text || button.label) },
+            });
+            progressLog.push({
+              tool: "click",
+              input: args,
+              result: { clicked: false, reason: "provider_login_requires_saved_credentials" },
+              url: snapshot.url,
+            });
+            return ok({
+              clicked: false,
+              reason: "provider_login_requires_saved_credentials",
+              guidance: "Use a visible Create one, sign up, claim, or add business control instead. If none exists, finish with needs_user for approved account access.",
+              availableControls: snapshot.buttons.map((button) => button.text || button.label).filter(Boolean).slice(0, 30),
+              url: snapshot.url,
+            });
+          }
+
           const result = await page.evaluate(
             ({ textPattern, avoidPattern }: { textPattern: string; avoidPattern?: string }) => {
               const wanted = new RegExp(textPattern, "i");
@@ -807,12 +838,17 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 const rect = el.getBoundingClientRect();
                 return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
               };
-              const candidates = Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]")) as HTMLElement[];
+              const candidates = Array.from(
+                document.querySelectorAll(
+                  'button, a, input[type=submit], input[type=button], [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
+                )
+              ) as HTMLElement[];
               const availableControls: string[] = [];
               for (const el of candidates) {
                 if (!visible(el)) continue;
                 const text = (
                   el.innerText ||
+                  el.textContent ||
                   el.getAttribute("value") ||
                   el.getAttribute("aria-label") ||
                   el.getAttribute("title") ||
@@ -1378,29 +1414,36 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       continuation,
     });
 
-    for await (const message of query({
-      prompt: userPrompt,
-      options: {
-        systemPrompt,
-        mcpServers: { listsmartly_browser_agent: server },
-        allowedTools,
-        model: process.env.LISTSMARTLY_AGENT_MODEL || "claude-haiku-4-5-20251001",
-        canUseTool: async (toolName) => {
-          toolCalls.push(toolName);
-          return { behavior: "allow" as const, updatedInput: {} };
+    const abortController = new AbortController();
+    const runTimeout = setTimeout(() => abortController.abort(), AGENT_RUN_TIMEOUT_MS);
+    try {
+      for await (const message of query({
+        prompt: userPrompt,
+        options: {
+          systemPrompt,
+          mcpServers: { listsmartly_browser_agent: server },
+          allowedTools,
+          model: process.env.LISTSMARTLY_AGENT_MODEL || "claude-haiku-4-5-20251001",
+          canUseTool: async (toolName) => {
+            toolCalls.push(toolName);
+            return { behavior: "allow" as const, updatedInput: {} };
+          },
+          abortController,
+          maxTurns: 32,
+          maxBudgetUsd: 0.7,
+          pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
+          stderr: (msg: string) => console.error(`[listsmartly-agent/claude] ${msg.trimEnd()}`),
         },
-        maxTurns: 32,
-        maxBudgetUsd: 0.7,
-        pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
-        stderr: (msg: string) => console.error(`[listsmartly-agent/claude] ${msg.trimEnd()}`),
-      },
-    })) {
-      if (message.type === "assistant") {
-        const blocks = (message.message?.content ?? []) as Array<{ type?: string; name?: string }>;
-        for (const block of blocks) {
-          if (block.type === "tool_use" && typeof block.name === "string") toolCalls.push(block.name);
+      })) {
+        if (message.type === "assistant") {
+          const blocks = (message.message?.content ?? []) as Array<{ type?: string; name?: string }>;
+          for (const block of blocks) {
+            if (block.type === "tool_use" && typeof block.name === "string") toolCalls.push(block.name);
+          }
         }
       }
+    } finally {
+      clearTimeout(runTimeout);
     }
 
     if (finalOutcome) return finalOutcome;
@@ -1506,6 +1549,7 @@ Capabilities:
 Rules:
 - Never bypass CAPTCHA, bot protection, paywalls, login protections, email/SMS/phone verification, payment choices, or owner approval.
 - Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
+- For Bing Places or Microsoft-gated directory pages, "Microsoft account" and "Work account" are login-provider buttons. Without approved saved credentials, click "Create one" or another public create-account path instead.
 - Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
 - If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
 - If the page says the account already exists and the workflow has approved saved credentials, try the normal email/password sign-in path before blocking.
@@ -1554,7 +1598,7 @@ function buildUserPrompt(params: {
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If the page is Bing Places or Microsoft-gated and no saved credential is available, click Create one before any Microsoft account or Work account login-provider button. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2
