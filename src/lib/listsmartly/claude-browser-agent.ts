@@ -1,5 +1,8 @@
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { mkdirSync } from "fs";
+import os from "os";
+import path from "path";
 import { getClaudeCodeBinaryPath } from "@/lib/ai/design-tools/sdk-binary-path";
 
 const AGENT_BROWSER_TIMEOUT_MS = 60000;
@@ -22,12 +25,20 @@ export type ListSmartlyAgentProfile = {
   description?: string | null;
 };
 
+export type ListSmartlyAgentContinuation = {
+  verificationCode?: string | null;
+};
+
 export type ListSmartlyAgentOutcome = {
   status: "submitted" | "needs_user" | "blocked" | "pending";
   stage: string;
   message: string;
   actionTitle: string;
   actionButtonLabel: string;
+  actionInputKind?: "verification_code";
+  actionInputLabel?: string;
+  actionInputPlaceholder?: string;
+  actionInputRequired?: boolean;
   portalUrl: string;
   accountCreated: boolean;
   credentialSaved: boolean;
@@ -120,7 +131,11 @@ async function settle(page: any, timeout = 12000) {
   }
 }
 
-function valuesForProfile(profile: ListSmartlyAgentProfile, generatedPassword: string) {
+function valuesForProfile(
+  profile: ListSmartlyAgentProfile,
+  generatedPassword: string,
+  continuation?: ListSmartlyAgentContinuation
+) {
   const { firstName, lastName } = splitContactName(profile);
   return {
     firstName,
@@ -139,6 +154,7 @@ function valuesForProfile(profile: ListSmartlyAgentProfile, generatedPassword: s
     industry: profile.industry || "",
     yearFounded: profile.yearFounded || "",
     description: profile.description || "",
+    verificationCode: (continuation?.verificationCode || "").replace(/\s+/g, ""),
   };
 }
 
@@ -148,6 +164,10 @@ function defaultOutcome(params: {
   message: string;
   actionTitle: string;
   actionButtonLabel: string;
+  actionInputKind?: ListSmartlyAgentOutcome["actionInputKind"];
+  actionInputLabel?: string;
+  actionInputPlaceholder?: string;
+  actionInputRequired?: boolean;
   portalUrl: string;
   accountCreated?: boolean;
   generatedPassword?: string;
@@ -159,6 +179,10 @@ function defaultOutcome(params: {
     message: params.message,
     actionTitle: params.actionTitle,
     actionButtonLabel: params.actionButtonLabel,
+    actionInputKind: params.actionInputKind,
+    actionInputLabel: params.actionInputLabel,
+    actionInputPlaceholder: params.actionInputPlaceholder,
+    actionInputRequired: params.actionInputRequired,
     portalUrl: params.portalUrl,
     accountCreated: Boolean(params.accountCreated),
     credentialSaved: Boolean(params.generatedPassword),
@@ -219,8 +243,10 @@ function normalizeNeedsUserOutcome(params: {
       outcome.message
     );
 
+  const emailVerificationAccountCreated = Boolean(blockers?.emailVerification);
+
   if (blockers?.captcha) reasons.push("complete the CAPTCHA or bot-protection challenge");
-  if (blockers?.emailVerification) reasons.push("verify the email challenge");
+  if (blockers?.emailVerification) reasons.push("provide the email verification code");
   if (blockers?.phoneVerification) reasons.push("verify the phone or SMS challenge");
   if (blockers?.businessEmailRejected && personalEmail) {
     reasons.push(`add or approve a business email because ${profile.email} appears to be a personal email`);
@@ -270,18 +296,31 @@ function normalizeNeedsUserOutcome(params: {
       : stage === "waiting_for_business_email"
         ? "I updated the business email"
         : stage === "waiting_for_email_verification"
-          ? "I verified the email"
+          ? "Continue with code"
           : stage === "waiting_for_phone_verification"
             ? "I verified the phone"
             : stage === "waiting_for_payment_confirmation"
               ? "I confirmed payment"
               : "I completed validation";
+  const actionInput =
+    stage === "waiting_for_email_verification"
+      ? {
+          actionInputKind: "verification_code" as const,
+          actionInputLabel: `${directoryName} verification code`,
+          actionInputPlaceholder: "Enter the code from the email",
+          actionInputRequired: true,
+        }
+      : {};
   const reasonText = humanList(reasons);
   const message =
-    `The agent reached ${outcome.portalUrl} and paused because it needs the user to ${reasonText}. ` +
-    "No account was created and no credentials were saved. Complete only that validation or missing profile detail, " +
-    `then click "${actionButtonLabel}" in ListSmartly. The agent will continue the remaining form work, generate the password, ` +
-    "and save credentials after the account is actually created.";
+    stage === "waiting_for_email_verification"
+      ? `The account sign-up reached email verification at ${outcome.portalUrl}. Enter the code from the email in ListSmartly, then the AI agent will submit it and continue the remaining listing workflow.`
+      : `The agent reached ${outcome.portalUrl} and paused because it needs the user to ${reasonText}. ` +
+        "Complete only that validation or missing profile detail, " +
+        `then click "${actionButtonLabel}" in ListSmartly. The agent will continue the remaining form work.`;
+  const normalizedAccountCreated = emailVerificationAccountCreated || outcome.accountCreated;
+  const normalizedGeneratedPassword =
+    normalizedAccountCreated && outcome.generatedPassword ? outcome.generatedPassword : undefined;
 
   return {
     ...outcome,
@@ -289,10 +328,11 @@ function normalizeNeedsUserOutcome(params: {
     message,
     actionTitle,
     actionButtonLabel,
-    accountCreated: false,
-    credentialSaved: false,
-    generatedPassword: undefined,
-    passwordHint: undefined,
+    ...actionInput,
+    accountCreated: normalizedAccountCreated,
+    credentialSaved: Boolean(normalizedGeneratedPassword),
+    generatedPassword: normalizedGeneratedPassword,
+    passwordHint: normalizedGeneratedPassword ? outcome.passwordHint : undefined,
   };
 }
 
@@ -321,7 +361,30 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         .trim();
     };
     const pageText = document.body.innerText.replace(/\s+/g, " ").trim();
-    const html = document.body.innerHTML;
+    const visibleTextFor = (selector: string) =>
+      Array.from(document.querySelectorAll(selector))
+        .filter((el) => visible(el))
+        .map((el) => el.textContent || "")
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const alertText = visibleTextFor(
+      '[role="alert"], [aria-live], .error, .errors, .field-error, .form-error, .invalid-feedback, .validation-message, .help-block'
+    );
+    const visibleCaptchaElement = Array.from(
+      document.querySelectorAll("iframe, div, section, form, input")
+    ).some((el) => {
+      if (!visible(el)) return false;
+      const marker = [
+        el.getAttribute("src") || "",
+        el.getAttribute("title") || "",
+        el.getAttribute("aria-label") || "",
+        el.getAttribute("id") || "",
+        el.getAttribute("class") || "",
+        el.getAttribute("name") || "",
+      ].join(" ");
+      return /(recaptcha|hcaptcha|turnstile|captcha|cloudflare challenge)/i.test(marker);
+    });
     return {
       url: location.href,
       title: document.title,
@@ -355,12 +418,16 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         .filter((item) => item.text || item.href)
         .slice(0, 80),
       blockers: {
-        captcha: /(captcha|recaptcha|hcaptcha|turnstile|cloudflare challenge)/i.test(`${pageText} ${html}`),
+        captcha:
+          visibleCaptchaElement ||
+          /(complete the captcha|captcha required|verify you are human|security challenge|cloudflare challenge)/i.test(pageText),
         emailVerification: /(verify your email|verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageText),
         phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageText),
         payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageText),
         loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|office 365)/i.test(pageText),
-        businessEmailRejected: /(business email|required.*business email|valid business email|work email|company email|invalid email)/i.test(pageText),
+        businessEmailRejected: /(provide a valid business email|please enter a valid business email|valid work email|company email required|free email domain|business email is required|invalid business email)/i.test(
+          `${alertText} ${pageText}`
+        ),
       },
     };
   });
@@ -371,13 +438,20 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
   directoryName: string;
   directorySlug?: string | null;
   startUrl: string;
+  workflowId?: string | null;
+  continuation?: ListSmartlyAgentContinuation;
   onProgress?: ProgressCallback;
 }): Promise<ListSmartlyAgentOutcome> {
-  const { profile, directoryName, directorySlug, startUrl, onProgress } = params;
+  const { profile, directoryName, directorySlug, startUrl, workflowId, continuation, onProgress } = params;
   const generatedPassword = safePassword();
   const puppeteer = (await import("puppeteer")).default;
+  const userDataDir = workflowId
+    ? path.join(os.tmpdir(), "flowsmartly-listsmartly-agent", workflowId.replace(/[^a-zA-Z0-9_-]+/g, "_"))
+    : undefined;
+  if (userDataDir) mkdirSync(userDataDir, { recursive: true });
   const browser = await puppeteer.launch({
     headless: true,
+    userDataDir,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -412,7 +486,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       extra: { agentEngine: "claude_agent_sdk", portalUrl: page.url() },
     });
 
-    const profileValues = valuesForProfile(profile, generatedPassword);
+    const profileValues = valuesForProfile(profile, generatedPassword, continuation);
 
     const tools = [
       tool(
@@ -585,6 +659,84 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             extra: { portalUrl: page.url(), valueKey: args.valueKey },
           });
           progressLog.push({ tool: "fill_field", input: args, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "fill_verification_code",
+        "Fill the visible one-time email/SMS verification code field with the user-provided code. Use only when approved_values includes verificationCode.",
+        {},
+        async () => {
+          const code = profileValues.verificationCode || "";
+          if (!code) {
+            return ok({ filled: false, reason: "No verification code was supplied by the user." });
+          }
+          const result = await page.evaluate((codeValue: string) => {
+            const visible = (el: Element) => {
+              const style = window.getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+            };
+            const labelFor = (el: HTMLInputElement | HTMLTextAreaElement) => {
+              const id = el.getAttribute("id");
+              const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+              const implicit = el.closest("label")?.textContent || "";
+              return [
+                explicit,
+                implicit,
+                el.getAttribute("aria-label") || "",
+                el.getAttribute("placeholder") || "",
+                el.getAttribute("name") || "",
+                el.getAttribute("autocomplete") || "",
+                id || "",
+              ]
+                .join(" ")
+                .replace(/\s+/g, " ")
+                .trim();
+            };
+            const setValue = (el: HTMLInputElement | HTMLTextAreaElement, next: string) => {
+              const prototype = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+              if (setter) setter.call(el, next);
+              else el.value = next;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            };
+            const inputs = Array.from(document.querySelectorAll("input, textarea")) as Array<HTMLInputElement | HTMLTextAreaElement>;
+            const candidates = inputs.filter((input) => {
+              if (!visible(input) || input.disabled || input.readOnly) return false;
+              const type = (input.getAttribute("type") || "text").toLowerCase();
+              if (["hidden", "submit", "button", "checkbox", "radio", "file", "password"].includes(type)) return false;
+              const label = labelFor(input);
+              return /(verification|verify|code|otp|one.?time|pin)/i.test(label);
+            });
+            if (candidates.length === 1) {
+              setValue(candidates[0], codeValue);
+              return { filled: true, mode: "single", label: labelFor(candidates[0]) };
+            }
+            const singleCharInputs = inputs.filter((input) => {
+              if (!visible(input) || input.disabled || input.readOnly) return false;
+              const maxLength = Number(input.getAttribute("maxlength") || "0");
+              const inputMode = input.getAttribute("inputmode") || "";
+              return maxLength <= 1 && /(numeric|decimal)/i.test(inputMode);
+            });
+            if (singleCharInputs.length >= codeValue.length && codeValue.length >= 4) {
+              codeValue.split("").forEach((char, index) => {
+                setValue(singleCharInputs[index], char);
+              });
+              return { filled: true, mode: "split", count: codeValue.length };
+            }
+            return { filled: false, mode: "not_found", visibleInputs: inputs.filter((input) => visible(input)).length };
+          }, code);
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_filled_verification_code",
+            label: "Verification code entered",
+            status: result.filled ? "active" : "failed",
+            detail: result.filled ? "The agent entered the user-provided verification code." : "No verification-code field was found.",
+            extra: { portalUrl: page.url(), agentEngine: "claude_agent_sdk" },
+          });
+          progressLog.push({ tool: "fill_verification_code", result, url: page.url() });
           return ok({ ...result, url: page.url() });
         }
       ),
@@ -844,8 +996,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
               accountCreated,
               credentialSaved: shouldSaveCredential,
               emailSentByFlowSmartly: false,
-              generatedPassword: shouldSaveCredential ? generatedPassword : undefined,
-              passwordHint: shouldSaveCredential ? "Generated by FlowSmartly ListSmartly Agent." : undefined,
+              generatedPassword,
+              passwordHint: "Generated by FlowSmartly ListSmartly Agent.",
               diagnostics: {
                 agentEngine: "claude_agent_sdk",
                 toolCalls,
@@ -880,6 +1032,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       startUrl,
       profile,
       approvedValues: Object.keys(profileValues).filter((key) => Boolean(profileValues[key as keyof typeof profileValues])),
+      continuation,
     });
 
     for await (const message of query({
@@ -961,6 +1114,7 @@ Rules:
 - Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
 - Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
 - If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
+- If a verification code is supplied in approved values, fill it with fill_verification_code and continue the workflow. Do not ask the user to enter that code on the external site.
 - If CAPTCHA, email/SMS/phone verification, payment, owner approval, or missing profile data blocks you, ask only for that blocker. Tell the user the agent will continue after validation.
 - Never invent account creation. accountCreated=true only after the page accepted a submit step or asks for verification after a submit.
 - Never claim credentials were saved unless shouldSaveGeneratedCredential=true and accountCreated=true.
@@ -975,8 +1129,9 @@ function buildUserPrompt(params: {
   startUrl: string;
   profile: ListSmartlyAgentProfile;
   approvedValues: string[];
+  continuation?: ListSmartlyAgentContinuation;
 }): string {
-  const { directoryName, directorySlug, startUrl, profile, approvedValues } = params;
+  const { directoryName, directorySlug, startUrl, profile, approvedValues, continuation } = params;
   return JSON.stringify(
     {
       task: `Run the public listing/account workflow for ${directoryName}.`,
@@ -997,10 +1152,13 @@ function buildUserPrompt(params: {
         description: profile.description,
       },
       approvedFieldKeys: approvedValues,
+      continuation: {
+        verificationCodeSupplied: Boolean(continuation?.verificationCode),
+      },
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If CAPTCHA, email/SMS/phone verification, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "If a verification code was supplied, enter it and continue. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2

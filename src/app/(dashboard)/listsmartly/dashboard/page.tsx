@@ -116,6 +116,10 @@ interface AutopilotTask {
     userActionTitle?: string;
     userActionMessage?: string;
     userActionButtonLabel?: string;
+    userActionInputKind?: "verification_code";
+    userActionInputLabel?: string;
+    userActionInputPlaceholder?: string;
+    userActionInputRequired?: boolean;
   };
   directory?: { name: string; url: string; tier: number; slug: string } | null;
   listingStatus?: string | null;
@@ -254,6 +258,10 @@ function progressDotClass(status: AutopilotProgressEvent["status"]): string {
 }
 
 function userActionBadgeLabel(blocker?: string): string {
+  if (blocker === "waiting_for_email_verification") return "Email code needed";
+  if (blocker === "waiting_for_phone_verification") return "Phone code needed";
+  if (blocker === "waiting_for_captcha") return "Portal validation";
+  if (blocker === "waiting_for_business_email") return "Profile info needed";
   if (blocker === "business_email_required" || blocker === "business_email_missing") return "Profile info needed";
   if (blocker === "email_confirmation_required") return "Email validation likely";
   if (blocker === "captcha_required") return "CAPTCHA needed";
@@ -359,6 +367,7 @@ export default function ListSmartlyDashboardPage() {
   const [autopilotLoading, setAutopilotLoading] = useState(false);
   const [autopilotActionLoading, setAutopilotActionLoading] = useState(false);
   const [lastAutopilotRefresh, setLastAutopilotRefresh] = useState<string | null>(null);
+  const [verificationInputs, setVerificationInputs] = useState<Record<string, string>>({});
   const [credentialDraft, setCredentialDraft] = useState<{
     listingId: string;
     directoryName: string;
@@ -618,6 +627,25 @@ export default function ListSmartlyDashboardPage() {
     } finally {
       setAutopilotActionLoading(false);
     }
+  }
+
+  function continueAutopilotTask(task: AutopilotTask) {
+    const verificationCode =
+      task.result?.userActionInputKind === "verification_code"
+        ? (verificationInputs[task.id] || "").trim()
+        : "";
+    if (task.result?.userActionInputRequired && !verificationCode) {
+      toast({
+        title: "Verification code required",
+        description: "Enter the code from the directory email so the AI agent can continue.",
+        variant: "destructive",
+      });
+      return;
+    }
+    void runAutopilotAction("continue_task", {
+      taskId: task.id,
+      ...(verificationCode ? { verificationCode } : {}),
+    });
   }
 
   async function saveCredentialDraft() {
@@ -1479,28 +1507,18 @@ export default function ListSmartlyDashboardPage() {
                           {needsUserTask.result?.userActionTitle || needsUserTask.title}
                         </p>
                       </div>
-                      {needsUserTask.result?.accountCreated === false && (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                          <div className="rounded-md border border-border bg-card/60 p-2">
-                            <p className="text-[11px] text-muted-foreground">Portal inspected</p>
-                            <p className={`text-xs font-semibold ${needsUserTask.result?.agentAttemptedAccountCreation ? "text-emerald-300" : "text-red-300"}`}>
-                              {needsUserTask.result?.agentAttemptedAccountCreation ? "Yes" : "No"}
-                            </p>
-                          </div>
-                          <div className="rounded-md border border-border bg-card/60 p-2">
-                            <p className="text-[11px] text-muted-foreground">Account created</p>
-                            <p className="text-xs font-semibold text-red-300">No</p>
-                          </div>
-                          <div className="rounded-md border border-border bg-card/60 p-2">
-                            <p className="text-[11px] text-muted-foreground">Credentials saved</p>
-                            <p className="text-xs font-semibold text-red-300">No</p>
-                          </div>
-                          <div className="rounded-md border border-border bg-card/60 p-2">
-                            <p className="text-[11px] text-muted-foreground">FlowSmartly email sent</p>
-                            <p className="text-xs font-semibold text-red-300">No</p>
-                          </div>
-                        </div>
-                      )}
+                      <div className="mt-3 rounded-md border border-border bg-card/60 p-3">
+                        <p className="text-xs font-semibold text-foreground">
+                          {needsUserTask.result?.accountCreationBlocker === "waiting_for_email_verification"
+                            ? "Account created. Email code needed."
+                            : needsUserTask.result?.accountCreated
+                              ? "Account started. Agent is waiting for validation."
+                              : "Agent paused for a real validation step."}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          The AI agent keeps the workflow. Provide only the requested validation, then it continues the directory work.
+                        </p>
+                      </div>
                       <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
                         {needsUserTask.result?.userActionMessage ||
                           needsUserTask.result?.statusMessage ||
@@ -1522,10 +1540,30 @@ export default function ListSmartlyDashboardPage() {
                           Open verification portal
                         </a>
                       )}
+                      {needsUserTask.result?.userActionInputKind === "verification_code" && (
+                        <div className="mt-3 max-w-sm">
+                          <Input
+                            value={verificationInputs[needsUserTask.id] || ""}
+                            onChange={(e) =>
+                              setVerificationInputs((prev) => ({
+                                ...prev,
+                                [needsUserTask.id]: e.target.value.replace(/\s+/g, ""),
+                              }))
+                            }
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder={needsUserTask.result?.userActionInputPlaceholder || "Enter verification code"}
+                            aria-label={needsUserTask.result?.userActionInputLabel || "Verification code"}
+                          />
+                        </div>
+                      )}
                     </div>
                     <Button
-                      onClick={() => runAutopilotAction("continue_task", { taskId: needsUserTask.id })}
-                      disabled={autopilotActionLoading}
+                      onClick={() => continueAutopilotTask(needsUserTask)}
+                      disabled={
+                        autopilotActionLoading ||
+                        Boolean(needsUserTask.result?.userActionInputRequired && !(verificationInputs[needsUserTask.id] || "").trim())
+                      }
                       className="w-full lg:w-auto"
                     >
                       <Check className="h-4 w-4 mr-2" />
@@ -1659,7 +1697,7 @@ export default function ListSmartlyDashboardPage() {
                                           </div>
                                         )}
                                       </div>
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap items-center gap-2">
                                         {task.status === "needs_user" ? (
                                           <>
                                             {(task.result?.portalUrl || task.payload?.directory?.claimUrl || task.payload?.directory?.submitUrl || task.payload?.directory?.url || task.directory?.url) && (
@@ -1681,37 +1719,29 @@ export default function ListSmartlyDashboardPage() {
                                                 </a>
                                               </Button>
                                             )}
+                                            {task.result?.userActionInputKind === "verification_code" && (
+                                              <Input
+                                                className="h-8 w-40"
+                                                value={verificationInputs[task.id] || ""}
+                                                onChange={(e) =>
+                                                  setVerificationInputs((prev) => ({
+                                                    ...prev,
+                                                    [task.id]: e.target.value.replace(/\s+/g, ""),
+                                                  }))
+                                                }
+                                                inputMode="numeric"
+                                                autoComplete="one-time-code"
+                                                placeholder="Email code"
+                                                aria-label={task.result?.userActionInputLabel || "Verification code"}
+                                              />
+                                            )}
                                             <Button
                                               size="sm"
-                                              variant="outline"
-                                              onClick={() => {
-                                                const directoryUrl =
-                                                  task.result?.portalUrl ||
-                                                  task.payload?.directory?.submitUrl ||
-                                                  task.payload?.directory?.claimUrl ||
-                                                  task.payload?.directory?.url ||
-                                                  task.directory?.url ||
-                                                  "";
-                                                setCredentialDraft({
-                                                  listingId: task.listingId || "",
-                                                  directoryName: task.directory?.name || task.title,
-                                                  loginUrl: directoryUrl,
-                                                  accountEmail: "",
-                                                  username: "",
-                                                  recoveryEmail: "",
-                                                  passwordHint: "",
-                                                  secureNotes: "",
-                                                  verificationStatus: "pending",
-                                                });
-                                              }}
-                                            >
-                                              <KeyRound className="h-3 w-3 mr-1" />
-                                              Save Account Details
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => runAutopilotAction("continue_task", { taskId: task.id })}
-                                              disabled={autopilotActionLoading}
+                                              onClick={() => continueAutopilotTask(task)}
+                                              disabled={
+                                                autopilotActionLoading ||
+                                                Boolean(task.result?.userActionInputRequired && !(verificationInputs[task.id] || "").trim())
+                                              }
                                             >
                                               <Check className="h-3 w-3 mr-1" />
                                               {task.result?.userActionButtonLabel || "I Completed Portal Step"}

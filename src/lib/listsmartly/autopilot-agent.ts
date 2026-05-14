@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
-import { runClaudeListSmartlyBrowserAgent } from "@/lib/listsmartly/claude-browser-agent";
+import {
+  runClaudeListSmartlyBrowserAgent,
+  type ListSmartlyAgentContinuation,
+} from "@/lib/listsmartly/claude-browser-agent";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
@@ -85,6 +88,10 @@ type BrowserWorkflowOutcome = {
   message: string;
   actionTitle: string;
   actionButtonLabel: string;
+  actionInputKind?: "verification_code";
+  actionInputLabel?: string;
+  actionInputPlaceholder?: string;
+  actionInputRequired?: boolean;
   portalUrl: string;
   accountCreated: boolean;
   credentialSaved: boolean;
@@ -552,14 +559,13 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
-        requiresUserAction: true,
-        blocker: "captcha_required",
-        blockerMessage: `${directoryName} requires CAPTCHA or bot-protection before account creation can continue.`,
-        userActionTitle: `${directoryName} CAPTCHA required`,
+        requiresUserAction: false,
+        blocker: "agent_browser_required",
+        blockerMessage: `${directoryName} has protection-related markup. The AI browser agent must inspect the visible page before asking the user for anything.`,
+        userActionTitle: `${directoryName} browser agent required`,
         userActionMessage:
-          `The agent reached the ${directoryName} account creation path, but the page requires CAPTCHA or bot-protection. ` +
-          "Complete that challenge in the portal, then return so the agent can continue.",
-        userActionButtonLabel: "I completed the CAPTCHA",
+          `The server fetch saw protection-related markup for ${directoryName}, but only the browser agent can confirm whether a real visible challenge exists.`,
+        userActionButtonLabel: "Agent should continue",
       };
     }
 
@@ -569,15 +575,14 @@ async function inspectAccountCreationPage(
         accountCreated: false,
         credentialSaved: false,
         emailSentByFlowSmartly: false,
-        requiresUserAction: true,
-        blocker: "email_confirmation_required",
+        requiresUserAction: false,
+        blocker: "agent_browser_required",
         blockerMessage:
-          `${directoryName} exposes an account creation flow, and completing it can send email verification to ${profile.email}.`,
-        userActionTitle: `${directoryName} email sign-up ready`,
+          `${directoryName} exposes an account creation flow. The AI browser agent should fill and submit it before asking for any verification code.`,
+        userActionTitle: `${directoryName} browser agent ready`,
         userActionMessage:
-          `The agent found the ${directoryName} sign-up flow. Password fields on sign-up pages are part of account creation, ` +
-          "not a reason to stop as if the user already needs login credentials. Confirm the email is monitored, then the agent can continue.",
-        userActionButtonLabel: "Email is ready",
+          `The agent found the ${directoryName} sign-up flow and will continue with the approved business profile. It will ask only if the site sends a verification code or shows another real blocker.`,
+        userActionButtonLabel: "Agent should continue",
       };
     }
 
@@ -1280,7 +1285,8 @@ async function runAgentBrowserWorkflow(
       };
     } | null;
   },
-  existingResult: Record<string, unknown>
+  existingResult: Record<string, unknown>,
+  continuation: ListSmartlyAgentContinuation = {}
 ) {
   if (!task.listing) {
     return { status: "failed", message: "Listing record missing.", task };
@@ -1344,6 +1350,8 @@ async function runAgentBrowserWorkflow(
     directoryName: task.listing.directory.name,
     directorySlug: task.listing.directory.slug,
     startUrl,
+    workflowId: task.id,
+    continuation,
     onProgress: async (event) => {
       await updateTaskProgress(
         task.id,
@@ -1397,6 +1405,10 @@ async function runAgentBrowserWorkflow(
         userActionTitle: outcome.actionTitle,
         userActionMessage: outcome.message,
         userActionButtonLabel: outcome.actionButtonLabel,
+        userActionInputKind: outcome.actionInputKind,
+        userActionInputLabel: outcome.actionInputLabel,
+        userActionInputPlaceholder: outcome.actionInputPlaceholder,
+        userActionInputRequired: outcome.actionInputRequired,
         portalUrl: outcome.portalUrl,
         browserDiagnostics: outcome.diagnostics,
       },
@@ -1450,6 +1462,10 @@ async function runAgentBrowserWorkflow(
         userActionTitle: outcome.actionTitle,
         userActionMessage: outcome.message,
         userActionButtonLabel: outcome.actionButtonLabel,
+        userActionInputKind: outcome.actionInputKind,
+        userActionInputLabel: outcome.actionInputLabel,
+        userActionInputPlaceholder: outcome.actionInputPlaceholder,
+        userActionInputRequired: outcome.actionInputRequired,
         portalUrl: outcome.portalUrl,
         browserDiagnostics: outcome.diagnostics,
       },
@@ -1537,6 +1553,10 @@ async function runAgentBrowserWorkflow(
       userActionTitle: outcome.actionTitle,
       userActionMessage: outcome.message,
       userActionButtonLabel: outcome.actionButtonLabel,
+      userActionInputKind: outcome.actionInputKind,
+      userActionInputLabel: outcome.actionInputLabel,
+      userActionInputPlaceholder: outcome.actionInputPlaceholder,
+      userActionInputRequired: outcome.actionInputRequired,
       portalUrl: outcome.portalUrl,
       browserDiagnostics: outcome.diagnostics,
     },
@@ -2031,7 +2051,11 @@ export async function prepareAutopilotQueue(userId: string) {
   };
 }
 
-export async function processAutopilotTask(userId: string, taskId?: string) {
+export async function processAutopilotTask(
+  userId: string,
+  taskId?: string,
+  continuation: ListSmartlyAgentContinuation = {}
+) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
     include: { user: { select: { name: true, email: true } } },
@@ -2132,7 +2156,7 @@ export async function processAutopilotTask(userId: string, taskId?: string) {
     typeof existingResult.stage === "string" &&
     existingResult.stage.startsWith("agent_browser_")
   ) {
-    return runAgentBrowserWorkflow(userId, businessSignal, task, existingResult);
+    return runAgentBrowserWorkflow(userId, businessSignal, task, existingResult, continuation);
   }
 
   console.log(`ListSmartly autopilot: processing ${task.title} for ${profile.businessName}`);
@@ -2497,7 +2521,11 @@ export async function runNextAutopilotStep(userId: string) {
   };
 }
 
-export async function continueAutopilotTask(userId: string, taskId: string) {
+export async function continueAutopilotTask(
+  userId: string,
+  taskId: string,
+  continuation: ListSmartlyAgentContinuation = {}
+) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
 
@@ -2516,14 +2544,19 @@ export async function continueAutopilotTask(userId: string, taskId: string) {
     {
       ...parseJsonObject(task.result),
       stage: "agent_browser_workflow_running",
-      statusMessage: "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
+      statusMessage: continuation.verificationCode
+        ? "User provided the verification code. The AI listing agent is entering it and continuing the directory workflow."
+        : "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
       userConfirmedAt: new Date().toISOString(),
+      verificationCodeProvided: Boolean(continuation.verificationCode),
     },
     {
-      stage: "validation_received",
-      label: "Validation confirmed",
+      stage: continuation.verificationCode ? "verification_code_received" : "validation_received",
+      label: continuation.verificationCode ? "Verification code received" : "Validation confirmed",
       status: "done",
-      detail: "The agent is resuming the listing check.",
+      detail: continuation.verificationCode
+        ? "The agent will enter the code and continue."
+        : "The agent is resuming the listing check.",
     }
   );
 
@@ -2540,7 +2573,7 @@ export async function continueAutopilotTask(userId: string, taskId: string) {
     },
   });
 
-  return processAutopilotTask(userId, task.id);
+  return processAutopilotTask(userId, task.id, continuation);
 }
 
 export async function completeAutopilotTask(userId: string, taskId: string, result: Record<string, unknown> = {}) {
@@ -2698,7 +2731,14 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
 export async function handleAutopilotAction(userId: string, action: AutopilotAction, body: Record<string, unknown>) {
   if (action === "prepare_queue") return prepareAutopilotQueue(userId);
   if (action === "run_next") return runNextAutopilotStep(userId);
-  if (action === "continue_task") return continueAutopilotTask(userId, String(body.taskId));
+  if (action === "continue_task") {
+    return continueAutopilotTask(userId, String(body.taskId), {
+      verificationCode:
+        typeof body.verificationCode === "string" && body.verificationCode.trim()
+          ? body.verificationCode.trim()
+          : undefined,
+    });
+  }
   if (action === "complete_task") return completeAutopilotTask(userId, String(body.taskId), body.result as Record<string, unknown>);
   if (action === "block_task") return blockAutopilotTask(userId, String(body.taskId), String(body.reason || ""));
   if (action === "request_validation") return requestAutopilotValidation(userId, String(body.taskId), String(body.reason || ""));
