@@ -3,6 +3,7 @@
  * Creates and manages listing scan/sync jobs.
  */
 import { prisma } from "@/lib/db/client";
+import OpenAI from "openai";
 import { checkConsistency } from "./consistency-checker";
 import { seedDirectories } from "./directories";
 import { importReviews } from "./review-aggregator";
@@ -13,6 +14,10 @@ const WEB_SEARCH_USER_AGENT =
 const PUBLIC_SEARCH_TIMEOUT_MS = 12000;
 const PUBLIC_SEARCH_BATCH_SIZE = 4;
 const PUBLIC_SEARCH_DELAY_MS = 750;
+const PUBLIC_SEARCH_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
+
+let openAiScanClient: OpenAI | null = null;
+let publicSearchBackoffUntil = 0;
 
 type BusinessSignalInput = {
   businessName: string;
@@ -174,7 +179,7 @@ export async function detectExistingPresence(
   if (!profile) throw new Error("Profile not found");
 
   const listings = await prisma.businessListing.findMany({
-    where: { profileId, status: { not: "error" }, directory: { isActive: true } },
+    where: { profileId, directory: { isActive: true } },
     include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
   });
 
@@ -342,7 +347,7 @@ export async function detectExistingPresence(
   }
 
   const remainingListings = await prisma.businessListing.findMany({
-    where: { profileId, status: { in: ["missing", "unverified", "needs_update"] }, directory: { isActive: true } },
+    where: { profileId, status: { in: ["missing", "unverified", "needs_update", "error"] }, directory: { isActive: true } },
     include: { directory: { select: { id: true, slug: true, name: true, url: true, tier: true } } },
     orderBy: [{ directory: { tier: "asc" } }, { directory: { name: "asc" } }],
   });
@@ -556,7 +561,15 @@ async function findDirectoryListing(
     }
   }
 
-  return findDirectoryListingWithPublicSearch(profile, directory);
+  const publicSearch = await findDirectoryListingWithPublicSearch(profile, directory);
+  if (publicSearch.searched || publicSearch.match) return publicSearch;
+
+  const aiSearch = await findDirectoryListingWithAiWebSearch(profile, directory, publicSearch.error);
+  if (aiSearch.searched || aiSearch.match) return aiSearch;
+
+  return publicSearch.error && aiSearch.error
+    ? { ...aiSearch, error: `${publicSearch.error}; ${aiSearch.error}` }
+    : aiSearch;
 }
 
 async function findDirectoryListingWithPublicSearch(
@@ -568,6 +581,15 @@ async function findDirectoryListingWithPublicSearch(
   const candidates: SearchResultItem[] = [];
   let searched = false;
   let lastError: string | undefined;
+
+  if (Date.now() < publicSearchBackoffUntil) {
+    return {
+      searched: false,
+      match: null,
+      source: "yahoo_public_search",
+      error: "Public search is temporarily rate-limited.",
+    };
+  }
 
   for (const query of queries) {
     try {
@@ -597,6 +619,80 @@ async function findDirectoryListingWithPublicSearch(
   };
 }
 
+async function findDirectoryListingWithAiWebSearch(
+  profile: BusinessSignalInput,
+  directory: DirectorySearchInput,
+  fallbackReason?: string
+): Promise<DirectorySearchResult> {
+  const client = getOpenAiScanClient();
+  if (!client) {
+    return {
+      searched: false,
+      match: null,
+      source: "ai_web_search",
+      error: "AI web search is not configured.",
+    };
+  }
+
+  const domain = extractDomain(directory.url);
+  const location = [profile.city, profile.state].filter(Boolean).join(", ");
+  const searchFacts = [
+    `Business name: ${profile.businessName}`,
+    location ? `Location: ${location}` : "",
+    profile.phone ? `Phone: ${profile.phone}` : "",
+    profile.website ? `Website: ${profile.website}` : "",
+    profile.address ? `Address: ${profile.address}` : "",
+    `Directory: ${directory.name}`,
+    `Directory domain: ${domain}`,
+    fallbackReason ? `Previous programmatic search issue: ${fallbackReason}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const response = await client.responses.create({
+      model: process.env.LISTSMARTLY_SCAN_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini",
+      tools: [{ type: "web_search_preview", search_context_size: "low" }],
+      input: [
+        "You are ListSmartly's listing scanner. Search the public web for this exact business on the specified directory.",
+        "Classify the directory as live only when a public listing/profile/page on the directory domain clearly belongs to the business.",
+        "Classify as missing when you do not find a confident matching listing on that directory.",
+        "Return JSON only, no markdown, using this exact shape:",
+        '{"status":"live|missing","url":string|null,"confidence":0-100,"evidence":"short reason"}',
+        searchFacts,
+      ].join("\n\n"),
+    });
+
+    const parsed = parseAiDirectoryScanResponse(response.output_text || "");
+    if (!parsed) {
+      return {
+        searched: false,
+        match: null,
+        source: "ai_web_search",
+        error: "AI web search returned an unreadable result.",
+      };
+    }
+
+    if (parsed.status === "live" && parsed.url && parsed.confidence >= 65 && domainMatches(parsed.url, domain)) {
+      return {
+        searched: true,
+        match: {
+          link: parsed.url,
+          title: `${directory.name} listing for ${profile.businessName}`,
+          snippet: parsed.evidence,
+          source: "ai_web_search",
+        },
+        source: "ai_web_search",
+      };
+    }
+
+    return { searched: true, match: null, source: "ai_web_search" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "AI web search failed.";
+    return { searched: false, match: null, source: "ai_web_search", error: message };
+  }
+}
+
 function buildDirectorySearchQueries(profile: BusinessSignalInput, domain: string): string[] {
   const location = [profile.city, profile.state].filter(Boolean).join(" ");
   const phone = normalizePhone(profile.phone);
@@ -624,6 +720,9 @@ async function searchYahooReader(query: string, targetDomain: string): Promise<S
 
   const body = await res.text();
   if (!res.ok) {
+    if (res.status === 429) {
+      publicSearchBackoffUntil = Date.now() + PUBLIC_SEARCH_RATE_LIMIT_BACKOFF_MS;
+    }
     throw new Error(`Public search returned HTTP ${res.status}`);
   }
   if (/captcha|confirm you.?re a human|too many requests|access denied/i.test(body) && !/## Search Results/i.test(body)) {
@@ -653,6 +752,56 @@ async function searchYahooReader(query: string, targetDomain: string): Promise<S
   }
 
   return dedupeSearchResults(items);
+}
+
+function parseAiDirectoryScanResponse(
+  value: string
+): { status: "live" | "missing"; url: string | null; confidence: number; evidence?: string } | null {
+  const json = extractJsonObject(value);
+  if (!json) return null;
+
+  try {
+    const parsed = JSON.parse(json) as {
+      status?: unknown;
+      url?: unknown;
+      confidence?: unknown;
+      evidence?: unknown;
+    };
+    const status = parsed.status === "live" ? "live" : parsed.status === "missing" ? "missing" : null;
+    if (!status) return null;
+
+    const url = typeof parsed.url === "string" && parsed.url.startsWith("http") ? parsed.url : null;
+    const confidence =
+      typeof parsed.confidence === "number"
+        ? parsed.confidence
+        : Number.isFinite(Number(parsed.confidence))
+          ? Number(parsed.confidence)
+          : status === "live"
+            ? 50
+            : 100;
+
+    return {
+      status,
+      url,
+      confidence: Math.max(0, Math.min(100, confidence)),
+      evidence: typeof parsed.evidence === "string" ? parsed.evidence.slice(0, 400) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractJsonObject(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+
+  const fenced = trimmed.match(/```(?:json)?\s*({[\s\S]*?})\s*```/i);
+  if (fenced?.[1]) return fenced[1];
+
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
+  return null;
 }
 
 function dedupeSearchResults(items: SearchResultItem[]): SearchResultItem[] {
@@ -761,6 +910,13 @@ function getGoogleSearchCx(): string | undefined {
     process.env.GOOGLE_CUSTOM_SEARCH_CX ||
     process.env.GOOGLE_SEARCH_ENGINE_ID
   );
+}
+
+function getOpenAiScanClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  if (!openAiScanClient) openAiScanClient = new OpenAI({ apiKey });
+  return openAiScanClient;
 }
 
 function normalizeText(value: string | null | undefined): string {
