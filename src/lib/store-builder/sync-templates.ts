@@ -89,6 +89,49 @@ async function resolveReferenceDir(): Promise<string | null> {
   return null;
 }
 
+async function ensureStoreAccountPageHelper(storeDir: string, result: SyncResult): Promise<void> {
+  const apiClientPath = join(storeDir, "src", "lib", "api-client.ts");
+  let content: string;
+  try {
+    content = await fs.readFile(apiClientPath, "utf-8");
+  } catch {
+    result.skipped.push({ file: "src/lib/api-client.ts", reason: "not present in generated store" });
+    return;
+  }
+
+  const original = content;
+  if (!content.includes("export function getStoreSlug(")) {
+    content = content.replace(
+      /(export function getStoreBasePath\(\): string \{[\s\S]*?\n\})/,
+      `$1
+
+export function getStoreSlug(): string {
+  const basePath = getStoreBasePath();
+  const match = basePath.match(/^\\/stores\\/([^/]+)/);
+  return match?.[1] || "";
+}`
+    );
+  }
+
+  if (!content.includes("export function storeAccountPage(")) {
+    content = content.replace(
+      /(export function storePage\(path: string\): string \{[\s\S]*?\n\})/,
+      `$1
+
+export function storeAccountPage(path = ""): string {
+  const slug = getStoreSlug();
+  const normalized = path ? (path.startsWith("/") ? path : \`/\${path}\`) : "";
+  return slug ? \`/store/\${slug}/account\${normalized}\` : storePage(\`/account\${normalized}\`);
+}`
+    );
+  }
+
+  if (content !== original) {
+    await fs.writeFile(apiClientPath, content, "utf-8");
+    result.synced.push("(patched) src/lib/api-client.ts account helper");
+  }
+}
+
 export async function syncStoreTemplates(storeDir: string): Promise<SyncResult> {
   const refDir = await resolveReferenceDir();
   const result: SyncResult = { refDir, synced: [], skipped: [] };
@@ -126,6 +169,8 @@ export async function syncStoreTemplates(storeDir: string): Promise<SyncResult> 
       reason: err instanceof Error ? err.message : "scale injection failed",
     });
   }
+
+  await ensureStoreAccountPageHelper(storeDir, result);
 
   for (const rel of TEMPLATE_FILES) {
     const src = join(refDir, rel);
