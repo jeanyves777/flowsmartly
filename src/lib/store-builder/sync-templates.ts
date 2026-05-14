@@ -57,6 +57,7 @@ const TEMPLATE_FILES: readonly string[] = [
   "src/app/terms/page.tsx",
   "src/app/account/login/page.tsx",
   "src/app/account/register/page.tsx",
+  "src/app/account/[section]/page.tsx",
 ];
 
 /**
