@@ -151,6 +151,34 @@ export function validateEmailConfig(
   return null;
 }
 
+export async function verifyMarketingEmailConfig(
+  provider: string,
+  emailConfig: Record<string, unknown>
+): Promise<{ success: boolean; error?: string }> {
+  const validationError = validateEmailConfig(provider, emailConfig);
+  if (validationError) {
+    return { success: false, error: validationError };
+  }
+
+  if (provider === "MAILGUN") {
+    return { success: true };
+  }
+
+  try {
+    const transporter = createTransporter(provider, emailConfig);
+    await transporter.verify();
+    if (typeof transporter.close === "function") {
+      transporter.close();
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Email provider verification failed",
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Merge Tag Types
 // ---------------------------------------------------------------------------
@@ -281,16 +309,28 @@ export async function sendMarketingEmail(params: MarketingEmailParams): Promise<
 
 // Get user-friendly error message from send errors
 export function getEmailErrorMessage(errorMessage: string): string {
+  const normalized = errorMessage.toLowerCase();
   if (errorMessage.includes("ECONNREFUSED") || errorMessage.includes("ENOTFOUND")) {
     return "Could not connect to the email server. Please check your host/port settings.";
   }
-  if (errorMessage.includes("EAUTH") || errorMessage.includes("Invalid login") || errorMessage.includes("authentication")) {
+  if (
+    errorMessage.includes("EAUTH") ||
+    normalized.includes("invalid login") ||
+    normalized.includes("authentication") ||
+    normalized.includes("auth failed") ||
+    normalized.includes("535")
+  ) {
     return "Authentication failed. Please check your username/password or API key.";
   }
-  if (errorMessage.includes("ETIMEDOUT") || errorMessage.includes("timeout")) {
+  if (errorMessage.includes("ETIMEDOUT") || normalized.includes("timeout")) {
     return "Connection timed out. Please check your server settings and firewall.";
   }
-  if (errorMessage.includes("self signed") || errorMessage.includes("certificate") || errorMessage.includes("wrong version number") || errorMessage.includes("tls_validate_record_header")) {
+  if (
+    normalized.includes("self signed") ||
+    normalized.includes("certificate") ||
+    normalized.includes("wrong version number") ||
+    normalized.includes("tls_validate_record_header")
+  ) {
     return "SSL/TLS error. Port 465 requires SSL, while port 587 uses STARTTLS.";
   }
   return `Email sending failed: ${errorMessage}`;

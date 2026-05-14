@@ -5,11 +5,13 @@ import {
   type ListSmartlyAgentContinuation,
 } from "@/lib/listsmartly/claude-browser-agent";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import type { Prisma } from "@prisma/client";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
 const DAILY_AUTOPILOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const AUTOPILOT_FETCH_TIMEOUT_MS = 10000;
 const AUTOPILOT_BROWSER_TIMEOUT_MS = 45000;
+const AUTOPILOT_STALE_IN_PROGRESS_MS = 60 * 60 * 1000;
 const AUTOPILOT_USER_AGENT = "Mozilla/5.0 (compatible; FlowSmartlyListSmartly/1.0)";
 const MIN_DIRECTORY_MATCH_SCORE = 5;
 const SECURE_NOTE_PREFIX = "fs-vault:v1:";
@@ -1735,6 +1737,61 @@ async function markListingMissingFromAutopilot(listingId: string, oldStatus: str
   }
 }
 
+async function pauseStaleAutopilotTasks(profileId: string, visibleTaskWhere: Prisma.ListSmartlyAutopilotTaskWhereInput) {
+  const staleBefore = new Date(Date.now() - AUTOPILOT_STALE_IN_PROGRESS_MS);
+  const staleTasks = await prisma.listSmartlyAutopilotTask.findMany({
+    where: {
+      ...visibleTaskWhere,
+      profileId,
+      status: "in_progress",
+      updatedAt: { lt: staleBefore },
+    },
+    select: { id: true, title: true, result: true, updatedAt: true },
+    take: 10,
+  });
+
+  if (staleTasks.length === 0) return 0;
+
+  await Promise.all(
+    staleTasks.map((task) => {
+      const existingResult = parseJsonObject(task.result);
+      const progress = Array.isArray(existingResult.progress) ? existingResult.progress : [];
+      const pausedAt = new Date().toISOString();
+
+      return prisma.listSmartlyAutopilotTask.update({
+        where: { id: task.id },
+        data: {
+          status: "blocked",
+          assignedTo: "admin",
+          failureReason: "The agent workflow stopped updating and was paused for admin review.",
+          requiredAction:
+            "FlowSmartly paused this workflow because the browser agent did not update it for more than 60 minutes. Support can retry it or provide manual next steps.",
+          result: safeJson({
+            ...existingResult,
+            stage: "agent_review_needed",
+            statusMessage:
+              "Paused for admin review because the workflow stopped updating for more than 60 minutes.",
+            stalePausedAt: pausedAt,
+            staleLastUpdatedAt: task.updatedAt.toISOString(),
+            progress: [
+              ...progress,
+              {
+                stage: "agent_review_needed",
+                label: "Paused for admin review",
+                status: "blocked",
+                detail: "The workflow stopped updating for more than 60 minutes.",
+                at: pausedAt,
+              },
+            ],
+          }),
+        },
+      });
+    })
+  );
+
+  return staleTasks.length;
+}
+
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
@@ -1749,6 +1806,8 @@ export async function getAutopilotState(userId: string) {
     profileId: profile.id,
     OR: [{ listingId: null }, { listingId: { in: activeListings.map((listing) => listing.id) } }],
   };
+
+  await pauseStaleAutopilotTasks(profile.id, visibleTaskWhere);
 
   const [
     tasks,
@@ -2423,6 +2482,11 @@ export async function processAutopilotTask(
 export async function runNextAutopilotStep(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  await pauseStaleAutopilotTasks(profile.id, {
+    profileId: profile.id,
+    listing: { directory: { isActive: true } },
+  });
 
   const activeTask = await prisma.listSmartlyAutopilotTask.findFirst({
     where: {

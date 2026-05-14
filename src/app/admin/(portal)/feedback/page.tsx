@@ -136,6 +136,11 @@ export default function AdminFeedbackPage() {
 
       const nextReports = data.data.reports as FeedbackReport[];
       setReports(nextReports);
+      setExpandedId((current) =>
+        current && nextReports.some((report) => report.id === current)
+          ? current
+          : nextReports[0]?.id || null
+      );
       setStats(data.data.stats);
       setCategories(data.data.categories || []);
       setTotalPages(data.data.pagination.totalPages || 1);
@@ -200,7 +205,7 @@ export default function AdminFeedbackPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-full space-y-6 pb-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-3 text-2xl font-bold">
@@ -318,7 +323,7 @@ export default function AdminFeedbackPage() {
                 const isExpanded = expandedId === report.id;
                 return (
                   <div key={report.id} className="transition-colors hover:bg-muted/30">
-                    <div className="grid gap-4 p-4 xl:grid-cols-[1.1fr_1fr_0.9fr_auto] xl:items-center">
+                    <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.7fr)_minmax(260px,0.8fr)_auto] xl:items-center">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold">{report.referenceCode}</p>
@@ -372,7 +377,7 @@ export default function AdminFeedbackPage() {
 
                     {isExpanded && (
                       <div className="border-t bg-muted/20 p-4">
-                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_480px]">
                           <div className="space-y-4">
                             <div>
                               <p className="mb-2 text-sm font-semibold">User message</p>
@@ -384,7 +389,7 @@ export default function AdminFeedbackPage() {
                             {report.screenshotUrls.length > 0 && (
                               <div>
                                 <p className="mb-2 text-sm font-semibold">Screenshot</p>
-                                <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="grid gap-3">
                                   {report.screenshotUrls.map((url) => (
                                     <a
                                       key={url}
@@ -393,7 +398,7 @@ export default function AdminFeedbackPage() {
                                       rel="noreferrer"
                                       className="block overflow-hidden rounded-xl border bg-background"
                                     >
-                                      <img src={url} alt="Feedback screenshot" className="h-56 w-full object-contain" />
+                                      <img src={url} alt="Feedback screenshot" className="max-h-[70vh] min-h-[280px] w-full object-contain" />
                                     </a>
                                   ))}
                                 </div>

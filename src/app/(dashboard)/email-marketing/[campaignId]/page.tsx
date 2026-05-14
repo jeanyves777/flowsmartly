@@ -34,6 +34,7 @@ interface Campaign {
   } | null;
   sent: number;
   delivered: number;
+  failed: number;
   opened: number;
   clicked: number;
   bounced: number;
@@ -102,7 +103,7 @@ export default function EmailCampaignDetailPage() {
       if (!data.success) {
         throw new Error(data.error?.message || "Failed to send campaign");
       }
-      toast({ title: "Campaign sent successfully!" });
+      toast({ title: data.data?.message || "Campaign send finished" });
       fetchCampaign();
     } catch (err) {
       toast({
@@ -170,6 +171,8 @@ export default function EmailCampaignDetailPage() {
         return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20" variant="outline">Scheduled</Badge>;
       case "SENDING":
         return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20" variant="outline">Sending</Badge>;
+      case "FAILED":
+        return <Badge className="bg-red-500/10 text-red-600 border-red-500/20" variant="outline">Failed</Badge>;
       case "ACTIVE":
         return <Badge className="bg-green-500/10 text-green-600 border-green-500/20" variant="outline">Active</Badge>;
       default:
@@ -222,7 +225,7 @@ export default function EmailCampaignDetailPage() {
   if (!campaign) return null;
 
   const isDraft = campaign.status.toUpperCase() === "DRAFT";
-  const isSentOrActive = ["SENT", "SCHEDULED", "ACTIVE", "SENDING"].includes(campaign.status.toUpperCase());
+  const isSentOrActive = ["SENT", "SCHEDULED", "ACTIVE", "SENDING", "FAILED"].includes(campaign.status.toUpperCase());
 
   const openRate = calcRate(campaign.opened, campaign.sent);
   const clickRate = calcRate(campaign.clicked, campaign.sent);
@@ -296,10 +299,11 @@ export default function EmailCampaignDetailPage() {
 
       {/* Analytics Cards - shown for sent/active campaigns */}
       {isSentOrActive && (
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
           {[
             { label: "Sent", value: campaign.sent, icon: Send, bg: "bg-blue-500/10", text: "text-blue-500" },
             { label: "Delivered", value: campaign.delivered, icon: CheckCircle2, bg: "bg-emerald-500/10", text: "text-emerald-500" },
+            { label: "Failed", value: campaign.failed, icon: XCircle, bg: "bg-red-500/10", text: "text-red-500" },
             { label: "Opened", value: campaign.opened, icon: Eye, bg: "bg-green-500/10", text: "text-green-500", rate: openRate },
             { label: "Clicked", value: campaign.clicked, icon: MousePointerClick, bg: "bg-purple-500/10", text: "text-purple-500", rate: clickRate },
             { label: "Bounced", value: campaign.bounced, icon: XCircle, bg: "bg-red-500/10", text: "text-red-500", rate: bounceRate },

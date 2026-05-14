@@ -57,6 +57,7 @@ interface Campaign {
   audience: number;
   sent: number;
   delivered: number;
+  failed: number;
   opened: number;
   clicked: number;
   bounced: number;
@@ -68,14 +69,16 @@ interface Campaign {
   createdAt: string;
 }
 
-type CampaignStatus = "draft" | "scheduled" | "active" | "sent" | "paused";
+type CampaignStatus = "draft" | "scheduled" | "active" | "sending" | "sent" | "paused" | "failed";
 
 const statusConfig: Record<CampaignStatus, { label: string; color: string; icon: React.ElementType }> = {
   draft: { label: "Draft", color: "bg-gray-500/10 text-gray-500", icon: Edit2 },
   scheduled: { label: "Scheduled", color: "bg-blue-500/10 text-blue-500", icon: Clock },
   active: { label: "Active", color: "bg-green-500/10 text-green-500", icon: Play },
+  sending: { label: "Sending", color: "bg-amber-500/10 text-amber-600", icon: RefreshCw },
   sent: { label: "Sent", color: "bg-purple-500/10 text-purple-500", icon: CheckCircle2 },
   paused: { label: "Paused", color: "bg-yellow-500/10 text-yellow-500", icon: Pause },
+  failed: { label: "Failed", color: "bg-red-500/10 text-red-600", icon: XCircle },
 };
 
 const statColorClasses: Record<string, { bg: string; text: string }> = {
@@ -103,6 +106,7 @@ export default function EmailMarketingPage() {
     total: campaigns.length,
     totalSent: campaigns.reduce((sum, c) => sum + c.sent, 0),
     totalDelivered: campaigns.reduce((sum, c) => sum + (c.delivered || 0), 0),
+    totalFailed: campaigns.reduce((sum, c) => sum + (c.failed || 0), 0),
     totalOpened: campaigns.reduce((sum, c) => sum + c.opened, 0),
     totalClicked: campaigns.reduce((sum, c) => sum + c.clicked, 0),
     totalBounced: campaigns.reduce((sum, c) => sum + (c.bounced || 0), 0),
@@ -270,10 +274,11 @@ export default function EmailMarketingPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
           { label: "Emails Sent", value: formatNumber(emailStats.totalSent), icon: Send, color: "blue" },
           { label: "Delivered", value: formatNumber(emailStats.totalDelivered), icon: CheckCircle2, color: "green" },
+          { label: "Failed", value: formatNumber(emailStats.totalFailed), icon: XCircle, color: "red" },
           { label: "Opened", value: formatNumber(emailStats.totalOpened), icon: Eye, color: "purple" },
           { label: "Clicked", value: formatNumber(emailStats.totalClicked), icon: MousePointer, color: "orange" },
           { label: "Bounced", value: formatNumber(emailStats.totalBounced), icon: XCircle, color: "red" },
@@ -339,8 +344,10 @@ export default function EmailMarketingPage() {
                 <option value="draft">Draft</option>
                 <option value="scheduled">Scheduled</option>
                 <option value="active">Active</option>
+                <option value="sending">Sending</option>
                 <option value="sent">Sent</option>
                 <option value="paused">Paused</option>
+                <option value="failed">Failed</option>
               </select>
             </div>
           </div>
@@ -427,12 +434,18 @@ export default function EmailMarketingPage() {
                       </div>
 
                       {/* Stats */}
-                      {campaign.sent > 0 && (
+                      {(campaign.sent > 0 || campaign.failed > 0) && (
                         <div className="hidden md:flex items-center gap-6 text-sm">
                           <div className="text-center">
                             <p className="font-semibold">{formatNumber(campaign.sent)}</p>
                             <p className="text-xs text-muted-foreground">Sent</p>
                           </div>
+                          {campaign.failed > 0 && (
+                            <div className="text-center">
+                              <p className="font-semibold text-red-600">{formatNumber(campaign.failed)}</p>
+                              <p className="text-xs text-muted-foreground">Failed</p>
+                            </div>
+                          )}
                           <div className="text-center">
                             <p className="font-semibold text-green-600">{campaign.openRate}%</p>
                             <p className="text-xs text-muted-foreground">Opened</p>

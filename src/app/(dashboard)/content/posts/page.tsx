@@ -3982,7 +3982,7 @@ export default function ContentPostsPage() {
               <XCircle className="h-4 w-4" />
             )
           }
-          defaultSize={{ width: 430, height: 520 }}
+          defaultSize={{ width: 560, height: 580 }}
           defaultPosition={{ y: 204 }}
         >
 
@@ -3998,36 +3998,51 @@ export default function ContentPostsPage() {
                 return (
                   <div
                     key={platformId}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                    className={`space-y-3 p-3 rounded-lg border ${
                       result.success
                         ? "border-green-500/20 bg-green-500/5"
                         : "border-red-500/20 bg-red-500/5"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <PlatformAvatar
-                        avatarUrl={destination?.avatarUrl || null}
-                        label={destination?.label || meta.label}
-                        Icon={Icon}
-                        color={platformColor}
-                        className="h-5 w-5"
-                      />
-                      <span className="text-sm font-medium">{destination?.label || meta.label}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <PlatformAvatar
+                          avatarUrl={destination?.avatarUrl || null}
+                          label={destination?.label || meta.label}
+                          Icon={Icon}
+                          color={platformColor}
+                          className="h-5 w-5 shrink-0"
+                        />
+                        <span className="truncate text-sm font-medium">{destination?.label || meta.label}</span>
+                      </div>
+                      <div className="shrink-0 pt-0.5">
+                        {isRetrying ? (
+                          <AISpinner className="w-4 h-4 animate-spin text-muted-foreground" />
+                        ) : result.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {isRetrying ? (
-                        <AISpinner className="w-4 h-4 animate-spin text-muted-foreground" />
-                      ) : result.success ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-red-500 max-w-[180px] truncate">
-                            {result.error || "Failed"}
-                          </span>
-                          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-                        </div>
-                      )}
-                    </div>
+                    {!result.success && (
+                      <div className="space-y-2 rounded-md border border-red-500/20 bg-background/80 p-2.5">
+                        <p className="text-xs leading-relaxed text-red-600">
+                          {result.error || "Publishing failed. Retry or reconnect the account before publishing again."}
+                        </p>
+                        {/reconnect|media\.write/i.test(result.error || "") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-red-500/30 text-red-600 hover:bg-red-500/10"
+                            onClick={() => router.push("/social-accounts")}
+                          >
+                            Reconnect account
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

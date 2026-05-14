@@ -563,7 +563,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
   Check session: GET storeApi("/account/profile") with credentials: "include" (on mount)
   For Google OAuth navigation only: const API_BASE = "https://flowsmartly.com";
   Google OAuth: href = API_BASE + "/api/store-auth/google?storeSlug=" + STORE_SLUG + "&callbackUrl=" + encodeURIComponent(window.location.href)
-- If user IS logged in: show logged-in view with same-origin links using storePage("/account/orders"), storePage("/account/addresses"), storePage("/account/settings")
+- If user IS logged in: show logged-in view with account links using storeAccountPage("/orders"), storeAccountPage("/addresses"), storeAccountPage("/settings")
 - AccountModal context provider: wrap in layout.tsx — provides openAccountModal() function
 - Header and MobileBottomNav call openAccountModal() if !user, else navigate to account page
 

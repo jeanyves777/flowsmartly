@@ -64,8 +64,13 @@ export default function CompleteProfilePage() {
   }
 
   const inputStyle = {
+    width: "100%",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderRadius: 8,
     borderColor: "color-mix(in srgb, var(--store-text) 15%, transparent)",
     backgroundColor: "var(--store-input-bg, var(--store-background))",
+    padding: "0.625rem 0.75rem",
     "--tw-ring-color": "var(--store-primary)",
   } as React.CSSProperties;
 
@@ -81,8 +86,11 @@ export default function CompleteProfilePage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-10rem)] px-4 py-12">
-      <div className="w-full max-w-md">
+    <div
+      className="flex items-center justify-center min-h-[calc(100vh-10rem)] px-4 py-12"
+      style={{ minHeight: "calc(100vh - 10rem)", padding: "3rem 1rem" }}
+    >
+      <div className="w-full max-w-md" style={{ width: "100%", maxWidth: 448 }}>
         {/* Header */}
         <div className="text-center mb-8">
           <div
@@ -106,7 +114,13 @@ export default function CompleteProfilePage() {
 
         <div
           className="rounded-xl border p-6 sm:p-8"
-          style={{ borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)" }}
+          style={{
+            borderColor: "color-mix(in srgb, var(--store-text) 10%, transparent)",
+            borderWidth: 1,
+            borderStyle: "solid",
+            borderRadius: 12,
+            padding: "clamp(1.5rem, 4vw, 2rem)",
+          }}
         >
           {error && (
             <div className="mb-5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">

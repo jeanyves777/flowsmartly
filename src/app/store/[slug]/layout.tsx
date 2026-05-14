@@ -116,8 +116,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                 className="flex items-center gap-1.5 text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to Store</span>
-                <span className="sm:hidden">Store</span>
+                <span>Back to Store</span>
               </a>
             </div>
           </div>
@@ -188,7 +187,7 @@ export default async function StoreLayout({ children, params }: StoreLayoutProps
                   <button
                     type="submit"
                     className="px-4 py-2 text-sm font-medium rounded-lg text-white shrink-0"
-                    style={{ backgroundColor: "var(--store-color-primary)" }}
+                    style={{ backgroundColor: "var(--store-primary)" }}
                   >
                     Join
                   </button>

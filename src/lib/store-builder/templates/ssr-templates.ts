@@ -309,6 +309,13 @@ export function getStoreBasePath(): string {
   return match ? match[0] : "";
 }
 
+/** Store slug parsed from the generated store base path. */
+export function getStoreSlug(): string {
+  const basePath = getStoreBasePath();
+  const match = basePath.match(/^\\/stores\\/([^/]+)/);
+  return match?.[1] || "";
+}
+
 /** Same-origin client URL for the generated store API proxy. */
 export function storeApi(path: string): string {
   const normalized = path.startsWith("/") ? path : \`/\${path}\`;
@@ -319,6 +326,13 @@ export function storeApi(path: string): string {
 export function storePage(path: string): string {
   const normalized = path.startsWith("/") ? path : \`/\${path}\`;
   return \`\${getStoreBasePath()}\${normalized}\`;
+}
+
+/** Main FlowSmartly account page URL for SSR-only customer account pages. */
+export function storeAccountPage(path = ""): string {
+  const slug = getStoreSlug();
+  const normalized = path ? (path.startsWith("/") ? path : \`/\${path}\`) : "";
+  return slug ? \`/store/\${slug}/account\${normalized}\` : storePage(\`/account\${normalized}\`);
 }
 
 /** Gateway base URL (for server-side use) */

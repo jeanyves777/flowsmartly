@@ -5,7 +5,9 @@ import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import {
   sendMarketingEmail,
   validateEmailConfig,
+  verifyMarketingEmailConfig,
   replaceMergeTags,
+  getEmailErrorMessage,
 } from "@/lib/email/marketing-sender";
 import { applyEmailTracking } from "@/lib/email/tracking";
 import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
@@ -20,6 +22,16 @@ const BATCH_DELAY_MS = 1000; // 1 second between batches
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const COMPLETED_SEND_STATUSES = new Set(["SENT", "DELIVERED"]);
+
+function isCompletedSend(status: string | null | undefined): boolean {
+  return COMPLETED_SEND_STATUSES.has((status || "").toUpperCase());
+}
+
+function isEmailAuthFailure(message: string): boolean {
+  return message.toLowerCase().includes("authentication failed");
 }
 
 // POST /api/campaigns/[campaignId]/send - Send or schedule a campaign
@@ -52,11 +64,16 @@ export async function POST(
       );
     }
 
-    // Cannot send already sent campaigns
     if (campaign.status === "SENT") {
       return NextResponse.json(
         { success: false, error: { message: "Campaign has already been sent" } },
         { status: 400 }
+      );
+    }
+    if (campaign.status === "SENDING") {
+      return NextResponse.json(
+        { success: false, error: { message: "Campaign is already sending" } },
+        { status: 409 }
       );
     }
 
@@ -166,9 +183,9 @@ export async function POST(
         );
       }
 
-      if (!marketingConfig.emailEnabled && !marketingConfig.emailVerified) {
+      if (!marketingConfig.emailEnabled || !marketingConfig.emailVerified) {
         return NextResponse.json(
-          { success: false, error: { message: "Email sending is not enabled. Go to Settings > Marketing to enable it." } },
+          { success: false, error: { message: "Email sending is not enabled or verified. Go to Settings > Marketing to verify your email provider." } },
           { status: 400 }
         );
       }
@@ -201,6 +218,26 @@ export async function POST(
         );
       }
       fromAddress = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+
+      const providerCheck = await verifyMarketingEmailConfig(emailProvider, emailConfig);
+      if (!providerCheck.success) {
+        const message = getEmailErrorMessage(providerCheck.error || "Provider verification failed");
+        if (isEmailAuthFailure(message)) {
+          await prisma.marketingConfig.update({
+            where: { id: marketingConfig.id },
+            data: { emailVerified: false, emailEnabled: false },
+          });
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              message: `${message} The campaign was not sent and no credits were charged.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Get contacts from the list (if a list is selected)
@@ -242,14 +279,17 @@ export async function POST(
     // Get existing sends to avoid duplicates
     const existingSends = await prisma.campaignSend.findMany({
       where: { campaignId },
-      select: { contactId: true },
+      select: { id: true, contactId: true, status: true },
     });
-    const existingContactIds = new Set(existingSends.map((s) => s.contactId));
+    const existingSendByContactId = new Map(existingSends.map((send) => [send.contactId, send]));
+    const completedContactIds = new Set(
+      existingSends.filter((send) => isCompletedSend(send.status)).map((send) => send.contactId)
+    );
 
-    // Filter out contacts that already have send records
-    const newContacts = validContacts.filter((m) => !existingContactIds.has(m.contact.id));
+    // Filter out contacts already delivered/sent. Failed records are retried in place.
+    const newContacts = validContacts.filter((m) => !completedContactIds.has(m.contact.id));
 
-    if (newContacts.length === 0) {
+    if (newContacts.length === 0 && reqCustomEmails.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -263,12 +303,13 @@ export async function POST(
     // Check monthly email limit before sending
     if (campaign.type === "EMAIL" && marketingConfig) {
       const remaining = marketingConfig.emailMonthlyLimit - marketingConfig.emailSentThisMonth;
-      if (remaining < newContacts.length) {
+      const emailRecipientCount = newContacts.length + reqCustomEmails.length;
+      if (remaining < emailRecipientCount) {
         return NextResponse.json(
           {
             success: false,
             error: {
-              message: `Monthly email limit would be exceeded. You have ${remaining} emails remaining this month but need to send ${newContacts.length}. Upgrade your plan or wait until next month.`,
+              message: `Monthly email limit would be exceeded. You have ${remaining} emails remaining this month but need to send ${emailRecipientCount}. Upgrade your plan or wait until next month.`,
             },
           },
           { status: 400 }
@@ -320,6 +361,8 @@ export async function POST(
 
       let successCount = 0;
       let failureCount = 0;
+      let customSuccessCount = 0;
+      let customFailureCount = 0;
 
       const replyTo = campaign.replyTo || marketingConfig.defaultReplyTo || undefined;
 
@@ -332,13 +375,31 @@ export async function POST(
           batch.map(async (member) => {
             const contact = member.contact;
 
-            // 1. Create CampaignSend record first (PENDING) to get ID for tracking
-            const sendRecord = await prisma.campaignSend.create({
-              data: {
-                campaignId,
-                contactId: contact.id,
-                status: "PENDING",
-              },
+            // 1. Create or reset the CampaignSend record first to get ID for tracking.
+            // Failed sends are retried in place so the unique contact constraint does not block recovery.
+            const existingSend = existingSendByContactId.get(contact.id);
+            const sendRecord = existingSend
+              ? await prisma.campaignSend.update({
+                  where: { id: existingSend.id },
+                  data: {
+                    status: "PENDING",
+                    failureReason: null,
+                    sentAt: null,
+                    deliveredAt: null,
+                    bouncedAt: null,
+                  },
+                })
+              : await prisma.campaignSend.create({
+                  data: {
+                    campaignId,
+                    contactId: contact.id,
+                    status: "PENDING",
+                  },
+                });
+            existingSendByContactId.set(contact.id, {
+              id: sendRecord.id,
+              contactId: contact.id,
+              status: "PENDING",
             });
 
             // 2. Personalize subject and content with merge tags
@@ -423,6 +484,7 @@ export async function POST(
                 status: result.success ? "SENT" : "FAILED",
                 sentAt: result.success ? new Date() : null,
                 deliveredAt: result.success ? new Date() : null,
+                failureReason: result.success ? null : getEmailErrorMessage(result.error || "Failed to send email"),
               },
             });
 
@@ -467,7 +529,7 @@ export async function POST(
               .replace(/\{\{firstName\}\}/g, "")
               .replace(/\{\{lastName\}\}/g, "");
 
-            await sendMarketingEmail({
+            const customResult = await sendMarketingEmail({
               provider: emailProvider,
               emailConfig,
               from: fromAddress,
@@ -477,10 +539,15 @@ export async function POST(
               text: customText,
               html: customHtml || "",
             });
+            if (!customResult.success) {
+              throw new Error(getEmailErrorMessage(customResult.error || "Failed to send email"));
+            }
             successCount++;
+            customSuccessCount++;
           } catch (err) {
             console.error(`[Custom Email] Failed to send to ${customEmail}:`, err);
             failureCount++;
+            customFailureCount++;
           }
         }
       }
@@ -508,28 +575,42 @@ export async function POST(
         });
       }
 
-      // Update campaign with actual counts
-      const totalSent = existingSends.length + successCount;
+      const sendStatusCounts = await prisma.campaignSend.groupBy({
+        by: ["status"],
+        where: { campaignId },
+        _count: { status: true },
+      });
+      const countByStatus = sendStatusCounts.reduce<Record<string, number>>((acc, item) => {
+        acc[item.status.toUpperCase()] = item._count.status;
+        return acc;
+      }, {});
+      const totalSent = (countByStatus.SENT || 0) + (countByStatus.DELIVERED || 0) + customSuccessCount;
+      const totalFailed = (countByStatus.FAILED || 0) + (countByStatus.UNDELIVERED || 0) + customFailureCount;
+      const finalStatus = totalSent > 0 ? "SENT" : totalFailed > 0 ? "FAILED" : "DRAFT";
       await prisma.campaign.update({
         where: { id: campaignId },
         data: {
-          status: "SENT",
-          sentAt: new Date(),
+          status: finalStatus,
+          sentAt: totalSent > 0 ? new Date() : null,
           sentCount: totalSent,
           deliveredCount: totalSent, // Actual delivery tracking happens via webhooks
+          failedCount: totalFailed,
         },
       });
 
-      // Fire-and-forget: sync strategy tasks after email campaign sent
-      triggerActivitySyncForUser(session.userId).catch((err) =>
-        console.error("Activity sync hook (email campaign) failed:", err)
-      );
+      if (totalSent > 0) {
+        // Fire-and-forget: sync strategy tasks after email campaign sent
+        triggerActivitySyncForUser(session.userId).catch((err) =>
+          console.error("Activity sync hook (email campaign) failed:", err)
+        );
+      }
 
       return NextResponse.json({
         success: true,
         data: {
-          message:
-            failureCount > 0
+          message: totalSent === 0 && totalFailed > 0
+            ? `Campaign failed for all ${totalFailed} recipient(s). Check your email provider settings.`
+            : failureCount > 0
               ? `Campaign sent with ${failureCount} failure(s)`
               : "Campaign sent successfully",
           sentTo: successCount,
@@ -674,13 +755,31 @@ export async function POST(
         batch.map(async (member) => {
           const contact = member.contact;
 
-          // Create PENDING send record
-          const sendRecord = await prisma.campaignSend.create({
-            data: {
-              campaignId,
-              contactId: contact.id,
-              status: "PENDING",
-            },
+          // Create or reset PENDING send record. Failed sends can be retried without
+          // tripping the campaign/contact unique constraint.
+          const existingSend = existingSendByContactId.get(contact.id);
+          const sendRecord = existingSend
+            ? await prisma.campaignSend.update({
+                where: { id: existingSend.id },
+                data: {
+                  messageId: null,
+                  status: "PENDING",
+                  failureReason: null,
+                  sentAt: null,
+                  deliveredAt: null,
+                },
+              })
+            : await prisma.campaignSend.create({
+                data: {
+                  campaignId,
+                  contactId: contact.id,
+                  status: "PENDING",
+                },
+              });
+          existingSendByContactId.set(contact.id, {
+            id: sendRecord.id,
+            contactId: contact.id,
+            status: "PENDING",
           });
 
           // Personalize message with merge tags
@@ -792,22 +891,34 @@ export async function POST(
 
     // Update campaign status and counts
     // deliveredCount starts at 0 — will be updated by Twilio status callbacks
-    const totalSmsSent = existingSends.length + smsSuccessCount;
+    const smsSendStatusCounts = await prisma.campaignSend.groupBy({
+      by: ["status"],
+      where: { campaignId },
+      _count: { status: true },
+    });
+    const smsCountByStatus = smsSendStatusCounts.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status.toUpperCase()] = item._count.status;
+      return acc;
+    }, {});
+    const totalSmsSent = (smsCountByStatus.SENT || 0) + (smsCountByStatus.DELIVERED || 0);
+    const totalSmsFailed = (smsCountByStatus.FAILED || 0) + (smsCountByStatus.UNDELIVERED || 0);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: {
-        status: "SENT",
-        sentAt: new Date(),
+        status: totalSmsSent > 0 ? "SENT" : totalSmsFailed > 0 ? "FAILED" : "DRAFT",
+        sentAt: totalSmsSent > 0 ? new Date() : null,
         sentCount: totalSmsSent,
         deliveredCount: 0,
-        failedCount: smsFailureCount,
+        failedCount: totalSmsFailed,
       },
     });
 
-    // Fire-and-forget: sync strategy tasks after SMS campaign sent
-    triggerActivitySyncForUser(session.userId).catch((err) =>
-      console.error("Activity sync hook (SMS campaign) failed:", err)
-    );
+    if (totalSmsSent > 0) {
+      // Fire-and-forget: sync strategy tasks after SMS campaign sent
+      triggerActivitySyncForUser(session.userId).catch((err) =>
+        console.error("Activity sync hook (SMS campaign) failed:", err)
+      );
+    }
 
     return NextResponse.json({
       success: true,

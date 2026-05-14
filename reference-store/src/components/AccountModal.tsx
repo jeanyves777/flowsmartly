@@ -7,7 +7,7 @@ import {
   ArrowRight, LogOut, Package, MapPin, Settings, CheckCircle2, Shield, Heart, Bookmark, CreditCard
 } from "lucide-react";
 import { storeInfo } from "@/lib/data";
-import { storeApi, storePage } from "@/lib/api-client";
+import { storeAccountPage, storeApi } from "@/lib/api-client";
 
 function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   e.currentTarget.style.display = "none";
@@ -297,12 +297,12 @@ export default function AccountModal({ isOpen, onClose }: Props) {
                   </div>
                   <div className="space-y-2">
                     {[
-                      { href: storePage("/account/orders"), icon: Package, label: "My Orders" },
-                      { href: storePage("/account/wishlist"), icon: Heart, label: "Wishlist" },
-                      { href: storePage("/account/saved"), icon: Bookmark, label: "Saved for Later" },
-                      { href: storePage("/account/payment-methods"), icon: CreditCard, label: "Payment Methods" },
-                      { href: storePage("/account/addresses"), icon: MapPin, label: "Addresses" },
-                      { href: storePage("/account/settings"), icon: Settings, label: "Account Settings" },
+                      { href: storeAccountPage("/orders"), icon: Package, label: "My Orders" },
+                      { href: storeAccountPage("/wishlist"), icon: Heart, label: "Wishlist" },
+                      { href: storeAccountPage("/saved"), icon: Bookmark, label: "Saved for Later" },
+                      { href: storeAccountPage("/payment-methods"), icon: CreditCard, label: "Payment Methods" },
+                      { href: storeAccountPage("/addresses"), icon: MapPin, label: "Addresses" },
+                      { href: storeAccountPage("/settings"), icon: Settings, label: "Account Settings" },
                     ].map(({ href, icon: Icon, label }) => (
                       <a key={href} href={href} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-primary/40 hover:bg-primary/5 transition-colors group">
                         <div className="flex items-center gap-3">

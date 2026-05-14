@@ -614,17 +614,7 @@ async function publishToTwitter(
 
           // 403 = missing media.write scope — user needs to reconnect Twitter
           if (initRes.status === 403) {
-            console.log("[Twitter] Media upload 403 — missing media.write scope, posting text-only");
-            // Post text-only instead of failing entirely
-            const textRes = await fetch("https://api.twitter.com/2/tweets", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ text: post.caption || "" }),
-            });
-            const textData = await textRes.json();
-            if (textData.data?.id) {
-              return { success: true, postId: textData.data.id, error: "Posted text-only. Reconnect Twitter to enable media uploads." };
-            }
+            console.log("[Twitter] Media upload 403 - account must be reconnected before media can publish");
             return { success: false, error: "Twitter media upload requires reconnecting your account (missing media.write permission). Go to Social Accounts and reconnect Twitter." };
           }
 
