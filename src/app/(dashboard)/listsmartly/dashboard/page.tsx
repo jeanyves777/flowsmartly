@@ -114,6 +114,10 @@ interface AutopilotTask {
     credentialSaved?: boolean;
     emailSentByFlowSmartly?: boolean;
     verificationCodeAttempted?: boolean;
+    verificationCodeAttemptCount?: number;
+    browserSessionHeld?: boolean;
+    browserSessionResumed?: boolean;
+    browserSessionExpiresAt?: string;
     userActionTitle?: string;
     userActionMessage?: string;
     userActionButtonLabel?: string;
@@ -550,11 +554,12 @@ export default function ListSmartlyDashboardPage() {
 
   useEffect(() => {
     if (activeTab !== "autopilot") return;
+    const refreshMs = autopilotState?.runtime?.activeTask ? 5000 : 15000;
     const interval = window.setInterval(() => {
       fetchAutopilotSettings(true);
-    }, 15000);
+    }, refreshMs);
     return () => window.clearInterval(interval);
-  }, [activeTab, fetchAutopilotSettings]);
+  }, [activeTab, fetchAutopilotSettings, autopilotState?.runtime?.activeTask?.id]);
 
   // ── Actions ──
 
@@ -611,8 +616,13 @@ export default function ListSmartlyDashboardPage() {
         setAutoFixEnabled(json.data.state.settings.autoFix || false);
         setAutoDescEnabled(json.data.state.settings.autoDescriptions || false);
       }
+      if (action === "continue_task" && typeof body.taskId === "string") {
+        setVerificationInputs((prev) => ({ ...prev, [body.taskId as string]: "" }));
+      }
       const resultMessage =
-        action === "run_next"
+        action === "continue_task"
+          ? "Code received. The agent is submitting it in the live browser session; this panel will refresh as it works."
+          : action === "run_next"
           ? "Agent started. The live status panel will refresh as it inspects the directory workflow."
           : json.data?.result?.message || (
               action === "prepare_queue"
@@ -620,7 +630,7 @@ export default function ListSmartlyDashboardPage() {
                 : "The workflow has been updated."
             );
       toast({
-        title: action === "run_next" ? "Autopilot started" : "Autopilot updated",
+        title: action === "run_next" ? "Autopilot started" : action === "continue_task" ? "Agent resumed" : "Autopilot updated",
         description: resultMessage,
       });
     } catch {
@@ -1373,18 +1383,18 @@ export default function ListSmartlyDashboardPage() {
     const needsEmailCode =
       needsUserTask?.result?.accountCreationBlocker === "waiting_for_email_verification" ||
       needsUserTask?.result?.stage === "waiting_for_email_verification";
+    const emailSessionHeld = Boolean(needsUserTask?.result?.browserSessionHeld);
+    const codeAttemptCount = needsUserTask?.result?.verificationCodeAttemptCount || 0;
     const needsUserSummary = needsEmailCode
       ? needsUserTask?.result?.verificationCodeAttempted
-        ? "The agent submitted the last code, but the directory still requires a valid email code."
+        ? "The directory rejected that code or kept the verification page open."
         : "The agent started the sign-up and the directory sent an email verification code."
       : needsUserTask?.result?.accountCreated
         ? "The agent started the account workflow and is paused at a real validation step."
         : "The agent is paused at a real validation step.";
     const needsUserButtonLabel =
       needsUserTask?.result?.userActionInputKind === "verification_code"
-        ? needsUserTask?.result?.verificationCodeAttempted
-          ? "Submit new code to agent"
-          : "Submit code to agent"
+        ? "Submit code to live agent"
         : needsUserTask?.result?.userActionButtonLabel || "Continue agent";
 
     return (
@@ -1434,8 +1444,8 @@ export default function ListSmartlyDashboardPage() {
                   <p className="text-sm font-medium text-foreground">Controlled, human-safe submission flow</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     The agent uses low-rate public directory web workflows and submit/claim pages. It runs one account
-                    or listing workflow per day and pauses only for real
-                    validation requirements like email, SMS, phone, CAPTCHA, payment, or owner approval.
+                    or listing workflow per day and pauses only for real validation shown by the directory, like email,
+                    SMS, phone, payment, or owner approval.
                   </p>
                 </div>
               </div>
@@ -1483,7 +1493,7 @@ export default function ListSmartlyDashboardPage() {
                   <p>{state?.runtime?.message || "No prepared workflow is waiting."}</p>
                 )}
                 <p className="mt-1">
-                  Status auto-refreshes every 15s
+                  Status auto-refreshes every {activeTask ? "5s" : "15s"}
                   {lastAutopilotRefresh ? ` - last checked ${new Date(lastAutopilotRefresh).toLocaleTimeString()}` : ""}
                 </p>
               </div>
@@ -1495,7 +1505,10 @@ export default function ListSmartlyDashboardPage() {
                   <div className="space-y-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">Agent is working now</p>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <AISpinner className="h-4 w-4 animate-spin text-primary" />
+                          Agent is working now
+                        </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {activeTask.statusMessage || "Checking the directory and updating this workflow."}
                         </p>
@@ -1553,11 +1566,22 @@ export default function ListSmartlyDashboardPage() {
                         </div>
                         <p className="mt-2 text-sm text-foreground">{needsUserSummary}</p>
                         <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                          {needsUserTask.result?.userActionMessage ||
-                            needsUserTask.result?.statusMessage ||
-                            needsUserTask.requiredAction ||
-                            "Complete the required validation, then let the agent continue."}
+                          {needsEmailCode && needsUserTask.result?.verificationCodeAttempted
+                            ? `${needsUserTask.result?.userActionMessage || needsUserTask.result?.statusMessage || needsUserTask.requiredAction || "The code was not accepted by the directory."} ${
+                                emailSessionHeld
+                                  ? "The browser session is still open, so the next code will be submitted without reloading the verification page."
+                                  : "The live browser session expired, so the agent may need to reopen the verification page."
+                              }`
+                            : needsUserTask.result?.userActionMessage ||
+                              needsUserTask.result?.statusMessage ||
+                              needsUserTask.requiredAction ||
+                              "Complete the required validation, then let the agent continue."}
                         </p>
+                        {needsEmailCode && codeAttemptCount > 0 && (
+                          <p className="mt-2 text-[11px] text-amber-200">
+                            Code attempts in this workflow: {codeAttemptCount}
+                          </p>
+                        )}
                       </div>
                       {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.submitUrl || needsUserTask.payload?.directory?.claimUrl) && (
                         <Button size="sm" variant="outline" asChild>
@@ -1587,12 +1611,14 @@ export default function ListSmartlyDashboardPage() {
                         {
                           label: needsEmailCode
                             ? needsUserTask.result?.verificationCodeAttempted
-                              ? "Fresh code needed"
+                              ? "Code rejected"
                               : "Email code needed"
                             : userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker),
                           status: "waiting" as const,
                           detail: needsEmailCode
-                            ? "Use the newest email code; the agent will submit it."
+                            ? emailSessionHeld
+                              ? "Enter the latest code from the email; the agent will submit it in the open browser session."
+                              : "Enter the latest code from the email; the agent will resume the browser workflow."
                             : "Only the validation step belongs to the user.",
                         },
                         {
@@ -1635,8 +1661,12 @@ export default function ListSmartlyDashboardPage() {
                           }
                           className="w-full sm:w-auto"
                         >
-                          <Check className="h-4 w-4 mr-2" />
-                          {needsUserButtonLabel}
+                          {autopilotActionLoading ? (
+                            <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          {autopilotActionLoading ? "Sending to agent..." : needsUserButtonLabel}
                         </Button>
                       </div>
                     )}
@@ -1647,8 +1677,12 @@ export default function ListSmartlyDashboardPage() {
                         disabled={autopilotActionLoading}
                         className="w-full sm:w-auto"
                       >
-                        <Check className="h-4 w-4 mr-2" />
-                        {needsUserButtonLabel}
+                        {autopilotActionLoading ? (
+                          <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-2" />
+                        )}
+                        {autopilotActionLoading ? "Sending to agent..." : needsUserButtonLabel}
                       </Button>
                     )}
                   </div>

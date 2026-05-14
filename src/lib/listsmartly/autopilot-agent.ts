@@ -1394,6 +1394,13 @@ async function runAgentBrowserWorkflow(
   }
 
   if (outcome.status === "needs_user") {
+    const previousVerificationAttempts =
+      typeof current.verificationCodeAttemptCount === "number" ? current.verificationCodeAttemptCount : 0;
+    const verificationCodeAttemptCount = outcome.verificationCodeAttempted
+      ? previousVerificationAttempts + 1
+      : previousVerificationAttempts;
+    const diagnostics =
+      outcome.diagnostics && typeof outcome.diagnostics === "object" ? outcome.diagnostics : {};
     const waitingResult = appendProgress(
       {
         ...current,
@@ -1404,6 +1411,7 @@ async function runAgentBrowserWorkflow(
         credentialSaved,
         emailSentByFlowSmartly: outcome.emailSentByFlowSmartly,
         verificationCodeAttempted: outcome.verificationCodeAttempted,
+        verificationCodeAttemptCount,
         accountCreationBlocker: outcome.stage,
         userActionTitle: outcome.actionTitle,
         userActionMessage: outcome.message,
@@ -1412,6 +1420,12 @@ async function runAgentBrowserWorkflow(
         userActionInputLabel: outcome.actionInputLabel,
         userActionInputPlaceholder: outcome.actionInputPlaceholder,
         userActionInputRequired: outcome.actionInputRequired,
+        browserSessionHeld: Boolean((diagnostics as { browserSessionHeld?: unknown }).browserSessionHeld),
+        browserSessionResumed: Boolean((diagnostics as { browserSessionResumed?: unknown }).browserSessionResumed),
+        browserSessionExpiresAt:
+          typeof (diagnostics as { browserSessionExpiresAt?: unknown }).browserSessionExpiresAt === "string"
+            ? (diagnostics as { browserSessionExpiresAt: string }).browserSessionExpiresAt
+            : undefined,
         portalUrl: outcome.portalUrl,
         browserDiagnostics: outcome.diagnostics,
       },
@@ -2613,35 +2627,44 @@ export async function continueAutopilotTask(
       ...parseJsonObject(task.result),
       stage: "agent_browser_workflow_running",
       statusMessage: continuation.verificationCode
-        ? "User provided the verification code. The AI listing agent is entering it and continuing the directory workflow."
+        ? "Verification code received. The AI listing agent is submitting it in the live directory browser session."
         : "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
       userConfirmedAt: new Date().toISOString(),
       verificationCodeProvided: Boolean(continuation.verificationCode),
+      verificationCodeSubmittedAt: continuation.verificationCode ? new Date().toISOString() : undefined,
     },
     {
       stage: continuation.verificationCode ? "verification_code_received" : "validation_received",
-      label: continuation.verificationCode ? "Verification code received" : "Validation confirmed",
-      status: "done",
+      label: continuation.verificationCode ? "Verification code handed to agent" : "Validation confirmed",
+      status: continuation.verificationCode ? "active" : "done",
       detail: continuation.verificationCode
-        ? "The agent will enter the code and continue."
+        ? "The agent is submitting the code in the same live browser session."
         : "The agent is resuming the listing check.",
     }
   );
 
-  await prisma.listSmartlyAutopilotTask.update({
+  const updated = await prisma.listSmartlyAutopilotTask.update({
     where: { id: task.id },
     data: {
       status: "in_progress",
       assignedTo: "agent",
       result: safeJson(result),
       requiredAction:
-        "Validation was confirmed. The AI listing agent is continuing the directory workflow and will complete the listing or ask for the next real validation step.",
+        continuation.verificationCode
+          ? "The AI listing agent is submitting the email code in the live directory browser session. Status will refresh automatically."
+          : "Validation was confirmed. The AI listing agent is continuing the directory workflow and will complete the listing or ask for the next real validation step.",
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
     },
   });
 
-  return processAutopilotTask(userId, task.id, continuation);
+  return {
+    status: "continuing",
+    message: continuation.verificationCode
+      ? "Code received. The agent is submitting it in the live browser session now."
+      : "Validation confirmed. The agent is continuing the workflow now.",
+    task: updated,
+  };
 }
 
 export async function completeAutopilotTask(userId: string, taskId: string, result: Record<string, unknown> = {}) {

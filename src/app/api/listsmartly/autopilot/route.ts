@@ -75,9 +75,33 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const result = await handleAutopilotAction(session.userId, body.action, body);
-    if (body.action === "run_next" && result && typeof result === "object" && "status" in result && result.status === "started" && "task" in result && result.task && typeof result.task === "object" && "id" in result.task) {
-      void processAutopilotTask(session.userId, String(result.task.id)).catch((error) => {
+    const action = String(body.action || "");
+    const result = await handleAutopilotAction(
+      session.userId,
+      action as Parameters<typeof handleAutopilotAction>[1],
+      body
+    );
+    const shouldProcess =
+      (action === "run_next" || action === "continue_task") &&
+      result &&
+      typeof result === "object" &&
+      "status" in result &&
+      (result.status === "started" || result.status === "continuing") &&
+      "task" in result &&
+      result.task &&
+      typeof result.task === "object" &&
+      "id" in result.task;
+    if (shouldProcess) {
+      const continuation =
+        action === "continue_task"
+          ? {
+              verificationCode:
+                typeof body.verificationCode === "string" && body.verificationCode.trim()
+                  ? body.verificationCode.trim()
+                  : undefined,
+            }
+          : {};
+      void processAutopilotTask(session.userId, String(result.task.id), continuation).catch((error) => {
         console.error("Background ListSmartly autopilot processing failed:", error);
       });
     }

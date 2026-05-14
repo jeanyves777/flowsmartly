@@ -6,8 +6,46 @@ import path from "path";
 import { getClaudeCodeBinaryPath } from "@/lib/ai/design-tools/sdk-binary-path";
 
 const AGENT_BROWSER_TIMEOUT_MS = 60000;
+const AGENT_SESSION_TTL_MS = 30 * 60 * 1000;
 const AGENT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+
+type ActiveAgentSession = {
+  browser: any;
+  page: any;
+  generatedPassword: string;
+  expiresAt: number;
+  directoryName: string;
+};
+
+type AgentSessionStore = Map<string, ActiveAgentSession>;
+
+const globalWithAgentSessions = globalThis as typeof globalThis & {
+  __flowSmartlyListSmartlyAgentSessions?: AgentSessionStore;
+};
+const ACTIVE_AGENT_SESSIONS =
+  globalWithAgentSessions.__flowSmartlyListSmartlyAgentSessions || new Map<string, ActiveAgentSession>();
+globalWithAgentSessions.__flowSmartlyListSmartlyAgentSessions = ACTIVE_AGENT_SESSIONS;
+
+function workflowSessionKey(workflowId?: string | null): string | null {
+  return workflowId ? workflowId.replace(/[^a-zA-Z0-9_-]+/g, "_") : null;
+}
+
+function cleanupExpiredAgentSessions(now = Date.now()) {
+  for (const [key, session] of ACTIVE_AGENT_SESSIONS.entries()) {
+    if (session.expiresAt > now) continue;
+    ACTIVE_AGENT_SESSIONS.delete(key);
+    void session.browser?.close?.().catch(() => undefined);
+  }
+}
+
+function shouldHoldAgentSession(outcome: ListSmartlyAgentOutcome | null): boolean {
+  return Boolean(
+    outcome?.status === "needs_user" &&
+      outcome.stage === "waiting_for_email_verification" &&
+      outcome.actionInputKind === "verification_code"
+  );
+}
 
 export type ListSmartlyAgentProfile = {
   businessName: string;
@@ -329,7 +367,7 @@ function normalizeNeedsUserOutcome(params: {
   const message =
     stage === "waiting_for_email_verification"
       ? verificationCodeAttempted
-        ? `The AI agent entered the last email verification code for ${directoryName}, but the directory kept the verification screen open. The code may be expired or rejected. Enter the newest code from the email in ListSmartly; the agent will submit it and continue.`
+        ? `The AI agent submitted the email verification code for ${directoryName}, but the directory kept the verification screen open. The code was rejected or expired. Enter the newest code from the email in ListSmartly; the agent will submit it in the same live browser session and continue.`
         : `The account sign-up reached email verification at ${outcome.portalUrl}. Enter the code from the email in ListSmartly, then the AI agent will submit it and continue the remaining listing workflow.`
       : `The agent reached ${outcome.portalUrl} and paused because it needs the user to ${reasonText}. ` +
         "Complete only that validation or missing profile detail, " +
@@ -463,47 +501,72 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
   onProgress?: ProgressCallback;
 }): Promise<ListSmartlyAgentOutcome> {
   const { profile, directoryName, directorySlug, startUrl, workflowId, continuation, onProgress } = params;
-  const generatedPassword = safePassword();
+  cleanupExpiredAgentSessions();
+  const sessionKey = workflowSessionKey(workflowId);
+  const heldSession =
+    sessionKey && continuation?.verificationCode ? ACTIVE_AGENT_SESSIONS.get(sessionKey) || null : null;
   const puppeteer = (await import("puppeteer")).default;
-  const userDataDir = workflowId
-    ? path.join(os.tmpdir(), "flowsmartly-listsmartly-agent", workflowId.replace(/[^a-zA-Z0-9_-]+/g, "_"))
+  const userDataDir = sessionKey
+    ? path.join(os.tmpdir(), "flowsmartly-listsmartly-agent", sessionKey)
     : undefined;
   if (userDataDir) mkdirSync(userDataDir, { recursive: true });
-  const browser = await puppeteer.launch({
-    headless: true,
-    userDataDir,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-zygote",
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-renderer-backgrounding",
-    ],
-  });
+
+  let browser: any = null;
+  let page: any = null;
+  let generatedPassword = heldSession?.generatedPassword || safePassword();
+  let reusedHeldSession = false;
+
+  if (heldSession && !heldSession.page?.isClosed?.()) {
+    browser = heldSession.browser;
+    page = heldSession.page;
+    generatedPassword = heldSession.generatedPassword;
+    heldSession.expiresAt = Date.now() + AGENT_SESSION_TTL_MS;
+    reusedHeldSession = true;
+  } else {
+    if (sessionKey && heldSession) ACTIVE_AGENT_SESSIONS.delete(sessionKey);
+    await heldSession?.browser?.close?.().catch(() => undefined);
+    browser = await puppeteer.launch({
+      headless: true,
+      userDataDir,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+      ],
+    });
+    page = await browser.newPage();
+  }
 
   let finalOutcome: ListSmartlyAgentOutcome | null = null;
   const toolCalls: string[] = [];
   const progressLog: Array<Record<string, unknown>> = [];
 
   try {
-    const page = await browser.newPage();
     page.setDefaultTimeout(AGENT_BROWSER_TIMEOUT_MS);
     await page.setViewport({ width: 1365, height: 900 });
     await page.setUserAgent(AGENT_USER_AGENT);
-    await page.evaluateOnNewDocument("window.__name = function(fn) { return fn; };");
-    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS });
-    await page.addScriptTag({ content: "window.__name = function(fn) { return fn; };" }).catch(() => undefined);
-    await settle(page);
+    if (!reusedHeldSession) {
+      await page.evaluateOnNewDocument("window.__name = function(fn) { return fn; };");
+      await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS });
+      await page.addScriptTag({ content: "window.__name = function(fn) { return fn; };" }).catch(() => undefined);
+      await settle(page);
+    } else {
+      await settle(page, 5000);
+    }
 
     await onProgress?.({
-      stage: "claude_agent_started",
-      label: "Claude agent started",
+      stage: reusedHeldSession ? "agent_browser_session_resumed" : "claude_agent_started",
+      label: reusedHeldSession ? "Verification session resumed" : "Claude agent started",
       status: "active",
-      detail: `Agent opened ${directoryName}.`,
-      extra: { agentEngine: "claude_agent_sdk", portalUrl: page.url() },
+      detail: reusedHeldSession
+        ? `Agent resumed the open ${directoryName} verification page without requesting a new code.`
+        : `Agent opened ${directoryName}.`,
+      extra: { agentEngine: "claude_agent_sdk", portalUrl: page.url(), browserSessionResumed: reusedHeldSession },
     });
 
     const profileValues = valuesForProfile(profile, generatedPassword, continuation);
@@ -764,15 +827,51 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             return { filled: false, mode: "not_found", visibleInputs: inputs.filter((input) => visible(input)).length };
           }, code);
           await settle(page, 3000);
+          const submit = result.filled
+            ? await page.evaluate(() => {
+                const visible = (el: Element) => {
+                  const style = window.getComputedStyle(el);
+                  const rect = el.getBoundingClientRect();
+                  return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+                };
+                const wanted = /(verify|continue|submit|next|confirm|validate)/i;
+                const avoid = /(resend|send new|new code|back|cancel|change email|log out|sign out)/i;
+                const controls = Array.from(
+                  document.querySelectorAll("button, a, input[type=submit], input[type=button]")
+                ) as Array<HTMLButtonElement | HTMLAnchorElement | HTMLInputElement>;
+                for (const control of controls) {
+                  if (!visible(control)) continue;
+                  if ("disabled" in control && control.disabled) continue;
+                  const text = (
+                    control.innerText ||
+                    control.getAttribute("value") ||
+                    control.getAttribute("aria-label") ||
+                    (control as HTMLAnchorElement).href ||
+                    ""
+                  )
+                    .replace(/\s+/g, " ")
+                    .trim();
+                  if (!text || !wanted.test(text) || avoid.test(text)) continue;
+                  control.click();
+                  return { clicked: true, text };
+                }
+                return { clicked: false, text: "" };
+              })
+            : { clicked: false, text: "" };
+          if (submit.clicked) await settle(page, 15000);
           await onProgress?.({
             stage: "agent_filled_verification_code",
-            label: "Verification code entered",
+            label: submit.clicked ? "Verification code submitted" : "Verification code entered",
             status: result.filled ? "active" : "failed",
-            detail: result.filled ? "The agent entered the user-provided verification code." : "No verification-code field was found.",
+            detail: result.filled
+              ? submit.clicked
+                ? `The agent entered the user-provided verification code and clicked ${submit.text}.`
+                : "The agent entered the user-provided verification code."
+              : "No verification-code field was found.",
             extra: { portalUrl: page.url(), agentEngine: "claude_agent_sdk" },
           });
-          progressLog.push({ tool: "fill_verification_code", result, url: page.url() });
-          return ok({ ...result, url: page.url() });
+          progressLog.push({ tool: "fill_verification_code", result: { ...result, submit }, url: page.url() });
+          return ok({ ...result, submit, url: page.url() });
         }
       ),
       tool(
@@ -1038,6 +1137,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 toolCalls,
                 progressLog,
                 directorySlug,
+                workflowId,
+                browserSessionResumed: reusedHeldSession,
               },
             },
           });
@@ -1098,7 +1199,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     if (finalOutcome) return finalOutcome;
 
     const snapshot = await observePage(page);
-    return defaultOutcome({
+    finalOutcome = defaultOutcome({
       status: "pending",
       stage: "agent_review_pending",
       portalUrl: snapshot.url,
@@ -1113,8 +1214,9 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
         blockers: snapshot.blockers,
       },
     });
+    return finalOutcome;
   } catch (error) {
-    return defaultOutcome({
+    finalOutcome = defaultOutcome({
       status: "pending",
       stage: "agent_sdk_retry_needed",
       portalUrl: startUrl,
@@ -1126,8 +1228,28 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       actionButtonLabel: "Agent should retry",
       diagnostics: { agentEngine: "claude_agent_sdk", error: error instanceof Error ? error.message : String(error), toolCalls },
     });
+    return finalOutcome;
   } finally {
-    await browser.close().catch(() => undefined);
+    if (sessionKey && shouldHoldAgentSession(finalOutcome) && browser && page && !page.isClosed?.()) {
+      ACTIVE_AGENT_SESSIONS.set(sessionKey, {
+        browser,
+        page,
+        generatedPassword,
+        expiresAt: Date.now() + AGENT_SESSION_TTL_MS,
+        directoryName,
+      });
+      if (finalOutcome) {
+        finalOutcome.diagnostics = {
+          ...(finalOutcome.diagnostics || {}),
+          browserSessionHeld: true,
+          browserSessionExpiresAt: new Date(Date.now() + AGENT_SESSION_TTL_MS).toISOString(),
+          browserSessionResumed: reusedHeldSession,
+        };
+      }
+    } else {
+      if (sessionKey) ACTIVE_AGENT_SESSIONS.delete(sessionKey);
+      await browser?.close?.().catch(() => undefined);
+    }
   }
 }
 
@@ -1193,7 +1315,7 @@ function buildUserPrompt(params: {
       expectedFlow:
         "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
       humanActionPolicy:
-        "If a verification code was supplied, enter it and continue. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
     },
     null,
     2
