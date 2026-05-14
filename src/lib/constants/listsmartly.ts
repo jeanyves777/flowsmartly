@@ -87,6 +87,18 @@ export interface DirectoryEntry {
   isActive?: boolean;
 }
 
+export const NON_LISTING_DIRECTORY_SLUGS = [
+  "dandb",
+  "dun-bradstreet",
+  "zoominfo",
+] as const;
+
+const NON_LISTING_DIRECTORY_SLUG_SET = new Set<string>(NON_LISTING_DIRECTORY_SLUGS);
+
+export function isActiveDirectoryEntry(directory: Pick<DirectoryEntry, "slug" | "isActive">): boolean {
+  return directory.isActive !== false && !NON_LISTING_DIRECTORY_SLUG_SET.has(directory.slug);
+}
+
 // -----------------------------------------------------------------------------
 // Directory Catalog — Tier 1: Critical (16)
 // -----------------------------------------------------------------------------
@@ -106,7 +118,9 @@ const TIER_1_DIRECTORIES: DirectoryEntry[] = [
   { slug: "bark", name: "Bark", url: "https://www.bark.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.bark.com/en/us/pro-signup/" },
   { slug: "angi", name: "Angi", url: "https://www.angi.com", tier: 1, category: "critical", industries: [], submitUrl: "https://www.angi.com/pro" },
   { slug: "expertise", name: "Expertise", url: "https://www.expertise.com", tier: 1, category: "critical", industries: [] },
-  { slug: "dandb", name: "Dun & Bradstreet", url: "https://www.dnb.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.dnb.com/duns/get-a-duns.html" },
+  // Dun & Bradstreet is a D-U-N-S/business credit identity workflow, not a local citation listing.
+  // Keep the legacy slug inactive so old DB rows and queued agent work are suppressed.
+  { slug: "dandb", name: "Dun & Bradstreet", url: "https://www.dnb.com", tier: 1, category: "critical", industries: [], claimUrl: "https://www.dnb.com/duns/get-a-duns.html", isActive: false },
   // ZoomInfo is a B2B data/search platform, not a normal local citation or listing directory.
   // Keep the slug inactive so older DB rows are suppressed and not queued for account creation.
   { slug: "zoominfo", name: "ZoomInfo", url: "https://www.zoominfo.com", tier: 1, category: "critical", industries: [], isActive: false },
@@ -321,6 +335,8 @@ export const DIRECTORY_CATALOG: DirectoryEntry[] = [
   ...SUBMITTED_DIRECTORIES,
 ];
 
+export const ACTIVE_DIRECTORY_CATALOG: DirectoryEntry[] = DIRECTORY_CATALOG.filter(isActiveDirectoryEntry);
+
 // -----------------------------------------------------------------------------
 // Pricing
 // -----------------------------------------------------------------------------
@@ -364,29 +380,29 @@ export type SentimentType = keyof typeof SENTIMENT_LABELS;
 
 /** Get a directory entry by slug */
 export function getDirectory(slug: string): DirectoryEntry | undefined {
-  return DIRECTORY_CATALOG.find((d) => d.slug === slug);
+  return ACTIVE_DIRECTORY_CATALOG.find((d) => d.slug === slug);
 }
 
 /** Get all directories for a specific tier */
 export function getDirectoriesByTier(tier: number): DirectoryEntry[] {
-  return DIRECTORY_CATALOG.filter((d) => d.tier === tier);
+  return ACTIVE_DIRECTORY_CATALOG.filter((d) => d.tier === tier);
 }
 
 /** Get all directories for a specific category */
 export function getDirectoriesByCategory(category: string): DirectoryEntry[] {
-  return DIRECTORY_CATALOG.filter((d) => d.category === category);
+  return ACTIVE_DIRECTORY_CATALOG.filter((d) => d.category === category);
 }
 
 /** Get directories relevant to a given industry (tier 3 + all-industry dirs) */
 export function getDirectoriesForIndustry(industry: string): DirectoryEntry[] {
-  return DIRECTORY_CATALOG.filter(
+  return ACTIVE_DIRECTORY_CATALOG.filter(
     (d) => d.industries.length === 0 || d.industries.includes(industry)
   );
 }
 
 /** Calculate max possible listing score based on applicable directories */
 export function calculateMaxScore(industries: string[] = []): number {
-  return DIRECTORY_CATALOG.filter(
+  return ACTIVE_DIRECTORY_CATALOG.filter(
     (d) =>
       d.industries.length === 0 ||
       d.industries.some((i) => industries.includes(i))

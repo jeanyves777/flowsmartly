@@ -5,6 +5,7 @@ import {
   runClaudeListSmartlyBrowserAgent,
   type ListSmartlyAgentContinuation,
 } from "@/lib/listsmartly/claude-browser-agent";
+import { seedDirectories } from "@/lib/listsmartly/directories";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { Prisma } from "@prisma/client";
 
@@ -275,7 +276,7 @@ function hasSsoPrompt(html: string): boolean {
 }
 
 function hasClaimWorkflowLanguage(value: string): boolean {
-  return /(claim your|claim this|claim listing|claim profile|claim your free|get a duns|get a d u n s|get a d n b|d u n s number|duns number|request.*number|start.*application|register your business|add your business)/i.test(
+  return /(claim your|claim this|claim listing|claim profile|claim your free|register your business|add your business)/i.test(
     value
   );
 }
@@ -1050,23 +1051,13 @@ async function runBrowserSignupWorkflow(params: {
     await clickBrowserControl(page, [/agree.+proceed|required only|accept/i]);
     await waitForBrowserSettled(page, 5000);
 
-    if (directorySlug === "dandb" || /dnb\.com/i.test(startUrl)) {
-      const usChoice = await clickBrowserControl(page, [/u\.?s\.?-based business|united states|us-based business/i], {
-        avoid: [/canada|international|apple|google|fda/i],
-      });
-      if (usChoice.clicked) await waitForBrowserSettled(page, 8000);
-      const generalPurpose = await clickBrowserControl(page, [/registering for general purposes|general purposes/i], {
-        avoid: [/apple|google|fda/i],
-      });
-      if (generalPurpose.clicked) await waitForBrowserSettled(page, 12000);
-    } else {
-      const signupClick = await clickBrowserControl(
-        page,
-        [/sign up with email|sign up|create account|register|claim|add business|add listing|get started|start application/i],
-        { avoid: [/google|microsoft|office|facebook|apple|sign in|log in|login|sso|back/i] }
-      );
-      if (signupClick.clicked) await waitForBrowserSettled(page, 12000);
-    }
+    void directorySlug;
+    const signupClick = await clickBrowserControl(
+      page,
+      [/sign up with email|sign up|create account|register|claim|add business|add listing|get started/i],
+      { avoid: [/google|microsoft|office|facebook|apple|sign in|log in|login|sso|back/i] }
+    );
+    if (signupClick.clicked) await waitForBrowserSettled(page, 12000);
 
     let lastSnapshot = await getBrowserSnapshot(page);
     const filledSteps: Array<Record<string, unknown>> = [];
@@ -1879,11 +1870,48 @@ async function pauseStaleAutopilotTasks(profileId: string, visibleTaskWhere: Pri
   return staleTasks.length;
 }
 
+async function completeInactiveDirectoryTasks(profileId: string): Promise<number> {
+  const now = new Date();
+  const result = await prisma.listSmartlyAutopilotTask.updateMany({
+    where: {
+      profileId,
+      status: { in: ["queued", "in_progress", "needs_user", "blocked"] },
+      listing: { directory: { isActive: false } },
+    },
+    data: {
+      status: "completed",
+      assignedTo: "agent",
+      requiredAction: null,
+      failureReason: null,
+      completedAt: now,
+      result: safeJson({
+        stage: "skipped_inactive_directory",
+        statusMessage:
+          "Skipped because this target is no longer an active ListSmartly listing directory.",
+        completedAt: now.toISOString(),
+        progress: [
+          {
+            stage: "skipped_inactive_directory",
+            label: "Skipped inactive directory",
+            status: "done",
+            detail: "This target is not a supported listing directory.",
+            at: now.toISOString(),
+          },
+        ],
+      }),
+    },
+  });
+
+  return result.count;
+}
+
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
   });
   if (!profile) return null;
+
+  await completeInactiveDirectoryTasks(profile.id);
 
   const activeListings = await prisma.businessListing.findMany({
     where: { profileId: profile.id, directory: { isActive: true } },
@@ -2100,6 +2128,9 @@ export async function updateAutopilotSettings(
 export async function prepareAutopilotQueue(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  await seedDirectories();
+  await completeInactiveDirectoryTasks(profile.id);
 
   const listings = await prisma.businessListing.findMany({
     where: {

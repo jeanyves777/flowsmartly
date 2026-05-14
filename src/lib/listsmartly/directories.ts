@@ -2,7 +2,7 @@
  * Directory registry helpers for ListSmartly.
  */
 import { prisma } from "@/lib/db/client";
-import { DIRECTORY_CATALOG } from "@/lib/constants/listsmartly";
+import { DIRECTORY_CATALOG, NON_LISTING_DIRECTORY_SLUGS } from "@/lib/constants/listsmartly";
 
 /** Seed all directories from the catalog into the database. */
 export async function seedDirectories(): Promise<number> {
@@ -36,6 +36,12 @@ export async function seedDirectories(): Promise<number> {
     });
     count++;
   }
+
+  await prisma.listingDirectory.updateMany({
+    where: { slug: { in: [...NON_LISTING_DIRECTORY_SLUGS] } },
+    data: { isActive: false },
+  });
+
   return count;
 }
 

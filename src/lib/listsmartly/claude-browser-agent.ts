@@ -98,6 +98,20 @@ function getActiveAgentSession(workflowId?: string | null): ActiveAgentSession |
   return session;
 }
 
+function publishActiveAgentSession(
+  sessionKey: string | null,
+  session: Omit<ActiveAgentSession, "expiresAt" | "remoteCursor" | "lastHumanActionAt">
+) {
+  if (!sessionKey) return;
+  const previous = ACTIVE_AGENT_SESSIONS.get(sessionKey);
+  ACTIVE_AGENT_SESSIONS.set(sessionKey, {
+    ...session,
+    expiresAt: Date.now() + AGENT_SESSION_TTL_MS,
+    remoteCursor: previous?.remoteCursor,
+    lastHumanActionAt: previous?.lastHumanActionAt,
+  });
+}
+
 async function launchAgentBrowser(puppeteer: any, userDataDir?: string, sessionKey?: string | null) {
   const launchOptions = (dir?: string) => ({
     headless: true,
@@ -689,6 +703,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     generatedPassword = heldSession.generatedPassword;
     heldSession.expiresAt = Date.now() + AGENT_SESSION_TTL_MS;
     reusedHeldSession = true;
+    publishActiveAgentSession(sessionKey, { browser, page, generatedPassword, directoryName });
   } else {
     if (sessionKey && heldSession) ACTIVE_AGENT_SESSIONS.delete(sessionKey);
     await heldSession?.browser?.close?.().catch(() => undefined);
@@ -696,6 +711,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     browser = launch.browser;
     recoveredStaleProfile = launch.recoveredStaleProfile;
     page = await browser.newPage();
+    publishActiveAgentSession(sessionKey, { browser, page, generatedPassword, directoryName });
   }
 
   let finalOutcome: ListSmartlyAgentOutcome | null = null;
@@ -1453,11 +1469,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     return finalOutcome;
   } finally {
     if (sessionKey && shouldHoldAgentSession(finalOutcome) && browser && page && !page.isClosed?.()) {
-      ACTIVE_AGENT_SESSIONS.set(sessionKey, {
+      publishActiveAgentSession(sessionKey, {
         browser,
         page,
         generatedPassword,
-        expiresAt: Date.now() + AGENT_SESSION_TTL_MS,
         directoryName,
       });
       if (finalOutcome) {
