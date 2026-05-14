@@ -88,6 +88,9 @@ export type ListSmartlyAgentBrowserView = {
 
 export type ListSmartlyAgentBrowserControl =
   | { action: "click"; x: number; y: number }
+  | { action: "mouse_down"; x: number; y: number }
+  | { action: "mouse_up"; x?: number; y?: number }
+  | { action: "press_hold"; x?: number; y?: number; durationMs?: number }
   | { action: "type"; text: string }
   | { action: "key"; key: string }
   | { action: "scroll"; deltaY: number }
@@ -204,12 +207,64 @@ export async function controlListSmartlyAgentBrowser(
   if (!session) return { active: false, reason: "The live browser session has expired. Run the agent again to reopen it." };
 
   const viewport = session.page.viewport?.() || { width: 1365, height: 900 };
+  const clampPoint = (x?: number, y?: number) => ({
+    x: Math.max(0, Math.min(viewport.width || 1365, Math.round(Number.isFinite(x) ? Number(x) : (viewport.width || 1365) / 2))),
+    y: Math.max(0, Math.min(viewport.height || 900, Math.round(Number.isFinite(y) ? Number(y) : (viewport.height || 900) / 2))),
+  });
+  const findPressHoldPoint = async (): Promise<{ x: number; y: number } | null> =>
+    session.page
+      .evaluate(() => {
+        const visible = (el: Element) => {
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+        };
+        const candidates = Array.from(
+          document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a, div, span')
+        );
+        for (const el of candidates) {
+          if (!visible(el)) continue;
+          const text = `${el.textContent || ""} ${(el as HTMLElement).getAttribute("aria-label") || ""} ${
+            (el as HTMLElement).getAttribute("title") || ""
+          }`.replace(/\s+/g, " ");
+          if (!/press\s+and\s+hold/i.test(text)) continue;
+          const rect = el.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+        return null;
+      })
+      .catch(() => null);
+  let settleMs = 4000;
+
   if (control.action === "click") {
-    const x = Math.max(0, Math.min(viewport.width || 1365, Math.round(control.x)));
-    const y = Math.max(0, Math.min(viewport.height || 900, Math.round(control.y)));
+    const { x, y } = clampPoint(control.x, control.y);
     await session.page.mouse.move(x, y);
     await session.page.mouse.click(x, y);
     session.remoteCursor = { x, y, at: Date.now() };
+  } else if (control.action === "mouse_down") {
+    const { x, y } = clampPoint(control.x, control.y);
+    await session.page.mouse.move(x, y);
+    await session.page.mouse.down();
+    session.remoteCursor = { x, y, at: Date.now() };
+    settleMs = 0;
+  } else if (control.action === "mouse_up") {
+    const { x, y } = clampPoint(control.x, control.y);
+    await session.page.mouse.move(x, y);
+    await session.page.mouse.up();
+    session.remoteCursor = { x, y, at: Date.now() };
+    settleMs = 3500;
+  } else if (control.action === "press_hold") {
+    const point =
+      Number.isFinite(control.x) && Number.isFinite(control.y)
+        ? clampPoint(control.x, control.y)
+        : (await findPressHoldPoint()) || clampPoint(session.remoteCursor?.x, session.remoteCursor?.y);
+    const durationMs = Math.max(2500, Math.min(12000, Math.round(control.durationMs || 6500)));
+    await session.page.mouse.move(point.x, point.y);
+    await session.page.mouse.down();
+    session.remoteCursor = { x: point.x, y: point.y, at: Date.now() };
+    await delay(durationMs);
+    await session.page.mouse.up();
+    settleMs = 3500;
   } else if (control.action === "type") {
     await session.page.keyboard.type(control.text.slice(0, 500), { delay: 20 });
   } else if (control.action === "key") {
@@ -236,7 +291,7 @@ export async function controlListSmartlyAgentBrowser(
   }
 
   session.lastHumanActionAt = Date.now();
-  await settle(session.page, 4000);
+  if (settleMs > 0) await settle(session.page, settleMs);
   return getListSmartlyAgentBrowserView(workflowId);
 }
 
@@ -709,7 +764,7 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
       blockers: {
         captcha:
           visibleCaptchaElement ||
-          /(complete the captcha|captcha required|recaptcha|hcaptcha|turnstile|cloudflare challenge)/i.test(pageContext),
+          /(complete the captcha|captcha required|recaptcha|hcaptcha|turnstile|cloudflare challenge|help us beat the robots|press and hold|not a robot|human verification|bot.?protection)/i.test(pageContext),
         emailVerification: /(verify[-_\s]?email|verify your email|email verification|verification code|one.?time verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageContext),
         phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageContext),
         payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageContext),

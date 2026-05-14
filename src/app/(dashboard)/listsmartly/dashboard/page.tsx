@@ -565,24 +565,38 @@ export default function ListSmartlyDashboardPage() {
   const sendLiveBrowserControl = useCallback(async (taskId: string | null | undefined, control: Record<string, unknown>) => {
     if (!taskId || liveControlLoading) return;
     setLiveControlLoading(true);
+    const action = String(control.action || "");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      action === "press_hold" ? 25000 : 12000
+    );
     try {
       const res = await fetch("/api/listsmartly/autopilot/browser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ taskId, ...control }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error?.message || "Failed to control live browser");
       setLiveBrowserView(json.data as LiveBrowserView);
       setLiveBrowserError(null);
+      void fetchAutopilotSettings(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to control live browser";
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The browser command took too long. Refresh the live browser and try again."
+          : error instanceof Error
+            ? error.message
+            : "Failed to control live browser";
       setLiveBrowserError(message);
       toast({ title: "Live browser control failed", description: message, variant: "destructive" });
     } finally {
+      window.clearTimeout(timeout);
       setLiveControlLoading(false);
     }
-  }, [liveControlLoading, toast]);
+  }, [fetchAutopilotSettings, liveControlLoading, toast]);
 
   // Initial load
   useEffect(() => {
@@ -790,6 +804,15 @@ export default function ListSmartlyDashboardPage() {
     if (!text.trim()) return;
     setLiveControlText("");
     void sendLiveBrowserControl(taskId, { action: "type", text });
+  }
+
+  function pressHoldLiveBrowser(taskId: string) {
+    const cursor = liveBrowserView?.cursor;
+    void sendLiveBrowserControl(taskId, {
+      action: "press_hold",
+      ...(cursor ? { x: cursor.x, y: cursor.y } : {}),
+      durationMs: 7000,
+    });
   }
 
   // ── Loading State ──
@@ -1522,7 +1545,12 @@ export default function ListSmartlyDashboardPage() {
     const needsPortalValidation = Boolean(
       needsUserTask?.result?.stage === "waiting_for_captcha" ||
         needsUserTask?.result?.accountCreationBlocker === "waiting_for_captcha" ||
-        needsUserTask?.result?.accountCreationBlocker === "captcha_required"
+        needsUserTask?.result?.accountCreationBlocker === "captcha_required" ||
+        /captcha|bot|robot|human verification/i.test(
+          `${needsUserTask?.result?.stage || ""} ${needsUserTask?.result?.accountCreationBlocker || ""} ${
+            needsUserTask?.result?.statusMessage || ""
+          }`
+        )
     );
     const needsUserButtonLabel =
       needsUserTask?.result?.userActionInputKind === "verification_code"
@@ -1742,6 +1770,17 @@ export default function ListSmartlyDashboardPage() {
                         </Button>
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => pressHoldLiveBrowser(supervisedTask.id)}
+                          disabled={liveControlLoading}
+                          title="Hold the visible Press and hold challenge button in the live browser"
+                        >
+                          <MousePointer2 className="h-3.5 w-3.5 mr-1.5" />
+                          Press & hold
+                        </Button>
                         {["Enter", "Tab", "Backspace"].map((key) => (
                           <Button
                             key={key}

@@ -37,6 +37,28 @@ function normalizeControl(body: Record<string, unknown>): ListSmartlyAgentBrowse
       y: Number(body.y || 0),
     };
   }
+  if (action === "mouse_down") {
+    return {
+      action,
+      x: Number(body.x || 0),
+      y: Number(body.y || 0),
+    };
+  }
+  if (action === "mouse_up") {
+    return {
+      action,
+      x: body.x === undefined ? undefined : Number(body.x || 0),
+      y: body.y === undefined ? undefined : Number(body.y || 0),
+    };
+  }
+  if (action === "press_hold") {
+    return {
+      action,
+      x: body.x === undefined ? undefined : Number(body.x || 0),
+      y: body.y === undefined ? undefined : Number(body.y || 0),
+      durationMs: Number(body.durationMs || 6500),
+    };
+  }
   if (action === "type") {
     return {
       action,
@@ -160,14 +182,16 @@ export async function POST(request: NextRequest) {
     }
 
     const view = await controlListSmartlyAgentBrowser(taskId, control);
-    const resume = await resumeAutopilotTaskAfterBrowserControl(session.userId, taskId).catch((error) => {
-      console.error("Resume ListSmartly agent after browser control error:", error);
-      return null;
-    });
-    if (resume?.resumed && resume.task?.id) {
-      void processAutopilotTask(session.userId, resume.task.id).catch((error) => {
-        console.error("Background ListSmartly autopilot resume failed:", error);
+    if (control.action !== "mouse_down") {
+      const resume = await resumeAutopilotTaskAfterBrowserControl(session.userId, taskId).catch((error) => {
+        console.error("Resume ListSmartly agent after browser control error:", error);
+        return null;
       });
+      if (resume?.resumed && resume.task?.id) {
+        void processAutopilotTask(session.userId, resume.task.id).catch((error) => {
+          console.error("Background ListSmartly autopilot resume failed:", error);
+        });
+      }
     }
     return NextResponse.json({ success: true, data: view });
   } catch (error) {

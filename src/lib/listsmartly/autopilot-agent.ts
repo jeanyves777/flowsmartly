@@ -2870,7 +2870,7 @@ export async function resumeAutopilotTaskAfterBrowserControl(userId: string, tas
     snapshot.blockers.phoneVerification ||
     snapshot.blockers.payment ||
     snapshot.blockers.businessEmailRejected;
-  const ordinarySignupDetails = /(add some details|birthdate|birth date|date of birth|country\/region|country region|create your microsoft account)/i.test(
+  const ordinarySignupDetails = /(add some details|birthdate|birth date|date of birth|country\/region|country region|create your microsoft account|what'?s your name|first name|last name|your name)/i.test(
     snapshotContext
   );
 
