@@ -536,7 +536,7 @@ function normalizeNeedsUserOutcome(params: {
   progressLog: Array<Record<string, unknown>>;
 }): ListSmartlyAgentOutcome {
   const { directoryName, profile, outcome, progressLog } = params;
-  if (outcome.status !== "needs_user") return outcome;
+  if (!["needs_user", "blocked", "pending"].includes(outcome.status)) return outcome;
 
   const blockers = latestObservedBlockers(progressLog);
   const personalEmail = isLikelyPersonalEmail(profile.email);
@@ -647,6 +647,7 @@ function normalizeNeedsUserOutcome(params: {
 
   return {
     ...outcome,
+    status: reasons.length ? "needs_user" : outcome.status,
     stage,
     message,
     actionTitle,
