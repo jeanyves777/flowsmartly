@@ -424,6 +424,7 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
         .trim();
     };
     const pageText = document.body.innerText.replace(/\s+/g, " ").trim();
+    const pageContext = `${location.href} ${document.title} ${pageText}`;
     const visibleTextFor = (selector: string) =>
       Array.from(document.querySelectorAll(selector))
         .filter((el) => visible(el))
@@ -486,11 +487,11 @@ async function observePage(page: any): Promise<BrowserSnapshot> {
       blockers: {
         captcha:
           visibleCaptchaElement ||
-          /(complete the captcha|captcha required|verify you are human|security challenge|cloudflare challenge)/i.test(pageText),
-        emailVerification: /(verify your email|verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageText),
-        phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageText),
-        payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageText),
-        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|office 365)/i.test(pageText),
+          /(complete the captcha|captcha required|recaptcha|hcaptcha|turnstile|cloudflare challenge)/i.test(pageContext),
+        emailVerification: /(verify[-_\s]?email|verify your email|email verification|verification code|one.?time verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageContext),
+        phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageContext),
+        payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageContext),
+        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|office 365)/i.test(pageContext),
         businessEmailRejected: /(provide a valid business email|please enter a valid business email|valid work email|company email required|free email domain|business email is required|invalid business email)/i.test(
           `${alertText} ${pageText}`
         ),
@@ -1207,20 +1208,41 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     if (finalOutcome) return finalOutcome;
 
     const snapshot = await observePage(page);
-    finalOutcome = defaultOutcome({
-      status: "pending",
-      stage: "agent_review_pending",
-      portalUrl: snapshot.url,
-      message: `${directoryName} agent session ended without a terminal decision. The workflow remains assigned to the agent for retry.`,
-      actionTitle: `${directoryName} agent retry queued`,
-      actionButtonLabel: "Agent should retry",
-      diagnostics: {
-        agentEngine: "claude_agent_sdk",
-        toolCalls,
-        progressLog,
-        finalTitle: snapshot.title,
-        blockers: snapshot.blockers,
-      },
+    const finalProgressLog = [
+      ...progressLog,
+      { tool: "observe_page", url: snapshot.url, title: snapshot.title, blockers: snapshot.blockers },
+    ];
+    const snapshotNeedsUser = Boolean(
+      snapshot.blockers.emailVerification ||
+        snapshot.blockers.phoneVerification ||
+        snapshot.blockers.payment ||
+        snapshot.blockers.businessEmailRejected ||
+        snapshot.blockers.loginOrSso ||
+        snapshot.blockers.captcha
+    );
+    finalOutcome = normalizeNeedsUserOutcome({
+      directoryName,
+      profile,
+      progressLog: finalProgressLog,
+      outcome: defaultOutcome({
+        status: snapshotNeedsUser ? "needs_user" : "pending",
+        stage: snapshotNeedsUser ? "waiting_for_user_validation" : "agent_review_pending",
+        portalUrl: snapshot.url,
+        message: snapshotNeedsUser
+          ? `${directoryName} reached a validation step in the live browser.`
+          : `${directoryName} agent session ended without a terminal decision. The workflow remains assigned to the agent for retry.`,
+        actionTitle: snapshotNeedsUser ? `${directoryName} validation needed` : `${directoryName} agent retry queued`,
+        actionButtonLabel: snapshotNeedsUser ? "I completed validation" : "Agent should retry",
+        accountCreated: snapshot.blockers.emailVerification,
+        generatedPassword,
+        diagnostics: {
+          agentEngine: "claude_agent_sdk",
+          toolCalls,
+          progressLog: finalProgressLog,
+          finalTitle: snapshot.title,
+          blockers: snapshot.blockers,
+        },
+      }),
     });
     return finalOutcome;
   } catch (error) {
