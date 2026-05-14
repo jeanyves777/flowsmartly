@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { createNotification, NOTIFICATION_TYPES } from "@/lib/notifications";
+import { runClaudeListSmartlyBrowserAgent } from "@/lib/listsmartly/claude-browser-agent";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
@@ -1338,11 +1339,28 @@ async function runAgentBrowserWorkflow(
     }
   );
 
-  const outcome = await runBrowserSignupWorkflow({
+  const outcome = await runClaudeListSmartlyBrowserAgent({
     profile,
     directoryName: task.listing.directory.name,
     directorySlug: task.listing.directory.slug,
     startUrl,
+    onProgress: async (event) => {
+      await updateTaskProgress(
+        task.id,
+        event.stage,
+        event.detail || `ListSmartly agent is working on ${task.listing?.directory.name}.`,
+        {
+          label: event.label,
+          status: event.status,
+          detail: event.detail,
+        },
+        {
+          ...(event.extra || {}),
+          agentEngine: "claude_agent_sdk",
+          agentAttemptedAccountCreation: true,
+        }
+      );
+    },
   });
 
   const current = parseJsonObject((await prisma.listSmartlyAutopilotTask.findUnique({
@@ -1416,6 +1434,45 @@ async function runAgentBrowserWorkflow(
     });
 
     return { status: "needs_user", message: outcome.message, task: needsUser };
+  }
+
+  if (outcome.status === "blocked") {
+    const blockedResult = appendProgress(
+      {
+        ...current,
+        stage: outcome.stage,
+        statusMessage: outcome.message,
+        agentAttemptedAccountCreation: true,
+        accountCreated: outcome.accountCreated,
+        credentialSaved,
+        emailSentByFlowSmartly: outcome.emailSentByFlowSmartly,
+        accountCreationBlocker: outcome.stage,
+        userActionTitle: outcome.actionTitle,
+        userActionMessage: outcome.message,
+        userActionButtonLabel: outcome.actionButtonLabel,
+        portalUrl: outcome.portalUrl,
+        browserDiagnostics: outcome.diagnostics,
+      },
+      {
+        stage: outcome.stage,
+        label: "Agent blocked",
+        status: "failed",
+        detail: outcome.message,
+      }
+    );
+
+    const blocked = await prisma.listSmartlyAutopilotTask.update({
+      where: { id: task.id },
+      data: {
+        status: "blocked",
+        assignedTo: "admin",
+        requiredAction: outcome.message,
+        failureReason: outcome.message,
+        result: safeJson(blockedResult),
+      },
+    });
+
+    return { status: "blocked", message: outcome.message, task: blocked };
   }
 
   if (outcome.status === "submitted") {
@@ -2459,8 +2516,8 @@ export async function continueAutopilotTask(userId: string, taskId: string) {
   const result = appendProgress(
     {
       ...parseJsonObject(task.result),
-      stage: "validation_received",
-      statusMessage: "User confirmed the validation step is complete. The agent is checking the directory again.",
+      stage: "agent_browser_workflow_running",
+      statusMessage: "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
       userConfirmedAt: new Date().toISOString(),
     },
     {
@@ -2478,7 +2535,7 @@ export async function continueAutopilotTask(userId: string, taskId: string) {
       assignedTo: "agent",
       result: safeJson(result),
       requiredAction:
-        "Validation was confirmed. Autopilot is re-checking the directory and will complete the listing or ask for the next real validation step.",
+        "Validation was confirmed. The AI listing agent is continuing the directory workflow and will complete the listing or ask for the next real validation step.",
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
     },

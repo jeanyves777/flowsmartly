@@ -1,0 +1,871 @@
+import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
+import { getClaudeCodeBinaryPath } from "@/lib/ai/design-tools/sdk-binary-path";
+
+const AGENT_BROWSER_TIMEOUT_MS = 60000;
+const AGENT_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+
+export type ListSmartlyAgentProfile = {
+  businessName: string;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  industry?: string | null;
+  yearFounded?: string | null;
+  description?: string | null;
+};
+
+export type ListSmartlyAgentOutcome = {
+  status: "submitted" | "needs_user" | "blocked" | "pending";
+  stage: string;
+  message: string;
+  actionTitle: string;
+  actionButtonLabel: string;
+  portalUrl: string;
+  accountCreated: boolean;
+  credentialSaved: boolean;
+  emailSentByFlowSmartly: boolean;
+  generatedPassword?: string;
+  passwordHint?: string;
+  diagnostics?: Record<string, unknown>;
+};
+
+type ProgressCallback = (event: {
+  stage: string;
+  label: string;
+  status: "done" | "active" | "waiting" | "failed";
+  detail?: string;
+  extra?: Record<string, unknown>;
+}) => Promise<void> | void;
+
+type BrowserSnapshot = {
+  url: string;
+  title: string;
+  text: string;
+  controls: Array<{
+    index: number;
+    tag: string;
+    type: string;
+    name: string;
+    id: string;
+    placeholder: string;
+    autocomplete: string;
+    label: string;
+    value: string;
+    required: boolean;
+  }>;
+  buttons: Array<{ index: number; tag: string; text: string; href: string; type: string }>;
+  blockers: {
+    captcha: boolean;
+    emailVerification: boolean;
+    phoneVerification: boolean;
+    payment: boolean;
+    loginOrSso: boolean;
+    businessEmailRejected: boolean;
+  };
+};
+
+function ok(data: unknown) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: typeof data === "string" ? data : JSON.stringify(data),
+      },
+    ],
+  };
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function splitContactName(profile: ListSmartlyAgentProfile): { firstName: string; lastName: string } {
+  const raw = normalizeText(profile.contactName || "").length > 2 ? profile.contactName : profile.businessName;
+  const parts = (raw || profile.businessName || "Business Admin")
+    .replace(/[^a-zA-Z0-9' -]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const firstName = parts[0] || "Business";
+  const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "Admin";
+  return { firstName, lastName };
+}
+
+function safePassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let core = "";
+  for (let i = 0; i < 14; i++) {
+    core += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `Fs!${core}7Aa`;
+}
+
+async function settle(page: any, timeout = 12000) {
+  try {
+    await page.waitForNetworkIdle({ idleTime: 700, timeout });
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+}
+
+function valuesForProfile(profile: ListSmartlyAgentProfile, generatedPassword: string) {
+  const { firstName, lastName } = splitContactName(profile);
+  return {
+    firstName,
+    lastName,
+    fullName: `${firstName} ${lastName}`.trim(),
+    businessName: profile.businessName || "",
+    email: profile.email || "",
+    password: generatedPassword,
+    phone: profile.phone || "",
+    website: profile.website || "",
+    address: profile.address || "",
+    city: profile.city || "",
+    state: profile.state || "",
+    zip: profile.zip || "",
+    country: profile.country || "United States",
+    industry: profile.industry || "",
+    yearFounded: profile.yearFounded || "",
+    description: profile.description || "",
+  };
+}
+
+function defaultOutcome(params: {
+  status: ListSmartlyAgentOutcome["status"];
+  stage: string;
+  message: string;
+  actionTitle: string;
+  actionButtonLabel: string;
+  portalUrl: string;
+  accountCreated?: boolean;
+  generatedPassword?: string;
+  diagnostics?: Record<string, unknown>;
+}): ListSmartlyAgentOutcome {
+  return {
+    status: params.status,
+    stage: params.stage,
+    message: params.message,
+    actionTitle: params.actionTitle,
+    actionButtonLabel: params.actionButtonLabel,
+    portalUrl: params.portalUrl,
+    accountCreated: Boolean(params.accountCreated),
+    credentialSaved: Boolean(params.generatedPassword),
+    emailSentByFlowSmartly: false,
+    generatedPassword: params.generatedPassword,
+    passwordHint: params.generatedPassword ? "Generated by FlowSmartly ListSmartly Agent." : undefined,
+    diagnostics: params.diagnostics,
+  };
+}
+
+async function observePage(page: any): Promise<BrowserSnapshot> {
+  return page.evaluate(() => {
+    const visible = (el: Element) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+    };
+    const labelFor = (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+      const id = el.getAttribute("id");
+      const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+      const implicit = el.closest("label")?.textContent || "";
+      return [
+        explicit,
+        implicit,
+        el.getAttribute("aria-label") || "",
+        el.getAttribute("placeholder") || "",
+        el.getAttribute("name") || "",
+        el.getAttribute("autocomplete") || "",
+        id || "",
+      ]
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+    const pageText = document.body.innerText.replace(/\s+/g, " ").trim();
+    const html = document.body.innerHTML;
+    return {
+      url: location.href,
+      title: document.title,
+      text: pageText.slice(0, 5000),
+      controls: Array.from(document.querySelectorAll("input, textarea, select"))
+        .filter((el) => visible(el))
+        .map((el: any, index) => ({
+          index,
+          tag: el.tagName,
+          type: (el.getAttribute("type") || "").toLowerCase(),
+          name: el.getAttribute("name") || "",
+          id: el.getAttribute("id") || "",
+          placeholder: el.getAttribute("placeholder") || "",
+          autocomplete: el.getAttribute("autocomplete") || "",
+          label: labelFor(el),
+          value: el.value ? "[filled]" : "",
+          required: Boolean(el.required || el.getAttribute("aria-required") === "true"),
+        })),
+      buttons: Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]"))
+        .filter((el) => visible(el))
+        .map((el: any, index) => ({
+          index,
+          tag: el.tagName,
+          text: (el.innerText || el.getAttribute("value") || el.getAttribute("aria-label") || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 140),
+          href: el.href || "",
+          type: el.getAttribute("type") || "",
+        }))
+        .filter((item) => item.text || item.href)
+        .slice(0, 80),
+      blockers: {
+        captcha: /(captcha|recaptcha|hcaptcha|turnstile|cloudflare challenge)/i.test(`${pageText} ${html}`),
+        emailVerification: /(verify your email|verification code|check your email|confirmation email|email has been sent|enter the code)/i.test(pageText),
+        phoneVerification: /(verify your phone|sms code|text message|phone verification|call you)/i.test(pageText),
+        payment: /(payment|credit card|checkout|billing information|expedite)/i.test(pageText),
+        loginOrSso: /(single sign.?on|\bsso\b|sign in with google|continue with google|sign in with microsoft|office 365)/i.test(pageText),
+        businessEmailRejected: /(business email|required.*business email|valid business email|work email|company email|invalid email)/i.test(pageText),
+      },
+    };
+  });
+}
+
+export async function runClaudeListSmartlyBrowserAgent(params: {
+  profile: ListSmartlyAgentProfile;
+  directoryName: string;
+  directorySlug?: string | null;
+  startUrl: string;
+  onProgress?: ProgressCallback;
+}): Promise<ListSmartlyAgentOutcome> {
+  const { profile, directoryName, directorySlug, startUrl, onProgress } = params;
+  const generatedPassword = safePassword();
+  const puppeteer = (await import("puppeteer")).default;
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+    ],
+  });
+
+  let finalOutcome: ListSmartlyAgentOutcome | null = null;
+  const toolCalls: string[] = [];
+  const progressLog: Array<Record<string, unknown>> = [];
+
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(AGENT_BROWSER_TIMEOUT_MS);
+    await page.setViewport({ width: 1365, height: 900 });
+    await page.setUserAgent(AGENT_USER_AGENT);
+    await page.evaluateOnNewDocument("window.__name = function(fn) { return fn; };");
+    await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS });
+    await page.addScriptTag({ content: "window.__name = function(fn) { return fn; };" }).catch(() => undefined);
+    await settle(page);
+
+    await onProgress?.({
+      stage: "claude_agent_started",
+      label: "Claude agent started",
+      status: "active",
+      detail: `Agent opened ${directoryName}.`,
+      extra: { agentEngine: "claude_agent_sdk", portalUrl: page.url() },
+    });
+
+    const profileValues = valuesForProfile(profile, generatedPassword);
+
+    const tools = [
+      tool(
+        "navigate",
+        "Navigate the controlled browser to a public URL from the current directory workflow. Use when a visible link href is the correct next step or when returning to the current portal after user validation.",
+        {
+          url: z.string().url(),
+        },
+        async (args) => {
+          await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: AGENT_BROWSER_TIMEOUT_MS });
+          await settle(page, 15000);
+          await onProgress?.({
+            stage: "agent_navigated",
+            label: "Navigated",
+            status: "active",
+            detail: args.url,
+            extra: { portalUrl: page.url(), agentEngine: "claude_agent_sdk" },
+          });
+          progressLog.push({ tool: "navigate", url: page.url() });
+          return ok({ url: page.url(), title: await page.title() });
+        }
+      ),
+      tool(
+        "observe_page",
+        "Read the current browser page. Use before every decision. It returns URL, title, visible controls/buttons, visible text, and blocker flags.",
+        {},
+        async () => {
+          const snapshot = await observePage(page);
+          await onProgress?.({
+            stage: "agent_observed_page",
+            label: "Page observed",
+            status: "active",
+            detail: `${snapshot.title || snapshot.url}`,
+            extra: { portalUrl: snapshot.url },
+          });
+          progressLog.push({ tool: "observe_page", url: snapshot.url, title: snapshot.title, blockers: snapshot.blockers });
+          return ok(snapshot);
+        }
+      ),
+      tool(
+        "click",
+        "Click a visible button or link by exact text pattern. Use for Sign up, Get started, U.S.-based business, general purpose, Continue, Next, Submit, Claim, or Add business. Do not click social login/SSO/payment buttons.",
+        {
+          textPattern: z.string().describe("Case-insensitive text pattern to click."),
+          avoidPattern: z.string().optional().describe("Optional case-insensitive pattern to avoid."),
+        },
+        async (args) => {
+          const result = await page.evaluate(
+            ({ textPattern, avoidPattern }: { textPattern: string; avoidPattern?: string }) => {
+              const wanted = new RegExp(textPattern, "i");
+              const avoid = avoidPattern ? new RegExp(avoidPattern, "i") : null;
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const candidates = Array.from(document.querySelectorAll("button, a, input[type=submit], input[type=button]")) as HTMLElement[];
+              for (const el of candidates) {
+                if (!visible(el)) continue;
+                const text = (
+                  el.innerText ||
+                  el.getAttribute("value") ||
+                  el.getAttribute("aria-label") ||
+                  (el as HTMLAnchorElement).href ||
+                  ""
+                )
+                  .replace(/\s+/g, " ")
+                  .trim();
+                if (!text || !wanted.test(text) || avoid?.test(text)) continue;
+                el.click();
+                return { clicked: true, text, href: (el as HTMLAnchorElement).href || "" };
+              }
+              return { clicked: false, text: "", href: "" };
+            },
+            args
+          );
+          if (result.clicked) await settle(page, 15000);
+          const url = page.url();
+          await onProgress?.({
+            stage: "agent_clicked",
+            label: "Clicked page control",
+            status: result.clicked ? "active" : "failed",
+            detail: result.clicked ? result.text : `No control matched ${args.textPattern}`,
+            extra: { portalUrl: url },
+          });
+          progressLog.push({ tool: "click", input: args, result, url });
+          return ok({ ...result, url });
+        }
+      ),
+      tool(
+        "fill_field",
+        "Fill one visible input/textarea by label/name/placeholder pattern using exactly one approved business profile value. Use this when generic filling misses a field. Never fill CAPTCHA, payment-card, or one-time-code fields.",
+        {
+          fieldPattern: z.string().describe("Case-insensitive label/name/placeholder pattern for the target field."),
+          valueKey: z.enum([
+            "firstName",
+            "lastName",
+            "fullName",
+            "businessName",
+            "email",
+            "password",
+            "phone",
+            "website",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "country",
+            "industry",
+            "yearFounded",
+            "description",
+          ]),
+        },
+        async (args) => {
+          const value = profileValues[args.valueKey] || "";
+          const result = await page.evaluate(
+            ({ fieldPattern, value }: { fieldPattern: string; value: string }) => {
+              const pattern = new RegExp(fieldPattern, "i");
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const labelFor = (el: HTMLInputElement | HTMLTextAreaElement) => {
+                const id = el.getAttribute("id");
+                const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+                const implicit = el.closest("label")?.textContent || "";
+                return [
+                  explicit,
+                  implicit,
+                  el.getAttribute("aria-label") || "",
+                  el.getAttribute("placeholder") || "",
+                  el.getAttribute("name") || "",
+                  id || "",
+                  el.getAttribute("autocomplete") || "",
+                ]
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              };
+              const setValue = (el: HTMLInputElement | HTMLTextAreaElement, next: string) => {
+                const prototype = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+                if (setter) setter.call(el, next);
+                else el.value = next;
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+              };
+              const controls = Array.from(document.querySelectorAll("input, textarea")) as Array<HTMLInputElement | HTMLTextAreaElement>;
+              for (const control of controls) {
+                if (!visible(control) || control.disabled || control.readOnly) continue;
+                const type = (control.getAttribute("type") || "text").toLowerCase();
+                const label = labelFor(control);
+                if (["hidden", "submit", "button", "checkbox", "radio", "file"].includes(type)) continue;
+                if (/captcha|verification code|otp|one.?time|card|cvv|cvc|payment/.test(label.toLowerCase())) continue;
+                if (!pattern.test(label)) continue;
+                setValue(control, value);
+                return { filled: true, label, type };
+              }
+              return { filled: false, label: "", type: "" };
+            },
+            { fieldPattern: args.fieldPattern, value }
+          );
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_filled_target_field",
+            label: "Target field filled",
+            status: result.filled ? "active" : "failed",
+            detail: result.filled ? `${result.label}` : `No field matched ${args.fieldPattern}`,
+            extra: { portalUrl: page.url(), valueKey: args.valueKey },
+          });
+          progressLog.push({ tool: "fill_field", input: args, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "fill_allowed_fields",
+        "Fill visible form fields using the approved business profile. You may request keys from the provided approved_values list. Never fill CAPTCHA, payment card, or one-time verification-code fields.",
+        {
+          fieldKeys: z
+            .array(
+              z.enum([
+                "firstName",
+                "lastName",
+                "fullName",
+                "businessName",
+                "email",
+                "password",
+                "phone",
+                "website",
+                "address",
+                "city",
+                "state",
+                "zip",
+                "country",
+                "industry",
+                "yearFounded",
+                "description",
+              ])
+            )
+            .describe("Approved profile values to try filling."),
+        },
+        async (args) => {
+          const picked: Record<string, string> = {};
+          for (const key of args.fieldKeys) picked[key] = profileValues[key] || "";
+          const result = await page.evaluate(
+            ({ picked }: { picked: Record<string, string> }) => {
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const labelFor = (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) => {
+                const id = el.getAttribute("id");
+                const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+                const implicit = el.closest("label")?.textContent || "";
+                return [
+                  explicit,
+                  implicit,
+                  el.getAttribute("aria-label") || "",
+                  el.getAttribute("placeholder") || "",
+                  el.getAttribute("name") || "",
+                  el.getAttribute("autocomplete") || "",
+                  id || "",
+                ]
+                  .join(" ")
+                  .toLowerCase();
+              };
+              const setValue = (el: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+                const prototype = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+                if (setter) setter.call(el, value);
+                else el.value = value;
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+              };
+              const matchingValue = (label: string, type: string) => {
+                if (type === "email" || /\b(e-?mail|email address|business email|work email)\b/.test(label)) return picked.email;
+                if (type === "password" || /password/.test(label)) return picked.password;
+                if (/first name|given name/.test(label)) return picked.firstName;
+                if (/last name|surname|family name/.test(label)) return picked.lastName;
+                if (/full name|your name|contact name|owner name|president|ceo/.test(label)) return picked.fullName;
+                if (/business name|company name|organization|legal name|business legal/.test(label)) return picked.businessName;
+                if (/phone|telephone|mobile/.test(label)) return picked.phone;
+                if (/street|address line 1|business address|mailing address/.test(label)) return picked.address;
+                if (/\bcity\b/.test(label)) return picked.city;
+                if (/\bstate\b|province|region/.test(label)) return picked.state;
+                if (/zip|postal/.test(label)) return picked.zip;
+                if (/website|url|domain/.test(label)) return picked.website;
+                if (/industry|category|business type/.test(label)) return picked.industry;
+                if (/year founded|founded|established/.test(label)) return picked.yearFounded;
+                if (/description|about|summary/.test(label)) return picked.description;
+                return "";
+              };
+              const filled: string[] = [];
+              const missingRequired: string[] = [];
+              const inputs = Array.from(document.querySelectorAll("input, textarea")) as Array<HTMLInputElement | HTMLTextAreaElement>;
+              for (const input of inputs) {
+                if (!visible(input) || input.disabled || input.readOnly || input.value) continue;
+                const type = (input.getAttribute("type") || "text").toLowerCase();
+                const label = labelFor(input);
+                if (["hidden", "submit", "button", "checkbox", "radio", "file"].includes(type)) continue;
+                if (/captcha|verification code|otp|one.?time|card|cvv|cvc|payment/.test(label)) continue;
+                const value = matchingValue(label, type);
+                if (value) {
+                  setValue(input, value);
+                  filled.push(label.replace(/\s+/g, " ").trim().slice(0, 80));
+                } else if (input.required || input.getAttribute("aria-required") === "true") {
+                  missingRequired.push(label.replace(/\s+/g, " ").trim().slice(0, 80) || type);
+                }
+              }
+              return { filled, missingRequired };
+            },
+            { picked }
+          );
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_filled_fields",
+            label: "Fields filled",
+            status: "active",
+            detail: result.filled.length ? result.filled.join(", ") : "No fillable matching fields found.",
+            extra: { portalUrl: page.url(), missingRequired: result.missingRequired },
+          });
+          progressLog.push({ tool: "fill_allowed_fields", requested: args.fieldKeys, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "select_option",
+        "Select an option in a visible select/dropdown by field pattern and option pattern. Use for state, country, industry, business type, legal structure, or category when the option is visible in a standard select.",
+        {
+          fieldPattern: z.string(),
+          optionPattern: z.string(),
+        },
+        async (args) => {
+          const result = await page.evaluate(
+            ({ fieldPattern, optionPattern }: { fieldPattern: string; optionPattern: string }) => {
+              const field = new RegExp(fieldPattern, "i");
+              const optionWanted = new RegExp(optionPattern, "i");
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const labelFor = (el: HTMLSelectElement) => {
+                const id = el.getAttribute("id");
+                const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+                const implicit = el.closest("label")?.textContent || "";
+                return [
+                  explicit,
+                  implicit,
+                  el.getAttribute("aria-label") || "",
+                  el.getAttribute("placeholder") || "",
+                  el.getAttribute("name") || "",
+                  id || "",
+                ]
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              };
+              for (const select of Array.from(document.querySelectorAll("select")) as HTMLSelectElement[]) {
+                if (!visible(select) || select.disabled) continue;
+                const label = labelFor(select);
+                if (!field.test(label)) continue;
+                const option = Array.from(select.options).find((item) => optionWanted.test(`${item.textContent || ""} ${item.value || ""}`));
+                if (!option) return { selected: false, label, reason: "option_not_found" };
+                select.value = option.value;
+                select.dispatchEvent(new Event("change", { bubbles: true }));
+                return { selected: true, label, option: option.textContent || option.value };
+              }
+              return { selected: false, label: "", reason: "select_not_found" };
+            },
+            args
+          );
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_selected_option",
+            label: "Option selected",
+            status: result.selected ? "active" : "failed",
+            detail: result.selected ? `${result.label}: ${result.option}` : `${args.fieldPattern} -> ${args.optionPattern}`,
+            extra: { portalUrl: page.url() },
+          });
+          progressLog.push({ tool: "select_option", input: args, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "set_checkbox",
+        "Set a visible checkbox/radio control by label pattern. Use only for ordinary terms acceptance, business-type choices, or directory options. Never use it for CAPTCHA or payment consent.",
+        {
+          labelPattern: z.string(),
+          checked: z.boolean().default(true),
+        },
+        async (args) => {
+          const result = await page.evaluate(
+            ({ labelPattern, checked }: { labelPattern: string; checked: boolean }) => {
+              const pattern = new RegExp(labelPattern, "i");
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const labelFor = (el: HTMLInputElement) => {
+                const id = el.getAttribute("id");
+                const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+                const implicit = el.closest("label")?.textContent || "";
+                return [
+                  explicit,
+                  implicit,
+                  el.getAttribute("aria-label") || "",
+                  el.getAttribute("name") || "",
+                  id || "",
+                ]
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              };
+              const controls = Array.from(document.querySelectorAll("input[type=checkbox], input[type=radio]")) as HTMLInputElement[];
+              for (const control of controls) {
+                if (!visible(control) || control.disabled) continue;
+                const label = labelFor(control);
+                if (/captcha|payment|credit card|cvv|cvc/i.test(label)) continue;
+                if (!pattern.test(label)) continue;
+                if (control.checked !== checked) control.click();
+                return { changed: true, label, checked: control.checked };
+              }
+              return { changed: false, label: "", checked: false };
+            },
+            args
+          );
+          await settle(page, 3000);
+          await onProgress?.({
+            stage: "agent_set_checkbox",
+            label: "Choice set",
+            status: result.changed ? "active" : "failed",
+            detail: result.changed ? result.label : `No checkbox/radio matched ${args.labelPattern}`,
+            extra: { portalUrl: page.url() },
+          });
+          progressLog.push({ tool: "set_checkbox", input: args, result, url: page.url() });
+          return ok({ ...result, url: page.url() });
+        }
+      ),
+      tool(
+        "finish",
+        "Terminal tool. Use exactly once when the workflow is done, blocked, or needs the user's real validation. Do not claim accountCreated=true unless the page has accepted submission or explicitly asks for verification after submission.",
+        {
+          status: z.enum(["submitted", "needs_user", "blocked", "pending"]),
+          stage: z.string(),
+          message: z.string(),
+          actionTitle: z.string(),
+          actionButtonLabel: z.string(),
+          accountCreated: z.boolean().optional(),
+          shouldSaveGeneratedCredential: z.boolean().optional(),
+        },
+        async (args) => {
+          finalOutcome = {
+            status: args.status,
+            stage: args.stage,
+            message: args.message,
+            actionTitle: args.actionTitle,
+            actionButtonLabel: args.actionButtonLabel,
+            portalUrl: page.url(),
+            accountCreated: Boolean(args.accountCreated),
+            credentialSaved: Boolean(args.shouldSaveGeneratedCredential),
+            emailSentByFlowSmartly: false,
+            generatedPassword: args.shouldSaveGeneratedCredential ? generatedPassword : undefined,
+            passwordHint: args.shouldSaveGeneratedCredential ? "Generated by FlowSmartly ListSmartly Agent." : undefined,
+            diagnostics: {
+              agentEngine: "claude_agent_sdk",
+              toolCalls,
+              progressLog,
+              directorySlug,
+            },
+          };
+          await onProgress?.({
+            stage: args.stage,
+            label: args.status === "needs_user" ? "User action needed" : "Agent finished",
+            status: args.status === "needs_user" ? "waiting" : args.status === "blocked" ? "failed" : "done",
+            detail: args.message,
+            extra: { portalUrl: page.url(), agentEngine: "claude_agent_sdk" },
+          });
+          return ok({ saved: true, outcome: finalOutcome });
+        }
+      ),
+    ];
+
+    const server = createSdkMcpServer({
+      name: "listsmartly_browser_agent",
+      version: "1.0.0",
+      tools,
+      alwaysLoad: true,
+    });
+    const allowedTools = tools.map((item) => `mcp__listsmartly_browser_agent__${item.name}`);
+    const systemPrompt = buildSystemPrompt(directoryName);
+    const userPrompt = buildUserPrompt({
+      directoryName,
+      directorySlug,
+      startUrl,
+      profile,
+      approvedValues: Object.keys(profileValues).filter((key) => Boolean(profileValues[key as keyof typeof profileValues])),
+    });
+
+    for await (const message of query({
+      prompt: userPrompt,
+      options: {
+        systemPrompt,
+        mcpServers: { listsmartly_browser_agent: server },
+        allowedTools,
+        model: process.env.LISTSMARTLY_AGENT_MODEL || "claude-sonnet-4-6",
+        canUseTool: async (toolName) => {
+          toolCalls.push(toolName);
+          return { behavior: "allow" as const, updatedInput: {} };
+        },
+        maxTurns: 16,
+        maxBudgetUsd: 0.35,
+        pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
+        stderr: (msg: string) => console.error(`[listsmartly-agent/claude] ${msg.trimEnd()}`),
+      },
+    })) {
+      if (message.type === "assistant") {
+        const blocks = (message.message?.content ?? []) as Array<{ type?: string; name?: string }>;
+        for (const block of blocks) {
+          if (block.type === "tool_use" && typeof block.name === "string") toolCalls.push(block.name);
+        }
+      }
+    }
+
+    if (finalOutcome) return finalOutcome;
+
+    const snapshot = await observePage(page);
+    return defaultOutcome({
+      status: "pending",
+      stage: "agent_review_pending",
+      portalUrl: snapshot.url,
+      message: `${directoryName} agent session ended without a terminal decision. The workflow remains assigned to the agent for retry.`,
+      actionTitle: `${directoryName} agent retry queued`,
+      actionButtonLabel: "Agent should retry",
+      diagnostics: {
+        agentEngine: "claude_agent_sdk",
+        toolCalls,
+        progressLog,
+        finalTitle: snapshot.title,
+        blockers: snapshot.blockers,
+      },
+    });
+  } catch (error) {
+    return defaultOutcome({
+      status: "pending",
+      stage: "agent_sdk_retry_needed",
+      portalUrl: startUrl,
+      message:
+        `${directoryName} Claude agent could not finish this run: ` +
+        (error instanceof Error ? error.message : String(error)) +
+        ". The task remains assigned to the agent for retry; no user action is required yet.",
+      actionTitle: `${directoryName} agent retry queued`,
+      actionButtonLabel: "Agent should retry",
+      diagnostics: { agentEngine: "claude_agent_sdk", error: error instanceof Error ? error.message : String(error), toolCalls },
+    });
+  } finally {
+    await browser.close().catch(() => undefined);
+  }
+}
+
+function buildSystemPrompt(directoryName: string): string {
+  return `You are the FlowSmartly ListSmartly AI Listing Agent.
+
+You control a browser through tools. Your job is to create, claim, verify, or prepare a business listing workflow for ${directoryName}.
+
+Capabilities:
+- Observe the current page.
+- Navigate public directory workflow URLs.
+- Click public sign-up, claim, add-business, update, and continue controls.
+- Fill general forms and targeted fields using only approved business profile values.
+- Select dropdown options and set ordinary business/terms checkboxes.
+- Pause with a clear user action when email, SMS, phone, CAPTCHA, payment, owner approval, or missing profile data is required.
+
+Rules:
+- Never bypass CAPTCHA, bot protection, paywalls, login protections, email/SMS/phone verification, payment choices, or owner approval.
+- Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
+- Never invent account creation. accountCreated=true only after the page accepted a submit step or asks for verification after a submit.
+- Never claim credentials were saved unless shouldSaveGeneratedCredential=true and accountCreated=true.
+- Do not use APIs. This product uses public directory web workflows only.
+- Use observe_page before every decision.
+- End by calling finish exactly once.`;
+}
+
+function buildUserPrompt(params: {
+  directoryName: string;
+  directorySlug?: string | null;
+  startUrl: string;
+  profile: ListSmartlyAgentProfile;
+  approvedValues: string[];
+}): string {
+  const { directoryName, directorySlug, startUrl, profile, approvedValues } = params;
+  return JSON.stringify(
+    {
+      task: `Run the public listing/account workflow for ${directoryName}.`,
+      directory: { name: directoryName, slug: directorySlug, startUrl },
+      businessProfile: {
+        businessName: profile.businessName,
+        contactName: profile.contactName,
+        email: profile.email,
+        phone: profile.phone,
+        website: profile.website,
+        address: profile.address,
+        city: profile.city,
+        state: profile.state,
+        zip: profile.zip,
+        country: profile.country || "United States",
+        industry: profile.industry,
+        yearFounded: profile.yearFounded,
+        description: profile.description,
+      },
+      approvedFieldKeys: approvedValues,
+      expectedFlow:
+        "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
+      humanActionPolicy:
+        "If CAPTCHA, email/SMS/phone verification, payment, owner approval, missing data, or login-only access appears, stop and output a precise user action.",
+    },
+    null,
+    2
+  );
+}
