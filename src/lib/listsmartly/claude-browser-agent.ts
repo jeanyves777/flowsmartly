@@ -58,7 +58,7 @@ function cleanupExpiredAgentSessions(now = Date.now()) {
 
 function shouldHoldAgentSession(outcome: ListSmartlyAgentOutcome | null): boolean {
   return Boolean(
-    (outcome?.status === "needs_user" && outcome.stage?.startsWith("waiting_for_")) ||
+    outcome?.status === "needs_user" ||
       (outcome?.status === "pending" &&
         (outcome.stage === "agent_sdk_retry_needed" || outcome.stage === "agent_review_pending"))
   );
@@ -486,24 +486,37 @@ function normalizeNeedsUserOutcome(params: {
   const blockers = latestObservedBlockers(progressLog);
   const personalEmail = isLikelyPersonalEmail(profile.email);
   const reasons: string[] = [];
+  const outcomeContext = `${outcome.stage || ""} ${outcome.actionTitle || ""} ${outcome.message || ""}`;
+  const inferredCaptcha = /(captcha|bot.?protection|robot|press and hold|human verification)/i.test(outcomeContext);
+  const inferredEmailVerification = /(email verification|verify your email|enter code|verification code|one.?time code|check your email)/i.test(
+    outcomeContext
+  );
+  const inferredPhoneVerification = /(phone verification|sms|text message|verify your phone)/i.test(outcomeContext);
+  const inferredPayment = /(payment|billing|credit card|checkout)/i.test(outcomeContext);
+  const inferredBusinessEmail =
+    /(business email|work email|company email|valid email)/i.test(outcomeContext) &&
+    !inferredEmailVerification;
+  const inferredLoginAccess = /(approved access|login access|sign in required|password reset|existing account)/i.test(outcomeContext);
   const userShouldNotDoAgentWork =
     /(fill (in|out)|complete the .*form|create .*password|password:|click continue|finish .*sign.?up|enter .*password)/i.test(
       outcome.message
     );
 
-  const emailVerificationAccountCreated = Boolean(blockers?.emailVerification);
-  const verificationCodeAttempted = Boolean(blockers?.emailVerification && verificationCodeWasSubmitted(progressLog));
+  const emailVerificationAccountCreated = Boolean(blockers?.emailVerification || inferredEmailVerification);
+  const verificationCodeAttempted = Boolean(
+    (blockers?.emailVerification || inferredEmailVerification) && verificationCodeWasSubmitted(progressLog)
+  );
 
-  if (blockers?.captcha) reasons.push("complete the CAPTCHA or bot-protection challenge");
-  if (blockers?.emailVerification) reasons.push("provide the email verification code");
-  if (blockers?.phoneVerification) reasons.push("verify the phone or SMS challenge");
-  if (blockers?.businessEmailRejected && personalEmail) {
+  if (blockers?.captcha || inferredCaptcha) reasons.push("complete the CAPTCHA or bot-protection challenge");
+  if (blockers?.emailVerification || inferredEmailVerification) reasons.push("provide the email verification code");
+  if (blockers?.phoneVerification || inferredPhoneVerification) reasons.push("verify the phone or SMS challenge");
+  if ((blockers?.businessEmailRejected || inferredBusinessEmail) && personalEmail) {
     reasons.push(`add or approve a business email because ${profile.email} appears to be a personal email`);
-  } else if (blockers?.businessEmailRejected) {
+  } else if (blockers?.businessEmailRejected || inferredBusinessEmail) {
     reasons.push("confirm the business email requested by the directory");
   }
-  if (blockers?.payment) reasons.push("confirm the payment or billing choice");
-  if (blockers?.loginOrSso) reasons.push("provide approved directory login access");
+  if (blockers?.payment || inferredPayment) reasons.push("confirm the payment or billing choice");
+  if (blockers?.loginOrSso || inferredLoginAccess) reasons.push("provide approved directory login access");
 
   if (!reasons.length && !userShouldNotDoAgentWork) {
     return {
@@ -514,17 +527,17 @@ function normalizeNeedsUserOutcome(params: {
     };
   }
 
-  const stage = blockers?.captcha
+  const stage = blockers?.captcha || inferredCaptcha
     ? "waiting_for_captcha"
-    : blockers?.emailVerification
+    : blockers?.emailVerification || inferredEmailVerification
       ? "waiting_for_email_verification"
-      : blockers?.phoneVerification
+      : blockers?.phoneVerification || inferredPhoneVerification
         ? "waiting_for_phone_verification"
-        : blockers?.businessEmailRejected
+        : blockers?.businessEmailRejected || inferredBusinessEmail
           ? "waiting_for_business_email"
-          : blockers?.payment
+          : blockers?.payment || inferredPayment
             ? "waiting_for_payment_confirmation"
-            : blockers?.loginOrSso
+            : blockers?.loginOrSso || inferredLoginAccess
               ? "waiting_for_approved_access"
               : outcome.stage || "waiting_for_user_validation";
   const actionTitle =

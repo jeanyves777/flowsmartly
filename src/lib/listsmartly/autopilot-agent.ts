@@ -2856,9 +2856,10 @@ export async function resumeAutopilotTaskAfterBrowserControl(userId: string, tas
   if (!task) return { resumed: false, task: null, reason: "task_not_waiting_for_user" };
 
   const existingResult = parseJsonObject(task.result);
-  const wasEmailVerification =
-    existingResult.accountCreationBlocker === "waiting_for_email_verification" ||
-    existingResult.stage === "waiting_for_email_verification";
+  const previousStage = String(existingResult.accountCreationBlocker || existingResult.stage || "");
+  const wasUserValidation =
+    previousStage.startsWith("waiting_for_") ||
+    /(captcha|verification|validation|phone|sms|payment|owner|business_email|approved_access)/i.test(previousStage);
   const snapshot = await getListSmartlyAgentBrowserStatus(task.id);
   if (!snapshot.active) return { resumed: false, task: null, reason: snapshot.reason };
 
@@ -2873,7 +2874,7 @@ export async function resumeAutopilotTaskAfterBrowserControl(userId: string, tas
     snapshotContext
   );
 
-  if (!wasEmailVerification || (stillNeedsUser && !ordinarySignupDetails)) {
+  if (!wasUserValidation || (stillNeedsUser && !ordinarySignupDetails)) {
     return { resumed: false, task: null, reason: "browser_still_requires_user_validation" };
   }
 
