@@ -15,6 +15,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypt
 import type { Prisma } from "@prisma/client";
 
 const WORKABLE_STATUSES = ["missing", "unverified", "needs_update"];
+const ACTIVE_AUTOPILOT_STATUSES = ["queued", "in_progress", "needs_user", "blocked"];
 const DAILY_AUTOPILOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const AUTOPILOT_FETCH_TIMEOUT_MS = 10000;
 const AUTOPILOT_BROWSER_TIMEOUT_MS = 45000;
@@ -1977,6 +1978,103 @@ async function refreshQueuedAutopilotPriorities(profileId: string): Promise<numb
   return updates.length;
 }
 
+async function dedupeActiveAutopilotTasks(profileId: string): Promise<number> {
+  const tasks = await prisma.listSmartlyAutopilotTask.findMany({
+    where: {
+      profileId,
+      listingId: { not: null },
+      status: { in: ACTIVE_AUTOPILOT_STATUSES },
+    },
+    include: {
+      listing: {
+        select: {
+          status: true,
+          directory: {
+            select: {
+              name: true,
+              slug: true,
+              tier: true,
+              category: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+  });
+
+  const groups = new Map<string, typeof tasks>();
+  for (const task of tasks) {
+    if (!task.listingId) continue;
+    const group = groups.get(task.listingId) || [];
+    group.push(task);
+    groups.set(task.listingId, group);
+  }
+
+  let skipped = 0;
+  const now = new Date();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const listing = group[0].listing;
+    const desiredType = listing ? taskTypeForStatus(listing.status) : null;
+    const statusRank = (status: string) => {
+      if (status === "in_progress" || status === "needs_user") return 0;
+      if (status === "blocked") return 1;
+      if (status === "queued") return 2;
+      return 3;
+    };
+
+    const ordered = [...group].sort((a, b) => {
+      const aTypeRank = desiredType && a.type === desiredType ? 0 : 1;
+      const bTypeRank = desiredType && b.type === desiredType ? 0 : 1;
+      return (
+        statusRank(a.status) - statusRank(b.status) ||
+        aTypeRank - bTypeRank ||
+        a.priority - b.priority ||
+        a.createdAt.getTime() - b.createdAt.getTime()
+      );
+    });
+
+    const keep = ordered[0];
+    if (keep.status === "queued" && listing) {
+      const priority = taskPriority(listing.status, listing.directory);
+      await prisma.listSmartlyAutopilotTask.update({
+        where: { id: keep.id },
+        data: {
+          type: taskTypeForStatus(listing.status),
+          title: taskTitle(listing.status, listing.directory.name),
+          description: `${listing.directory.name} is ${listing.status.replace("_", " ")} and needs a controlled listing workflow.`,
+          requiredAction: requiredActionForStatus(listing.status),
+          priority,
+        },
+      });
+    }
+
+    const duplicateIds = ordered.slice(1).map((task) => task.id);
+    if (duplicateIds.length === 0) continue;
+    const result = await prisma.listSmartlyAutopilotTask.updateMany({
+      where: { id: { in: duplicateIds } },
+      data: {
+        status: "skipped",
+        assignedTo: "agent",
+        requiredAction: null,
+        failureReason: null,
+        completedAt: now,
+        result: safeJson({
+          stage: "duplicate_task_skipped",
+          statusMessage:
+            "Skipped because another active workflow already exists for this directory.",
+          completedAt: now.toISOString(),
+        }),
+      },
+    });
+    skipped += result.count;
+  }
+
+  return skipped;
+}
+
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
@@ -1985,6 +2083,7 @@ export async function getAutopilotState(userId: string) {
   if (!profile) return null;
 
   await completeInactiveDirectoryTasks(profile.id);
+  await dedupeActiveAutopilotTasks(profile.id);
   await refreshQueuedAutopilotPriorities(profile.id);
 
   const activeListings = await prisma.businessListing.findMany({
@@ -2212,6 +2311,7 @@ export async function prepareAutopilotQueue(userId: string) {
 
   await seedDirectories();
   await completeInactiveDirectoryTasks(profile.id);
+  await dedupeActiveAutopilotTasks(profile.id);
 
   const listings = await prisma.businessListing.findMany({
     where: {
@@ -2250,10 +2350,10 @@ export async function prepareAutopilotQueue(userId: string) {
       where: {
         profileId: profile.id,
         listingId: listing.id,
-        type,
-        status: { in: ["queued", "in_progress", "needs_user", "blocked"] },
+        status: { in: ACTIVE_AUTOPILOT_STATUSES },
       },
-      select: { id: true, status: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, status: true, type: true },
     });
     if (existing) {
       await prisma.listSmartlyAutopilotTask.update({
@@ -2262,6 +2362,9 @@ export async function prepareAutopilotQueue(userId: string) {
           payload: safeJson(buildDirectoryPayload(profile, listing)),
           ...(existing.status === "queued"
             ? {
+                type,
+                title: taskTitle(listing.status, listing.directory.name),
+                description: `${listing.directory.name} is ${listing.status.replace("_", " ")} and needs a controlled listing workflow.`,
                 assignedTo: "agent",
                 requiredAction: requiredActionForStatus(listing.status),
                 priority,
