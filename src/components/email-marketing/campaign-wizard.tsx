@@ -353,30 +353,32 @@ export function CampaignWizard({ editCampaignId }: CampaignWizardProps) {
   return (
     <div className="space-y-6">
       {/* Step indicator */}
-      <div className="flex items-center justify-center gap-2">
-        {STEPS.map((step, i) => (
-          <div key={step.id} className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (i === 0) goToStep("template");
-                if (i === 1 && canProceedToEditor) goToStep("editor");
-                if (i === 2 && canProceedToSend) goToStep("send");
-              }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                state.step === step.id
-                  ? "bg-brand-500 text-white"
-                  : i < currentStepIndex
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {i < currentStepIndex ? <Check className="w-3 h-3" /> : <span>{i + 1}</span>}
-              {step.label}
-            </button>
-            {i < STEPS.length - 1 && <div className="w-8 h-px bg-border" />}
-          </div>
-        ))}
+      <div className="rounded-lg border bg-card p-3">
+        <div className="flex items-center justify-between gap-2 overflow-x-auto">
+          {STEPS.map((step, i) => (
+            <div key={step.id} className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (i === 0) goToStep("template");
+                  if (i === 1 && canProceedToEditor) goToStep("editor");
+                  if (i === 2 && canProceedToSend) goToStep("send");
+                }}
+                className={cn(
+                  "flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-md text-xs font-medium transition-colors",
+                  state.step === step.id
+                    ? "bg-brand-500 text-white"
+                    : i < currentStepIndex
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {i < currentStepIndex ? <Check className="w-3 h-3" /> : <span>{i + 1}</span>}
+                {step.label}
+              </button>
+              {i < STEPS.length - 1 && <div className="hidden sm:block w-10 h-px bg-border" />}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Step content */}

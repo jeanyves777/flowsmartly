@@ -10,6 +10,38 @@ import type {
 } from "@/api/contracts/campaigns";
 import type { ApiResponse } from "@/api/contracts/common";
 
+const VALID_CAMPAIGN_TYPES = new Set(["EMAIL", "SMS"]);
+const VALID_CAMPAIGN_STATUSES = new Set([
+  "DRAFT",
+  "SCHEDULED",
+  "ACTIVE",
+  "SENDING",
+  "SENT",
+  "PAUSED",
+  "FAILED",
+]);
+
+function parsePositiveInt(value: string | null, fallback: number, max: number) {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function parseFutureDate(value: unknown, fieldName: string): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" && !(value instanceof Date)) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+  if (date <= new Date()) {
+    throw new Error(`${fieldName} must be in the future`);
+  }
+  return date;
+}
+
 // GET /api/campaigns - Get user's campaigns
 export async function GET(request: NextRequest) {
   try {
@@ -24,20 +56,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type"); // email, sms
     const status = searchParams.get("status");
-    const search = searchParams.get("search") || "";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const search = (searchParams.get("search") || "").trim();
+    const page = parsePositiveInt(searchParams.get("page"), 1, 100000);
+    const limit = parsePositiveInt(searchParams.get("limit"), 20, 100);
 
     const where: Record<string, unknown> = {
       userId: session.userId,
     };
 
     if (type && type !== "all") {
-      where.type = type.toUpperCase();
+      const normalizedType = type.toUpperCase();
+      if (!VALID_CAMPAIGN_TYPES.has(normalizedType)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Invalid campaign type" } },
+          { status: 400 }
+        );
+      }
+      where.type = normalizedType;
     }
 
     if (status && status !== "all") {
-      where.status = status.toUpperCase();
+      const normalizedStatus = status.toUpperCase();
+      if (!VALID_CAMPAIGN_STATUSES.has(normalizedStatus)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Invalid campaign status" } },
+          { status: 400 }
+        );
+      }
+      where.status = normalizedStatus;
     }
 
     if (search) {
@@ -46,6 +92,9 @@ export async function GET(request: NextRequest) {
         { subject: { contains: search } },
       ];
     }
+
+    const statsWhere = { ...where };
+    delete statsWhere.status;
 
     const [campaigns, total] = await Promise.all([
       prisma.campaign.findMany({
@@ -68,15 +117,15 @@ export async function GET(request: NextRequest) {
 
     // Get stats
     const [totalCampaigns, activeCampaigns, sentCampaigns, draftCampaigns] = await Promise.all([
-      prisma.campaign.count({ where: { userId: session.userId } }),
-      prisma.campaign.count({ where: { userId: session.userId, status: "ACTIVE" } }),
-      prisma.campaign.count({ where: { userId: session.userId, status: "SENT" } }),
-      prisma.campaign.count({ where: { userId: session.userId, status: "DRAFT" } }),
+      prisma.campaign.count({ where: statsWhere }),
+      prisma.campaign.count({ where: { ...statsWhere, status: "ACTIVE" } }),
+      prisma.campaign.count({ where: { ...statsWhere, status: "SENT" } }),
+      prisma.campaign.count({ where: { ...statsWhere, status: "DRAFT" } }),
     ]);
 
     // Calculate average open rate
     const sentCampaignsData = await prisma.campaign.findMany({
-      where: { userId: session.userId, status: "SENT", sentCount: { gt: 0 } },
+      where: { ...statsWhere, status: "SENT", sentCount: { gt: 0 } },
       select: { sentCount: true, openCount: true },
     });
 
@@ -182,7 +231,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!type || !["EMAIL", "SMS"].includes(type.toUpperCase())) {
+    const normalizedType = typeof type === "string" ? type.toUpperCase() : "";
+    if (!VALID_CAMPAIGN_TYPES.has(normalizedType)) {
       return NextResponse.json(
         { success: false, error: { message: "Invalid campaign type" } },
         { status: 400 }
@@ -197,7 +247,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Block SMS campaign creation when toll-free verification is not approved
-    if (type.toUpperCase() === "SMS") {
+    if (normalizedType === "SMS") {
       const smsConfig = await prisma.marketingConfig.findUnique({
         where: { userId: session.userId },
         select: {
@@ -239,11 +289,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (templateId) {
+      const template = await prisma.emailTemplate.findFirst({
+        where: {
+          id: templateId,
+          OR: [{ userId: session.userId }, { isDefault: true }],
+        },
+      });
+
+      if (!template) {
+        return NextResponse.json(
+          { success: false, error: { message: "Email template not found" } },
+          { status: 404 }
+        );
+      }
+    }
+
+    let parsedScheduledAt: Date | null = null;
+    try {
+      parsedScheduledAt = parseFutureDate(scheduledAt, "Scheduled time");
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: { message: err instanceof Error ? err.message : "Invalid scheduled time" } },
+        { status: 400 }
+      );
+    }
+
     const campaign = await prisma.campaign.create({
       data: {
         userId: session.userId,
-        name,
-        type: type.toUpperCase(),
+        name: name.trim(),
+        type: normalizedType,
         subject,
         preheaderText,
         fromName,
@@ -257,9 +333,9 @@ export async function POST(request: NextRequest) {
         imageUrl: imageUrl || null,
         imageSource: imageSource || null,
         imageOverlayText: imageOverlayText || null,
-        contactListId,
-        status: scheduledAt ? "SCHEDULED" : "DRAFT",
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        contactListId: contactListId || null,
+        status: parsedScheduledAt ? "SCHEDULED" : "DRAFT",
+        scheduledAt: parsedScheduledAt,
       },
     });
 

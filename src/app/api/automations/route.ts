@@ -14,6 +14,50 @@ import type { ApiResponse } from "@/api/contracts/common";
 const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM", "TRIAL_ENDING", "PAYMENT_FAILED", "ABANDONED_CART", "INACTIVITY", "ANNIVERSARY", "SUBSCRIPTION_CHANGE"];
 const VALID_CAMPAIGN_TYPES = ["EMAIL", "SMS"];
 
+function isValidTime(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function normalizeDaysOffset(value: unknown) {
+  if (value === undefined || value === null || value === "") return 0;
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Days offset must be a number");
+  }
+  return Math.max(-30, Math.min(30, parsed));
+}
+
+function normalizeTrigger(type: string, trigger: unknown): Record<string, unknown> {
+  const triggerObj = trigger && typeof trigger === "object" && !Array.isArray(trigger)
+    ? { ...(trigger as Record<string, unknown>) }
+    : {};
+
+  if (type === "HOLIDAY" && !triggerObj.holidayId) {
+    throw new Error("Holiday automations require a holidayId in the trigger");
+  }
+
+  if (type === "CUSTOM" && typeof triggerObj.frequency === "string") {
+    const frequencyMap: Record<string, string> = {
+      "one-time": "ONCE",
+      once: "ONCE",
+      daily: "DAILY",
+      weekly: "WEEKLY",
+      monthly: "MONTHLY",
+    };
+    triggerObj.frequency = frequencyMap[triggerObj.frequency.toLowerCase()] || triggerObj.frequency.toUpperCase();
+    if (triggerObj.frequencyDay !== undefined) {
+      const day = Number.parseInt(String(triggerObj.frequencyDay), 10);
+      if (Number.isFinite(day)) {
+        if (triggerObj.frequency === "WEEKLY") triggerObj.dayOfWeek = Math.max(0, Math.min(6, day));
+        if (triggerObj.frequency === "MONTHLY") triggerObj.dayOfMonth = Math.max(1, Math.min(28, day));
+      }
+      delete triggerObj.frequencyDay;
+    }
+  }
+
+  return triggerObj;
+}
+
 // GET /api/automations - List all user's automations
 export async function GET(request: NextRequest) {
   try {
@@ -186,18 +230,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // For HOLIDAY type, trigger must contain holidayId
-    if (type.toUpperCase() === "HOLIDAY") {
-      const triggerObj = typeof trigger === "object" ? trigger : {};
-      if (!triggerObj?.holidayId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { message: "Holiday automations require a holidayId in the trigger" },
-          },
-          { status: 400 }
-        );
-      }
+    let normalizedTrigger: Record<string, unknown>;
+    let normalizedDaysOffset: number;
+    try {
+      normalizedTrigger = normalizeTrigger(type.toUpperCase(), trigger);
+      normalizedDaysOffset = normalizeDaysOffset(daysOffset);
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: { message: err instanceof Error ? err.message : "Invalid automation settings" } },
+        { status: 400 }
+      );
+    }
+
+    if (sendTime !== undefined && !isValidTime(sendTime)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Send time must use HH:mm format" } },
+        { status: 400 }
+      );
+    }
+
+    if (!content?.trim()) {
+      return NextResponse.json(
+        { success: false, error: { message: "Automation content is required" } },
+        { status: 400 }
+      );
     }
 
     // Validate contact list if provided
@@ -215,10 +271,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Serialize trigger to JSON string
-    const triggerString =
-      trigger && typeof trigger === "object"
-        ? JSON.stringify(trigger)
-        : trigger || "{}";
+    const triggerString = JSON.stringify(normalizedTrigger);
 
     const automation = await prisma.automation.create({
       data: {
@@ -231,7 +284,7 @@ export async function POST(request: NextRequest) {
         content: content || "",
         contentHtml: contentHtml || null,
         sendTime: sendTime || "09:00",
-        daysOffset: daysOffset !== undefined ? parseInt(String(daysOffset), 10) : 0,
+        daysOffset: normalizedDaysOffset,
         timezone: timezone || "UTC",
         contactListId: contactListId || null,
         imageUrl: imageUrl || null,

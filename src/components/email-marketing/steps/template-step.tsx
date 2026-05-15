@@ -31,7 +31,7 @@ export function TemplateStep({ isGenerating, creditCost, onSelectTemplate, onCre
 
   if (showAI) {
     return (
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="w-full space-y-4">
         <Button variant="ghost" size="sm" className="mb-2" onClick={() => setShowAI(false)}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back to Templates
         </Button>
@@ -90,7 +90,7 @@ export function TemplateStep({ isGenerating, creditCost, onSelectTemplate, onCre
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full">
       <TemplateGallery
         onSelect={handleSelectTemplate}
         onCreateBlank={() => onCreateBlank(createBlankSections())}

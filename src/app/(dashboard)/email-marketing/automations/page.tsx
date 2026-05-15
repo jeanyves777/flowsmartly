@@ -201,10 +201,10 @@ export default function EmailAutomationsPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6"
+      className="flex-1 flex flex-col space-y-6"
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/email-marketing">
@@ -213,14 +213,17 @@ export default function EmailAutomationsPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" />
+              <div className="w-9 h-9 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-brand-500" />
               </div>
               Email Automations
             </h1>
+            <p className="text-sm text-muted-foreground">
+              Trigger welcome, birthday, holiday, and re-engagement emails automatically.
+            </p>
           </div>
         </div>
-        <Button size="lg" asChild>
+        <Button asChild>
           <Link href="/email-marketing/automations/create">
             <Plus className="w-4 h-4 mr-2" />
             Create Automation
@@ -230,7 +233,7 @@ export default function EmailAutomationsPage() {
 
       {/* Stats Cards */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
               <CardContent className="p-4">
@@ -246,7 +249,7 @@ export default function EmailAutomationsPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -291,7 +294,7 @@ export default function EmailAutomationsPage() {
 
       {/* Automations Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i}>
               <CardHeader>
@@ -338,7 +341,7 @@ export default function EmailAutomationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
           {automations.map((automation, index) => {
             const config = typeConfig[automation.type] || typeConfig.CUSTOM;
             const TypeIcon = config.icon;

@@ -534,16 +534,16 @@ export default function EmailAutomationDetailPage() {
       className="flex-1 flex flex-col space-y-6 pb-8"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/email-marketing/automations">
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{automation.name}</h1>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="truncate text-2xl font-bold">{automation.name}</h1>
               <Badge
                 className={cn(
                   "gap-1",
@@ -596,7 +596,7 @@ export default function EmailAutomationDetailPage() {
 
         {/* ====================== OVERVIEW TAB ====================== */}
         <TabsContent value="overview" className="mt-6">
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
             {/* Left column (col-span-2) */}
             <div className="lg:col-span-2 space-y-6">
               {/* Analytics Cards */}
@@ -1169,7 +1169,7 @@ export default function EmailAutomationDetailPage() {
 
         {/* ====================== EDIT TAB ====================== */}
         <TabsContent value="edit" className="mt-6">
-          <div className="max-w-3xl space-y-6">
+          <div className="space-y-6">
             {/* General Settings */}
             <Card>
               <CardHeader>
@@ -1387,7 +1387,7 @@ export default function EmailAutomationDetailPage() {
 
         {/* ====================== ACTIVITY TAB ====================== */}
         <TabsContent value="activity" className="mt-6">
-          <div className="max-w-3xl space-y-4">
+          <div className="space-y-4">
             {/* Filter */}
             <div className="flex items-center gap-3">
               <Label className="text-sm font-medium whitespace-nowrap">

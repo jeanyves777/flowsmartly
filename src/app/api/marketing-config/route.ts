@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { isValidEmailAddress } from "@/lib/email/recipients";
 
 // Email provider types
 export type EmailProvider = "NONE" | "SMTP" | "SENDGRID" | "MAILGUN" | "AMAZON_SES" | "RESEND";
+const VALID_EMAIL_PROVIDERS = new Set<EmailProvider>(["NONE", "SMTP", "SENDGRID", "MAILGUN", "AMAZON_SES", "RESEND"]);
 
 // GET /api/marketing-config - Get user's marketing configuration
 export async function GET() {
@@ -119,6 +121,12 @@ export async function PATCH(request: NextRequest) {
     const updateData: Record<string, unknown> = {};
 
     if (emailProvider !== undefined) {
+      if (!VALID_EMAIL_PROVIDERS.has(emailProvider)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Invalid email provider" } },
+          { status: 400 }
+        );
+      }
       updateData.emailProvider = emailProvider;
     }
 
@@ -154,11 +162,23 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (defaultFromEmail !== undefined) {
-      updateData.defaultFromEmail = defaultFromEmail;
+      if (defaultFromEmail && !isValidEmailAddress(defaultFromEmail)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Default from email must be a valid email address" } },
+          { status: 400 }
+        );
+      }
+      updateData.defaultFromEmail = defaultFromEmail || null;
     }
 
     if (defaultReplyTo !== undefined) {
-      updateData.defaultReplyTo = defaultReplyTo;
+      if (defaultReplyTo && !isValidEmailAddress(defaultReplyTo)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Reply-to email must be a valid email address" } },
+          { status: 400 }
+        );
+      }
+      updateData.defaultReplyTo = defaultReplyTo || null;
     }
 
     const config = await prisma.marketingConfig.update({

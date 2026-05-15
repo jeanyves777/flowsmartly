@@ -6,6 +6,7 @@ import {
   validateEmailConfig,
   getEmailErrorMessage,
 } from "@/lib/email/marketing-sender";
+import { isValidEmailAddress } from "@/lib/email/recipients";
 
 const APP_NAME = "FlowSmartly";
 
@@ -56,9 +57,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { testEmail } = body;
 
-    if (!testEmail) {
+    if (!isValidEmailAddress(testEmail)) {
       return NextResponse.json(
-        { success: false, error: { message: "Test email address is required" } },
+        { success: false, error: { message: "A valid test email address is required" } },
         { status: 400 }
       );
     }

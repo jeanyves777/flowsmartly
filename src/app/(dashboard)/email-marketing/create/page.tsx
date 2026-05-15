@@ -11,20 +11,25 @@ function CreateEmailContent() {
   const editId = searchParams.get("edit");
 
   return (
-    <div className="flex-1 flex flex-col space-y-6 p-6">
+    <div className="flex-1 flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/email-marketing"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </Link>
-        <div className="flex items-center gap-2">
-          <Mail className="w-5 h-5 text-brand-500" />
-          <h1 className="text-lg font-bold">{editId ? "Edit Campaign" : "Create Email Campaign"}</h1>
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/email-marketing"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-brand-500" />
+            <h1 className="text-lg font-bold">{editId ? "Edit Campaign" : "Create Email Campaign"}</h1>
+          </div>
         </div>
+        <p className="text-sm text-muted-foreground">
+          Choose a template, design the message, then review the audience before sending.
+        </p>
       </div>
 
       {/* Wizard */}

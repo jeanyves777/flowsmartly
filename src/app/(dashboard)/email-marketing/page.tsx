@@ -22,6 +22,7 @@ import {
   Clock,
   Settings,
   Zap,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,14 @@ const statColorClasses: Record<string, { bg: string; text: string }> = {
   orange: { bg: "bg-orange-500/10", text: "text-orange-500" },
   red: { bg: "bg-red-500/10", text: "text-red-500" },
 };
+
+const statusFilters: Array<{ value: "all" | CampaignStatus; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "draft", label: "Drafts" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "sent", label: "Sent" },
+  { value: "failed", label: "Failed" },
+];
 
 export default function EmailMarketingPage() {
   const { toast } = useToast();
@@ -220,7 +229,7 @@ export default function EmailMarketingPage() {
 
   if (error && campaigns.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">{error}</p>
@@ -237,19 +246,24 @@ export default function EmailMarketingPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6"
+      className="flex-1 flex flex-col space-y-6"
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-              <Mail className="w-4 h-4 text-white" />
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 rounded-lg border bg-card p-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Mail className="w-5 h-5 text-blue-600" />
             </div>
-            Email Marketing
-          </h1>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight">Email Marketing</h1>
+              <p className="text-sm text-muted-foreground">
+                Build, send, and monitor customer email campaigns from one workspace.
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/settings/email-marketing">
               <Settings className="w-4 h-4 mr-2" />
@@ -263,7 +277,7 @@ export default function EmailMarketingPage() {
                 Automations
               </Link>
             </Button>
-            <Button size="lg" className="bg-brand-500 hover:bg-brand-600" asChild>
+            <Button className="bg-brand-500 hover:bg-brand-600" asChild>
               <Link href="/email-marketing/create">
                 <Plus className="w-4 h-4 mr-2" />
                 New Campaign
@@ -274,7 +288,7 @@ export default function EmailMarketingPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3">
         {[
           { label: "Emails Sent", value: formatNumber(emailStats.totalSent), icon: Send, color: "blue" },
           { label: "Delivered", value: formatNumber(emailStats.totalDelivered), icon: CheckCircle2, color: "green" },
@@ -283,7 +297,7 @@ export default function EmailMarketingPage() {
           { label: "Clicked", value: formatNumber(emailStats.totalClicked), icon: MousePointer, color: "orange" },
           { label: "Bounced", value: formatNumber(emailStats.totalBounced), icon: XCircle, color: "red" },
         ].map((stat) => (
-          <Card key={stat.label}>
+          <Card key={stat.label} className="overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg ${statColorClasses[stat.color]?.bg} flex items-center justify-center`}>
@@ -300,7 +314,7 @@ export default function EmailMarketingPage() {
       </div>
 
       {/* Rate Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -323,8 +337,8 @@ export default function EmailMarketingPage() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+        <CardContent className="p-3">
+          <div className="flex flex-col xl:flex-row xl:items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -334,21 +348,21 @@ export default function EmailMarketingPage() {
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as "all" | CampaignStatus)}
-                className="px-3 py-1.5 border rounded-lg text-sm bg-background"
-              >
-                <option value="all">All Status</option>
-                <option value="draft">Draft</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="active">Active</option>
-                <option value="sending">Sending</option>
-                <option value="sent">Sent</option>
-                <option value="paused">Paused</option>
-                <option value="failed">Failed</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
+              {statusFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    statusFilter === filter.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
             </div>
           </div>
         </CardContent>
@@ -374,10 +388,12 @@ export default function EmailMarketingPage() {
         </div>
       ) : campaigns.length === 0 ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium">No email campaigns yet</p>
-            <p className="text-sm mt-1">Create your first email campaign to get started</p>
+          <CardContent className="p-10 text-center text-muted-foreground">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-blue-500/10">
+              <Mail className="w-7 h-7 text-blue-600" />
+            </div>
+            <p className="font-semibold text-foreground">No email campaigns yet</p>
+            <p className="text-sm mt-1">Create a reusable template, choose an audience, and send your first campaign.</p>
             <Button className="mt-4 bg-brand-500 hover:bg-brand-600" asChild>
               <Link href="/email-marketing/create">
                 <Plus className="w-4 h-4 mr-2" />
@@ -404,38 +420,38 @@ export default function EmailMarketingPage() {
                   onClick={() => router.push(`/email-marketing/${campaign.id}`)}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      {/* Type Icon */}
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500/10">
-                        <Mail className="w-6 h-6 text-blue-500" />
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold truncate hover:text-brand-500 transition-colors">{campaign.name}</span>
-                          <Badge className={statusStyle.color}>
-                            <StatusIcon className="w-3 h-3 mr-1" />
-                            {statusStyle.label}
-                          </Badge>
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
+                      {/* Type + Content */}
+                      <div className="flex min-w-0 items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-blue-500/10 shrink-0">
+                          <Mail className="w-6 h-6 text-blue-500" />
                         </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                          {campaign.subject && (
-                            <span className="truncate max-w-[200px]">{campaign.subject}</span>
-                          )}
-                          <span>{formatNumber(campaign.audience)} recipients</span>
-                          {campaign.scheduledAt && campaign.status === "scheduled" && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatDate(campaign.scheduledAt)}
-                            </span>
-                          )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold truncate hover:text-brand-500 transition-colors">{campaign.name}</span>
+                            <Badge className={statusStyle.color}>
+                              <StatusIcon className="w-3 h-3 mr-1" />
+                              {statusStyle.label}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                            {campaign.subject && (
+                              <span className="truncate max-w-[420px]">{campaign.subject}</span>
+                            )}
+                            <span>{formatNumber(campaign.audience)} recipients</span>
+                            {campaign.scheduledAt && campaign.status === "scheduled" && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {formatDate(campaign.scheduledAt)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
                       {/* Stats */}
                       {(campaign.sent > 0 || campaign.failed > 0) && (
-                        <div className="hidden md:flex items-center gap-6 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 xl:flex xl:items-center gap-4 text-sm">
                           <div className="text-center">
                             <p className="font-semibold">{formatNumber(campaign.sent)}</p>
                             <p className="text-xs text-muted-foreground">Sent</p>
@@ -462,9 +478,15 @@ export default function EmailMarketingPage() {
                           )}
                         </div>
                       )}
+                      {campaign.sent === 0 && campaign.failed === 0 && (
+                        <div className="hidden xl:flex items-center gap-2 text-sm text-muted-foreground">
+                          <BarChart3 className="w-4 h-4" />
+                          Awaiting send data
+                        </div>
+                      )}
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         {(campaign.status === "active" || campaign.status === "paused") && (
                           <Button
                             variant="ghost"

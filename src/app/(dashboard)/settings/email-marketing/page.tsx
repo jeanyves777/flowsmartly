@@ -249,7 +249,7 @@ export default function EmailMarketingSettingsPage() {
 
   if (error && !config) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">{error}</p>
@@ -266,10 +266,10 @@ export default function EmailMarketingSettingsPage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6"
+      className="flex-1 flex flex-col space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/settings">
@@ -278,8 +278,8 @@ export default function EmailMarketingSettingsPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Mail className="w-5 h-5 text-blue-600" />
               </div>
               Email Marketing Settings
             </h1>
@@ -298,7 +298,7 @@ export default function EmailMarketingSettingsPage() {
 
       {/* Quick Stats */}
       {!isLoading && config && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -386,7 +386,7 @@ export default function EmailMarketingSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
                 {EMAIL_PROVIDERS.map((provider) => (
                   <button
                     key={provider.id}

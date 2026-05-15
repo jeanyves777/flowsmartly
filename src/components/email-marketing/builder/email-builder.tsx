@@ -46,9 +46,9 @@ export function EmailBuilder({
   }, [sections, brand, showLogo, showBrandName, logoSize]);
 
   return (
-    <div className="grid lg:grid-cols-2 gap-6 h-full">
+    <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-6 h-full">
       {/* Left: Editor */}
-      <div className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-280px)] pr-2">
+      <div className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-280px)] pr-0 xl:pr-2">
         {/* Subject + Preheader */}
         <div className="space-y-3">
           <div className="space-y-1.5">

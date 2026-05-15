@@ -16,6 +16,7 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { compositeImageWithText } from "@/lib/media/image-compositor";
 import { uploadToS3, presignHtmlImages } from "@/lib/utils/s3-client";
+import { normalizeEmailRecipients, parseJsonStringArray } from "@/lib/email/recipients";
 
 const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 1000; // 1 second between batches
@@ -81,18 +82,25 @@ export async function POST(
     const { action, scheduledAt, customEmails, excludedContactIds } = body;
 
     // Parse custom recipients and exclusions from campaign or request body
-    const reqCustomEmails: string[] = customEmails || (() => {
-      try { return campaign.customRecipients ? JSON.parse(campaign.customRecipients) : []; } catch { return []; }
-    })();
-    const reqExcludedIds: string[] = excludedContactIds || (() => {
-      try { return campaign.excludedRecipients ? JSON.parse(campaign.excludedRecipients) : []; } catch { return []; }
-    })();
+    const reqCustomRecipients = normalizeEmailRecipients(
+      customEmails !== undefined ? customEmails : campaign.customRecipients
+    );
+    const reqExcludedIds = excludedContactIds !== undefined
+      ? parseJsonStringArray(excludedContactIds)
+      : parseJsonStringArray(campaign.excludedRecipients);
     const excludedSet = new Set(reqExcludedIds);
 
-    // Must have a contact list or custom emails
-    if (!campaign.contactListId && reqCustomEmails.length === 0) {
+    if (campaign.type === "SMS" && reqCustomRecipients.length > 0) {
       return NextResponse.json(
-        { success: false, error: { message: "No recipients for this campaign" } },
+        { success: false, error: { message: "Custom email recipients are only supported for email campaigns. Select a contact list to send SMS." } },
+        { status: 400 }
+      );
+    }
+
+    // Must have a contact list or custom emails
+    if (!campaign.contactListId && reqCustomRecipients.length === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: "No valid recipients for this campaign" } },
         { status: 400 }
       );
     }
@@ -269,7 +277,7 @@ export async function POST(
       return true;
     });
 
-    if (validContacts.length === 0 && reqCustomEmails.length === 0) {
+    if (validContacts.length === 0 && reqCustomRecipients.length === 0) {
       return NextResponse.json(
         { success: false, error: { message: "No valid contacts to send to" } },
         { status: 400 }
@@ -288,8 +296,16 @@ export async function POST(
 
     // Filter out contacts already delivered/sent. Failed records are retried in place.
     const newContacts = validContacts.filter((m) => !completedContactIds.has(m.contact.id));
+    const activeContactEmails = new Set(
+      validContacts
+        .map((m) => m.contact.email?.toLowerCase())
+        .filter((email): email is string => !!email)
+    );
+    const customRecipientsToSend = reqCustomRecipients.filter(
+      (recipient) => !activeContactEmails.has(recipient.email)
+    );
 
-    if (newContacts.length === 0 && reqCustomEmails.length === 0) {
+    if (newContacts.length === 0 && customRecipientsToSend.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
@@ -303,7 +319,7 @@ export async function POST(
     // Check monthly email limit before sending
     if (campaign.type === "EMAIL" && marketingConfig) {
       const remaining = marketingConfig.emailMonthlyLimit - marketingConfig.emailSentThisMonth;
-      const emailRecipientCount = newContacts.length + reqCustomEmails.length;
+      const emailRecipientCount = newContacts.length + customRecipientsToSend.length;
       if (remaining < emailRecipientCount) {
         return NextResponse.json(
           {
@@ -338,7 +354,7 @@ export async function POST(
     if (campaign.type === "EMAIL" && marketingConfig) {
       // Check credit balance before sending emails
       const emailCreditCost = await getDynamicCreditCost("EMAIL_SEND");
-      const totalRecipientCount = newContacts.length + reqCustomEmails.length;
+      const totalRecipientCount = newContacts.length + customRecipientsToSend.length;
       const totalEmailCost = emailCreditCost * totalRecipientCount;
       const emailCreditBalance = await creditService.getBalance(session.userId);
 
@@ -514,28 +530,27 @@ export async function POST(
       }
 
       // Send to custom email recipients (not in contact list)
-      if (reqCustomEmails.length > 0) {
-        for (const customEmail of reqCustomEmails) {
+      if (customRecipientsToSend.length > 0) {
+        for (const customRecipient of customRecipientsToSend) {
           try {
+            const customContact = {
+              email: customRecipient.email,
+              firstName: customRecipient.firstName || "",
+              lastName: customRecipient.lastName || "",
+            };
             // Basic merge tag replacement for custom emails (no contact data)
             const customHtml = campaign.contentHtml
-              ? campaign.contentHtml
-                  .replace(/\{\{email\}\}/g, customEmail)
-                  .replace(/\{\{firstName\}\}/g, "")
-                  .replace(/\{\{lastName\}\}/g, "")
+              ? replaceMergeTags(campaign.contentHtml, customContact)
               : "";
-            const customText = campaign.content
-              .replace(/\{\{email\}\}/g, customEmail)
-              .replace(/\{\{firstName\}\}/g, "")
-              .replace(/\{\{lastName\}\}/g, "");
+            const customText = replaceMergeTags(campaign.content, customContact);
 
             const customResult = await sendMarketingEmail({
               provider: emailProvider,
               emailConfig,
               from: fromAddress,
-              to: customEmail,
+              to: customRecipient.email,
               replyTo,
-              subject: campaign.subject || "No Subject",
+              subject: replaceMergeTags(campaign.subject || campaign.name || "No Subject", customContact),
               text: customText,
               html: customHtml || "",
             });
@@ -545,7 +560,7 @@ export async function POST(
             successCount++;
             customSuccessCount++;
           } catch (err) {
-            console.error(`[Custom Email] Failed to send to ${customEmail}:`, err);
+            console.error(`[Custom Email] Failed to send to ${customRecipient.email}:`, err);
             failureCount++;
             customFailureCount++;
           }

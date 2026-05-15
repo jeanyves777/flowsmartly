@@ -748,7 +748,7 @@ export default function CreateEmailAutomationPage() {
       className="flex-1 flex flex-col space-y-6 pb-8"
     >
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 rounded-lg border bg-card p-4">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/email-marketing/automations">
             <ArrowLeft className="w-5 h-5" />

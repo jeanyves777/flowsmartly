@@ -139,7 +139,7 @@ export function SendStep(props: SendStepProps) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* Contact List Selection */}
       <Card>
         <CardHeader className="pb-3">
@@ -148,7 +148,7 @@ export function SendStep(props: SendStepProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
             {contactLists.map((list) => (
               <button
                 key={list.id}
@@ -177,19 +177,19 @@ export function SendStep(props: SendStepProps) {
           <CardDescription className="text-xs">Add email addresses not in your contact lists</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
+          <div className="grid gap-2 md:grid-cols-[160px_minmax(0,1fr)_auto_auto]">
             <Input
               value={customNameInput}
               onChange={(e) => setCustomNameInput(e.target.value)}
               placeholder="Name (optional)"
-              className="h-9 w-36"
+              className="h-9"
             />
             <Input
               value={customEmailInput}
               onChange={(e) => setCustomEmailInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddCustomEmail()}
               placeholder="email@example.com"
-              className="h-9 flex-1"
+              className="h-9"
             />
             <Button size="sm" className="shrink-0" onClick={handleAddCustomEmail}>Add</Button>
             <Button size="sm" variant="outline" className="shrink-0" onClick={() => setBulkMode(!bulkMode)}>Bulk</Button>
@@ -349,7 +349,7 @@ export function SendStep(props: SendStepProps) {
       {/* Summary + Send */}
       <Card className="border-brand-500/30">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-semibold">{props.campaignName || "Untitled Campaign"}</p>
               <p className="text-xs text-muted-foreground">
@@ -357,7 +357,7 @@ export function SendStep(props: SendStepProps) {
                 {props.scheduleType === "now" ? "Send immediately" : `Scheduled: ${props.scheduledDate} ${props.scheduledTime}`}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={props.onSaveDraft}>Save Draft</Button>
               <Button
                 size="sm"

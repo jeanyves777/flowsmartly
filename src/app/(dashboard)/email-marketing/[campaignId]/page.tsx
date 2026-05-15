@@ -241,16 +241,16 @@ export default function EmailCampaignDetailPage() {
       className="flex-1 flex flex-col space-y-6 pb-8"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/email-marketing">
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{campaign.name}</h1>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="truncate text-2xl font-bold">{campaign.name}</h1>
               {getStatusBadge(campaign.status)}
             </div>
             <p className="text-sm text-muted-foreground">
@@ -259,7 +259,7 @@ export default function EmailCampaignDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isDraft && (
             <>
               <Button
@@ -328,7 +328,7 @@ export default function EmailCampaignDetailPage() {
       )}
 
       {/* Main content grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
         {/* Left: Details + Performance */}
         <div className="lg:col-span-2 space-y-6">
 

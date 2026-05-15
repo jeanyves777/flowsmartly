@@ -2,8 +2,51 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
-const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM"];
+const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM", "TRIAL_ENDING", "PAYMENT_FAILED", "ABANDONED_CART", "INACTIVITY", "ANNIVERSARY", "SUBSCRIPTION_CHANGE"];
 const VALID_CAMPAIGN_TYPES = ["EMAIL", "SMS"];
+
+function isValidTime(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function normalizeDaysOffset(value: unknown) {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Days offset must be a number");
+  }
+  return Math.max(-30, Math.min(30, parsed));
+}
+
+function normalizeTrigger(type: string, trigger: unknown): Record<string, unknown> {
+  const triggerObj = trigger && typeof trigger === "object" && !Array.isArray(trigger)
+    ? { ...(trigger as Record<string, unknown>) }
+    : {};
+
+  if (type === "HOLIDAY" && !triggerObj.holidayId) {
+    throw new Error("Holiday automations require a holidayId in the trigger");
+  }
+
+  if (type === "CUSTOM" && typeof triggerObj.frequency === "string") {
+    const frequencyMap: Record<string, string> = {
+      "one-time": "ONCE",
+      once: "ONCE",
+      daily: "DAILY",
+      weekly: "WEEKLY",
+      monthly: "MONTHLY",
+    };
+    triggerObj.frequency = frequencyMap[triggerObj.frequency.toLowerCase()] || triggerObj.frequency.toUpperCase();
+    if (triggerObj.frequencyDay !== undefined) {
+      const day = Number.parseInt(String(triggerObj.frequencyDay), 10);
+      if (Number.isFinite(day)) {
+        if (triggerObj.frequency === "WEEKLY") triggerObj.dayOfWeek = Math.max(0, Math.min(6, day));
+        if (triggerObj.frequency === "MONTHLY") triggerObj.dayOfMonth = Math.max(1, Math.min(28, day));
+      }
+      delete triggerObj.frequencyDay;
+    }
+  }
+
+  return triggerObj;
+}
 
 // GET /api/automations/[automationId] - Get a single automation with stats, paginated logs, contact enrichment
 export async function GET(
@@ -211,7 +254,15 @@ export async function PATCH(
 
     const updateData: Record<string, unknown> = {};
 
-    if (name !== undefined) updateData.name = name.trim();
+    if (name !== undefined) {
+      if (!String(name).trim()) {
+        return NextResponse.json(
+          { success: false, error: { message: "Automation name is required" } },
+          { status: 400 }
+        );
+      }
+      updateData.name = String(name).trim();
+    }
 
     if (type !== undefined) {
       if (!VALID_TYPES.includes(type.toUpperCase())) {
@@ -229,10 +280,15 @@ export async function PATCH(
     }
 
     if (trigger !== undefined) {
-      updateData.trigger =
-        trigger && typeof trigger === "object"
-          ? JSON.stringify(trigger)
-          : trigger || "{}";
+      const nextType = String(updateData.type || automation.type);
+      try {
+        updateData.trigger = JSON.stringify(normalizeTrigger(nextType, trigger));
+      } catch (err) {
+        return NextResponse.json(
+          { success: false, error: { message: err instanceof Error ? err.message : "Invalid automation trigger" } },
+          { status: 400 }
+        );
+      }
     }
 
     if (enabled !== undefined) updateData.enabled = enabled === true;
@@ -251,10 +307,35 @@ export async function PATCH(
     }
 
     if (subject !== undefined) updateData.subject = subject;
-    if (content !== undefined) updateData.content = content;
+    if (content !== undefined) {
+      if (!String(content).trim()) {
+        return NextResponse.json(
+          { success: false, error: { message: "Automation content is required" } },
+          { status: 400 }
+        );
+      }
+      updateData.content = content;
+    }
     if (contentHtml !== undefined) updateData.contentHtml = contentHtml;
-    if (sendTime !== undefined) updateData.sendTime = sendTime;
-    if (daysOffset !== undefined) updateData.daysOffset = parseInt(String(daysOffset), 10);
+    if (sendTime !== undefined) {
+      if (!isValidTime(sendTime)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Send time must use HH:mm format" } },
+          { status: 400 }
+        );
+      }
+      updateData.sendTime = sendTime;
+    }
+    if (daysOffset !== undefined) {
+      try {
+        updateData.daysOffset = normalizeDaysOffset(daysOffset);
+      } catch (err) {
+        return NextResponse.json(
+          { success: false, error: { message: err instanceof Error ? err.message : "Invalid days offset" } },
+          { status: 400 }
+        );
+      }
+    }
     if (timezone !== undefined) updateData.timezone = timezone;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl || null;
     if (imageSource !== undefined) updateData.imageSource = imageSource || null;

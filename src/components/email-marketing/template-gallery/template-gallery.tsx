@@ -108,7 +108,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
   return (
     <div className="space-y-4">
       {/* Quick actions */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button
           onClick={onCreateBlank}
           className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-lg hover:border-brand-500 hover:bg-brand-500/5 transition-colors"
@@ -160,7 +160,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
 
       {/* Template grid */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="h-40 rounded-lg bg-muted animate-pulse" />
           ))}
@@ -175,7 +175,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {templates.map((tpl) => (
             <TemplateCard
               key={tpl.id}

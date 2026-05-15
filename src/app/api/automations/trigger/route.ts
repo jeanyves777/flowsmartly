@@ -4,6 +4,7 @@ import {
   sendMarketingEmail,
   validateEmailConfig,
   replaceMergeTags,
+  getEmailErrorMessage,
 } from "@/lib/email/marketing-sender";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -140,7 +141,15 @@ function isCustomAutomationDue(
 ) {
   const trigger = parseTrigger(automation.trigger);
   const scheduledAt = parseScheduledDate(trigger.scheduledAt);
-  const frequency = typeof trigger.frequency === "string" ? trigger.frequency.toUpperCase() : "ONCE";
+  const rawFrequency = typeof trigger.frequency === "string" ? trigger.frequency.toLowerCase() : "once";
+  const frequencyMap: Record<string, string> = {
+    "one-time": "ONCE",
+    once: "ONCE",
+    daily: "DAILY",
+    weekly: "WEEKLY",
+    monthly: "MONTHLY",
+  };
+  const frequency = frequencyMap[rawFrequency] || rawFrequency.toUpperCase();
 
   if (scheduledAt && scheduledAt > now) return false;
 
@@ -155,7 +164,11 @@ function isCustomAutomationDue(
 
   if (frequency === "DAILY") return true;
   if (frequency === "WEEKLY") {
-    const targetDay = typeof trigger.dayOfWeek === "number" ? trigger.dayOfWeek : null;
+    const targetDay = typeof trigger.dayOfWeek === "number"
+      ? trigger.dayOfWeek
+      : typeof trigger.frequencyDay === "number"
+        ? trigger.frequencyDay
+        : null;
     if (targetDay === null) return true;
     try {
       const today = getTodayInTimezone(timeZone);
@@ -166,7 +179,12 @@ function isCustomAutomationDue(
     }
   }
   if (frequency === "MONTHLY") {
-    return !scheduledAt || scheduledAt.getUTCDate() === now.getUTCDate();
+    const targetDay = typeof trigger.dayOfMonth === "number"
+      ? trigger.dayOfMonth
+      : typeof trigger.frequencyDay === "number"
+        ? trigger.frequencyDay
+        : scheduledAt?.getUTCDate();
+    return !targetDay || targetDay === now.getUTCDate();
   }
 
   return !automation.lastTriggered;
@@ -765,7 +783,7 @@ async function sendToContacts(
 
   // Load marketing config for this user
   const marketingConfig = await getConfig(automation.userId);
-  if (!marketingConfig || (!marketingConfig.emailEnabled && !marketingConfig.emailVerified)) {
+  if (!marketingConfig || !marketingConfig.emailEnabled || !marketingConfig.emailVerified) {
     // Cannot send — log as failed
     for (const contact of contacts) {
       await prisma.automationLog.create({
@@ -821,8 +839,38 @@ async function sendToContacts(
   }
 
   // Build "from" address
+  const remainingMonthly = marketingConfig.emailMonthlyLimit - marketingConfig.emailSentThisMonth;
+  if (remainingMonthly < contacts.length) {
+    for (const contact of contacts) {
+      await prisma.automationLog.create({
+        data: {
+          automationId: automation.id,
+          contactId: contact.id,
+          status: "FAILED",
+          error: `Monthly email limit exceeded. ${remainingMonthly} emails remaining, ${contacts.length} needed.`,
+        },
+      });
+    }
+    failed = contacts.length;
+    return { sent, failed, skipped };
+  }
+
   const fromEmail =
-    marketingConfig.defaultFromEmail || "noreply@flowsmartly.com";
+    (emailConfig.fromEmail as string) || marketingConfig.defaultFromEmail || "";
+  if (!fromEmail) {
+    for (const contact of contacts) {
+      await prisma.automationLog.create({
+        data: {
+          automationId: automation.id,
+          contactId: contact.id,
+          status: "FAILED",
+          error: "No from email address configured",
+        },
+      });
+    }
+    failed = contacts.length;
+    return { sent, failed, skipped };
+  }
   const fromName = marketingConfig.defaultFromName || "FlowSmartly";
   const from = `${fromName} <${fromEmail}>`;
   const replyTo = marketingConfig.defaultReplyTo || undefined;
@@ -950,7 +998,7 @@ async function sendToContacts(
           automationId: automation.id,
           contactId: contact.id,
           status: "FAILED",
-          error: result.error || "Unknown send error",
+          error: getEmailErrorMessage(result.error || "Unknown send error"),
         },
       });
       failed++;
@@ -1012,7 +1060,7 @@ async function sendSmsToContacts(
 ): Promise<{ sent: number; failed: number; skipped: number }> {
   let sent = 0;
   let failed = 0;
-  const skipped = 0;
+  let skipped = 0;
 
   if (contacts.length === 0) return { sent, failed, skipped };
 
@@ -1073,7 +1121,10 @@ async function sendSmsToContacts(
         sentAt: { gte: startOfToday },
       },
     });
-    if (existingLog) continue;
+    if (existingLog) {
+      skipped++;
+      continue;
+    }
 
     // Personalize message
     let personalizedMessage = replaceMergeTags(automation.content, contact);
