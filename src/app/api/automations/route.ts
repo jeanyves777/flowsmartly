@@ -10,6 +10,7 @@ import type {
   CreateAutomationResponse,
 } from "@/api/contracts/automations";
 import type { ApiResponse } from "@/api/contracts/common";
+import { getHolidayById } from "@/lib/marketing/holidays";
 
 const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM", "TRIAL_ENDING", "PAYMENT_FAILED", "ABANDONED_CART", "INACTIVITY", "ANNIVERSARY", "SUBSCRIPTION_CHANGE"];
 const VALID_CAMPAIGN_TYPES = ["EMAIL", "SMS"];
@@ -33,7 +34,12 @@ function normalizeTrigger(type: string, trigger: unknown): Record<string, unknow
     : {};
 
   if (type === "HOLIDAY" && !triggerObj.holidayId) {
-    throw new Error("Holiday automations require a holidayId in the trigger");
+    const holidayIds = getHolidayIds(triggerObj);
+    if (holidayIds.length === 1) {
+      triggerObj.holidayId = holidayIds[0];
+    } else {
+      throw new Error("Holiday automations require a holidayId in the trigger");
+    }
   }
 
   if (type === "CUSTOM" && typeof triggerObj.frequency === "string") {
@@ -56,6 +62,81 @@ function normalizeTrigger(type: string, trigger: unknown): Record<string, unknow
   }
 
   return triggerObj;
+}
+
+function getHolidayIds(triggerObj: Record<string, unknown>) {
+  const rawIds = Array.isArray(triggerObj.holidayIds)
+    ? triggerObj.holidayIds
+    : Array.isArray(triggerObj.selectedHolidayIds)
+      ? triggerObj.selectedHolidayIds
+      : typeof triggerObj.holidayId === "string"
+        ? [triggerObj.holidayId]
+        : [];
+
+  return [...new Set(rawIds.filter((id): id is string => typeof id === "string" && !!id.trim()))];
+}
+
+function singleHolidayTrigger(triggerObj: Record<string, unknown>, holidayId: string, selectedCount: number) {
+  const next: Record<string, unknown> = {
+    ...triggerObj,
+    holidayId,
+    selectedHolidayCount: selectedCount,
+  };
+  delete next.holidayIds;
+  delete next.selectedHolidayIds;
+  return next;
+}
+
+function formatAutomationResponse(automation: {
+  id: string;
+  name: string;
+  type: string;
+  trigger: string;
+  enabled: boolean;
+  campaignType: string;
+  templateId: string | null;
+  subject: string | null;
+  content: string;
+  contentHtml: string | null;
+  sendTime: string;
+  daysOffset: number;
+  timezone: string;
+  contactListId: string | null;
+  contactList: { id: string; name: string; totalCount: number } | null;
+  totalSent: number;
+  lastTriggered: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: { logs: number };
+}): AutomationResponse {
+  return {
+    id: automation.id,
+    name: automation.name,
+    type: automation.type as AutomationType,
+    trigger: ((): AutomationTrigger => {
+      try {
+        return JSON.parse(automation.trigger) as AutomationTrigger;
+      } catch {
+        return {};
+      }
+    })(),
+    enabled: automation.enabled,
+    campaignType: automation.campaignType as AutomationCampaignType,
+    templateId: automation.templateId,
+    subject: automation.subject,
+    content: automation.content,
+    contentHtml: automation.contentHtml,
+    sendTime: automation.sendTime,
+    daysOffset: automation.daysOffset,
+    timezone: automation.timezone,
+    contactListId: automation.contactListId,
+    contactList: automation.contactList ?? null,
+    totalSent: automation.totalSent,
+    lastTriggered: automation.lastTriggered?.toISOString() || null,
+    logsCount: automation._count?.logs,
+    createdAt: automation.createdAt.toISOString(),
+    updatedAt: automation.updatedAt.toISOString(),
+  };
 }
 
 // GET /api/automations - List all user's automations
@@ -120,33 +201,7 @@ export async function GET(request: NextRequest) {
     const activeCount = allAutomations.filter((a) => a.enabled).length;
     const totalSent = allAutomations.reduce((sum, a) => sum + a.totalSent, 0);
 
-    const formattedAutomations: AutomationResponse[] = automations.map((automation) => ({
-      id: automation.id,
-      name: automation.name,
-      type: automation.type as AutomationType,
-      trigger: ((): AutomationTrigger => {
-        try {
-          return JSON.parse(automation.trigger) as AutomationTrigger;
-        } catch {
-          return {};
-        }
-      })(),
-      enabled: automation.enabled,
-      campaignType: automation.campaignType as AutomationCampaignType,
-      subject: automation.subject,
-      content: automation.content,
-      contentHtml: automation.contentHtml,
-      sendTime: automation.sendTime,
-      daysOffset: automation.daysOffset,
-      timezone: automation.timezone,
-      contactListId: automation.contactListId,
-      contactList: automation.contactList ?? null,
-      totalSent: automation.totalSent,
-      lastTriggered: automation.lastTriggered?.toISOString() || null,
-      logsCount: automation._count.logs,
-      createdAt: automation.createdAt.toISOString(),
-      updatedAt: automation.updatedAt.toISOString(),
-    }));
+    const formattedAutomations: AutomationResponse[] = automations.map(formatAutomationResponse);
 
     const payload: AutomationListResponse = {
       automations: formattedAutomations,
@@ -187,6 +242,7 @@ export async function POST(request: NextRequest) {
       type,
       trigger,
       campaignType,
+      templateId,
       subject,
       content,
       contentHtml,
@@ -230,10 +286,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let normalizedTrigger: Record<string, unknown>;
+    let normalizedTriggers: Record<string, unknown>[];
     let normalizedDaysOffset: number;
+    const typeUpper = type.toUpperCase();
     try {
-      normalizedTrigger = normalizeTrigger(type.toUpperCase(), trigger);
+      const triggerObj = trigger && typeof trigger === "object" && !Array.isArray(trigger)
+        ? { ...(trigger as Record<string, unknown>) }
+        : {};
+      if (typeUpper === "HOLIDAY") {
+        const holidayIds = getHolidayIds(triggerObj);
+        for (const holidayId of holidayIds) {
+          if (!getHolidayById(holidayId)) {
+            throw new Error(`Unknown holiday selected: ${holidayId}`);
+          }
+        }
+        normalizedTriggers = holidayIds.length > 1 || (holidayIds.length === 1 && !triggerObj.holidayId)
+          ? holidayIds.map((holidayId) =>
+              normalizeTrigger(typeUpper, singleHolidayTrigger(triggerObj, holidayId, holidayIds.length))
+            )
+          : [normalizeTrigger(typeUpper, trigger)];
+      } else {
+        normalizedTriggers = [normalizeTrigger(typeUpper, trigger)];
+      }
       normalizedDaysOffset = normalizeDaysOffset(daysOffset);
     } catch (err) {
       return NextResponse.json(
@@ -270,16 +344,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Serialize trigger to JSON string
-    const triggerString = JSON.stringify(normalizedTrigger);
+    let validatedTemplateId: string | null = null;
+    if (templateId) {
+      const template = await prisma.emailTemplate.findFirst({
+        where: {
+          id: templateId,
+          OR: [{ userId: session.userId }, { isDefault: true }],
+        },
+        select: { id: true },
+      });
 
-    const automation = await prisma.automation.create({
-      data: {
+      if (!template) {
+        return NextResponse.json(
+          { success: false, error: { message: "Email template not found" } },
+          { status: 404 }
+        );
+      }
+      validatedTemplateId = template.id;
+    }
+
+    const baseName = name.trim();
+    const createInputs = normalizedTriggers.map((normalizedTrigger) => {
+      const holidayId = typeof normalizedTrigger.holidayId === "string" ? normalizedTrigger.holidayId : null;
+      const holiday = holidayId ? getHolidayById(holidayId) : null;
+      return {
         userId: session.userId,
-        name: name.trim(),
-        type: type.toUpperCase(),
-        trigger: triggerString,
+        name: normalizedTriggers.length > 1 && holiday ? `${baseName} - ${holiday.name}` : baseName,
+        type: typeUpper,
+        trigger: JSON.stringify(normalizedTrigger),
         campaignType: campaignType.toUpperCase(),
+        templateId: validatedTemplateId,
         subject: subject || null,
         content: content || "",
         contentHtml: contentHtml || null,
@@ -291,45 +385,30 @@ export async function POST(request: NextRequest) {
         imageSource: imageSource || null,
         imageOverlayText: imageOverlayText || null,
         enabled: enabled === true,
-      },
-      include: {
-        contactList: {
-          select: {
-            id: true,
-            name: true,
-            totalCount: true,
-          },
-        },
-      },
+      };
     });
 
+    const createdAutomations = await prisma.$transaction(
+      createInputs.map((data) =>
+        prisma.automation.create({
+          data,
+          include: {
+            contactList: {
+              select: {
+                id: true,
+                name: true,
+                totalCount: true,
+              },
+            },
+          },
+        })
+      )
+    );
+
     const payload: CreateAutomationResponse = {
-      automation: {
-        id: automation.id,
-        name: automation.name,
-        type: automation.type as AutomationType,
-        trigger: ((): AutomationTrigger => {
-          try {
-            return JSON.parse(automation.trigger) as AutomationTrigger;
-          } catch {
-            return {};
-          }
-        })(),
-        enabled: automation.enabled,
-        campaignType: automation.campaignType as AutomationCampaignType,
-        subject: automation.subject,
-        content: automation.content,
-        contentHtml: automation.contentHtml,
-        sendTime: automation.sendTime,
-        daysOffset: automation.daysOffset,
-        timezone: automation.timezone,
-        contactListId: automation.contactListId,
-        contactList: automation.contactList ?? null,
-        totalSent: automation.totalSent,
-        lastTriggered: automation.lastTriggered?.toISOString() || null,
-        createdAt: automation.createdAt.toISOString(),
-        updatedAt: automation.updatedAt.toISOString(),
-      },
+      automation: formatAutomationResponse(createdAutomations[0]),
+      automations: createdAutomations.map(formatAutomationResponse),
+      createdCount: createdAutomations.length,
     };
 
     return NextResponse.json<ApiResponse<CreateAutomationResponse>>({

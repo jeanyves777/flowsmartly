@@ -40,6 +40,7 @@ export interface AutomationResponse {
   trigger: AutomationTrigger;
   enabled: boolean;
   campaignType: AutomationCampaignType;
+  templateId: string | null;
   subject: string | null;
   content: string;
   contentHtml: string | null;
@@ -82,6 +83,7 @@ export interface CreateAutomationRequest {
   type: AutomationType;
   trigger: AutomationTrigger;
   campaignType: AutomationCampaignType;
+  templateId?: string | null;
   subject?: string;
   content: string;
   contentHtml?: string;
@@ -98,4 +100,6 @@ export interface CreateAutomationRequest {
 /** Response body for POST /api/automations */
 export interface CreateAutomationResponse {
   automation: AutomationResponse;
+  automations?: AutomationResponse[];
+  createdCount?: number;
 }

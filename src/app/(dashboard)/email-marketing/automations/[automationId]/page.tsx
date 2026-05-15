@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -36,6 +35,14 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { EmailBuilder } from "@/components/email-marketing/builder/email-builder";
+import {
+  generateSectionId,
+  renderEmailHtml,
+  sectionsToPlainText,
+  type EmailBrand,
+  type EmailSection,
+} from "@/lib/marketing/email-renderer";
 
 // Types
 type AutomationType =
@@ -86,6 +93,7 @@ interface Automation {
   trigger: Record<string, unknown>;
   enabled: boolean;
   campaignType: string;
+  templateId: string | null;
   subject: string | null;
   content: string;
   contentHtml: string | null;
@@ -171,6 +179,68 @@ function getDaysOffsetLabel(offset: number): string {
   return `${Math.abs(offset)} days before`;
 }
 
+function parseJsonObject(value: unknown) {
+  if (!value) return undefined;
+  if (typeof value === "object") return value as Record<string, unknown>;
+  if (typeof value !== "string") return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildBrand(bk: Record<string, unknown>): EmailBrand {
+  const colors = parseJsonObject(bk.colors);
+  const fonts = parseJsonObject(bk.fonts);
+  const socials = parseJsonObject(bk.handles);
+
+  return {
+    name: typeof bk.name === "string" ? bk.name : undefined,
+    logo: typeof bk.logo === "string" ? bk.logo : undefined,
+    iconLogo: typeof bk.iconLogo === "string" ? bk.iconLogo : undefined,
+    colors: colors?.primary
+      ? colors as EmailBrand["colors"]
+      : { primary: "#6366f1", secondary: "#f3f4f6", accent: "#f59e0b" },
+    fonts: fonts?.heading
+      ? fonts as EmailBrand["fonts"]
+      : {
+          heading: "Georgia, serif",
+          body: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+        },
+    website: typeof bk.website === "string" ? bk.website : undefined,
+    email: typeof bk.email === "string" ? bk.email : undefined,
+    phone: typeof bk.phone === "string" ? bk.phone : undefined,
+    address: typeof bk.address === "string" ? bk.address : undefined,
+    socials: socials as Record<string, string> | undefined,
+  };
+}
+
+function sectionsFromAutomation(auto: Automation): EmailSection[] {
+  const triggerSections = auto.trigger?.emailSections;
+  if (Array.isArray(triggerSections) && triggerSections.length > 0) {
+    return triggerSections as EmailSection[];
+  }
+
+  const content = auto.content?.trim();
+  if (!content) {
+    return [
+      { id: generateSectionId(), type: "heading", content: auto.subject || "Automation Email" },
+      { id: generateSectionId(), type: "text", content: "Write your automation email content here." },
+      { id: generateSectionId(), type: "button", content: "Call to Action", href: "https://", align: "center" },
+    ];
+  }
+
+  const lines = content.split(/\n{2,}/).filter(Boolean);
+  return lines.map((line, index) => ({
+    id: generateSectionId(),
+    type: index === 0 ? "heading" : "text",
+    content: line,
+    ...(index === 0 ? { level: "h1" as const } : {}),
+  }));
+}
+
 export default function EmailAutomationDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -193,7 +263,12 @@ export default function EmailAutomationDetailPage() {
   // Form state
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
-  const [content, setContent] = useState("");
+  const [preheader, setPreheader] = useState("");
+  const [sections, setSections] = useState<EmailSection[]>([]);
+  const [brandKit, setBrandKit] = useState<EmailBrand | null>(null);
+  const [showLogo, setShowLogo] = useState(true);
+  const [showBrandName, setShowBrandName] = useState(true);
+  const [logoSize, setLogoSize] = useState<"normal" | "large" | "big">("normal");
   const [sendTime, setSendTime] = useState("09:00");
   const [daysOffset, setDaysOffset] = useState(0);
   const [timezone, setTimezone] = useState("UTC");
@@ -223,7 +298,16 @@ export default function EmailAutomationDetailPage() {
       if (!formPopulated.current) {
         setName(auto.name);
         setSubject(auto.subject || "");
-        setContent(auto.content || "");
+        setSections(sectionsFromAutomation(auto));
+        setPreheader(typeof auto.trigger?.preheader === "string" ? auto.trigger.preheader : "");
+        const brandOptions = parseJsonObject(auto.trigger?.emailBrandOptions);
+        setShowLogo(typeof brandOptions?.showLogo === "boolean" ? brandOptions.showLogo : true);
+        setShowBrandName(typeof brandOptions?.showBrandName === "boolean" ? brandOptions.showBrandName : true);
+        setLogoSize(
+          brandOptions?.logoSize === "large" || brandOptions?.logoSize === "big"
+            ? brandOptions.logoSize
+            : "normal"
+        );
         setSendTime(auto.sendTime || "09:00");
         setDaysOffset(auto.daysOffset ?? 0);
         setTimezone(auto.timezone || "UTC");
@@ -263,6 +347,17 @@ export default function EmailAutomationDetailPage() {
     fetchAutomation();
     fetchContactLists();
   }, [fetchAutomation, fetchContactLists]);
+
+  useEffect(() => {
+    fetch("/api/brand")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setBrandKit(buildBrand(data.data));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Toggle enabled (immediate PATCH from Overview)
   const handleToggleEnabled = async (newValue: boolean) => {
@@ -304,16 +399,39 @@ export default function EmailAutomationDetailPage() {
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
+    if (!subject.trim() || sections.length === 0) {
+      toast({
+        title: "Email design is incomplete",
+        description: "Add a subject and at least one email content block.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
+      const contentHtml = renderEmailHtml(sections, brandKit || undefined, {
+        showLogo,
+        showBrandName,
+        logoSize,
+      });
+      const plainContent = sectionsToPlainText(sections).trim() || subject || name;
+      const nextTrigger = {
+        ...(automation?.trigger || {}),
+        emailSections: sections,
+        emailBrandOptions: { showLogo, showBrandName, logoSize },
+        preheader,
+      };
+
       const response = await fetch(`/api/automations/${automationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           subject: subject || null,
-          content,
+          content: plainContent,
+          contentHtml,
+          trigger: nextTrigger,
           sendTime,
           daysOffset,
           timezone,
@@ -423,6 +541,43 @@ export default function EmailAutomationDetailPage() {
     } finally {
       setIsLoadingMoreLogs(false);
     }
+  };
+
+  const handleAddSection = (section: EmailSection) => {
+    setSections((current) => [...current, section]);
+  };
+
+  const handleUpdateSection = (id: string, updates: Partial<EmailSection>) => {
+    setSections((current) =>
+      current.map((section) => (section.id === id ? { ...section, ...updates } : section))
+    );
+  };
+
+  const handleDeleteSection = (id: string) => {
+    setSections((current) => current.filter((section) => section.id !== id));
+  };
+
+  const handleDuplicateSection = (id: string) => {
+    setSections((current) => {
+      const index = current.findIndex((section) => section.id === id);
+      if (index === -1) return current;
+      const duplicate = { ...current[index], id: generateSectionId() };
+      const next = [...current];
+      next.splice(index + 1, 0, duplicate);
+      return next;
+    });
+  };
+
+  const handleReorderSections = (activeId: string, overId: string) => {
+    setSections((current) => {
+      const oldIndex = current.findIndex((section) => section.id === activeId);
+      const newIndex = current.findIndex((section) => section.id === overId);
+      if (oldIndex === -1 || newIndex === -1) return current;
+      const next = [...current];
+      const [moved] = next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, moved);
+      return next;
+    });
   };
 
   // Format helpers
@@ -1201,28 +1356,39 @@ export default function EmailAutomationDetailPage() {
                   </div>
                 </div>
 
-                {/* Subject Line */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-subject">Subject Line</Label>
-                  <Input
-                    id="edit-subject"
-                    placeholder="Enter email subject..."
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
-                </div>
+              </CardContent>
+            </Card>
 
-                {/* Email Body */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-content">Email Body</Label>
-                  <Textarea
-                    id="edit-content"
-                    placeholder="Enter email content..."
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="min-h-[150px]"
-                  />
-                </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-brand-500" />
+                  Email Builder
+                </CardTitle>
+                <CardDescription>
+                  Edit the automation email with the same block builder used by campaigns.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EmailBuilder
+                  sections={sections}
+                  subject={subject}
+                  preheader={preheader}
+                  brand={brandKit}
+                  showLogo={showLogo}
+                  showBrandName={showBrandName}
+                  logoSize={logoSize}
+                  onSubjectChange={setSubject}
+                  onPreheaderChange={setPreheader}
+                  onAddSection={handleAddSection}
+                  onUpdateSection={handleUpdateSection}
+                  onDeleteSection={handleDeleteSection}
+                  onDuplicateSection={handleDuplicateSection}
+                  onReorderSections={handleReorderSections}
+                  onToggleLogo={setShowLogo}
+                  onToggleBrandName={setShowBrandName}
+                  onLogoSize={setLogoSize}
+                />
               </CardContent>
             </Card>
 
@@ -1345,7 +1511,7 @@ export default function EmailAutomationDetailPage() {
                 <div className="flex items-center gap-3 pt-4 border-t">
                   <Button
                     onClick={handleSave}
-                    disabled={isSaving || !name.trim()}
+                    disabled={isSaving || !name.trim() || !subject.trim() || sections.length === 0}
                     className="flex-1 sm:flex-none"
                   >
                     {isSaving ? (

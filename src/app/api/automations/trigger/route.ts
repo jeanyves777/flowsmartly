@@ -214,8 +214,8 @@ export async function POST(request: NextRequest) {
       // Empty body is fine — defaults to "all"
     }
 
-    const filterType = body.type || "all"; // "birthday" | "holiday" | "anniversary" | "inactivity" | "trial_ending" | "custom" | "all"
-    const validFilterTypes = ["birthday", "holiday", "anniversary", "inactivity", "trial_ending", "custom", "all"];
+    const filterType = body.type || "all"; // "birthday" | "holiday" | "welcome" | "anniversary" | "inactivity" | "trial_ending" | "custom" | "all"
+    const validFilterTypes = ["birthday", "holiday", "welcome", "anniversary", "inactivity", "trial_ending", "custom", "all"];
     if (!validFilterTypes.includes(filterType)) {
       return NextResponse.json(
         { success: false, error: { message: `Invalid type. Use one of: ${validFilterTypes.join(", ")}` } },
@@ -230,11 +230,12 @@ export async function POST(request: NextRequest) {
     const cronTypes: Record<string, string[]> = {
       birthday: ["BIRTHDAY"],
       holiday: ["HOLIDAY"],
+      welcome: ["WELCOME"],
       anniversary: ["ANNIVERSARY"],
       inactivity: ["INACTIVITY"],
       trial_ending: ["TRIAL_ENDING"],
       custom: ["CUSTOM"],
-      all: ["BIRTHDAY", "HOLIDAY", "ANNIVERSARY", "INACTIVITY", "TRIAL_ENDING", "CUSTOM"],
+      all: ["BIRTHDAY", "HOLIDAY", "WELCOME", "ANNIVERSARY", "INACTIVITY", "TRIAL_ENDING", "CUSTOM"],
     };
     const typeFilter: string[] = cronTypes[filterType] || cronTypes.all;
 
@@ -396,6 +397,43 @@ export async function POST(request: NextRequest) {
           );
 
           // Send to each contact
+          const result = await sendToContacts(
+            automation,
+            contacts,
+            today.startOfDay,
+            getMarketingConfig
+          );
+          detail.sent = result.sent;
+          detail.failed = result.failed;
+          detail.skipped = result.skipped;
+        } else if (automation.type === "WELCOME") {
+          const triggerData = parseTrigger(automation.trigger);
+          const lookbackDays = Math.max(
+            1,
+            Math.min(365, Number.parseInt(String(triggerData.lookbackDays || 30), 10) || 30)
+          );
+          const createdAfter = automation.lastTriggered || new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+
+          let contacts = await getMatchingContacts(
+            automation.userId,
+            automation.contactListId,
+            automation.campaignType,
+            { createdAfter }
+          );
+
+          if (contacts.length > 0) {
+            const previousLogs = await prisma.automationLog.findMany({
+              where: {
+                automationId: automation.id,
+                contactId: { in: contacts.map((contact) => contact.id) },
+                status: "SENT",
+              },
+              select: { contactId: true },
+            });
+            const sentContactIds = new Set(previousLogs.map((log) => log.contactId).filter(Boolean));
+            contacts = contacts.filter((contact) => !sentContactIds.has(contact.id));
+          }
+
           const result = await sendToContacts(
             automation,
             contacts,
@@ -675,13 +713,14 @@ interface ContactForSend {
   firstName: string | null;
   lastName: string | null;
   imageUrl: string | null;
+  createdAt: Date;
 }
 
 async function getMatchingContacts(
   userId: string,
   contactListId: string | null,
   campaignType: string,
-  filters: { birthday?: string }
+  filters: { birthday?: string; createdAfter?: Date }
 ): Promise<ContactForSend[]> {
   // Build the base where clause for the Contact model
   const contactWhere: Record<string, unknown> = {
@@ -703,6 +742,10 @@ async function getMatchingContacts(
     contactWhere.birthday = filters.birthday;
   }
 
+  if (filters.createdAfter) {
+    contactWhere.createdAt = { gte: filters.createdAfter };
+  }
+
   if (contactListId) {
     // Get contacts from the specific list
     const members = await prisma.contactListMember.findMany({
@@ -716,12 +759,13 @@ async function getMatchingContacts(
             id: true,
             email: true,
             phone: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
+              firstName: true,
+              lastName: true,
+              imageUrl: true,
+              createdAt: true,
+            },
           },
         },
-      },
     });
     return members.map((m) => m.contact);
   } else {
@@ -735,6 +779,7 @@ async function getMatchingContacts(
         firstName: true,
         lastName: true,
         imageUrl: true,
+        createdAt: true,
       },
     });
     return contacts;
@@ -745,10 +790,47 @@ async function getMatchingContacts(
 // sendToContacts
 // ---------------------------------------------------------------------------
 
+function buildAutomationMergeContext(automation: {
+  type?: string;
+  trigger?: string;
+  timezone?: string;
+}) {
+  const trigger = automation.trigger ? parseTrigger(automation.trigger) : {};
+
+  if (automation.type === "HOLIDAY" && typeof trigger.holidayId === "string") {
+    const holiday = getHolidayById(trigger.holidayId);
+    if (holiday) {
+      const year = new Date().getFullYear();
+      const holidayDate = getHolidayDate(holiday, year);
+      const eventDate = new Date(year, holidayDate.month - 1, holidayDate.day);
+      return {
+        automation: {
+          holidayName: holiday.name,
+          holidayDate: eventDate,
+          eventName: holiday.name,
+          eventDate,
+        },
+      };
+    }
+  }
+
+  if (automation.type === "WELCOME") {
+    return {
+      automation: {
+        eventName: "Welcome",
+      },
+    };
+  }
+
+  return undefined;
+}
+
 async function sendToContacts(
   automation: {
     id: string;
     userId: string;
+    type?: string;
+    trigger?: string;
     campaignType: string;
     subject: string | null;
     content: string;
@@ -874,6 +956,7 @@ async function sendToContacts(
   const fromName = marketingConfig.defaultFromName || "FlowSmartly";
   const from = `${fromName} <${fromEmail}>`;
   const replyTo = marketingConfig.defaultReplyTo || undefined;
+  const mergeContext = buildAutomationMergeContext(automation);
 
   // Check credit balance before sending emails
   const emailCreditCost = await getDynamicCreditCost("EMAIL_SEND");
@@ -915,13 +998,15 @@ async function sendToContacts(
     // Personalize content
     const personalizedSubject = replaceMergeTags(
       automation.subject || automation.name,
-      contact
+      contact,
+      mergeContext
     );
     let personalizedHtml = replaceMergeTags(
       automation.contentHtml || automation.content,
-      contact
+      contact,
+      mergeContext
     );
-    const personalizedText = replaceMergeTags(automation.content, contact);
+    const personalizedText = replaceMergeTags(automation.content, contact, mergeContext);
 
     // Embed inline image if automation has one
     if (personalizedHtml && (automation.imageUrl || automation.imageSource === "contact_photo")) {

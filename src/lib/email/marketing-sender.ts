@@ -201,6 +201,12 @@ export interface MergeTagContext {
     plan?: string | null;
     lastLoginAt?: Date | string | null;
   };
+  automation?: {
+    holidayName?: string | null;
+    holidayDate?: Date | string | null;
+    eventName?: string | null;
+    eventDate?: Date | string | null;
+  };
   couponCode?: string;
   referralLink?: string;
   unsubscribeUrl?: string;
@@ -247,6 +253,10 @@ export function replaceMergeTags(
     .replace(/\{\{state\}\}/g, contact.state || "")
     // Dates
     .replace(/\{\{birthday\}\}/g, contact.birthday || "")
+    .replace(/\{\{holidayName\}\}/g, context?.automation?.holidayName || "")
+    .replace(/\{\{holidayDate\}\}/g, formatDate(context?.automation?.holidayDate))
+    .replace(/\{\{eventName\}\}/g, context?.automation?.eventName || context?.automation?.holidayName || "")
+    .replace(/\{\{eventDate\}\}/g, formatDate(context?.automation?.eventDate || context?.automation?.holidayDate))
     .replace(/\{\{signupDate\}\}/g, formatDate(contact.createdAt))
     .replace(/\{\{daysAsClient\}\}/g, daysAsClient)
     // Business (from context)

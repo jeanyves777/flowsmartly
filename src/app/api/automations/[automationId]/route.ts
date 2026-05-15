@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { getHolidayById } from "@/lib/marketing/holidays";
 
 const VALID_TYPES = ["BIRTHDAY", "HOLIDAY", "WELCOME", "RE_ENGAGEMENT", "CUSTOM", "TRIAL_ENDING", "PAYMENT_FAILED", "ABANDONED_CART", "INACTIVITY", "ANNIVERSARY", "SUBSCRIPTION_CHANGE"];
 const VALID_CAMPAIGN_TYPES = ["EMAIL", "SMS"];
@@ -23,7 +24,16 @@ function normalizeTrigger(type: string, trigger: unknown): Record<string, unknow
     : {};
 
   if (type === "HOLIDAY" && !triggerObj.holidayId) {
-    throw new Error("Holiday automations require a holidayId in the trigger");
+    const holidayIds = getHolidayIds(triggerObj);
+    if (holidayIds.length === 1) {
+      triggerObj.holidayId = holidayIds[0];
+    } else {
+      throw new Error("Holiday automations require a holidayId in the trigger");
+    }
+  }
+
+  if (type === "HOLIDAY" && typeof triggerObj.holidayId === "string" && !getHolidayById(triggerObj.holidayId)) {
+    throw new Error(`Unknown holiday selected: ${triggerObj.holidayId}`);
   }
 
   if (type === "CUSTOM" && typeof triggerObj.frequency === "string") {
@@ -46,6 +56,18 @@ function normalizeTrigger(type: string, trigger: unknown): Record<string, unknow
   }
 
   return triggerObj;
+}
+
+function getHolidayIds(triggerObj: Record<string, unknown>) {
+  const rawIds = Array.isArray(triggerObj.holidayIds)
+    ? triggerObj.holidayIds
+    : Array.isArray(triggerObj.selectedHolidayIds)
+      ? triggerObj.selectedHolidayIds
+      : typeof triggerObj.holidayId === "string"
+        ? [triggerObj.holidayId]
+        : [];
+
+  return [...new Set(rawIds.filter((id): id is string => typeof id === "string" && !!id.trim()))];
 }
 
 // GET /api/automations/[automationId] - Get a single automation with stats, paginated logs, contact enrichment
@@ -153,6 +175,7 @@ export async function GET(
           })(),
           enabled: automation.enabled,
           campaignType: automation.campaignType,
+          templateId: automation.templateId,
           subject: automation.subject,
           content: automation.content,
           contentHtml: automation.contentHtml,
@@ -240,6 +263,7 @@ export async function PATCH(
       trigger,
       enabled,
       campaignType,
+      templateId,
       subject,
       content,
       contentHtml,
@@ -304,6 +328,28 @@ export async function PATCH(
         );
       }
       updateData.campaignType = campaignType.toUpperCase();
+    }
+
+    if (templateId !== undefined) {
+      if (templateId) {
+        const template = await prisma.emailTemplate.findFirst({
+          where: {
+            id: templateId,
+            OR: [{ userId: session.userId }, { isDefault: true }],
+          },
+          select: { id: true },
+        });
+
+        if (!template) {
+          return NextResponse.json(
+            { success: false, error: { message: "Email template not found" } },
+            { status: 404 }
+          );
+        }
+        updateData.templateId = template.id;
+      } else {
+        updateData.templateId = null;
+      }
     }
 
     if (subject !== undefined) updateData.subject = subject;
@@ -387,6 +433,7 @@ export async function PATCH(
           })(),
           enabled: updatedAutomation.enabled,
           campaignType: updatedAutomation.campaignType,
+          templateId: updatedAutomation.templateId,
           subject: updatedAutomation.subject,
           content: updatedAutomation.content,
           contentHtml: updatedAutomation.contentHtml,

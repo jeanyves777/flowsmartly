@@ -18,6 +18,10 @@ export const MERGE_TAGS = [
   { tag: "{{state}}", label: "State", category: "Contact" },
   // Dates
   { tag: "{{birthday}}", label: "Birthday", category: "Dates" },
+  { tag: "{{holidayName}}", label: "Holiday Name", category: "Dates" },
+  { tag: "{{holidayDate}}", label: "Holiday Date", category: "Dates" },
+  { tag: "{{eventName}}", label: "Event Name", category: "Dates" },
+  { tag: "{{eventDate}}", label: "Event Date", category: "Dates" },
   { tag: "{{signupDate}}", label: "Signup Date", category: "Dates" },
   { tag: "{{daysAsClient}}", label: "Days as Client", category: "Dates" },
   // Business
