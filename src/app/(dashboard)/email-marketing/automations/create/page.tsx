@@ -13,11 +13,13 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Gift,
   ImageIcon,
   Loader2,
   Mail,
   Sparkles,
   Star,
+  Upload,
   Users,
   UserPlus,
   Wand2,
@@ -88,7 +90,7 @@ interface BirthdayContactPreview {
   id: string;
   name: string;
   email: string | null;
-  birthday: string;
+  birthday: string | null;
   emailOptedIn: boolean;
   imageUrl: string | null;
 }
@@ -226,7 +228,8 @@ function holidayDateLabel(holidayId: string) {
   });
 }
 
-function formatBirthday(value: string) {
+function formatBirthday(value: string | null) {
+  if (!value) return "";
   const [month, day] = value.split("-");
   if (!month || !day) return value;
   const date = new Date(2024, Number(month) - 1, Number(day));
@@ -236,6 +239,18 @@ function formatBirthday(value: string) {
 
 function hasUsableEmail(contact: { email?: string | null; emailOptedIn?: boolean }) {
   return contact.emailOptedIn === true && typeof contact.email === "string" && contact.email.includes("@");
+}
+
+function normalizeBirthdayDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+}
+
+function isValidBirthday(value: string) {
+  if (!/^\d{2}-\d{2}$/.test(value)) return false;
+  const [monthValue, dayValue] = value.split("-").map((part) => Number(part));
+  return monthValue >= 1 && monthValue <= 12 && dayValue >= 1 && dayValue <= 31;
 }
 
 function defaultAutomationName(type: AutomationType) {
@@ -274,6 +289,9 @@ export default function CreateEmailAutomationPage() {
   const [loadingLists, setLoadingLists] = useState(true);
   const [birthdayStats, setBirthdayStats] = useState<BirthdayStats | null>(null);
   const [birthdayContacts, setBirthdayContacts] = useState<BirthdayContactPreview[]>([]);
+  const [birthdayDrafts, setBirthdayDrafts] = useState<Record<string, string>>({});
+  const [birthdayDataVersion, setBirthdayDataVersion] = useState(0);
+  const [updatingBirthdayContactIds, setUpdatingBirthdayContactIds] = useState<Record<string, string>>({});
   const [loadingBirthdayData, setLoadingBirthdayData] = useState(false);
   const [birthdayConfirmed, setBirthdayConfirmed] = useState(false);
   const [includeContactPhoto, setIncludeContactPhoto] = useState(false);
@@ -308,6 +326,10 @@ export default function CreateEmailAutomationPage() {
     birthdayStats?.eligibleBirthdayContacts ?? birthdayStats?.withBirthdayAndValidEmail ?? 0;
   const emailReadyCount = birthdayStats?.validEmailOptedIn ?? 0;
   const birthdayContactsWithImage = birthdayStats?.withBirthdayAndImage ?? 0;
+  const eligibleBirthdayContacts = useMemo(
+    () => birthdayContacts.filter((contact) => !!contact.birthday && hasUsableEmail(contact)),
+    [birthdayContacts]
+  );
 
   const canProceedFromPlan = useMemo(() => {
     if (!automationName.trim()) return false;
@@ -378,6 +400,7 @@ export default function CreateEmailAutomationPage() {
     if (!state.selectedContactListId) {
       setBirthdayStats(null);
       setBirthdayContacts([]);
+      setBirthdayDrafts({});
       setLoadingBirthdayData(false);
       return;
     }
@@ -395,7 +418,7 @@ export default function CreateEmailAutomationPage() {
             `/api/contacts?${new URLSearchParams({
               ...(state.selectedContactListId ? { listId: state.selectedContactListId } : {}),
               status: "active",
-              limit: "200",
+              limit: "500",
               sort: "firstName",
               order: "asc",
             })}`
@@ -413,13 +436,8 @@ export default function CreateEmailAutomationPage() {
 
         if (contactsJson.success) {
           const contacts = contactsJson.data?.contacts || [];
-          setBirthdayContacts(
-            contacts
-              .filter((contact: { birthday?: string | null; email?: string | null; emailOptedIn?: boolean }) =>
-                !!contact.birthday && hasUsableEmail(contact)
-              )
-              .slice(0, 12)
-              .map((contact: {
+          const formattedContacts = contacts
+            .map((contact: {
                 id: string;
                 name?: string | null;
                 firstName?: string | null;
@@ -427,7 +445,7 @@ export default function CreateEmailAutomationPage() {
                 email?: string | null;
                 emailOptedIn?: boolean;
                 imageUrl?: string | null;
-                birthday: string;
+                birthday?: string | null;
               }) => ({
                 id: contact.id,
                 name:
@@ -436,11 +454,18 @@ export default function CreateEmailAutomationPage() {
                   contact.email ||
                   "Contact",
                 email: contact.email || null,
-                birthday: contact.birthday,
+                birthday: contact.birthday || null,
                 emailOptedIn: contact.emailOptedIn === true,
                 imageUrl: contact.imageUrl || null,
-              }))
-          );
+              }));
+          setBirthdayContacts(formattedContacts);
+          setBirthdayDrafts((current) => {
+            const next: Record<string, string> = {};
+            for (const contact of formattedContacts) {
+              next[contact.id] = current[contact.id] ?? contact.birthday ?? "";
+            }
+            return next;
+          });
         }
       } catch {
         if (!cancelled) {
@@ -456,7 +481,7 @@ export default function CreateEmailAutomationPage() {
     return () => {
       cancelled = true;
     };
-  }, [automationType, state.selectedContactListId]);
+  }, [automationType, birthdayDataVersion, state.selectedContactListId]);
 
   useEffect(() => {
     setBirthdayConfirmed(false);
@@ -467,6 +492,198 @@ export default function CreateEmailAutomationPage() {
       setIncludeContactPhoto(false);
     }
   }, [birthdayContactsWithImage]);
+
+  const setContactUpdating = (contactId: string, action: string | null) => {
+    setUpdatingBirthdayContactIds((current) => {
+      const next = { ...current };
+      if (action) next[contactId] = action;
+      else delete next[contactId];
+      return next;
+    });
+  };
+
+  const applyUpdatedContact = (updated: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    birthday?: string | null;
+    emailOptedIn?: boolean;
+    imageUrl?: string | null;
+  }) => {
+    const updatedName =
+      [updated.firstName, updated.lastName].filter(Boolean).join(" ") ||
+      updated.email ||
+      "Contact";
+
+    setBirthdayContacts((current) =>
+      current.map((contact) =>
+        contact.id === updated.id
+          ? {
+              ...contact,
+              name: updatedName,
+              email: updated.email || null,
+              birthday: updated.birthday || null,
+              emailOptedIn: updated.emailOptedIn === true,
+              imageUrl: updated.imageUrl || null,
+            }
+          : contact
+      )
+    );
+    setBirthdayDrafts((current) => ({
+      ...current,
+      [updated.id]: updated.birthday || "",
+    }));
+    setBirthdayConfirmed(false);
+    setBirthdayDataVersion((version) => version + 1);
+  };
+
+  const patchBirthdayContact = async (
+    contactId: string,
+    payload: Record<string, unknown>
+  ) => {
+    const response = await fetch(`/api/contacts/${contactId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+      throw new Error(apiErrorMessage(data, "Failed to update contact"));
+    }
+    applyUpdatedContact(data.data.contact);
+    return data.data.contact;
+  };
+
+  const handleBirthdayDraftChange = (contactId: string, value: string) => {
+    setBirthdayDrafts((current) => ({
+      ...current,
+      [contactId]: normalizeBirthdayDraft(value),
+    }));
+  };
+
+  const handleSaveContactBirthday = async (contact: BirthdayContactPreview) => {
+    const birthday = (birthdayDrafts[contact.id] || "").trim();
+    const currentBirthday = contact.birthday || "";
+    if (birthday === currentBirthday) return;
+    if (birthday && !isValidBirthday(birthday)) {
+      toast({
+        title: "Birthday must use MM-DD",
+        description: "Use a month and day like 04-16.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setContactUpdating(contact.id, "birthday");
+    try {
+      await patchBirthdayContact(contact.id, { birthday: birthday || null });
+      toast({ title: birthday ? "Birthday saved" : "Birthday removed" });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to save birthday",
+        variant: "destructive",
+      });
+    } finally {
+      setContactUpdating(contact.id, null);
+    }
+  };
+
+  const handleUploadContactImage = async (contact: BirthdayContactPreview, file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Choose an image file", variant: "destructive" });
+      return;
+    }
+
+    setContactUpdating(contact.id, "image");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("tags", JSON.stringify(["contact-photo", "birthday-automation"]));
+
+      const uploadResponse = await fetch("/api/media", { method: "POST", body: formData });
+      const uploadData = await uploadResponse.json().catch(() => ({}));
+      if (!uploadResponse.ok || !uploadData.success) {
+        throw new Error(apiErrorMessage(uploadData, "Image upload failed"));
+      }
+
+      const imageUrl = uploadData.data?.file?.url || uploadData.data?.url;
+      if (!imageUrl) throw new Error("Image uploaded but no URL was returned");
+
+      await patchBirthdayContact(contact.id, { imageUrl });
+      toast({ title: "Contact image saved" });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setContactUpdating(contact.id, null);
+    }
+  };
+
+  const handleGenerateContactBirthdayImage = async (contact: BirthdayContactPreview) => {
+    if (!contact.imageUrl) {
+      toast({
+        title: "Add a contact image first",
+        description: "FlowCreative needs the person's image as the reference.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setContactUpdating(contact.id, "ai");
+    try {
+      const prompt = [
+        `Create a polished square birthday greeting image for ${contact.name}.`,
+        "Use the reference photo as the real person source and keep the person recognizable.",
+        "Make it warm, celebratory, professional, and suitable for a personalized birthday email.",
+        "Use tasteful birthday decor, soft lighting, clean composition, and avoid changing the person's identity.",
+        "Do not include unreadable text or fake logos.",
+      ].join(" ");
+
+      const response = await fetch("/api/ai/visual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          category: "birthday",
+          size: "1024x1024",
+          style: "professional celebratory",
+          provider: "openai",
+          strictProvider: true,
+          promptMode: "raw_brand",
+          heroType: "people",
+          textMode: "minimal",
+          referenceImageUrl: contact.imageUrl,
+          referenceImageUrls: [contact.imageUrl],
+          compositeReferenceSubject: true,
+          qualityCheckEnabled: false,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(apiErrorMessage(data, "FlowCreative image generation failed"));
+      }
+
+      const imageUrl = data.data?.design?.imageUrl;
+      if (!imageUrl) throw new Error("FlowCreative generated the image but no URL was returned");
+
+      await patchBirthdayContact(contact.id, { imageUrl });
+      toast({
+        title: "AI birthday image saved",
+        description: "The contact image was updated and will be used by the automation.",
+      });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to generate birthday image",
+        variant: "destructive",
+      });
+    } finally {
+      setContactUpdating(contact.id, null);
+    }
+  };
 
   const handleSelectType = (type: AutomationType) => {
     setAutomationType(type);
@@ -713,7 +930,7 @@ export default function CreateEmailAutomationPage() {
         eligibleBirthdayContacts: eligibleBirthdayCount,
         includeContactPhoto,
         contactPhotoEligibleCount: birthdayContactsWithImage,
-        birthdayPreview: birthdayContacts.slice(0, 20),
+        birthdayPreview: eligibleBirthdayContacts.slice(0, 20),
       };
     }
 
@@ -1179,48 +1396,148 @@ export default function CreateEmailAutomationPage() {
                   <div className="rounded-lg border">
                     <div className="flex items-center justify-between border-b px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold">Eligible Birthday Email Preview</p>
+                        <p className="text-sm font-semibold">Birthday Contact Readiness</p>
                         <p className="text-xs text-muted-foreground">
-                          Showing contacts with birthday dates, valid email, and email opt-in.
+                          Contacts in this list can be completed here before activation.
                         </p>
                       </div>
                       <Badge variant="outline">{selectedList?.name || "Select a list"}</Badge>
                     </div>
-                    <div className="divide-y">
+                    <div className="max-h-[560px] divide-y overflow-auto">
                       {birthdayContacts.length === 0 ? (
                         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                          {emailReadyCount > 0 && (birthdayStats?.withBirthday || 0) === 0
-                            ? `${emailReadyCount} contacts have valid opted-in email, but no birthday dates are saved for this list yet.`
-                            : "No birthday contacts with valid email were found for this audience."}
+                          No active contacts were found for this list.
                         </div>
                       ) : (
                         birthdayContacts.map((contact) => (
-                          <div key={contact.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div
+                            key={contact.id}
+                            className="grid gap-3 px-4 py-3 xl:grid-cols-[minmax(220px,1.25fr)_minmax(180px,1fr)_160px_minmax(260px,1.25fr)_120px] xl:items-center"
+                          >
                             <div className="flex min-w-0 items-center gap-3">
-                              {contact.imageUrl ? (
-                                <img
-                                  src={contact.imageUrl}
-                                  alt=""
-                                  className="h-9 w-9 shrink-0 rounded-full border object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
-                                  {contact.name.slice(0, 1).toUpperCase()}
-                                </div>
-                              )}
+                              <div className="relative">
+                                {contact.imageUrl ? (
+                                  <img
+                                    src={contact.imageUrl}
+                                    alt=""
+                                    className="h-11 w-11 shrink-0 rounded-full border object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
+                                    {contact.name.slice(0, 1).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{contact.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
+                                <p className="truncate text-xs text-muted-foreground">{contact.email || "No email"}</p>
                               </div>
                             </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              {contact.imageUrl && (
-                                <Badge variant="outline" className="hidden gap-1 sm:flex">
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={hasUsableEmail(contact) ? "secondary" : "outline"}>
+                                {hasUsableEmail(contact) ? "Email ready" : "Email not ready"}
+                              </Badge>
+                              {contact.imageUrl ? (
+                                <Badge variant="outline" className="gap-1">
                                   <ImageIcon className="h-3 w-3" />
-                                  Photo
+                                  Image
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">No image</Badge>
+                              )}
+                              {contact.birthday && (
+                                <Badge variant="secondary">{formatBirthday(contact.birthday)}</Badge>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={birthdayDrafts[contact.id] ?? ""}
+                                onChange={(event) => handleBirthdayDraftChange(contact.id, event.target.value)}
+                                onBlur={() => handleSaveContactBirthday(contact)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    handleSaveContactBirthday(contact);
+                                  }
+                                }}
+                                placeholder="MM-DD"
+                                inputMode="numeric"
+                                maxLength={5}
+                                disabled={!!updatingBirthdayContactIds[contact.id]}
+                                className="h-9"
+                              />
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                onClick={() => handleSaveContactBirthday(contact)}
+                                disabled={updatingBirthdayContactIds[contact.id] === "birthday"}
+                                className="h-9 w-9 shrink-0"
+                              >
+                                {updatingBirthdayContactIds[contact.id] === "birthday" ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                id={`birthday-photo-${contact.id}`}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  handleUploadContactImage(contact, file);
+                                  event.target.value = "";
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById(`birthday-photo-${contact.id}`)?.click()}
+                                disabled={!!updatingBirthdayContactIds[contact.id]}
+                              >
+                                {updatingBirthdayContactIds[contact.id] === "image" ? (
+                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Upload className="mr-2 h-3.5 w-3.5" />
+                                )}
+                                Upload
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGenerateContactBirthdayImage(contact)}
+                                disabled={!contact.imageUrl || !!updatingBirthdayContactIds[contact.id]}
+                              >
+                                {updatingBirthdayContactIds[contact.id] === "ai" ? (
+                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Gift className="mr-2 h-3.5 w-3.5" />
+                                )}
+                                AI image
+                              </Button>
+                            </div>
+
+                            <div className="flex xl:justify-end">
+                              {!!contact.birthday && hasUsableEmail(contact) ? (
+                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                                  Eligible
+                                </Badge>
+                              ) : !hasUsableEmail(contact) ? (
+                                <Badge variant="outline">Email blocked</Badge>
+                              ) : (
+                                <Badge variant="outline">
+                                  Add birthday
                                 </Badge>
                               )}
-                              <Badge variant="secondary">{formatBirthday(contact.birthday)}</Badge>
                             </div>
                           </div>
                         ))
