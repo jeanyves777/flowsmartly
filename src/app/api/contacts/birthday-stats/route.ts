@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 
-// GET /api/contacts/birthday-stats?listId=optional — Count contacts with/without birthday
+function hasUsableEmailWhere() {
+  return {
+    email: { contains: "@" },
+    emailOptedIn: true,
+  };
+}
+
+// GET /api/contacts/birthday-stats?listId=optional - Count birthday automation readiness
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -30,26 +37,38 @@ export async function GET(request: NextRequest) {
       NOT: { birthday: "" },
     };
 
+    const validEmailWhere: Record<string, unknown> = {
+      ...baseWhere,
+      ...hasUsableEmailWhere(),
+    };
+
     const validBirthdayEmailWhere: Record<string, unknown> = {
       ...baseWhere,
       birthday: { not: null },
-      emailOptedIn: true,
-      email: { contains: "@" },
+      ...hasUsableEmailWhere(),
       NOT: { birthday: "" },
     };
 
     const validBirthdayEmailWithImageWhere: Record<string, unknown> = {
       ...baseWhere,
       birthday: { not: null },
-      emailOptedIn: true,
-      email: { contains: "@" },
+      ...hasUsableEmailWhere(),
       imageUrl: { not: null },
       NOT: [{ birthday: "" }, { imageUrl: "" }],
     };
 
-    const [withBirthday, withBirthdayAndValidEmail, withBirthdayAndImage, total] = await Promise.all([
+    const [
+      withBirthday,
+      validEmailOptedIn,
+      withBirthdayAndValidEmail,
+      withBirthdayAndImage,
+      total,
+    ] = await Promise.all([
       prisma.contact.count({
         where: birthdayWhere,
+      }),
+      prisma.contact.count({
+        where: validEmailWhere,
       }),
       prisma.contact.count({
         where: validBirthdayEmailWhere,
@@ -64,7 +83,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         withBirthday,
+        validEmailOptedIn,
         withBirthdayAndValidEmail,
+        missingValidEmailOrOptIn: Math.max(0, total - validEmailOptedIn),
         withBirthdayMissingValidEmail: Math.max(0, withBirthday - withBirthdayAndValidEmail),
         withBirthdayAndImage,
         eligibleBirthdayContacts: withBirthdayAndValidEmail,

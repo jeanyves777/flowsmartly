@@ -75,10 +75,12 @@ interface ContactList {
 interface BirthdayStats {
   total: number;
   withBirthday: number;
+  validEmailOptedIn?: number;
   withBirthdayAndValidEmail?: number;
   withBirthdayMissingValidEmail?: number;
   withBirthdayAndImage?: number;
   eligibleBirthdayContacts?: number;
+  missingValidEmailOrOptIn?: number;
   withoutBirthday: number;
 }
 
@@ -304,6 +306,7 @@ export default function CreateEmailAutomationPage() {
   const currentStepIndex = STEPS.findIndex((item) => item.id === step);
   const eligibleBirthdayCount =
     birthdayStats?.eligibleBirthdayContacts ?? birthdayStats?.withBirthdayAndValidEmail ?? 0;
+  const emailReadyCount = birthdayStats?.validEmailOptedIn ?? 0;
   const birthdayContactsWithImage = birthdayStats?.withBirthdayAndImage ?? 0;
 
   const canProceedFromPlan = useMemo(() => {
@@ -1144,11 +1147,11 @@ export default function CreateEmailAutomationPage() {
                       </div>
                       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                         <p className="text-xs text-blue-700">Valid email + opted in</p>
-                        <p className="mt-1 text-2xl font-bold text-blue-700">{eligibleBirthdayCount}</p>
+                        <p className="mt-1 text-2xl font-bold text-blue-700">{emailReadyCount}</p>
                       </div>
                       <div className="rounded-lg border p-4">
-                        <p className="text-xs text-muted-foreground">Birthday but no valid email</p>
-                        <p className="mt-1 text-2xl font-bold">{birthdayStats?.withBirthdayMissingValidEmail || 0}</p>
+                        <p className="text-xs text-muted-foreground">Eligible to automate</p>
+                        <p className="mt-1 text-2xl font-bold">{eligibleBirthdayCount}</p>
                       </div>
                     </div>
                   )}
@@ -1186,7 +1189,9 @@ export default function CreateEmailAutomationPage() {
                     <div className="divide-y">
                       {birthdayContacts.length === 0 ? (
                         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                          No birthday contacts with valid email were found for this audience.
+                          {emailReadyCount > 0 && (birthdayStats?.withBirthday || 0) === 0
+                            ? `${emailReadyCount} contacts have valid opted-in email, but no birthday dates are saved for this list yet.`
+                            : "No birthday contacts with valid email were found for this audience."}
                         </div>
                       ) : (
                         birthdayContacts.map((contact) => (
@@ -1237,7 +1242,8 @@ export default function CreateEmailAutomationPage() {
                         <span className="font-medium text-foreground">
                           {eligibleBirthdayCount} contacts with birthday dates, valid email, and email opt-in
                         </span>{" "}
-                        from {selectedList?.name || "the selected contact list"}.
+                        from {selectedList?.name || "the selected contact list"}. {emailReadyCount} contact
+                        {emailReadyCount === 1 ? " is" : "s are"} email-ready in this list.
                       </p>
                     </div>
                   </div>
