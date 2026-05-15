@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { LISTSMARTLY_EXTRA_RUN_CREDIT_COST } from "@/lib/constants/listsmartly";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 
 // ── Types ──
 
@@ -164,6 +166,9 @@ interface AutopilotState {
     queueReady: boolean;
     canPrepareQueue: boolean;
     canRun: boolean;
+    canRunExtra?: boolean;
+    extraRunCost?: number;
+    creditsAvailable?: number;
     activeTask?: {
       id: string;
       title: string;
@@ -734,12 +739,15 @@ export default function ListSmartlyDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...body }),
       });
-      if (!res.ok) throw new Error("Action failed");
       const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message || "Action failed");
       if (json.success && json.data?.state) {
         setAutopilotState(json.data.state);
         setAutoFixEnabled(json.data.state.settings.autoFix || false);
         setAutoDescEnabled(json.data.state.settings.autoDescriptions || false);
+      }
+      if (typeof json.data?.result?.creditsRemaining === "number") {
+        emitCreditsUpdate(json.data.result.creditsRemaining);
       }
       if (action === "continue_task" && typeof body.taskId === "string") {
         setVerificationInputs((prev) => ({ ...prev, [body.taskId as string]: "" }));
@@ -747,6 +755,8 @@ export default function ListSmartlyDashboardPage() {
       const resultMessage =
         action === "continue_task"
           ? "Code received. The agent is submitting it in the live browser session; this panel will refresh as it works."
+          : action === "run_extra"
+          ? json.data?.result?.message || "Extra run started. 250 credits were charged and the agent is working now."
           : action === "run_next"
           ? "Agent started. The live status panel will refresh as it inspects the directory workflow."
           : json.data?.result?.message || (
@@ -755,11 +765,22 @@ export default function ListSmartlyDashboardPage() {
                 : "The workflow has been updated."
             );
       toast({
-        title: action === "run_next" ? "Autopilot started" : action === "continue_task" ? "Agent resumed" : "Autopilot updated",
+        title:
+          action === "run_extra"
+            ? "Extra run started"
+            : action === "run_next"
+              ? "Autopilot started"
+              : action === "continue_task"
+                ? "Agent resumed"
+                : "Autopilot updated",
         description: resultMessage,
       });
-    } catch {
-      toast({ title: "Error", description: "Failed to run autopilot action", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to run autopilot action",
+        variant: "destructive",
+      });
     } finally {
       setAutopilotActionLoading(false);
     }
@@ -1505,6 +1526,9 @@ export default function ListSmartlyDashboardPage() {
     const queueReady = Boolean(state?.runtime?.queueReady || (state?.stats.taskCounts.queued || 0) > 0);
     const canPrepareQueue = Boolean(state?.runtime?.canPrepareQueue && !autopilotActionLoading && !autopilotLoading);
     const canRunAutopilot = Boolean(state?.runtime?.canRun && !autopilotActionLoading && !autopilotLoading);
+    const extraRunCost = state?.runtime?.extraRunCost || LISTSMARTLY_EXTRA_RUN_CREDIT_COST;
+    const creditsAvailable = state?.runtime?.creditsAvailable ?? 0;
+    const canRunPaidExtra = Boolean(state?.runtime?.canRunExtra && !autopilotActionLoading && !autopilotLoading);
     const nextRunAt = state?.runtime?.nextRunAt || null;
     const taskGroups = [
       { key: "needs_user", title: "Needs Your Validation", icon: Bell },
@@ -1647,6 +1671,15 @@ export default function ListSmartlyDashboardPage() {
                 <Play className="h-4 w-4 mr-2" />
                 {activeTask ? "Autopilot Running" : needsUserTask ? "Action Needed" : nextRunAt ? "Runs Daily" : "Run Autopilot"}
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => runAutopilotAction("run_extra")}
+                disabled={!canRunPaidExtra}
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Run Extra Now
+                <span className="ml-2 text-xs opacity-80">{extraRunCost} credits</span>
+              </Button>
               <div className="min-w-[220px] text-xs text-muted-foreground">
                 {activeTask ? (
                   <>
@@ -1676,6 +1709,11 @@ export default function ListSmartlyDashboardPage() {
                   Status auto-refreshes every {activeTask ? "5s" : "15s"}
                   {lastAutopilotRefresh ? ` - last checked ${new Date(lastAutopilotRefresh).toLocaleTimeString()}` : ""}
                 </p>
+                {nextRunAt && !activeTask && queueReady && !canRunPaidExtra && creditsAvailable < extraRunCost && (
+                  <p className="mt-1 text-amber-400">
+                    Extra run needs {extraRunCost} credits. Available: {creditsAvailable}.
+                  </p>
+                )}
               </div>
             </div>
 

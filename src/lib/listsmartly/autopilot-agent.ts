@@ -6,6 +6,7 @@ import {
   runClaudeListSmartlyBrowserAgent,
   type ListSmartlyAgentContinuation,
 } from "@/lib/listsmartly/claude-browser-agent";
+import { LISTSMARTLY_EXTRA_RUN_CREDIT_COST } from "@/lib/constants/listsmartly";
 import { seedDirectories } from "@/lib/listsmartly/directories";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { Prisma } from "@prisma/client";
@@ -22,6 +23,7 @@ const SECURE_NOTE_PREFIX = "fs-vault:v1:";
 type AutopilotAction =
   | "prepare_queue"
   | "run_next"
+  | "run_extra"
   | "continue_task"
   | "complete_task"
   | "block_task"
@@ -1909,6 +1911,7 @@ async function completeInactiveDirectoryTasks(profileId: string): Promise<number
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
+    include: { user: { select: { aiCredits: true } } },
   });
   if (!profile) return null;
 
@@ -2047,6 +2050,13 @@ export async function getAutopilotState(userId: string) {
       queueReady: queuedCount > 0 || waitingCount > 0 || Boolean(activeTask),
       canPrepareQueue: queuedCount === 0 && !activeTask,
       canRun: queuedCount > 0 && !activeTask && !dailyLimitActive,
+      canRunExtra:
+        queuedCount > 0 &&
+        !activeTask &&
+        dailyLimitActive &&
+        (profile.user?.aiCredits || 0) >= LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+      extraRunCost: LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+      creditsAvailable: profile.user?.aiCredits || 0,
       activeTask: activeTaskSummary,
       lastStartedAt: lastStartedTask?.startedAt || null,
       nextRunAt,
@@ -2707,6 +2717,168 @@ export async function runNextAutopilotStep(userId: string) {
   };
 }
 
+export async function runPaidExtraAutopilotStep(userId: string) {
+  const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
+  if (!profile) throw new Error("PROFILE_NOT_FOUND");
+
+  await pauseStaleAutopilotTasks(profile.id, {
+    profileId: profile.id,
+    listing: { directory: { isActive: true } },
+  });
+
+  const result = await prisma.$transaction(async (tx) => {
+    const activeTask = await tx.listSmartlyAutopilotTask.findFirst({
+      where: {
+        profileId: profile.id,
+        status: "in_progress",
+        listing: { directory: { isActive: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (activeTask) {
+      return {
+        status: "already_running",
+        message: `${activeTask.title} is already running. Finish or pause that workflow before buying another extra run.`,
+        task: activeTask,
+        creditsCharged: 0,
+        creditsRemaining: null,
+      };
+    }
+
+    const lastStartedTask = await tx.listSmartlyAutopilotTask.findFirst({
+      where: { profileId: profile.id, startedAt: { not: null }, listing: { directory: { isActive: true } } },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, title: true, startedAt: true },
+    });
+    const nextRunAt = lastStartedTask?.startedAt
+      ? addMs(lastStartedTask.startedAt, DAILY_AUTOPILOT_INTERVAL_MS)
+      : null;
+    if (!nextRunAt || nextRunAt <= new Date()) {
+      return {
+        status: "daily_available",
+        message: "Your included daily autopilot run is available. Use Run Autopilot; no credits were charged.",
+        task: null,
+        creditsCharged: 0,
+        creditsRemaining: null,
+      };
+    }
+
+    const task = await tx.listSmartlyAutopilotTask.findFirst({
+      where: { profileId: profile.id, status: "queued", listing: { directory: { isActive: true } } },
+      include: {
+        listing: {
+          include: {
+            directory: {
+              select: { name: true, url: true, submitUrl: true, claimUrl: true, apiAvailable: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    });
+
+    if (!task) {
+      return {
+        status: "empty",
+        message: "No prepared listing workflow is waiting, so no credits were charged.",
+        task: null,
+        creditsCharged: 0,
+        creditsRemaining: null,
+      };
+    }
+
+    const charged = await tx.user.updateMany({
+      where: { id: userId, aiCredits: { gte: LISTSMARTLY_EXTRA_RUN_CREDIT_COST } },
+      data: { aiCredits: { decrement: LISTSMARTLY_EXTRA_RUN_CREDIT_COST } },
+    });
+    if (charged.count !== 1) throw new Error("INSUFFICIENT_CREDITS");
+
+    const now = new Date();
+    const claim = await tx.listSmartlyAutopilotTask.updateMany({
+      where: { id: task.id, status: "queued" },
+      data: {
+        status: "in_progress",
+        assignedTo: "agent",
+        result: safeJson({
+          stage: "running_directory_workflow",
+          statusMessage:
+            "Paid extra run started. The agent is inspecting the directory workflow now.",
+          cadence: "paid_extra_run",
+          creditsCharged: LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+          startedAt: now.toISOString(),
+          progress: [
+            {
+              stage: "running_directory_workflow",
+              label: "Paid extra run started",
+              status: "active",
+              detail: `${LISTSMARTLY_EXTRA_RUN_CREDIT_COST} credits charged for an immediate additional workflow.`,
+              at: now.toISOString(),
+            },
+          ],
+        }),
+        attemptCount: { increment: 1 },
+        lastAttemptAt: now,
+        requiredAction:
+          "Paid extra autopilot run is active. The agent will pause only if the directory shows a real validation requirement.",
+      },
+    });
+    if (claim.count !== 1) throw new Error("TASK_ALREADY_CLAIMED");
+
+    const [updatedTask, updatedUser] = await Promise.all([
+      tx.listSmartlyAutopilotTask.findUnique({ where: { id: task.id } }),
+      tx.user.findUnique({ where: { id: userId }, select: { aiCredits: true } }),
+    ]);
+
+    if (!updatedUser || !updatedTask) throw new Error("EXTRA_RUN_START_FAILED");
+
+    const creditTransaction = await tx.creditTransaction.create({
+      data: {
+        userId,
+        type: "USAGE",
+        amount: -LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+        balanceAfter: updatedUser.aiCredits,
+        description: `ListSmartly paid extra autopilot run: ${task.title}`,
+        referenceType: "listsmartly_extra_run",
+        referenceId: task.id,
+        metadata: safeJson({
+          profileId: profile.id,
+          taskId: task.id,
+          listingId: task.listingId,
+          directoryName: task.listing?.directory?.name || null,
+          cost: LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+        }),
+      },
+    });
+
+    return {
+      status: "started",
+      message: `${task.title} started as a paid extra run. ${LISTSMARTLY_EXTRA_RUN_CREDIT_COST} credits were charged.`,
+      task: updatedTask,
+      creditsCharged: LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+      creditsRemaining: updatedUser.aiCredits,
+      creditTransactionId: creditTransaction.id,
+    };
+  });
+
+  if (result.status === "started" && result.task) {
+    await createNotification({
+      userId,
+      type: NOTIFICATION_TYPES.SYSTEM,
+      title: "ListSmartly paid extra run started",
+      message: `${result.task.title} started immediately. ${LISTSMARTLY_EXTRA_RUN_CREDIT_COST} credits were charged.`,
+      actionUrl: "/listsmartly/dashboard",
+      data: {
+        feature: "listsmartly",
+        taskId: result.task.id,
+        creditsCharged: LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+        creditsRemaining: result.creditsRemaining,
+      },
+    });
+  }
+
+  return result;
+}
+
 export async function continueAutopilotTask(
   userId: string,
   taskId: string,
@@ -3067,6 +3239,7 @@ export async function saveAutopilotCredential(userId: string, input: SaveCredent
 export async function handleAutopilotAction(userId: string, action: AutopilotAction, body: Record<string, unknown>) {
   if (action === "prepare_queue") return prepareAutopilotQueue(userId);
   if (action === "run_next") return runNextAutopilotStep(userId);
+  if (action === "run_extra") return runPaidExtraAutopilotStep(userId);
   if (action === "continue_task") {
     return continueAutopilotTask(userId, String(body.taskId), {
       verificationCode:

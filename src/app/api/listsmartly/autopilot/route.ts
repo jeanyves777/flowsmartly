@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       body
     );
     const shouldProcess =
-      (action === "run_next" || action === "continue_task") &&
+      (action === "run_next" || action === "run_extra" || action === "continue_task") &&
       result &&
       typeof result === "object" &&
       "status" in result &&
@@ -114,6 +114,32 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { result, state } });
   } catch (error) {
+    if (error instanceof Error && error.message === "INSUFFICIENT_CREDITS") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "INSUFFICIENT_CREDITS",
+            message: "You need 250 credits to start an extra ListSmartly autopilot run.",
+          },
+        },
+        { status: 402 }
+      );
+    }
+
+    if (error instanceof Error && error.message === "TASK_ALREADY_CLAIMED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "TASK_ALREADY_CLAIMED",
+            message: "Another autopilot request already claimed that workflow. Refresh the page and try again.",
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     console.error("Run ListSmartly autopilot action error:", error);
     return NextResponse.json(
       { success: false, error: { message: "Failed to run autopilot action" } },
