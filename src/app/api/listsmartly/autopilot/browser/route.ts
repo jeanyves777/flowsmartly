@@ -89,15 +89,25 @@ function createBrowserViewStream(taskId: string, signal: AbortSignal) {
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
+      const enqueue = (event: string, data: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+          if (interval) clearInterval(interval);
+        }
+      };
+
       const sendView = async () => {
         if (closed || sending) return;
         sending = true;
         try {
           const view = await getListSmartlyAgentBrowserView(taskId);
-          controller.enqueue(encoder.encode(`event: view\ndata: ${JSON.stringify(view)}\n\n`));
+          enqueue("view", view);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to stream live browser";
-          controller.enqueue(encoder.encode(`event: stream_error\ndata: ${JSON.stringify({ message })}\n\n`));
+          enqueue("stream_error", { message });
         } finally {
           sending = false;
         }

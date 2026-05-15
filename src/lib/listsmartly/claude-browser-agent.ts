@@ -7,7 +7,7 @@ import { getClaudeCodeBinaryPath } from "@/lib/ai/design-tools/sdk-binary-path";
 
 const AGENT_BROWSER_TIMEOUT_MS = 60000;
 const AGENT_SESSION_TTL_MS = 30 * 60 * 1000;
-const AGENT_RUN_TIMEOUT_MS = Number(process.env.LISTSMARTLY_AGENT_RUN_TIMEOUT_MS || 120000);
+const AGENT_RUN_TIMEOUT_MS = Number(process.env.LISTSMARTLY_AGENT_RUN_TIMEOUT_MS || 420000);
 const AGENT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
 const AGENT_BROWSER_ARGS = [
@@ -154,22 +154,31 @@ export async function getListSmartlyAgentBrowserView(workflowId?: string | null)
   if (!session) return { active: false, reason: "No live browser session is currently attached to this workflow." };
 
   const viewport = session.page.viewport?.() || { width: 1365, height: 900 };
-  const image = await session.page.screenshot({
-    type: "jpeg",
-    quality: 72,
-    encoding: "base64",
-    captureBeyondViewport: false,
-  });
+  const screenshot = await Promise.race([
+    session.page
+      .screenshot({
+        type: "jpeg",
+        quality: 72,
+        encoding: "base64",
+        captureBeyondViewport: false,
+      })
+      .then((image: string) => ({ image }))
+      .catch((error: unknown) => ({
+        reason: error instanceof Error ? error.message : "Live browser screenshot failed.",
+      })),
+    delay(12000).then(() => ({ reason: "Live browser screenshot is busy; retrying." })),
+  ]);
 
   return {
     active: true,
     url: session.page.url?.() || "",
     title: await session.page.title?.().catch(() => "") || "",
-    image,
+    image: "image" in screenshot ? screenshot.image : undefined,
     contentType: "image/jpeg",
     viewport: { width: viewport.width || 1365, height: viewport.height || 900 },
     expiresAt: new Date(session.expiresAt).toISOString(),
     directoryName: session.directoryName,
+    reason: "reason" in screenshot ? screenshot.reason : undefined,
     cursor: session.remoteCursor
       ? { x: session.remoteCursor.x, y: session.remoteCursor.y, at: new Date(session.remoteCursor.at).toISOString() }
       : undefined,
@@ -425,6 +434,53 @@ function safePassword(): string {
   return `Fs!${core}7Aa`;
 }
 
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function isVagueCategory(value: string | null | undefined): boolean {
+  return !value || /^(other|local business|business|general|misc|miscellaneous|unknown)$/i.test(value.trim());
+}
+
+function inferBusinessCategorySuggestions(profile: ListSmartlyAgentProfile): string[] {
+  const haystack = `${profile.businessName || ""} ${profile.industry || ""} ${profile.description || ""} ${
+    profile.website || ""
+  }`.toLowerCase();
+  const suggestions: string[] = [];
+  const add = (...values: string[]) => suggestions.push(...values);
+
+  if (/(church|ministry|ministries|chapel|parish|religious|worship|temple|synagogue|mosque)/i.test(haystack)) {
+    add("Churches", "Religious Organizations");
+  } else if (/(restaurant|pizza|cafe|coffee|bakery|barbecue|bbq|diner|food|catering)/i.test(haystack)) {
+    add("Restaurants", "Food");
+  } else if (/(plumb|hvac|electric|roof|contractor|construction|handyman|repair)/i.test(haystack)) {
+    add("Contractors", "Home Services");
+  } else if (/(tax|accounting|bookkeep|payroll|financial service|insurance)/i.test(haystack)) {
+    add("Tax Services", "Accountants", "Financial Services");
+  } else if (/(real estate|realtor|property|apartment|home sale|broker)/i.test(haystack)) {
+    add("Real Estate Services", "Real Estate Agents");
+  } else if (/(salon|barber|spa|beauty|hair|nail|massage)/i.test(haystack)) {
+    add("Hair Salons", "Beauty & Spas");
+  } else if (/(doctor|clinic|medical|dentist|health|therapy|wellness)/i.test(haystack)) {
+    add("Health & Medical");
+  } else if (/(law|attorney|legal)/i.test(haystack)) {
+    add("Lawyers", "Legal Services");
+  }
+
+  if (!isVagueCategory(profile.industry)) add(profile.industry || "");
+
+  return uniqueStrings(suggestions).slice(0, 3);
+}
+
 async function settle(page: any, timeout = 12000) {
   try {
     await page.waitForNetworkIdle({ idleTime: 700, timeout });
@@ -439,6 +495,8 @@ function valuesForProfile(
   continuation?: ListSmartlyAgentContinuation
 ) {
   const { firstName, lastName } = splitContactName(profile);
+  const businessCategorySuggestions = inferBusinessCategorySuggestions(profile);
+  const businessCategory = businessCategorySuggestions[0] || (!isVagueCategory(profile.industry) ? profile.industry || "" : "");
   return {
     firstName,
     lastName,
@@ -463,6 +521,8 @@ function valuesForProfile(
     businessRole: "Owner",
     employeeCount: "1-10",
     businessType: "Local business",
+    businessCategory,
+    businessCategories: businessCategorySuggestions.join(", "),
     industry: profile.industry || "",
     yearFounded: profile.yearFounded || "",
     description: profile.description || "",
@@ -876,6 +936,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
     });
 
     const profileValues = valuesForProfile(profile, generatedPassword, continuation);
+    const businessCategorySuggestions = inferBusinessCategorySuggestions(profile);
 
     const tools = [
       tool(
@@ -913,6 +974,192 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
           });
           progressLog.push({ tool: "observe_page", url: snapshot.url, title: snapshot.title, blockers: snapshot.blockers });
           return ok(snapshot);
+        }
+      ),
+      tool(
+        "set_business_categories",
+        "Use on pages that ask for business categories before clicking Continue. It clears unrelated selected category chips, types approved inferred categories, and selects matching autocomplete suggestions. Never choose unrelated categories.",
+        {
+          maxCategories: z.number().int().min(1).max(3).optional(),
+        },
+        async (args) => {
+          const suggestions = businessCategorySuggestions.slice(0, args.maxCategories || 3);
+          if (suggestions.length === 0) {
+            const snapshot = await observePage(page);
+            return ok({
+              set: false,
+              reason: "No specific business category could be inferred from the approved profile.",
+              url: snapshot.url,
+              title: snapshot.title,
+            });
+          }
+
+          const removed = await page
+            .evaluate(() => {
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+              const controls = Array.from(document.querySelectorAll('button, [role="button"], a')) as HTMLElement[];
+              let removedCount = 0;
+              for (const control of controls) {
+                if (!visible(control)) continue;
+                const text = normalize(control.innerText || control.textContent || "");
+                const marker = normalize(
+                  `${text} ${control.getAttribute("aria-label") || ""} ${control.getAttribute("title") || ""}`
+                );
+                const containerText = normalize(
+                  control.closest('li, [class*="chip"], [class*="tag"], [class*="pill"], [class*="category"]')
+                    ?.textContent || ""
+                );
+                const looksLikeRemove =
+                  /(remove|delete|clear|close)/i.test(marker) ||
+                  /^[x\u00d7\u2715\u2716]$/i.test(text) ||
+                  /[x\u00d7\u2715\u2716]$/.test(text);
+                const looksLikeCategoryChip =
+                  /category|business|service|shopping|event|stationery|office|church|religious|restaurant|contractor/i.test(
+                    `${marker} ${containerText}`
+                  );
+                if (!looksLikeRemove || !looksLikeCategoryChip) continue;
+                control.click();
+                removedCount += 1;
+                if (removedCount >= 5) break;
+              }
+              return removedCount;
+            })
+            .catch(() => 0);
+
+          const findCategoryInput = async () => {
+            const handle = await page.evaluateHandle(() => {
+              const visible = (el: Element) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+              };
+              const labelFor = (el: Element) => {
+                const id = el.getAttribute("id");
+                const explicit = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent || "" : "";
+                const implicit = el.closest("label")?.textContent || "";
+                return [
+                  explicit,
+                  implicit,
+                  el.getAttribute("aria-label") || "",
+                  el.getAttribute("placeholder") || "",
+                  el.getAttribute("name") || "",
+                  el.getAttribute("autocomplete") || "",
+                  el.getAttribute("role") || "",
+                  id || "",
+                ]
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              };
+              const candidates = Array.from(
+                document.querySelectorAll('input:not([type="hidden"]), textarea, [contenteditable="true"], [role="combobox"], [role="textbox"]')
+              ) as HTMLElement[];
+              const scored = candidates
+                .filter((el) => visible(el) && !("disabled" in el && (el as HTMLInputElement).disabled))
+                .map((el) => {
+                  const label = labelFor(el);
+                  let score = 0;
+                  if (/business categories?|categories?|category|industry/i.test(label)) score += 10;
+                  if (/combobox|textbox/i.test(el.getAttribute("role") || "")) score += 2;
+                  if (/business categories?/i.test(label)) score += 5;
+                  return { el, score };
+                })
+                .filter((item) => item.score > 0)
+                .sort((a, b) => b.score - a.score);
+              return scored[0]?.el || null;
+            });
+            const element = handle.asElement();
+            if (!element) await handle.dispose?.().catch(() => undefined);
+            return element;
+          };
+
+          const chooseVisibleSuggestion = async (suggestion: string) =>
+            page
+              .evaluate((suggestionText: string) => {
+                const visible = (el: Element) => {
+                  const style = window.getComputedStyle(el);
+                  const rect = el.getBoundingClientRect();
+                  return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+                };
+                const normalize = (value: string) =>
+                  value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, " ")
+                    .trim();
+                const wanted = normalize(suggestionText);
+                const candidates = Array.from(
+                  document.querySelectorAll('[role="option"], li, button, [role="button"], a, div, span')
+                ) as HTMLElement[];
+                for (const candidate of candidates) {
+                  if (!visible(candidate)) continue;
+                  const text = (candidate.innerText || candidate.textContent || candidate.getAttribute("aria-label") || "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                  if (!text || text.length > 120 || /no results|search for|continue|back/i.test(text)) continue;
+                  const normalized = normalize(text);
+                  if (!normalized || (!normalized.includes(wanted) && !wanted.includes(normalized))) continue;
+                  candidate.click();
+                  return text;
+                }
+                return "";
+              }, suggestion)
+              .catch(() => "");
+
+          const added: string[] = [];
+          for (const suggestion of suggestions) {
+            const input = await findCategoryInput();
+            if (!input) break;
+            try {
+              await input.click({ delay: 40 });
+              await input.evaluate((el: HTMLInputElement | HTMLTextAreaElement | HTMLElement) => {
+                if ("value" in el) {
+                  const prototype =
+                    el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+                  if (setter) setter.call(el, "");
+                  else el.value = "";
+                  el.dispatchEvent(new Event("input", { bubbles: true }));
+                  el.dispatchEvent(new Event("change", { bubbles: true }));
+                } else {
+                  el.textContent = "";
+                }
+              });
+              await page.keyboard.type(suggestion, { delay: 35 });
+              await delay(900);
+              const picked = await chooseVisibleSuggestion(suggestion);
+              if (!picked) {
+                await page.keyboard.press("ArrowDown").catch(() => undefined);
+                await delay(150);
+                await page.keyboard.press("Enter").catch(() => undefined);
+              }
+              await settle(page, 2500);
+              added.push(picked || suggestion);
+            } finally {
+              await input.dispose?.().catch(() => undefined);
+            }
+          }
+
+          await onProgress?.({
+            stage: "agent_set_business_categories",
+            label: "Business categories set",
+            status: "active",
+            detail: added.length
+              ? added.join(", ")
+              : `Could not find the visible category input for ${suggestions.join(", ")}.`,
+            extra: { portalUrl: page.url(), businessCategorySuggestions: suggestions, removedCategoryChips: removed },
+          });
+          progressLog.push({
+            tool: "set_business_categories",
+            requested: suggestions,
+            result: { added, removed },
+            url: page.url(),
+          });
+          return ok({ set: added.length > 0, added, removed, suggestions, url: page.url() });
         }
       ),
       tool(
@@ -1125,6 +1372,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             "businessRole",
             "employeeCount",
             "businessType",
+            "businessCategory",
+            "businessCategories",
             "industry",
             "yearFounded",
             "description",
@@ -1466,6 +1715,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 "businessRole",
                 "employeeCount",
                 "businessType",
+                "businessCategory",
+                "businessCategories",
                 "industry",
                 "yearFounded",
                 "description",
@@ -1529,7 +1780,7 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 if (/^day$|birth day/.test(label)) return picked.birthDay;
                 if (/^year$|birth year/.test(label)) return picked.birthYear;
                 if (/website|url|domain/.test(label)) return picked.website;
-                if (/industry|category|business type/.test(label)) return picked.industry;
+                if (/industry|category|business type/.test(label)) return picked.businessCategory || picked.industry;
                 if (/year founded|founded|established/.test(label)) return picked.yearFounded;
                 if (/description|about|summary/.test(label)) return picked.description;
                 return "";
@@ -1765,6 +2016,8 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       "businessRole",
       "employeeCount",
       "businessType",
+      "businessCategory",
+      "businessCategories",
       "industry",
       "yearFounded",
       "description",
@@ -1908,6 +2161,7 @@ Tools:
 - Navigate public directory workflow URLs.
 - Click public sign-up, claim, add-business, update, and continue controls.
 - Fill general forms and targeted fields using only approved business profile values.
+- On business category autocomplete pages, use set_business_categories before Continue; do not invent unrelated categories or use vague "Other" categories.
 - Select dropdown options and set ordinary business/terms checkboxes.
 - Fill account setup defaults such as country, birth date, owner role, company size, and business type when the portal asks for them.
 
@@ -1951,6 +2205,7 @@ function buildUserPrompt(params: {
         defaultAccountCountry: "United States",
         defaultAdultBirthDate: "January 1, 1990",
         industry: profile.industry,
+        businessCategorySuggestions: inferBusinessCategorySuggestions(profile),
         yearFounded: profile.yearFounded,
         description: profile.description,
       },

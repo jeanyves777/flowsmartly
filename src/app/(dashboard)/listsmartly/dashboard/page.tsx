@@ -178,6 +178,9 @@ interface AutopilotState {
       stage?: string;
       statusMessage?: string;
       progress?: AutopilotProgressEvent[];
+      canRetry?: boolean;
+      retryLabel?: string;
+      retryMessage?: string | null;
       updatedAt: string;
       directory?: { name: string; url: string; tier: number; slug: string } | null;
     } | null;
@@ -756,7 +759,9 @@ export default function ListSmartlyDashboardPage() {
       }
       const resultMessage =
         action === "continue_task"
-          ? "Code received. The agent is submitting it in the live browser session; this panel will refresh as it works."
+          ? typeof body.verificationCode === "string" && body.verificationCode
+            ? "Code received. The agent is submitting it in the live browser session; this panel will refresh as it works."
+            : json.data?.result?.message || "The agent is continuing this workflow now."
           : action === "run_extra"
           ? json.data?.result?.message || "Extra run started. 250 credits were charged and the agent is working now."
           : action === "run_next"
@@ -1530,6 +1535,7 @@ export default function ListSmartlyDashboardPage() {
     const credentials = state?.credentials || [];
     const activeTask = state?.runtime?.activeTask || null;
     const activeProgress = activeTask?.progress || [];
+    const activeTaskCanRetry = Boolean(activeTask?.canRetry);
     const needsUserTask = tasks.find((task) => task.status === "needs_user") || null;
     const nextQueuedTask = tasks.find((task) => task.status === "queued");
     const queueReady = Boolean(state?.runtime?.queueReady || (state?.stats.taskCounts.queued || 0) > 0);
@@ -1903,16 +1909,39 @@ export default function ListSmartlyDashboardPage() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-                          <AISpinner className="h-4 w-4 animate-spin text-primary" />
-                          Agent is working now
+                          {activeTaskCanRetry ? (
+                            <RefreshCw className="h-4 w-4 text-amber-400" />
+                          ) : (
+                            <AISpinner className="h-4 w-4 animate-spin text-primary" />
+                          )}
+                          {activeTaskCanRetry ? "Agent needs a retry" : "Agent is working now"}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {activeTask.statusMessage || "Checking the directory and updating this workflow."}
+                          {activeTaskCanRetry
+                            ? activeTask.retryMessage || activeTask.statusMessage || "The agent can retry this workflow now."
+                            : activeTask.statusMessage || "Checking the directory and updating this workflow."}
                         </p>
                       </div>
-                      <Badge variant="secondary" className="w-fit">
-                        {formatWorkflowMode(activeTask.stage)}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {activeTaskCanRetry && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void runAutopilotAction("continue_task", { taskId: activeTask.id })}
+                            disabled={autopilotActionLoading}
+                          >
+                            {autopilotActionLoading ? (
+                              <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            {autopilotActionLoading ? "Retrying..." : activeTask.retryLabel || "Retry agent"}
+                          </Button>
+                        )}
+                        <Badge variant="secondary" className="w-fit">
+                          {formatWorkflowMode(activeTask.stage)}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       {(activeProgress.length > 0

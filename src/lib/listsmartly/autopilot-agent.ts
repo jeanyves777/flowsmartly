@@ -23,6 +23,11 @@ const AUTOPILOT_STALE_IN_PROGRESS_MS = 60 * 60 * 1000;
 const AUTOPILOT_USER_AGENT = "Mozilla/5.0 (compatible; FlowSmartlyListSmartly/1.0)";
 const MIN_DIRECTORY_MATCH_SCORE = 5;
 const SECURE_NOTE_PREFIX = "fs-vault:v1:";
+const RETRYABLE_AGENT_STAGES = new Set([
+  "agent_sdk_retry_needed",
+  "agent_browser_retry_needed",
+  "agent_review_pending",
+]);
 
 type AutopilotAction =
   | "prepare_queue"
@@ -125,6 +130,18 @@ function parseJsonObject(value: string | null | undefined): Record<string, unkno
   } catch {
     return {};
   }
+}
+
+function isRetryableAgentStage(value: unknown): boolean {
+  return typeof value === "string" && RETRYABLE_AGENT_STAGES.has(value);
+}
+
+function isRetryableAgentResult(result: Record<string, unknown>): boolean {
+  return (
+    isRetryableAgentStage(result.stage) ||
+    isRetryableAgentStage(result.accountCreationBlocker) ||
+    isRetryableAgentStage((result.browserDiagnostics as { stage?: unknown } | undefined)?.stage)
+  );
 }
 
 function getVaultKey(): Buffer | null {
@@ -441,12 +458,13 @@ async function updateTaskProgress(
     select: { result: true },
   });
   const current = parseJsonObject(task?.result);
+  const preserveRetryState =
+    isRetryableAgentResult(current) && progressEvent.status === "active" && stage !== "agent_browser_workflow_running";
   const next = appendProgress(
     {
       ...current,
       ...extra,
-      stage,
-      statusMessage,
+      ...(preserveRetryState ? {} : { stage, statusMessage }),
     },
     {
       stage,
@@ -1388,6 +1406,11 @@ async function runAgentBrowserWorkflow(
       accountCreated: false,
       credentialSaved: false,
       emailSentByFlowSmartly: false,
+      accountCreationBlocker: null,
+      userActionTitle: null,
+      userActionMessage: null,
+      userActionButtonLabel: null,
+      browserDiagnostics: null,
     }
   );
 
@@ -1631,6 +1654,7 @@ async function runAgentBrowserWorkflow(
 
   const pendingDiagnostics =
     outcome.diagnostics && typeof outcome.diagnostics === "object" ? outcome.diagnostics : {};
+  const pendingNeedsRetry = isRetryableAgentStage(outcome.stage);
   const pendingResult = appendProgress(
     {
       ...current,
@@ -1660,8 +1684,8 @@ async function runAgentBrowserWorkflow(
     },
     {
       stage: outcome.stage,
-      label: outcome.stage === "agent_browser_retry_needed" ? "Browser retry queued" : "Agent browser working",
-      status: "active",
+      label: pendingNeedsRetry ? "Agent retry needed" : "Agent browser working",
+      status: pendingNeedsRetry ? "waiting" : "active",
       detail: outcome.message,
     }
   );
@@ -1672,7 +1696,9 @@ async function runAgentBrowserWorkflow(
       status: "in_progress",
       assignedTo: "agent",
       requiredAction:
-        "The agent browser workflow is still responsible for this directory. No user action is required yet.",
+        pendingNeedsRetry
+          ? "The browser agent run ended before a final decision. Retry the agent to continue from the live browser state."
+          : "The agent browser workflow is still responsible for this directory. No user action is required yet.",
       failureReason: null,
       result: safeJson(pendingResult),
     },
@@ -2176,6 +2202,7 @@ export async function getAutopilotState(userId: string) {
   const queuedCount = taskCounts.queued || 0;
   const waitingCount = taskCounts.needs_user || 0;
   const activeTaskResult = activeTask ? parseJsonObject(activeTask.result) : {};
+  const activeTaskCanRetry = activeTask ? isRetryableAgentResult(activeTaskResult) : false;
   const activeTaskSummary = activeTask
     ? {
         id: activeTask.id,
@@ -2194,6 +2221,15 @@ export async function getAutopilotState(userId: string) {
               ? activeTask.requiredAction || "Waiting for user validation."
               : "Researching the directory workflow and preparing the next safe action.",
         progress: Array.isArray(activeTaskResult.progress) ? activeTaskResult.progress : [],
+        canRetry: activeTaskCanRetry,
+        retryLabel:
+          typeof activeTaskResult.userActionButtonLabel === "string"
+            ? activeTaskResult.userActionButtonLabel
+            : "Retry agent",
+        retryMessage: activeTaskCanRetry
+          ? activeTask.requiredAction ||
+            "The last browser-agent run ended before a final decision. Retry to continue from the live browser."
+          : null,
         directory: activeTask.listing?.directory || null,
         updatedAt: activeTask.updatedAt,
       }
@@ -2230,7 +2266,9 @@ export async function getAutopilotState(userId: string) {
       lastStartedAt: lastStartedTask?.startedAt || null,
       nextRunAt,
       message: activeTask
-        ? `${activeTask.title} is already running. Status refreshes automatically.`
+        ? activeTaskCanRetry
+          ? `${activeTask.title} needs an agent retry.`
+          : `${activeTask.title} is already running. Status refreshes automatically.`
         : dailyLimitActive && nextRunAt
           ? `Daily limit reached. Next autopilot run is available ${nextRunAt.toISOString()}.`
         : queuedCount > 0 && waitingCount > 0
@@ -2528,6 +2566,7 @@ export async function processAutopilotTask(
     existingStage.startsWith("agent_browser_") ||
     existingStage === "agent_sdk_retry_needed" ||
     existingStage === "agent_review_pending" ||
+    isRetryableAgentResult(existingResult) ||
     (existingStage.startsWith("agent_") && existingResult.agentAttemptedAccountCreation === true)
   ) {
     return runAgentBrowserWorkflow(userId, businessSignal, task, existingResult, continuation);
@@ -3078,11 +3117,12 @@ export async function continueAutopilotTask(
     where: {
       id: taskId,
       profileId: profile.id,
-      status: "needs_user",
+      status: { in: ["needs_user", "in_progress"] },
       listing: { directory: { isActive: true } },
     },
     select: {
       id: true,
+      status: true,
       result: true,
       title: true,
       listing: {
@@ -3097,6 +3137,10 @@ export async function continueAutopilotTask(
   if (!task) throw new Error("TASK_NOT_FOUND");
 
   const existingResult = parseJsonObject(task.result);
+  const retryingAgentRun = task.status === "in_progress" && isRetryableAgentResult(existingResult);
+  if (task.status === "in_progress" && !retryingAgentRun) {
+    throw new Error("TASK_ALREADY_CLAIMED");
+  }
   const isEmailVerificationStep =
     existingResult.accountCreationBlocker === "waiting_for_email_verification" ||
     existingResult.stage === "waiting_for_email_verification";
@@ -3159,18 +3203,33 @@ export async function continueAutopilotTask(
       stage: "agent_browser_workflow_running",
       statusMessage: continuation.verificationCode
         ? "Verification code received. The AI listing agent is submitting it in the live directory browser session."
-        : "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
+        : retryingAgentRun
+          ? "The previous browser-agent run ended before a final decision. The AI listing agent is retrying from the current directory state."
+          : "User confirmed the validation step is complete. The AI listing agent is resuming the directory workflow.",
       userConfirmedAt: new Date().toISOString(),
+      agentRetryRequestedAt: retryingAgentRun ? new Date().toISOString() : undefined,
       verificationCodeProvided: Boolean(continuation.verificationCode),
       verificationCodeSubmittedAt: continuation.verificationCode ? new Date().toISOString() : undefined,
+      accountCreationBlocker: null,
+      browserDiagnostics: null,
     },
     {
-      stage: continuation.verificationCode ? "verification_code_received" : "validation_received",
-      label: continuation.verificationCode ? "Verification code handed to agent" : "Validation confirmed",
+      stage: continuation.verificationCode
+        ? "verification_code_received"
+        : retryingAgentRun
+          ? "agent_retry_requested"
+          : "validation_received",
+      label: continuation.verificationCode
+        ? "Verification code handed to agent"
+        : retryingAgentRun
+          ? "Agent retry requested"
+          : "Validation confirmed",
       status: continuation.verificationCode ? "active" : "done",
       detail: continuation.verificationCode
         ? "The agent is submitting the code in the same live browser session."
-        : "The agent is resuming the listing check.",
+        : retryingAgentRun
+          ? "The agent is retrying the browser workflow now."
+          : "The agent is resuming the listing check.",
     }
   );
 
@@ -3183,7 +3242,9 @@ export async function continueAutopilotTask(
       requiredAction:
         continuation.verificationCode
           ? "The AI listing agent is submitting the email code in the live directory browser session. Status will refresh automatically."
-          : "Validation was confirmed. The AI listing agent is continuing the directory workflow and will complete the listing or ask for the next real validation step.",
+          : retryingAgentRun
+            ? "The AI listing agent is retrying the browser workflow and will complete the listing or ask for the next real validation step."
+            : "Validation was confirmed. The AI listing agent is continuing the directory workflow and will complete the listing or ask for the next real validation step.",
       attemptCount: { increment: 1 },
       lastAttemptAt: new Date(),
     },
@@ -3194,7 +3255,9 @@ export async function continueAutopilotTask(
     verificationCodeForwarded: Boolean(continuation.verificationCode),
     message: continuation.verificationCode
       ? "Code received. The agent is submitting it in the live browser session now."
-      : "Validation confirmed. The agent is continuing the workflow now.",
+      : retryingAgentRun
+        ? "Agent retry started. The workflow is continuing now."
+        : "Validation confirmed. The agent is continuing the workflow now.",
     task: updated,
   };
 }
