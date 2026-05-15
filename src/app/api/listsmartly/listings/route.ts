@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { getListSmartlyDirectoryPriority } from "@/lib/constants/listsmartly";
 
 // GET /api/listsmartly/listings - List all listings for user's profile
 export async function GET(request: NextRequest) {
@@ -42,20 +43,32 @@ export async function GET(request: NextRequest) {
     }
     where.directory = directoryWhere;
 
-    const [listings, total] = await Promise.all([
-      prisma.businessListing.findMany({
-        where,
-        include: {
-          directory: {
-            select: { id: true, slug: true, name: true, url: true, tier: true, category: true, iconUrl: true, submitUrl: true, claimUrl: true },
+    const allListings = await prisma.businessListing.findMany({
+      where,
+      include: {
+        directory: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            url: true,
+            tier: true,
+            category: true,
+            iconUrl: true,
+            submitUrl: true,
+            claimUrl: true,
+            isActive: true,
           },
         },
-        orderBy: [{ directory: { tier: "asc" } }, { directory: { name: "asc" } }],
-        skip,
-        take: limit,
-      }),
-      prisma.businessListing.count({ where }),
-    ]);
+      },
+    });
+    const sortedListings = allListings.sort(
+      (a, b) =>
+        getListSmartlyDirectoryPriority(a.directory) - getListSmartlyDirectoryPriority(b.directory) ||
+        a.directory.name.localeCompare(b.directory.name)
+    );
+    const listings = sortedListings.slice(skip, skip + limit);
+    const total = sortedListings.length;
 
     return NextResponse.json({
       success: true,
@@ -67,6 +80,8 @@ export async function GET(request: NextRequest) {
           submitUrl: l.directory.submitUrl,
           claimUrl: l.directory.claimUrl,
           tier: l.directory.tier,
+          directoryCategory: l.directory.category,
+          priority: getListSmartlyDirectoryPriority(l.directory),
           lastChecked: l.lastCheckedAt,
           inconsistencies: JSON.parse(l.inconsistencies),
         })),

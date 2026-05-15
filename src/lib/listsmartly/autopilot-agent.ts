@@ -6,7 +6,10 @@ import {
   runClaudeListSmartlyBrowserAgent,
   type ListSmartlyAgentContinuation,
 } from "@/lib/listsmartly/claude-browser-agent";
-import { LISTSMARTLY_EXTRA_RUN_CREDIT_COST } from "@/lib/constants/listsmartly";
+import {
+  getListSmartlyDirectoryPriority,
+  LISTSMARTLY_EXTRA_RUN_CREDIT_COST,
+} from "@/lib/constants/listsmartly";
 import { seedDirectories } from "@/lib/listsmartly/directories";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { Prisma } from "@prisma/client";
@@ -317,13 +320,16 @@ function getGoogleSearchCx(): string | undefined {
   );
 }
 
-function taskPriority(status: string, tier: number): number {
+function taskPriority(
+  status: string,
+  directory: { slug: string; tier: number; category: string; isActive?: boolean }
+): number {
   const statusWeight: Record<string, number> = {
     missing: 0,
-    needs_update: 10,
-    unverified: 20,
+    needs_update: 1000,
+    unverified: 2000,
   };
-  return (statusWeight[status] ?? 30) + tier;
+  return (statusWeight[status] ?? 3000) + getListSmartlyDirectoryPriority(directory);
 }
 
 function taskTypeForStatus(status: string): string {
@@ -363,12 +369,15 @@ function buildDirectoryPayload(profile: {
   id: string;
   status: string;
   directory: {
+    slug: string;
     name: string;
     url: string;
     submitUrl: string | null;
     claimUrl: string | null;
     tier: number;
+    category: string;
     apiAvailable: boolean;
+    isActive?: boolean;
   };
 }) {
   const businessProfile = {
@@ -387,17 +396,22 @@ function buildDirectoryPayload(profile: {
   return {
     businessProfile,
     directory: {
+      slug: listing.directory.slug,
       name: listing.directory.name,
       url: listing.directory.url,
       submitUrl: listing.directory.submitUrl,
       claimUrl: listing.directory.claimUrl,
       tier: listing.directory.tier,
+      category: listing.directory.category,
+      localPriority: getListSmartlyDirectoryPriority(listing.directory),
     },
-    safety: {
-      mode: "web_workflow",
-      policy:
-        "Use public directory pages, submit/claim URLs, and low-rate web research only. Do not bypass login protections, CAPTCHAs, email/SMS/phone verification, rate limits, payment requirements, or directory terms.",
-      pacing: "One account or listing workflow per day with verification checkpoints.",
+    agentGoal: {
+      mode: "public_web_workflow",
+      objective:
+        "Find, create, claim, or update the local business listing using the visible public workflow and the raw business profile data.",
+      stopForUserOnlyWhen:
+        "The live portal asks for email/SMS/phone verification, bot validation, payment, owner approval, or a required profile field that is not in the business profile/defaults.",
+      pacing: "One account or listing workflow per day unless the user buys an extra run.",
     },
     steps: [
       "Research the directory requirements and public business listing state.",
@@ -1878,11 +1892,11 @@ async function completeInactiveDirectoryTasks(profileId: string): Promise<number
   const result = await prisma.listSmartlyAutopilotTask.updateMany({
     where: {
       profileId,
-      status: { in: ["queued", "in_progress", "needs_user", "blocked"] },
+      status: { in: ["queued", "in_progress", "needs_user", "blocked", "completed"] },
       listing: { directory: { isActive: false } },
     },
     data: {
-      status: "completed",
+      status: "skipped",
       assignedTo: "agent",
       requiredAction: null,
       failureReason: null,
@@ -1908,6 +1922,61 @@ async function completeInactiveDirectoryTasks(profileId: string): Promise<number
   return result.count;
 }
 
+async function refreshQueuedAutopilotPriorities(profileId: string): Promise<number> {
+  const tasks = await prisma.listSmartlyAutopilotTask.findMany({
+    where: {
+      profileId,
+      status: "queued",
+      listing: { directory: { isActive: true } },
+    },
+    select: {
+      id: true,
+      priority: true,
+      type: true,
+      listing: {
+        select: {
+          status: true,
+          directory: {
+            select: {
+              slug: true,
+              tier: true,
+              category: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const updates = tasks
+    .map((task) => {
+      const listingStatus =
+        task.listing?.status ||
+        (task.type === "create_or_claim_listing"
+          ? "missing"
+          : task.type === "fix_inconsistency"
+            ? "needs_update"
+            : "unverified");
+      const nextPriority = task.listing?.directory
+        ? taskPriority(listingStatus, task.listing.directory)
+        : task.priority;
+      return nextPriority !== task.priority ? { id: task.id, priority: nextPriority } : null;
+    })
+    .filter((item): item is { id: string; priority: number } => Boolean(item));
+
+  await Promise.all(
+    updates.map((item) =>
+      prisma.listSmartlyAutopilotTask.update({
+        where: { id: item.id },
+        data: { priority: item.priority },
+      })
+    )
+  );
+
+  return updates.length;
+}
+
 export async function getAutopilotState(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({
     where: { userId },
@@ -1916,6 +1985,7 @@ export async function getAutopilotState(userId: string) {
   if (!profile) return null;
 
   await completeInactiveDirectoryTasks(profile.id);
+  await refreshQueuedAutopilotPriorities(profile.id);
 
   const activeListings = await prisma.businessListing.findMany({
     where: { profileId: profile.id, directory: { isActive: true } },
@@ -2152,12 +2222,15 @@ export async function prepareAutopilotQueue(userId: string) {
     include: {
       directory: {
         select: {
+          slug: true,
           name: true,
           url: true,
           submitUrl: true,
           claimUrl: true,
           tier: true,
+          category: true,
           apiAvailable: true,
+          isActive: true,
         },
       },
     },
@@ -2165,8 +2238,14 @@ export async function prepareAutopilotQueue(userId: string) {
   });
 
   let created = 0;
-  for (const listing of listings) {
+  const prioritizedListings = listings.sort(
+    (a, b) =>
+      taskPriority(a.status, a.directory) - taskPriority(b.status, b.directory) ||
+      a.directory.name.localeCompare(b.directory.name)
+  );
+  for (const listing of prioritizedListings) {
     const type = taskTypeForStatus(listing.status);
+    const priority = taskPriority(listing.status, listing.directory);
     const existing = await prisma.listSmartlyAutopilotTask.findFirst({
       where: {
         profileId: profile.id,
@@ -2185,6 +2264,7 @@ export async function prepareAutopilotQueue(userId: string) {
             ? {
                 assignedTo: "agent",
                 requiredAction: requiredActionForStatus(listing.status),
+                priority,
               }
             : {}),
         },
@@ -2198,7 +2278,7 @@ export async function prepareAutopilotQueue(userId: string) {
         listingId: listing.id,
         type,
         status: "queued",
-        priority: taskPriority(listing.status, listing.directory.tier),
+        priority,
         title: taskTitle(listing.status, listing.directory.name),
         description: `${listing.directory.name} is ${listing.status.replace("_", " ")} and needs a controlled listing workflow.`,
         requiredAction: requiredActionForStatus(listing.status),
@@ -2314,7 +2394,7 @@ export async function processAutopilotTask(
     const skipped = await prisma.listSmartlyAutopilotTask.update({
       where: { id: task.id },
       data: {
-        status: "completed",
+        status: "skipped",
         assignedTo: "agent",
         requiredAction: null,
         failureReason: null,
@@ -2337,7 +2417,7 @@ export async function processAutopilotTask(
         ),
       },
     });
-    return { status: "completed", message: completedMessage, task: skipped };
+    return { status: "skipped", message: completedMessage, task: skipped };
   }
 
   const existingStage = typeof existingResult.stage === "string" ? existingResult.stage : "";
@@ -2615,6 +2695,8 @@ export async function runNextAutopilotStep(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
 
+  await completeInactiveDirectoryTasks(profile.id);
+  await refreshQueuedAutopilotPriorities(profile.id);
   await pauseStaleAutopilotTasks(profile.id, {
     profileId: profile.id,
     listing: { directory: { isActive: true } },
@@ -2721,6 +2803,8 @@ export async function runPaidExtraAutopilotStep(userId: string) {
   const profile = await prisma.listSmartlyProfile.findUnique({ where: { userId } });
   if (!profile) throw new Error("PROFILE_NOT_FOUND");
 
+  await completeInactiveDirectoryTasks(profile.id);
+  await refreshQueuedAutopilotPriorities(profile.id);
   await pauseStaleAutopilotTasks(profile.id, {
     profileId: profile.id,
     listing: { directory: { isActive: true } },

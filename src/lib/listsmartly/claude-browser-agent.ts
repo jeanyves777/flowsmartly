@@ -459,6 +459,10 @@ function valuesForProfile(
     birthMonthNumber: "1",
     birthDay: "1",
     birthYear: "1990",
+    contactTitle: "Owner",
+    businessRole: "Owner",
+    employeeCount: "1-10",
+    businessType: "Local business",
     industry: profile.industry || "",
     yearFounded: profile.yearFounded || "",
     description: profile.description || "",
@@ -1117,6 +1121,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
             "birthMonthNumber",
             "birthDay",
             "birthYear",
+            "contactTitle",
+            "businessRole",
+            "employeeCount",
+            "businessType",
             "industry",
             "yearFounded",
             "description",
@@ -1454,6 +1462,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 "birthMonthNumber",
                 "birthDay",
                 "birthYear",
+                "contactTitle",
+                "businessRole",
+                "employeeCount",
+                "businessType",
                 "industry",
                 "yearFounded",
                 "description",
@@ -1503,6 +1515,9 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
                 if (/full name|your name|contact name|owner name|president|ceo/.test(label)) return picked.fullName;
                 if (/business name|company name|organization|legal name|business legal/.test(label)) return picked.businessName;
                 if (/phone|telephone|mobile/.test(label)) return picked.phone;
+                if (/job title|title|position|role/.test(label)) return picked.contactTitle || picked.businessRole;
+                if (/employee|company size|team size|staff/.test(label)) return picked.employeeCount;
+                if (/business type|organization type|company type|legal structure/.test(label)) return picked.businessType;
                 if (/street|address line 1|business address|mailing address/.test(label)) return picked.address;
                 if (/\bcity\b/.test(label)) return picked.city;
                 if (/\bstate\b|province|region/.test(label)) return picked.state;
@@ -1746,6 +1761,10 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
       "birthMonthNumber",
       "birthDay",
       "birthYear",
+      "contactTitle",
+      "businessRole",
+      "employeeCount",
+      "businessType",
       "industry",
       "yearFounded",
       "description",
@@ -1882,31 +1901,27 @@ export async function runClaudeListSmartlyBrowserAgent(params: {
 function buildSystemPrompt(directoryName: string): string {
   return `You are the FlowSmartly ListSmartly AI Listing Agent.
 
-You control a browser through tools. Your job is to create, claim, verify, or prepare a business listing workflow for ${directoryName}.
+Mission: use the browser tools to get a real local business listing outcome for ${directoryName}. Explore the visible public workflow, create or claim the listing when possible, fill ordinary forms from the approved data, and save an honest final state.
 
-Capabilities:
+Tools:
 - Observe the current page.
 - Navigate public directory workflow URLs.
 - Click public sign-up, claim, add-business, update, and continue controls.
 - Fill general forms and targeted fields using only approved business profile values.
 - Select dropdown options and set ordinary business/terms checkboxes.
-- Pause with a clear user action when email, SMS, phone, CAPTCHA, payment, owner approval, or missing profile data is required.
+- Fill account setup defaults such as country, birth date, owner role, company size, and business type when the portal asks for them.
 
-Rules:
-- Never bypass CAPTCHA, bot protection, paywalls, login protections, email/SMS/phone verification, payment choices, or owner approval.
-- Never click social-login/SSO buttons unless the business profile explicitly contains approved credentials for that provider. It does not in this workflow.
-- For Bing Places or Microsoft-gated directory pages, "Microsoft account" and "Work account" are login-provider buttons. Without approved saved credentials, click "Create one" or another public create-account path instead.
-- Never ask the user to fill ordinary account/listing fields or create a password. That is agent work.
-- If a sign-up page asks for country/region or birthdate and the profile has no specific value, use the default adult details: United States and January 1, 1990.
-- If a password is needed, fill the password fields with the generated password from the approved values. Save it only after account creation is actually accepted.
-- If the page says the account already exists and the workflow has approved saved credentials, try the normal email/password sign-in path before blocking.
-- If a verification code is supplied in approved values, fill it with fill_verification_code and continue the workflow. Do not ask the user to enter that code on the external site.
-- If CAPTCHA, email/SMS/phone verification, payment, owner approval, or missing profile data blocks you, ask only for that blocker. Tell the user the agent will continue after validation.
-- Never invent account creation. accountCreated=true only after the page accepted a submit step or asks for verification after a submit.
-- Never claim credentials were saved unless shouldSaveGeneratedCredential=true and accountCreated=true.
-- Do not use APIs. This product uses public directory web workflows only.
-- Use observe_page before every decision.
-- End by calling finish exactly once.`;
+Working style:
+- Use observe_page before decisions, then keep moving through the public create, claim, add-business, or update path.
+- If the page asks for ordinary account/listing data, fill it. Do not pass routine form work back to the user.
+- If a required field is unfamiliar, infer from the raw business profile and defaults first, then observe again.
+- If Bing Places or a Microsoft-gated page appears and no saved credential is available, use the visible create-account path before provider login buttons.
+- If a verification code is supplied, submit that code yourself and continue the workflow after observing the result.
+- Pause only for a real external validation blocker: email/SMS/phone verification without a supplied code, bot validation, payment, owner approval, or a required business fact that is absent from the raw data/defaults.
+- Use public web workflows only; no directory APIs are available.
+- Finish exactly once with submitted, needs_user, blocked, or pending.
+- accountCreated=true only after the portal accepted a submit step or moved to verification after submission.
+- shouldSaveGeneratedCredential=true only when accountCreated=true and the generated password was used for that account.`;
 }
 
 function buildUserPrompt(params: {
@@ -1939,15 +1954,32 @@ function buildUserPrompt(params: {
         yearFounded: profile.yearFounded,
         description: profile.description,
       },
+      fieldDefaults: {
+        contactTitle: "Owner",
+        businessRole: "Owner",
+        employeeCount: "1-10",
+        businessType: "Local business",
+        country: "United States",
+        adultBirthDate: "January 1, 1990",
+      },
+      fieldHints: {
+        name: ["first name", "last name", "full name", "owner name", "contact name"],
+        business: ["business name", "company name", "organization", "legal name"],
+        contact: ["business email", "work email", "phone", "website"],
+        location: ["address", "city", "state", "zip", "country"],
+        defaults: ["title", "role", "business type", "employee count", "birth date"],
+      },
       approvedFieldKeys: approvedValues,
       continuation: {
         verificationCodeSupplied: Boolean(continuation?.verificationCode),
         savedCredentialAvailable: Boolean(continuation?.savedLoginPassword),
       },
+      goal:
+        "Get the local listing created, claimed, verified, corrected, or honestly paused at the next real external validation step.",
       expectedFlow:
-        "Observe page, click the public signup/claim/add-business path, fill allowed fields, continue carefully, then finish with submitted/needs_user/blocked/pending.",
-      humanActionPolicy:
-        "If a verification code was supplied, use fill_verification_code once, observe the page after it submits, then continue. If a page asks for ordinary account details such as country/region or birthdate, use fill_signup_defaults with the default adult birthdate January 1, 1990 and continue; do not ask the user for those fields. If the page is Bing Places or Microsoft-gated and no saved credential is available, click Create one before any Microsoft account or Work account login-provider button. If the directory says the email already has an account and savedCredentialAvailable is true, use the normal email/password sign-in path with the approved email and password values before blocking. If CAPTCHA, missing email/SMS/phone code, payment, owner approval, missing data not covered by defaults, or login-only access appears, stop and output only that precise blocker. Do not ask the user to complete ordinary signup fields or create the password; the agent will continue those steps after validation.",
+        "Observe page, explore the visible public workflow, fill raw business/default values, continue through ordinary account setup, then finish with submitted/needs_user/blocked/pending.",
+      userActionPolicy:
+        "Ask the user only for external validation or missing business facts. Do not ask the user to complete normal forms, choose common defaults, create passwords, or click next buttons.",
     },
     null,
     2

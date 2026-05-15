@@ -48,6 +48,8 @@ interface Listing {
   submitUrl?: string;
   claimUrl?: string;
   tier: number;
+  directoryCategory?: string;
+  priority?: number;
   status: "live" | "missing" | "unverified" | "needs_update" | "submitted" | "claimed" | "error";
   lastChecked: string;
   iconUrl?: string;
@@ -1084,7 +1086,14 @@ export default function ListSmartlyDashboardPage() {
       }
       return Array.from(grouped.entries())
         .sort(([a], [b]) => a - b)
-        .map(([tier, tierItems]) => ({ tier, items: tierItems }));
+        .map(([tier, tierItems]) => ({
+          tier,
+          items: tierItems.sort(
+            (a, b) =>
+              (a.priority ?? 9999) - (b.priority ?? 9999) ||
+              a.directoryName.localeCompare(b.directoryName)
+          ),
+        }));
     };
 
     return (
@@ -1552,7 +1561,14 @@ export default function ListSmartlyDashboardPage() {
       }
       return Array.from(grouped.entries())
         .sort(([a], [b]) => a - b)
-        .map(([tier, tierItems]) => ({ tier, items: tierItems }));
+        .map(([tier, tierItems]) => ({
+          tier,
+          items: tierItems.sort(
+            (a, b) =>
+              a.priority - b.priority ||
+              (a.directory?.name || a.title).localeCompare(b.directory?.name || b.title)
+          ),
+        }));
     };
     const needsEmailCode =
       needsUserTask?.result?.accountCreationBlocker === "waiting_for_email_verification" ||

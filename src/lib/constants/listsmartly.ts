@@ -92,12 +92,77 @@ export const NON_LISTING_DIRECTORY_SLUGS = [
   "dandb",
   "dun-bradstreet",
   "zoominfo",
+  "crunchbase",
+  "glassdoor",
+  "indeed",
+  "score-org",
+  "sba-gov",
+  "spokeo",
+  "whitepages",
 ] as const;
 
 const NON_LISTING_DIRECTORY_SLUG_SET = new Set<string>(NON_LISTING_DIRECTORY_SLUGS);
 
 export function isActiveDirectoryEntry(directory: Pick<DirectoryEntry, "slug" | "isActive">): boolean {
   return directory.isActive !== false && !NON_LISTING_DIRECTORY_SLUG_SET.has(directory.slug);
+}
+
+const CORE_LOCAL_DIRECTORY_RANK: Record<string, number> = {
+  "google-business": 0,
+  "apple-maps": 1,
+  "bing-places": 2,
+  yelp: 3,
+  bbb: 4,
+  nextdoor: 5,
+  foursquare: 6,
+  "yahoo-local": 7,
+  yellowpages: 20,
+  superpages: 21,
+  manta: 22,
+  merchantcircle: 23,
+  hotfrog: 24,
+  ezlocal: 25,
+  "local-com": 26,
+  chamberofcommerce: 27,
+  brownbook: 28,
+  showmelocal: 29,
+  "2findlocal": 30,
+  "cylex-usa": 31,
+  n49: 32,
+  finduslocal: 33,
+  elocal: 34,
+  localbusinessdirectory: 35,
+  yellowpagesonlinedirectory: 36,
+  yourbizlocal: 37,
+  massconnect: 38,
+  newenglandbusiness: 39,
+  smallbizconnect: 40,
+  alignable: 80,
+  thumbtack: 90,
+  bark: 91,
+  angi: 92,
+  expertise: 93,
+  linkedin: 740,
+};
+
+const DIRECTORY_CATEGORY_RANK: Record<string, number> = {
+  critical: 70,
+  major_general: 120,
+  local: 180,
+  industry_specific: 240,
+  maps: 320,
+  review: 380,
+  submitted: 520,
+  social: 720,
+};
+
+export function getListSmartlyDirectoryPriority(
+  directory: Pick<DirectoryEntry, "slug" | "tier" | "category" | "isActive">
+): number {
+  if (!isActiveDirectoryEntry(directory)) return 9000;
+  const override = CORE_LOCAL_DIRECTORY_RANK[directory.slug];
+  if (override !== undefined) return override;
+  return (DIRECTORY_CATEGORY_RANK[directory.category] ?? 800) + Math.max(0, directory.tier || 0);
 }
 
 // -----------------------------------------------------------------------------
