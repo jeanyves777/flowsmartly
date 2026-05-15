@@ -308,6 +308,7 @@ export default function CreateEmailAutomationPage() {
 
   const canProceedFromPlan = useMemo(() => {
     if (!automationName.trim()) return false;
+    if (!state.selectedContactListId) return false;
     if (automationType === "HOLIDAY") {
       return selectedHolidayIds.length > 0 && calendarConfirmed;
     }
@@ -322,6 +323,7 @@ export default function CreateEmailAutomationPage() {
     eligibleBirthdayCount,
     calendarConfirmed,
     selectedHolidayIds.length,
+    state.selectedContactListId,
   ]);
 
   const canActivate = canProceedToSend && automationName.trim().length > 0 && canProceedFromPlan;
@@ -370,6 +372,12 @@ export default function CreateEmailAutomationPage() {
 
   useEffect(() => {
     if (automationType !== "BIRTHDAY") return;
+    if (!state.selectedContactListId) {
+      setBirthdayStats(null);
+      setBirthdayContacts([]);
+      setLoadingBirthdayData(false);
+      return;
+    }
 
     let cancelled = false;
     async function fetchBirthdayData() {
@@ -500,7 +508,7 @@ export default function CreateEmailAutomationPage() {
     (prompt: string) => {
       const listContext = selectedList
         ? `${selectedList.name} (${selectedList.activeCount || selectedList.totalCount} active contacts)`
-        : "all active contacts";
+        : "no contact list selected";
       const selectedHolidayNames = selectedHolidays.map((holiday) => holiday.name).join(", ");
 
       const contextLines = [
@@ -691,7 +699,7 @@ export default function CreateEmailAutomationPage() {
         logoSize: state.logoSize,
       },
       preheader: state.preheader,
-      audienceName: selectedList?.name || "All active contacts",
+      audienceName: selectedList?.name || "No contact list selected",
     };
 
     if (automationType === "BIRTHDAY") {
@@ -746,6 +754,9 @@ export default function CreateEmailAutomationPage() {
 
     setIsCreating(true);
     try {
+      if (!state.selectedContactListId) {
+        throw new Error("Select a contact list before creating this automation");
+      }
       const contentHtml = renderEmailHtml(state.sections, state.brandKit || undefined, {
         showLogo: state.showLogo,
         showBrandName: state.showBrandName,
@@ -898,21 +909,21 @@ export default function CreateEmailAutomationPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Audience List</Label>
+                    <Label>Contact List *</Label>
                     {loadingLists ? (
                       <Skeleton className="h-10 w-full" />
                     ) : (
                       <Select
-                        value={state.selectedContactListId || "all"}
+                        value={state.selectedContactListId || undefined}
                         onValueChange={(value) =>
-                          dispatch({ type: "SET_CONTACT_LIST", id: value === "all" ? "" : value })
+                          dispatch({ type: "SET_CONTACT_LIST", id: value })
                         }
+                        disabled={contactLists.length === 0}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose audience" />
+                          <SelectValue placeholder="Select a contact list" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All active contacts</SelectItem>
                           {contactLists.map((list) => (
                             <SelectItem key={list.id} value={list.id}>
                               {list.name} ({list.activeCount || list.totalCount} active)
@@ -921,6 +932,11 @@ export default function CreateEmailAutomationPage() {
                         </SelectContent>
                       </Select>
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      {contactLists.length === 0 && !loadingLists
+                        ? "Create a contact list first, then return to automate it."
+                        : "Select the saved contact list this automation should use."}
+                    </p>
                   </div>
                 </div>
 
@@ -1165,7 +1181,7 @@ export default function CreateEmailAutomationPage() {
                           Showing contacts with birthday dates, valid email, and email opt-in.
                         </p>
                       </div>
-                      <Badge variant="outline">{selectedList?.name || "All contacts"}</Badge>
+                      <Badge variant="outline">{selectedList?.name || "Select a list"}</Badge>
                     </div>
                     <div className="divide-y">
                       {birthdayContacts.length === 0 ? (
@@ -1221,7 +1237,7 @@ export default function CreateEmailAutomationPage() {
                         <span className="font-medium text-foreground">
                           {eligibleBirthdayCount} contacts with birthday dates, valid email, and email opt-in
                         </span>{" "}
-                        from {selectedList?.name || "all active contacts"}.
+                        from {selectedList?.name || "the selected contact list"}.
                       </p>
                     </div>
                   </div>
@@ -1304,7 +1320,7 @@ export default function CreateEmailAutomationPage() {
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Audience</span>
-                  <span className="text-right font-medium">{selectedList?.name || "All active contacts"}</span>
+                  <span className="text-right font-medium">{selectedList?.name || "No list selected"}</span>
                 </div>
                 {automationType === "HOLIDAY" && (
                   <div className="flex items-center justify-between gap-3">
@@ -1456,11 +1472,11 @@ export default function CreateEmailAutomationPage() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-lg border p-4">
                     <p className="text-xs text-muted-foreground">Contact list</p>
-                    <p className="mt-1 font-semibold">{selectedList?.name || "All active contacts"}</p>
+                    <p className="mt-1 font-semibold">{selectedList?.name || "No list selected"}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {selectedList
                         ? `${selectedList.activeCount || selectedList.totalCount} active contacts`
-                        : "Every active contact that matches the trigger."}
+                        : "Choose a contact list in the planner before activating."}
                     </p>
                   </div>
                   <div className="rounded-lg border p-4">
