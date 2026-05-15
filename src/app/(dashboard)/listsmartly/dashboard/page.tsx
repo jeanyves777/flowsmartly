@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, type MouseEvent } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { BarChart3, Globe, AlertTriangle, Star, Search, RefreshCw, ChevronLeft, ChevronRight, Check, Clock, MessageSquare, Sparkles, Zap, TrendingUp, ExternalLink, Settings, Activity, ThumbsUp, ThumbsDown, Minus, Play, ClipboardCheck, KeyRound, Bell, CheckCircle2, ShieldCheck, Inbox, PauseCircle, Monitor, MousePointer2, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -205,6 +205,15 @@ interface LiveBrowserView {
   lastHumanActionAt?: string;
   reason?: string;
 }
+
+type LiveBrowserControlOptions = {
+  background?: boolean;
+  refreshState?: boolean;
+  suppressToast?: boolean;
+  timeoutMs?: number;
+};
+
+type LiveBrowserPoint = { x: number; y: number };
 
 // ── Constants ──
 
@@ -414,6 +423,13 @@ export default function ListSmartlyDashboardPage() {
   const [liveControlText, setLiveControlText] = useState("");
   const [liveControlLoading, setLiveControlLoading] = useState(false);
   const liveBrowserRef = useRef<HTMLImageElement | null>(null);
+  const livePointerDraggingRef = useRef(false);
+  const livePointerIdRef = useRef<number | null>(null);
+  const liveMoveTimerRef = useRef<number | null>(null);
+  const liveMoveSentAtRef = useRef(0);
+  const liveMoveInFlightRef = useRef(false);
+  const livePendingMoveRef = useRef<(LiveBrowserPoint & { taskId: string }) | null>(null);
+  const livePointerCommandRef = useRef<Promise<void>>(Promise.resolve());
 
   const LIMIT = 250;
   const totalPages = Math.max(1, Math.ceil(listingsTotal / LIMIT));
@@ -572,14 +588,20 @@ export default function ListSmartlyDashboardPage() {
     }
   }, []);
 
-  const sendLiveBrowserControl = useCallback(async (taskId: string | null | undefined, control: Record<string, unknown>) => {
-    if (!taskId || liveControlLoading) return;
-    setLiveControlLoading(true);
+  const sendLiveBrowserControl = useCallback(async (
+    taskId: string | null | undefined,
+    control: Record<string, unknown>,
+    options: LiveBrowserControlOptions = {}
+  ) => {
     const action = String(control.action || "");
+    const pointerAction = action === "move" || action === "mouse_down" || action === "mouse_up";
+    const background = options.background ?? pointerAction;
+    if (!taskId || (!background && liveControlLoading)) return;
+    if (!background) setLiveControlLoading(true);
     const controller = new AbortController();
     const timeout = window.setTimeout(
       () => controller.abort(),
-      action === "press_hold" ? 40000 : 12000
+      options.timeoutMs || (action === "press_hold" ? 40000 : pointerAction ? 8000 : 12000)
     );
     try {
       const res = await fetch("/api/listsmartly/autopilot/browser", {
@@ -590,9 +612,23 @@ export default function ListSmartlyDashboardPage() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error?.message || "Failed to control live browser");
-      setLiveBrowserView(json.data as LiveBrowserView);
+      const nextView = json?.data as LiveBrowserView | undefined;
+      if (nextView) {
+        setLiveBrowserView((current) =>
+          nextView.active
+            ? {
+                ...(current || {}),
+                ...nextView,
+                image: nextView.image || current?.image,
+                contentType: nextView.contentType || current?.contentType,
+              }
+            : nextView
+        );
+      }
       setLiveBrowserError(null);
-      void fetchAutopilotSettings(true);
+      if (options.refreshState ?? (!pointerAction || action === "mouse_up")) {
+        void fetchAutopilotSettings(true);
+      }
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
@@ -600,11 +636,13 @@ export default function ListSmartlyDashboardPage() {
           : error instanceof Error
             ? error.message
             : "Failed to control live browser";
-      setLiveBrowserError(message);
-      toast({ title: "Live browser control failed", description: message, variant: "destructive" });
+      if (!options.suppressToast) {
+        setLiveBrowserError(message);
+        toast({ title: "Live browser control failed", description: message, variant: "destructive" });
+      }
     } finally {
       window.clearTimeout(timeout);
-      setLiveControlLoading(false);
+      if (!background) setLiveControlLoading(false);
     }
   }, [fetchAutopilotSettings, liveControlLoading, toast]);
 
@@ -695,6 +733,21 @@ export default function ListSmartlyDashboardPage() {
       source.close();
     };
   }, [activeTab, liveBrowserTaskId, fetchLiveBrowser]);
+
+  useEffect(() => {
+    const clearLivePointerState = () => {
+      livePointerDraggingRef.current = false;
+      livePointerIdRef.current = null;
+      livePendingMoveRef.current = null;
+      livePointerCommandRef.current = Promise.resolve();
+      if (liveMoveTimerRef.current) {
+        window.clearTimeout(liveMoveTimerRef.current);
+        liveMoveTimerRef.current = null;
+      }
+    };
+    clearLivePointerState();
+    return clearLivePointerState;
+  }, [liveBrowserTaskId]);
 
   // ── Actions ──
 
@@ -818,13 +871,125 @@ export default function ListSmartlyDashboardPage() {
     setCredentialDraft(null);
   }
 
-  function handleLiveBrowserClick(event: MouseEvent<HTMLImageElement>, taskId: string) {
+  function getLiveBrowserPoint(event: PointerEvent<HTMLImageElement>): LiveBrowserPoint | null {
     const view = liveBrowserView;
-    if (!view?.active || !view.viewport) return;
+    if (!view?.active || !view.viewport) return null;
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * view.viewport.width;
-    const y = ((event.clientY - rect.top) / rect.height) * view.viewport.height;
-    void sendLiveBrowserControl(taskId, { action: "click", x, y });
+    if (!rect.width || !rect.height) return null;
+    const x = Math.max(0, Math.min(view.viewport.width, ((event.clientX - rect.left) / rect.width) * view.viewport.width));
+    const y = Math.max(0, Math.min(view.viewport.height, ((event.clientY - rect.top) / rect.height) * view.viewport.height));
+    return { x, y };
+  }
+
+  function enqueueLiveBrowserPointerControl(
+    taskId: string,
+    control: Record<string, unknown>,
+    options: LiveBrowserControlOptions
+  ) {
+    const command = livePointerCommandRef.current
+      .catch(() => undefined)
+      .then(() => sendLiveBrowserControl(taskId, control, options));
+    livePointerCommandRef.current = command;
+    return command;
+  }
+
+  function flushLiveBrowserMove() {
+    if (liveMoveInFlightRef.current) return;
+    const pending = livePendingMoveRef.current;
+    if (!pending) return;
+    livePendingMoveRef.current = null;
+    liveMoveInFlightRef.current = true;
+    liveMoveSentAtRef.current = Date.now();
+    void enqueueLiveBrowserPointerControl(
+      pending.taskId,
+      { action: "move", x: pending.x, y: pending.y },
+      { background: true, refreshState: false, suppressToast: true, timeoutMs: 5000 }
+    ).finally(() => {
+      liveMoveInFlightRef.current = false;
+      if (!livePendingMoveRef.current) return;
+      const minDelay = livePointerDraggingRef.current ? 45 : 140;
+      const elapsed = Date.now() - liveMoveSentAtRef.current;
+      if (elapsed >= minDelay) {
+        flushLiveBrowserMove();
+      } else if (!liveMoveTimerRef.current) {
+        liveMoveTimerRef.current = window.setTimeout(() => {
+          liveMoveTimerRef.current = null;
+          flushLiveBrowserMove();
+        }, minDelay - elapsed);
+      }
+    });
+  }
+
+  function queueLiveBrowserMove(taskId: string, point: LiveBrowserPoint, immediate = false) {
+    livePendingMoveRef.current = { taskId, ...point };
+    const minDelay = livePointerDraggingRef.current ? 45 : 140;
+    const elapsed = Date.now() - liveMoveSentAtRef.current;
+    if (immediate || elapsed >= minDelay) {
+      if (liveMoveTimerRef.current) {
+        window.clearTimeout(liveMoveTimerRef.current);
+        liveMoveTimerRef.current = null;
+      }
+      flushLiveBrowserMove();
+      return;
+    }
+    if (!liveMoveTimerRef.current) {
+      liveMoveTimerRef.current = window.setTimeout(() => {
+        liveMoveTimerRef.current = null;
+        flushLiveBrowserMove();
+      }, minDelay - elapsed);
+    }
+  }
+
+  function handleLiveBrowserPointerDown(event: PointerEvent<HTMLImageElement>, taskId: string) {
+    if (event.button !== 0) return;
+    const point = getLiveBrowserPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    livePointerDraggingRef.current = true;
+    livePointerIdRef.current = event.pointerId;
+    livePendingMoveRef.current = null;
+    if (liveMoveTimerRef.current) {
+      window.clearTimeout(liveMoveTimerRef.current);
+      liveMoveTimerRef.current = null;
+    }
+    void enqueueLiveBrowserPointerControl(
+      taskId,
+      { action: "mouse_down", x: point.x, y: point.y },
+      { background: true, refreshState: false, suppressToast: true, timeoutMs: 8000 }
+    );
+  }
+
+  function handleLiveBrowserPointerMove(event: PointerEvent<HTMLImageElement>, taskId: string) {
+    const point = getLiveBrowserPoint(event);
+    if (!point) return;
+    if (livePointerDraggingRef.current) event.preventDefault();
+    queueLiveBrowserMove(taskId, point);
+  }
+
+  function finishLiveBrowserPointer(event: PointerEvent<HTMLImageElement>, taskId: string) {
+    if (livePointerIdRef.current !== null && livePointerIdRef.current !== event.pointerId) return;
+    const point = getLiveBrowserPoint(event) || livePendingMoveRef.current;
+    const wasDragging = livePointerDraggingRef.current;
+    livePointerDraggingRef.current = false;
+    livePointerIdRef.current = null;
+    livePendingMoveRef.current = null;
+    if (liveMoveTimerRef.current) {
+      window.clearTimeout(liveMoveTimerRef.current);
+      liveMoveTimerRef.current = null;
+    }
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture may already be released by the browser.
+    }
+    if (!wasDragging || !point) return;
+    event.preventDefault();
+    void enqueueLiveBrowserPointerControl(
+      taskId,
+      { action: "mouse_up", x: point.x, y: point.y },
+      { background: true, refreshState: true, suppressToast: false, timeoutMs: 12000 }
+    );
   }
 
   function typeIntoLiveBrowser(taskId: string) {
@@ -1781,8 +1946,11 @@ export default function ListSmartlyDashboardPage() {
                         src={liveBrowserSrc}
                         alt="Live agent browser"
                         draggable={false}
-                        onClick={(event) => handleLiveBrowserClick(event, supervisedTask.id)}
-                        className="block w-full select-none cursor-crosshair"
+                        onPointerDown={(event) => handleLiveBrowserPointerDown(event, supervisedTask.id)}
+                        onPointerMove={(event) => handleLiveBrowserPointerMove(event, supervisedTask.id)}
+                        onPointerUp={(event) => finishLiveBrowserPointer(event, supervisedTask.id)}
+                        onPointerCancel={(event) => finishLiveBrowserPointer(event, supervisedTask.id)}
+                        className="block w-full touch-none select-none cursor-crosshair"
                         style={{ aspectRatio: `${liveBrowserViewport.width} / ${liveBrowserViewport.height}` }}
                       />
                       {liveBrowserView?.cursor && (
@@ -1800,7 +1968,7 @@ export default function ListSmartlyDashboardPage() {
                         <div className="absolute inset-0 flex items-center justify-center bg-background/35">
                           <Badge variant="secondary" className="gap-2">
                             <AISpinner className="h-3.5 w-3.5 animate-spin" />
-                            Sending control
+                            Sending command
                           </Badge>
                         </div>
                       )}

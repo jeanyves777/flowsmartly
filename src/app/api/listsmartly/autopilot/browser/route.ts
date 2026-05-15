@@ -37,6 +37,13 @@ function normalizeControl(body: Record<string, unknown>): ListSmartlyAgentBrowse
       y: Number(body.y || 0),
     };
   }
+  if (action === "move") {
+    return {
+      action,
+      x: Number(body.x || 0),
+      y: Number(body.y || 0),
+    };
+  }
   if (action === "mouse_down") {
     return {
       action,
@@ -192,7 +199,7 @@ export async function POST(request: NextRequest) {
     }
 
     const view = await controlListSmartlyAgentBrowser(taskId, control);
-    if (control.action !== "mouse_down") {
+    if (control.action !== "mouse_down" && control.action !== "move") {
       const resume = await resumeAutopilotTaskAfterBrowserControl(session.userId, taskId).catch((error) => {
         console.error("Resume ListSmartly agent after browser control error:", error);
         return null;

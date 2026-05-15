@@ -88,6 +88,7 @@ export type ListSmartlyAgentBrowserView = {
 
 export type ListSmartlyAgentBrowserControl =
   | { action: "click"; x: number; y: number }
+  | { action: "move"; x: number; y: number }
   | { action: "mouse_down"; x: number; y: number }
   | { action: "mouse_up"; x?: number; y?: number }
   | { action: "press_hold"; x?: number; y?: number; durationMs?: number }
@@ -186,6 +187,22 @@ export async function getListSmartlyAgentBrowserView(workflowId?: string | null)
   };
 }
 
+async function getListSmartlyAgentBrowserMeta(session: ActiveAgentSession): Promise<ListSmartlyAgentBrowserView> {
+  const viewport = session.page.viewport?.() || { width: 1365, height: 900 };
+  return {
+    active: true,
+    url: session.page.url?.() || "",
+    title: await session.page.title?.().catch(() => "") || "",
+    viewport: { width: viewport.width || 1365, height: viewport.height || 900 },
+    expiresAt: new Date(session.expiresAt).toISOString(),
+    directoryName: session.directoryName,
+    cursor: session.remoteCursor
+      ? { x: session.remoteCursor.x, y: session.remoteCursor.y, at: new Date(session.remoteCursor.at).toISOString() }
+      : undefined,
+    lastHumanActionAt: session.lastHumanActionAt ? new Date(session.lastHumanActionAt).toISOString() : undefined,
+  };
+}
+
 export async function getListSmartlyAgentBrowserStatus(workflowId?: string | null): Promise<
   | {
       active: true;
@@ -254,6 +271,11 @@ export async function controlListSmartlyAgentBrowser(
     await session.page.mouse.move(x, y);
     await session.page.mouse.click(x, y);
     session.remoteCursor = { x, y, at: Date.now() };
+  } else if (control.action === "move") {
+    const { x, y } = clampPoint(control.x, control.y);
+    await session.page.mouse.move(x, y);
+    session.remoteCursor = { x, y, at: Date.now() };
+    settleMs = 0;
   } else if (control.action === "mouse_down") {
     const { x, y } = clampPoint(control.x, control.y);
     await session.page.mouse.move(x, y);
@@ -314,6 +336,9 @@ export async function controlListSmartlyAgentBrowser(
 
   session.lastHumanActionAt = Date.now();
   if (settleMs > 0) await settle(session.page, settleMs);
+  if (control.action === "move" || control.action === "mouse_down") {
+    return getListSmartlyAgentBrowserMeta(session);
+  }
   return getListSmartlyAgentBrowserView(workflowId);
 }
 
