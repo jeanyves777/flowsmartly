@@ -36,6 +36,8 @@ export interface CampaignResponse {
   clicked: number;
   bounced: number;
   unsubscribed: number;
+  messageLength?: number;
+  segments?: number;
   /** Percentage 0-100 computed from sent/open. */
   openRate: number;
   /** Percentage 0-100 computed from open/click. */

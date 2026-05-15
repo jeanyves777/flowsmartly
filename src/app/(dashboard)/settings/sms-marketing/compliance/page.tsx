@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Shield, CheckCircle2, Clock, AlertTriangle, XCircle, ArrowLeft, ChevronRight, ChevronLeft, Plus, Trash2, ExternalLink, Globe, FileText, MessageSquare, Send, Check, Info } from "lucide-react";
+import { Shield, CheckCircle2, Clock, AlertTriangle, XCircle, ArrowLeft, ChevronRight, ChevronLeft, Plus, Trash2, ExternalLink, Globe, FileText, MessageSquare, Send, Check, Info, Sparkles, Wand2, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -129,6 +129,8 @@ export default function SmsCompliancePage() {
 
   // Track whether fields were auto-filled from brand identity
   const [brandPrefilled, setBrandPrefilled] = useState(false);
+  const [isAssisting, setIsAssisting] = useState(false);
+  const [assistantChecklist, setAssistantChecklist] = useState<string[]>([]);
 
   // ------------------------------------------------------------------
   // Fetch current compliance status + brand identity
@@ -266,7 +268,7 @@ export default function SmsCompliancePage() {
       case "business":
         return businessName.trim().length > 0 && isValidUrl(businessWebsite) && businessStreetAddress.trim().length > 0 && businessCity.trim().length > 0 && businessStateProvinceRegion.trim().length > 0 && businessPostalCode.trim().length > 0;
       case "privacy":
-        return isValidUrl(privacyPolicyUrl) && smsOptInImageUrl.length > 0;
+        return isValidUrl(privacyPolicyUrl) && isValidUrl(termsOfServiceUrl) && smsOptInImageUrl.length > 0;
       case "usecase":
         return useCase.length > 0 && useCaseDescription.trim().length >= 50;
       case "samples": {
@@ -309,6 +311,56 @@ export default function SmsCompliancePage() {
   const removeSampleMessage = (index: number) => {
     if (sampleMessages.length > 2) {
       setSampleMessages(sampleMessages.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleAiAssist = async () => {
+    if (!businessName.trim()) {
+      toast({ title: "Add your business name first", variant: "destructive" });
+      setCurrentStep("business");
+      return;
+    }
+
+    setIsAssisting(true);
+    try {
+      const response = await fetch("/api/sms/compliance/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: businessName.trim(),
+          businessWebsite: businessWebsite.trim(),
+          smsUseCase: useCase || "marketing",
+          smsUseCaseDescription: useCaseDescription.trim(),
+        }),
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error?.message || "Failed to draft compliance content");
+      }
+
+      const draft = data.data;
+      if (!useCase) setUseCase("marketing");
+      if (draft.useCaseDescription) setUseCaseDescription(draft.useCaseDescription);
+      if (Array.isArray(draft.sampleMessages) && draft.sampleMessages.length >= 2) {
+        setSampleMessages(draft.sampleMessages.slice(0, 5));
+      }
+      if (Array.isArray(draft.optInChecklist)) {
+        setAssistantChecklist(draft.optInChecklist);
+      }
+
+      toast({
+        title: "AI draft ready",
+        description: draft.creditsUsed ? `Used ${draft.creditsUsed} credits.` : "Review the draft before submitting.",
+      });
+      setCurrentStep("usecase");
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : "Failed to draft compliance content",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssisting(false);
     }
   };
 
@@ -393,7 +445,7 @@ export default function SmsCompliancePage() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6 max-w-4xl mx-auto pb-8"
+      className="flex-1 flex flex-col space-y-6 p-6 w-full max-w-7xl mx-auto pb-8"
     >
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -414,6 +466,47 @@ export default function SmsCompliancePage() {
           </p>
         </div>
       </div>
+
+      <Card className="border-brand-500/20 bg-brand-500/5 shadow-none">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-lg bg-brand-500/15 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-brand-500" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-semibold">AI Compliance Workspace</h2>
+                  <Badge variant="outline" className="bg-background/70">SMS / MMS ready</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                  Draft carrier-friendly use-case language, compliant sample messages, and an opt-in proof checklist from your business profile.
+                </p>
+              </div>
+            </div>
+            <Button onClick={handleAiAssist} disabled={isAssisting} className="shrink-0">
+              {isAssisting ? (
+                <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Wand2 className="w-4 h-4 mr-2" />
+              )}
+              {isAssisting ? "Drafting..." : "Draft With AI"}
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3 mt-5">
+            {(assistantChecklist.length > 0 ? assistantChecklist : [
+              "Use an unchecked SMS consent checkbox near the phone field.",
+              "Show frequency, data rates, HELP, and STOP disclosures.",
+              "Keep privacy policy and terms links visible at opt-in.",
+            ]).slice(0, 3).map((item) => (
+              <div key={item} className="flex items-start gap-2 rounded-lg border bg-background/70 p-3 text-sm">
+                <ListChecks className="w-4 h-4 text-brand-500 mt-0.5 shrink-0" />
+                <span className="text-muted-foreground">{item}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ---------------------------------------------------------------- */}
       {/* Status Banner                                                     */}
@@ -731,7 +824,7 @@ export default function SmsCompliancePage() {
                         Privacy & Terms
                       </CardTitle>
                       <CardDescription>
-                        Links to your privacy policy and terms of service
+                        Public policy links and proof of how subscribers opt in
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -789,7 +882,7 @@ export default function SmsCompliancePage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="termsOfService">Terms of Service URL (optional)</Label>
+                        <Label htmlFor="termsOfService">Terms of Service URL *</Label>
                         <div className="flex gap-2">
                           <Input
                             id="termsOfService"
@@ -836,6 +929,9 @@ export default function SmsCompliancePage() {
                             Could not reach this URL. Make sure it is publicly accessible.
                           </p>
                         )}
+                        <p className="text-xs text-muted-foreground">
+                          Carrier review expects SMS terms to be public and aligned with your opt-in flow
+                        </p>
                       </div>
 
                       {/* Opt-In Screenshot Upload */}
@@ -867,7 +963,8 @@ export default function SmsCompliancePage() {
                               <li>How SMS data is used and stored</li>
                               <li>Third-party data sharing disclosures</li>
                               <li>Opt-out instructions for subscribers</li>
-                              <li>Screenshot of your SMS opt-in form (required for toll-free verification)</li>
+                              <li>Terms of service linked beside the opt-in action</li>
+                              <li>Screenshot of your SMS opt-in form with disclosure text visible</li>
                             </ul>
                           </div>
                         </div>
@@ -997,7 +1094,7 @@ export default function SmsCompliancePage() {
                           <Textarea
                             placeholder={
                               index === 0
-                                ? "e.g., Hi {{firstName}}, don't miss our exclusive 20% off sale this weekend! Shop now at example.com/sale. Reply STOP to unsubscribe."
+                                ? "e.g., {{businessName}}: Hi {{firstName}}, don't miss our exclusive 20% off sale this weekend. Shop now at example.com/sale. Reply STOP to unsubscribe."
                                 : index === 1
                                 ? "e.g., {{businessName}}: Your order #{{orderId}} has shipped! Track it here: example.com/track. Reply STOP to opt out."
                                 : "Enter another sample message..."

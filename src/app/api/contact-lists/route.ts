@@ -34,11 +34,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const formattedLists = lists.map(list => ({
+    const smsEligibleCounts = await Promise.all(
+      lists.map((list) =>
+        prisma.contactListMember.count({
+          where: {
+            contactListId: list.id,
+            contact: {
+              status: "ACTIVE",
+              smsOptedIn: true,
+              phone: { not: null },
+            },
+          },
+        })
+      )
+    );
+
+    const formattedLists = lists.map((list, index) => ({
       id: list.id,
       name: list.name,
       totalCount: list.totalCount,
       activeCount: list.activeCount,
+      smsEligibleCount: smsEligibleCounts[index] || 0,
       contactCount: list._count.contacts,
       campaignCount: list._count.campaigns,
       createdAt: list.createdAt.toISOString(),

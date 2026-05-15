@@ -9,6 +9,7 @@ import type {
   CreateCampaignResponse,
 } from "@/api/contracts/campaigns";
 import type { ApiResponse } from "@/api/contracts/common";
+import { getSmsReadiness } from "@/lib/sms/readiness";
 
 const VALID_CAMPAIGN_TYPES = new Set(["EMAIL", "SMS"]);
 const VALID_CAMPAIGN_STATUSES = new Set([
@@ -147,6 +148,8 @@ export async function GET(request: NextRequest) {
       clicked: campaign.clickCount,
       bounced: campaign.bounceCount,
       unsubscribed: campaign.unsubCount,
+      messageLength: campaign.type === "SMS" ? campaign.content.length : undefined,
+      segments: campaign.type === "SMS" ? Math.max(1, Math.ceil(campaign.content.length / 160)) : undefined,
       openRate:
         campaign.sentCount > 0
           ? Math.round((campaign.openCount / campaign.sentCount) * 100)
@@ -246,30 +249,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Block SMS campaign creation when toll-free verification is not approved
+    // Block SMS campaign creation until compliance, number, and carrier registration are complete.
     if (normalizedType === "SMS") {
-      const smsConfig = await prisma.marketingConfig.findUnique({
-        where: { userId: session.userId },
-        select: {
-          smsEnabled: true,
-          smsPhoneNumber: true,
-          smsTollfreeVerifyStatus: true,
-        },
-      });
-
-      if (!smsConfig?.smsEnabled || !smsConfig.smsPhoneNumber) {
+      const readiness = await getSmsReadiness(session.userId);
+      if (!readiness.ready) {
         return NextResponse.json(
-          { success: false, error: { message: "SMS is not configured. Rent a phone number first." } },
-          { status: 400 }
-        );
-      }
-
-      if (smsConfig.smsTollfreeVerifyStatus && smsConfig.smsTollfreeVerifyStatus !== "TWILIO_APPROVED") {
-        const msg = smsConfig.smsTollfreeVerifyStatus === "TWILIO_REJECTED"
-          ? "Your toll-free number verification was rejected. You cannot create SMS campaigns until this is resolved."
-          : "Your toll-free number is still under carrier review. You can create SMS campaigns once verification is approved (typically 1-5 business days).";
-        return NextResponse.json(
-          { success: false, error: { message: msg } },
+          { success: false, error: { message: readiness.reason || "SMS setup must be completed before creating campaigns." } },
           { status: 403 }
         );
       }

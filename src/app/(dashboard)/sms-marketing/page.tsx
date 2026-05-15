@@ -22,6 +22,9 @@ import {
   Eye,
   Zap,
   XCircle,
+  ShieldCheck,
+  Sparkles,
+  Image,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -171,7 +174,9 @@ export default function SmsMarketingPage() {
         const phone = numData?.data?.phoneNumber as string | undefined;
         if (!phone) return;
 
-        const complianceOk = compData?.data?.status === "APPROVED";
+        const complianceOk =
+          compData?.data?.status === "APPROVED" &&
+          !!compData?.data?.compliance?.smsOptInImageUrl;
         const isTollFree = /^\+1(800|833|844|855|866|877|888)/.test(phone);
         const regOk = isTollFree
           ? (tfData?.data?.status === "TWILIO_APPROVED" || tfData?.data?.status === "APPROVED")
@@ -286,6 +291,9 @@ export default function SmsMarketingPage() {
             </div>
             SMS Marketing
           </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Create AI-assisted SMS and MMS campaigns for opted-in contacts.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
@@ -325,7 +333,7 @@ export default function SmsMarketingPage() {
             Complete your SMS setup to start sending campaigns.
           </p>
           <Button size="sm" variant="outline" className="mt-2" asChild>
-            <Link href="/settings?tab=sms">Go to SMS Settings</Link>
+            <Link href="/settings/sms-marketing">Go to SMS Settings</Link>
           </Button>
         </div>
       )}
@@ -339,6 +347,40 @@ export default function SmsMarketingPage() {
 
       {/* Number Registration Status Banner */}
       <NumberStatusBanner />
+
+      <Card className="border-brand-500/20 bg-brand-500/5 shadow-none">
+        <CardContent className="p-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-brand-500/15 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-brand-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">AI campaign drafts</p>
+                <p className="text-xs text-muted-foreground">Use brand-aware prompts and templates to generate concise SMS copy.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                <Image className="w-4 h-4 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">MMS support</p>
+                <p className="text-xs text-muted-foreground">Attach generated, uploaded, or personalized contact images to campaigns.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Consent-first sending</p>
+                <p className="text-xs text-muted-foreground">Only active contacts with SMS opt-in and a phone number are eligible at send time.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

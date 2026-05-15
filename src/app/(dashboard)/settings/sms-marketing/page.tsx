@@ -108,7 +108,7 @@ export default function SmsMarketingSettingsPage() {
           smsVerified: data.data.verified,
           smsPricePerSend: data.data.pricePerSend || SMS_COST,
           smsMonthlyLimit: data.data.monthlyLimit || 10000,
-          smsSentThisMonth: 0,
+          smsSentThisMonth: data.data.sentThisMonth || 0,
           complianceStatus,
         });
         if (data.data.twilioDetails) {

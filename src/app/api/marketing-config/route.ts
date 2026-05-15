@@ -67,6 +67,10 @@ export async function GET() {
           smsMonthlyLimit: config.smsMonthlyLimit,
           smsSentThisMonth: config.smsSentThisMonth,
           smsTollfreeVerifyStatus: config.smsTollfreeVerifyStatus,
+          smsComplianceStatus: config.smsComplianceStatus,
+          smsOptInImageUrl: config.smsOptInImageUrl,
+          smsA2pBrandStatus: config.smsA2pBrandStatus,
+          smsA2pCampaignStatus: config.smsA2pCampaignStatus,
           // Defaults
           defaultFromName: config.defaultFromName,
           defaultFromEmail: config.defaultFromEmail,

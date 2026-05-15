@@ -102,7 +102,7 @@ export interface EmailGenerationRequest {
 }
 
 export interface SMSGenerationRequest {
-  templateType: string; // template library ID or legacy type
+  templateType?: string; // template library ID or legacy type
   brandContext?: BrandContext;
   tone?: ToneType;
   topic?: string;
@@ -142,7 +142,8 @@ You create concise, impactful SMS messages that drive action.
 You understand SMS character limits (160 per segment) and optimize for clarity.
 You include clear CTAs and respect the personal nature of text messaging.
 You use merge tags like {{firstName}} where appropriate.
-Messages must be under 160 characters for single segment, or clearly formatted for multi-segment.`;
+Messages must be under 160 characters for single segment, or clearly formatted for multi-segment.
+For marketing, lifecycle, or recurring messages, include the brand/program name and a clear opt-out phrase such as "Reply STOP to opt out."`;
 
 // ---------------------------------------------------------------------------
 // Resolve template info from library or legacy maps
@@ -240,7 +241,12 @@ Return ONLY valid JSON in this exact format:
 export async function generateSMSContent(request: SMSGenerationRequest): Promise<SMSGenerationResult> {
   const { templateType, brandContext, tone = "friendly", topic, productName, discount, eventName, link, customPrompt } = request;
 
-  const templateInfo = await resolveTemplateInfo(templateType, "sms");
+  const templateInfo = templateType
+    ? await resolveTemplateInfo(templateType, "sms")
+    : {
+        name: "Custom SMS/MMS campaign",
+        description: "Generate a concise customer-facing SMS/MMS marketing message",
+      };
 
   let prompt = "";
 
@@ -248,9 +254,9 @@ export async function generateSMSContent(request: SMSGenerationRequest): Promise
     prompt += `${buildBrandContext(brandContext)}\n\n`;
   }
 
-  prompt += `Generate a "${templateInfo.name}" SMS message.
+prompt += `Generate a "${templateInfo.name}" SMS message.
 
-Template Type: ${templateType}
+Template Type: ${templateType || "custom"}
 Template Purpose: ${templateInfo.description}
 Tone: ${tone}`;
 
@@ -274,6 +280,7 @@ Generate an SMS message that:
 - Fits within 160 characters if possible (single segment)
 - If longer, optimize for 320 characters max (2 segments)
 - Includes the brand name
+- Includes opt-out language such as "Reply STOP to opt out" unless the message is strictly one-time transactional
 - Respects the personal nature of SMS
 
 Return ONLY the SMS message text, nothing else. No quotes, no labels, just the message.`;
@@ -284,9 +291,12 @@ Return ONLY the SMS message text, nothing else. No quotes, no labels, just the m
     systemPrompt: SMS_SYSTEM_PROMPT,
   });
 
-  const content = response.trim();
+  let content = response.trim();
+  if (!/\bSTOP\b/i.test(content)) {
+    content = `${content.replace(/\s+$/g, "")} Reply STOP to opt out.`;
+  }
   const characterCount = content.length;
-  const segmentCount = Math.ceil(characterCount / 160);
+  const segmentCount = Math.max(1, Math.ceil(characterCount / 160));
 
   return {
     content,

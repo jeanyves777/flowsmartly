@@ -17,6 +17,7 @@ import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { compositeImageWithText } from "@/lib/media/image-compositor";
 import { uploadToS3, presignHtmlImages } from "@/lib/utils/s3-client";
 import { normalizeEmailRecipients, parseJsonStringArray } from "@/lib/email/recipients";
+import { getSmsReadiness } from "@/lib/sms/readiness";
 
 const BATCH_SIZE = 50;
 const BATCH_DELAY_MS = 1000; // 1 second between batches
@@ -112,6 +113,16 @@ export async function POST(
         { success: false, error: { message: "Invalid action. Use 'send' or 'schedule'." } },
         { status: 400 }
       );
+    }
+
+    if (campaign.type === "SMS") {
+      const scheduleSmsReadiness = await getSmsReadiness(session.userId);
+      if (!scheduleSmsReadiness.ready) {
+        return NextResponse.json(
+          { success: false, error: { message: scheduleSmsReadiness.reason || "SMS setup is not ready for scheduling campaigns." } },
+          { status: 403 }
+        );
+      }
     }
 
     if (sendAction === "schedule") {
@@ -671,6 +682,18 @@ export async function POST(
       );
     }
 
+    const smsReadiness = await getSmsReadiness(session.userId);
+    if (!smsReadiness.ready) {
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: { status: "DRAFT" },
+      });
+      return NextResponse.json(
+        { success: false, error: { message: smsReadiness.reason || "SMS setup is not ready for sending campaigns." } },
+        { status: 403 }
+      );
+    }
+
     // Check compliance status
     if (smsConfig.smsComplianceStatus !== "APPROVED") {
       await prisma.campaign.update({
@@ -687,7 +710,7 @@ export async function POST(
     }
 
     // Check toll-free verification status — must be approved before sending
-    if (smsConfig.smsTollfreeVerifyStatus && smsConfig.smsTollfreeVerifyStatus !== "TWILIO_APPROVED") {
+    if (smsConfig.smsTollfreeVerifyStatus && !["TWILIO_APPROVED", "APPROVED"].includes(smsConfig.smsTollfreeVerifyStatus)) {
       await prisma.campaign.update({
         where: { id: campaignId },
         data: { status: "DRAFT" },

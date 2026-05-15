@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
           smsVerified: true,
           smsPricePerSend: true,
           smsMonthlyLimit: true,
+          smsSentThisMonth: true,
           smsEmergencyAddressSid: true,
           businessName: true,
           businessStreetAddress: true,
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest) {
           verified: settings.smsVerified,
           pricePerSend: settings.smsPricePerSend,
           monthlyLimit: settings.smsMonthlyLimit,
+          sentThisMonth: settings.smsSentThisMonth,
           monthlyRentalCost: PHONE_NUMBER_RENTAL_COST.total,
           twilioDetails,
         },
@@ -179,12 +181,12 @@ export async function POST(request: NextRequest) {
     // Check compliance status before allowing phone rental
     const complianceCheck = await prisma.marketingConfig.findUnique({
       where: { userId: session.userId },
-      select: { smsComplianceStatus: true, smsPhoneNumber: true },
+      select: { smsComplianceStatus: true, smsOptInImageUrl: true, smsPhoneNumber: true },
     });
 
-    if (complianceCheck?.smsComplianceStatus !== "APPROVED") {
+    if (complianceCheck?.smsComplianceStatus !== "APPROVED" || !complianceCheck.smsOptInImageUrl) {
       return NextResponse.json(
-        { success: false, error: { message: "SMS compliance verification required before renting a number. Go to Settings > SMS Marketing > Compliance." } },
+        { success: false, error: { message: "SMS compliance verification and opt-in proof are required before renting a number. Go to Settings > SMS Marketing > Compliance." } },
         { status: 403 }
       );
     }

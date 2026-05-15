@@ -253,6 +253,12 @@ export async function PATCH(
           { status: 400 }
         );
       }
+      if (normalizedStatus === "SENDING" || normalizedStatus === "SENT") {
+        return NextResponse.json(
+          { success: false, error: { message: "Campaign sending status can only be changed by the send workflow" } },
+          { status: 400 }
+        );
+      }
       updateData.status = normalizedStatus;
     }
 

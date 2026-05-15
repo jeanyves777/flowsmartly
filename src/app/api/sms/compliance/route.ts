@@ -65,7 +65,7 @@ export async function GET() {
           termsOfServiceUrl: config.termsOfServiceUrl,
           smsUseCase: config.smsUseCase,
           smsUseCaseDescription: config.smsUseCaseDescription,
-          smsMessageSamples: JSON.parse(config.smsMessageSamples || "[]"),
+          smsMessageSamples: parseSampleMessages(config.smsMessageSamples),
           complianceSubmittedAt: config.complianceSubmittedAt?.toISOString() ?? null,
           complianceReviewedAt: config.complianceReviewedAt?.toISOString() ?? null,
           complianceNotes: config.complianceNotes,
@@ -85,16 +85,30 @@ export async function GET() {
 
 const SUPERADMIN_EMAIL = "admin@flowsmartly.com";
 
+function parseSampleMessages(value: string | null): string[] {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 // Shared validation logic for POST and PATCH
 function validateComplianceBody(body: Record<string, unknown>, skipUrlValidation = false): { valid: boolean; error?: string } {
   const {
     businessName,
     businessWebsite,
+    businessStreetAddress,
+    businessCity,
+    businessStateProvinceRegion,
+    businessPostalCode,
     privacyPolicyUrl,
     smsUseCase,
     smsUseCaseDescription,
     smsMessageSamples,
     termsOfServiceUrl,
+    smsOptInImageUrl,
   } = body;
 
   // Required fields
@@ -107,11 +121,32 @@ function validateComplianceBody(body: Record<string, unknown>, skipUrlValidation
   if (!privacyPolicyUrl || typeof privacyPolicyUrl !== "string" || privacyPolicyUrl.trim().length === 0) {
     return { valid: false, error: "Privacy policy URL is required" };
   }
+  if (!termsOfServiceUrl || typeof termsOfServiceUrl !== "string" || termsOfServiceUrl.trim().length === 0) {
+    return { valid: false, error: "Terms of service URL is required" };
+  }
+  if (!businessStreetAddress || typeof businessStreetAddress !== "string" || businessStreetAddress.trim().length === 0) {
+    return { valid: false, error: "Business street address is required" };
+  }
+  if (!businessCity || typeof businessCity !== "string" || businessCity.trim().length === 0) {
+    return { valid: false, error: "Business city is required" };
+  }
+  if (!businessStateProvinceRegion || typeof businessStateProvinceRegion !== "string" || businessStateProvinceRegion.trim().length === 0) {
+    return { valid: false, error: "Business state or province is required" };
+  }
+  if (!businessPostalCode || typeof businessPostalCode !== "string" || businessPostalCode.trim().length === 0) {
+    return { valid: false, error: "Business postal code is required" };
+  }
   if (!smsUseCase || typeof smsUseCase !== "string" || smsUseCase.trim().length === 0) {
     return { valid: false, error: "SMS use case is required" };
   }
   if (!smsUseCaseDescription || typeof smsUseCaseDescription !== "string" || smsUseCaseDescription.trim().length === 0) {
     return { valid: false, error: "SMS use case description is required" };
+  }
+  if (typeof smsUseCaseDescription === "string" && smsUseCaseDescription.trim().length < 50) {
+    return { valid: false, error: "SMS use case description must be at least 50 characters" };
+  }
+  if (!smsOptInImageUrl || typeof smsOptInImageUrl !== "string" || smsOptInImageUrl.trim().length === 0) {
+    return { valid: false, error: "SMS opt-in screenshot is required" };
   }
 
   // Validate URLs (skip for superadmin testing)
@@ -122,15 +157,16 @@ function validateComplianceBody(body: Record<string, unknown>, skipUrlValidation
     if (!isValidUrl(privacyPolicyUrl as string)) {
       return { valid: false, error: "Privacy policy URL must be a valid URL" };
     }
-    if (termsOfServiceUrl && typeof termsOfServiceUrl === "string" && termsOfServiceUrl.trim().length > 0) {
-      if (!isValidUrl(termsOfServiceUrl)) {
-        return { valid: false, error: "Terms of service URL must be a valid URL" };
-      }
+    if (!isValidUrl(termsOfServiceUrl as string)) {
+      return { valid: false, error: "Terms of service URL must be a valid URL" };
+    }
+    if (!isValidUrl(smsOptInImageUrl as string)) {
+      return { valid: false, error: "SMS opt-in screenshot must be a valid public image URL" };
     }
   }
 
   // Validate sample messages
-  const samplesResult = validateSampleMessages(smsMessageSamples);
+  const samplesResult = validateSampleMessages(smsMessageSamples, { businessName: businessName as string });
   if (!samplesResult.valid) {
     return { valid: false, error: samplesResult.error };
   }
@@ -187,6 +223,9 @@ export async function POST(request: NextRequest) {
       smsMessageSamples,
       smsOptInImageUrl,
     } = body;
+    const normalizedSamples = Array.isArray(smsMessageSamples)
+      ? smsMessageSamples.map((sample) => typeof sample === "string" ? sample.trim() : "").filter(Boolean)
+      : [];
 
     // Superadmin bypass for URL validation
     const isSuperAdmin = session.user.email === SUPERADMIN_EMAIL;
@@ -221,7 +260,7 @@ export async function POST(request: NextRequest) {
         termsOfServiceUrl: termsOfServiceUrl?.trim() || null,
         smsUseCase: smsUseCase.trim(),
         smsUseCaseDescription: smsUseCaseDescription.trim(),
-        smsMessageSamples: JSON.stringify(smsMessageSamples),
+        smsMessageSamples: JSON.stringify(normalizedSamples),
         smsOptInImageUrl: smsOptInImageUrl?.trim() || null,
         smsComplianceStatus: "PENDING_REVIEW",
         complianceSubmittedAt: new Date(),
@@ -238,7 +277,7 @@ export async function POST(request: NextRequest) {
         termsOfServiceUrl: termsOfServiceUrl?.trim() || null,
         smsUseCase: smsUseCase.trim(),
         smsUseCaseDescription: smsUseCaseDescription.trim(),
-        smsMessageSamples: JSON.stringify(smsMessageSamples),
+        smsMessageSamples: JSON.stringify(normalizedSamples),
         smsOptInImageUrl: smsOptInImageUrl?.trim() || null,
         smsComplianceStatus: "PENDING_REVIEW",
         complianceSubmittedAt: new Date(),
@@ -321,6 +360,9 @@ export async function PATCH(request: NextRequest) {
       smsMessageSamples,
       smsOptInImageUrl,
     } = body;
+    const normalizedSamples = Array.isArray(smsMessageSamples)
+      ? smsMessageSamples.map((sample) => typeof sample === "string" ? sample.trim() : "").filter(Boolean)
+      : [];
 
     // Superadmin bypass for URL validation
     const isSuperAdmin = session.user.email === SUPERADMIN_EMAIL;
@@ -355,7 +397,7 @@ export async function PATCH(request: NextRequest) {
         termsOfServiceUrl: termsOfServiceUrl?.trim() || null,
         smsUseCase: smsUseCase.trim(),
         smsUseCaseDescription: smsUseCaseDescription.trim(),
-        smsMessageSamples: JSON.stringify(smsMessageSamples),
+        smsMessageSamples: JSON.stringify(normalizedSamples),
         smsOptInImageUrl: smsOptInImageUrl?.trim() || null,
         smsComplianceStatus: "PENDING_REVIEW",
         complianceSubmittedAt: new Date(),
@@ -372,7 +414,7 @@ export async function PATCH(request: NextRequest) {
         termsOfServiceUrl: termsOfServiceUrl?.trim() || null,
         smsUseCase: smsUseCase.trim(),
         smsUseCaseDescription: smsUseCaseDescription.trim(),
-        smsMessageSamples: JSON.stringify(smsMessageSamples),
+        smsMessageSamples: JSON.stringify(normalizedSamples),
         smsOptInImageUrl: smsOptInImageUrl?.trim() || null,
         smsComplianceStatus: "PENDING_REVIEW",
         complianceSubmittedAt: new Date(),

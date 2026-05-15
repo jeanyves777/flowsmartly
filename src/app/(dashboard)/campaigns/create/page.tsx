@@ -41,6 +41,10 @@ interface MarketingConfig {
   smsPhoneNumber: string | null;
   smsVerified: boolean;
   smsTollfreeVerifyStatus: string | null;
+  smsComplianceStatus?: string | null;
+  smsOptInImageUrl?: string | null;
+  smsA2pBrandStatus?: string | null;
+  smsA2pCampaignStatus?: string | null;
 }
 
 // Email templates
@@ -88,6 +92,7 @@ interface ContactList {
   name: string;
   totalCount: number;
   activeCount: number;
+  smsEligibleCount?: number;
 }
 
 interface GeneratedContent {
@@ -256,13 +261,22 @@ export default function CreateCampaignPage() {
   // Check if setup is required
   const isEmailConfigured = marketingConfig?.emailProvider !== "NONE" && marketingConfig?.emailVerified;
   const isSmsConfigured = marketingConfig?.smsEnabled && marketingConfig?.smsPhoneNumber;
+  const isSmsTollFree = !!marketingConfig?.smsPhoneNumber && /^\+1(800|833|844|855|866|877|888)/.test(marketingConfig.smsPhoneNumber);
   const isTollfreeVerificationPending = marketingConfig?.smsTollfreeVerifyStatus != null &&
-    marketingConfig.smsTollfreeVerifyStatus !== "TWILIO_APPROVED";
+    !["TWILIO_APPROVED", "APPROVED"].includes(marketingConfig.smsTollfreeVerifyStatus);
   const isTollfreeRejected = marketingConfig?.smsTollfreeVerifyStatus === "TWILIO_REJECTED";
+  const isA2pApproved =
+    marketingConfig?.smsA2pBrandStatus === "APPROVED" &&
+    (marketingConfig?.smsA2pCampaignStatus === "VERIFIED" || marketingConfig?.smsA2pCampaignStatus === "SUCCESSFUL");
+  const isSmsFullyReady =
+    !!isSmsConfigured &&
+    marketingConfig?.smsComplianceStatus === "APPROVED" &&
+    !!marketingConfig?.smsOptInImageUrl &&
+    (isSmsTollFree ? !isTollfreeVerificationPending : isA2pApproved);
 
   const needsSetup = (type: CampaignType) => {
     if (type === "EMAIL") return !isEmailConfigured;
-    return !isSmsConfigured || isTollfreeVerificationPending;
+    return !isSmsFullyReady;
   };
 
   // Get templates based on type
@@ -282,6 +296,9 @@ export default function CreateCampaignPage() {
         }
         return smsContent.trim().length > 0;
       case "audience":
+        if (campaignType === "SMS") {
+          return selectedContactList.length > 0 && ((contactLists.find((list) => list.id === selectedContactList)?.smsEligibleCount || 0) > 0);
+        }
         return selectedContactList.length > 0;
       default:
         return true;
@@ -495,12 +512,12 @@ export default function CreateCampaignPage() {
                     ? "Your toll-free number verification was rejected. Please contact support or submit a new verification before creating SMS campaigns."
                     : isTollfreeVerificationPending
                       ? "Your toll-free number is under carrier review. You'll be able to create SMS campaigns once verification is approved (typically 1-5 business days)."
-                      : "You need to rent a phone number before creating SMS campaigns. Get a dedicated number for your business."}
+                      : "Complete SMS compliance, opt-in proof, phone number setup, and carrier registration before creating SMS campaigns."}
               </p>
 
               <div className="space-y-3">
                 <Button size="lg" asChild className="w-full max-w-xs">
-                  <Link href={campaignType === "SMS" && isTollfreeVerificationPending ? "/settings/sms-marketing" : "/settings/marketing"}>
+                  <Link href={campaignType === "SMS" ? "/settings/sms-marketing" : "/settings/marketing"}>
                     <Settings className="w-4 h-4 mr-2" />
                     {campaignType === "SMS" && isTollfreeVerificationPending
                       ? "Check Verification Status"
@@ -556,7 +573,7 @@ export default function CreateCampaignPage() {
                 ) : (
                   <ul className="text-xs text-muted-foreground space-y-1">
                     <li>• $5/month phone number rental</li>
-                    <li>• $0.03 per SMS message sent</li>
+                    <li>• $0.05 per SMS message sent</li>
                     <li>• US numbers available</li>
                     <li>• Instant setup</li>
                   </ul>
@@ -1106,54 +1123,71 @@ export default function CreateCampaignPage() {
                     </div>
                   ) : (
                     <div className="grid gap-3">
-                      {contactLists.map((list) => (
-                        <button
-                          key={list.id}
-                          onClick={() => setSelectedContactList(list.id)}
-                          className={`p-4 rounded-xl border-2 text-left transition-all ${
-                            selectedContactList === list.id
-                              ? "border-brand-500 bg-brand-500/10"
-                              : "border-border hover:border-brand-500/50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                  selectedContactList === list.id
-                                    ? "bg-brand-500/20"
-                                    : "bg-muted"
-                                }`}
-                              >
-                                <Users
-                                  className={`w-5 h-5 ${
+                      {contactLists.map((list) => {
+                        const smsEligible = list.smsEligibleCount || 0;
+                        const canSelectList = campaignType === "EMAIL" || smsEligible > 0;
+
+                        return (
+                          <button
+                            key={list.id}
+                            onClick={() => {
+                              if (canSelectList) setSelectedContactList(list.id);
+                            }}
+                            disabled={!canSelectList}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              selectedContactList === list.id
+                                ? "border-brand-500 bg-brand-500/10"
+                                : "border-border hover:border-brand-500/50"
+                            } ${!canSelectList ? "opacity-60 cursor-not-allowed hover:border-border" : ""}`}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
+                                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                                     selectedContactList === list.id
-                                      ? "text-brand-500"
-                                      : "text-muted-foreground"
+                                      ? "bg-brand-500/20"
+                                      : "bg-muted"
                                   }`}
-                                />
+                                >
+                                  <Users
+                                    className={`w-5 h-5 ${
+                                      selectedContactList === list.id
+                                        ? "text-brand-500"
+                                        : "text-muted-foreground"
+                                    }`}
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate">{list.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {campaignType === "SMS"
+                                      ? `${smsEligible.toLocaleString()} SMS opted-in of ${list.activeCount.toLocaleString()} active`
+                                      : `${list.activeCount.toLocaleString()} active contacts`}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-semibold">{list.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {list.activeCount.toLocaleString()} active contacts
-                                </p>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {campaignType === "SMS" && smsEligible === 0 && (
+                                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600">
+                                    No SMS audience
+                                  </Badge>
+                                )}
+                                <div
+                                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                    selectedContactList === list.id
+                                      ? "border-brand-500 bg-brand-500"
+                                      : "border-muted-foreground/30"
+                                  }`}
+                                >
+                                  {selectedContactList === list.id && (
+                                    <Check className="w-4 h-4 text-white" />
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <div
-                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                                selectedContactList === list.id
-                                  ? "border-brand-500 bg-brand-500"
-                                  : "border-muted-foreground/30"
-                              }`}
-                            >
-                              {selectedContactList === list.id && (
-                                <Check className="w-4 h-4 text-white" />
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1166,7 +1200,9 @@ export default function CreateCampaignPage() {
                               This campaign will be sent to
                             </p>
                             <p className="text-lg font-semibold text-brand-500">
-                              {selectedList.activeCount.toLocaleString()} contacts
+                              {campaignType === "SMS"
+                                ? `${(selectedList.smsEligibleCount || 0).toLocaleString()} SMS opted-in contacts`
+                                : `${selectedList.activeCount.toLocaleString()} contacts`}
                             </p>
                           </div>
                           <Target className="w-8 h-8 text-brand-500/50" />
@@ -1279,7 +1315,9 @@ export default function CreateCampaignPage() {
                       <div className="flex justify-between py-2 border-b">
                         <span className="text-muted-foreground">Audience</span>
                         <span className="font-medium">
-                          {selectedList?.activeCount.toLocaleString() || 0} contacts
+                          {campaignType === "SMS"
+                            ? `${(selectedList?.smsEligibleCount || 0).toLocaleString()} SMS opted-in contacts`
+                            : `${selectedList?.activeCount.toLocaleString() || 0} contacts`}
                         </span>
                       </div>
                       <div className="flex justify-between py-2 border-b">

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, Send, Eye, Calendar, AlertCircle, Info, RefreshCw, Zap, Target, FileText, Settings, Phone, Smartphone, Tag, ChevronDown, Plus, Image, Upload, Wand, UserCircle, X, Type } from "lucide-react";
+import { ArrowLeft, MessageSquare, Sparkles, Wand2, ChevronRight, ChevronLeft, Check, Users, Clock, Send, Eye, Calendar, AlertCircle, Info, RefreshCw, Zap, Target, FileText, Settings, Phone, Smartphone, Tag, ChevronDown, Plus, Image, Upload, Wand, UserCircle, X, Type, ShieldCheck, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,7 @@ interface ContactList {
   name: string;
   totalCount: number;
   activeCount: number;
+  smsEligibleCount?: number;
 }
 
 interface GeneratedContent {
@@ -245,7 +246,9 @@ function CreateSmsCampaignContent() {
         const tfData = tfRes.ok ? await tfRes.json() : null;
         const phone = numData.data?.phoneNumber as string | undefined;
         if (!phone) { setSmsReady(false); return; }
-        const ok = compData?.data?.status === "APPROVED";
+        const ok =
+          compData?.data?.status === "APPROVED" &&
+          !!compData?.data?.compliance?.smsOptInImageUrl;
         const tf = /^\+1(800|833|844|855|866|877|888)/.test(phone);
         const regOk = tf
           ? (tfData?.data?.status === "TWILIO_APPROVED" || tfData?.data?.status === "APPROVED")
@@ -296,6 +299,12 @@ function CreateSmsCampaignContent() {
 
   // Check if SMS setup is required
   const isSmsConfigured = marketingConfig?.smsEnabled && marketingConfig?.smsPhoneNumber;
+  const hasOptOutLanguage = /\bSTOP\b/i.test(smsContent);
+
+  const appendOptOutLanguage = () => {
+    if (hasOptOutLanguage) return;
+    setSmsContent((value) => `${value.trim()}${value.trim() ? "\n\n" : ""}Reply STOP to opt out.`);
+  };
 
   // Get current step index
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
@@ -310,7 +319,7 @@ function CreateSmsCampaignContent() {
       case "editor":
         return smsContent.trim().length > 0;
       case "audience":
-        return selectedContactList.length > 0;
+        return selectedContactList.length > 0 && ((contactLists.find((list) => list.id === selectedContactList)?.smsEligibleCount || 0) > 0);
       default:
         return true;
     }
@@ -495,6 +504,7 @@ function CreateSmsCampaignContent() {
 
   // Get selected contact list details
   const selectedList = contactLists.find(l => l.id === selectedContactList);
+  const eligibleRecipientCount = selectedList?.smsEligibleCount || 0;
 
   // Loading state
   if (loadingConfig || loadingCampaign) {
@@ -531,7 +541,7 @@ function CreateSmsCampaignContent() {
 
               <div className="space-y-3">
                 <Button size="lg" asChild className="w-full max-w-xs">
-                  <Link href="/settings/marketing">
+                  <Link href="/settings/sms-marketing">
                     <Settings className="w-4 h-4 mr-2" />
                     Configure SMS Settings
                   </Link>
@@ -554,7 +564,7 @@ function CreateSmsCampaignContent() {
                 </h4>
                 <ul className="text-xs text-muted-foreground space-y-1">
                   <li>- $5/month phone number rental</li>
-                  <li>- $0.03 per SMS message sent</li>
+                  <li>- $0.05 per SMS message sent</li>
                   <li>- US numbers available</li>
                   <li>- Instant setup</li>
                 </ul>
@@ -570,7 +580,7 @@ function CreateSmsCampaignContent() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 pb-8"
+      className="flex-1 flex flex-col space-y-6 p-6 w-full pb-8"
     >
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -589,6 +599,58 @@ function CreateSmsCampaignContent() {
 
       {/* Number Registration Status Banner */}
       <NumberStatusBanner />
+
+      {!smsReady && (
+        <Card className="border-orange-500/30 bg-orange-500/5 shadow-none">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-orange-500 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-orange-700 dark:text-orange-300">SMS setup must be completed before creating or sending campaigns</p>
+              <p className="text-xs text-muted-foreground">Compliance approval, opt-in proof, phone number, and carrier registration all need to be ready.</p>
+            </div>
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/settings/sms-marketing">
+                <Settings className="w-3.5 h-3.5 mr-1" />
+                Settings
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-brand-500/20 bg-brand-500/5 shadow-none">
+        <CardContent className="p-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-brand-500/15 flex items-center justify-center shrink-0">
+                <Wand2 className="w-4 h-4 text-brand-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">AI Copy Studio</p>
+                <p className="text-xs text-muted-foreground">Generate brand-aware SMS copy, then refine it in the live phone preview.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                <Image className="w-4 h-4 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">MMS Content Area</p>
+                <p className="text-xs text-muted-foreground">Attach library images, generate new visuals, or personalize with contact photos.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Compliance Guardrails</p>
+                <p className="text-xs text-muted-foreground">Audience selection counts only active SMS opted-in contacts before send.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Progress Steps — compact style matching email */}
       <Card>
@@ -1042,6 +1104,23 @@ function CreateSmsCampaignContent() {
                           className="min-h-[200px]"
                           maxLength={320}
                         />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className={cn(
+                            "flex items-center gap-2 rounded-lg border p-2 text-xs",
+                            hasOptOutLanguage
+                              ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                              : "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300"
+                          )}>
+                            <ListChecks className="w-4 h-4 shrink-0" />
+                            {hasOptOutLanguage ? "Opt-out language detected" : "Add STOP opt-out language before sending"}
+                          </div>
+                          {!hasOptOutLanguage && (
+                            <Button type="button" variant="outline" size="sm" onClick={appendOptOutLanguage}>
+                              <ShieldCheck className="w-4 h-4 mr-2" />
+                              Add Opt-Out
+                            </Button>
+                          )}
+                        </div>
                         {segmentCount > 1 && (
                           <div className="flex items-center gap-2 text-xs text-yellow-500 bg-yellow-500/10 p-2 rounded-lg">
                             <Info className="w-4 h-4" />
@@ -1436,58 +1515,78 @@ function CreateSmsCampaignContent() {
                     </div>
                   ) : (
                     <div className="grid gap-3">
-                      {contactLists.map((list) => (
-                        <button
-                          key={list.id}
-                          onClick={() => setSelectedContactList(list.id)}
-                          className={cn(
-                            "p-4 rounded-xl border-2 text-left transition-all",
-                            selectedContactList === list.id
-                              ? "border-brand-500 bg-brand-500/10"
-                              : "border-border hover:border-brand-500/50"
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={cn(
-                                  "w-10 h-10 rounded-lg flex items-center justify-center",
-                                  selectedContactList === list.id
-                                    ? "bg-brand-500/20"
-                                    : "bg-muted"
-                                )}
-                              >
-                                <Users
+                      {contactLists.map((list) => {
+                        const smsEligible = list.smsEligibleCount || 0;
+                        const hasSmsRecipients = smsEligible > 0;
+
+                        return (
+                          <button
+                            key={list.id}
+                            onClick={() => {
+                              if (hasSmsRecipients) setSelectedContactList(list.id);
+                            }}
+                            disabled={!hasSmsRecipients}
+                            className={cn(
+                              "p-4 rounded-xl border-2 text-left transition-all",
+                              selectedContactList === list.id
+                                ? "border-brand-500 bg-brand-500/10"
+                                : "border-border hover:border-brand-500/50",
+                              !hasSmsRecipients && "opacity-60 cursor-not-allowed hover:border-border"
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
                                   className={cn(
-                                    "w-5 h-5",
+                                    "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
                                     selectedContactList === list.id
-                                      ? "text-brand-500"
-                                      : "text-muted-foreground"
+                                      ? "bg-brand-500/20"
+                                      : "bg-muted"
                                   )}
-                                />
+                                >
+                                  <Users
+                                    className={cn(
+                                      "w-5 h-5",
+                                      selectedContactList === list.id
+                                        ? "text-brand-500"
+                                        : "text-muted-foreground"
+                                    )}
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate">{list.name}</p>
+                                  <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                                    <span>{list.activeCount.toLocaleString()} active</span>
+                                    <span className="text-border">|</span>
+                                    <span className={hasSmsRecipients ? "text-emerald-600" : "text-amber-600"}>
+                                      {smsEligible.toLocaleString()} SMS opted-in
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-semibold">{list.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {list.activeCount.toLocaleString()} active contacts
-                                </p>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {!hasSmsRecipients && (
+                                  <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600">
+                                    No SMS audience
+                                  </Badge>
+                                )}
+                                <div
+                                  className={cn(
+                                    "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                                    selectedContactList === list.id
+                                      ? "border-brand-500 bg-brand-500"
+                                      : "border-muted-foreground/30"
+                                  )}
+                                >
+                                  {selectedContactList === list.id && (
+                                    <Check className="w-4 h-4 text-white" />
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <div
-                              className={cn(
-                                "w-6 h-6 rounded-full border-2 flex items-center justify-center",
-                                selectedContactList === list.id
-                                  ? "border-brand-500 bg-brand-500"
-                                  : "border-muted-foreground/30"
-                              )}
-                            >
-                              {selectedContactList === list.id && (
-                                <Check className="w-4 h-4 text-white" />
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1500,7 +1599,10 @@ function CreateSmsCampaignContent() {
                               This campaign will be sent to
                             </p>
                             <p className="text-lg font-semibold text-brand-500">
-                              {selectedList.activeCount.toLocaleString()} contacts
+                              {eligibleRecipientCount.toLocaleString()} SMS opted-in contacts
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Active contacts without SMS consent or a phone number are excluded automatically.
                             </p>
                           </div>
                           <Target className="w-8 h-8 text-brand-500/50" />
@@ -1630,7 +1732,7 @@ function CreateSmsCampaignContent() {
                       <div className="flex justify-between py-2 border-b">
                         <span className="text-muted-foreground">Audience</span>
                         <span className="font-medium">
-                          {selectedList?.activeCount.toLocaleString() || 0} contacts
+                          {eligibleRecipientCount.toLocaleString()} SMS opted-in contacts
                         </span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
@@ -1686,7 +1788,8 @@ function CreateSmsCampaignContent() {
                         variant="outline"
                         className="w-full"
                         onClick={() => handleCreateCampaign("draft")}
-                        disabled={isLoading}
+                        disabled={isLoading || !smsReady}
+                        title={!smsReady ? "Complete SMS setup before saving campaigns" : undefined}
                       >
                         Save as Draft
                       </Button>
