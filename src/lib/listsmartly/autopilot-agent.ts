@@ -2203,6 +2203,12 @@ export async function getAutopilotState(userId: string) {
   const waitingCount = taskCounts.needs_user || 0;
   const activeTaskResult = activeTask ? parseJsonObject(activeTask.result) : {};
   const activeTaskCanRetry = activeTask ? isRetryableAgentResult(activeTaskResult) : false;
+  const activeRetryFallback =
+    "The last browser-agent run ended before a final decision. Retry to continue from the live browser.";
+  const activeRetryMessage =
+    activeTaskCanRetry && activeTask?.requiredAction && !/no user action is required/i.test(activeTask.requiredAction)
+      ? activeTask.requiredAction
+      : activeRetryFallback;
   const activeTaskSummary = activeTask
     ? {
         id: activeTask.id,
@@ -2226,10 +2232,7 @@ export async function getAutopilotState(userId: string) {
           typeof activeTaskResult.userActionButtonLabel === "string"
             ? activeTaskResult.userActionButtonLabel
             : "Retry agent",
-        retryMessage: activeTaskCanRetry
-          ? activeTask.requiredAction ||
-            "The last browser-agent run ended before a final decision. Retry to continue from the live browser."
-          : null,
+        retryMessage: activeTaskCanRetry ? activeRetryMessage : null,
         directory: activeTask.listing?.directory || null,
         updatedAt: activeTask.updatedAt,
       }
