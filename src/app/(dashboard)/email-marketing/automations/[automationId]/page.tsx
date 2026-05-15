@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Save, Trash2, Mail, Cake, Calendar, UserPlus, RefreshCw, Star, Clock, Send, AlertCircle, CheckCircle2, XCircle, Activity, Eye, ChevronDown, Smartphone, Copy, Users, Edit2, BarChart3, TrendingUp, Power, Settings } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Mail, Cake, Calendar, UserPlus, RefreshCw, Star, Clock, Send, AlertCircle, CheckCircle2, XCircle, Activity, Eye, ChevronDown, Smartphone, Copy, Users, Edit2, BarChart3, TrendingUp, Power, Settings, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -97,6 +97,9 @@ interface Automation {
   subject: string | null;
   content: string;
   contentHtml: string | null;
+  imageUrl: string | null;
+  imageSource: string | null;
+  imageOverlayText: string | null;
   sendTime: string;
   daysOffset: number;
   timezone: string;
@@ -269,6 +272,7 @@ export default function EmailAutomationDetailPage() {
   const [showLogo, setShowLogo] = useState(true);
   const [showBrandName, setShowBrandName] = useState(true);
   const [logoSize, setLogoSize] = useState<"normal" | "large" | "big">("normal");
+  const [includeContactPhoto, setIncludeContactPhoto] = useState(false);
   const [sendTime, setSendTime] = useState("09:00");
   const [daysOffset, setDaysOffset] = useState(0);
   const [timezone, setTimezone] = useState("UTC");
@@ -308,6 +312,7 @@ export default function EmailAutomationDetailPage() {
             ? brandOptions.logoSize
             : "normal"
         );
+        setIncludeContactPhoto(auto.imageSource === "contact_photo");
         setSendTime(auto.sendTime || "09:00");
         setDaysOffset(auto.daysOffset ?? 0);
         setTimezone(auto.timezone || "UTC");
@@ -432,6 +437,9 @@ export default function EmailAutomationDetailPage() {
           content: plainContent,
           contentHtml,
           trigger: nextTrigger,
+          imageSource: includeContactPhoto ? "contact_photo" : null,
+          imageUrl: null,
+          imageOverlayText: null,
           sendTime,
           daysOffset,
           timezone,
@@ -1389,6 +1397,32 @@ export default function EmailAutomationDetailPage() {
                   onToggleBrandName={setShowBrandName}
                   onLogoSize={setLogoSize}
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-brand-500" />
+                  Contact Image
+                </CardTitle>
+                <CardDescription>
+                  Insert each recipient's saved contact image into the email when one is available.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
+                  <div>
+                    <p className="font-medium">Include contact image when available</p>
+                    <p className="text-xs text-muted-foreground">
+                      Recipients without a saved image still receive the same email without the photo block.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={includeContactPhoto}
+                    onCheckedChange={setIncludeContactPhoto}
+                  />
+                </div>
               </CardContent>
             </Card>
 

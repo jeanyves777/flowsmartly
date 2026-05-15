@@ -98,6 +98,9 @@ function formatAutomationResponse(automation: {
   subject: string | null;
   content: string;
   contentHtml: string | null;
+  imageUrl?: string | null;
+  imageSource?: string | null;
+  imageOverlayText?: string | null;
   sendTime: string;
   daysOffset: number;
   timezone: string;
@@ -126,6 +129,9 @@ function formatAutomationResponse(automation: {
     subject: automation.subject,
     content: automation.content,
     contentHtml: automation.contentHtml,
+    imageUrl: automation.imageUrl ?? null,
+    imageSource: automation.imageSource ?? null,
+    imageOverlayText: automation.imageOverlayText ?? null,
     sendTime: automation.sendTime,
     daysOffset: automation.daysOffset,
     timezone: automation.timezone,

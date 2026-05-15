@@ -44,6 +44,9 @@ export interface AutomationResponse {
   subject: string | null;
   content: string;
   contentHtml: string | null;
+  imageUrl?: string | null;
+  imageSource?: string | null;
+  imageOverlayText?: string | null;
   /** HH:mm local time for daily runs. */
   sendTime: string;
   /** +/- days from the trigger date. */

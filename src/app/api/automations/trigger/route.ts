@@ -105,6 +105,10 @@ function addDaysToDate(
   return { month: d.getMonth() + 1, day: d.getDate() };
 }
 
+function isUsableEmailAddress(value: string | null | undefined) {
+  return typeof value === "string" && value.includes("@");
+}
+
 function parseTrigger(raw: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(raw);
@@ -731,7 +735,7 @@ async function getMatchingContacts(
   // Opt-in filter
   if (campaignType === "EMAIL") {
     contactWhere.emailOptedIn = true;
-    contactWhere.email = { not: null };
+    contactWhere.email = { contains: "@" };
   } else if (campaignType === "SMS") {
     contactWhere.smsOptedIn = true;
     contactWhere.phone = { not: null };
@@ -767,7 +771,10 @@ async function getMatchingContacts(
           },
         },
     });
-    return members.map((m) => m.contact);
+    const contacts = members.map((m) => m.contact);
+    return campaignType === "EMAIL"
+      ? contacts.filter((contact) => isUsableEmailAddress(contact.email))
+      : contacts;
   } else {
     // All user's contacts matching filters
     const contacts = await prisma.contact.findMany({
@@ -782,7 +789,9 @@ async function getMatchingContacts(
         createdAt: true,
       },
     });
-    return contacts;
+    return campaignType === "EMAIL"
+      ? contacts.filter((contact) => isUsableEmailAddress(contact.email))
+      : contacts;
   }
 }
 

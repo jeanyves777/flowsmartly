@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  ImageIcon,
   Loader2,
   Mail,
   Sparkles,
@@ -74,6 +75,10 @@ interface ContactList {
 interface BirthdayStats {
   total: number;
   withBirthday: number;
+  withBirthdayAndValidEmail?: number;
+  withBirthdayMissingValidEmail?: number;
+  withBirthdayAndImage?: number;
+  eligibleBirthdayContacts?: number;
   withoutBirthday: number;
 }
 
@@ -82,6 +87,8 @@ interface BirthdayContactPreview {
   name: string;
   email: string | null;
   birthday: string;
+  emailOptedIn: boolean;
+  imageUrl: string | null;
 }
 
 const STEPS: Array<{ id: WizardStep; label: string; icon: typeof Zap }> = [
@@ -225,6 +232,10 @@ function formatBirthday(value: string) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function hasUsableEmail(contact: { email?: string | null; emailOptedIn?: boolean }) {
+  return contact.emailOptedIn === true && typeof contact.email === "string" && contact.email.includes("@");
+}
+
 function defaultAutomationName(type: AutomationType) {
   switch (type) {
     case "BIRTHDAY":
@@ -263,6 +274,7 @@ export default function CreateEmailAutomationPage() {
   const [birthdayContacts, setBirthdayContacts] = useState<BirthdayContactPreview[]>([]);
   const [loadingBirthdayData, setLoadingBirthdayData] = useState(false);
   const [birthdayConfirmed, setBirthdayConfirmed] = useState(false);
+  const [includeContactPhoto, setIncludeContactPhoto] = useState(false);
   const [calendarConfirmed, setCalendarConfirmed] = useState(false);
   const [selectedHolidayIds, setSelectedHolidayIds] = useState<string[]>(
     US_HOLIDAYS.map((holiday) => holiday.id)
@@ -290,6 +302,9 @@ export default function CreateEmailAutomationPage() {
   const isEveryHolidaySelected = selectedHolidayIds.length === US_HOLIDAYS.length;
 
   const currentStepIndex = STEPS.findIndex((item) => item.id === step);
+  const eligibleBirthdayCount =
+    birthdayStats?.eligibleBirthdayContacts ?? birthdayStats?.withBirthdayAndValidEmail ?? 0;
+  const birthdayContactsWithImage = birthdayStats?.withBirthdayAndImage ?? 0;
 
   const canProceedFromPlan = useMemo(() => {
     if (!automationName.trim()) return false;
@@ -297,14 +312,14 @@ export default function CreateEmailAutomationPage() {
       return selectedHolidayIds.length > 0 && calendarConfirmed;
     }
     if (automationType === "BIRTHDAY") {
-      return !!birthdayStats?.withBirthday && birthdayConfirmed;
+      return eligibleBirthdayCount > 0 && birthdayConfirmed;
     }
     return true;
   }, [
     automationName,
     automationType,
     birthdayConfirmed,
-    birthdayStats?.withBirthday,
+    eligibleBirthdayCount,
     calendarConfirmed,
     selectedHolidayIds.length,
   ]);
@@ -389,7 +404,9 @@ export default function CreateEmailAutomationPage() {
           const contacts = contactsJson.data?.contacts || [];
           setBirthdayContacts(
             contacts
-              .filter((contact: { birthday?: string | null }) => !!contact.birthday)
+              .filter((contact: { birthday?: string | null; email?: string | null; emailOptedIn?: boolean }) =>
+                !!contact.birthday && hasUsableEmail(contact)
+              )
               .slice(0, 12)
               .map((contact: {
                 id: string;
@@ -397,6 +414,8 @@ export default function CreateEmailAutomationPage() {
                 firstName?: string | null;
                 lastName?: string | null;
                 email?: string | null;
+                emailOptedIn?: boolean;
+                imageUrl?: string | null;
                 birthday: string;
               }) => ({
                 id: contact.id,
@@ -407,6 +426,8 @@ export default function CreateEmailAutomationPage() {
                   "Contact",
                 email: contact.email || null,
                 birthday: contact.birthday,
+                emailOptedIn: contact.emailOptedIn === true,
+                imageUrl: contact.imageUrl || null,
               }))
           );
         }
@@ -429,6 +450,12 @@ export default function CreateEmailAutomationPage() {
   useEffect(() => {
     setBirthdayConfirmed(false);
   }, [state.selectedContactListId]);
+
+  useEffect(() => {
+    if (birthdayContactsWithImage === 0) {
+      setIncludeContactPhoto(false);
+    }
+  }, [birthdayContactsWithImage]);
 
   const handleSelectType = (type: AutomationType) => {
     setAutomationType(type);
@@ -486,7 +513,8 @@ export default function CreateEmailAutomationPage() {
 
       if (automationType === "BIRTHDAY") {
         contextLines.push(
-          `Birthday contacts available: ${birthdayStats?.withBirthday || 0}.`,
+          `Birthday email contacts available: ${eligibleBirthdayCount}.`,
+          `Contacts with saved photos: ${birthdayContactsWithImage}.`,
           "The email should feel personal, warm, and automated without sounding generic. Include {{birthday}} only if it reads naturally."
         );
       }
@@ -512,8 +540,9 @@ export default function CreateEmailAutomationPage() {
     [
       automationName,
       automationType,
-      birthdayStats?.withBirthday,
+      birthdayContactsWithImage,
       customFrequency,
+      eligibleBirthdayCount,
       selectedHolidays,
       selectedList,
     ]
@@ -670,6 +699,9 @@ export default function CreateEmailAutomationPage() {
         ...base,
         birthdayListConfirmed: birthdayConfirmed,
         birthdayStats,
+        eligibleBirthdayContacts: eligibleBirthdayCount,
+        includeContactPhoto,
+        contactPhotoEligibleCount: birthdayContactsWithImage,
         birthdayPreview: birthdayContacts.slice(0, 20),
       };
     }
@@ -736,6 +768,9 @@ export default function CreateEmailAutomationPage() {
           daysOffset,
           timezone,
           contactListId: state.selectedContactListId || null,
+          imageSource: automationType === "BIRTHDAY" && includeContactPhoto ? "contact_photo" : null,
+          imageUrl: null,
+          imageOverlayText: null,
           enabled,
         }),
       });
@@ -1073,13 +1108,14 @@ export default function CreateEmailAutomationPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {loadingBirthdayData ? (
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <Skeleton className="h-24 rounded-lg" />
                       <Skeleton className="h-24 rounded-lg" />
                       <Skeleton className="h-24 rounded-lg" />
                       <Skeleton className="h-24 rounded-lg" />
                     </div>
                   ) : (
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
                       <div className="rounded-lg border p-4">
                         <p className="text-xs text-muted-foreground">Contacts in scope</p>
                         <p className="mt-1 text-2xl font-bold">{birthdayStats?.total || 0}</p>
@@ -1090,19 +1126,43 @@ export default function CreateEmailAutomationPage() {
                           {birthdayStats?.withBirthday || 0}
                         </p>
                       </div>
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <p className="text-xs text-blue-700">Valid email + opted in</p>
+                        <p className="mt-1 text-2xl font-bold text-blue-700">{eligibleBirthdayCount}</p>
+                      </div>
                       <div className="rounded-lg border p-4">
-                        <p className="text-xs text-muted-foreground">Missing birthday dates</p>
-                        <p className="mt-1 text-2xl font-bold">{birthdayStats?.withoutBirthday || 0}</p>
+                        <p className="text-xs text-muted-foreground">Birthday but no valid email</p>
+                        <p className="mt-1 text-2xl font-bold">{birthdayStats?.withBirthdayMissingValidEmail || 0}</p>
                       </div>
                     </div>
                   )}
 
+                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">Include contact image when available</p>
+                        <p className="text-xs leading-5 text-muted-foreground">
+                          {birthdayContactsWithImage} eligible birthday contact{birthdayContactsWithImage === 1 ? "" : "s"} have a saved image.
+                          Contacts without an image still receive the email without the photo block.
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={includeContactPhoto}
+                      onCheckedChange={setIncludeContactPhoto}
+                      disabled={birthdayContactsWithImage === 0}
+                    />
+                  </div>
+
                   <div className="rounded-lg border">
                     <div className="flex items-center justify-between border-b px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold">Birthday Date Preview</p>
+                        <p className="text-sm font-semibold">Eligible Birthday Email Preview</p>
                         <p className="text-xs text-muted-foreground">
-                          Showing contacts that can receive this automation.
+                          Showing contacts with birthday dates, valid email, and email opt-in.
                         </p>
                       </div>
                       <Badge variant="outline">{selectedList?.name || "All contacts"}</Badge>
@@ -1110,18 +1170,37 @@ export default function CreateEmailAutomationPage() {
                     <div className="divide-y">
                       {birthdayContacts.length === 0 ? (
                         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                          No birthday dates found for this audience.
+                          No birthday contacts with valid email were found for this audience.
                         </div>
                       ) : (
                         birthdayContacts.map((contact) => (
                           <div key={contact.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{contact.name}</p>
-                              {contact.email && (
-                                <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
+                            <div className="flex min-w-0 items-center gap-3">
+                              {contact.imageUrl ? (
+                                <img
+                                  src={contact.imageUrl}
+                                  alt=""
+                                  className="h-9 w-9 shrink-0 rounded-full border object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
+                                  {contact.name.slice(0, 1).toUpperCase()}
+                                </div>
                               )}
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{contact.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
+                              </div>
                             </div>
-                            <Badge variant="secondary">{formatBirthday(contact.birthday)}</Badge>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {contact.imageUrl && (
+                                <Badge variant="outline" className="hidden gap-1 sm:flex">
+                                  <ImageIcon className="h-3 w-3" />
+                                  Photo
+                                </Badge>
+                              )}
+                              <Badge variant="secondary">{formatBirthday(contact.birthday)}</Badge>
+                            </div>
                           </div>
                         ))
                       )}
@@ -1132,7 +1211,7 @@ export default function CreateEmailAutomationPage() {
                     <Checkbox
                       checked={birthdayConfirmed}
                       onCheckedChange={(checked) => setBirthdayConfirmed(checked === true)}
-                      disabled={!birthdayStats?.withBirthday}
+                      disabled={eligibleBirthdayCount === 0}
                       className="mt-0.5"
                     />
                     <div>
@@ -1140,7 +1219,7 @@ export default function CreateEmailAutomationPage() {
                       <p className="text-xs leading-5 text-muted-foreground">
                         I confirm this automation will target{" "}
                         <span className="font-medium text-foreground">
-                          {birthdayStats?.withBirthday || 0} contacts with birthday dates
+                          {eligibleBirthdayCount} contacts with birthday dates, valid email, and email opt-in
                         </span>{" "}
                         from {selectedList?.name || "all active contacts"}.
                       </p>
@@ -1235,8 +1314,8 @@ export default function CreateEmailAutomationPage() {
                 )}
                 {automationType === "BIRTHDAY" && (
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Birthday coverage</span>
-                    <span className="font-medium">{birthdayStats?.withBirthday || 0}</span>
+                    <span className="text-muted-foreground">Eligible birthday emails</span>
+                    <span className="font-medium">{eligibleBirthdayCount}</span>
                   </div>
                 )}
                 <div className="rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
@@ -1390,13 +1469,16 @@ export default function CreateEmailAutomationPage() {
                       {automationType === "HOLIDAY"
                         ? `${selectedHolidayIds.length} calendar event${selectedHolidayIds.length === 1 ? "" : "s"}`
                         : automationType === "BIRTHDAY"
-                          ? `${birthdayStats?.withBirthday || 0} birthday contacts`
+                          ? `${eligibleBirthdayCount} birthday email contacts`
                           : AUTOMATION_TYPES.find((item) => item.type === automationType)?.label}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
+                      {automationType === "BIRTHDAY" && includeContactPhoto
+                        ? `Contact photos enabled for ${birthdayContactsWithImage} contacts with images.`
+                        : ""}
                       {automationType === "HOLIDAY" && selectedHolidays.slice(0, 3).map((holiday) => holiday.name).join(", ")}
                       {automationType === "HOLIDAY" && selectedHolidays.length > 3 ? `, +${selectedHolidays.length - 3} more` : ""}
-                      {automationType !== "HOLIDAY" ? "Confirmed from the planner step." : ""}
+                      {automationType !== "HOLIDAY" && !(automationType === "BIRTHDAY" && includeContactPhoto) ? "Confirmed from the planner step." : ""}
                     </p>
                   </div>
                 </div>

@@ -24,13 +24,38 @@ export async function GET(request: NextRequest) {
       baseWhere.lists = { some: { contactListId: listId } };
     }
 
-    const [withBirthday, total] = await Promise.all([
+    const birthdayWhere: Record<string, unknown> = {
+      ...baseWhere,
+      birthday: { not: null },
+      NOT: { birthday: "" },
+    };
+
+    const validBirthdayEmailWhere: Record<string, unknown> = {
+      ...baseWhere,
+      birthday: { not: null },
+      emailOptedIn: true,
+      email: { contains: "@" },
+      NOT: { birthday: "" },
+    };
+
+    const validBirthdayEmailWithImageWhere: Record<string, unknown> = {
+      ...baseWhere,
+      birthday: { not: null },
+      emailOptedIn: true,
+      email: { contains: "@" },
+      imageUrl: { not: null },
+      NOT: [{ birthday: "" }, { imageUrl: "" }],
+    };
+
+    const [withBirthday, withBirthdayAndValidEmail, withBirthdayAndImage, total] = await Promise.all([
       prisma.contact.count({
-        where: {
-          ...baseWhere,
-          birthday: { not: null },
-          NOT: { birthday: "" },
-        },
+        where: birthdayWhere,
+      }),
+      prisma.contact.count({
+        where: validBirthdayEmailWhere,
+      }),
+      prisma.contact.count({
+        where: validBirthdayEmailWithImageWhere,
       }),
       prisma.contact.count({ where: baseWhere }),
     ]);
@@ -39,6 +64,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         withBirthday,
+        withBirthdayAndValidEmail,
+        withBirthdayMissingValidEmail: Math.max(0, withBirthday - withBirthdayAndValidEmail),
+        withBirthdayAndImage,
+        eligibleBirthdayContacts: withBirthdayAndValidEmail,
         withoutBirthday: total - withBirthday,
         total,
       },
