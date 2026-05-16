@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Search, Plus, Shield, ShieldCheck, Star, Trash2, ExternalLink, RefreshCw, Link as LinkIcon, CheckCircle2, AlertCircle, Clock, Copy, Server, CreditCard, Info, ArrowRight, ChevronRight, Calendar, DollarSign, Receipt, FileText, Download, RotateCcw, Eye, EyeOff, Settings } from "lucide-react";
+import { Globe, Search, Plus, Shield, ShieldCheck, Star, Trash2, ExternalLink, RefreshCw, Link as LinkIcon, CheckCircle2, AlertCircle, Clock, Copy, Server, CreditCard, ArrowRight, ChevronRight, Calendar, DollarSign, Receipt, FileText, Download, RotateCcw, Eye, EyeOff, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -563,7 +563,7 @@ export function DomainsPageContent() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Domains</h1>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Register, connect, verify, route, and protect production domains from one guided workspace.
+            Register, connect, and manage production domains.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -612,9 +612,6 @@ export function DomainsPageContent() {
           >
             <div className="rounded-xl border bg-card p-6">
               <h2 className="text-lg font-semibold mb-1">Register a New Domain</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Search for available domains and register them instantly.
-              </p>
               <DomainSearch
                 onSelect={handlePurchase}
                 isPro={storeInfo.isPro}
@@ -690,9 +687,6 @@ export function DomainsPageContent() {
             <div className="rounded-xl border bg-card p-6 space-y-5">
               <div>
                 <h2 className="text-lg font-semibold mb-1">Connect Your Domain</h2>
-                <p className="text-sm text-muted-foreground">
-                  Already own a domain? Verify ownership first, then connect it to your FlowSmartly store or website.
-                </p>
               </div>
 
               {/* Step-by-step guide */}
@@ -702,27 +696,18 @@ export function DomainsPageContent() {
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">1</span>
                     <h3 className="text-sm font-semibold">Enter Domain</h3>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Type the domain you own below (e.g. mybrand.com). We will prepare DNS and a verification record.
-                  </p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">2</span>
                     <h3 className="text-sm font-semibold">Add TXT Record</h3>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Add the unique FlowSmartly TXT record at your current DNS provider to prove you own the domain.
-                  </p>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">3</span>
                     <h3 className="text-sm font-semibold">Verify & Route</h3>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Click Verify after DNS updates. Then nameservers and SSL can finish without exposing the wrong account.
-                  </p>
                 </div>
               </div>
 
@@ -815,7 +800,7 @@ export function DomainsPageContent() {
                         <h3 className="text-sm font-semibold">FlowSmartly nameservers</h3>
                       </div>
                       <p className="text-xs text-muted-foreground mb-3">
-                        Use these if you want FlowSmartly to manage DNS and SSL for the domain automatically.
+                        Copy to your registrar if needed.
                       </p>
                       <div className="rounded-md bg-muted/30 border p-3 space-y-2">
                         {connectionResult.nameservers.map((ns, i) => (
@@ -832,40 +817,6 @@ export function DomainsPageContent() {
                       </div>
                     </div>
                   )}
-
-                  {/* Registrar-specific help */}
-                  <div className="rounded-lg border bg-muted/30 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                      <h3 className="text-sm font-semibold">How to update nameservers at popular registrars</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">GoDaddy:</span> My Products {"->"} DNS {"->"} Nameservers {"->"} Change</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">Namecheap:</span> Domain List {"->"} Manage {"->"} Nameservers {"->"} Custom DNS</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">Google Domains:</span> DNS {"->"} Custom name servers {"->"} Manage</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">Cloudflare:</span> Already using Cloudflare? Just add A + CNAME records instead</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">Hostinger:</span> Domains {"->"} Manage {"->"} DNS / Nameservers</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span><span className="font-medium text-foreground">Porkbun:</span> Domain Management {"->"} Nameservers {"->"} Edit</span>
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="flex gap-3">
                     <Button
@@ -901,10 +852,7 @@ export function DomainsPageContent() {
         >
           <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
           <h2 className="text-xl font-bold mb-2">No Domains Yet</h2>
-          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            Register a new domain or connect one you already own to your FlowSmartly store.
-          </p>
-          <div className="flex gap-3 justify-center">
+          <div className="mt-6 flex gap-3 justify-center">
             <Button onClick={() => setActiveView("search")}>
               <Search className="h-4 w-4 mr-1.5" />
               Register New Domain
@@ -958,13 +906,12 @@ export function DomainsPageContent() {
                       </div>
                       {nextAction && nextAction.priority <= 2 && (
                         <div className={cn(
-                          "mt-3 rounded-lg border px-3 py-2 text-xs",
+                          "mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs font-medium",
                           nextAction.priority === 1
                             ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
                             : "bg-muted/40 text-muted-foreground"
                         )}>
-                          <span className="font-semibold">{nextAction.label}: </span>
-                          <span>{nextAction.description}</span>
+                          {nextAction.label}
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1049,9 +996,6 @@ export function DomainsPageContent() {
               </div>
               <div>
                 <h2 className="font-semibold">Attention queue</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  The backend ranks domains that need verification, SSL, renewal, or retry work.
-                </p>
               </div>
             </div>
             <div className="mt-4 space-y-3">
@@ -1078,9 +1022,6 @@ export function DomainsPageContent() {
                         {domain.nextAction?.label || "Review"}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      {domain.nextAction?.description || "Open this domain to review the current status."}
-                    </p>
                   </button>
                 ))
               )}
@@ -1099,13 +1040,6 @@ export function DomainsPageContent() {
 
           <div className="rounded-lg border bg-card p-5">
             <h2 className="font-semibold">Best next step</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {domains.length === 0
-                ? "Start by registering a new domain or connecting one you already own."
-                : (summary?.needsAction ?? 0) > 0
-                  ? "Open the highest-priority domain above and complete the verification or retry step."
-                  : "Keep auto-renew and privacy enabled, then use the primary domain in Website Builder."}
-            </p>
             <div className="mt-4 flex flex-col gap-2">
               <Button variant="outline" className="justify-between" onClick={() => setActiveView("search")}>
                 Register new
@@ -1155,17 +1089,14 @@ function DomainMetric({
 function SetupStepTile({ step, index }: { step: DomainSetupStep; index: number }) {
   return (
     <div className="rounded-lg border bg-card p-4">
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         <div className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
           step.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"
         )}>
           {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{step.label}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-        </div>
+        <p className="text-sm font-semibold">{step.label}</p>
       </div>
     </div>
   );

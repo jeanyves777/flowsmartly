@@ -283,7 +283,7 @@ export default function LandingPagesPage() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Landing Pages</h1>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Build focused pages, review the message, publish clean URLs, and track the results from one workspace.
+            Build, publish, and track AI landing pages.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -371,7 +371,7 @@ export default function LandingPagesPage() {
                 <p className="mt-2 max-w-lg text-sm text-muted-foreground">
                   {searchQuery || activeFilter !== "all"
                     ? "Clear the search or switch filters to see the full workspace."
-                    : "Start with a guided AI page, then publish it and connect it to ads, email, or social campaigns."}
+                    : "Create your first AI landing page."}
                 </p>
                 <Button asChild className="mt-6 gap-2">
                   <Link href="/landing-pages/create">
@@ -409,21 +409,17 @@ export default function LandingPagesPage() {
             <CardContent className="space-y-4 p-5">
               <div>
                 <h2 className="font-semibold">Launch steps</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Use this checklist to keep every page production-ready.</p>
               </div>
               <div className="space-y-3">
                 {workflow.map((step, index) => (
-                  <div key={step.id} className="flex gap-3 rounded-lg border bg-background p-3">
+                  <div key={step.id} className="flex items-center gap-3 rounded-lg border bg-background p-3">
                     <div className={cn(
                       "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                       step.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
                     )}>
                       {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{step.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
-                    </div>
+                    <p className="text-sm font-medium">{step.label}</p>
                   </div>
                 ))}
               </div>
@@ -438,9 +434,6 @@ export default function LandingPagesPage() {
                 </div>
                 <div>
                   <h2 className="font-semibold">Next best action</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {stats?.draft ? "Publish or finish your draft pages before sending traffic." : "Create a page for the next offer you want to test."}
-                  </p>
                 </div>
               </div>
               {stats?.draft ? (
@@ -463,7 +456,6 @@ export default function LandingPagesPage() {
             <CardContent className="space-y-4 p-5">
               <div>
                 <h2 className="font-semibold">Top pages</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Highest-view pages in this filtered view.</p>
               </div>
               {topPages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No performance data yet.</p>
@@ -600,7 +592,7 @@ function LandingPageCard({
             {page.title}
           </Link>
           <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
-            {page.description || "No description yet. Add a crisp offer summary before publishing."}
+            {page.description || "No description yet."}
           </p>
 
           <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center text-xs">

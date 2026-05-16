@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Sparkles, Globe, Rocket, UserPlus, Calendar, Clock, Briefcase, UtensilsCrossed, Layers, Building2, ChevronDown, ChevronUp, Monitor, Tablet, Smartphone, Eye, Edit3, Save, RefreshCw, Share2, Copy, Check, ExternalLink, X, Info } from "lucide-react";
+import { ArrowLeft, Sparkles, Globe, Rocket, UserPlus, Calendar, Clock, Briefcase, UtensilsCrossed, Layers, Building2, ChevronDown, ChevronUp, Monitor, Tablet, Smartphone, Eye, Edit3, Save, RefreshCw, Share2, Copy, Check, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -375,9 +375,6 @@ export default function CreateLandingPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold">Create Landing Page</h1>
-            <p className="text-muted-foreground">
-              Describe your page and let AI build it for you
-            </p>
           </div>
           </div>
           {brandLoaded && (
@@ -413,7 +410,6 @@ export default function CreateLandingPage() {
                   <span className={cn("text-sm font-medium", selected ? "text-brand-500" : "text-foreground")}>
                     {pt.name}
                   </span>
-                  <span className="text-xs text-muted-foreground">{pt.description}</span>
                 </button>
               );
             })}
@@ -432,7 +428,6 @@ export default function CreateLandingPage() {
             >
               <div>
                 <Label className="text-base font-semibold">Choose a Template</Label>
-                <p className="text-sm text-muted-foreground">Select a starting design or describe your own below</p>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
                 {/* Custom / No template card */}
@@ -455,7 +450,6 @@ export default function CreateLandingPage() {
                   <span className={cn("text-sm font-medium", selectedTemplate === null ? "text-brand-500" : "text-foreground")}>
                     Custom
                   </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight">Describe your own design</span>
                   {selectedTemplate === null && (
                     <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-white">
                       <Check className="h-3 w-3" />
@@ -602,13 +596,13 @@ export default function CreateLandingPage() {
         {/* Main Prompt */}
         <div className="space-y-2">
           <Label htmlFor="prompt" className="text-base font-semibold">
-            Describe Your Landing Page
+            Brief
           </Label>
           <Textarea
             id="prompt"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your landing page... e.g., A modern landing page for my fitness app 'FitTrack' that helps users track their workouts and nutrition..."
+            placeholder="Describe the offer, audience, and call to action."
             className="min-h-[120px] resize-y text-base"
           />
         </div>
@@ -660,7 +654,7 @@ export default function CreateLandingPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Choose which fields appear on your {pageType === "event" ? "registration" : "lead capture"} form. Submissions will be saved as contacts.
+                    {pageType === "event" ? "Registration" : "Lead capture"} fields.
                   </p>
                   <div className="space-y-2">
                     {formFields.map((field) => (
@@ -711,12 +705,6 @@ export default function CreateLandingPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3">
-                    <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-700 dark:text-blue-300">
-                      Form submissions are automatically saved as contacts with the tag &quot;landing-page-lead&quot; for easy segmentation and follow-up campaigns.
-                    </p>
-                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -732,9 +720,6 @@ export default function CreateLandingPage() {
           >
             <div className="flex items-center gap-2">
               <span className="font-medium">Advanced Options</span>
-              {brandLoaded && (
-                <span className="text-xs text-muted-foreground">(prefilled from brand)</span>
-              )}
             </div>
             {showAdvanced ? (
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -888,7 +873,6 @@ export default function CreateLandingPage() {
               <CardContent className="space-y-4 p-5">
                 <div>
                   <h2 className="font-semibold">Build steps</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Complete the brief, generate, preview, then publish when the page is ready.</p>
                 </div>
                 <div className="space-y-3">
                   {[
@@ -915,7 +899,6 @@ export default function CreateLandingPage() {
               <CardContent className="space-y-4 p-5">
                 <div>
                   <h2 className="font-semibold">Current brief</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">The AI will use these signals first.</p>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="rounded-lg border bg-background p-3">
@@ -945,7 +928,7 @@ export default function CreateLandingPage() {
                   <h2 className="font-semibold">Generation cost</h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  This generation will use {costs.AI_LANDING_PAGE ?? 50} credits after the draft is created.
+                  {costs.AI_LANDING_PAGE ?? 50} credits
                 </p>
                 <Button
                   disabled={!canGenerate}
@@ -960,24 +943,6 @@ export default function CreateLandingPage() {
           </aside>
         </div>
 
-        {/* Credit display & Generate button */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            This will use {costs.AI_LANDING_PAGE ?? 50} credits
-          </Badge>
-
-          <Button
-            size="lg"
-            disabled={!canGenerate}
-            onClick={handleGenerate}
-            className="w-full sm:w-auto gap-2"
-          >
-            <Sparkles className="h-5 w-5" />
-            Generate Landing Page
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
       </motion.div>
     );
   }

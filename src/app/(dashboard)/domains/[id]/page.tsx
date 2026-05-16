@@ -295,9 +295,6 @@ export default function DomainDetailPage() {
                 </span>
               )}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Domain routing, verification, DNS, billing, and production settings.
-            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -510,12 +507,9 @@ function OverviewTab({
             <div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">Ownership Verification</h3>
+              <h3 className="text-sm font-semibold">Ownership Verification</h3>
                 {getStatusBadge(domain.verification.status)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                External domains must prove ownership before FlowSmartly routes live traffic.
-              </p>
             </div>
             <Button
               size="sm"
@@ -550,7 +544,7 @@ function OverviewTab({
 
           {domain.verification.status !== "verified" && (
             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-800 dark:text-amber-300">
-              Add the TXT record above wherever this domain's DNS is currently hosted, then click Verify. Linking and primary-domain routing stay locked until this passes.
+              Add the TXT record, then click Verify.
             </div>
           )}
         </div>
@@ -567,9 +561,6 @@ function OverviewTab({
                 </h3>
                 {getStatusBadge(registrantStatus)}
               </div>
-              <p className="text-sm text-amber-800 dark:text-amber-300 mt-2">
-                OpenSRS requires the registered name holder to click the verification email. If this is not completed, the domain can be suspended and DNS may stop resolving.
-              </p>
             </div>
             <div className="flex gap-2 shrink-0">
               <Button
@@ -613,9 +604,6 @@ function OverviewTab({
             )}
           </div>
 
-          <p className="text-xs text-amber-800 dark:text-amber-300">
-            After resending, the registrant must open the OpenSRS/Tucows email and confirm the contact details. The FlowSmartly button only resends and checks status.
-          </p>
         </div>
       )}
 
@@ -626,7 +614,7 @@ function OverviewTab({
             <Clock className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
             <div className="text-sm text-blue-800 dark:text-blue-300">
               <p className="font-semibold mb-1">Domain setup in progress</p>
-              <p>Your domain is registered and DNS is being configured automatically. SSL certificate will be provisioned once Cloudflare activates your zone. This typically takes a few minutes to a couple of hours — no action needed from you. Click Refresh to check the latest status.</p>
+              <p>DNS and SSL are still activating.</p>
             </div>
           </div>
         </div>
@@ -638,7 +626,7 @@ function OverviewTab({
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm text-amber-800 dark:text-amber-300">
               <p className="font-semibold mb-1">Setup not complete</p>
-              <p>Update your nameservers at your domain registrar to the ones shown above. SSL will be provisioned automatically once nameservers are active (24-48 hours).</p>
+              <p>Update nameservers, then refresh.</p>
             </div>
           </div>
         </div>
@@ -656,7 +644,7 @@ function OverviewTab({
             </div>
             <div>
               <h2 className="font-semibold">Next domain step</h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{nextAction}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{nextAction}</p>
             </div>
           </div>
         </div>
@@ -674,7 +662,6 @@ function OverviewTab({
         {domain.nameservers.length > 0 && (
           <div className="rounded-lg border bg-card p-5">
             <h2 className="font-semibold">Nameserver copy</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Use these records when a registrar needs manual nameserver updates.</p>
             <div className="mt-4 space-y-2">
               {domain.nameservers.map((ns) => (
                 <button
