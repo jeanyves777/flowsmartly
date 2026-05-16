@@ -274,59 +274,56 @@ export default function LandingPagesPage() {
   );
 
   return (
-    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="w-full space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-3xl">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+          <div className="mb-1.5 hidden items-center gap-2 rounded-full border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground xl:inline-flex">
             <SparkLineIcon />
             AI landing page builder
           </div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Landing Pages</h1>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Build, publish, and track AI landing pages.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Landing Pages</h1>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={fetchPages} disabled={isLoading} className="gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={fetchPages} disabled={isLoading} className="gap-1.5">
             {isLoading ? <AISpinner className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button asChild className="gap-2">
+          <Button asChild size="sm" className="gap-1.5">
             <Link href="/landing-pages/create">
               <Plus className="h-4 w-4" />
-              Create Page
+              <span>Create</span>
             </Link>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={LayoutTemplate} label="Total pages" value={formatNumber(stats?.total ?? 0)} detail={`${formatNumber(stats?.published ?? 0)} published`} />
         <MetricCard icon={Eye} label="Total views" value={formatNumber(stats?.totalViews ?? 0)} detail="All landing pages" />
         <MetricCard icon={ClipboardCheck} label="Leads captured" value={formatNumber(stats?.totalSubmissions ?? 0)} detail={`${stats?.averageConversionRate ?? 0}% average conversion`} />
         <MetricCard icon={TrendingUp} label="Recent launches" value={formatNumber(stats?.recentlyPublished ?? 0)} detail="Published in 30 days" />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative w-full lg:max-w-md">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-card p-3">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-lg">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search pages by title, slug, or type"
-                  className="pl-9"
+                  placeholder="Search pages"
+                  className="h-9 pl-9"
                 />
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {filterTabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveFilter(tab.id)}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                      "inline-flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors",
                       activeFilter === tab.id
                         ? "border-primary bg-primary text-primary-foreground"
                         : "bg-background text-muted-foreground hover:text-foreground"
@@ -361,28 +358,23 @@ export default function LandingPagesPage() {
             </div>
           ) : pages.length === 0 ? (
             <Card>
-              <CardContent className="flex flex-col items-center px-6 py-16 text-center">
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Globe2 className="h-8 w-8" />
+              <CardContent className="flex flex-col items-center px-4 py-10 text-center">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Globe2 className="h-6 w-6" />
                 </div>
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-lg font-semibold">
                   {searchQuery || activeFilter !== "all" ? "No matching pages" : "No landing pages yet"}
                 </h2>
-                <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-                  {searchQuery || activeFilter !== "all"
-                    ? "Clear the search or switch filters to see the full workspace."
-                    : "Create your first AI landing page."}
-                </p>
-                <Button asChild className="mt-6 gap-2">
+                <Button asChild className="mt-4 gap-2">
                   <Link href="/landing-pages/create">
                     <Rocket className="h-4 w-4" />
-                    Create Your First Page
+                    Create Page
                   </Link>
                 </Button>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {pages.map((page) => (
                 <LandingPageCard
                   key={page.id}
@@ -398,23 +390,23 @@ export default function LandingPagesPage() {
           )}
 
           {pagination && pagination.total > 0 && (
-            <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               Showing {formatNumber(pages.length)} of {formatNumber(pagination.total)} page{pagination.total === 1 ? "" : "s"}.
             </div>
           )}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-3">
           <Card>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-3 p-4">
               <div>
                 <h2 className="font-semibold">Launch steps</h2>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {workflow.map((step, index) => (
-                  <div key={step.id} className="flex items-center gap-3 rounded-lg border bg-background p-3">
+                  <div key={step.id} className="flex items-center gap-2.5 rounded-lg border bg-background p-2.5">
                     <div className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                       step.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
                     )}>
                       {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
@@ -427,10 +419,10 @@ export default function LandingPagesPage() {
           </Card>
 
           <Card>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-3 p-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <MousePointerClick className="h-5 w-5" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MousePointerClick className="h-4 w-4" />
                 </div>
                 <div>
                   <h2 className="font-semibold">Next best action</h2>
@@ -453,19 +445,19 @@ export default function LandingPagesPage() {
           </Card>
 
           <Card>
-            <CardContent className="space-y-4 p-5">
+            <CardContent className="space-y-3 p-4">
               <div>
                 <h2 className="font-semibold">Top pages</h2>
               </div>
               {topPages.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No performance data yet.</p>
+                <p className="text-sm text-muted-foreground">No data yet.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {topPages.map((page) => (
                     <Link
                       key={page.id}
                       href={`/landing-pages/${page.id}/edit`}
-                      className="block rounded-lg border bg-background p-3 transition-colors hover:border-primary/50"
+                      className="block rounded-lg border bg-background p-2.5 transition-colors hover:border-primary/50"
                     >
                       <p className="truncate text-sm font-medium">{page.title}</p>
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
@@ -497,14 +489,14 @@ function MetricCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex items-start gap-4 p-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-5 w-5" />
+      <CardContent className="flex items-center gap-3 p-3 sm:p-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+          <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
+          <p className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{value}</p>
+          <p className="hidden truncate text-xs text-muted-foreground 2xl:block">{detail}</p>
         </div>
       </CardContent>
     </Card>
@@ -529,8 +521,8 @@ function LandingPageCard({
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
       <Card className="h-full">
-        <CardContent className="flex h-full flex-col p-5">
-          <div className="mb-4 flex items-start justify-between gap-3">
+        <CardContent className="flex h-full flex-col p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
             <Badge
               variant="secondary"
               className={cn(
@@ -588,37 +580,37 @@ function LandingPageCard({
             </DropdownMenu>
           </div>
 
-          <Link href={`/landing-pages/${page.id}/edit`} className="text-lg font-semibold leading-tight hover:text-primary">
+          <Link href={`/landing-pages/${page.id}/edit`} className="line-clamp-2 text-base font-semibold leading-tight hover:text-primary">
             {page.title}
           </Link>
-          <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
+          <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">
             {page.description || "No description yet."}
           </p>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center text-xs">
+          <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-2.5 text-center text-xs">
             <div>
               <p className="font-semibold">{formatNumber(page.views)}</p>
-              <p className="mt-1 text-muted-foreground">Views</p>
+              <p className="text-muted-foreground">Views</p>
             </div>
             <div>
               <p className="font-semibold">{formatNumber(page.submissions)}</p>
-              <p className="mt-1 text-muted-foreground">Leads</p>
+              <p className="text-muted-foreground">Leads</p>
             </div>
             <div>
               <p className="font-semibold">{page.conversionRate}%</p>
-              <p className="mt-1 text-muted-foreground">Conv.</p>
+              <p className="text-muted-foreground">Conv.</p>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
               <FileText className="h-3.5 w-3.5" />
               {pageTypeLabels[page.pageType] || page.pageType}
             </span>
-            <span>Updated {formatRelativeDate(page.updatedAt)}</span>
+            <span>{formatRelativeDate(page.updatedAt)}</span>
           </div>
 
-          <div className="mt-auto flex gap-2 pt-5">
+          <div className="mt-auto flex gap-2 pt-4">
             <Button variant="outline" size="sm" className="flex-1 gap-1.5" asChild>
               <Link href={`/landing-pages/${page.id}/edit`}>
                 <Edit3 className="h-3.5 w-3.5" />

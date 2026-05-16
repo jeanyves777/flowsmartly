@@ -299,7 +299,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     const content = (
       <div
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative",
+          "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
           isLocked
             ? "text-muted-foreground/50 cursor-not-allowed"
             : isActive
@@ -307,7 +307,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             : "text-muted-foreground hover:bg-accent hover:text-foreground"
         )}
       >
-        <item.icon className="h-5 w-5 shrink-0" />
+        <item.icon className="h-[18px] w-[18px] shrink-0" />
         {!isCollapsed && (
           <motion.span
             initial={{ opacity: 0 }}
@@ -363,13 +363,13 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     items: { name: string; href: string; icon: React.ElementType; premium?: boolean }[],
     checkLocked: boolean = false
   ) => (
-    <div className="pt-3">
+    <div className="pt-2.5">
       {!isCollapsed ? (
         <button
           onClick={() => setOpen(!isOpen)}
-          className="w-full px-3 pb-2 flex items-center gap-2"
+          className="flex w-full items-center gap-2 px-2.5 pb-1.5"
         >
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <span className="text-[11px] font-semibold uppercase text-muted-foreground">
             {label}
           </span>
           <ChevronDown
@@ -380,7 +380,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           />
         </button>
       ) : (
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center py-1.5">
           <Icon className={cn("h-4 w-4", isActive ? "text-brand-500" : "text-muted-foreground")} />
         </div>
       )}
@@ -409,20 +409,20 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   return (
     <motion.aside
       initial={false}
-      animate={{ width: isCollapsed ? 80 : 280 }}
+      animate={{ width: isCollapsed ? 72 : 260 }}
       transition={{ duration: 0.2 }}
       className="fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r bg-card"
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between px-4 border-b">
-        <Link href="/dashboard" className="flex items-center gap-3">
+      <div className="flex h-14 items-center justify-between border-b px-3 sm:h-16">
+        <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
           {isCollapsed ? (
             <Image
               src="/icon.png"
               alt="FlowSmartly"
-              width={40}
-              height={40}
-              className="w-10 h-10 rounded-xl shrink-0"
+              width={36}
+              height={36}
+              className="h-9 w-9 shrink-0 rounded-lg"
               priority
               unoptimized
             />
@@ -430,9 +430,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             <Image
               src="/logo.png"
               alt="FlowSmartly"
-              width={160}
+              width={150}
               height={40}
-              className="h-8 w-auto"
+              className="h-7 w-auto"
               priority
               unoptimized
             />
@@ -492,7 +492,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
       )}
 
       {/* Main Navigation */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {/* Store mode, Delegation mode, or Normal mode */}
         {storeMode ? (
           <>
@@ -714,7 +714,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
       </nav>
 
       {/* Secondary Navigation */}
-      <div className="p-4 border-t space-y-1">
+      <div className="space-y-1 border-t p-3">
         {secondaryNavigation.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -722,13 +722,13 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <item.icon className="h-[18px] w-[18px] shrink-0" />
               {!isCollapsed && (
                 <motion.span
                   initial={{ opacity: 0 }}
@@ -746,13 +746,13 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
           <Link
             href="/ecommerce"
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
               pathname === "/ecommerce"
                 ? "bg-brand-50 text-brand-700 dark:bg-brand-950/30 dark:text-brand-300"
                 : "text-muted-foreground hover:bg-muted"
             )}
           >
-            <Rocket className="h-5 w-5 shrink-0" />
+            <Rocket className="h-[18px] w-[18px] shrink-0" />
             {!isCollapsed && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 Start Store

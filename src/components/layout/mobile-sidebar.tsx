@@ -185,9 +185,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
       return (
         <div
           key={item.name}
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground/50 cursor-not-allowed"
+          className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground/50"
         >
-          <item.icon className="h-5 w-5 shrink-0" />
+          <item.icon className="h-[18px] w-[18px] shrink-0" />
           <span className="flex-1">{item.name}</span>
           <Lock className="h-3.5 w-3.5" />
         </div>
@@ -200,13 +200,13 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
         href={item.href}
         onClick={onClose}
         className={cn(
-          "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+          "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
           isActive
             ? "bg-brand-500 text-white"
             : "text-foreground hover:bg-accent"
         )}
       >
-        <item.icon className="h-5 w-5 shrink-0" />
+        <item.icon className="h-[18px] w-[18px] shrink-0" />
         <span className="flex-1">{item.name}</span>
         {item.premium && !isLocked && (
           <Crown className="h-3.5 w-3.5 text-amber-500" />
@@ -235,17 +235,17 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed left-0 top-0 bottom-0 z-50 w-[85%] max-w-[320px] flex flex-col bg-card md:hidden"
+            className="fixed bottom-0 left-0 top-0 z-50 flex w-[84%] max-w-[300px] flex-col bg-card md:hidden"
           >
             {/* Header */}
-            <div className="flex h-16 items-center justify-between px-4 border-b">
+            <div className="flex h-14 items-center justify-between border-b px-3">
               <Link href="/dashboard" className="flex items-center" onClick={onClose}>
                 <Image
                   src="/logo.png"
                   alt="FlowSmartly"
                   width={140}
                   height={35}
-                  className="h-8 w-auto"
+                  className="h-7 w-auto"
                   priority
                   unoptimized
                 />
@@ -257,9 +257,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
 
             {/* User Info */}
             {user && (
-              <div className="p-4 border-b">
+              <div className="border-b p-3">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
+                  <Avatar className="h-9 w-9">
                     <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                     <AvatarFallback className="bg-brand-500 text-white">
                       {initials}
@@ -285,7 +285,7 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
             )}
 
             {/* Main Navigation */}
-            <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3">
               {/* Dashboard + Feed */}
               {topNavigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -305,9 +305,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               )}
 
               {/* Content Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Content
                   </span>
                 </div>
@@ -318,9 +318,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* AI Creatives Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     AI Creatives
                   </span>
                 </div>
@@ -331,9 +331,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* Marketing Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Marketing
                   </span>
                 </div>
@@ -345,9 +345,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* Web Presence Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Web Presence
                   </span>
                 </div>
@@ -358,9 +358,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* Business Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Business
                   </span>
                 </div>
@@ -371,9 +371,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* Tools & Insights Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Tools & Insights
                   </span>
                 </div>
@@ -384,9 +384,9 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
               </div>
 
               {/* Money Section */}
-              <div className="pt-4">
-                <div className="px-4 pb-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="pt-2.5">
+                <div className="flex items-center gap-2 px-3 pb-1.5">
+                  <span className="text-[11px] font-semibold uppercase text-muted-foreground">
                     Money
                   </span>
                 </div>
@@ -398,7 +398,7 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
             </nav>
 
             {/* Secondary Navigation */}
-            <div className="p-4 border-t space-y-1">
+            <div className="space-y-1 border-t p-3">
               {secondaryNavigation
                 .filter((item) => item.name !== "Teams" || hasMarketingAccess)
                 .map((item) => {
@@ -407,25 +407,25 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   <Link
                     key={item.name}
                     href={item.href}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                      onClick={onClose}
+                      className={cn(
+                      "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-accent text-foreground"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >
-                    <item.icon className="h-5 w-5 shrink-0" />
+                    <item.icon className="h-[18px] w-[18px] shrink-0" />
                     <span>{item.name}</span>
                   </Link>
                 );
               })}
 
               <button
-                className="flex w-full items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 onClick={handleLogout}
               >
-                <LogOut className="h-5 w-5 shrink-0" />
+                <LogOut className="h-[18px] w-[18px] shrink-0" />
                 <span>Log out</span>
               </button>
             </div>

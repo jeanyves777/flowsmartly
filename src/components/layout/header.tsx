@@ -422,11 +422,11 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
     <>
     <header
       className={cn(
-        "fixed top-0 right-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-200",
-        sidebarCollapsed ? "left-0 md:left-20" : "left-0 md:left-[280px]"
+        "fixed top-0 right-0 z-30 h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-200 sm:h-16",
+        sidebarCollapsed ? "left-0 md:left-[72px]" : "left-0 md:left-[260px]"
       )}
     >
-      <div className="flex h-full items-center justify-between px-4 md:px-6">
+      <div className="flex h-full items-center justify-between px-2 sm:px-3 md:px-4 xl:px-6">
         {/* Mobile Menu Button */}
         <Button
           variant="ghost"
@@ -445,7 +445,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
               setShowSearch(true);
               setTimeout(() => searchInputRef.current?.focus(), 0);
             }}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:h-10 sm:w-10"
             aria-label="Open search"
           >
             <Search className="h-4 w-4" />
@@ -512,17 +512,17 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
 
         {/* Actions */}
         <TooltipProvider delayDuration={300}>
-        <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+        <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
           {/* AI Credits Display */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Link href="/credits/history" className="hidden sm:flex">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-colors">
+                <div className="flex h-9 items-center gap-1.5 rounded-lg border border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-purple-500/10 px-2 transition-colors hover:border-violet-500/40 lg:px-2.5 2xl:px-3">
                   <Sparkles className="h-4 w-4 text-violet-500" />
                   <span className="text-sm font-medium">
                     {user?.aiCredits !== undefined ? user.aiCredits.toLocaleString() : "---"}
                   </span>
-                  <span className="text-xs text-muted-foreground hidden lg:inline">credits</span>
+                  <span className="hidden text-xs text-muted-foreground 2xl:inline">credits</span>
                 </div>
               </Link>
             </TooltipTrigger>
@@ -535,7 +535,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
               <TooltipTrigger asChild>
                 <Link href="/content/strategy/reports" className="hidden sm:flex">
                   <div className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors",
+                    "flex h-9 items-center gap-1.5 rounded-lg border px-2 transition-colors lg:px-2.5 2xl:px-3",
                     strategyScore >= 80
                       ? "bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20 hover:border-green-500/40"
                       : strategyScore >= 50
@@ -559,11 +559,12 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
             <TooltipTrigger asChild>
               <Button
                 size="sm"
-                className="hidden sm:flex"
+                className="hidden px-2.5 md:inline-flex 2xl:px-3"
                 onClick={() => openCreateModal()}
+                aria-label="Create"
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Create
+                <Plus className="h-4 w-4 2xl:mr-1" />
+                <span className="hidden 2xl:inline">Create</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Open FlowCreative</TooltipContent>
@@ -741,7 +742,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
           {/* User Menu */}
           <div ref={userMenuRef} className="relative">
             <button
-              className="flex items-center gap-2 sm:gap-3 p-1.5 rounded-lg hover:bg-accent transition-colors"
+              className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent transition-colors sm:p-1.5 2xl:gap-3"
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
               <Avatar className="h-8 w-8">
@@ -750,7 +751,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="hidden md:block text-left">
+              <div className="hidden text-left 2xl:block">
                 <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
                 <p className="text-xs text-muted-foreground">{user?.plan || "Free"} Plan</p>
               </div>

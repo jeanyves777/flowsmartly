@@ -363,18 +363,18 @@ export default function CreateLandingPage() {
         animate="center"
         exit="exit"
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="w-full space-y-6"
+        className="w-full space-y-4"
       >
         {/* Header */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
           <Link href="/landing-pages">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" aria-label="Back to landing pages">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">Create Landing Page</h1>
+            <h1 className="text-xl font-bold sm:text-2xl">Create Landing Page</h1>
           </div>
           </div>
           {brandLoaded && (
@@ -385,12 +385,12 @@ export default function CreateLandingPage() {
           )}
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-8">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-5">
         {/* Page Type Selector */}
-        <div className="space-y-3">
-          <Label className="text-base font-semibold">Page Type</Label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">Page Type</Label>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {PAGE_TYPES.map((pt) => {
               const Icon = pt.icon;
               const selected = pageType === pt.id;
@@ -400,14 +400,14 @@ export default function CreateLandingPage() {
                   type="button"
                   onClick={() => setPageType(pt.id)}
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all hover:shadow-md",
+                    "flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all hover:shadow-md",
                     selected
                       ? "border-brand-500 bg-brand-500/10 shadow-sm"
                       : "border-border bg-card hover:border-muted-foreground/30"
                   )}
                 >
-                  <Icon className={cn("h-6 w-6", selected ? "text-brand-500" : "text-muted-foreground")} />
-                  <span className={cn("text-sm font-medium", selected ? "text-brand-500" : "text-foreground")}>
+                  <Icon className={cn("h-5 w-5", selected ? "text-brand-500" : "text-muted-foreground")} />
+                  <span className={cn("text-xs font-medium sm:text-sm", selected ? "text-brand-500" : "text-foreground")}>
                     {pt.name}
                   </span>
                 </button>
@@ -424,10 +424,10 @@ export default function CreateLandingPage() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="space-y-3"
+              className="space-y-2"
             >
               <div>
-                <Label className="text-base font-semibold">Choose a Template</Label>
+                <Label className="text-sm font-semibold">Template</Label>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
                 {/* Custom / No template card */}
@@ -435,7 +435,7 @@ export default function CreateLandingPage() {
                   type="button"
                   onClick={() => setSelectedTemplate(null)}
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all shrink-0 w-[170px]",
+                    "flex w-[148px] shrink-0 flex-col items-center gap-2 rounded-lg border-2 p-3 text-center transition-all",
                     selectedTemplate === null
                       ? "border-brand-500 bg-brand-500/10 shadow-sm"
                       : "border-border bg-card hover:border-muted-foreground/30"
@@ -466,7 +466,7 @@ export default function CreateLandingPage() {
                       type="button"
                       onClick={() => setSelectedTemplate(variant.id)}
                       className={cn(
-                        "flex flex-col gap-2 rounded-lg border-2 p-3 text-left transition-all shrink-0 w-[190px] group relative",
+                    "group relative flex w-[170px] shrink-0 flex-col gap-2 rounded-lg border-2 p-3 text-left transition-all",
                         isSelected
                           ? "border-brand-500 bg-brand-500/10 shadow-sm"
                           : "border-border bg-card hover:border-muted-foreground/30"
@@ -595,7 +595,7 @@ export default function CreateLandingPage() {
 
         {/* Main Prompt */}
         <div className="space-y-2">
-          <Label htmlFor="prompt" className="text-base font-semibold">
+          <Label htmlFor="prompt" className="text-sm font-semibold">
             Brief
           </Label>
           <Textarea
@@ -603,12 +603,12 @@ export default function CreateLandingPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe the offer, audience, and call to action."
-            className="min-h-[120px] resize-y text-base"
+            className="min-h-[104px] resize-y text-sm"
           />
         </div>
 
         {/* Media: Image & Video */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <MediaUploader
             value={imageUrl ? [imageUrl] : []}
             onChange={(urls) => setImageUrl(urls[0] || "")}
@@ -716,7 +716,7 @@ export default function CreateLandingPage() {
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex w-full items-center justify-between p-4 text-left"
+            className="flex w-full items-center justify-between p-3 text-left"
           >
             <div className="flex items-center gap-2">
               <span className="font-medium">Advanced Options</span>
@@ -737,9 +737,9 @@ export default function CreateLandingPage() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-5 border-t px-4 pb-5 pt-4">
+                <div className="space-y-4 border-t px-3 pb-4 pt-3">
                   {/* Brand Name & Logo */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="brandName">Brand Name</Label>
                       <Input
@@ -771,7 +771,7 @@ export default function CreateLandingPage() {
                   </div>
 
                   {/* Colors */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     {([
                       ["Primary Color", primaryColor, setPrimaryColor],
                       ["Secondary Color", secondaryColor, setSecondaryColor],
@@ -831,7 +831,7 @@ export default function CreateLandingPage() {
                   </div>
 
                   {/* CTA Text, CTA URL & Keywords */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="ctaText">CTA Text</Label>
                       <Input
@@ -868,22 +868,22 @@ export default function CreateLandingPage() {
 
           </div>
 
-          <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+          <aside className="space-y-3 xl:sticky xl:top-6 xl:self-start">
             <Card>
-              <CardContent className="space-y-4 p-5">
+              <CardContent className="space-y-3 p-4">
                 <div>
                   <h2 className="font-semibold">Build steps</h2>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {[
                     { label: "Choose page type", complete: !!pageType },
                     { label: "Describe the offer", complete: prompt.trim().length > 0 },
                     { label: "Add brand and media", complete: brandLoaded || !!imageUrl || !!videoUrl || showAdvanced },
                     { label: "Generate draft", complete: step > 1 },
                   ].map((item, index) => (
-                    <div key={item.label} className="flex items-center gap-3 rounded-lg border bg-background p-3">
+                    <div key={item.label} className="flex items-center gap-2.5 rounded-lg border bg-background p-2.5">
                       <span className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                         item.complete ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"
                       )}>
                         {item.complete ? <Check className="h-4 w-4" /> : index + 1}
@@ -896,24 +896,24 @@ export default function CreateLandingPage() {
             </Card>
 
             <Card>
-              <CardContent className="space-y-4 p-5">
+              <CardContent className="space-y-3 p-4">
                 <div>
                   <h2 className="font-semibold">Current brief</h2>
                 </div>
-                <div className="space-y-3 text-sm">
-                  <div className="rounded-lg border bg-background p-3">
+                <div className="space-y-2 text-sm">
+                  <div className="rounded-lg border bg-background p-2.5">
                     <p className="text-xs text-muted-foreground">Page type</p>
                     <p className="mt-1 font-medium">{selectedPageType?.name || "Not selected"}</p>
                   </div>
-                  <div className="rounded-lg border bg-background p-3">
+                  <div className="rounded-lg border bg-background p-2.5">
                     <p className="text-xs text-muted-foreground">Brand</p>
                     <p className="mt-1 font-medium">{brandName || "Use prompt details"}</p>
                   </div>
-                  <div className="rounded-lg border bg-background p-3">
+                  <div className="rounded-lg border bg-background p-2.5">
                     <p className="text-xs text-muted-foreground">Lead fields</p>
                     <p className="mt-1 font-medium">{activeFieldCount > 0 ? `${activeFieldCount} active` : "No form fields"}</p>
                   </div>
-                  <div className="rounded-lg border bg-background p-3">
+                  <div className="rounded-lg border bg-background p-2.5">
                     <p className="text-xs text-muted-foreground">Template</p>
                     <p className="mt-1 font-medium">{selectedTemplate ? "Template selected" : "Custom AI layout"}</p>
                   </div>
@@ -922,7 +922,7 @@ export default function CreateLandingPage() {
             </Card>
 
             <Card>
-              <CardContent className="space-y-3 p-5">
+              <CardContent className="space-y-3 p-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-brand-500" />
                   <h2 className="font-semibold">Generation cost</h2>
@@ -1207,7 +1207,7 @@ export default function CreateLandingPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen w-full px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full">
       <AnimatePresence mode="wait" custom={direction}>
         {step === 1 && renderInputStep()}
         {step === 2 && renderGeneratingStep()}

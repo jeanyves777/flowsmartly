@@ -278,17 +278,17 @@ export default function DomainDetailPage() {
   if (!domain) return null;
 
   return (
-    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="w-full space-y-4">
       {/* Header */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/domains")}>
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/domains")} aria-label="Back to domains">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <Globe className="h-6 w-6 text-brand-600" />
-              <h1 className="break-all text-2xl font-bold">{domain.domainName}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <Globe className="h-5 w-5 text-brand-600" />
+              <h1 className="break-all text-xl font-bold sm:text-2xl">{domain.domainName}</h1>
               {domain.isPrimary && (
                 <span className="px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-xs font-medium">
                   Primary
@@ -297,22 +297,22 @@ export default function DomainDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? <AISpinner className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button variant="outline" size="sm" asChild>
             <a href={`https://${domain.domainName}`} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4" />
-              Visit
+              <span className="hidden sm:inline">Visit</span>
             </a>
           </Button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 overflow-x-auto border-b">
         {([
           { key: "overview", label: "Overview", icon: Globe },
           { key: "dns", label: "DNS Records", icon: Layers },
@@ -323,7 +323,7 @@ export default function DomainDetailPage() {
             key={key}
             onClick={() => setTab(key)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-[1px]",
+              "mb-[-1px] flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4",
               tab === key
                 ? "border-brand-600 text-brand-700 dark:text-brand-400"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -436,20 +436,20 @@ function OverviewTab({
           : "This domain is ready for production traffic.";
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="space-y-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-3">
       {/* Status cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Registrar Status</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border bg-card p-3">
+          <p className="mb-2 text-[10px] font-medium uppercase text-muted-foreground">Registrar</p>
           {getStatusBadge(domain.registrarStatus)}
         </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">Cloudflare</p>
+        <div className="rounded-lg border bg-card p-3">
+          <p className="mb-2 text-[10px] font-medium uppercase text-muted-foreground">Cloudflare</p>
           {getStatusBadge(domain.cloudflareStatus || "not configured")}
         </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase mb-2">SSL Certificate</p>
+        <div className="rounded-lg border bg-card p-3">
+          <p className="mb-2 text-[10px] font-medium uppercase text-muted-foreground">SSL</p>
           <div className="flex items-center gap-2">
             {domain.sslStatus === "active" || domain.sslStatus === "active_certificate" ? (
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
@@ -462,8 +462,8 @@ function OverviewTab({
       </div>
 
       {/* Domain info */}
-      <div className="rounded-xl border bg-card p-5 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <p className="text-xs text-muted-foreground">Domain</p>
             <p className="font-medium">{domain.domainName}</p>
@@ -483,14 +483,14 @@ function OverviewTab({
 
       {/* Nameservers */}
       {domain.nameservers.length > 0 && (
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="rounded-lg border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
             <Server className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Nameservers</h3>
           </div>
           <div className="space-y-2">
             {domain.nameservers.map((ns, i) => (
-              <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2.5">
+              <div key={i} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <code className="text-sm font-mono">{ns}</code>
                 <button onClick={() => copyToClipboard(ns)} className="text-muted-foreground hover:text-foreground transition-colors">
                   <Copy className="h-4 w-4" />
@@ -502,8 +502,8 @@ function OverviewTab({
       )}
 
       {domain.verification && (
-        <div className="rounded-xl border bg-card p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="space-y-3 rounded-lg border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
@@ -522,7 +522,7 @@ function OverviewTab({
           </div>
 
           {domain.verification.record && (
-            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 Required TXT record
               </p>
@@ -543,7 +543,7 @@ function OverviewTab({
           )}
 
           {domain.verification.status !== "verified" && (
-            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm text-amber-800 dark:text-amber-300">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
               Add the TXT record, then click Verify.
             </div>
           )}
@@ -551,7 +551,7 @@ function OverviewTab({
       )}
 
       {showRegistrantVerification && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/20 p-5 space-y-4">
+        <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-800 dark:bg-amber-950/20">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -583,7 +583,7 @@ function OverviewTab({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
             {domain.registrantVerification?.deadline && (
               <div className="rounded-lg bg-background/80 border px-3 py-2">
                 <p className="text-muted-foreground">Deadline</p>
@@ -609,7 +609,7 @@ function OverviewTab({
 
       {/* Status banners */}
       {!domain.isConnected && (domain.cloudflareStatus === "pending" || (domain.sslStatus !== "active_certificate" && domain.sslStatus !== "active")) && domain.registrarStatus === "active" && (
-        <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-4">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
           <div className="flex items-start gap-3">
             <Clock className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
             <div className="text-sm text-blue-800 dark:text-blue-300">
@@ -621,7 +621,7 @@ function OverviewTab({
       )}
 
       {domain.isConnected && domain.sslStatus !== "active_certificate" && domain.sslStatus !== "active" && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm text-amber-800 dark:text-amber-300">
@@ -633,14 +633,14 @@ function OverviewTab({
       )}
       </div>
 
-      <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-        <div className="rounded-lg border bg-card p-5">
-          <div className="flex items-start gap-3">
+      <aside className="space-y-3 xl:sticky xl:top-6 xl:self-start">
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-start gap-2.5">
             <div className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
               sslReady && ownershipReady ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
             )}>
-              {sslReady && ownershipReady ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+              {sslReady && ownershipReady ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
             </div>
             <div>
               <h2 className="font-semibold">Next domain step</h2>
@@ -649,9 +649,9 @@ function OverviewTab({
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card p-5">
+        <div className="rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Production checklist</h2>
-          <div className="mt-4 space-y-3">
+          <div className="mt-3 space-y-2">
             <DomainChecklistRow label="Registrar active" complete={registrarReady} />
             <DomainChecklistRow label="Ownership verified" complete={ownershipReady} />
             <DomainChecklistRow label="Cloudflare active" complete={cloudflareReady} />
@@ -660,9 +660,9 @@ function OverviewTab({
         </div>
 
         {domain.nameservers.length > 0 && (
-          <div className="rounded-lg border bg-card p-5">
+          <div className="rounded-lg border bg-card p-4">
             <h2 className="font-semibold">Nameserver copy</h2>
-            <div className="mt-4 space-y-2">
+            <div className="mt-3 space-y-2">
               {domain.nameservers.map((ns) => (
                 <button
                   key={ns}

@@ -554,53 +554,52 @@ export function DomainsPageContent() {
   }
 
   return (
-    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+    <div className="w-full space-y-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="max-w-3xl">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+          <div className="mb-1.5 hidden items-center gap-2 rounded-full border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground xl:inline-flex">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
             Domain operations
           </div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Domains</h1>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Register, connect, and manage production domains.
-          </p>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Domains</h1>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={activeView === "search" ? "default" : "outline"}
             size="sm"
             onClick={() => setActiveView(activeView === "search" ? "list" : "search")}
+            className="gap-1.5"
           >
-            <Search className="h-4 w-4 mr-1.5" />
-            Register New
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Register</span>
           </Button>
           <Button
             variant={activeView === "connect" ? "default" : "outline"}
             size="sm"
             onClick={() => setActiveView(activeView === "connect" ? "list" : "connect")}
+            className="gap-1.5"
           >
-            <LinkIcon className="h-4 w-4 mr-1.5" />
-            Connect Existing
+            <LinkIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Connect</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DomainMetric icon={Globe} label="Total domains" value={String(summary?.total ?? domains.length)} detail={`${summary?.registered ?? domains.filter((domain) => !domain.isConnected).length} registered, ${summary?.connected ?? domains.filter((domain) => domain.isConnected).length} connected`} />
         <DomainMetric icon={Star} label="Primary domain" value={primaryDomain} detail="Main website route" />
         <DomainMetric icon={ShieldCheck} label="SSL coverage" value={`${sslCoverage}%`} detail={`${summary?.sslReady ?? 0} SSL-ready domain${(summary?.sslReady ?? 0) === 1 ? "" : "s"}`} />
         <DomainMetric icon={AlertCircle} label="Needs attention" value={String(summary?.needsAction ?? 0)} detail={`${summary?.expiringSoon ?? 0} expiring within 30 days`} />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {displayedSetupSteps.map((step, index) => (
           <SetupStepTile key={step.id} step={step} index={index} />
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
       {/* Search Panel */}
       <AnimatePresence>
         {activeView === "search" && (
@@ -610,8 +609,8 @@ export function DomainsPageContent() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border bg-card p-6">
-              <h2 className="text-lg font-semibold mb-1">Register a New Domain</h2>
+            <div className="rounded-lg border bg-card p-4">
+              <h2 className="mb-2 text-base font-semibold">Register domain</h2>
               <DomainSearch
                 onSelect={handlePurchase}
                 isPro={storeInfo.isPro}
@@ -620,14 +619,11 @@ export function DomainsPageContent() {
                 busyDomain={busyDomain}
               />
               {purchasing && (
-                <div className="flex items-center gap-3 mt-4 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                  <AISpinner className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
+                <div className="mt-3 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-800 dark:bg-blue-900/20">
+                  <AISpinner className="h-4 w-4 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
                   <div className="text-sm">
                     <div className="font-medium text-blue-900 dark:text-blue-100">
                       Processing {busyDomain || "domain"}…
-                    </div>
-                    <div className="text-xs text-blue-700 dark:text-blue-300 opacity-80">
-                      Please don&apos;t click again — this can take up to 30 seconds.
                     </div>
                   </div>
                 </div>
@@ -646,7 +642,7 @@ export function DomainsPageContent() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border bg-card p-6">
+            <div className="rounded-lg border bg-card p-4">
               <div className="flex items-center gap-2 mb-1">
                 <CreditCard className="h-5 w-5 text-brand-600" />
                 <h2 className="text-lg font-semibold">Complete Payment</h2>
@@ -684,27 +680,27 @@ export function DomainsPageContent() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border bg-card p-6 space-y-5">
+            <div className="space-y-4 rounded-lg border bg-card p-4">
               <div>
-                <h2 className="text-lg font-semibold mb-1">Connect Your Domain</h2>
+                <h2 className="text-base font-semibold">Connect domain</h2>
               </div>
 
               {/* Step-by-step guide */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 mb-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">1</span>
                     <h3 className="text-sm font-semibold">Enter Domain</h3>
                   </div>
                 </div>
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">2</span>
                     <h3 className="text-sm font-semibold">Add TXT Record</h3>
                   </div>
                 </div>
-                <div className="rounded-lg border bg-muted/30 p-4">
-                  <div className="flex items-center gap-2 mb-2">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center h-6 w-6 rounded-full bg-brand-100 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400 text-xs font-bold">3</span>
                     <h3 className="text-sm font-semibold">Verify & Route</h3>
                   </div>
@@ -713,11 +709,11 @@ export function DomainsPageContent() {
 
               {/* Connection form */}
               {!connectionResult ? (
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={connectDomain}
                     onChange={(e) => setConnectDomain(e.target.value)}
-                    placeholder="Enter your domain (e.g. mybrand.com)"
+                    placeholder="mybrand.com"
                     onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                   />
                   <Button onClick={handleConnect} disabled={connecting || !connectDomain.trim()}>
@@ -848,18 +844,18 @@ export function DomainsPageContent() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border bg-card p-12 text-center"
+          className="rounded-lg border bg-card p-8 text-center"
         >
-          <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-          <h2 className="text-xl font-bold mb-2">No Domains Yet</h2>
-          <div className="mt-6 flex gap-3 justify-center">
+          <Globe className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
+          <h2 className="text-lg font-bold">No domains yet</h2>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button onClick={() => setActiveView("search")}>
-              <Search className="h-4 w-4 mr-1.5" />
-              Register New Domain
+              <Search className="h-4 w-4" />
+              Register
             </Button>
             <Button variant="outline" onClick={() => setActiveView("connect")}>
-              <LinkIcon className="h-4 w-4 mr-1.5" />
-              Connect Existing
+              <LinkIcon className="h-4 w-4" />
+              Connect
             </Button>
           </div>
         </motion.div>
@@ -875,13 +871,13 @@ export function DomainsPageContent() {
                 key={domain.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="cursor-pointer rounded-lg border bg-card p-5 transition-colors hover:border-primary/50"
+                className="cursor-pointer rounded-lg border bg-card p-4 transition-colors hover:border-primary/50"
                 onClick={() => router.push(`/domains/${domain.id}`)}
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex min-w-0 gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center shrink-0">
-                      <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-950/30">
+                      <Globe className="h-4 w-4 text-brand-600 dark:text-brand-400" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -914,7 +910,7 @@ export function DomainsPageContent() {
                           {nextAction.label}
                         </div>
                       )}
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                         <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
                           {getStatusIcon(domain.registrarStatus)}
                           {domain.registrarStatus}
@@ -975,9 +971,10 @@ export function DomainsPageContent() {
                       variant="outline"
                       size="sm"
                       onClick={() => router.push(`/domains/${domain.id}`)}
+                      className="gap-1"
                     >
-                      Manage
-                      <ChevronRight className="h-4 w-4 ml-0.5" />
+                      <span className="hidden sm:inline">Manage</span>
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -988,20 +985,20 @@ export function DomainsPageContent() {
       )}
         </div>
 
-        <aside className="space-y-4">
-          <div className="rounded-lg border bg-card p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <AlertCircle className="h-5 w-5" />
+        <aside className="space-y-3">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
               </div>
               <div>
                 <h2 className="font-semibold">Attention queue</h2>
               </div>
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-2">
               {actionDomains.length === 0 ? (
-                <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  No urgent domain action is waiting.
+                <div className="rounded-lg border bg-muted/30 p-2.5 text-sm text-muted-foreground">
+                  Nothing urgent.
                 </div>
               ) : (
                 actionDomains.map((domain) => (
@@ -1009,7 +1006,7 @@ export function DomainsPageContent() {
                     key={domain.id}
                     type="button"
                     onClick={() => router.push(`/domains/${domain.id}`)}
-                    className="w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50"
+                    className="w-full rounded-lg border bg-background p-2.5 text-left transition-colors hover:border-primary/50"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate text-sm font-medium">{domain.domainName}</span>
@@ -1028,9 +1025,9 @@ export function DomainsPageContent() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-card p-5">
+          <div className="rounded-lg border bg-card p-4">
             <h2 className="font-semibold">Production readiness</h2>
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-2">
               <ReadinessRow label="Primary domain selected" complete={primaryDomain !== "Not selected"} />
               <ReadinessRow label="Ownership verified" complete={(summary?.verified ?? 0) > 0} />
               <ReadinessRow label="SSL active" complete={(summary?.sslReady ?? 0) > 0} />
@@ -1038,9 +1035,9 @@ export function DomainsPageContent() {
             </div>
           </div>
 
-          <div className="rounded-lg border bg-card p-5">
+          <div className="rounded-lg border bg-card p-4">
             <h2 className="font-semibold">Best next step</h2>
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-2">
               <Button variant="outline" className="justify-between" onClick={() => setActiveView("search")}>
                 Register new
                 <Search className="h-4 w-4" />
@@ -1071,15 +1068,15 @@ function DomainMetric({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-5">
-      <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-5 w-5" />
+    <div className="rounded-lg border bg-card p-3 sm:p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-1 truncate text-2xl font-semibold tracking-tight">{value}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+          <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
+          <p className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{value}</p>
+          <p className="hidden truncate text-xs text-muted-foreground 2xl:block">{detail}</p>
         </div>
       </div>
     </div>
@@ -1088,15 +1085,15 @@ function DomainMetric({
 
 function SetupStepTile({ step, index }: { step: DomainSetupStep; index: number }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-3">
+    <div className="rounded-lg border bg-card p-3">
+      <div className="flex items-center gap-2.5">
         <div className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
           step.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"
         )}>
           {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
         </div>
-        <p className="text-sm font-semibold">{step.label}</p>
+        <p className="truncate text-sm font-semibold">{step.label}</p>
       </div>
     </div>
   );

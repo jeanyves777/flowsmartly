@@ -373,13 +373,13 @@ export default function DashboardLayout({
         {/* Main Content */}
         <main
           className={cn(
-            "pt-16 transition-all duration-200",
+            "pt-14 transition-all duration-200 sm:pt-16",
             // Full-height pages get fixed height with no padding
             pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor"               ? "h-screen overflow-hidden"
               : "min-h-screen",
             // Desktop: respect sidebar state
-            "md:pl-20",
-            !sidebarCollapsed && "md:pl-[280px]"
+            "md:pl-[72px]",
+            !sidebarCollapsed && "md:pl-[260px]"
           )}
         >
           {pathname === "/tools/background-remover" || pathname === "/studio" || pathname === "/video-editor" || pathname === "/ecommerce/design/v2" ? (
@@ -389,7 +389,7 @@ export default function DashboardLayout({
             </>
           ) : (
             // Regular pages: with padding and banners
-            <div className="p-4 md:p-6">
+            <div className="p-3 sm:p-4 lg:p-5">
               {user && !user.emailVerified && <EmailVerificationBanner />}
               {user && user.emailVerified && <OnboardingBanner />}
               {children}
