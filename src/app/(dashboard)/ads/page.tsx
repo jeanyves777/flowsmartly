@@ -1,10 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
 import Link from "next/link";
-import { Megaphone, Plus, Search, MoreHorizontal, DollarSign, Eye, MousePointerClick, Target, Calendar, TrendingUp, Play, Pause, Edit2, BarChart3, Users, Zap, AlertTriangle, RefreshCw, Trash2, Copy } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  DollarSign,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  Lock,
+  Megaphone,
+  MoreHorizontal,
+  MousePointerClick,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,15 +47,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
-
-type AdStatus = "active" | "paused" | "draft" | "completed" | "scheduled";
 
 interface AdCampaign {
   id: string;
   name: string;
-  status: AdStatus;
+  status: string;
+  approvalStatus: string;
+  adType: string;
   objective: string;
   budget: number;
   spent: number;
@@ -48,10 +68,28 @@ interface AdCampaign {
   conversions: number;
   startDate: string;
   endDate: string | null;
+  headline: string | null;
+  description: string | null;
+  destinationUrl: string | null;
+  mediaUrl: string | null;
+  rejectionReason: string | null;
+  providers?: string[];
   post: {
     id: string;
     caption: string;
     mediaUrl: string | null;
+  } | null;
+  adPage: {
+    id: string;
+    slug: string;
+    views: number;
+    clicks: number;
+  } | null;
+  landingPage: {
+    id: string;
+    title: string;
+    slug: string;
+    thumbnailUrl: string | null;
   } | null;
   createdAt: string;
 }
@@ -59,33 +97,72 @@ interface AdCampaign {
 interface AdStats {
   total: number;
   active: number;
+  pending: number;
   totalSpent: number;
   totalImpressions: number;
 }
 
-const statusConfig: Record<AdStatus, { label: string; color: string }> = {
-  active: { label: "Active", color: "bg-green-500/10 text-green-500" },
-  paused: { label: "Paused", color: "bg-yellow-500/10 text-yellow-500" },
-  draft: { label: "Draft", color: "bg-gray-500/10 text-gray-500" },
-  completed: { label: "Completed", color: "bg-blue-500/10 text-blue-500" },
-  scheduled: { label: "Scheduled", color: "bg-purple-500/10 text-purple-500" },
+interface AdProvider {
+  id: string;
+  name: string;
+  enabled: boolean;
+  description?: string;
+}
+
+const AD_TYPE_META: Record<string, { label: string; icon: ComponentType<{ className?: string }>; href: string }> = {
+  POST: { label: "Post boost", icon: ImageIcon, href: "/ads/create?type=POST" },
+  PRODUCT_LINK: { label: "Product ad", icon: ShoppingBag, href: "/ads/create?type=PRODUCT_LINK" },
+  LANDING_PAGE: { label: "Landing page", icon: FileText, href: "/ads/create?type=LANDING_PAGE" },
+  EXTERNAL_URL: { label: "Link ad", icon: ExternalLink, href: "/ads/create?type=EXTERNAL_URL" },
 };
+
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  active: { label: "Active", className: "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300" },
+  paused: { label: "Paused", className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  draft: { label: "Draft", className: "border-muted-foreground/25 bg-muted text-muted-foreground" },
+  completed: { label: "Completed", className: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  scheduled: { label: "Scheduled", className: "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  pending_review: { label: "In review", className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  rejected: { label: "Rejected", className: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300" },
+};
+
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "active", label: "Active" },
+  { id: "pending_review", label: "Review" },
+  { id: "paused", label: "Paused" },
+  { id: "completed", label: "Done" },
+];
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+}
+
+function formatNumber(value: number) {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return value.toString();
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 export default function AdsPage() {
   const { toast } = useToast();
-  const router = useRouter();
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [stats, setStats] = useState<AdStats | null>(null);
+  const [providers, setProviders] = useState<AdProvider[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdCampaign | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.append("status", statusFilter);
 
@@ -96,8 +173,9 @@ export default function AdsPage() {
         throw new Error(data.error?.message || "Failed to fetch campaigns");
       }
 
-      setCampaigns(data.data.campaigns);
-      setStats(data.data.stats);
+      setCampaigns(data.data.campaigns || []);
+      setStats(data.data.stats || null);
+      setProviders(data.data.providers || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load campaigns");
@@ -110,36 +188,57 @@ export default function AdsPage() {
     fetchCampaigns();
   }, [fetchCampaigns]);
 
-  const handleStatusChange = async (campaignId: string, newStatus: string) => {
-    setActionLoading(campaignId);
+  const filteredCampaigns = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return campaigns;
+    return campaigns.filter((campaign) =>
+      [campaign.name, campaign.headline, campaign.description, campaign.destinationUrl]
+        .some((value) => value?.toLowerCase().includes(query))
+    );
+  }, [campaigns, searchQuery]);
+
+  const totals = useMemo(() => {
+    const budget = campaigns.reduce((sum, campaign) => sum + campaign.budget, 0);
+    const clicks = campaigns.reduce((sum, campaign) => sum + campaign.clicks, 0);
+    const conversions = campaigns.reduce((sum, campaign) => sum + campaign.conversions, 0);
+    const ctr = campaigns.length ? campaigns.reduce((sum, campaign) => sum + campaign.ctr, 0) / campaigns.length : 0;
+    return { budget, clicks, conversions, ctr };
+  }, [campaigns]);
+
+  async function handleStatusChange(campaign: AdCampaign, nextStatus: "ACTIVE" | "PAUSED") {
+    if (nextStatus === "ACTIVE" && campaign.approvalStatus !== "APPROVED") {
+      toast({
+        title: "Review required",
+        description: "This ad must be approved before it can go active.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(campaign.id);
     try {
-      const response = await fetch(`/api/ads/${campaignId}`, {
+      const response = await fetch(`/api/ads/${campaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: nextStatus }),
       });
-
       const data = await response.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to update campaign");
 
-      if (!data.success) {
-        throw new Error(data.error?.message || "Failed to update campaign");
-      }
-
-      // Refresh campaigns
-      fetchCampaigns();
-      toast({ title: `Campaign ${newStatus.toLowerCase()}` });
+      await fetchCampaigns();
+      toast({ title: nextStatus === "ACTIVE" ? "Campaign resumed" : "Campaign paused" });
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to update campaign",
+        title: "Update failed",
+        description: err instanceof Error ? err.message : "Please try again",
         variant: "destructive",
       });
     } finally {
       setActionLoading(null);
     }
-  };
+  }
 
-  const handleDeleteConfirm = async () => {
+  async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     const campaignId = deleteTarget.id;
     setDeleteTarget(null);
@@ -148,81 +247,29 @@ export default function AdsPage() {
       const response = await fetch(`/api/ads/${campaignId}`, { method: "DELETE" });
       const data = await response.json();
       if (!data.success) throw new Error(data.error?.message || "Failed to delete campaign");
-      fetchCampaigns();
+
+      await fetchCampaigns();
       toast({ title: "Campaign deleted" });
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to delete campaign",
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Please try again",
         variant: "destructive",
       });
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const handleDuplicate = async (campaign: AdCampaign) => {
-    setActionLoading(campaign.id);
-    try {
-      const response = await fetch("/api/ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${campaign.name} (Copy)`,
-          objective: campaign.objective,
-          budget: campaign.budget * 100 / 5, // Convert dollars back to credits
-          costPerView: campaign.costPerView,
-          startDate: new Date().toISOString().split("T")[0],
-        }),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to duplicate campaign");
-      fetchCampaigns();
-      toast({ title: "Campaign duplicated" });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to duplicate campaign",
-        variant: "destructive",
-      });
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const filteredCampaigns = campaigns.filter((campaign) =>
-    campaign.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalBudget = campaigns.reduce((acc, c) => acc + c.budget, 0);
-  const totalSpent = stats?.totalSpent || 0;
-  const totalImpressions = stats?.totalImpressions || 0;
-  const totalConversions = campaigns.reduce((acc, c) => acc + c.conversions, 0);
-  const avgCtr = campaigns.length > 0
-    ? campaigns.reduce((acc, c) => acc + c.ctr, 0) / campaigns.length
-    : 0;
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
+  }
 
   if (error && campaigns.length === 0) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={fetchCampaigns} variant="outline">
-            <RefreshCw className="w-4 h-4 mr-2" />
+      <div className="flex min-h-[420px] items-center justify-center">
+        <div className="max-w-md text-center">
+          <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
+          <h2 className="font-semibold">Ads could not load</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          <Button onClick={fetchCampaigns} variant="outline" className="mt-4 gap-2">
+            <RefreshCw className="h-4 w-4" />
             Retry
           </Button>
         </div>
@@ -231,429 +278,382 @@ export default function AdsPage() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-              <Megaphone className="w-4 h-4 text-white" />
-            </div>
-            Ads Manager
-          </h1>
+          <Badge variant="secondary" className="mb-2 gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            Simple AI ads
+          </Badge>
+          <h1 className="text-2xl font-semibold tracking-tight">Ads</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Launch, review, and pause campaigns from one clear workspace.
+          </p>
         </div>
-        <Button size="lg" asChild>
+        <Button asChild size="lg" className="gap-2">
           <Link href="/ads/create">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Campaign
+            <Plus className="h-4 w-4" />
+            Create ad
           </Link>
         </Button>
       </div>
 
-      {/* Stats Overview */}
-      {isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-16" />
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Spend</p>
+                <p className="mt-1 text-2xl font-semibold">{formatCurrency(stats?.totalSpent || 0)}</p>
+                <p className="text-xs text-muted-foreground">of {formatCurrency(totals.budget)} planned</p>
+              </div>
+              <DollarSign className="h-5 w-5 text-blue-600" />
+            </div>
+            {totals.budget > 0 && (
+              <Progress value={Math.min(100, ((stats?.totalSpent || 0) / totals.budget) * 100)} className="mt-4 h-1.5" />
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Impressions</p>
+                <p className="mt-1 text-2xl font-semibold">{formatNumber(stats?.totalImpressions || 0)}</p>
+                <p className="text-xs text-muted-foreground">{formatNumber(totals.clicks)} clicks</p>
+              </div>
+              <MousePointerClick className="h-5 w-5 text-violet-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Active</p>
+                <p className="mt-1 text-2xl font-semibold">{stats?.active || 0}</p>
+                <p className="text-xs text-muted-foreground">{stats?.pending || 0} in review</p>
+              </div>
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Results</p>
+                <p className="mt-1 text-2xl font-semibold">{totals.ctr.toFixed(1)}%</p>
+                <p className="text-xs text-muted-foreground">{formatNumber(totals.conversions)} conversions</p>
+              </div>
+              <BarChart3 className="h-5 w-5 text-amber-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div className="grid gap-3 sm:grid-cols-4">
+                {Object.entries(AD_TYPE_META).map(([id, item]) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={id}
+                      href={item.href}
+                      className="rounded-lg border bg-background p-4 transition hover:border-primary/50 hover:bg-muted/30"
+                    >
+                      <Icon className="mb-3 h-5 w-5 text-primary" />
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Create with AI</p>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search ads"
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex gap-2 overflow-x-auto">
+                  {FILTERS.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setStatusFilter(filter.id)}
+                      className={cn(
+                        "whitespace-nowrap rounded-full border px-3 py-2 text-xs font-medium hover:border-primary/50",
+                        statusFilter === filter.id && "border-primary bg-primary/5 text-primary"
+                      )}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((item) => <Skeleton key={item} className="h-40 rounded-lg" />)}
+            </div>
+          ) : filteredCampaigns.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <Megaphone className="mx-auto mb-4 h-10 w-10 text-muted-foreground/40" />
+                <h2 className="font-semibold">No ads here yet</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {searchQuery ? "Try a different search." : "Create a simple AI-guided ad to get started."}
+                </p>
+                <Button asChild className="mt-4 gap-2">
+                  <Link href="/ads/create">
+                    <Plus className="h-4 w-4" />
+                    Create ad
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{formatCurrency(totalSpent)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    of {formatCurrency(totalBudget)} budget
-                  </p>
-                </div>
-              </div>
-              {totalBudget > 0 && (
-                <Progress
-                  value={(totalSpent / totalBudget) * 100}
-                  className="h-1.5 mt-3"
-                />
-              )}
-            </CardContent>
-          </Card>
+          ) : (
+            <div className="space-y-3">
+              {filteredCampaigns.map((campaign) => {
+                const typeMeta = AD_TYPE_META[campaign.adType] || AD_TYPE_META.POST;
+                const TypeIcon = typeMeta.icon;
+                const statusMeta = STATUS_META[campaign.status] || STATUS_META.draft;
+                const canResume = campaign.status === "paused" && campaign.approvalStatus === "APPROVED";
+                const canPause = campaign.status === "active";
+                const canDelete = campaign.status === "draft" || campaign.status === "scheduled";
+                const hasMenuActions = Boolean(campaign.destinationUrl || campaign.adPage || canDelete);
+                const previewImage = campaign.mediaUrl || campaign.post?.mediaUrl || campaign.landingPage?.thumbnailUrl;
+                const title = campaign.headline || campaign.landingPage?.title || campaign.name;
+                const description = campaign.description || campaign.post?.caption || campaign.destinationUrl || "No description yet";
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{formatNumber(totalImpressions)}</p>
-                  <p className="text-xs text-muted-foreground">Total Impressions</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <MousePointerClick className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{avgCtr.toFixed(1)}%</p>
-                  <p className="text-xs text-muted-foreground">Avg. CTR</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{formatNumber(totalConversions)}</p>
-                  <p className="text-xs text-muted-foreground">Conversions</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="grid sm:grid-cols-3 gap-4">
-        <Card
-          className="bg-gradient-to-br from-brand-500/10 to-purple-500/5 border-brand-500/20 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/ads/create')}
-        >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center">
-              <Zap className="w-6 h-6 text-brand-500" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Quick Boost</h3>
-              <p className="text-sm text-muted-foreground">Promote your best post</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/contacts')}
-        >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <Users className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Audience Builder</h3>
-              <p className="text-sm text-muted-foreground">Create target audiences</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push('/analytics')}
-        >
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-green-500" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Ad Insights</h3>
-              <p className="text-sm text-muted-foreground">View detailed analytics</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filter */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search campaigns..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-md border bg-background text-sm"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="draft">Draft</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="completed">Completed</option>
-              </select>
-              <Button variant="outline">
-                <Calendar className="w-4 h-4 mr-2" />
-                Date Range
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Campaign List */}
-      <div className="space-y-4">
-        {isLoading ? (
-          <>
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <Skeleton className="h-32" />
-                </CardContent>
-              </Card>
-            ))}
-          </>
-        ) : (
-          <>
-            {filteredCampaigns.map((campaign, index) => (
-              <motion.div
-                key={campaign.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <Card className="overflow-hidden hover:shadow-md transition-shadow">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col lg:flex-row">
-                      {/* Campaign Info */}
-                      <div className="flex-1 p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-lg">{campaign.name}</h3>
-                              <Badge className={statusConfig[campaign.status]?.color || statusConfig.draft.color}>
-                                {statusConfig[campaign.status]?.label || campaign.status}
-                              </Badge>
+                return (
+                  <Card key={campaign.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="grid gap-0 lg:grid-cols-[180px_minmax(0,1fr)]">
+                        <div className="relative min-h-40 bg-muted">
+                          {previewImage ? (
+                            <img src={previewImage} alt="" className="h-full min-h-40 w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full min-h-40 items-center justify-center">
+                              <TypeIcon className="h-9 w-9 text-muted-foreground/50" />
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Target className="w-3.5 h-3.5" />
-                                {campaign.objective}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5" />
-                                {new Date(campaign.startDate).toLocaleDateString()}
-                                {campaign.endDate && ` - ${new Date(campaign.endDate).toLocaleDateString()}`}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {campaign.status === "active" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStatusChange(campaign.id, "PAUSED")}
-                                disabled={actionLoading === campaign.id}
-                              >
-                                {actionLoading === campaign.id ? (
-                                  <AISpinner className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Pause className="w-3.5 h-3.5 mr-1.5" />
-                                    Pause
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            {(campaign.status === "paused" || campaign.status === "draft") && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStatusChange(campaign.id, "ACTIVE")}
-                                disabled={actionLoading === campaign.id}
-                              >
-                                {actionLoading === campaign.id ? (
-                                  <AISpinner className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Play className="w-3.5 h-3.5 mr-1.5" />
-                                    {campaign.status === "draft" ? "Launch" : "Resume"}
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/ads/create?campaignId=${campaign.id}`}>
-                                    <Edit2 className="w-4 h-4 mr-2" />
-                                    Edit Campaign
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDuplicate(campaign)}>
-                                  <Copy className="w-4 h-4 mr-2" />
-                                  Duplicate
-                                </DropdownMenuItem>
-                                {campaign.status === "active" && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(campaign.id, "PAUSED")}>
-                                    <Pause className="w-4 h-4 mr-2" />
-                                    Pause Campaign
-                                  </DropdownMenuItem>
-                                )}
-                                {(campaign.status === "paused" || campaign.status === "draft") && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(campaign.id, "ACTIVE")}>
-                                    <Play className="w-4 h-4 mr-2" />
-                                    {campaign.status === "draft" ? "Launch Campaign" : "Resume Campaign"}
-                                  </DropdownMenuItem>
-                                )}
-                                {(campaign.status === "draft" || campaign.status === "scheduled") && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-red-600 focus:text-red-600"
-                                      onClick={() => setDeleteTarget(campaign)}
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Delete Campaign
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                          )}
+                          <Badge className="absolute left-3 top-3 gap-1.5 bg-background/90 text-foreground backdrop-blur" variant="outline">
+                            <TypeIcon className="h-3 w-3" />
+                            {typeMeta.label}
+                          </Badge>
                         </div>
 
-                        {/* Budget Progress */}
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between text-sm mb-1.5">
-                            <span className="text-muted-foreground">Budget Spent</span>
-                            <span className="font-medium">
-                              {formatCurrency(campaign.spent)} / {formatCurrency(campaign.budget)}
+                        <div className="space-y-4 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className={statusMeta.className}>{statusMeta.label}</Badge>
+                                {campaign.approvalStatus === "PENDING" && (
+                                  <Badge variant="outline" className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                                    <ShieldCheck className="h-3 w-3" />
+                                    Awaiting approval
+                                  </Badge>
+                                )}
+                                {campaign.approvalStatus === "REJECTED" && (
+                                  <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300">Rejected</Badge>
+                                )}
+                              </div>
+                              <h3 className="truncate text-lg font-semibold">{campaign.name}</h3>
+                              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{description}</p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {canPause && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStatusChange(campaign, "PAUSED")}
+                                  disabled={actionLoading === campaign.id}
+                                  className="gap-2"
+                                >
+                                  {actionLoading === campaign.id ? <AISpinner className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                                  Pause
+                                </Button>
+                              )}
+                              {canResume && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStatusChange(campaign, "ACTIVE")}
+                                  disabled={actionLoading === campaign.id}
+                                  className="gap-2"
+                                >
+                                  {actionLoading === campaign.id ? <AISpinner className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                                  Resume
+                                </Button>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {!hasMenuActions && (
+                                    <DropdownMenuItem disabled>No extra actions</DropdownMenuItem>
+                                  )}
+                                  {campaign.destinationUrl && (
+                                    <DropdownMenuItem asChild>
+                                      <a href={campaign.destinationUrl} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        Open destination
+                                      </a>
+                                    </DropdownMenuItem>
+                                  )}
+                                  {campaign.adPage && (
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/ad/${campaign.adPage.slug}`} target="_blank">
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        Preview ad page
+                                      </Link>
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canDelete && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteTarget(campaign)}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+
+                          {campaign.rejectionReason && (
+                            <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+                              {campaign.rejectionReason}
+                            </div>
+                          )}
+
+                          <div className="grid gap-3 sm:grid-cols-4">
+                            <Metric label="Spent" value={`${formatCurrency(campaign.spent)} / ${formatCurrency(campaign.budget)}`} />
+                            <Metric label="Views" value={formatNumber(campaign.impressions)} />
+                            <Metric label="Clicks" value={formatNumber(campaign.clicks)} />
+                            <Metric label="CTR" value={`${campaign.ctr}%`} />
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
+                            <div className="flex flex-wrap gap-2">
+                              {(campaign.providers || ["feed"]).map((providerId) => {
+                                const provider = providers.find((item) => item.id === providerId);
+                                return (
+                                  <span key={providerId} className="rounded-full border bg-background px-2.5 py-1">
+                                    {provider?.name || providerId}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <span>
+                              {formatDate(campaign.startDate)}
+                              {campaign.endDate ? ` - ${formatDate(campaign.endDate)}` : ""}
                             </span>
                           </div>
-                          <Progress
-                            value={campaign.budget > 0 ? (campaign.spent / campaign.budget) * 100 : 0}
-                            className="h-2"
-                          />
-                        </div>
-
-                        {/* Metrics Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                          <div className="text-center p-3 rounded-lg bg-muted/50">
-                            <p className="text-lg font-bold">{formatNumber(campaign.impressions)}</p>
-                            <p className="text-xs text-muted-foreground">Impressions</p>
-                          </div>
-                          <div className="text-center p-3 rounded-lg bg-muted/50">
-                            <p className="text-lg font-bold">{formatNumber(campaign.clicks)}</p>
-                            <p className="text-xs text-muted-foreground">Clicks</p>
-                          </div>
-                          <div className="text-center p-3 rounded-lg bg-muted/50">
-                            <p className="text-lg font-bold">{campaign.ctr}%</p>
-                            <p className="text-xs text-muted-foreground">CTR</p>
-                          </div>
-                          <div className="text-center p-3 rounded-lg bg-muted/50">
-                            <p className="text-lg font-bold">{campaign.conversions}</p>
-                            <p className="text-xs text-muted-foreground">Conversions</p>
-                          </div>
                         </div>
                       </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-                      {/* Performance Indicator */}
-                      <div className="lg:w-32 p-4 bg-muted/30 flex flex-col items-center justify-center border-t lg:border-t-0 lg:border-l">
-                        <div
-                          className={`w-14 h-14 rounded-full flex items-center justify-center mb-2 ${
-                            campaign.ctr >= 3
-                              ? "bg-green-500/20 text-green-500"
-                              : campaign.ctr >= 2
-                              ? "bg-yellow-500/20 text-yellow-500"
-                              : "bg-gray-500/20 text-gray-500"
-                          }`}
-                        >
-                          <TrendingUp className="w-6 h-6" />
-                        </div>
-                        <p className="text-xs text-muted-foreground text-center">
-                          {campaign.ctr >= 3
-                            ? "Excellent"
-                            : campaign.ctr >= 2
-                            ? "Good"
-                            : campaign.ctr > 0
-                            ? "Average"
-                            : "No data"}
-                        </p>
-                      </div>
+        <aside className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div>
+                <h2 className="font-semibold">Provider readiness</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Connected providers can receive approved ads.</p>
+              </div>
+              <div className="space-y-2">
+                {(providers.length ? providers : [{ id: "feed", name: "FlowSmartly Feed", enabled: true }]).map((provider) => (
+                  <div key={provider.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{provider.name}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">{provider.description || "Ad provider"}</p>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-
-            {filteredCampaigns.length === 0 && (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                    <Megaphone className="w-8 h-8 text-muted-foreground" />
+                    {provider.enabled ? (
+                      <Badge variant="outline" className="border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300">Ready</Badge>
+                    ) : (
+                      <Badge variant="outline" className="gap-1 text-muted-foreground">
+                        <Lock className="h-3 w-3" />
+                        Setup
+                      </Badge>
+                    )}
                   </div>
-                  <h3 className="font-medium mb-2">No campaigns found</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {searchQuery
-                      ? "Try adjusting your search"
-                      : "Get started by creating your first ad campaign"}
-                  </p>
-                  <Button asChild>
-                    <Link href="/ads/create">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Campaign
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div>
+                <h2 className="font-semibold">Best next move</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {stats?.pending
+                    ? "Review is waiting before some ads can go live."
+                    : campaigns.length
+                      ? "Create a focused variant for your strongest offer."
+                      : "Start with a post boost or product ad."}
+                </p>
+              </div>
+              <Button asChild className="w-full gap-2">
+                <Link href="/ads/create">
+                  <Sparkles className="h-4 w-4" />
+                  Build with AI
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </aside>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
+            <AlertDialogTitle>Delete campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-medium text-foreground">&ldquo;{deleteTarget?.name}&rdquo;</span>? This action cannot be undone and the campaign will be permanently removed.
+              This permanently removes "{deleteTarget?.name}". Active and completed campaigns stay available for reporting.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 text-white hover:bg-red-700">
+              <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
 
-    </motion.div>
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/40 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold">{value}</p>
+    </div>
   );
 }

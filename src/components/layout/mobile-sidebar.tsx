@@ -39,6 +39,7 @@ import {
   FolderKanban,
   FormInput,
   Clapperboard,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,12 @@ const marketingNavigation = [
   { name: "Email Marketing", href: "/email-marketing", icon: Mail },
   { name: "SMS Marketing", href: "/sms-marketing", icon: MessageSquare, premium: true },
   { name: "Ads", href: "/ads", icon: Megaphone },
-  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
+];
+
+// Web presence
+const webPresenceNavigation = [
+  { name: "Landing Pages", href: "/landing-pages", icon: FileText },
+  { name: "Website Builder", href: "/websites", icon: Globe },
 ];
 
 // Tools & Insights
@@ -325,6 +331,19 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   const isLocked = item.premium === true && !hasMarketingAccess;
                   return renderNavItem(item, isActive, isLocked);
+                })}
+              </div>
+
+              {/* Web Presence Section */}
+              <div className="pt-4">
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Web Presence
+                  </span>
+                </div>
+                {webPresenceNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return renderNavItem(item, isActive);
                 })}
               </div>
 

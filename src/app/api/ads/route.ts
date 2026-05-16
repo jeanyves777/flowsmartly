@@ -5,6 +5,7 @@ import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { creditService, TRANSACTION_TYPES, CREDIT_TO_CENTS } from "@/lib/credits";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { generateAdPageHtml, generateAdPageSlug } from "@/lib/ads/ad-page-generator";
+import { getPlacementChannels, getRequestedPlacementChannels } from "@/lib/ads/placement-engine";
 
 const VALID_AD_TYPES = ["POST", "PRODUCT_LINK", "LANDING_PAGE", "EXTERNAL_URL"] as const;
 
@@ -91,7 +92,15 @@ export async function GET(request: NextRequest) {
       where: { userId: session.userId, approvalStatus: "PENDING" },
     });
 
-    const formattedCampaigns = campaigns.map(campaign => ({
+    const formattedCampaigns = campaigns.map(campaign => {
+      let targeting: Record<string, unknown> = {};
+      try {
+        targeting = JSON.parse(campaign.targeting || "{}");
+      } catch {
+        targeting = {};
+      }
+
+      return {
       id: campaign.id,
       name: campaign.name,
       objective: campaign.objective,
@@ -117,12 +126,23 @@ export async function GET(request: NextRequest) {
       ctaText: campaign.ctaText,
       adCategory: campaign.adCategory,
       rejectionReason: campaign.rejectionReason,
+      targeting,
+      providers: getRequestedPlacementChannels(campaign.targeting),
+      providerIds: {
+        googleAdsCampaignId: campaign.googleAdsCampaignId,
+        googleAdsAdGroupId: campaign.googleAdsAdGroupId,
+        metaAdsCampaignId: campaign.metaAdsCampaignId,
+        metaAdsAdSetId: campaign.metaAdsAdSetId,
+        tiktokAdsCampaignId: campaign.tiktokAdsCampaignId,
+        tiktokAdsAdGroupId: campaign.tiktokAdsAdGroupId,
+      },
       // Relations
       post: campaign.posts[0] || null,
       adPage: campaign.adPage || null,
       landingPage: campaign.landingPage || null,
       createdAt: campaign.createdAt.toISOString(),
-    }));
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -141,6 +161,7 @@ export async function GET(request: NextRequest) {
           totalSpent: (totalSpent._sum.spentCents || 0) / 100,
           totalImpressions: totalImpressions._sum.impressions || 0,
         },
+        providers: getPlacementChannels(),
       }),
     });
   } catch (error) {

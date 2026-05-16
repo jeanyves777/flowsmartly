@@ -132,7 +132,11 @@ const marketingNavigation = [
   { name: "SMS Marketing", href: "/sms-marketing", icon: MessageSquare, premium: true },
   { name: "WhatsApp", href: "/whatsapp", icon: MessageCircle, premium: true },
   { name: "Ads", href: "/ads", icon: Megaphone },
-  { name: "Landing Pages", href: "/landing-pages", icon: Globe },
+];
+
+// Web presence
+const webPresenceNavigation = [
+  { name: "Landing Pages", href: "/landing-pages", icon: FileText },
   { name: "Website Builder", href: "/websites", icon: Globe },
 ];
 
@@ -253,6 +257,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   const [contentOpen, setContentOpen] = useState(true);
   const [aiCreativesOpen, setAiCreativesOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
+  const [webPresenceOpen, setWebPresenceOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
   const [moneyOpen, setMoneyOpen] = useState(true);
 
@@ -546,7 +551,11 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
-              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages", "/websites"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
+              renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads"].some(p => pathname.startsWith(p)), filterByAllowed(marketingNavigation))}
+
+            {/* Filtered Web Presence */}
+            {filterByAllowed(webPresenceNavigation).length > 0 &&
+              renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites"].some(p => pathname.startsWith(p)), filterByAllowed(webPresenceNavigation))}
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
@@ -596,7 +605,13 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Marketing Section */}
             {(() => {
               const items = filterByActivated(marketingNavigation);
-              return items.length > 0 && renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads", "/landing-pages", "/websites"].some(p => pathname.startsWith(p)), items, true);
+              return items.length > 0 && renderCollapsibleSection("Marketing", Mail, marketingOpen, setMarketingOpen, ["/contacts", "/campaigns", "/email-marketing", "/sms-marketing", "/whatsapp", "/ads"].some(p => pathname.startsWith(p)), items, true);
+            })()}
+
+            {/* Web Presence Section */}
+            {(() => {
+              const items = filterByActivated(webPresenceNavigation);
+              return items.length > 0 && renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites"].some(p => pathname.startsWith(p)), items);
             })()}
 
             {/* Tools & Insights Section */}

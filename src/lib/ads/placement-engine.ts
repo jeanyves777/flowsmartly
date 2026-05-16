@@ -16,6 +16,7 @@ export interface PlacementChannel {
   id: string;
   name: string;
   enabled: boolean;
+  description?: string;
 }
 
 export interface AdCandidate {
@@ -32,6 +33,36 @@ export interface AdCandidate {
   spentCents: number;
   cpvCents: number;
   adPage: { slug: string } | null;
+}
+
+export type PlacementChannelId = "feed" | "google_ads" | "meta_ads" | "tiktok_ads";
+
+const ALL_PLACEMENT_CHANNEL_IDS: PlacementChannelId[] = ["feed", "google_ads", "meta_ads", "tiktok_ads"];
+
+export function getRequestedPlacementChannels(targeting?: string | null): PlacementChannelId[] {
+  let parsed: { providers?: unknown; placementChannels?: unknown } = {};
+
+  try {
+    parsed = targeting ? JSON.parse(targeting) : {};
+  } catch {
+    parsed = {};
+  }
+
+  const requested = Array.isArray(parsed.providers)
+    ? parsed.providers
+    : Array.isArray(parsed.placementChannels)
+      ? parsed.placementChannels
+      : null;
+
+  if (!requested) {
+    return ALL_PLACEMENT_CHANNEL_IDS;
+  }
+
+  const channels = requested.filter((id): id is PlacementChannelId =>
+    ALL_PLACEMENT_CHANNEL_IDS.includes(id as PlacementChannelId)
+  );
+
+  return Array.from(new Set(["feed", ...channels])) as PlacementChannelId[];
 }
 
 /**
@@ -108,10 +139,30 @@ export async function getActiveAdCampaigns(options: {
  */
 export function getPlacementChannels(): PlacementChannel[] {
   return [
-    { id: "feed", name: "FlowSmartly Feed", enabled: true },
-    { id: "google_ads", name: "Google Ads", enabled: isGoogleAdsConfigured() },
-    { id: "meta_ads", name: "Meta Ads", enabled: isMetaAdsConfigured() },
-    { id: "tiktok_ads", name: "TikTok Ads", enabled: isTikTokAdsConfigured() },
+    {
+      id: "feed",
+      name: "FlowSmartly Feed",
+      enabled: true,
+      description: "Shows approved ads inside FlowSmartly surfaces.",
+    },
+    {
+      id: "google_ads",
+      name: "Google Ads",
+      enabled: isGoogleAdsConfigured(),
+      description: "Pushes approved link and product ads to Google Ads when configured.",
+    },
+    {
+      id: "meta_ads",
+      name: "Meta Ads",
+      enabled: isMetaAdsConfigured(),
+      description: "Pushes approved link and product ads to Meta placements when configured.",
+    },
+    {
+      id: "tiktok_ads",
+      name: "TikTok Ads",
+      enabled: isTikTokAdsConfigured(),
+      description: "Pushes approved link and product ads to TikTok Ads when configured.",
+    },
   ];
 }
 
@@ -146,6 +197,7 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
       budgetCents: true,
       adType: true,
       adPageId: true,
+      targeting: true,
       googleAdsCampaignId: true,
       googleAdsAdGroupId: true,
       metaAdsCampaignId: true,
@@ -161,22 +213,23 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
 
   // Feed placement is always active (handled by the feed API query)
   const feedResult = true;
+  const requestedChannels = new Set(getRequestedPlacementChannels(campaign.targeting));
 
   // Google Ads placement
   let googleAdsResult = false;
-  if (isGoogleAdsConfigured() && campaign.adType !== "POST") {
+  if (requestedChannels.has("google_ads") && isGoogleAdsConfigured() && campaign.adType !== "POST") {
     googleAdsResult = await activateOnGoogleAds(campaign);
   }
 
   // Meta Ads placement
   let metaAdsResult = false;
-  if (isMetaAdsConfigured() && campaign.adType !== "POST") {
+  if (requestedChannels.has("meta_ads") && isMetaAdsConfigured() && campaign.adType !== "POST") {
     metaAdsResult = await activateOnMetaAds(campaign);
   }
 
   // TikTok Ads placement
   let tiktokAdsResult = false;
-  if (isTikTokAdsConfigured() && campaign.adType !== "POST") {
+  if (requestedChannels.has("tiktok_ads") && isTikTokAdsConfigured() && campaign.adType !== "POST") {
     tiktokAdsResult = await activateOnTikTokAds(campaign);
   }
 
