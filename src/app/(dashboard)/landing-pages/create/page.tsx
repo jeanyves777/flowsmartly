@@ -201,6 +201,8 @@ export default function CreateLandingPage() {
   // ---------------------------------------------------------------------------
 
   const canGenerate = prompt.trim().length > 0 && pageType.length > 0;
+  const selectedPageType = PAGE_TYPES.find((pt) => pt.id === pageType);
+  const activeFieldCount = formFields.filter((field) => field.enabled).length;
 
   const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
@@ -361,20 +363,22 @@ export default function CreateLandingPage() {
         animate="center"
         exit="exit"
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="w-full max-w-4xl mx-auto space-y-8"
+        className="w-full space-y-6"
       >
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
           <Link href="/landing-pages">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="flex-1">
+          <div>
             <h1 className="text-2xl font-bold">Create Landing Page</h1>
             <p className="text-muted-foreground">
               Describe your page and let AI build it for you
             </p>
+          </div>
           </div>
           {brandLoaded && (
             <Badge variant="secondary" className="gap-1.5 text-xs">
@@ -384,6 +388,8 @@ export default function CreateLandingPage() {
           )}
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-8">
         {/* Page Type Selector */}
         <div className="space-y-3">
           <Label className="text-base font-semibold">Page Type</Label>
@@ -875,6 +881,85 @@ export default function CreateLandingPage() {
           </AnimatePresence>
         </div>
 
+          </div>
+
+          <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+            <Card>
+              <CardContent className="space-y-4 p-5">
+                <div>
+                  <h2 className="font-semibold">Build steps</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Complete the brief, generate, preview, then publish when the page is ready.</p>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { label: "Choose page type", complete: !!pageType },
+                    { label: "Describe the offer", complete: prompt.trim().length > 0 },
+                    { label: "Add brand and media", complete: brandLoaded || !!imageUrl || !!videoUrl || showAdvanced },
+                    { label: "Generate draft", complete: step > 1 },
+                  ].map((item, index) => (
+                    <div key={item.label} className="flex items-center gap-3 rounded-lg border bg-background p-3">
+                      <span className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                        item.complete ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                      )}>
+                        {item.complete ? <Check className="h-4 w-4" /> : index + 1}
+                      </span>
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-4 p-5">
+                <div>
+                  <h2 className="font-semibold">Current brief</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">The AI will use these signals first.</p>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">Page type</p>
+                    <p className="mt-1 font-medium">{selectedPageType?.name || "Not selected"}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">Brand</p>
+                    <p className="mt-1 font-medium">{brandName || "Use prompt details"}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">Lead fields</p>
+                    <p className="mt-1 font-medium">{activeFieldCount > 0 ? `${activeFieldCount} active` : "No form fields"}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background p-3">
+                    <p className="text-xs text-muted-foreground">Template</p>
+                    <p className="mt-1 font-medium">{selectedTemplate ? "Template selected" : "Custom AI layout"}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-3 p-5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-brand-500" />
+                  <h2 className="font-semibold">Generation cost</h2>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  This generation will use {costs.AI_LANDING_PAGE ?? 50} credits after the draft is created.
+                </p>
+                <Button
+                  disabled={!canGenerate}
+                  onClick={handleGenerate}
+                  className="w-full gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Generate Landing Page
+                </Button>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+
         {/* Credit display & Generate button */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
           <Badge variant="secondary" className="text-sm px-3 py-1">
@@ -1157,7 +1242,7 @@ export default function CreateLandingPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen w-full px-4 py-6 sm:px-6 lg:px-8">
       <AnimatePresence mode="wait" custom={direction}>
         {step === 1 && renderInputStep()}
         {step === 2 && renderGeneratingStep()}

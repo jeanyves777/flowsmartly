@@ -278,21 +278,26 @@ export default function DomainDetailPage() {
   if (!domain) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/domains")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <Globe className="h-6 w-6 text-brand-600" />
-            <h1 className="text-2xl font-bold">{domain.domainName}</h1>
-            {domain.isPrimary && (
-              <span className="px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-xs font-medium">
-                Primary
-              </span>
-            )}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/domains")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <Globe className="h-6 w-6 text-brand-600" />
+              <h1 className="break-all text-2xl font-bold">{domain.domainName}</h1>
+              {domain.isPrimary && (
+                <span className="px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-xs font-medium">
+                  Primary
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Domain routing, verification, DNS, billing, and production settings.
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -419,9 +424,23 @@ function OverviewTab({
     !domain.isConnected &&
     domain.registrarStatus !== "external" &&
     registrantStatus !== "verified";
+  const sslReady = domain.sslStatus === "active_certificate" || domain.sslStatus === "active";
+  const cloudflareReady = domain.cloudflareStatus === "active";
+  const ownershipReady = !domain.verification || domain.verification.status === "verified";
+  const registrarReady = domain.registrarStatus === "active";
+  const nextAction = showRegistrantVerification
+    ? "Confirm the registrant email or resend the verification message."
+    : !ownershipReady
+      ? "Add the TXT record and verify ownership."
+      : !cloudflareReady
+        ? "Wait for DNS routing to activate, then refresh status."
+        : !sslReady
+          ? "Wait for SSL provisioning to finish after routing is active."
+          : "This domain is ready for production traffic.";
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-4">
       {/* Status cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border bg-card p-4">
@@ -624,11 +643,76 @@ function OverviewTab({
           </div>
         </div>
       )}
+      </div>
+
+      <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-start gap-3">
+            <div className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+              sslReady && ownershipReady ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+            )}>
+              {sslReady && ownershipReady ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+            </div>
+            <div>
+              <h2 className="font-semibold">Next domain step</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{nextAction}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-5">
+          <h2 className="font-semibold">Production checklist</h2>
+          <div className="mt-4 space-y-3">
+            <DomainChecklistRow label="Registrar active" complete={registrarReady} />
+            <DomainChecklistRow label="Ownership verified" complete={ownershipReady} />
+            <DomainChecklistRow label="Cloudflare active" complete={cloudflareReady} />
+            <DomainChecklistRow label="SSL certificate active" complete={sslReady} />
+          </div>
+        </div>
+
+        {domain.nameservers.length > 0 && (
+          <div className="rounded-lg border bg-card p-5">
+            <h2 className="font-semibold">Nameserver copy</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Use these records when a registrar needs manual nameserver updates.</p>
+            <div className="mt-4 space-y-2">
+              {domain.nameservers.map((ns) => (
+                <button
+                  key={ns}
+                  type="button"
+                  onClick={() => copyToClipboard(ns)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-left"
+                >
+                  <code className="truncate text-xs font-mono">{ns}</code>
+                  <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
     </motion.div>
   );
 }
 
 // ── Billing Tab ──
+
+function DomainChecklistRow({ label, complete }: { label: string; complete: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+        complete
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+          : "bg-muted text-muted-foreground"
+      )}>
+        {complete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+        {complete ? "Ready" : "Open"}
+      </span>
+    </div>
+  );
+}
 
 function BillingTab({
   domain,
