@@ -138,19 +138,23 @@ const marketingNavigation = [
 const webPresenceNavigation = [
   { name: "Landing Pages", href: "/landing-pages", icon: FileText },
   { name: "Website Builder", href: "/websites", icon: Globe },
+  { name: "Domains", href: "/domains", icon: Globe },
+];
+
+// Business growth
+const businessNavigation = [
+  { name: "ListSmartly", href: "/listsmartly", icon: MapPin },
+  { name: "Business Plan", href: "/tools/business-plan", icon: FileText },
+  { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
 ];
 
 // Tools & Insights
 const toolsNavigation = [
-  { name: "ListSmartly", href: "/listsmartly", icon: MapPin },
-  { name: "Business Plan", href: "/tools/business-plan", icon: FileText },
-  { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
   { name: "Follow-Ups", href: "/tools/follow-ups", icon: ClipboardList },
   { name: "Data Collection", href: "/tools/data-collection", icon: FormInput },
   { name: "Surveys", href: "/tools/surveys", icon: FileQuestion },
   { name: "Events", href: "/tools/events", icon: CalendarDays },
   { name: "BG Remover", href: "/tools/background-remover", icon: Scissors },
-  { name: "Domains", href: "/domains", icon: Globe },
 ];
 
 // Money
@@ -258,6 +262,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
   const [aiCreativesOpen, setAiCreativesOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
   const [webPresenceOpen, setWebPresenceOpen] = useState(true);
+  const [businessOpen, setBusinessOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
   const [moneyOpen, setMoneyOpen] = useState(true);
 
@@ -555,11 +560,15 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered Web Presence */}
             {filterByAllowed(webPresenceNavigation).length > 0 &&
-              renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites"].some(p => pathname.startsWith(p)), filterByAllowed(webPresenceNavigation))}
+              renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites", "/domains"].some(p => pathname.startsWith(p)), filterByAllowed(webPresenceNavigation))}
+
+            {/* Filtered Business */}
+            {filterByAllowed(businessNavigation).length > 0 &&
+              renderCollapsibleSection("Business", Briefcase, businessOpen, setBusinessOpen, ["/listsmartly", "/tools/business-plan", "/pitch-board"].some(p => pathname.startsWith(p)), filterByAllowed(businessNavigation))}
 
             {/* Filtered Tools */}
             {filterByAllowed(toolsNavigation).length > 0 &&
-              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/pitch-board", "/listsmartly"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
+              renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools/follow-ups", "/tools/data-collection", "/tools/surveys", "/tools/events", "/tools/background-remover"].some(p => pathname.startsWith(p)), filterByAllowed(toolsNavigation))}
           </>
         ) : (
           <>
@@ -611,13 +620,19 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* Web Presence Section */}
             {(() => {
               const items = filterByActivated(webPresenceNavigation);
-              return items.length > 0 && renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites"].some(p => pathname.startsWith(p)), items);
+              return items.length > 0 && renderCollapsibleSection("Web Presence", Globe, webPresenceOpen, setWebPresenceOpen, ["/landing-pages", "/websites", "/domains"].some(p => pathname.startsWith(p)), items);
+            })()}
+
+            {/* Business Section */}
+            {(() => {
+              const items = filterByActivated(businessNavigation);
+              return items.length > 0 && renderCollapsibleSection("Business", Briefcase, businessOpen, setBusinessOpen, ["/listsmartly", "/tools/business-plan", "/pitch-board"].some(p => pathname.startsWith(p)), items);
             })()}
 
             {/* Tools & Insights Section */}
             {(() => {
               const items = filterByActivated(toolsNavigation);
-              return items.length > 0 && renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools", "/pitch-board", "/listsmartly"].some(p => pathname.startsWith(p)), items);
+              return items.length > 0 && renderCollapsibleSection("Tools & Insights", Wrench, toolsOpen, setToolsOpen, ["/tools/follow-ups", "/tools/data-collection", "/tools/surveys", "/tools/events", "/tools/background-remover"].some(p => pathname.startsWith(p)), items);
             })()}
 
             {/* Money Section */}

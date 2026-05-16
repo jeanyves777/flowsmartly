@@ -29,6 +29,7 @@ import {
   PenSquare,
   CalendarDays,
   Target,
+  Briefcase,
   Store,
   Gift,
   ClipboardList,
@@ -40,6 +41,7 @@ import {
   FormInput,
   Clapperboard,
   FileText,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -99,6 +101,14 @@ const marketingNavigation = [
 const webPresenceNavigation = [
   { name: "Landing Pages", href: "/landing-pages", icon: FileText },
   { name: "Website Builder", href: "/websites", icon: Globe },
+  { name: "Domains", href: "/domains", icon: Globe },
+];
+
+// Business growth
+const businessNavigation = [
+  { name: "ListSmartly", href: "/listsmartly", icon: MapPin },
+  { name: "Business Plan", href: "/tools/business-plan", icon: FileText },
+  { name: "Pitch Board", href: "/pitch-board", icon: Briefcase },
 ];
 
 // Tools & Insights
@@ -342,6 +352,19 @@ export function MobileSidebar({ isOpen, onClose, userPlan = "FREE", user }: Mobi
                   </span>
                 </div>
                 {webPresenceNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return renderNavItem(item, isActive);
+                })}
+              </div>
+
+              {/* Business Section */}
+              <div className="pt-4">
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Business
+                  </span>
+                </div>
+                {businessNavigation.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return renderNavItem(item, isActive);
                 })}
