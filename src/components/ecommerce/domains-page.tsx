@@ -43,6 +43,9 @@ interface StoreDomain {
   renewalPriceCents: number;
   expiresAt: string | null;
   createdAt: string;
+  nameserverList?: string[];
+  daysUntilExpiry?: number | null;
+  nextAction?: DomainAction;
 }
 
 interface DomainStatus {
@@ -65,10 +68,37 @@ interface DomainStatus {
   } | null;
 }
 
+interface DomainAction {
+  type: string;
+  label: string;
+  description: string;
+  priority: number;
+}
+
+interface DomainSummary {
+  total: number;
+  registered: number;
+  connected: number;
+  primary: string | null;
+  verified: number;
+  sslReady: number;
+  needsAction: number;
+  expiringSoon: number;
+}
+
+interface DomainSetupStep {
+  id: string;
+  label: string;
+  description: string;
+  completed: boolean;
+}
+
 export function DomainsPageContent() {
   const router = useRouter();
   const { toast } = useToast();
   const [domains, setDomains] = useState<StoreDomain[]>([]);
+  const [summary, setSummary] = useState<DomainSummary | null>(null);
+  const [setupSteps, setSetupSteps] = useState<DomainSetupStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<"list" | "search" | "connect">("list");
   const [selectedDomain, setSelectedDomain] = useState<DomainStatus | null>(null);
@@ -107,6 +137,8 @@ export function DomainsPageContent() {
       const data = await res.json();
       if (data.success) {
         setDomains(data.data?.domains || []);
+        setSummary(data.data?.summary || null);
+        setSetupSteps(data.data?.setupSteps || []);
         if (data.data?.isPro !== undefined) {
           setStoreInfo({
             isPro: data.data.isPro,
@@ -246,6 +278,8 @@ export function DomainsPageContent() {
         if (found || attempts >= maxAttempts) {
           clearInterval(pollInterval);
           setDomains(domainList);
+          setSummary(data.data?.summary || null);
+          setSetupSteps(data.data?.setupSteps || []);
           if (data.data?.isPro !== undefined) {
             setStoreInfo({ isPro: data.data.isPro, freeDomainClaimed: data.data.freeDomainClaimed ?? false });
           }
@@ -478,6 +512,39 @@ export function DomainsPageContent() {
     }
   };
 
+  const displayedSetupSteps = setupSteps.length > 0 ? setupSteps : [
+    {
+      id: "choose",
+      label: "Choose domain",
+      description: "Register a new domain or connect one you already own.",
+      completed: domains.length > 0,
+    },
+    {
+      id: "verify",
+      label: "Verify ownership",
+      description: "Confirm the TXT record or registrant email before routing.",
+      completed: domains.length > 0 && (summary?.needsAction ?? 0) === 0,
+    },
+    {
+      id: "route",
+      label: "Route traffic",
+      description: "Point DNS to FlowSmartly and wait for SSL to activate.",
+      completed: (summary?.sslReady ?? 0) > 0,
+    },
+    {
+      id: "protect",
+      label: "Protect renewal",
+      description: "Keep privacy and auto-renew ready for production domains.",
+      completed: domains.length > 0 && domains.every((domain) => domain.autoRenew || domain.isConnected),
+    },
+  ];
+  const actionDomains = [...domains]
+    .filter((domain) => (domain.nextAction?.priority ?? 3) <= 2)
+    .sort((a, b) => (a.nextAction?.priority ?? 3) - (b.nextAction?.priority ?? 3))
+    .slice(0, 4);
+  const primaryDomain = summary?.primary || domains.find((domain) => domain.isPrimary)?.domainName || "Not selected";
+  const sslCoverage = summary?.total ? Math.round((summary.sslReady / summary.total) * 100) : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -487,16 +554,19 @@ export function DomainsPageContent() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Domains</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Register, connect, and manage your custom domains
+    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-3xl">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+            Domain operations
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Domains</h1>
+          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+            Register, connect, verify, route, and protect production domains from one guided workspace.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant={activeView === "search" ? "default" : "outline"}
             size="sm"
@@ -516,6 +586,21 @@ export function DomainsPageContent() {
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DomainMetric icon={Globe} label="Total domains" value={String(summary?.total ?? domains.length)} detail={`${summary?.registered ?? domains.filter((domain) => !domain.isConnected).length} registered, ${summary?.connected ?? domains.filter((domain) => domain.isConnected).length} connected`} />
+        <DomainMetric icon={Star} label="Primary domain" value={primaryDomain} detail="Main website route" />
+        <DomainMetric icon={ShieldCheck} label="SSL coverage" value={`${sslCoverage}%`} detail={`${summary?.sslReady ?? 0} SSL-ready domain${(summary?.sslReady ?? 0) === 1 ? "" : "s"}`} />
+        <DomainMetric icon={AlertCircle} label="Needs attention" value={String(summary?.needsAction ?? 0)} detail={`${summary?.expiringSoon ?? 0} expiring within 30 days`} />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-4">
+        {displayedSetupSteps.map((step, index) => (
+          <SetupStepTile key={step.id} step={step} index={index} />
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
       {/* Search Panel */}
       <AnimatePresence>
         {activeView === "search" && (
@@ -833,25 +918,26 @@ export function DomainsPageContent() {
       ) : (
         <div className="space-y-3">
           {domains.map((domain) => {
-            const daysLeft = getDaysUntilExpiry(domain.expiresAt);
+            const daysLeft = domain.daysUntilExpiry ?? getDaysUntilExpiry(domain.expiresAt);
             const isRetryable = domain.registrarStatus === "registration_failed" || domain.registrarStatus === "pending_registration";
+            const nextAction = domain.nextAction;
 
             return (
               <motion.div
                 key={domain.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border bg-card p-5 hover:border-brand-300 dark:hover:border-brand-800 transition-colors cursor-pointer"
+                className="cursor-pointer rounded-lg border bg-card p-5 transition-colors hover:border-primary/50"
                 onClick={() => router.push(`/domains/${domain.id}`)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 gap-3">
                     <div className="h-10 w-10 rounded-lg bg-brand-100 dark:bg-brand-950/30 flex items-center justify-center shrink-0">
                       <Globe className="h-5 w-5 text-brand-600 dark:text-brand-400" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{domain.domainName}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="break-all font-semibold">{domain.domainName}</span>
                         {domain.isPrimary && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:text-brand-400 text-[10px] font-medium">
                             <Star className="h-3 w-3" />
@@ -870,7 +956,18 @@ export function DomainsPageContent() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      {nextAction && nextAction.priority <= 2 && (
+                        <div className={cn(
+                          "mt-3 rounded-lg border px-3 py-2 text-xs",
+                          nextAction.priority === 1
+                            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
+                            : "bg-muted/40 text-muted-foreground"
+                        )}>
+                          <span className="font-semibold">{nextAction.label}: </span>
+                          <span>{nextAction.description}</span>
+                        </div>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded", getStatusColor(domain.registrarStatus))}>
                           {getStatusIcon(domain.registrarStatus)}
                           {domain.registrarStatus}
@@ -910,7 +1007,7 @@ export function DomainsPageContent() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     {isRetryable && (
                       <Button
                         variant="outline"
@@ -942,11 +1039,154 @@ export function DomainsPageContent() {
           })}
         </div>
       )}
+        </div>
+
+        <aside className="space-y-4">
+          <div className="rounded-lg border bg-card p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-semibold">Attention queue</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  The backend ranks domains that need verification, SSL, renewal, or retry work.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {actionDomains.length === 0 ? (
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  No urgent domain action is waiting.
+                </div>
+              ) : (
+                actionDomains.map((domain) => (
+                  <button
+                    key={domain.id}
+                    type="button"
+                    onClick={() => router.push(`/domains/${domain.id}`)}
+                    className="w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm font-medium">{domain.domainName}</span>
+                      <span className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        domain.nextAction?.priority === 1
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        {domain.nextAction?.label || "Review"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {domain.nextAction?.description || "Open this domain to review the current status."}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-5">
+            <h2 className="font-semibold">Production readiness</h2>
+            <div className="mt-4 space-y-3">
+              <ReadinessRow label="Primary domain selected" complete={primaryDomain !== "Not selected"} />
+              <ReadinessRow label="Ownership verified" complete={(summary?.verified ?? 0) > 0} />
+              <ReadinessRow label="SSL active" complete={(summary?.sslReady ?? 0) > 0} />
+              <ReadinessRow label="No urgent action" complete={(summary?.needsAction ?? 0) === 0} />
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-card p-5">
+            <h2 className="font-semibold">Best next step</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {domains.length === 0
+                ? "Start by registering a new domain or connecting one you already own."
+                : (summary?.needsAction ?? 0) > 0
+                  ? "Open the highest-priority domain above and complete the verification or retry step."
+                  : "Keep auto-renew and privacy enabled, then use the primary domain in Website Builder."}
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <Button variant="outline" className="justify-between" onClick={() => setActiveView("search")}>
+                Register new
+                <Search className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="justify-between" onClick={() => setActiveView("connect")}>
+                Connect existing
+                <LinkIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
 
 // ── Stripe Payment Form for Domain Purchase ──
+
+function DomainMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-5">
+      <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="mt-1 truncate text-2xl font-semibold tracking-tight">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetupStepTile({ step, index }: { step: DomainSetupStep; index: number }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex gap-3">
+        <div className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+          step.completed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+        )}>
+          {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{step.label}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReadinessRow({ label, complete }: { label: string; complete: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+        complete
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+          : "bg-muted text-muted-foreground"
+      )}>
+        {complete ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+        {complete ? "Ready" : "Open"}
+      </span>
+    </div>
+  );
+}
 
 function DomainPaymentForm({
   domainName,

@@ -191,6 +191,32 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function parsePositiveInt(value: string | null, fallback: number, max: number): number {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function buildLandingPageWhere(userId: string, status: string | null, query: string | null) {
+  const where: Record<string, unknown> = { userId };
+
+  if (status === "PUBLISHED" || status === "DRAFT") {
+    where.status = status;
+  }
+
+  const trimmedQuery = query?.trim();
+  if (trimmedQuery) {
+    where.OR = [
+      { title: { contains: trimmedQuery } },
+      { description: { contains: trimmedQuery } },
+      { slug: { contains: trimmedQuery } },
+      { pageType: { contains: trimmedQuery } },
+    ];
+  }
+
+  return where;
+}
+
 // GET /api/landing-pages - List user's landing pages
 export async function GET(request: NextRequest) {
   try {
@@ -204,20 +230,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = parseInt(searchParams.get("limit") || "12", 10);
+    const query = searchParams.get("q");
+    const page = parsePositiveInt(searchParams.get("page"), 1, 1000);
+    const limit = parsePositiveInt(searchParams.get("limit"), 12, 50);
     const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where: Record<string, unknown> = {
-      userId: session.user.id,
-    };
+    const where = buildLandingPageWhere(session.user.id, status, query);
+    const baseWhere = { userId: session.user.id };
 
-    if (status) {
-      where.status = status;
-    }
-
-    const [pages, count] = await Promise.all([
+    const [pages, count, totalCount, publishedCount, draftCount, viewStats, totalSubmissions, recentPublishedCount] = await Promise.all([
       prisma.landingPage.findMany({
         where,
         orderBy: { updatedAt: "desc" },
@@ -235,21 +256,95 @@ export async function GET(request: NextRequest) {
           publishedAt: true,
           createdAt: true,
           updatedAt: true,
+          _count: {
+            select: { formSubmissions: true },
+          },
         },
       }),
       prisma.landingPage.count({ where }),
+      prisma.landingPage.count({ where: baseWhere }),
+      prisma.landingPage.count({ where: { ...baseWhere, status: "PUBLISHED" } }),
+      prisma.landingPage.count({ where: { ...baseWhere, status: "DRAFT" } }),
+      prisma.landingPage.aggregate({
+        where: baseWhere,
+        _sum: { views: true },
+      }),
+      prisma.formSubmission.count({
+        where: {
+          landingPage: {
+            is: baseWhere,
+          },
+        },
+      }),
+      prisma.landingPage.count({
+        where: {
+          ...baseWhere,
+          status: "PUBLISHED",
+          publishedAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          },
+        },
+      }),
     ]);
+
+    const pagesWithMetrics = pages.map((page) => {
+      const submissions = page._count.formSubmissions;
+      const conversionRate = page.views > 0 ? Number(((submissions / page.views) * 100).toFixed(1)) : 0;
+      const { _count, ...pageData } = page;
+      return {
+        ...pageData,
+        submissions,
+        conversionRate,
+      };
+    });
+
+    const totalViews = viewStats._sum.views || 0;
 
     return NextResponse.json({
       success: true,
       data: {
-        pages,
+        pages: pagesWithMetrics,
         pagination: {
           page,
           limit,
           total: count,
           totalPages: Math.ceil(count / limit),
         },
+        stats: {
+          total: totalCount,
+          published: publishedCount,
+          draft: draftCount,
+          totalViews,
+          totalSubmissions,
+          averageConversionRate: totalViews > 0 ? Number(((totalSubmissions / totalViews) * 100).toFixed(1)) : 0,
+          recentlyPublished: recentPublishedCount,
+        },
+        workflow: [
+          {
+            id: "create",
+            label: "Create",
+            description: "Describe the offer, audience, proof, and action you want the page to drive.",
+            completed: totalCount > 0,
+          },
+          {
+            id: "review",
+            label: "Review",
+            description: "Edit the AI copy, check the mobile layout, and confirm the form or call-to-action.",
+            completed: publishedCount > 0 || draftCount > 0,
+          },
+          {
+            id: "publish",
+            label: "Publish",
+            description: "Publish the page, copy the public URL, and connect it to campaigns or ads.",
+            completed: publishedCount > 0,
+          },
+          {
+            id: "optimize",
+            label: "Optimize",
+            description: "Use views, leads, and conversion rate to improve each page after launch.",
+            completed: totalViews > 0 || totalSubmissions > 0,
+          },
+        ],
       },
     });
   } catch (error) {

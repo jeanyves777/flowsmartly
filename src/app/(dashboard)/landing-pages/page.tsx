@@ -1,14 +1,37 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Globe, Plus, Eye, Edit3, Trash2, ExternalLink, Copy, MoreVertical, Globe2, Rocket, GlobeLock } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  ClipboardCheck,
+  Copy,
+  Edit3,
+  ExternalLink,
+  Eye,
+  FileText,
+  Globe,
+  Globe2,
+  GlobeLock,
+  LayoutTemplate,
+  MoreVertical,
+  MousePointerClick,
+  Plus,
+  Rocket,
+  Search,
+  Trash2,
+  TrendingUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +43,7 @@ import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 type PageStatus = "PUBLISHED" | "DRAFT";
-type FilterTab = "all" | "PUBLISHED" | "DRAFT";
+type FilterTab = "all" | PageStatus;
 
 interface LandingPage {
   id: string;
@@ -31,6 +54,8 @@ interface LandingPage {
   status: PageStatus;
   thumbnailUrl: string | null;
   views: number;
+  submissions: number;
+  conversionRate: number;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +66,23 @@ interface Pagination {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+interface LandingPageStats {
+  total: number;
+  published: number;
+  draft: number;
+  totalViews: number;
+  totalSubmissions: number;
+  averageConversionRate: number;
+  recentlyPublished: number;
+}
+
+interface WorkflowStep {
+  id: string;
+  label: string;
+  description: string;
+  completed: boolean;
 }
 
 const pageTypeLabels: Record<string, string> = {
@@ -54,19 +96,6 @@ const pageTypeLabels: Record<string, string> = {
   coming_soon: "Coming Soon",
   portfolio: "Portfolio",
   app: "App Download",
-};
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-};
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 };
 
 function formatRelativeDate(dateString: string): string {
@@ -89,13 +118,25 @@ function formatRelativeDate(dateString: string): string {
   });
 }
 
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function getPublicUrl(slug: string): string {
+  if (typeof window === "undefined") return `/p/${slug}`;
+  return `${window.location.origin}/p/${slug}`;
+}
+
 export default function LandingPagesPage() {
   const { toast } = useToast();
 
   const [pages, setPages] = useState<LandingPage[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [stats, setStats] = useState<LandingPageStats | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowStep[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -104,8 +145,9 @@ export default function LandingPagesPage() {
       setIsLoading(true);
       const params = new URLSearchParams();
       if (activeFilter !== "all") params.set("status", activeFilter);
+      if (searchQuery.trim()) params.set("q", searchQuery.trim());
       params.set("page", "1");
-      params.set("limit", "12");
+      params.set("limit", "24");
 
       const response = await fetch(`/api/landing-pages?${params}`);
       const data = await response.json();
@@ -114,37 +156,38 @@ export default function LandingPagesPage() {
         throw new Error(data.error?.message || "Failed to fetch landing pages");
       }
 
-      setPages(data.data.pages);
-      setPagination(data.data.pagination);
+      setPages(data.data.pages || []);
+      setPagination(data.data.pagination || null);
+      setStats(data.data.stats || null);
+      setWorkflow(data.data.workflow || []);
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to load landing pages",
+        title: "Landing pages could not load",
+        description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  }, [activeFilter, toast]);
+  }, [activeFilter, searchQuery, toast]);
 
   useEffect(() => {
-    fetchPages();
-  }, [fetchPages]);
+    const timer = window.setTimeout(fetchPages, searchQuery ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchPages, searchQuery]);
 
   const handleDelete = async (pageId: string, pageTitle: string) => {
     const ok = await confirmDialog({
       title: `Delete "${pageTitle}"?`,
-      description: "This action cannot be undone.",
-      confirmText: "Delete",
+      description: "This removes the page and its public URL. This cannot be undone.",
+      confirmText: "Delete page",
       variant: "destructive",
     });
     if (!ok) return;
 
     setDeletingId(pageId);
     try {
-      const response = await fetch(`/api/landing-pages/${pageId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(`/api/landing-pages/${pageId}`, { method: "DELETE" });
       const data = await response.json();
 
       if (!data.success) {
@@ -153,10 +196,11 @@ export default function LandingPagesPage() {
 
       setPages((prev) => prev.filter((p) => p.id !== pageId));
       toast({ title: "Page deleted", description: `"${pageTitle}" has been deleted.` });
+      fetchPages();
     } catch (err) {
       toast({
         title: "Delete failed",
-        description: err instanceof Error ? err.message : "Failed to delete page",
+        description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -167,9 +211,7 @@ export default function LandingPagesPage() {
   const handleTogglePublish = async (page: LandingPage) => {
     setTogglingId(page.id);
     try {
-      const response = await fetch(`/api/landing-pages/${page.id}/publish`, {
-        method: "POST",
-      });
+      const response = await fetch(`/api/landing-pages/${page.id}/publish`, { method: "POST" });
       const data = await response.json();
 
       if (!data.success) {
@@ -192,10 +234,11 @@ export default function LandingPagesPage() {
             ? `"${page.title}" is now live.`
             : `"${page.title}" has been unpublished.`,
       });
+      fetchPages();
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to update publish status",
+        title: "Publish update failed",
+        description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -204,9 +247,8 @@ export default function LandingPagesPage() {
   };
 
   const handleCopyUrl = async (slug: string) => {
-    const url = `${window.location.origin}/p/${slug}`;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(getPublicUrl(slug));
       toast({ title: "URL copied", description: "Landing page URL copied to clipboard." });
     } catch {
       toast({
@@ -217,282 +259,413 @@ export default function LandingPagesPage() {
     }
   };
 
-  const filterTabs: { id: FilterTab; label: string; count?: number }[] = [
-    { id: "all", label: "All" },
-    { id: "PUBLISHED", label: "Published" },
-    { id: "DRAFT", label: "Drafts" },
-  ];
+  const filterTabs = useMemo(
+    () => [
+      { id: "all" as FilterTab, label: "All", count: stats?.total ?? 0 },
+      { id: "PUBLISHED" as FilterTab, label: "Published", count: stats?.published ?? 0 },
+      { id: "DRAFT" as FilterTab, label: "Drafts", count: stats?.draft ?? 0 },
+    ],
+    [stats]
+  );
+
+  const topPages = useMemo(
+    () => [...pages].sort((a, b) => b.views - a.views).slice(0, 4),
+    [pages]
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex-1 flex flex-col space-y-6 p-6"
-    >
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
-              <Globe className="w-4 h-4 text-white" />
-            </div>
-            Landing Pages
-          </h1>
+    <div className="min-h-screen w-full space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-3xl">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+            <SparkLineIcon />
+            AI landing page builder
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Landing Pages</h1>
+          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+            Build focused pages, review the message, publish clean URLs, and track the results from one workspace.
+          </p>
         </div>
-        <Button size="lg" asChild>
-          <Link href="/landing-pages/create">
-            <Plus className="w-4 h-4 mr-2" />
-            Create New
-          </Link>
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={fetchPages} disabled={isLoading} className="gap-2">
+            {isLoading ? <AISpinner className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
+            Refresh
+          </Button>
+          <Button asChild className="gap-2">
+            <Link href="/landing-pages/create">
+              <Plus className="h-4 w-4" />
+              Create Page
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-1 border-b">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveFilter(tab.id)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeFilter === tab.id
-                ? "border-brand-500 text-brand-500"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon={LayoutTemplate} label="Total pages" value={formatNumber(stats?.total ?? 0)} detail={`${formatNumber(stats?.published ?? 0)} published`} />
+        <MetricCard icon={Eye} label="Total views" value={formatNumber(stats?.totalViews ?? 0)} detail="All landing pages" />
+        <MetricCard icon={ClipboardCheck} label="Leads captured" value={formatNumber(stats?.totalSubmissions ?? 0)} detail={`${stats?.averageConversionRate ?? 0}% average conversion`} />
+        <MetricCard icon={TrendingUp} label="Recent launches" value={formatNumber(stats?.recentlyPublished ?? 0)} detail="Published in 30 days" />
       </div>
 
-      {/* Content */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-5">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                  </div>
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <div className="flex items-center justify-between pt-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Skeleton className="h-9 w-full" />
-                    <Skeleton className="h-9 w-full" />
-                  </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search pages by title, slug, or type"
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {filterTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveFilter(tab.id)}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                      activeFilter === tab.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.label}
+                    <span className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[11px]",
+                      activeFilter === tab.id ? "bg-primary-foreground/20" : "bg-muted"
+                    )}>
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="space-y-4 p-5">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-7 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : pages.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center px-6 py-16 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Globe2 className="h-8 w-8" />
                 </div>
+                <h2 className="text-xl font-semibold">
+                  {searchQuery || activeFilter !== "all" ? "No matching pages" : "No landing pages yet"}
+                </h2>
+                <p className="mt-2 max-w-lg text-sm text-muted-foreground">
+                  {searchQuery || activeFilter !== "all"
+                    ? "Clear the search or switch filters to see the full workspace."
+                    : "Start with a guided AI page, then publish it and connect it to ads, email, or social campaigns."}
+                </p>
+                <Button asChild className="mt-6 gap-2">
+                  <Link href="/landing-pages/create">
+                    <Rocket className="h-4 w-4" />
+                    Create Your First Page
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : pages.length === 0 ? (
-        /* Empty State */
-        <Card>
-          <CardContent className="py-16 px-6">
-            <div className="flex flex-col items-center text-center max-w-md mx-auto">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500/10 to-purple-500/10 flex items-center justify-center mb-6">
-                <Globe2 className="w-10 h-10 text-brand-500" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">No landing pages yet</h3>
-              <p className="text-muted-foreground mb-6">
-                Create your first AI-powered landing page in minutes. Just describe what you need
-                and let our AI build it for you.
-              </p>
-              <Button size="lg" asChild>
-                <Link href="/landing-pages/create">
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Create Your First Page
-                </Link>
-              </Button>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {pages.map((page) => (
+                <LandingPageCard
+                  key={page.id}
+                  page={page}
+                  isToggling={togglingId === page.id}
+                  isDeleting={deletingId === page.id}
+                  onTogglePublish={handleTogglePublish}
+                  onDelete={handleDelete}
+                  onCopy={handleCopyUrl}
+                />
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        /* Page Grid */
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-        >
-          {pages.map((page) => (
-            <motion.div key={page.id} variants={cardVariants}>
-              <Card className="group hover:shadow-md transition-all duration-200 hover:border-brand-500/30">
-                <CardContent className="p-5">
-                  <div className="space-y-3">
-                    {/* Status Badge & More Menu */}
-                    <div className="flex items-center justify-between">
-                      <Badge
-                        variant="secondary"
-                        className={
-                          page.status === "PUBLISHED"
-                            ? "bg-green-500/10 text-green-600 hover:bg-green-500/20"
-                            : "bg-gray-500/10 text-gray-500 hover:bg-gray-500/20"
-                        }
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                            page.status === "PUBLISHED" ? "bg-green-500" : "bg-gray-400"
-                          }`}
-                        />
-                        {page.status === "PUBLISHED" ? "Published" : "Draft"}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            {togglingId === page.id ? (
-                              <AISpinner className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <MoreVertical className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem
-                            onClick={() => handleTogglePublish(page)}
-                            disabled={togglingId === page.id}
-                          >
-                            {page.status === "PUBLISHED" ? (
-                              <>
-                                <GlobeLock className="w-4 h-4 mr-2" />
-                                Unpublish
-                              </>
-                            ) : (
-                              <>
-                                <Globe className="w-4 h-4 mr-2" />
-                                Publish
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          {page.status === "PUBLISHED" && (
-                            <DropdownMenuItem asChild>
-                              <a
-                                href={`/p/${page.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <ExternalLink className="w-4 h-4 mr-2" />
-                                View Live Page
-                              </a>
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleCopyUrl(page.slug)}>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy URL
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(page.id, page.title)}
-                            disabled={deletingId === page.id}
-                            className="text-red-600 focus:text-red-600 focus:bg-red-500/10"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+          )}
 
-                    {/* Title */}
+          {pagination && pagination.total > 0 && (
+            <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              Showing {formatNumber(pages.length)} of {formatNumber(pagination.total)} page{pagination.total === 1 ? "" : "s"}.
+            </div>
+          )}
+        </div>
+
+        <aside className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              <div>
+                <h2 className="font-semibold">Launch steps</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Use this checklist to keep every page production-ready.</p>
+              </div>
+              <div className="space-y-3">
+                {workflow.map((step, index) => (
+                  <div key={step.id} className="flex gap-3 rounded-lg border bg-background p-3">
+                    <div className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                      step.completed ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                    )}>
+                      {step.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                    </div>
                     <div>
-                      <Link
-                        href={`/landing-pages/${page.id}/edit`}
-                        className="font-semibold text-lg leading-tight hover:text-brand-500 transition-colors line-clamp-2"
-                      >
-                        {page.title}
-                      </Link>
-                      {page.description && (
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                          {page.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Page Type */}
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <Globe className="w-3.5 h-3.5" />
-                        {pageTypeLabels[page.pageType] || page.pageType}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5" />
-                        {page.views.toLocaleString()} {page.views === 1 ? "view" : "views"}
-                      </span>
-                    </div>
-
-                    {/* Date */}
-                    <p className="text-xs text-muted-foreground">
-                      Created {formatRelativeDate(page.createdAt)}
-                    </p>
-
-                    {/* Divider */}
-                    <div className="border-t pt-3" />
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="flex-1" asChild>
-                        <Link href={`/landing-pages/${page.id}/edit`}>
-                          <Edit3 className="w-3.5 h-3.5 mr-1.5" />
-                          Edit
-                        </Link>
-                      </Button>
-
-                      {page.status === "PUBLISHED" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          asChild
-                        >
-                          <a
-                            href={`/p/${page.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            View Live
-                          </a>
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleTogglePublish(page)}
-                          disabled={togglingId === page.id}
-                        >
-                          {togglingId === page.id ? (
-                            <AISpinner className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                          ) : (
-                            <Globe className="w-3.5 h-3.5 mr-1.5" />
-                          )}
-                          Publish
-                        </Button>
-                      )}
+                      <p className="text-sm font-medium">{step.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Pagination info */}
-      {pagination && pagination.total > 0 && (
-        <div className="flex items-center justify-center text-sm text-muted-foreground">
-          Showing {pages.length} of {pagination.total} landing page{pagination.total !== 1 ? "s" : ""}
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MousePointerClick className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold">Next best action</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {stats?.draft ? "Publish or finish your draft pages before sending traffic." : "Create a page for the next offer you want to test."}
+                  </p>
+                </div>
+              </div>
+              {stats?.draft ? (
+                <Button variant="outline" className="w-full justify-between" onClick={() => setActiveFilter("DRAFT")}>
+                  Review drafts
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button asChild variant="outline" className="w-full justify-between">
+                  <Link href="/landing-pages/create">
+                    Start a new page
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              <div>
+                <h2 className="font-semibold">Top pages</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Highest-view pages in this filtered view.</p>
+              </div>
+              {topPages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No performance data yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {topPages.map((page) => (
+                    <Link
+                      key={page.id}
+                      href={`/landing-pages/${page.id}/edit`}
+                      className="block rounded-lg border bg-background p-3 transition-colors hover:border-primary/50"
+                    >
+                      <p className="truncate text-sm font-medium">{page.title}</p>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{formatNumber(page.views)} views</span>
+                        <span>{page.conversionRate}% conv.</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-start gap-4 p-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="h-5 w-5" />
         </div>
-      )}
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LandingPageCard({
+  page,
+  isToggling,
+  isDeleting,
+  onTogglePublish,
+  onDelete,
+  onCopy,
+}: {
+  page: LandingPage;
+  isToggling: boolean;
+  isDeleting: boolean;
+  onTogglePublish: (page: LandingPage) => void;
+  onDelete: (pageId: string, pageTitle: string) => void;
+  onCopy: (slug: string) => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      <Card className="h-full">
+        <CardContent className="flex h-full flex-col p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <Badge
+              variant="secondary"
+              className={cn(
+                "gap-1.5",
+                page.status === "PUBLISHED"
+                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                  : "bg-muted text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", page.status === "PUBLISHED" ? "bg-emerald-500" : "bg-muted-foreground")} />
+              {page.status === "PUBLISHED" ? "Published" : "Draft"}
+            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  {isToggling ? <AISpinner className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => onTogglePublish(page)} disabled={isToggling}>
+                  {page.status === "PUBLISHED" ? (
+                    <>
+                      <GlobeLock className="mr-2 h-4 w-4" />
+                      Unpublish
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="mr-2 h-4 w-4" />
+                      Publish
+                    </>
+                  )}
+                </DropdownMenuItem>
+                {page.status === "PUBLISHED" && (
+                  <DropdownMenuItem asChild>
+                    <a href={`/p/${page.slug}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View live page
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => onCopy(page.slug)}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy URL
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => onDelete(page.id, page.title)}
+                  disabled={isDeleting}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <Link href={`/landing-pages/${page.id}/edit`} className="text-lg font-semibold leading-tight hover:text-primary">
+            {page.title}
+          </Link>
+          <p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">
+            {page.description || "No description yet. Add a crisp offer summary before publishing."}
+          </p>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center text-xs">
+            <div>
+              <p className="font-semibold">{formatNumber(page.views)}</p>
+              <p className="mt-1 text-muted-foreground">Views</p>
+            </div>
+            <div>
+              <p className="font-semibold">{formatNumber(page.submissions)}</p>
+              <p className="mt-1 text-muted-foreground">Leads</p>
+            </div>
+            <div>
+              <p className="font-semibold">{page.conversionRate}%</p>
+              <p className="mt-1 text-muted-foreground">Conv.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1">
+              <FileText className="h-3.5 w-3.5" />
+              {pageTypeLabels[page.pageType] || page.pageType}
+            </span>
+            <span>Updated {formatRelativeDate(page.updatedAt)}</span>
+          </div>
+
+          <div className="mt-auto flex gap-2 pt-5">
+            <Button variant="outline" size="sm" className="flex-1 gap-1.5" asChild>
+              <Link href={`/landing-pages/${page.id}/edit`}>
+                <Edit3 className="h-3.5 w-3.5" />
+                Edit
+              </Link>
+            </Button>
+            {page.status === "PUBLISHED" ? (
+              <Button variant="outline" size="sm" className="flex-1 gap-1.5" asChild>
+                <a href={`/p/${page.slug}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Live
+                </a>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1.5"
+                onClick={() => onTogglePublish(page)}
+                disabled={isToggling}
+              >
+                {isToggling ? <AISpinner className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                Publish
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
+  );
+}
+
+function SparkLineIcon() {
+  return (
+    <span className="inline-flex h-2.5 w-8 items-end gap-0.5">
+      <span className="h-1.5 w-1 rounded-full bg-primary/40" />
+      <span className="h-2 w-1 rounded-full bg-primary/60" />
+      <span className="h-1 w-1 rounded-full bg-primary/40" />
+      <span className="h-2.5 w-1 rounded-full bg-primary" />
+    </span>
   );
 }
