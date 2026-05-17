@@ -21,7 +21,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import { LISTSMARTLY_EXTRA_RUN_CREDIT_COST } from "@/lib/constants/listsmartly";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 
@@ -170,6 +170,7 @@ interface ListingOperation {
     | "found"
     | "auto_ready"
     | "registration_link"
+    | "requested"
     | "provider_needed"
     | "monitor_only"
     | "unsupported";
@@ -181,6 +182,7 @@ interface ListingOperation {
   apiCandidate: boolean;
   apiReady: boolean;
   providerReady: boolean;
+  integrationRequestedAt?: string | null;
   priority: number;
 }
 
@@ -204,6 +206,7 @@ interface AutopilotState {
       registrationLinks: number;
       providerCandidates: number;
       monitorOnly: number;
+      requested?: number;
     };
   };
   runtime?: {
@@ -239,6 +242,7 @@ interface AutopilotState {
       registrationLinks: number;
       providerCandidates: number;
       monitorOnly: number;
+      requested?: number;
     };
     items: ListingOperation[];
     providerConfigured: boolean;
@@ -269,6 +273,14 @@ type LiveBrowserControlOptions = {
 };
 
 type LiveBrowserPoint = { x: number; y: number };
+
+type ScanSummary = {
+  searched?: number;
+  live?: number;
+  missing?: number;
+  errors?: number;
+  detected?: number;
+};
 
 // ── Constants ──
 
@@ -388,6 +400,14 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
+function FlowSmartlyMark({ className = "h-8 w-8" }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center justify-center rounded-lg bg-white shadow-sm ${className}`}>
+      <img src="/logo.png" alt="FlowSmartly" className="h-3/4 w-3/4 object-contain" />
+    </span>
+  );
+}
+
 // ── Score Gauge SVG ──
 
 function ScoreGauge({ score, size = 160 }: { score: number; size?: number }) {
@@ -444,6 +464,7 @@ export default function ListSmartlyDashboardPage() {
   const [listingsSearch, setListingsSearch] = useState("");
   const [listingsLoading, setListingsLoading] = useState(false);
   const [scanRunning, setScanRunning] = useState(false);
+  const [lastScanSummary, setLastScanSummary] = useState<ScanSummary | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewPlatform, setReviewPlatform] = useState("all");
@@ -459,6 +480,7 @@ export default function ListSmartlyDashboardPage() {
   const [autopilotState, setAutopilotState] = useState<AutopilotState | null>(null);
   const [autopilotLoading, setAutopilotLoading] = useState(false);
   const [autopilotActionLoading, setAutopilotActionLoading] = useState(false);
+  const [autopilotActionKey, setAutopilotActionKey] = useState<string | null>(null);
   const [lastAutopilotRefresh, setLastAutopilotRefresh] = useState<string | null>(null);
   const [verificationInputs, setVerificationInputs] = useState<Record<string, string>>({});
   const [credentialDraft, setCredentialDraft] = useState<{
@@ -813,10 +835,11 @@ export default function ListSmartlyDashboardPage() {
       if (!res.ok) throw new Error("Scan failed");
       const json = await res.json();
       const summary = json.data?.summary || {};
+      setLastScanSummary(summary);
       await Promise.all([fetchListings(), fetchReviews(), fetchStats(), fetchAutopilotSettings(true)]);
       toast({
         title: "Scan completed",
-        description: `${summary.searched || 0} directories checked. ${summary.live || 0} live, ${summary.missing || 0} missing, ${summary.errors || 0} scan errors.`,
+        description: `${summary.live || 0} active, ${summary.missing || 0} missing, ${summary.errors || 0} errors.`,
       });
     } catch {
       toast({ title: "Error", description: "Failed to start scan", variant: "destructive" });
@@ -843,9 +866,14 @@ export default function ListSmartlyDashboardPage() {
     }
   }
 
-  async function runAutopilotAction(action: string, body: Record<string, unknown> = {}) {
+  async function runAutopilotAction(
+    action: string,
+    body: Record<string, unknown> = {},
+    actionKey = action
+  ) {
     if (autopilotActionLoading) return;
     setAutopilotActionLoading(true);
+    setAutopilotActionKey(actionKey);
     try {
       const res = await fetch("/api/listsmartly/autopilot", {
         method: "POST",
@@ -862,11 +890,16 @@ export default function ListSmartlyDashboardPage() {
       if (typeof json.data?.result?.creditsRemaining === "number") {
         emitCreditsUpdate(json.data.result.creditsRemaining);
       }
+      if (action === "mark_registered" || action === "request_integration") {
+        void fetchListings();
+        void fetchStats();
+      }
       if (action === "continue_task" && typeof body.taskId === "string") {
         setVerificationInputs((prev) => ({ ...prev, [body.taskId as string]: "" }));
       }
       let resultMessage = json.data?.result?.message || "The workflow has been updated.";
       if (action === "mark_registered") resultMessage = json.data?.result?.message || "Listing was marked as submitted.";
+      if (action === "request_integration") resultMessage = json.data?.result?.message || "Request received.";
       if (action === "automate_available") resultMessage = json.data?.result?.message || "No automatic listing action is configured yet.";
       if (action === "refresh_plan") resultMessage = json.data?.result?.message || "Listing plan refreshed.";
       if (action === "continue_task") {
@@ -881,6 +914,8 @@ export default function ListSmartlyDashboardPage() {
       const toastTitle =
         action === "mark_registered"
           ? "Marked submitted"
+          : action === "request_integration"
+            ? "Request sent"
           : action === "automate_available"
             ? "Automation check"
             : action === "refresh_plan" || action === "prepare_queue"
@@ -904,6 +939,7 @@ export default function ListSmartlyDashboardPage() {
       });
     } finally {
       setAutopilotActionLoading(false);
+      setAutopilotActionKey(null);
     }
   }
 
@@ -1370,7 +1406,7 @@ export default function ListSmartlyDashboardPage() {
 
           <Button variant="outline" onClick={runScan} disabled={scanRunning}>
             {scanRunning ? (
-              <AISpinner className="h-4 w-4 animate-spin mr-2" />
+              <FlowActionSpinner size={16} />
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
@@ -1584,7 +1620,7 @@ export default function ListSmartlyDashboardPage() {
 
           <Button variant="outline" onClick={runScan} disabled={scanRunning}>
             {scanRunning ? (
-              <AISpinner className="h-4 w-4 animate-spin mr-2" />
+              <FlowActionSpinner size={16} />
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
@@ -1758,53 +1794,53 @@ export default function ListSmartlyDashboardPage() {
     const state = autopilotState;
     const operationItems = state?.operations?.items || [];
     const operationCounts = state?.operations?.counts || {};
-    const directorySummary =
-      state?.operations?.directoryCounts ||
-      state?.stats.directoryCounts || {
-        totalActive: 0,
-        apiReady: 0,
-        apiCandidates: 0,
-        registrationLinks: 0,
-        providerCandidates: 0,
-        monitorOnly: 0,
-      };
     const autoReadyCount = operationCounts.auto_ready || 0;
     const registrationCount = operationCounts.registration_link || 0;
     const providerNeededCount = operationCounts.provider_needed || 0;
     const monitorOnlyCount = operationCounts.monitor_only || 0;
     const foundCount = operationCounts.found || 0;
+    const requestedCount = operationCounts.requested || 0;
+    const needsRequestItems = operationItems.filter(
+      (item) => item.bucket === "provider_needed" || item.bucket === "monitor_only"
+    );
+    const workReadyItems = operationItems.filter((item) => item.bucket === "auto_ready");
     const operationGroups = [
       {
-        key: "auto_ready",
-        title: "Auto-ready",
-        icon: Sparkles,
-        count: autoReadyCount,
-        items: operationItems.filter((item) => item.bucket === "auto_ready"),
-      },
-      {
         key: "registration_link",
-        title: "Register links",
+        title: "Finish these listings",
+        tone: "border-sky-200 bg-sky-50/70 dark:border-sky-900/60 dark:bg-sky-950/20",
         icon: ExternalLink,
         count: registrationCount,
         items: operationItems.filter((item) => item.bucket === "registration_link"),
       },
       {
-        key: "provider_needed",
-        title: "Provider needed",
-        icon: AlertTriangle,
-        count: providerNeededCount,
-        items: operationItems.filter((item) => item.bucket === "provider_needed"),
+        key: "auto_ready",
+        title: "Ready for FlowSmartly",
+        tone: "border-violet-200 bg-violet-50/70 dark:border-violet-900/60 dark:bg-violet-950/20",
+        icon: Sparkles,
+        count: autoReadyCount,
+        items: workReadyItems,
       },
       {
-        key: "monitor_only",
-        title: "Monitor only",
-        icon: Activity,
-        count: monitorOnlyCount,
-        items: operationItems.filter((item) => item.bucket === "monitor_only"),
+        key: "request",
+        title: "Request integration",
+        tone: "border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20",
+        icon: AlertTriangle,
+        count: providerNeededCount + monitorOnlyCount,
+        items: needsRequestItems,
+      },
+      {
+        key: "requested",
+        title: "Requested",
+        tone: "border-indigo-200 bg-indigo-50/70 dark:border-indigo-900/60 dark:bg-indigo-950/20",
+        icon: Clock,
+        count: requestedCount,
+        items: operationItems.filter((item) => item.bucket === "requested"),
       },
       {
         key: "found",
-        title: "Found",
+        title: "Active and submitted",
+        tone: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20",
         icon: CheckCircle2,
         count: foundCount,
         items: operationItems.filter((item) => item.bucket === "found"),
@@ -1813,40 +1849,79 @@ export default function ListSmartlyDashboardPage() {
 
     return (
       <div className="space-y-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Listing operations</p>
-            <h2 className="text-2xl font-bold text-foreground">Scan, automate, or open the listing site.</h2>
+        <div className="overflow-hidden rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/20">
+          <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <FlowSmartlyMark className={`h-11 w-11 shrink-0 ${scanRunning ? "animate-pulse" : ""}`} />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-300">ListSmartly</p>
+                <h2 className="truncate text-xl font-bold text-foreground">Listing manager</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {scanRunning ? "Scanning your listing presence now..." : "Find listings, finish registrations, and request new sources."}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={runScan} disabled={scanRunning}>
+                {scanRunning ? <FlowActionSpinner size={16} /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                {scanRunning ? "Scanning" : "Scan"}
+              </Button>
+              <Button
+                onClick={() => runAutopilotAction("automate_available")}
+                disabled={autopilotActionLoading || autoReadyCount === 0}
+              >
+                {autopilotActionKey === "automate_available" ? <FlowActionSpinner size={16} /> : <Sparkles className="h-4 w-4 mr-2" />}
+                Improve
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={runScan} disabled={scanRunning}>
-              {scanRunning ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Scan
-            </Button>
-            <Button
-              onClick={() => runAutopilotAction("automate_available")}
-              disabled={autopilotActionLoading || autoReadyCount === 0}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Automate
-            </Button>
-          </div>
+          {(scanRunning || lastScanSummary) && (
+            <details className="border-t border-sky-200/80 bg-white/70 dark:border-sky-900/60 dark:bg-background/30" open={scanRunning}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 items-center gap-2">
+                  {scanRunning ? (
+                    <FlowActionSpinner size={18} />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  )}
+                  <span className="truncate">{scanRunning ? "Scan in progress" : "Last scan result"}</span>
+                </span>
+                {!scanRunning && lastScanSummary && (
+                  <span className="text-xs text-muted-foreground">
+                    {(lastScanSummary.live || 0) + (lastScanSummary.missing || 0)} checked
+                  </span>
+                )}
+              </summary>
+              <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-4">
+                {[
+                  { label: "Active", value: lastScanSummary?.live || 0, color: "text-emerald-600" },
+                  { label: "Missing", value: lastScanSummary?.missing || 0, color: "text-amber-600" },
+                  { label: "Found now", value: lastScanSummary?.detected || 0, color: "text-sky-600" },
+                  { label: "Issues", value: lastScanSummary?.errors || 0, color: "text-rose-600" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-md border border-border bg-card px-3 py-2">
+                    <p className={`text-lg font-bold ${item.color}`}>{scanRunning ? "..." : item.value}</p>
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { label: "Found", value: foundCount, icon: CheckCircle2 },
-            { label: "Auto-ready", value: autoReadyCount, icon: Sparkles },
-            { label: "Register", value: registrationCount, icon: ExternalLink },
-            { label: "Provider", value: providerNeededCount, icon: AlertTriangle },
-            { label: "Monitor", value: monitorOnlyCount, icon: Activity },
+            { label: "Active", value: foundCount, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" },
+            { label: "Finish", value: registrationCount, icon: ExternalLink, tone: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300" },
+            { label: "Requested", value: requestedCount, icon: Clock, tone: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300" },
+            { label: "Available", value: providerNeededCount + monitorOnlyCount, icon: AlertTriangle, tone: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" },
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <Card key={item.label}>
+              <Card key={item.label} className="overflow-hidden">
                 <CardContent className="flex items-center gap-3 p-4">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-                    <Icon className="h-5 w-5 text-muted-foreground" />
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-md ${item.tone}`}>
+                    <Icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-2xl font-bold text-foreground">{item.value}</span>
@@ -1858,26 +1933,14 @@ export default function ListSmartlyDashboardPage() {
           })}
         </div>
 
-        <Card>
-          <CardContent className="grid gap-3 p-4 text-sm md:grid-cols-4">
-            <div>
-              <p className="text-muted-foreground">Active targets</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.totalActive}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Configured APIs</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.apiReady}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Registration links</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.registrationLinks}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Provider candidates</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.providerCandidates}</p>
-            </div>
-          </CardContent>
-        </Card>
+        {scanRunning && (
+          <AIGenerationLoader
+            compact
+            currentStep="Scanning listings"
+            subtitle="Updating active, missing, and submitted sources"
+            className="border border-sky-200 shadow-sm dark:border-sky-900/70"
+          />
+        )}
 
         {autopilotLoading ? (
           <div className="space-y-3">
@@ -1893,7 +1956,7 @@ export default function ListSmartlyDashboardPage() {
                 return (
                   <details
                     key={group.key}
-                    className="rounded-md border border-border bg-card"
+                    className={`rounded-md border ${group.tone}`}
                     open={group.key === "registration_link" || group.key === "auto_ready"}
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -1909,7 +1972,6 @@ export default function ListSmartlyDashboardPage() {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-semibold text-foreground">{operation.directory.name}</p>
-                              <Badge variant="outline" className="text-[10px]">Tier {operation.directory.tier}</Badge>
                               <Badge variant="secondary" className="text-[10px]">{operation.label}</Badge>
                             </div>
                             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{operation.message}</p>
@@ -1935,12 +1997,48 @@ export default function ListSmartlyDashboardPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => runAutopilotAction("mark_registered", { listingId: operation.listingId })}
+                                onClick={() =>
+                                  runAutopilotAction(
+                                    "mark_registered",
+                                    { listingId: operation.listingId },
+                                    `mark_registered:${operation.listingId}`
+                                  )
+                                }
                                 disabled={autopilotActionLoading}
                               >
-                                <Check className="h-3.5 w-3.5 mr-1.5" />
-                                I registered
+                                {autopilotActionKey === `mark_registered:${operation.listingId}` ? (
+                                  <FlowActionSpinner size={14} />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                                )}
+                                Done
                               </Button>
+                            )}
+                            {group.key === "request" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  runAutopilotAction(
+                                    "request_integration",
+                                    { listingId: operation.listingId },
+                                    `request_integration:${operation.listingId}`
+                                  )
+                                }
+                                disabled={autopilotActionLoading}
+                              >
+                                {autopilotActionKey === `request_integration:${operation.listingId}` ? (
+                                  <FlowActionSpinner size={14} />
+                                ) : (
+                                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                                )}
+                                Request
+                              </Button>
+                            )}
+                            {group.key === "requested" && (
+                              <Badge variant="secondary" className="h-8 px-3 text-xs">
+                                Sent
+                              </Badge>
                             )}
                           </div>
                         </div>
@@ -1958,8 +2056,8 @@ export default function ListSmartlyDashboardPage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-10">
                   <Globe className="h-10 w-10 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium text-foreground">No listing plan yet</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Run a scan to classify listing targets.</p>
+                  <p className="mt-3 text-sm font-medium text-foreground">No listings to review</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Run a scan to refresh your listing status.</p>
                 </CardContent>
               </Card>
             )}

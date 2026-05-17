@@ -59,6 +59,7 @@ type ListingForOperations = {
   isConsistent: boolean;
   inconsistencies: string;
   directory: DirectoryForOperations;
+  changeHistory?: Array<{ createdAt: Date; newValue: string | null }>;
 };
 
 function providerConfigured(): boolean {
@@ -89,7 +90,10 @@ function classifyListing(listing: ListingForOperations) {
   const priority = getListSmartlyDirectoryPriority(listing.directory);
   const live = LIVE_STATUSES.has(listing.status);
   const needsWork = WORKABLE_STATUSES.has(listing.status);
-  const needsFix = listing.status === "needs_update" || (live && !listing.isConsistent);
+  const needsFix =
+    listing.status === "needs_update" ||
+    ((listing.status === "live" || listing.status === "claimed") && !listing.isConsistent);
+  const integrationRequestedAt = listing.changeHistory?.[0]?.createdAt || null;
 
   if (!listing.directory.isActive) {
     return {
@@ -103,6 +107,7 @@ function classifyListing(listing: ListingForOperations) {
       apiCandidate,
       apiReady,
       providerReady,
+      integrationRequestedAt,
     };
   }
 
@@ -111,13 +116,33 @@ function classifyListing(listing: ListingForOperations) {
       bucket: "found" as const,
       method: "monitor",
       priority,
-      label: "Found",
-      message: "Listing is already found and monitored.",
+      label: listing.status === "submitted" ? "Submitted" : "Found",
+      message:
+        listing.status === "submitted"
+          ? "Submitted by you. FlowSmartly will keep checking for the live listing."
+          : "Listing is active and monitored.",
       registrationUrl,
       providerCandidate,
       apiCandidate,
       apiReady,
       providerReady,
+      integrationRequestedAt,
+    };
+  }
+
+  if (integrationRequestedAt) {
+    return {
+      bucket: "requested" as const,
+      method: "integration_requested",
+      priority,
+      label: "Requested",
+      message: "Request received. Our team will review this listing source.",
+      registrationUrl,
+      providerCandidate,
+      apiCandidate,
+      apiReady,
+      providerReady,
+      integrationRequestedAt,
     };
   }
 
@@ -126,13 +151,14 @@ function classifyListing(listing: ListingForOperations) {
       bucket: "auto_ready" as const,
       method: apiReady ? "api" : "provider",
       priority,
-      label: apiReady ? "API ready" : "Provider ready",
-      message: apiReady ? "Can be handled by a configured API." : "Can be sent through the configured provider.",
+      label: "Ready",
+      message: "FlowSmartly can work on this listing.",
       registrationUrl,
       providerCandidate,
       apiCandidate,
       apiReady,
       providerReady,
+      integrationRequestedAt,
     };
   }
 
@@ -142,12 +168,13 @@ function classifyListing(listing: ListingForOperations) {
       method: "external_registration",
       priority,
       label: "Registration needed",
-      message: "Open the listing site, register or claim it there, then mark it submitted.",
+      message: "Open the listing site. After registering, mark it done here.",
       registrationUrl,
       providerCandidate,
       apiCandidate,
       apiReady,
       providerReady,
+      integrationRequestedAt,
     };
   }
 
@@ -156,13 +183,14 @@ function classifyListing(listing: ListingForOperations) {
       bucket: "provider_needed" as const,
       method: "provider_needed",
       priority,
-      label: "Provider needed",
-      message: "This target needs a listing distribution provider before FlowSmartly can submit it at scale.",
+      label: "Available on request",
+      message: "Ask FlowSmartly to add this listing source.",
       registrationUrl,
       providerCandidate,
       apiCandidate,
       apiReady,
       providerReady,
+      integrationRequestedAt,
     };
   }
 
@@ -170,13 +198,14 @@ function classifyListing(listing: ListingForOperations) {
     bucket: "monitor_only" as const,
     method: "monitor_only",
     priority,
-    label: "Monitor only",
-    message: "FlowSmartly can scan and monitor this target, but no reliable action path is configured.",
+    label: "Available on request",
+    message: "Ask FlowSmartly to add this listing source.",
     registrationUrl,
     providerCandidate,
     apiCandidate,
     apiReady,
     providerReady,
+    integrationRequestedAt,
   };
 }
 
@@ -216,6 +245,12 @@ export async function getListingOperationsState(userId: string) {
             apiAvailable: true,
             isActive: true,
           },
+        },
+        changeHistory: {
+          where: { changeType: "integration_requested" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { createdAt: true, newValue: true },
         },
       },
     }),
@@ -260,10 +295,11 @@ export async function getListingOperationsState(userId: string) {
       const bucketRank: Record<string, number> = {
         auto_ready: 0,
         registration_link: 1,
-        provider_needed: 2,
-        monitor_only: 3,
-        found: 4,
-        unsupported: 5,
+        requested: 2,
+        provider_needed: 3,
+        monitor_only: 4,
+        found: 5,
+        unsupported: 6,
       };
       return (
         (bucketRank[a.bucket] ?? 9) - (bucketRank[b.bucket] ?? 9) ||
@@ -284,6 +320,7 @@ export async function getListingOperationsState(userId: string) {
       if (operation.registrationUrl) acc.registrationLinks += 1;
       if (operation.providerCandidate) acc.providerCandidates += 1;
       if (operation.bucket === "monitor_only") acc.monitorOnly += 1;
+      if (operation.bucket === "requested") acc.requested += 1;
       return acc;
     },
     {
@@ -293,6 +330,7 @@ export async function getListingOperationsState(userId: string) {
       registrationLinks: 0,
       providerCandidates: 0,
       monitorOnly: 0,
+      requested: 0,
     }
   );
 
@@ -393,11 +431,11 @@ export async function handleListingOperationsAction(
     const state = await getListingOperationsState(userId);
     const autoReady = state?.operations?.counts?.auto_ready || 0;
     return {
-      status: autoReady > 0 ? "provider_required" : "empty",
+      status: autoReady > 0 ? "ready" : "empty",
       message:
         autoReady > 0
-          ? "Automatic listing actions need a configured provider or directory API before execution."
-          : "No automatic listing action is configured yet.",
+          ? "FlowSmartly is preparing the available listing updates."
+          : "No automatic listing update is ready right now.",
     };
   }
 
@@ -440,8 +478,48 @@ export async function handleListingOperationsAction(
 
     return {
       status: "marked_registered",
-      message: `${listing.directory.name} was marked as submitted. FlowSmartly will monitor it on the next scan.`,
+      message: `${listing.directory.name} was marked as submitted.`,
       listingId: updated.id,
+    };
+  }
+
+  if (action === "request_integration") {
+    const listingId = String(body.listingId || "");
+    if (!listingId) throw new Error("LISTING_ID_REQUIRED");
+
+    const listing = await prisma.businessListing.findFirst({
+      where: {
+        id: listingId,
+        profileId: profile.id,
+        directory: { isActive: true },
+      },
+      include: { directory: { select: { name: true, slug: true } } },
+    });
+    if (!listing) throw new Error("LISTING_NOT_FOUND");
+
+    const existing = await prisma.listingChange.findFirst({
+      where: { listingId: listing.id, changeType: "integration_requested" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      await prisma.listingChange.create({
+        data: {
+          listingId: listing.id,
+          changeType: "integration_requested",
+          fieldChanged: "integration",
+          oldValue: null,
+          newValue: listing.directory.slug,
+          changedBy: "user",
+        },
+      });
+    }
+
+    return {
+      status: "integration_requested",
+      message: `${listing.directory.name} request received.`,
+      listingId: listing.id,
     };
   }
 

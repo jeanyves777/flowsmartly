@@ -488,3 +488,46 @@ export function AISpinner({
     </motion.svg>
   );
 }
+
+/**
+ * Logo-based spinner for compact button and inline action loading.
+ * Use this when the user is waiting on a normal app action, not a full AI generation panel.
+ */
+export function FlowActionSpinner({
+  className,
+  size = 18,
+  label = "Loading",
+}: {
+  className?: string;
+  size?: number | string;
+  label?: string;
+}) {
+  const dim = size;
+  const logoSize = typeof size === "number" ? Math.max(10, Math.round(size * 0.62)) : 12;
+
+  return (
+    <span
+      role="status"
+      aria-label={label}
+      className={cn("relative inline-flex shrink-0 items-center justify-center align-middle", className)}
+      style={{ width: dim, height: dim }}
+    >
+      <motion.span
+        aria-hidden="true"
+        className="absolute inset-0 rounded-full border-2 border-sky-200 border-r-violet-500 border-t-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.18)] dark:border-sky-900/60 dark:border-r-violet-300 dark:border-t-sky-300"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
+      />
+      <span className="relative flex items-center justify-center rounded-[5px] bg-white shadow-sm">
+        <Image
+          src="/icon.png"
+          alt=""
+          width={logoSize}
+          height={logoSize}
+          className="rounded-[4px]"
+          unoptimized
+        />
+      </span>
+    </span>
+  );
+}
