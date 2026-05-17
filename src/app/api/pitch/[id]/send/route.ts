@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { generatePitchPDF } from "@/lib/pitch/pdf-generator";
+import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
 import { sendPitchEmail } from "@/lib/email";
 import { sendMarketingEmail, createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
 import type { PitchContent } from "@/lib/pitch/generator";
+import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import type { ResearchData } from "@/lib/pitch/researcher";
+
+function isServiceProposal(content: PitchContent | ServiceProposalContent): content is ServiceProposalContent {
+  return (content as ServiceProposalContent).documentType === "service_proposal";
+}
+
+function proposalToPitchEmail(proposal: ServiceProposalContent): PitchContent {
+  return {
+    subject: proposal.subject,
+    headline: proposal.title,
+    personalizedHook: proposal.executiveSummary,
+    keyFindings: proposal.benefits.slice(0, 3),
+    hiddenFindingsCount: Math.max(0, proposal.benefits.length - 3),
+    opportunityParagraph: proposal.clientNeed,
+    solutionBullets: proposal.deliverables.slice(0, 3).map((item) => `${item.title}: ${item.description}`),
+    impactParagraph: proposal.proofPoints.map((point) => `${point.metric} ${point.label}`).join(". "),
+    ctaText: "Review the Proposal",
+    ctaSubtext: "The full proposal is attached as a PDF.",
+    closingLine: proposal.nextSteps[0] || "We look forward to discussing the next step.",
+  };
+}
 
 export async function POST(
   request: NextRequest,
@@ -44,10 +65,10 @@ export async function POST(
     const toName = recipientName || pitch.recipientName || "";
 
     // Parse pitch content and research
-    let pitchContent: PitchContent;
+    let pitchContent: PitchContent | ServiceProposalContent;
     let research: ResearchData;
     try {
-      pitchContent = JSON.parse(pitch.pitchContent || "{}") as PitchContent;
+      pitchContent = JSON.parse(pitch.pitchContent || "{}") as PitchContent | ServiceProposalContent;
       research = JSON.parse(pitch.research || "{}") as ResearchData;
     } catch {
       return NextResponse.json({ success: false, error: { message: "Pitch content is corrupted" } }, { status: 500 });
@@ -115,14 +136,24 @@ export async function POST(
       logo: logoBase64,
       logoAspectRatio,
     };
+    let proposalContent: ServiceProposalContent | null = null;
+    let emailPitchContent: PitchContent;
+    if (isServiceProposal(pitchContent)) {
+      proposalContent = pitchContent;
+      emailPitchContent = proposalToPitchEmail(pitchContent);
+    } else {
+      emailPitchContent = pitchContent;
+    }
 
     // Generate PDF
     let pdfBuffer: Buffer | undefined;
     try {
-      pdfBuffer = await generatePitchPDF(pitchContent, research, pitch.businessName, brand);
+      pdfBuffer = proposalContent
+        ? await generateServiceProposalPDF(proposalContent, brand)
+        : await generatePitchPDF(emailPitchContent, research, pitch.businessName, brand);
     } catch (pdfErr) {
       console.error("[send pitch] PDF generation failed:", pdfErr);
-      // Continue without PDF — still send the HTML email
+      // Continue without PDF and still send the HTML email.
     }
 
     // PDF-only mode: return the PDF as a binary download
@@ -159,7 +190,7 @@ export async function POST(
       const html = buildPitchEmailHtml({
         recipientName: toName || undefined,
         businessName: pitch.businessName,
-        pitch: pitchContent,
+        pitch: emailPitchContent,
         research,
         pdfBuffer,
         senderName: fromName,
@@ -178,7 +209,7 @@ export async function POST(
           emailCfg,
           `${fromName} <${fromEmail}>`,
           toEmail,
-          pitchContent.subject,
+          emailPitchContent.subject,
           html,
           undefined
         );
@@ -187,7 +218,7 @@ export async function POST(
         await transporter.sendMail({
           from: `${fromName} <${fromEmail}>`,
           to: toEmail,
-          subject: pitchContent.subject,
+          subject: emailPitchContent.subject,
           html,
           replyTo: replyToAddr,
           attachments: attachments.map(a => ({ filename: a.filename, content: a.content })),
@@ -199,7 +230,7 @@ export async function POST(
         to: toEmail,
         recipientName: toName || undefined,
         businessName: pitch.businessName,
-        pitch: pitchContent,
+        pitch: emailPitchContent,
         research,
         pdfBuffer,
         senderName: fromName,

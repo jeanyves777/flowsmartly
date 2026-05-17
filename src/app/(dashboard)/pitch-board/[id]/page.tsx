@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Mail, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Mail, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp, FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,8 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
 import { useToast } from "@/hooks/use-toast";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
+import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ interface ResearchData {
   fetchError?: string;
 }
 
-interface PitchContent {
+interface OutreachPitchContent {
   subject?: string;
   headline?: string;
   personalizedHook?: string;
@@ -70,6 +71,8 @@ interface PitchContent {
   ctaSubtext?: string;
   closingLine?: string;
 }
+
+type PitchContent = OutreachPitchContent | ServiceProposalContent;
 
 interface Pitch {
   id: string;
@@ -91,7 +94,7 @@ interface ScoreCategory {
   name: string;
   score: number;
   weight: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   items: Array<{ label: string; ok: boolean; detail?: string }>;
 }
 
@@ -100,7 +103,7 @@ function computeDigitalScore(r: ResearchData): { overall: number; categories: Sc
 
   // 1. Website Health (20%)
   const websiteItems = [
-    { label: "SSL Certificate", ok: !!r.hasSSL, detail: r.hasSSL ? "Secure HTTPS" : "No SSL — browsers show 'Not Secure'" },
+    { label: "SSL Certificate", ok: !!r.hasSSL, detail: r.hasSSL ? "Secure HTTPS" : "No SSL - browsers show 'Not Secure'" },
     { label: "Mobile Optimized", ok: !!r.hasMobileViewport, detail: r.hasMobileViewport ? "Mobile viewport set" : "Not mobile-friendly" },
     { label: "Website Found", ok: !r.fetchError, detail: r.fetchError ? "Website unreachable" : "Site accessible" },
   ];
@@ -116,8 +119,8 @@ function computeDigitalScore(r: ResearchData): { overall: number; categories: Sc
 
   // 3. Lead Generation (25%)
   const leadItems = [
-    { label: "Email Capture Form", ok: !!r.hasEmailCapture, detail: r.hasEmailCapture ? "Email list building active" : "No email capture — losing leads" },
-    { label: "Live Chat Widget", ok: !!r.hasChatWidget, detail: r.hasChatWidget ? (r.techStack?.find(t => t.includes("Chat") || ["Intercom", "Tawk", "Crisp", "Tidio"].some(c => t.includes(c))) || "Live chat active") : "No chat — visitors can't ask questions instantly" },
+    { label: "Email Capture Form", ok: !!r.hasEmailCapture, detail: r.hasEmailCapture ? "Email list building active" : "No email capture - losing leads" },
+    { label: "Live Chat Widget", ok: !!r.hasChatWidget, detail: r.hasChatWidget ? (r.techStack?.find(t => t.includes("Chat") || ["Intercom", "Tawk", "Crisp", "Tidio"].some(c => t.includes(c))) || "Live chat active") : "No chat - visitors can't ask questions instantly" },
     { label: "Online Booking", ok: !!r.hasBookingSystem, detail: r.hasBookingSystem ? (r.techStack?.find(t => ["Calendly", "Acuity", "Mindbody", "OpenTable", "Square", "Setmore", "SimplyBook"].some(c => t.includes(c))) || "Booking system active") : "No online booking found" },
   ];
   const leadScore = Math.round(leadItems.filter(i => i.ok).length / leadItems.length * 100);
@@ -228,9 +231,9 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 // ── Status badge ───────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: Pitch["status"] }) {
-  const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
+  const map: Record<string, { label: string; cls: string; icon: ReactNode }> = {
     PENDING:     { label: "Pending",      cls: "bg-muted text-muted-foreground",   icon: <Clock className="w-3.5 h-3.5" /> },
-    RESEARCHING: { label: "Researching…", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",   icon: <AISpinner className="w-3.5 h-3.5 animate-spin" /> },
+    RESEARCHING: { label: "Researching", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",   icon: <FlowActionSpinner size={14} /> },
     READY:       { label: "Ready",        cls: "bg-green-500/10 text-green-600 dark:text-green-400", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
     FAILED:      { label: "Failed",       cls: "bg-red-500/10 text-red-600 dark:text-red-400",     icon: <AlertCircle className="w-3.5 h-3.5" /> },
     SENT:        { label: "Sent",         cls: "bg-purple-500/10 text-purple-600 dark:text-purple-400", icon: <Send className="w-3.5 h-3.5" /> },
@@ -244,6 +247,17 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
+
+function isServiceProposalContent(content: PitchContent | Record<string, never> | null | undefined): content is ServiceProposalContent {
+  return !!content && (content as ServiceProposalContent).documentType === "service_proposal";
+}
+
+function formatProposalPrice(proposal: ServiceProposalContent): string {
+  const amount = proposal.pricing?.amount;
+  if (typeof amount !== "number") return "Custom";
+  const interval = proposal.pricing?.interval || "project";
+  return `$${amount.toLocaleString()}${interval === "project" ? "" : `/${interval}`}`;
+}
 
 export default function PitchDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -275,10 +289,11 @@ export default function PitchDetailPage() {
       if (data.success) {
         const p = data.data.pitch;
         setPitch(p);
+        const proposalMode = isServiceProposalContent(p.pitchContent);
         // Pre-fill send form: prefer previously used recipient, fall back to scraped contact info
         setSendForm(f => ({
           ...f,
-          email: p.recipientEmail || p.research?.contactInfo?.email || "",
+          email: p.recipientEmail || (proposalMode ? "" : p.research?.contactInfo?.email) || "",
           name: p.recipientName || p.businessName || "",
         }));
       }
@@ -349,7 +364,11 @@ export default function PitchDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center"><AISpinner className="w-8 h-8 animate-spin text-blue-500" /></div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <AIGenerationLoader compact currentStep="Loading Pitch Board" subtitle="Opening the AI workspace" />
+      </div>
+    );
   }
 
   if (error || !pitch) {
@@ -365,11 +384,14 @@ export default function PitchDetailPage() {
   }
 
   const research = pitch.research || {};
-  const pc = pitch.pitchContent || {};
+  const rawContent = pitch.pitchContent || {};
+  const isProposal = isServiceProposalContent(rawContent);
+  const proposal = isProposal ? rawContent : null;
+  const pc = isProposal ? ({} as OutreachPitchContent) : (rawContent as OutreachPitchContent);
   const gp = research.googlePlaces;
   const isReady = pitch.status === "READY" || pitch.status === "SENT";
   const isProcessing = pitch.status === "PENDING" || pitch.status === "RESEARCHING";
-  const { overall, categories } = isReady ? computeDigitalScore(research) : { overall: 0, categories: [] };
+  const { overall, categories } = isReady && !isProposal ? computeDigitalScore(research) : { overall: 0, categories: [] };
 
   return (
     <div className="min-h-screen bg-background">
@@ -385,7 +407,10 @@ export default function PitchDetailPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-lg font-bold text-foreground truncate">{pitch.businessName}</h1>
                   <StatusBadge status={pitch.status} />
-                  {isReady && research.industry && (
+                  {isProposal && (
+                    <span className="px-2 py-0.5 rounded-lg bg-violet-500/10 text-violet-700 dark:text-violet-300 text-xs font-medium">Proposal</span>
+                  )}
+                  {isReady && !isProposal && research.industry && (
                     <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">{research.industry}</span>
                   )}
                 </div>
@@ -400,10 +425,10 @@ export default function PitchDetailPage() {
             {isReady && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadPDF} disabled={isDownloading}>
-                  {isDownloading ? <AISpinner className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
+                  {isDownloading ? <FlowActionSpinner size={14} /> : <Download className="w-3.5 h-3.5" />} PDF
                 </Button>
                 <Button size="sm" className="gap-1.5" onClick={() => setShowSendDialog(true)}>
-                  <Send className="w-3.5 h-3.5" /> {pitch.status === "SENT" ? "Resend" : "Send Pitch"}
+                  <Send className="w-3.5 h-3.5" /> {pitch.status === "SENT" ? "Resend" : isProposal ? "Send Proposal" : "Send Pitch"}
                 </Button>
               </div>
             )}
@@ -413,12 +438,15 @@ export default function PitchDetailPage() {
 
       {/* Processing */}
       {isProcessing && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center mx-auto mb-5">
-            <AISpinner className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
-          </div>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+          <AIGenerationLoader
+            compact
+            currentStep={pitch.status === "PENDING" ? "Queued" : isProposal ? "Building proposal" : "Researching business"}
+            subtitle={isProposal ? "Your branded proposal will appear here when the agent finishes." : "Checking public signals and shaping the final document."}
+            className="mb-5"
+          />
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            {pitch.status === "PENDING" ? "Queued for research…" : "AI is deeply analyzing this business"}
+            {pitch.status === "PENDING" ? "Queued for research" : "AI is deeply analyzing this business"}
           </h2>
           <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
             {pitch.status === "RESEARCHING"
@@ -447,8 +475,170 @@ export default function PitchDetailPage() {
         </div>
       )}
 
+      {/* Proposal content */}
+      {isReady && isProposal && proposal && (
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              <div className="border-b border-border bg-gradient-to-br from-violet-600 via-sky-600 to-cyan-500 px-6 py-8 text-white">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                  <FileText className="h-3.5 w-3.5" />
+                  Service Proposal
+                </div>
+                <h2 className="max-w-3xl text-3xl font-black tracking-tight">{proposal.title}</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85">{proposal.subtitle}</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-white/12 p-3">
+                    <div className="text-xs text-white/70">Prepared for</div>
+                    <div className="font-semibold">{proposal.preparedFor}</div>
+                  </div>
+                  <div className="rounded-lg bg-white/12 p-3">
+                    <div className="text-xs text-white/70">Prepared by</div>
+                    <div className="font-semibold">{proposal.preparedBy || brandName || "Your team"}</div>
+                  </div>
+                  <div className="rounded-lg bg-white/12 p-3">
+                    <div className="text-xs text-white/70">Offer</div>
+                    <div className="font-semibold">{formatProposalPrice(proposal)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-8 p-6">
+                <section>
+                  <h3 className="mb-2 text-base font-bold text-foreground">Overview</h3>
+                  <p className="text-sm leading-7 text-muted-foreground">{proposal.executiveSummary}</p>
+                </section>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <section className="rounded-lg border border-border bg-muted/30 p-4">
+                    <h3 className="mb-2 text-sm font-bold text-foreground">Why This Matters</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">{proposal.clientNeed}</p>
+                  </section>
+                  <section className="rounded-lg border border-border bg-muted/30 p-4">
+                    <h3 className="mb-2 text-sm font-bold text-foreground">About {proposal.preparedBy || brandName || "Us"}</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">{proposal.aboutBrand}</p>
+                  </section>
+                </div>
+
+                <section>
+                  <h3 className="mb-3 text-base font-bold text-foreground">Commitments</h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {proposal.commitments.map((item, index) => (
+                      <div key={index} className="flex gap-3 rounded-lg border border-border p-3">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                        <span className="text-sm leading-6 text-foreground">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="mb-3 text-base font-bold text-foreground">Deliverables</h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {proposal.deliverables.map((item, index) => (
+                      <div key={index} className="rounded-lg border border-border bg-background p-4">
+                        <div className="text-sm font-semibold text-foreground">{item.title}</div>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {proposal.timeline.length > 0 && (
+                  <section>
+                    <h3 className="mb-3 text-base font-bold text-foreground">Timeline</h3>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {proposal.timeline.map((step, index) => (
+                        <div key={index} className="rounded-lg border border-border p-4">
+                          <span className="text-xs font-semibold uppercase text-sky-600 dark:text-sky-300">{step.label}</span>
+                          <div className="mt-1 text-sm font-semibold text-foreground">{step.title}</div>
+                          <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-5 dark:border-sky-900/60 dark:bg-sky-950/20">
+                  <h3 className="mb-3 text-base font-bold text-foreground">Expected Benefits</h3>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {proposal.benefits.map((item, index) => (
+                      <div key={index} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
+                        <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-500" />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="mb-3 text-sm font-bold text-foreground">Pricing</h3>
+                <div className="text-3xl font-black text-foreground">{formatProposalPrice(proposal)}</div>
+                {typeof proposal.pricing?.originalAmount === "number" && (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Promotional from <span className="line-through">${proposal.pricing.originalAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                {proposal.pricing?.note && <p className="mt-3 text-sm leading-6 text-muted-foreground">{proposal.pricing.note}</p>}
+              </div>
+
+              {proposal.proofPoints.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <h3 className="mb-3 text-sm font-bold text-foreground">Proof Points</h3>
+                  <div className="grid gap-3">
+                    {proposal.proofPoints.map((point, index) => (
+                      <div key={index} className="rounded-lg bg-muted/40 p-3">
+                        <div className="text-xl font-black text-sky-600 dark:text-sky-300">{point.metric}</div>
+                        <div className="text-sm font-semibold text-foreground">{point.label}</div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{point.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="mb-3 text-sm font-bold text-foreground">Terms</h3>
+                <div className="space-y-2">
+                  {proposal.terms.map((term, index) => (
+                    <div key={index} className="flex gap-2 text-sm leading-6 text-muted-foreground">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                      {term}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="mb-3 text-sm font-bold text-foreground">Next Steps</h3>
+                <div className="space-y-3">
+                  {proposal.nextSteps.map((step, index) => (
+                    <div key={index} className="flex gap-3 text-sm">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-xs font-bold text-sky-600 dark:text-sky-300">{index + 1}</span>
+                      <span className="leading-6 text-muted-foreground">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="mb-3 text-sm font-bold text-foreground">Contact</h3>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  {proposal.contact?.email && <div className="flex gap-2"><Mail className="h-4 w-4" />{proposal.contact.email}</div>}
+                  {proposal.contact?.phone && <div className="flex gap-2"><Phone className="h-4 w-4" />{proposal.contact.phone}</div>}
+                  {proposal.contact?.website && <div className="flex gap-2"><Globe className="h-4 w-4" />{proposal.contact.website}</div>}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      )}
+
       {/* Main content */}
-      {isReady && (
+      {isReady && !isProposal && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
@@ -549,7 +739,7 @@ export default function PitchDetailPage() {
                               }
                               <div>
                                 <span className={cn("font-medium", item.ok ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
-                                {item.detail && <span className="text-muted-foreground/60 ml-1">— {item.detail}</span>}
+                                {item.detail && <span className="text-muted-foreground/60 ml-1">- {item.detail}</span>}
                               </div>
                             </div>
                           ))}
@@ -762,7 +952,7 @@ export default function PitchDetailPage() {
                     <p className="text-foreground text-sm leading-relaxed">{pc.personalizedHook}</p>
                   )}
 
-                  {/* Score snapshot in pitch — mini version */}
+                  {/* Score snapshot in pitch - mini version */}
                   <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border border-blue-100 p-4">
                     <div className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 mb-3 uppercase">Digital Presence Score</div>
                     <div className="flex items-center gap-4 mb-3">
@@ -877,13 +1067,13 @@ export default function PitchDetailPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Send Pitch
+              <Send className="w-5 h-5 text-blue-600 dark:text-blue-400" /> {isProposal ? "Send Proposal" : "Send Pitch"}
             </DialogTitle>
           </DialogHeader>
           {sendSuccess ? (
             <div className="py-8 text-center">
               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <p className="font-semibold text-foreground">Pitch sent successfully!</p>
+              <p className="font-semibold text-foreground">{isProposal ? "Proposal" : "Pitch"} sent successfully!</p>
               <p className="text-sm text-muted-foreground mt-1">The proposal PDF has been delivered.</p>
             </div>
           ) : (
@@ -900,14 +1090,14 @@ export default function PitchDetailPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Personal Message (Optional)</Label>
-                <Textarea placeholder="Add a personal note…" rows={3} value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))} />
+                <Textarea placeholder="Add a personal note..." rows={3} value={sendForm.message} onChange={e => setSendForm(f => ({ ...f, message: e.target.value }))} />
               </div>
               {sendError && <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {sendError}</p>}
               <div className="flex justify-end gap-3 pt-1">
                 <Button type="button" variant="outline" onClick={() => setShowSendDialog(false)}>Cancel</Button>
                 <Button type="submit" disabled={isSending} className="gap-2">
-                  {isSending ? <AISpinner className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {isSending ? "Sending…" : "Send with PDF"}
+                  {isSending ? <FlowActionSpinner size={16} /> : <Send className="w-4 h-4" />}
+                  {isSending ? "Sending..." : "Send with PDF"}
                 </Button>
               </div>
             </form>

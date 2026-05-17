@@ -1,4 +1,5 @@
 import type { PitchContent } from "./generator";
+import type { ServiceProposalContent } from "./proposal-agent";
 import type { ResearchData } from "./researcher";
 import { computeDigitalScore, scoreHexColor } from "./scorer";
 
@@ -463,4 +464,246 @@ export async function generatePitchPDF(
 
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);
+}
+
+export async function generateServiceProposalPDF(
+  proposal: ServiceProposalContent,
+  brand: BrandInfo
+): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = 210;
+  const pageH = 297;
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  const primaryHex = brand.primaryColor || "#2563eb";
+  const primary = hexToRgb(primaryHex);
+
+  const ensureRoom = (y: number, needed = 28) => {
+    if (y + needed <= pageH - 18) return y;
+    doc.addPage();
+    return 24;
+  };
+
+  const header = (label: string) => {
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.rect(0, 0, pageW, 16, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(brand.name.toUpperCase(), margin, 10);
+    doc.setFont("helvetica", "normal");
+    doc.text(label.toUpperCase(), pageW - margin, 10, { align: "right" });
+  };
+
+  const sectionTitle = (title: string, y: number) => {
+    y = ensureRoom(y, 18);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.text(title, margin, y);
+    doc.setDrawColor(primary.r, primary.g, primary.b);
+    doc.setLineWidth(0.35);
+    doc.line(margin, y + 2, pageW - margin, y + 2);
+    return y + 8;
+  };
+
+  const paragraph = (text: string | undefined, y: number, size = 9) => {
+    if (!text) return y;
+    y = ensureRoom(y, 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(55, 55, 55);
+    const lines = doc.splitTextToSize(text, contentW);
+    doc.text(lines, margin, y);
+    return y + lines.length * (size * 0.55) + 5;
+  };
+
+  const bullets = (items: string[], y: number) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.7);
+    for (const item of items.filter(Boolean)) {
+      y = ensureRoom(y, 12);
+      doc.setFillColor(primary.r, primary.g, primary.b);
+      doc.circle(margin + 2, y - 1.7, 1.15, "F");
+      doc.setTextColor(45, 45, 45);
+      const lines = doc.splitTextToSize(item, contentW - 8);
+      doc.text(lines, margin + 7, y);
+      y += lines.length * 4.8 + 2.5;
+    }
+    return y + 2;
+  };
+
+  // Cover
+  doc.setFillColor(primary.r, primary.g, primary.b);
+  doc.rect(0, 0, pageW, pageH, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(brand.name.toUpperCase(), margin, 26);
+
+  if (brand.logo) {
+    try {
+      const logoW = 44;
+      const logoH = logoW / (brand.logoAspectRatio || 3);
+      const fmt = brand.logo.includes("jpeg") || brand.logo.includes("jpg") ? "JPEG" : brand.logo.includes("webp") ? "WEBP" : "PNG";
+      doc.addImage(brand.logo, fmt, margin, 32, logoW, Math.min(24, logoH));
+    } catch {
+      // Text logo above remains.
+    }
+  }
+
+  doc.setFontSize(34);
+  doc.text("Business", margin, 96);
+  doc.text("Development", margin, 113);
+  doc.text("Proposal", margin, 130);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.text(proposal.serviceTitle, margin, 148);
+  doc.setFontSize(9);
+  doc.text(`Prepared for ${proposal.preparedFor}`, margin, 159);
+  doc.text(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), margin, 166);
+  if (proposal.pricing.amount) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(margin, 184, 74, 30, 5, 5, "F");
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text(`$${proposal.pricing.amount.toLocaleString()}`, margin + 8, 198);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`per ${proposal.pricing.interval || "project"}`, margin + 8, 206);
+    if (proposal.pricing.originalAmount) {
+      doc.text(`Promotional price from $${proposal.pricing.originalAmount.toLocaleString()}`, margin + 8, 211);
+    }
+  }
+  doc.setFontSize(9);
+  doc.setTextColor(230, 240, 255);
+  doc.text(proposal.contact.website || brand.name, margin, pageH - 24);
+
+  // About
+  doc.addPage();
+  header("About and vision");
+  let y = 32;
+  y = sectionTitle("About Us", y);
+  y = paragraph(proposal.aboutBrand, y, 9.5);
+  y = sectionTitle("Why This Matters", y + 4);
+  y = paragraph(proposal.clientNeed, y, 9.5);
+  y = sectionTitle("Executive Summary", y + 4);
+  y = paragraph(proposal.executiveSummary, y, 9.5);
+
+  // Commitments and benefits
+  doc.addPage();
+  header("Commitments");
+  y = 32;
+  y = sectionTitle("Our Commitments", y);
+  y = bullets(proposal.commitments, y);
+  y = sectionTitle("Business Benefits", y + 2);
+  y = bullets(proposal.benefits, y);
+
+  // Deliverables and timeline
+  doc.addPage();
+  header("Scope and timeline");
+  y = 32;
+  y = sectionTitle("What Is Included", y);
+  for (const deliverable of proposal.deliverables) {
+    y = ensureRoom(y, 24);
+    doc.setFillColor(247, 249, 252);
+    doc.roundedRect(margin, y - 5, contentW, 18, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(25, 25, 25);
+    doc.text(deliverable.title, margin + 5, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.8);
+    doc.setTextColor(80, 80, 80);
+    doc.text(doc.splitTextToSize(deliverable.description, contentW - 10), margin + 5, y + 5);
+    y += 21;
+  }
+  y = sectionTitle("Timeline", y + 3);
+  for (const step of proposal.timeline) {
+    y = ensureRoom(y, 18);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.text(step.label, margin, y);
+    doc.setTextColor(30, 30, 30);
+    doc.text(step.title, margin + 28, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.8);
+    doc.setTextColor(80, 80, 80);
+    doc.text(doc.splitTextToSize(step.description, contentW - 28), margin + 28, y + 5);
+    y += 17;
+  }
+
+  // Proof, terms, contact
+  doc.addPage();
+  header("Proof and next steps");
+  y = 32;
+  if (proposal.proofPoints.length) {
+    y = sectionTitle("Expected Impact", y);
+    const cardW = (contentW - 8) / 3;
+    proposal.proofPoints.slice(0, 6).forEach((point, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const x = margin + col * (cardW + 4);
+      const cy = y + row * 34;
+      doc.setFillColor(247, 249, 252);
+      doc.roundedRect(x, cy, cardW, 28, 3, 3, "F");
+      doc.setTextColor(primary.r, primary.g, primary.b);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text(point.metric, x + 4, cy + 10);
+      doc.setTextColor(35, 35, 35);
+      doc.setFontSize(7.5);
+      doc.text(doc.splitTextToSize(point.label, cardW - 8), x + 4, cy + 16);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(110, 110, 110);
+      doc.text(doc.splitTextToSize(point.note, cardW - 8).slice(0, 2), x + 4, cy + 22);
+    });
+    y += Math.ceil(Math.min(proposal.proofPoints.length, 6) / 3) * 34 + 6;
+  }
+
+  y = sectionTitle("Pricing", y);
+  const pricing = proposal.pricing;
+  const priceLine = pricing.amount
+    ? `${pricing.name}: $${pricing.amount.toLocaleString()} / ${pricing.interval || "project"}`
+    : pricing.name;
+  y = paragraph(
+    `${priceLine}${pricing.originalAmount ? ` (promotional price from $${pricing.originalAmount.toLocaleString()})` : ""}. ${pricing.note || ""}`,
+    y,
+    9.5,
+  );
+
+  y = sectionTitle("Terms and Conditions", y + 2);
+  y = bullets(proposal.terms, y);
+  y = sectionTitle("Next Steps", y + 2);
+  y = bullets(proposal.nextSteps, y);
+
+  y = sectionTitle("Contact", y + 2);
+  y = paragraph(
+    [
+      proposal.contact.name || proposal.preparedBy,
+      proposal.contact.email,
+      proposal.contact.phone,
+      proposal.contact.website,
+      proposal.contact.address,
+    ].filter(Boolean).join("  |  "),
+    y,
+    9,
+  );
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 2; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.rect(0, pageH - 10, pageW, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7);
+    doc.text(`${brand.name} - Service Proposal`, margin, pageH - 4);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 4, { align: "right" });
+  }
+
+  return Buffer.from(doc.output("arraybuffer"));
 }

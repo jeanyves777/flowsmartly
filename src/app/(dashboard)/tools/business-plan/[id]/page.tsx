@@ -31,10 +31,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
 
-// Load recharts only on the client — server can't prerender canvas/svg state
+// Load recharts only on the client; server cannot prerender canvas/svg state.
 const ChartRenderer = dynamic(() => import("./chart-renderer").then((m) => m.ChartRenderer), {
   ssr: false,
   loading: () => <div className="h-64 bg-muted/30 rounded-md animate-pulse" />,
@@ -89,6 +89,7 @@ export default function BusinessPlanViewerPage({
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
   const [regenPrompt, setRegenPrompt] = useState("");
   const [regenerating, setRegenerating] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [shareMessage, setShareMessage] = useState("");
   const [shareUrl, setShareUrl] = useState<string>("");
@@ -151,31 +152,36 @@ export default function BusinessPlanViewerPage({
   };
 
   const handlePrintPDF = () => {
-    // Browser's native print dialog → "Save as PDF". Styled via @media print.
+    // Browser's native print dialog uses "Save as PDF". Styled via @media print.
     window.print();
   };
 
   const handleShare = async () => {
-    const res = await fetch(`/api/business-plans/${id}/share`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: shareEmail.trim() || undefined,
-        message: shareMessage.trim() || undefined,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      toast({ title: "Share failed", variant: "destructive" });
-      return;
-    }
-    setShareUrl(json.shareUrl);
-    if (json.emailed) {
-      toast({ title: `Shared with ${shareEmail}` });
-    } else if (shareEmail) {
-      toast({ title: "Link ready but email send failed", description: "Copy link instead.", variant: "destructive" });
-    } else {
-      toast({ title: "Share link ready" });
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/business-plans/${id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: shareEmail.trim() || undefined,
+          message: shareMessage.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast({ title: "Share failed", variant: "destructive" });
+        return;
+      }
+      setShareUrl(json.shareUrl);
+      if (json.emailed) {
+        toast({ title: `Shared with ${shareEmail}` });
+      } else if (shareEmail) {
+        toast({ title: "Link ready but email send failed", description: "Copy link instead.", variant: "destructive" });
+      } else {
+        toast({ title: "Share link ready" });
+      }
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -216,7 +222,7 @@ export default function BusinessPlanViewerPage({
   if (loading) {
     return (
       <div className="p-8">
-        <AIGenerationLoader compact currentStep="Loading your business plan…" />
+        <AIGenerationLoader compact currentStep="Loading business plan" />
       </div>
     );
   }
@@ -241,7 +247,7 @@ export default function BusinessPlanViewerPage({
       <div className="p-8 min-h-[60vh]">
         <div className="mx-auto w-full max-w-2xl">
           <AIGenerationLoader
-            currentStep="Re-running the strategist with your refinements…"
+            currentStep="Re-running the strategist"
             subtitle="Rewriting sections and recalculating projections."
           />
         </div>
@@ -251,7 +257,7 @@ export default function BusinessPlanViewerPage({
 
   return (
     <div className="bp-viewer-root">
-      {/* Top action bar — hidden during print */}
+      {/* Top action bar - hidden during print */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b print:hidden">
         <div className="flex items-center justify-between gap-2 p-3 flex-wrap">
           <Button variant="ghost" size="sm" onClick={() => router.push("/tools/business-plan")} className="gap-1">
@@ -294,7 +300,7 @@ export default function BusinessPlanViewerPage({
                   autoFocus
                 />
                 <Button size="icon" variant="secondary" onClick={saveName} disabled={savingEdits}>
-                  <Check className="h-4 w-4" />
+                  {savingEdits ? <FlowActionSpinner size={16} /> : <Check className="h-4 w-4" />}
                 </Button>
                 <Button size="icon" variant="secondary" onClick={() => setEditingName(false)}>
                   <X className="h-4 w-4" />
@@ -330,7 +336,7 @@ export default function BusinessPlanViewerPage({
           <Sparkles className="absolute right-8 top-8 h-24 w-24 text-white/10" />
         </section>
 
-        {/* Table of contents — on screen only */}
+        {/* Table of contents - on screen only */}
         <nav className="print:hidden">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Table of contents</h2>
           <ol className="grid gap-2 sm:grid-cols-2 text-sm">
@@ -381,7 +387,7 @@ export default function BusinessPlanViewerPage({
                 ) : (
                   <div className="flex gap-2 print:hidden">
                     <Button size="sm" onClick={saveSectionBody} disabled={savingEdits} className="gap-1">
-                      <Save className="h-4 w-4" /> Save
+                      {savingEdits ? <FlowActionSpinner size={16} /> : <Save className="h-4 w-4" />} Save
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => setEditingSectionId(null)} className="gap-1">
                       <X className="h-4 w-4" /> Cancel
@@ -452,7 +458,7 @@ export default function BusinessPlanViewerPage({
                 id="share-msg"
                 value={shareMessage}
                 onChange={(e) => setShareMessage(e.target.value)}
-                placeholder="Here's the plan we discussed — would love your feedback."
+                placeholder="Here's the plan we discussed - would love your feedback."
                 rows={3}
               />
             </div>
@@ -467,8 +473,8 @@ export default function BusinessPlanViewerPage({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShareDialogOpen(false)}>Close</Button>
-            <Button onClick={handleShare} className="gap-2">
-              <Mail className="h-4 w-4" />
+            <Button onClick={handleShare} className="gap-2" disabled={sharing}>
+              {sharing ? <FlowActionSpinner size={16} /> : <Mail className="h-4 w-4" />}
               {shareEmail ? "Send" : "Get link"}
             </Button>
           </DialogFooter>
@@ -501,7 +507,7 @@ export default function BusinessPlanViewerPage({
         </DialogContent>
       </Dialog>
 
-      {/* Body styles — prose rules for agent-generated HTML + print rules */}
+      {/* Body styles - prose rules for agent-generated HTML + print rules */}
       <style jsx global>{`
         .bp-body h2 {
           font-size: 1.25rem;
@@ -570,7 +576,7 @@ function decodeEntities(s: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
-// Darken a hex color by a percentage — used for the cover gradient's stop.
+// Darken a hex color by a percentage for the cover gradient stop.
 function darken(hex: string, amount: number): string {
   const h = hex.replace("#", "");
   if (h.length !== 6) return hex;

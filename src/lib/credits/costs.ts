@@ -134,6 +134,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_AUTO_FIX: 2,               // AI auto-fix listing inconsistency
   AI_LISTING_SCAN: 10,          // AI listing scan across directories
   AI_PITCH_LOCAL_PRESENCE: 5,   // AI pitch for local presence
+  AI_SERVICE_PROPOSAL: 35,      // Dedicated branded service proposal PDF agent
 
   // --- AI Website Builder ---
   AI_WEBSITE_GENERATE: 500,     // Full site generation with AI agent ($5.00 — Claude API + build + hosting)
@@ -219,6 +220,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_AUTO_FIX: "AI listing auto-fix",
   AI_LISTING_SCAN: "AI listing scan",
   AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
+  AI_SERVICE_PROPOSAL: "AI service proposal generation",
   AI_WEBSITE_GENERATE: "AI website generation ($5.00)",
   AI_STORE_GENERATE: "AI store generation V2 ($5.00)",
   AI_BUSINESS_PLAN: "AI business plan generation",

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { userId: session.userId };
     if (status && status !== "all") where.status = status;
 
-    const [pitches, total] = await Promise.all([
+    const [pitches, total, proposalRows] = await Promise.all([
       prisma.pitch.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -39,11 +39,17 @@ export async function GET(request: NextRequest) {
           recipientName: true,
           sentAt: true,
           errorMessage: true,
+          pitchContent: true,
+          research: true,
           createdAt: true,
           updatedAt: true,
         },
       }),
       prisma.pitch.count({ where }),
+      prisma.pitch.findMany({
+        where: { userId: session.userId },
+        select: { pitchContent: true, research: true },
+      }),
     ]);
 
     const stats = await prisma.pitch.groupBy({
@@ -53,11 +59,36 @@ export async function GET(request: NextRequest) {
     });
 
     const statMap = Object.fromEntries(stats.map((s) => [s.status, s._count.status]));
+    const enrichedPitches = pitches.map((pitch) => {
+      let documentType = "pitch";
+      try {
+        const parsed = JSON.parse(pitch.pitchContent || "{}") as { documentType?: string };
+        if (parsed.documentType === "service_proposal") documentType = "service_proposal";
+      } catch {
+        try {
+          const parsedResearch = JSON.parse(pitch.research || "{}") as { documentType?: string };
+          if (parsedResearch.documentType === "service_proposal") documentType = "service_proposal";
+        } catch {}
+      }
+      const { pitchContent: _pitchContent, research: _research, ...safePitch } = pitch;
+      return { ...safePitch, documentType };
+    });
+    const proposalCount = proposalRows.filter((row) => {
+      try {
+        return (JSON.parse(row.pitchContent || "{}") as { documentType?: string }).documentType === "service_proposal";
+      } catch {
+        try {
+          return (JSON.parse(row.research || "{}") as { documentType?: string }).documentType === "service_proposal";
+        } catch {
+          return false;
+        }
+      }
+    }).length;
 
     return NextResponse.json({
       success: true,
       data: {
-        pitches,
+        pitches: enrichedPitches,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
         stats: {
           total,
@@ -65,6 +96,7 @@ export async function GET(request: NextRequest) {
           ready: statMap.READY || 0,
           sent: statMap.SENT || 0,
           failed: statMap.FAILED || 0,
+          proposals: proposalCount,
         },
       },
     });
@@ -109,7 +141,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: "BRAND_IDENTITY_REQUIRED",
-            message: "Please set up your brand identity before creating pitches. Go to Settings → Brand Kit to get started.",
+            message: "Please set up your brand identity before creating pitches. Go to Settings > Brand Kit to get started.",
           },
         },
         { status: 403 }

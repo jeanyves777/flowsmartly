@@ -4,9 +4,26 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { runBusinessPlanAgent } from "@/lib/ai/business-plan-agent";
 
+const ALLOWED_STAGES = new Set(["idea", "startup", "growth", "established"]);
+
+function cleanText(value: unknown, max = 2000): string {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function normalizeIndustry(value: unknown): string {
+  return cleanText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "other";
+}
+
+function normalizeFunding(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return Math.min(999999999, Math.round(n));
+}
+
 /**
- * GET /api/business-plans — list the current user's plans.
- * Returns id, name, industry, status, updatedAt — NOT the full sections
+ * GET /api/business-plans - list the current user's plans.
+ * Returns id, name, industry, status, updatedAt - NOT the full sections
  * (kept slim so the list page loads fast).
  */
 export async function GET() {
@@ -35,8 +52,8 @@ export async function GET() {
 }
 
 /**
- * POST /api/business-plans — generate a new business plan.
- * Requires a configured BrandKit — returns BRAND_NOT_CONFIGURED otherwise
+ * POST /api/business-plans - generate a new business plan.
+ * Requires a configured BrandKit - returns BRAND_NOT_CONFIGURED otherwise
  * so the UI can redirect to the BrandKit setup page.
  */
 export async function POST(req: NextRequest) {
@@ -56,14 +73,21 @@ export async function POST(req: NextRequest) {
       fundingNeeded?: number;
     };
 
-    if (!name || !industry || !stage) {
+    const planName = cleanText(name, 180);
+    const normalizedIndustry = normalizeIndustry(industry);
+    const normalizedStage = ALLOWED_STAGES.has(String(stage)) ? stage : undefined;
+    const normalizedGoals = cleanText(goals, 2000);
+    const normalizedAudience = cleanText(targetAudience, 1200);
+    const normalizedFunding = normalizeFunding(fundingNeeded);
+
+    if (!planName || !normalizedIndustry || !normalizedStage) {
       return NextResponse.json(
         { success: false, error: { message: "name, industry, and stage are required" } },
         { status: 400 },
       );
     }
 
-    // Brand-identity gate — agent also checks this but we short-circuit
+    // Brand-identity gate; agent also checks this but we short-circuit.
     // before charging credits.
     const brandKit = await prisma.brandKit.findFirst({
       where: { userId: session.userId },
@@ -76,7 +100,7 @@ export async function POST(req: NextRequest) {
           success: false,
           error: {
             code: "BRAND_NOT_CONFIGURED",
-            message: "Complete your Brand Identity first — the business plan is built from it.",
+            message: "Complete your Brand Identity first - the business plan is built from it.",
           },
         },
         { status: 409 },
@@ -107,23 +131,23 @@ export async function POST(req: NextRequest) {
 
     const result = await runBusinessPlanAgent({
       userId: session.userId,
-      name,
-      industry,
-      stage,
-      goals: goals || "",
-      targetAudience: targetAudience || "",
-      fundingNeeded,
+      name: planName,
+      industry: normalizedIndustry,
+      stage: normalizedStage,
+      goals: normalizedGoals,
+      targetAudience: normalizedAudience,
+      fundingNeeded: normalizedFunding,
     });
 
     const plan = await prisma.businessPlan.create({
       data: {
         userId: session.userId,
-        name,
-        industry,
-        stage,
-        goals: goals || null,
-        targetAudience: targetAudience || null,
-        fundingNeeded: typeof fundingNeeded === "number" ? fundingNeeded : null,
+        name: planName,
+        industry: normalizedIndustry,
+        stage: normalizedStage,
+        goals: normalizedGoals || null,
+        targetAudience: normalizedAudience || null,
+        fundingNeeded: normalizedFunding ?? null,
         brandSnapshot: JSON.stringify(result.brandSnapshot),
         sections: JSON.stringify(result.sections),
         coverColor:
@@ -147,7 +171,7 @@ export async function POST(req: NextRequest) {
             balanceAfter: (user?.aiCredits || 0) - creditCost,
             referenceType: "ai_business_plan",
             referenceId: plan.id,
-            description: `Business plan: ${name}`,
+            description: `Business plan: ${planName}`,
           },
         }),
       ]);
@@ -176,7 +200,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to generate business plan";
     console.error("[BusinessPlan] Generation error:", error);
-    // BRAND_NOT_CONFIGURED surfaces as a thrown error from the agent — map
+    // BRAND_NOT_CONFIGURED surfaces as a thrown error from the agent; map
     // it to the same 409 the gate would return so the UI can react once.
     if (msg === "BRAND_NOT_CONFIGURED") {
       return NextResponse.json(

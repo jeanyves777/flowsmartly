@@ -1,27 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, ShieldCheck, AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, BarChart3, CheckCircle2, DollarSign, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
 
 const INDUSTRIES = [
-  "saas", "ecommerce", "fintech", "healthtech", "edtech", "marketing",
-  "food", "fashion", "fitness", "real_estate", "consulting", "media", "other",
+  "saas",
+  "ecommerce",
+  "fintech",
+  "healthtech",
+  "edtech",
+  "marketing",
+  "food",
+  "fashion",
+  "fitness",
+  "real_estate",
+  "consulting",
+  "media",
+  "other",
 ];
 
 const STAGES: Array<{ value: "idea" | "startup" | "growth" | "established"; label: string; hint: string }> = [
-  { value: "idea", label: "Idea", hint: "Still validating — pre-launch" },
-  { value: "startup", label: "Startup", hint: "Launched, early customers, <$1M ARR" },
-  { value: "growth", label: "Growth", hint: "Product-market fit, scaling revenue" },
-  { value: "established", label: "Established", hint: "Mature operation, expanding" },
+  { value: "idea", label: "Idea", hint: "Validate" },
+  { value: "startup", label: "Startup", hint: "Launch" },
+  { value: "growth", label: "Growth", hint: "Scale" },
+  { value: "established", label: "Established", hint: "Expand" },
 ];
 
 interface BrandCheck {
@@ -44,9 +57,6 @@ export default function NewBusinessPlanPage() {
     fundingNeeded: "",
   });
 
-  // Check if the user has a BrandKit before rendering the form. The generate
-  // endpoint also enforces this, but surfacing the gate here avoids wasting
-  // the user's time filling out the form if they'll just get blocked.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -54,33 +64,34 @@ export default function NewBusinessPlanPage() {
         const res = await fetch("/api/brand");
         const json = await res.json();
         const brand = json?.data?.brandKit;
-        if (!cancelled) {
-          if (!brand) {
-            setBrandCheck({ hasBrand: false, isComplete: false });
-          } else {
-            setBrandCheck({ hasBrand: true, isComplete: !!brand.isComplete, name: brand.name });
-            // Prefill plan name with brand name if user hasn't typed anything yet
-            setForm((f) => (f.name ? f : { ...f, name: `${brand.name} — Business Plan 2026` }));
-            // Prefill industry if brand has one we recognize
-            if (brand.industry) {
-              const key = String(brand.industry).toLowerCase().replace(/\s+/g, "_");
-              if (INDUSTRIES.includes(key)) {
-                setForm((f) => ({ ...f, industry: key }));
-              }
-            }
-          }
+        if (cancelled) return;
+        if (!brand) {
+          setBrandCheck({ hasBrand: false, isComplete: false });
+          return;
+        }
+        setBrandCheck({ hasBrand: true, isComplete: !!brand.isComplete, name: brand.name });
+        setForm((f) => (f.name ? f : { ...f, name: `${brand.name} - Business Plan 2026` }));
+        if (brand.industry) {
+          const key = String(brand.industry).toLowerCase().replace(/\s+/g, "_");
+          if (INDUSTRIES.includes(key)) setForm((f) => ({ ...f, industry: key }));
         }
       } catch {
         if (!cancelled) setBrandCheck({ hasBrand: false, isComplete: false });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const selectedStage = useMemo(() => STAGES.find((stage) => stage.value === form.stage) || STAGES[1], [form.stage]);
 
   const handleGenerate = async () => {
     if (!form.name.trim() || !form.industry || !form.stage) {
       toast({ title: "Fill the required fields", description: "Name, industry, and stage are required.", variant: "destructive" });
       return;
     }
+
     setGenerating(true);
     try {
       const res = await fetch("/api/business-plans", {
@@ -109,7 +120,7 @@ export default function NewBusinessPlanPage() {
         }
         throw new Error(json?.error?.message || "Generation failed");
       }
-      toast({ title: "Business plan ready!", description: "Review, edit, export, or share." });
+      toast({ title: "Business plan ready", description: "Review, edit, export, or share." });
       router.push(`/tools/business-plan/${json.data.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Generation failed";
@@ -121,15 +132,14 @@ export default function NewBusinessPlanPage() {
   if (brandCheck === null) {
     return (
       <div className="p-8">
-        <AIGenerationLoader compact currentStep="Checking your brand identity…" />
+        <AIGenerationLoader compact currentStep="Checking brand identity" />
       </div>
     );
   }
 
-  // Brand-identity gate — redirect user to build it first.
   if (!brandCheck.hasBrand) {
     return (
-      <div className="p-4 md:p-6 max-w-3xl mx-auto">
+      <div className="mx-auto max-w-3xl p-4 md:p-6">
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4 gap-1">
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
@@ -137,14 +147,11 @@ export default function NewBusinessPlanPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
-              Set up your Brand Identity first
+              Brand Identity Required
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              The business plan is built from your brand kit — name, industry, audience, voice,
-              unique value. Complete your Brand Identity and come back.
-            </p>
+            <p className="text-sm text-muted-foreground">Business plans need your brand name, audience, voice, and offer.</p>
             <Button asChild>
               <Link href="/brand-identity">Set up Brand Identity</Link>
             </Button>
@@ -156,14 +163,11 @@ export default function NewBusinessPlanPage() {
 
   if (generating) {
     return (
-      <div className="p-8 min-h-[60vh]">
-        {/* AIGenerationLoader uses aspect-video internally and needs an
-            explicit width — without one the inner div collapses to 0x0
-            inside a flex-center parent and the page appears blank. */}
+      <div className="min-h-[70vh] p-8">
         <div className="mx-auto w-full max-w-2xl">
           <AIGenerationLoader
-            currentStep="Your AI strategist is building the plan…"
-            subtitle="Pulling brand identity, running market analysis, projecting financials. Takes about 60-90 seconds."
+            currentStep="Building business plan"
+            subtitle="Using your brand, market context, projections, and chart structure"
           />
         </div>
       </div>
@@ -171,129 +175,171 @@ export default function NewBusinessPlanPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1">
+    <div className="mx-auto max-w-[1500px] p-4 md:p-6">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-5 gap-1">
         <ArrowLeft className="h-4 w-4" /> Back
       </Button>
 
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-brand-500" />
-          New Business Plan
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          13 sections, interactive charts, editable, PDF-exportable. 120 credits.
-        </p>
+      <div className="mb-6 rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge variant="secondary" className="mb-3 gap-1">
+              <Sparkles className="h-3.5 w-3.5 text-sky-500" />
+              AI plan builder
+            </Badge>
+            <h1 className="text-2xl font-bold tracking-tight">New Business Plan</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Structured plan, charts, projections, and editable sections.</p>
+          </div>
+          <Badge variant="outline">120 credits</Badge>
+        </div>
       </div>
 
-      {/* Brand status bar */}
-      <Card className="bg-brand-500/5 border-brand-500/20">
-        <CardContent className="py-4 flex items-center gap-3">
-          <ShieldCheck className="h-5 w-5 text-brand-500 shrink-0" />
-          <div className="text-sm">
-            Building from your brand: <strong>{brandCheck.name || "your Brand Kit"}</strong>
-            {!brandCheck.isComplete && (
-              <span className="text-amber-600 dark:text-amber-400 ml-2">(incomplete — consider finishing it)</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="name">Plan name</Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="My Company - Business Plan 2026"
+                />
+              </div>
 
-      <Card>
-        <CardContent className="pt-6 space-y-5">
-          <div>
-            <Label htmlFor="name">Plan name</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="My SaaS Startup 2026"
-              className="mt-1.5"
-            />
-          </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="industry">Industry</Label>
+                <select
+                  id="industry"
+                  value={form.industry}
+                  onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {INDUSTRIES.map((ind) => (
+                    <option key={ind} value={ind}>
+                      {ind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="industry">Industry</Label>
-              <select
-                id="industry"
-                value={form.industry}
-                onChange={(e) => setForm({ ...form, industry: e.target.value })}
-                className="mt-1.5 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              >
-                {INDUSTRIES.map((ind) => (
-                  <option key={ind} value={ind}>{ind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <Label htmlFor="fundingNeeded">Funding ask</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="fundingNeeded"
+                    type="number"
+                    min={0}
+                    value={form.fundingNeeded}
+                    onChange={(e) => setForm({ ...form, fundingNeeded: e.target.value })}
+                    placeholder="500000"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
             </div>
+
             <div>
               <Label>Stage</Label>
-              <div className="mt-1.5 grid grid-cols-2 gap-2">
-                {STAGES.map((s) => (
+              <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
+                {STAGES.map((stage) => (
                   <button
-                    key={s.value}
+                    key={stage.value}
                     type="button"
-                    onClick={() => setForm({ ...form, stage: s.value })}
-                    className={`text-left p-2 rounded-md border text-xs transition-colors ${
-                      form.stage === s.value
-                        ? "border-brand-500 bg-brand-500/10"
-                        : "border-border hover:border-brand-400"
-                    }`}
+                    onClick={() => setForm({ ...form, stage: stage.value })}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      form.stage === stage.value
+                        ? "border-sky-400 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
+                        : "border-border hover:border-sky-300",
+                    )}
                   >
-                    <div className="font-medium">{s.label}</div>
-                    <div className="text-muted-foreground">{s.hint}</div>
+                    <div className="font-semibold">{stage.label}</div>
+                    <div className="text-xs text-muted-foreground">{stage.hint}</div>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="goals">Primary goals (optional)</Label>
-            <Textarea
-              id="goals"
-              value={form.goals}
-              onChange={(e) => setForm({ ...form, goals: e.target.value })}
-              placeholder="e.g. Reach $1M ARR in 18 months, hire 5 engineers, expand to EU."
-              rows={3}
-              className="mt-1.5"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="goals">Primary goals</Label>
+              <Textarea
+                id="goals"
+                value={form.goals}
+                onChange={(e) => setForm({ ...form, goals: e.target.value })}
+                placeholder="Revenue target, launch plan, hiring, market expansion, investor outcome..."
+                rows={4}
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="targetAudience">Target audience (optional — overrides brand kit)</Label>
-            <Textarea
-              id="targetAudience"
-              value={form.targetAudience}
-              onChange={(e) => setForm({ ...form, targetAudience: e.target.value })}
-              placeholder="e.g. Mid-market B2B SaaS companies with 50-500 employees, RevOps leaders."
-              rows={2}
-              className="mt-1.5"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="targetAudience">Target audience</Label>
+              <Textarea
+                id="targetAudience"
+                value={form.targetAudience}
+                onChange={(e) => setForm({ ...form, targetAudience: e.target.value })}
+                placeholder="Ideal customers, buyer profile, geography, company size, or niche..."
+                rows={3}
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="fundingNeeded">Funding ask, USD (optional)</Label>
-            <Input
-              id="fundingNeeded"
-              type="number"
-              min={0}
-              value={form.fundingNeeded}
-              onChange={(e) => setForm({ ...form, fundingNeeded: e.target.value })}
-              placeholder="500000"
-              className="mt-1.5"
-            />
-          </div>
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button onClick={handleGenerate} size="lg" className="gap-2" disabled={generating}>
+                {generating ? <FlowActionSpinner size={16} /> : <Sparkles className="h-4 w-4" />}
+                Generate Plan
+              </Button>
+              <Button variant="ghost" onClick={() => router.back()}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="pt-2 flex items-center gap-3">
-            <Button onClick={handleGenerate} size="lg" className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              Generate plan (120 credits)
-            </Button>
-            <Button variant="ghost" onClick={() => router.back()}>Cancel</Button>
-          </div>
-        </CardContent>
-      </Card>
+        <aside className="space-y-4">
+          <Card className="border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20">
+            <CardContent className="space-y-4 pt-6">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                  <CheckCircle2 className="h-5 w-5" />
+                </span>
+                <div>
+                  <div className="font-semibold text-foreground">{brandCheck.name}</div>
+                  <p className="text-sm text-muted-foreground">
+                    {brandCheck.isComplete ? "Brand identity ready" : "Brand identity is usable but incomplete"}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-card p-3">
+                  <div className="text-xs text-muted-foreground">Stage</div>
+                  <div className="font-semibold">{selectedStage.label}</div>
+                </div>
+                <div className="rounded-lg bg-card p-3">
+                  <div className="text-xs text-muted-foreground">Industry</div>
+                  <div className="font-semibold capitalize">{form.industry.replace(/_/g, " ")}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3 pt-6">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <BarChart3 className="h-4 w-4 text-sky-500" />
+                Output
+              </h3>
+              {["Executive strategy", "Market and audience", "Operations plan", "Financial projections", "Editable charts"].map((item) => (
+                <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  {item}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
