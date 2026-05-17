@@ -8,14 +8,17 @@ import { getPresignedUrl } from "@/lib/utils/s3-client";
  */
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key");
-  if (!key) {
-    return NextResponse.json({ error: "Missing key" }, { status: 400 });
+  const url = request.nextUrl.searchParams.get("url");
+  const mediaReference = key || url;
+  if (!mediaReference) {
+    return NextResponse.json({ error: "Missing media reference" }, { status: 400 });
   }
 
   try {
     // Get a presigned S3 URL and stream it through
-    const s3Url = await getPresignedUrl(key);
-    const res = await fetch(s3Url);
+    const s3Url = await getPresignedUrl(mediaReference);
+    const range = request.headers.get("range");
+    const res = await fetch(s3Url, range ? { headers: { Range: range } } : undefined);
 
     if (!res.ok) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -29,8 +32,12 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "public, max-age=3600",
     };
     if (contentLength) headers["Content-Length"] = contentLength;
+    const contentRange = res.headers.get("content-range");
+    const acceptRanges = res.headers.get("accept-ranges");
+    if (contentRange) headers["Content-Range"] = contentRange;
+    if (acceptRanges) headers["Accept-Ranges"] = acceptRanges;
 
-    return new NextResponse(res.body, { status: 200, headers });
+    return new NextResponse(res.body, { status: res.status, headers });
   } catch (err) {
     console.error("[Media Proxy] Error:", err);
     return NextResponse.json({ error: "Proxy failed" }, { status: 500 });

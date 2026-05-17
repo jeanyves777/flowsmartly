@@ -1645,7 +1645,7 @@ export default function FeedPage() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-6xl mx-auto"
+      className="mx-auto w-full max-w-6xl overflow-x-hidden"
     >
       {/* Feed Type Tabs */}
       <div className="flex gap-2 mb-4">
@@ -1688,9 +1688,9 @@ export default function FeedPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Main Feed */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* Inline Post Composer */}
           <Card className="overflow-hidden">
             <CardContent className="p-4">
@@ -1956,7 +1956,7 @@ export default function FeedPage() {
                     ? { "data-promoted-post-id": post.id }
                     : {})}
                 >
-                  <Card className="overflow-hidden hover:shadow-md transition-shadow relative">
+                  <Card className="relative -mx-4 overflow-hidden rounded-none border-x-0 transition-shadow hover:shadow-md sm:mx-0 sm:rounded-xl sm:border-x">
                       {/* Ad View Progress Bar - shown on top of promoted posts while watching */}
                       {post.isPromoted && activeAdView?.postId === post.id && (
                         <div className="relative h-1.5 bg-muted overflow-hidden">
@@ -1984,7 +1984,7 @@ export default function FeedPage() {
                         )}
                       </AnimatePresence>
 
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                       {/* Author Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -3213,15 +3213,38 @@ export default function FeedPage() {
   );
 }
 
-/** Displays 1+ media items with carousel navigation and click-to-enlarge */
+/** Displays feed media with Facebook-style previews and click-to-enlarge */
+function isVideoMediaUrl(url: string) {
+  const value = url.toLowerCase();
+  const clean = value.split("?")[0].split("#")[0];
+  return /\.(mp4|webm|mov|m4v)$/.test(clean) || value.includes("video");
+}
+
+function getMediaProxyFallbackUrl(url: string) {
+  if (!url || url.startsWith("/api/media/proxy")) return null;
+  if (
+    url.includes("amazonaws.com") ||
+    url.includes("X-Amz-") ||
+    url.includes("/api/image-proxy?url=")
+  ) {
+    return `/api/media/proxy?url=${encodeURIComponent(url)}`;
+  }
+  return null;
+}
+
 function MediaImage({ url, className, alt, onClick }: { url: string; className?: string; alt?: string; onClick?: (e: React.MouseEvent) => void }) {
+  const [src, setSrc] = useState(url);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [didRetry, setDidRetry] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const useDefaultMinHeight = !className?.includes("h-full");
 
   useEffect(() => {
+    setSrc(url);
     setLoaded(false);
     setError(false);
+    setDidRetry(false);
   }, [url]);
 
   // Check if already loaded (cached images fire load before useEffect)
@@ -3233,7 +3256,10 @@ function MediaImage({ url, className, alt, onClick }: { url: string; className?:
 
   if (error) {
     return (
-      <div className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`} style={{ minHeight: 200 }}>
+      <div
+        className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`}
+        style={useDefaultMinHeight ? { minHeight: 200 } : undefined}
+      >
         <div className="text-center p-4">
           <Image className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p className="text-xs">Media unavailable</p>
@@ -3245,32 +3271,51 @@ function MediaImage({ url, className, alt, onClick }: { url: string; className?:
   return (
     <>
       {!loaded && (
-        <div className={`animate-pulse bg-muted/40 ${className || ""}`} style={{ minHeight: 200 }} />
+        <div
+          className={`animate-pulse bg-muted/40 ${className || ""}`}
+          style={useDefaultMinHeight ? { minHeight: 200 } : undefined}
+        />
       )}
       <img
         ref={imgRef}
-        src={url}
+        src={src}
         alt={alt || "Post media"}
         loading="lazy"
         className={`${className || ""} ${loaded ? "" : "absolute opacity-0 pointer-events-none"}`}
         onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
+        onError={() => {
+          const fallbackUrl = getMediaProxyFallbackUrl(src);
+          if (!didRetry && fallbackUrl) {
+            setDidRetry(true);
+            setSrc(fallbackUrl);
+            return;
+          }
+          setError(true);
+        }}
         onClick={onClick}
       />
     </>
   );
 }
 
-function MediaVideo({ url, className, onClick }: { url: string; className?: string; onClick?: (e: React.MouseEvent) => void }) {
+function MediaVideo({ url, className, controls = true, onClick }: { url: string; className?: string; controls?: boolean; onClick?: (e: React.MouseEvent) => void }) {
+  const [src, setSrc] = useState(url);
   const [error, setError] = useState(false);
+  const [didRetry, setDidRetry] = useState(false);
+  const useDefaultMinHeight = !className?.includes("h-full");
 
   useEffect(() => {
+    setSrc(url);
     setError(false);
+    setDidRetry(false);
   }, [url]);
 
   if (error) {
     return (
-      <div className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`} style={{ minHeight: 200 }}>
+      <div
+        className={`flex items-center justify-center bg-muted/40 text-muted-foreground ${className || ""}`}
+        style={useDefaultMinHeight ? { minHeight: 200 } : undefined}
+      >
         <div className="text-center p-4">
           <Video className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p className="text-xs">Video unavailable</p>
@@ -3281,11 +3326,20 @@ function MediaVideo({ url, className, onClick }: { url: string; className?: stri
 
   return (
     <video
-      src={url}
-      controls
+      src={src}
+      controls={controls}
       preload="metadata"
+      playsInline
       className={className}
-      onError={() => setError(true)}
+      onError={() => {
+        const fallbackUrl = getMediaProxyFallbackUrl(src);
+        if (!didRetry && fallbackUrl) {
+          setDidRetry(true);
+          setSrc(fallbackUrl);
+          return;
+        }
+        setError(true);
+      }}
       onClick={onClick}
     />
   );
@@ -3337,24 +3391,68 @@ function IframeBrowse({ url, title, earnAmount, onCancel }: {
   );
 }
 
+function GalleryTile({
+  url,
+  index,
+  remaining,
+  className,
+  onMediaClick,
+}: {
+  url: string;
+  index: number;
+  remaining?: number;
+  className?: string;
+  onMediaClick?: (index: number) => void;
+}) {
+  const isVideo = isVideoMediaUrl(url);
+
+  return (
+    <button
+      type="button"
+      className={`group relative min-h-0 overflow-hidden bg-black focus:outline-none focus:ring-2 focus:ring-brand-500/50 ${className || ""}`}
+      onClick={() => onMediaClick?.(index)}
+    >
+      {isVideo ? (
+        <>
+          <MediaVideo url={url} controls={false} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+            <div className="rounded-full bg-black/55 p-3 text-white shadow-lg">
+              <Video className="h-6 w-6" />
+            </div>
+          </div>
+        </>
+      ) : (
+        <MediaImage url={url} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+      )}
+      <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
+      {!!remaining && remaining > 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-3xl font-bold text-white sm:text-4xl">
+          +{remaining}
+        </div>
+      )}
+    </button>
+  );
+}
+
 function PostMediaGallery({ mediaUrls: rawUrls, onMediaClick }: { mediaUrls: string[]; onMediaClick?: (index: number) => void }) {
   const mediaUrls = rawUrls.filter(Boolean);
-  const [activeIndex, setActiveIndex] = useState(0);
 
   if (mediaUrls.length === 0) return null;
 
   if (mediaUrls.length === 1) {
     const url = mediaUrls[0];
-    const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
+    const isVideo = isVideoMediaUrl(url);
     return (
       <div
-        className="mb-3 rounded-xl overflow-hidden border bg-muted/20 relative group cursor-pointer"
+        data-feed-media-gallery
+        className="-mx-4 mb-3 overflow-hidden border-y bg-black sm:mx-0 sm:rounded-xl sm:border"
         onClick={() => onMediaClick?.(0)}
       >
+        <div className="group relative flex min-h-[220px] items-center justify-center bg-black sm:min-h-[260px]">
         {isVideo ? (
-          <MediaVideo url={url} className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
+          <MediaVideo url={url} className="max-h-[560px] w-full object-contain" onClick={(e) => e.stopPropagation()} />
         ) : (
-          <MediaImage url={url} className="w-full max-h-[480px] object-contain" />
+          <MediaImage url={url} className="max-h-[560px] w-full object-contain" />
         )}
         {/* Zoom overlay on hover (images only) */}
         {!isVideo && (
@@ -3365,67 +3463,39 @@ function PostMediaGallery({ mediaUrls: rawUrls, onMediaClick }: { mediaUrls: str
           </div>
         )}
       </div>
+      </div>
     );
   }
 
-  const url = mediaUrls[activeIndex];
-  const isVideo = url?.match(/\.(mp4|webm|mov)(\?|#|$)/i) || url?.includes("video");
+  const visibleUrls = mediaUrls.slice(0, 4);
+  const remaining = mediaUrls.length - visibleUrls.length;
+  const count = mediaUrls.length;
 
   return (
-    <div className="mb-3 rounded-xl overflow-hidden relative group border bg-muted/20">
-      <div
-        className="cursor-pointer"
-        onClick={() => onMediaClick?.(activeIndex)}
-      >
-        {isVideo ? (
-          <MediaVideo url={url} className="w-full max-h-[480px] object-contain" onClick={(e) => e.stopPropagation()} />
-        ) : (
-          <MediaImage url={url} className="w-full max-h-[480px] object-contain" />
-        )}
-        {/* Zoom overlay on hover (images only) */}
-        {!isVideo && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center pointer-events-none">
-            <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <ZoomIn className="w-5 h-5 text-white" />
-            </div>
-          </div>
-        )}
+    <div data-feed-media-gallery className="relative -mx-4 mb-3 overflow-hidden border-y bg-black sm:mx-0 sm:rounded-xl sm:border">
+      <div className="grid aspect-[4/3] max-h-[560px] grid-cols-2 grid-rows-2 gap-0.5 bg-black sm:aspect-[16/10]">
+        {visibleUrls.map((url, index) => {
+          const tileClass =
+            count === 2
+              ? "row-span-2"
+              : count === 3 && index === 0
+                ? "row-span-2"
+                : "";
+          const overlayCount = index === visibleUrls.length - 1 ? remaining : 0;
+          return (
+            <GalleryTile
+              key={`${url}-${index}`}
+              url={url}
+              index={index}
+              remaining={overlayCount}
+              className={tileClass}
+              onMediaClick={onMediaClick}
+            />
+          );
+        })}
       </div>
-
-      {/* Navigation arrows */}
-      {activeIndex > 0 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setActiveIndex(prev => prev - 1); }}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-      )}
-      {activeIndex < mediaUrls.length - 1 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setActiveIndex(prev => prev + 1); }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      )}
-
-      {/* Dots indicator */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-        {mediaUrls.map((_, i) => (
-          <button
-            key={i}
-            onClick={(e) => { e.stopPropagation(); setActiveIndex(i); }}
-            className={`w-2 h-2 rounded-full transition-all ${
-              i === activeIndex ? "bg-white scale-125" : "bg-white/50"
-            }`}
-          />
-        ))}
-      </div>
-
-      {/* Counter */}
-      <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full font-medium z-10">
-        {activeIndex + 1} / {mediaUrls.length}
+      <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
+        {mediaUrls.length} media
       </div>
     </div>
   );

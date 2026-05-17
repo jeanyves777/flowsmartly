@@ -119,6 +119,10 @@ function isS3Url(url: string): boolean {
  */
 export function extractS3Key(url: string): string {
   if (!url) return "";
+  const proxyInner = _extractProxyInner(url);
+  if (proxyInner && proxyInner !== url) {
+    return extractS3Key(proxyInner);
+  }
   // Strip query params first (presigned URLs have ?X-Amz-Algorithm=... etc.)
   const urlWithoutParams = url.split("?")[0];
   if (urlWithoutParams.startsWith(STORAGE_URL)) {
@@ -217,7 +221,14 @@ export async function presignAllUrls<T>(data: T): Promise<T> {
   if (data === null || data === undefined) return data;
 
   if (typeof data === "string") {
-    if (data.startsWith(STORAGE_URL)) {
+    const proxyInner = _extractProxyInner(data);
+    if (proxyInner) {
+      const cleanInner = proxyInner.split("?")[0];
+      if (isS3Url(cleanInner) || isS3Key(cleanInner)) {
+        return (await getPresignedUrl(cleanInner)) as T;
+      }
+    }
+    if (isS3Url(data)) {
       return (await getPresignedUrl(data)) as T;
     }
     // Also handle bare S3 keys (e.g. "media/abc.png") stored in mediaMeta
