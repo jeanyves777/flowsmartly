@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import {
-  getAutopilotState,
-  handleAutopilotAction,
-  processAutopilotTask,
-  updateAutopilotSettings,
-} from "@/lib/listsmartly/autopilot-agent";
+  getListingOperationsState,
+  handleListingOperationsAction,
+  updateListingOperationsSettings,
+} from "@/lib/listsmartly/operations";
 
 export async function GET() {
   try {
@@ -17,7 +16,7 @@ export async function GET() {
       );
     }
 
-    const state = await getAutopilotState(session.userId);
+    const state = await getListingOperationsState(session.userId);
     if (!state) {
       return NextResponse.json(
         { success: false, error: { message: "ListSmartly profile not found" } },
@@ -27,9 +26,9 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: state });
   } catch (error) {
-    console.error("Get ListSmartly autopilot error:", error);
+    console.error("Get ListSmartly operations error:", error);
     return NextResponse.json(
-      { success: false, error: { message: "Failed to load autopilot" } },
+      { success: false, error: { message: "Failed to load listing operations" } },
       { status: 500 }
     );
   }
@@ -46,19 +45,19 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    await updateAutopilotSettings(session.userId, {
+    await updateListingOperationsSettings(session.userId, {
       enabled: body.enabled,
       autoFix: body.autoFix,
       autoDescriptions: body.autoDescriptions,
       mode: body.mode,
     });
 
-    const state = await getAutopilotState(session.userId);
+    const state = await getListingOperationsState(session.userId);
     return NextResponse.json({ success: true, data: state });
   } catch (error) {
-    console.error("Update ListSmartly autopilot error:", error);
+    console.error("Update ListSmartly operations error:", error);
     return NextResponse.json(
-      { success: false, error: { message: "Failed to update autopilot" } },
+      { success: false, error: { message: "Failed to update listing operations" } },
       { status: 500 }
     );
   }
@@ -76,41 +75,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const action = String(body.action || "");
-    const result = await handleAutopilotAction(
-      session.userId,
-      action as Parameters<typeof handleAutopilotAction>[1],
-      body
-    );
-    const shouldProcess =
-      (action === "run_next" || action === "run_extra" || action === "continue_task") &&
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      (result.status === "started" || result.status === "continuing") &&
-      "task" in result &&
-      result.task &&
-      typeof result.task === "object" &&
-      "id" in result.task;
-    if (shouldProcess) {
-      const resultObject = result as Record<string, unknown>;
-      const shouldForwardVerificationCode =
-        action !== "continue_task" || resultObject.verificationCodeForwarded !== false;
-      const continuation =
-        action === "continue_task"
-          ? {
-              verificationCode:
-                shouldForwardVerificationCode &&
-                typeof body.verificationCode === "string" &&
-                body.verificationCode.trim()
-                  ? body.verificationCode.trim()
-                  : undefined,
-            }
-          : {};
-      void processAutopilotTask(session.userId, String(result.task.id), continuation).catch((error) => {
-        console.error("Background ListSmartly autopilot processing failed:", error);
-      });
-    }
-    const state = await getAutopilotState(session.userId);
+    const result = await handleListingOperationsAction(session.userId, action, body);
+    const state = await getListingOperationsState(session.userId);
 
     return NextResponse.json({ success: true, data: { result, state } });
   } catch (error) {
@@ -120,7 +86,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: "INSUFFICIENT_CREDITS",
-            message: "You need 250 credits to start an extra ListSmartly autopilot run.",
+            message: "This listing operation needs more credits before it can run.",
           },
         },
         { status: 402 }
@@ -133,16 +99,16 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: "TASK_ALREADY_CLAIMED",
-            message: "Another autopilot request already claimed that workflow. Refresh the page and try again.",
+            message: "Another listing request already claimed that workflow. Refresh the page and try again.",
           },
         },
         { status: 409 }
       );
     }
 
-    console.error("Run ListSmartly autopilot action error:", error);
+    console.error("Run ListSmartly operations action error:", error);
     return NextResponse.json(
-      { success: false, error: { message: "Failed to run autopilot action" } },
+      { success: false, error: { message: error instanceof Error ? error.message : "Failed to run listing operation" } },
       { status: 500 }
     );
   }

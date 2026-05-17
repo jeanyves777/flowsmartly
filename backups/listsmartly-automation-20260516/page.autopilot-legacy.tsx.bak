@@ -151,39 +151,6 @@ interface AccountCredential {
   updatedAt: string;
 }
 
-interface ListingOperation {
-  listingId: string;
-  directory: {
-    slug: string;
-    name: string;
-    url: string;
-    tier: number;
-    category: string;
-  };
-  status: string;
-  listingUrl?: string | null;
-  lastCheckedAt?: string | null;
-  lastUpdatedAt?: string | null;
-  isConsistent: boolean;
-  inconsistencies: string[];
-  bucket:
-    | "found"
-    | "auto_ready"
-    | "registration_link"
-    | "provider_needed"
-    | "monitor_only"
-    | "unsupported";
-  method: string;
-  label: string;
-  message: string;
-  registrationUrl?: string | null;
-  providerCandidate: boolean;
-  apiCandidate: boolean;
-  apiReady: boolean;
-  providerReady: boolean;
-  priority: number;
-}
-
 interface AutopilotState {
   settings: {
     enabled: boolean;
@@ -196,15 +163,6 @@ interface AutopilotState {
     taskCounts: Record<string, number>;
     listingStatusCounts: Record<string, number>;
     savedAccounts: number;
-    operationCounts?: Record<string, number>;
-    directoryCounts?: {
-      totalActive: number;
-      apiReady: number;
-      apiCandidates: number;
-      registrationLinks: number;
-      providerCandidates: number;
-      monitorOnly: number;
-    };
   };
   runtime?: {
     queueReady: boolean;
@@ -229,19 +187,6 @@ interface AutopilotState {
     lastStartedAt?: string | null;
     nextRunAt?: string | null;
     message?: string;
-  };
-  operations?: {
-    counts: Record<string, number>;
-    directoryCounts: {
-      totalActive: number;
-      apiReady: number;
-      apiCandidates: number;
-      registrationLinks: number;
-      providerCandidates: number;
-      monitorOnly: number;
-    };
-    items: ListingOperation[];
-    providerConfigured: boolean;
   };
   tasks: AutopilotTask[];
   credentials: AccountCredential[];
@@ -813,7 +758,7 @@ export default function ListSmartlyDashboardPage() {
       if (!res.ok) throw new Error("Scan failed");
       const json = await res.json();
       const summary = json.data?.summary || {};
-      await Promise.all([fetchListings(), fetchReviews(), fetchStats(), fetchAutopilotSettings(true)]);
+      await Promise.all([fetchListings(), fetchReviews(), fetchStats()]);
       toast({
         title: "Scan completed",
         description: `${summary.searched || 0} directories checked. ${summary.live || 0} live, ${summary.missing || 0} missing, ${summary.errors || 0} scan errors.`,
@@ -865,41 +810,35 @@ export default function ListSmartlyDashboardPage() {
       if (action === "continue_task" && typeof body.taskId === "string") {
         setVerificationInputs((prev) => ({ ...prev, [body.taskId as string]: "" }));
       }
-      let resultMessage = json.data?.result?.message || "The workflow has been updated.";
-      if (action === "mark_registered") resultMessage = json.data?.result?.message || "Listing was marked as submitted.";
-      if (action === "automate_available") resultMessage = json.data?.result?.message || "No automatic listing action is configured yet.";
-      if (action === "refresh_plan") resultMessage = json.data?.result?.message || "Listing plan refreshed.";
-      if (action === "continue_task") {
-        resultMessage =
-          typeof body.verificationCode === "string" && body.verificationCode
+      const resultMessage =
+        action === "continue_task"
+          ? typeof body.verificationCode === "string" && body.verificationCode
             ? "Code received. The agent is submitting it in the live browser session; this panel will refresh as it works."
-            : json.data?.result?.message || "The agent is continuing this workflow now.";
-      }
-      if (action === "run_extra") resultMessage = json.data?.result?.message || "Extra run started. 250 credits were charged and the agent is working now.";
-      if (action === "run_next") resultMessage = "Agent started. The live status panel will refresh as it inspects the directory workflow.";
-      if (action === "prepare_queue") resultMessage = json.data?.result?.message || "Listing plan refreshed.";
-      const toastTitle =
-        action === "mark_registered"
-          ? "Marked submitted"
-          : action === "automate_available"
-            ? "Automation check"
-            : action === "refresh_plan" || action === "prepare_queue"
-              ? "Plan refreshed"
-              : action === "run_extra"
-                ? "Extra run started"
-                : action === "run_next"
-                  ? "Autopilot started"
-                  : action === "continue_task"
-                    ? "Agent resumed"
-                    : "Listing operations updated";
+            : json.data?.result?.message || "The agent is continuing this workflow now."
+          : action === "run_extra"
+          ? json.data?.result?.message || "Extra run started. 250 credits were charged and the agent is working now."
+          : action === "run_next"
+          ? "Agent started. The live status panel will refresh as it inspects the directory workflow."
+          : json.data?.result?.message || (
+              action === "prepare_queue"
+                ? "The agent queue is ready."
+                : "The workflow has been updated."
+            );
       toast({
-        title: toastTitle,
+        title:
+          action === "run_extra"
+            ? "Extra run started"
+            : action === "run_next"
+              ? "Autopilot started"
+              : action === "continue_task"
+                ? "Agent resumed"
+                : "Autopilot updated",
         description: resultMessage,
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to run listing operation",
+        description: error instanceof Error ? error.message : "Failed to run autopilot action",
         variant: "destructive",
       });
     } finally {
@@ -1755,216 +1694,822 @@ export default function ListSmartlyDashboardPage() {
   // ── Autopilot Tab ──
 
   function renderAutopilot() {
+    const hasAccess = true;
     const state = autopilotState;
-    const operationItems = state?.operations?.items || [];
-    const operationCounts = state?.operations?.counts || {};
-    const directorySummary =
-      state?.operations?.directoryCounts ||
-      state?.stats.directoryCounts || {
-        totalActive: 0,
-        apiReady: 0,
-        apiCandidates: 0,
-        registrationLinks: 0,
-        providerCandidates: 0,
-        monitorOnly: 0,
-      };
-    const autoReadyCount = operationCounts.auto_ready || 0;
-    const registrationCount = operationCounts.registration_link || 0;
-    const providerNeededCount = operationCounts.provider_needed || 0;
-    const monitorOnlyCount = operationCounts.monitor_only || 0;
-    const foundCount = operationCounts.found || 0;
-    const operationGroups = [
-      {
-        key: "auto_ready",
-        title: "Auto-ready",
-        icon: Sparkles,
-        count: autoReadyCount,
-        items: operationItems.filter((item) => item.bucket === "auto_ready"),
-      },
-      {
-        key: "registration_link",
-        title: "Register links",
-        icon: ExternalLink,
-        count: registrationCount,
-        items: operationItems.filter((item) => item.bucket === "registration_link"),
-      },
-      {
-        key: "provider_needed",
-        title: "Provider needed",
-        icon: AlertTriangle,
-        count: providerNeededCount,
-        items: operationItems.filter((item) => item.bucket === "provider_needed"),
-      },
-      {
-        key: "monitor_only",
-        title: "Monitor only",
-        icon: Activity,
-        count: monitorOnlyCount,
-        items: operationItems.filter((item) => item.bucket === "monitor_only"),
-      },
-      {
-        key: "found",
-        title: "Found",
-        icon: CheckCircle2,
-        count: foundCount,
-        items: operationItems.filter((item) => item.bucket === "found"),
-      },
-    ];
+    const tasks = state?.tasks || [];
+    const credentials = state?.credentials || [];
+    const activeTask = state?.runtime?.activeTask || null;
+    const activeProgress = activeTask?.progress || [];
+    const activeTaskCanRetry = Boolean(activeTask?.canRetry);
+    const needsUserTask = tasks.find((task) => task.status === "needs_user") || null;
+    const nextQueuedTask = tasks.find((task) => task.status === "queued");
+    const queueReady = Boolean(state?.runtime?.queueReady || (state?.stats.taskCounts.queued || 0) > 0);
+    const canPrepareQueue = Boolean(state?.runtime?.canPrepareQueue && !autopilotActionLoading && !autopilotLoading);
+    const canRunAutopilot = Boolean(state?.runtime?.canRun && !autopilotActionLoading && !autopilotLoading);
+    const extraRunCost = state?.runtime?.extraRunCost || LISTSMARTLY_EXTRA_RUN_CREDIT_COST;
+    const creditsAvailable = state?.runtime?.creditsAvailable ?? 0;
+    const canRunPaidExtra = Boolean(state?.runtime?.canRunExtra && !autopilotActionLoading && !autopilotLoading);
+    const nextRunAt = state?.runtime?.nextRunAt || null;
+    const taskGroups = [
+      { key: "needs_user", title: "Needs Your Validation", icon: Bell },
+      { key: "in_progress", title: "Agent Working", icon: Sparkles },
+      { key: "queued", title: "Prepared Queue", icon: ClipboardCheck },
+      { key: "blocked", title: "Blocked", icon: PauseCircle },
+      { key: "completed", title: "Verified Done", icon: CheckCircle2 },
+    ].map((group) => ({
+      ...group,
+      items: tasks.filter((task) => task.status === group.key),
+      count: state?.stats.taskCounts[group.key] || 0,
+    }));
+
+    const groupTasksByTier = (items: AutopilotTask[]) => {
+      const grouped = new Map<number, AutopilotTask[]>();
+      for (const item of items) {
+        const tier = item.directory?.tier || Math.max(1, Math.min(7, item.priority % 10 || 7));
+        const current = grouped.get(tier) || [];
+        current.push(item);
+        grouped.set(tier, current);
+      }
+      return Array.from(grouped.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([tier, tierItems]) => ({
+          tier,
+          items: tierItems.sort(
+            (a, b) =>
+              a.priority - b.priority ||
+              (a.directory?.name || a.title).localeCompare(b.directory?.name || b.title)
+          ),
+        }));
+    };
+    const needsEmailCode =
+      needsUserTask?.result?.accountCreationBlocker === "waiting_for_email_verification" ||
+      needsUserTask?.result?.stage === "waiting_for_email_verification";
+    const emailSessionHeld = Boolean(needsUserTask?.result?.browserSessionHeld);
+    const codeAttemptCount = needsUserTask?.result?.verificationCodeAttemptCount || 0;
+    const needsUserSummary = needsEmailCode
+      ? needsUserTask?.result?.verificationCodeAttempted
+        ? "The directory rejected that code or kept the verification page open."
+        : "The agent started the sign-up and the directory sent an email verification code."
+      : needsUserTask?.result?.accountCreated
+        ? "The agent started the account workflow and is paused at a real validation step."
+        : "The agent is paused at a real validation step.";
+    const needsPortalValidation = Boolean(
+      needsUserTask?.result?.stage === "waiting_for_captcha" ||
+        needsUserTask?.result?.accountCreationBlocker === "waiting_for_captcha" ||
+        needsUserTask?.result?.accountCreationBlocker === "captcha_required" ||
+        /captcha|bot|robot|human verification/i.test(
+          `${needsUserTask?.result?.stage || ""} ${needsUserTask?.result?.accountCreationBlocker || ""} ${
+            needsUserTask?.result?.statusMessage || ""
+          }`
+        )
+    );
+    const needsUserButtonLabel =
+      needsUserTask?.result?.userActionInputKind === "verification_code"
+        ? "Submit code to live agent"
+        : needsPortalValidation
+          ? "Continue agent after validation"
+          : needsUserTask?.result?.userActionButtonLabel || "Continue agent";
+    const needsUserDisplayTitle = needsPortalValidation
+      ? `${needsUserTask?.directory?.name || needsUserTask?.title.replace(/^Verify\s+/i, "") || "Directory"} needs portal validation`
+      : needsUserTask?.result?.userActionTitle || needsUserTask?.title || "Agent needs your input";
+    const needsUserDisplayMessage = needsPortalValidation
+      ? "The real portal is shown in the live browser above. Complete the visible validation or required field there, then continue the agent."
+      : needsUserTask?.result?.userActionMessage ||
+        needsUserTask?.result?.statusMessage ||
+        needsUserTask?.requiredAction ||
+        "Complete the required validation, then let the agent continue.";
+    const supervisedTask = activeTask || needsUserTask;
+    const showLiveBrowser = Boolean(supervisedTask);
+    const liveBrowserIsCurrent = Boolean(showLiveBrowser && liveBrowserTaskId === supervisedTask?.id);
+    const liveBrowserConnected = Boolean(liveBrowserIsCurrent && liveBrowserView?.active && liveBrowserView.image);
+    const liveBrowserViewport = liveBrowserView?.viewport || { width: 1365, height: 900 };
+    const liveBrowserSrc =
+      liveBrowserConnected && liveBrowserView?.image
+        ? `data:${liveBrowserView.contentType || "image/jpeg"};base64,${liveBrowserView.image}`
+        : "";
 
     return (
-      <div className="space-y-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Listing operations</p>
-            <h2 className="text-2xl font-bold text-foreground">Scan, automate, or open the listing site.</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={runScan} disabled={scanRunning}>
-              {scanRunning ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Scan
-            </Button>
-            <Button
-              onClick={() => runAutopilotAction("automate_available")}
-              disabled={autopilotActionLoading || autoReadyCount === 0}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Automate
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[
-            { label: "Found", value: foundCount, icon: CheckCircle2 },
-            { label: "Auto-ready", value: autoReadyCount, icon: Sparkles },
-            { label: "Register", value: registrationCount, icon: ExternalLink },
-            { label: "Provider", value: providerNeededCount, icon: AlertTriangle },
-            { label: "Monitor", value: monitorOnlyCount, icon: Activity },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <Card key={item.label}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-                    <Icon className="h-5 w-5 text-muted-foreground" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-2xl font-bold text-foreground">{item.value}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{item.label}</span>
-                  </span>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
+      <div className="space-y-6">
         <Card>
-          <CardContent className="grid gap-3 p-4 text-sm md:grid-cols-4">
-            <div>
-              <p className="text-muted-foreground">Active targets</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.totalActive}</p>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Listing Agent
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex flex-col gap-3 rounded-md border border-border bg-background/60 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {activeTask
+                    ? "Agent is working"
+                    : needsUserTask
+                      ? "Agent is waiting for your validation"
+                      : queueReady
+                        ? "Queue is ready"
+                        : "No agent workflow is prepared"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The current workflow stays visible while queued directories remain grouped and collapsed.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "Prepared", value: state?.stats.taskCounts.queued || 0 },
+                  { label: "Working", value: state?.stats.taskCounts.in_progress || 0 },
+                  { label: "Needs you", value: state?.stats.taskCounts.needs_user || 0 },
+                  { label: "Done", value: state?.stats.taskCounts.completed || 0 },
+                ].map((item) => (
+                  <Badge key={item.label} variant="secondary" className="gap-1 px-3 py-1">
+                    <span className="font-semibold text-foreground">{item.value}</span>
+                    <span>{item.label}</span>
+                  </Badge>
+                ))}
+              </div>
             </div>
-            <div>
-              <p className="text-muted-foreground">Configured APIs</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.apiReady}</p>
+
+            <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-cyan-500 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Controlled, human-safe submission flow</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    The agent uses low-rate public directory web workflows and submit/claim pages. It runs one account
+                    or listing workflow per day and pauses only for real validation shown by the directory, like email,
+                    SMS, phone, payment, or owner approval.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-muted-foreground">Registration links</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.registrationLinks}</p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                onClick={() => runAutopilotAction("prepare_queue")}
+                disabled={!canPrepareQueue}
+              >
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                {queueReady ? "Queue Ready" : "Prepare Agent Queue"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => runAutopilotAction("run_next")}
+                disabled={!canRunAutopilot}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {activeTask ? "Autopilot Running" : needsUserTask ? "Action Needed" : nextRunAt ? "Runs Daily" : "Run Autopilot"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => runAutopilotAction("run_extra")}
+                disabled={!canRunPaidExtra}
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Run Extra Now
+                <span className="ml-2 text-xs opacity-80">{extraRunCost} credits</span>
+              </Button>
+              <div className="min-w-[220px] text-xs text-muted-foreground">
+                {activeTask ? (
+                  <>
+                    <p>
+                      Working: <span className="text-foreground font-medium">{activeTask.title}</span>
+                    </p>
+                    <p className="mt-1">
+                      {activeTask.statusMessage || formatWorkflowMode(activeTask.stage)}
+                    </p>
+                  </>
+                ) : needsUserTask ? (
+                  <p>
+                    Action needed: <span className="text-foreground font-medium">{needsUserDisplayTitle}</span>
+                  </p>
+                ) : nextRunAt ? (
+                  <p>
+                    Next daily run: <span className="text-foreground font-medium">{formatNextRun(nextRunAt)}</span>
+                  </p>
+                ) : nextQueuedTask ? (
+                  <p>
+                    Ready for: <span className="text-foreground font-medium">{nextQueuedTask.title}</span>
+                  </p>
+                ) : (
+                  <p>{state?.runtime?.message || "No prepared workflow is waiting."}</p>
+                )}
+                <p className="mt-1">
+                  Status auto-refreshes every {activeTask ? "5s" : "15s"}
+                  {lastAutopilotRefresh ? ` - last checked ${new Date(lastAutopilotRefresh).toLocaleTimeString()}` : ""}
+                </p>
+                {nextRunAt && !activeTask && queueReady && !canRunPaidExtra && creditsAvailable < extraRunCost && (
+                  <p className="mt-1 text-amber-400">
+                    Extra run needs {extraRunCost} credits. Available: {creditsAvailable}.
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-muted-foreground">Provider candidates</p>
-              <p className="text-lg font-semibold text-foreground">{directorySummary.providerCandidates}</p>
-            </div>
+
+            {showLiveBrowser && supervisedTask && (
+              <div className="rounded-md border border-sky-500/25 bg-sky-500/[0.04] p-4">
+                <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Monitor className="h-4 w-4 text-sky-400" />
+                      <p className="text-sm font-semibold text-foreground">Live remote-control browser</p>
+                      <Badge variant={liveBrowserConnected ? "secondary" : "outline"}>
+                        {liveBrowserConnected ? "Connected" : liveBrowserLoading ? "Connecting" : "Waiting"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {liveBrowserConnected
+                        ? `${liveBrowserView?.directoryName || supervisedTask.directory?.name || "Directory"} is open in the agent browser. Click the screen and type only when the portal asks for human input.`
+                        : liveBrowserError || liveBrowserView?.reason || "The live browser appears when the agent is actively holding this workflow."}
+                    </p>
+                    {liveBrowserConnected && liveBrowserView?.url && (
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {liveBrowserView.title ? `${liveBrowserView.title} - ` : ""}
+                        {liveBrowserView.url}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void fetchLiveBrowser(supervisedTask.id, false)}
+                    disabled={liveBrowserLoading}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${liveBrowserLoading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {liveBrowserConnected ? (
+                  <div className="space-y-3">
+                    <div className="relative overflow-hidden rounded-md border border-border bg-black">
+                      <img
+                        ref={liveBrowserRef}
+                        src={liveBrowserSrc}
+                        alt="Live agent browser"
+                        draggable={false}
+                        onPointerDown={(event) => handleLiveBrowserPointerDown(event, supervisedTask.id)}
+                        onPointerMove={(event) => handleLiveBrowserPointerMove(event, supervisedTask.id)}
+                        onPointerUp={(event) => finishLiveBrowserPointer(event, supervisedTask.id)}
+                        onPointerCancel={(event) => finishLiveBrowserPointer(event, supervisedTask.id)}
+                        className="block w-full touch-none select-none cursor-crosshair"
+                        style={{ aspectRatio: `${liveBrowserViewport.width} / ${liveBrowserViewport.height}` }}
+                      />
+                      {liveBrowserView?.cursor && (
+                        <span
+                          className="pointer-events-none absolute z-10 -translate-x-1 -translate-y-1 text-sky-300 drop-shadow"
+                          style={{
+                            left: `${(liveBrowserView.cursor.x / liveBrowserViewport.width) * 100}%`,
+                            top: `${(liveBrowserView.cursor.y / liveBrowserViewport.height) * 100}%`,
+                          }}
+                        >
+                          <MousePointer2 className="h-5 w-5 fill-sky-300/20" />
+                        </span>
+                      )}
+                      {liveControlLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/35">
+                          <Badge variant="secondary" className="gap-2">
+                            <AISpinner className="h-3.5 w-3.5 animate-spin" />
+                            Sending command
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                      <div className="flex min-w-0 flex-1 gap-2">
+                        <Input
+                          value={liveControlText}
+                          onChange={(event) => setLiveControlText(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              typeIntoLiveBrowser(supervisedTask.id);
+                            }
+                          }}
+                          placeholder="Type into the focused browser field"
+                          aria-label="Text to type into the live browser"
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => typeIntoLiveBrowser(supervisedTask.id)}
+                          disabled={liveControlLoading || !liveControlText.trim()}
+                        >
+                          <Keyboard className="h-4 w-4 mr-2" />
+                          Type
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => pressHoldLiveBrowser(supervisedTask.id)}
+                          disabled={liveControlLoading}
+                          title="Hold the visible Press and hold challenge button in the live browser"
+                        >
+                          <MousePointer2 className="h-3.5 w-3.5 mr-1.5" />
+                          Hold 18s
+                        </Button>
+                        {["Enter", "Tab", "Backspace"].map((key) => (
+                          <Button
+                            key={key}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "key", key })}
+                            disabled={liveControlLoading}
+                          >
+                            {key}
+                          </Button>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "scroll", deltaY: -650 })}
+                          disabled={liveControlLoading}
+                        >
+                          Scroll up
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "scroll", deltaY: 650 })}
+                          disabled={liveControlLoading}
+                        >
+                          Scroll down
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void sendLiveBrowserControl(supervisedTask.id, { action: "refresh" })}
+                          disabled={liveControlLoading}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                          Reload
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[280px] flex-col items-center justify-center rounded-md border border-dashed border-border bg-background/60 p-6 text-center">
+                    {liveBrowserLoading ? (
+                      <AISpinner className="h-8 w-8 animate-spin text-primary" />
+                    ) : (
+                      <Monitor className="h-9 w-9 text-muted-foreground" />
+                    )}
+                    <p className="mt-3 text-sm font-medium text-foreground">
+                      {liveBrowserLoading ? "Opening live browser..." : "No live browser attached yet"}
+                    </p>
+                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                      {liveBrowserError || liveBrowserView?.reason || "Start or resume the agent. When it reaches a real portal step, this panel shows the page itself."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(activeTask || needsUserTask) && (
+              <div className="rounded-md border border-border bg-background/70 p-4">
+                {activeTask ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          {activeTaskCanRetry ? (
+                            <RefreshCw className="h-4 w-4 text-amber-400" />
+                          ) : (
+                            <AISpinner className="h-4 w-4 animate-spin text-primary" />
+                          )}
+                          {activeTaskCanRetry ? "Agent needs a retry" : "Agent is working now"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {activeTaskCanRetry
+                            ? activeTask.retryMessage || activeTask.statusMessage || "The agent can retry this workflow now."
+                            : activeTask.statusMessage || "Checking the directory and updating this workflow."}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {activeTaskCanRetry && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void runAutopilotAction("continue_task", { taskId: activeTask.id })}
+                            disabled={autopilotActionLoading}
+                          >
+                            {autopilotActionLoading ? (
+                              <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            {autopilotActionLoading ? "Retrying..." : activeTask.retryLabel || "Retry agent"}
+                          </Button>
+                        )}
+                        <Badge variant="secondary" className="w-fit">
+                          {formatWorkflowMode(activeTask.stage)}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {(activeProgress.length > 0
+                        ? activeProgress.slice(-8)
+                        : [
+                            {
+                              stage: "running_directory_workflow",
+                              label: "Agent started",
+                              status: "active" as const,
+                              detail: "Preparing the directory workflow.",
+                            },
+                          ]
+                      ).map((event, index, events) => (
+                        <div key={`${event.stage}-${event.at || ""}`} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <span className={`mt-1 h-3 w-3 rounded-full ${progressDotClass(event.status)}`} />
+                            {index < events.length - 1 && <span className="mt-1 h-full min-h-8 w-px bg-border" />}
+                          </div>
+                          <div className="min-w-0 pb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">{event.label}</p>
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {event.status}
+                              </Badge>
+                              {event.at && (
+                                <span className="text-[11px] text-muted-foreground">
+                                  {new Date(event.at).toLocaleTimeString()}
+                                </span>
+                              )}
+                            </div>
+                            {event.detail && <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{event.detail}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : needsUserTask ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            {userActionBadgeLabel(needsUserTask.result?.accountCreationBlocker)}
+                          </Badge>
+                          <p className="text-sm font-semibold text-foreground">
+                            {needsUserDisplayTitle}
+                          </p>
+                        </div>
+                        <p className="mt-2 text-sm text-foreground">{needsUserSummary}</p>
+                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                          {needsPortalValidation
+                            ? needsUserDisplayMessage
+                            : needsEmailCode && needsUserTask.result?.verificationCodeAttempted
+                            ? `${needsUserTask.result?.userActionMessage || needsUserTask.result?.statusMessage || needsUserTask.requiredAction || "The code was not accepted by the directory."} ${
+                                emailSessionHeld
+                                  ? "The browser session is still open, so the next code will be submitted without reloading the verification page."
+                                  : "The live browser session expired, so the agent may need to reopen the verification page."
+                              }`
+                            : needsUserDisplayMessage}
+                        </p>
+                        {needsEmailCode && codeAttemptCount > 0 && (
+                          <p className="mt-2 text-[11px] text-amber-200">
+                            Code attempts in this workflow: {codeAttemptCount}
+                          </p>
+                        )}
+                      </div>
+                      {(needsUserTask.result?.portalUrl || needsUserTask.payload?.directory?.submitUrl || needsUserTask.payload?.directory?.claimUrl) && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={
+                              needsUserTask.result?.portalUrl ||
+                              needsUserTask.payload?.directory?.submitUrl ||
+                              needsUserTask.payload?.directory?.claimUrl
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open portal
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+
+                    {needsUserTask.result?.userActionInputKind === "verification_code" && (
+                      <div className="flex flex-col gap-3 rounded-md border border-border bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <Input
+                          className="sm:max-w-xs"
+                          value={verificationInputs[needsUserTask.id] || ""}
+                          onChange={(e) =>
+                            setVerificationInputs((prev) => ({
+                              ...prev,
+                              [needsUserTask.id]: e.target.value.replace(/\s+/g, ""),
+                            }))
+                          }
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder={needsUserTask.result?.userActionInputPlaceholder || "Enter verification code"}
+                          aria-label={needsUserTask.result?.userActionInputLabel || "Verification code"}
+                        />
+                        <Button
+                          onClick={() => continueAutopilotTask(needsUserTask)}
+                          disabled={
+                            autopilotActionLoading ||
+                            Boolean(needsUserTask.result?.userActionInputRequired && !(verificationInputs[needsUserTask.id] || "").trim())
+                          }
+                          className="w-full sm:w-auto"
+                        >
+                          {autopilotActionLoading ? (
+                            <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          {autopilotActionLoading ? "Sending to agent..." : needsUserButtonLabel}
+                        </Button>
+                      </div>
+                    )}
+
+                    {needsUserTask.result?.userActionInputKind !== "verification_code" && (
+                      <Button
+                        onClick={() => continueAutopilotTask(needsUserTask)}
+                        disabled={autopilotActionLoading}
+                        className="w-full sm:w-auto"
+                      >
+                        {autopilotActionLoading ? (
+                          <AISpinner className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-2" />
+                        )}
+                        {autopilotActionLoading ? "Sending to agent..." : needsUserButtonLabel}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {autopilotLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {operationGroups
-              .filter((group) => group.count > 0)
-              .map((group) => {
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Workflow Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              {
+                key: "autoFix" as const,
+                enabled: autoFixEnabled,
+                title: "Auto-fix Inconsistencies",
+                description: "Prepare correction tasks when NAP data does not match your business profile.",
+              },
+              {
+                key: "autoDescriptions" as const,
+                enabled: autoDescEnabled,
+                title: "Auto-generate Descriptions",
+                description: "Draft directory-specific descriptions for approval before submission.",
+              },
+            ].map((setting) => (
+              <div key={setting.key} className="flex items-center justify-between rounded-md border border-border p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{setting.title}</p>
+                  <p className="text-xs text-muted-foreground">{setting.description}</p>
+                </div>
+                <button
+                  onClick={() => hasAccess && toggleAutopilot(setting.key, !setting.enabled)}
+                  disabled={!hasAccess}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    setting.enabled && hasAccess ? "bg-primary" : "bg-muted"
+                  } ${!hasAccess ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform ${
+                      setting.enabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Progressive Work Queue</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {autopilotLoading ? (
+              <Skeleton className="h-40" />
+            ) : tasks.length === 0 ? (
+              <div className="text-center py-8">
+                <Zap className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">No workflow yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Prepare the queue to build a careful listing plan.</p>
+              </div>
+            ) : (
+              taskGroups.filter((group) => group.count > 0).map((group) => {
                 const Icon = group.icon;
                 return (
                   <details
                     key={group.key}
-                    className="rounded-md border border-border bg-card"
-                    open={group.key === "registration_link" || group.key === "auto_ready"}
+                    className="rounded-md border border-border bg-background/50"
+                    open={group.key === "in_progress" || group.key === "needs_user"}
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                      <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{group.title}</span>
+                      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Icon className="h-4 w-4" />
+                        {group.title}
                       </span>
                       <Badge variant="secondary">{group.count}</Badge>
                     </summary>
-                    <div className="divide-y divide-border border-t border-border">
-                      {group.items.slice(0, 30).map((operation) => (
-                        <div key={operation.listingId} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-foreground">{operation.directory.name}</p>
-                              <Badge variant="outline" className="text-[10px]">Tier {operation.directory.tier}</Badge>
-                              <Badge variant="secondary" className="text-[10px]">{operation.label}</Badge>
+                    <div className="space-y-3 border-t border-border p-4">
+                      {group.items.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No preview rows loaded for this status. Use the summary count to track it.
+                        </p>
+                      ) : (
+                        groupTasksByTier(group.items).map(({ tier, items }) => (
+                          <details
+                            key={`${group.key}-${tier}`}
+                            className="rounded-md border border-border bg-card"
+                            open={items.length <= 4}
+                          >
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
+                              <span className="text-sm font-medium text-foreground">
+                                Tier {tier} - {TIER_NAMES[tier] || "Directory"}
+                              </span>
+                              <Badge variant="outline">{items.length}</Badge>
+                            </summary>
+                            <div className="max-h-[420px] divide-y divide-border overflow-y-auto border-t border-border">
+                              {items.map((task) => {
+                                const canWork = task.status === "in_progress" || task.status === "needs_user";
+                                return (
+                                  <div key={task.id} className="p-4">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className="text-sm font-medium text-foreground">{task.title}</p>
+                                          <Badge variant="outline" className="text-[10px]">Priority {task.priority}</Badge>
+                                          <Badge variant="secondary" className="text-[10px]">{task.assignedTo}</Badge>
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">{task.requiredAction || task.description}</p>
+                                        {task.payload?.safety?.mode && (
+                                          <p className="mt-1 text-[11px] text-muted-foreground">
+                                            Mode: {formatWorkflowMode(task.payload.safety.mode)}
+                                          </p>
+                                        )}
+                                        {task.result?.progress && task.result.progress.length > 0 && (
+                                          <div className="mt-3 flex flex-wrap gap-2">
+                                            {task.result.progress.slice(-4).map((event) => (
+                                              <span
+                                                key={`${task.id}-${event.stage}-${event.at || ""}`}
+                                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${progressStatusClass(event.status)}`}
+                                              >
+                                                <span className={`h-1.5 w-1.5 rounded-full ${progressDotClass(event.status)}`} />
+                                                {event.label}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        {task.status === "needs_user" ? (
+                                          <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                            Waiting in action panel
+                                          </Badge>
+                                        ) : canWork ? (
+                                          <Badge variant="secondary">Autopilot working</Badge>
+                                        ) : (
+                                          <Badge variant="secondary">Prepared</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{operation.message}</p>
-                          </div>
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            {operation.listingUrl && (
-                              <Button size="sm" variant="outline" asChild>
-                                <a href={operation.listingUrl} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                                  View
-                                </a>
-                              </Button>
-                            )}
-                            {operation.registrationUrl && operation.bucket === "registration_link" && (
-                              <Button size="sm" asChild>
-                                <a href={operation.registrationUrl} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                                  Open
-                                </a>
-                              </Button>
-                            )}
-                            {operation.bucket === "registration_link" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => runAutopilotAction("mark_registered", { listingId: operation.listingId })}
-                                disabled={autopilotActionLoading}
-                              >
-                                <Check className="h-3.5 w-3.5 mr-1.5" />
-                                I registered
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {group.count > 30 && (
-                        <div className="px-4 py-3 text-xs text-muted-foreground">
-                          Showing 30 of {group.count}. Use Listings to search the full catalog.
-                        </div>
+                          </details>
+                        ))
+                      )}
+                      {group.items.length > 0 && group.count > group.items.length && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing {group.items.length} preview item{group.items.length === 1 ? "" : "s"} of {group.count}.
+                        </p>
                       )}
                     </div>
                   </details>
                 );
-              })}
-            {operationGroups.every((group) => group.count === 0) && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-10">
-                  <Globe className="h-10 w-10 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium text-foreground">No listing plan yet</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Run a scan to classify listing targets.</p>
-                </CardContent>
-              </Card>
+              })
             )}
-          </div>
-        )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              Listing Account Portal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {credentialDraft && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Save verified listing access</p>
+                    <p className="text-xs text-muted-foreground">{credentialDraft.directoryName}</p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setCredentialDraft(null)}>
+                    Cancel
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Login URL"
+                    value={credentialDraft.loginUrl}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, loginUrl: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Account email used after creation"
+                    value={credentialDraft.accountEmail}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, accountEmail: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Username after creation"
+                    value={credentialDraft.username}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, username: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Recovery email"
+                    value={credentialDraft.recoveryEmail}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, recoveryEmail: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Password hint or vault reference"
+                    value={credentialDraft.passwordHint}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, passwordHint: e.target.value })}
+                  />
+                  <select
+                    value={credentialDraft.verificationStatus}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, verificationStatus: e.target.value })}
+                    className="rounded-md border border-border bg-card text-foreground px-3 py-2 text-sm"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="email_required">Email verification required</option>
+                    <option value="verified">Verified</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                  <Input
+                    className="md:col-span-2"
+                    placeholder="Verification notes or vault reference (no raw passwords)"
+                    value={credentialDraft.secureNotes}
+                    onChange={(e) => setCredentialDraft({ ...credentialDraft, secureNotes: e.target.value })}
+                  />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button onClick={saveCredentialDraft} disabled={autopilotActionLoading}>
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    Save Details
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {credentials.length === 0 ? (
+              <div className="text-center py-8">
+                <KeyRound className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium text-foreground">No listing accounts saved yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Verified created accounts appear here after the agent or user saves real access details.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {credentials.map((credential) => (
+                  <div key={credential.id} className="rounded-md border border-border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{credential.directoryName}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {credential.accountEmail || credential.username || "Account details saved"}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{credential.verificationStatus.replace("_", " ")}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                      {credential.loginUrl && (
+                        <a className="inline-flex items-center gap-1 text-blue-500 hover:underline" href={credential.loginUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3 w-3" />
+                          Open portal
+                        </a>
+                      )}
+                      {credential.passwordHint && <p>Hint: {credential.passwordHint}</p>}
+                      {credential.secureNotes && <p>{credential.secureNotes}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -2007,8 +2552,8 @@ export default function ListSmartlyDashboardPage() {
             Analytics
           </TabsTrigger>
           <TabsTrigger value="autopilot">
-            <Activity className="h-4 w-4 mr-1.5" />
-            Operations
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            Autopilot
           </TabsTrigger>
         </TabsList>
 
