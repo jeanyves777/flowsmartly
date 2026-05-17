@@ -7,23 +7,19 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
-  ClipboardCheck,
   Copy,
   Edit3,
   ExternalLink,
-  Eye,
   FileText,
   Globe,
   Globe2,
   GlobeLock,
-  LayoutTemplate,
   MoreVertical,
   MousePointerClick,
   Plus,
   Rocket,
   Search,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -297,13 +293,6 @@ export default function LandingPagesPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={LayoutTemplate} label="Total pages" value={formatNumber(stats?.total ?? 0)} detail={`${formatNumber(stats?.published ?? 0)} published`} />
-        <MetricCard icon={Eye} label="Total views" value={formatNumber(stats?.totalViews ?? 0)} detail="All landing pages" />
-        <MetricCard icon={ClipboardCheck} label="Leads captured" value={formatNumber(stats?.totalSubmissions ?? 0)} detail={`${stats?.averageConversionRate ?? 0}% average conversion`} />
-        <MetricCard icon={TrendingUp} label="Recent launches" value={formatNumber(stats?.recentlyPublished ?? 0)} detail="Published in 30 days" />
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
           <div className="rounded-lg border bg-card p-3">
@@ -473,33 +462,6 @@ export default function LandingPagesPage() {
         </aside>
       </div>
     </div>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-3 sm:p-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
-          <p className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{value}</p>
-          <p className="hidden truncate text-xs text-muted-foreground 2xl:block">{detail}</p>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

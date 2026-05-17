@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Calendar, FileText, Layers, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Calendar, FileText, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,9 +87,6 @@ export default function BusinessPlanListPage() {
     );
   }
 
-  const readyCount = plans.filter((plan) => plan.status !== "draft").length;
-  const revisionCount = plans.reduce((sum, plan) => sum + Math.max(0, plan.generationCount - 1), 0);
-
   return (
     <div className="mx-auto max-w-[1500px] p-4 md:p-6 space-y-6">
       <div className="rounded-xl border border-border bg-card p-5">
@@ -131,25 +128,7 @@ export default function BusinessPlanListPage() {
           </CardContent>
         </Card>
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              { label: "Plans", value: plans.length, icon: Layers },
-              { label: "Ready", value: readyCount, icon: FileText },
-              { label: "Revisions", value: revisionCount, icon: BarChart3 },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="rounded-lg border border-border bg-card p-4">
-                  <Icon className="mb-2 h-4 w-4 text-sky-500" />
-                  <div className="text-2xl font-bold text-foreground">{item.value}</div>
-                  <div className="text-xs text-muted-foreground">{item.label}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {plans.map((plan) => (
               <Card
                 key={plan.id}
@@ -197,8 +176,7 @@ export default function BusinessPlanListPage() {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        </>
+        </div>
       )}
     </div>
   );

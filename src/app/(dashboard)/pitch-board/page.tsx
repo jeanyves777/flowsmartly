@@ -138,18 +138,6 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
   );
 }
 
-function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600">
-        {icon}
-      </div>
-      <h3 className="font-semibold text-foreground">{title}</h3>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
-    </div>
-  );
-}
-
 export default function PitchBoardPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -474,18 +462,6 @@ export default function PitchBoardPage() {
     </div>
   );
 
-  const renderStats = (items: Array<{ label: string; value: number; icon: ReactNode }>) => (
-    <div className="grid grid-cols-3 gap-3">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-xl border border-border bg-card p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">{item.icon}</div>
-          <div className="text-2xl font-black text-foreground">{item.value}</div>
-          <div className="text-xs text-muted-foreground">{item.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-
   return (
     <div className="flex-1">
       <div className="border-b border-border bg-card">
@@ -541,7 +517,7 @@ export default function PitchBoardPage() {
 
       <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
         {activeTab === "proposal" && (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-5">
             <form onSubmit={handleCreateProposal} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               <div className="border-b border-border bg-gradient-to-r from-slate-950 via-sky-950 to-emerald-950 p-5 text-white">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -556,13 +532,13 @@ export default function PitchBoardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="space-y-4 p-5">
+              <div className="space-y-5 p-5">
+                <div className="space-y-4">
                   <Textarea
                     value={proposalBrief}
                     onChange={(e) => setProposalBrief(e.target.value)}
-                    rows={8}
-                    className="min-h-48 resize-y rounded-xl text-base leading-7"
+                    rows={7}
+                    className="min-h-56 resize-y rounded-xl text-base leading-7"
                     placeholder="Example: Create a $199/month Google Business Profile proposal for ABC Dental Studio..."
                   />
                   <div className="flex flex-wrap gap-2">
@@ -653,51 +629,26 @@ export default function PitchBoardPage() {
                     </div>
                   )}
                 </div>
-
-                <div className="border-t border-border bg-muted/30 p-5 lg:border-l lg:border-t-0">
-                  <div className="mb-4 text-sm font-semibold text-foreground">AI takes care of</div>
-                  <div className="space-y-3">
-                    {[
-                      ["Extract", "Client, offer, price, terms"],
-                      ["Shape", "Proposal sections and value"],
-                      ["Design", "Branded PDF-ready document"],
-                      ["Prepare", "Review, send, download"],
-                    ].map(([title, text], index) => (
-                      <div key={title} className="flex gap-3 rounded-xl bg-card p-3">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-700">{index + 1}</span>
-                        <span>
-                          <span className="block text-sm font-semibold text-foreground">{title}</span>
-                          <span className="text-xs text-muted-foreground">{text}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </form>
 
-            <aside className="space-y-4">
-              {isCreatingProposal && (
-                <AIGenerationLoader compact currentStep="Building proposal" subtitle="Extracting the deal and writing the PDF content" />
-              )}
-              {renderStats([
-                { label: "Proposals", value: proposals.length, icon: <FileText className="h-4 w-4" /> },
-                { label: "Ready", value: proposals.filter((p) => p.status === "READY").length, icon: <CheckCircle2 className="h-4 w-4" /> },
-                { label: "Sent", value: proposals.filter((p) => p.status === "SENT").length, icon: <Send className="h-4 w-4" /> },
-              ])}
-              {isLoadingPitches ? (
-                <AIGenerationLoader compact currentStep="Loading proposals" />
-              ) : proposals.length === 0 ? (
-                <EmptyState icon={<FileText className="h-6 w-6" />} title="No proposals yet" text="Start from the AI brief on the left." />
-              ) : (
-                <div className="grid gap-3">{proposals.map(renderPitchCard)}</div>
-              )}
-            </aside>
+            {isCreatingProposal && (
+              <AIGenerationLoader compact currentStep="Building proposal" subtitle="Extracting the deal and writing the PDF content" />
+            )}
+            {!isLoadingPitches && proposals.length > 0 && (
+              <section className="rounded-2xl border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">Recent proposals</h2>
+                  <Badge variant="secondary">{proposals.length}</Badge>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{proposals.map(renderPitchCard)}</div>
+              </section>
+            )}
           </div>
         )}
 
         {activeTab === "pitch" && (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-5">
             <form onSubmit={handleCreatePitch} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               <div className="border-b border-border bg-gradient-to-r from-slate-950 via-emerald-950 to-sky-950 p-5 text-white">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -759,21 +710,16 @@ export default function PitchBoardPage() {
               </div>
             </form>
 
-            <aside className="space-y-4">
-              {isCreatingPitch && <AIGenerationLoader compact currentStep="Researching prospect" subtitle="The pitch will appear here when ready" />}
-              {renderStats([
-                { label: "Pitches", value: outreachPitches.length, icon: <Briefcase className="h-4 w-4" /> },
-                { label: "Ready", value: outreachPitches.filter((p) => p.status === "READY").length, icon: <CheckCircle2 className="h-4 w-4" /> },
-                { label: "Sent", value: outreachPitches.filter((p) => p.status === "SENT").length, icon: <Send className="h-4 w-4" /> },
-              ])}
-              {isLoadingPitches ? (
-                <AIGenerationLoader compact currentStep="Loading pitches" />
-              ) : outreachPitches.length === 0 ? (
-                <EmptyState icon={<Briefcase className="h-6 w-6" />} title="No pitches yet" text="Start from the AI brief on the left." />
-              ) : (
-                <div className="grid gap-3">{outreachPitches.map(renderPitchCard)}</div>
-              )}
-            </aside>
+            {isCreatingPitch && <AIGenerationLoader compact currentStep="Researching prospect" subtitle="The pitch will appear here when ready" />}
+            {!isLoadingPitches && outreachPitches.length > 0 && (
+              <section className="rounded-2xl border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">Recent pitches</h2>
+                  <Badge variant="secondary">{outreachPitches.length}</Badge>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{outreachPitches.map(renderPitchCard)}</div>
+              </section>
+            )}
           </div>
         )}
 

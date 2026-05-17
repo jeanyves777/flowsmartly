@@ -543,7 +543,6 @@ export function DomainsPageContent() {
     .sort((a, b) => (a.nextAction?.priority ?? 3) - (b.nextAction?.priority ?? 3))
     .slice(0, 4);
   const primaryDomain = summary?.primary || domains.find((domain) => domain.isPrimary)?.domainName || "Not selected";
-  const sslCoverage = summary?.total ? Math.round((summary.sslReady / summary.total) * 100) : 0;
 
   if (loading) {
     return (
@@ -583,13 +582,6 @@ export function DomainsPageContent() {
             <span className="hidden sm:inline">Connect</span>
           </Button>
         </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <DomainMetric icon={Globe} label="Total domains" value={String(summary?.total ?? domains.length)} detail={`${summary?.registered ?? domains.filter((domain) => !domain.isConnected).length} registered, ${summary?.connected ?? domains.filter((domain) => domain.isConnected).length} connected`} />
-        <DomainMetric icon={Star} label="Primary domain" value={primaryDomain} detail="Main website route" />
-        <DomainMetric icon={ShieldCheck} label="SSL coverage" value={`${sslCoverage}%`} detail={`${summary?.sslReady ?? 0} SSL-ready domain${(summary?.sslReady ?? 0) === 1 ? "" : "s"}`} />
-        <DomainMetric icon={AlertCircle} label="Needs attention" value={String(summary?.needsAction ?? 0)} detail={`${summary?.expiringSoon ?? 0} expiring within 30 days`} />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1055,33 +1047,6 @@ export function DomainsPageContent() {
 }
 
 // ── Stripe Payment Form for Domain Purchase ──
-
-function DomainMetric({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-lg border bg-card p-3 sm:p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
-          <p className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{value}</p>
-          <p className="hidden truncate text-xs text-muted-foreground 2xl:block">{detail}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SetupStepTile({ step, index }: { step: DomainSetupStep; index: number }) {
   return (
