@@ -466,18 +466,21 @@ export default function PitchBoardPage() {
     <div className="flex-1">
       <div className="border-b border-border bg-card">
         <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-5">
             <div className="min-w-0">
               <Badge variant="secondary" className="mb-3 gap-1">
                 <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
                 AI deal agent
               </Badge>
-              <h1 className="text-3xl font-black tracking-tight text-foreground">Pitch Board</h1>
+              <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight text-foreground">
+                <Briefcase className="h-7 w-7 text-sky-600" />
+                Pitch Board
+              </h1>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 Type the deal. AI extracts the details, researches, writes, and prepares the PDF.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="inline-flex w-fit flex-wrap gap-1 rounded-lg bg-muted p-1">
               {[
                 { id: "proposal", label: "Proposal", icon: FileText },
                 { id: "pitch", label: "Pitch", icon: Briefcase },
@@ -489,10 +492,10 @@ export default function PitchBoardPage() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as TabKey)}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
+                      "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
                       activeTab === tab.id
-                        ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -519,16 +522,16 @@ export default function PitchBoardPage() {
         {activeTab === "proposal" && (
           <div className="space-y-5">
             <form onSubmit={handleCreateProposal} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              <div className="border-b border-border bg-gradient-to-r from-slate-950 via-sky-950 to-emerald-950 p-5 text-white">
+              <div className="border-b border-border bg-card p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <Badge className="mb-3 bg-white/15 text-white hover:bg-white/15">
-                      <Sparkles className="h-3.5 w-3.5" />
+                    <Badge variant="secondary" className="mb-3 gap-1">
+                      <Sparkles className="h-3.5 w-3.5 text-sky-500" />
                       Proposal Agent
                     </Badge>
-                    <h2 className="text-2xl font-black">Tell AI what to sell</h2>
+                    <h2 className="text-2xl font-black text-foreground">Tell AI what to sell</h2>
                   </div>
-                  <Badge className="bg-white text-slate-950 hover:bg-white">35 credits</Badge>
+                  <Badge variant="secondary">35 credits</Badge>
                 </div>
               </div>
 
@@ -650,16 +653,16 @@ export default function PitchBoardPage() {
         {activeTab === "pitch" && (
           <div className="space-y-5">
             <form onSubmit={handleCreatePitch} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              <div className="border-b border-border bg-gradient-to-r from-slate-950 via-emerald-950 to-sky-950 p-5 text-white">
+              <div className="border-b border-border bg-card p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <Badge className="mb-3 bg-white/15 text-white hover:bg-white/15">
-                      <Sparkles className="h-3.5 w-3.5" />
+                    <Badge variant="secondary" className="mb-3 gap-1">
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
                       Outreach Agent
                     </Badge>
-                    <h2 className="text-2xl font-black">Tell AI who to research</h2>
+                    <h2 className="text-2xl font-black text-foreground">Tell AI who to research</h2>
                   </div>
-                  <Badge className="bg-white text-slate-950 hover:bg-white">{pitchCreditLabel}</Badge>
+                  <Badge variant="secondary">{pitchCreditLabel}</Badge>
                 </div>
               </div>
               <div className="space-y-4 p-5">

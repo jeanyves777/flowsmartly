@@ -2074,7 +2074,10 @@ export default function ListSmartlyDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">ListSmartly</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <Globe className="h-6 w-6 text-sky-600" />
+            ListSmartly
+          </h1>
           <p className="text-sm text-muted-foreground">
             Manage your business listings across 161+ directories
           </p>
