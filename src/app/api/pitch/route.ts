@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { processPitch } from "@/lib/pitch/processor";
 
 // Credit costs
 const PITCH_COST_SUBSCRIBER = 15;   // paying plan users
 const PITCH_COST_FREE_USER   = 500; // STARTER plan, after their 1 free trial run
 
-// GET /api/pitch — list pitches
+function cleanText(value: unknown, max = 1000): string {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function cleanUrl(value: unknown): string {
+  const raw = cleanText(value, 400);
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
+// GET /api/pitch - list pitches
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -106,7 +117,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/pitch — create a new pitch + trigger research
+// POST /api/pitch - create a new pitch + trigger research
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -115,10 +126,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { businessName, businessUrl, recipientEmail, recipientName } = body;
+    const brief = cleanText(body.brief, 4000);
+    const inferred = brief ? await parseDealBrief({ mode: "pitch", brief }) : {};
+    const businessName = cleanText(body.businessName || inferred.targetName, 180);
+    const businessUrl = cleanUrl(body.businessUrl || inferred.targetWebsite);
+    const recipientEmail = cleanText(body.recipientEmail || inferred.recipientEmail, 200);
+    const recipientName = cleanText(body.recipientName || inferred.recipientName, 120);
 
-    if (!businessName?.trim()) {
-      return NextResponse.json({ success: false, error: { message: "Business name is required" } }, { status: 400 });
+    if (!businessName) {
+      return NextResponse.json({ success: false, error: { message: "Tell the AI which business to research." } }, { status: 400 });
     }
 
     // Load user plan + credits + existing pitch count + brand kit (all in parallel)
@@ -172,10 +188,10 @@ export async function POST(request: NextRequest) {
     const pitch = await prisma.pitch.create({
       data: {
         userId: session.userId,
-        businessName: businessName.trim(),
-        businessUrl: businessUrl?.trim() || null,
-        recipientEmail: recipientEmail?.trim() || null,
-        recipientName: recipientName?.trim() || null,
+        businessName,
+        businessUrl: businessUrl || null,
+        recipientEmail: recipientEmail || null,
+        recipientName: recipientName || null,
         status: "PENDING",
       },
     });

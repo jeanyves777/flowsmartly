@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
+import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
 
 const PRESETS = new Set<ProposalPreset>([
@@ -37,10 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const targetName = cleanText(body.targetName, 180);
-    const serviceTitle = cleanText(body.serviceTitle, 180);
-    const serviceDescription = cleanText(body.serviceDescription, 3000);
-    const presetRaw = cleanText(body.preset, 80) as ProposalPreset;
+    const brief = cleanText(body.brief, 4000);
+    const inferred = brief ? await parseDealBrief({ mode: "proposal", brief }) : {};
+    const targetName = cleanText(body.targetName || inferred.targetName, 180);
+    const serviceTitle = cleanText(body.serviceTitle || inferred.serviceTitle, 180);
+    const serviceDescription = cleanText(body.serviceDescription || inferred.serviceDescription || brief, 3000);
+    const presetRaw = cleanText(body.preset || inferred.preset, 80) as ProposalPreset;
     const preset = PRESETS.has(presetRaw) ? presetRaw : "custom";
 
     if (!targetName || !serviceTitle || !serviceDescription) {
@@ -99,32 +102,32 @@ export async function POST(request: NextRequest) {
     const result = await runServiceProposalAgent({
       userId: session.userId,
       targetName,
-      targetWebsite: cleanUrl(body.targetWebsite) || undefined,
-      recipientName: cleanText(body.recipientName, 120) || undefined,
-      recipientEmail: cleanText(body.recipientEmail, 200) || undefined,
+      targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined,
+      recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
+      recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
       preset,
       serviceTitle,
       serviceDescription,
-      goals: cleanText(body.goals, 2000) || undefined,
-      price: cleanMoney(body.price),
-      originalPrice: cleanMoney(body.originalPrice),
-      billingInterval: cleanText(body.billingInterval, 60) || undefined,
-      terms: cleanText(body.terms, 2000) || undefined,
+      goals: cleanText(body.goals || inferred.goals, 2000) || undefined,
+      price: cleanMoney(body.price ?? inferred.price),
+      originalPrice: cleanMoney(body.originalPrice ?? inferred.originalPrice),
+      billingInterval: cleanText(body.billingInterval || inferred.billingInterval, 60) || undefined,
+      terms: cleanText(body.terms || inferred.terms, 2000) || undefined,
     });
 
     const pitch = await prisma.pitch.create({
       data: {
         userId: session.userId,
         businessName: targetName,
-        businessUrl: cleanUrl(body.targetWebsite),
-        recipientEmail: cleanText(body.recipientEmail, 200) || null,
-        recipientName: cleanText(body.recipientName, 120) || null,
+        businessUrl: cleanUrl(body.targetWebsite || inferred.targetWebsite),
+        recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || null,
+        recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || null,
         status: "READY",
         research: JSON.stringify({
           documentType: "service_proposal",
           preset,
           generatedAt: new Date().toISOString(),
-          targetWebsite: cleanUrl(body.targetWebsite),
+          targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite),
           serviceTitle,
         }),
         pitchContent: JSON.stringify(result.proposal),

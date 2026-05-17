@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  ArrowRight,
   Briefcase,
   Building2,
   CheckCircle2,
@@ -13,14 +14,15 @@ import {
   Globe,
   MapPin,
   Phone,
-  Plus,
   Search,
   Send,
   ShieldAlert,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Trash2,
   Users,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +39,7 @@ import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-ge
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
-type TabKey = "proposals" | "pitches" | "leads";
+type TabKey = "proposal" | "pitch" | "leads";
 
 interface Pitch {
   id: string;
@@ -79,46 +81,23 @@ interface LeadSearchResult {
 }
 
 const PROPOSAL_PRESETS = [
-  {
-    value: "google-business-profile",
-    label: "Google Profile Growth",
-    serviceTitle: "Google Business Profile Optimization",
-    serviceDescription:
-      "Optimize Google Business Profile visibility, weekly posts, reputation management, citations, geotagging, reporting, and conversion tracking.",
-    price: "199",
-    originalPrice: "399",
-    interval: "month",
-  },
-  {
-    value: "website-redesign",
-    label: "Website Redesign",
-    serviceTitle: "Website Redesign and SEO Foundation",
-    serviceDescription:
-      "Modern website redesign, mobile-friendly pages, SEO-friendly structure, conversion sections, tracking, and launch support.",
-    price: "999",
-    originalPrice: "1999",
-    interval: "project",
-  },
-  {
-    value: "local-seo",
-    label: "Local SEO",
-    serviceTitle: "Local SEO Growth Campaign",
-    serviceDescription:
-      "Local search strategy, citation building, keyword pages, review improvement, reporting, and monthly optimization.",
-    price: "499",
-    originalPrice: "899",
-    interval: "month",
-  },
-  {
-    value: "custom",
-    label: "Custom",
-    serviceTitle: "",
-    serviceDescription: "",
-    price: "",
-    originalPrice: "",
-    interval: "project",
-  },
+  { value: "google-business-profile", label: "Google Profile" },
+  { value: "website-redesign", label: "Website" },
+  { value: "local-seo", label: "Local SEO" },
+  { value: "custom", label: "Custom" },
 ] as const;
+
+const PROPOSAL_EXAMPLES = [
+  "Create a polished $199/month Google Business Profile optimization proposal for ABC Dental Studio. Include weekly posts, review improvement, citations, local ranking, reporting, no long-term contract, and a $399 original promotional comparison.",
+  "Build a website redesign proposal for a restaurant that needs online reservations, mobile menu, SEO pages, tracking, and a launch plan. Price it as a $999 project with a $1,999 original value.",
+  "Create a local SEO growth proposal for a law firm. Focus on local rankings, service-area pages, reputation, citations, and monthly reporting.",
+];
+
+const PITCH_EXAMPLES = [
+  "Research Miami Dental Studio and create a short outreach pitch showing where their online presence can improve. If you find their website, use it.",
+  "Create a pitch for a local gym that needs more memberships, better Google visibility, and stronger lead capture.",
+  "Research a restaurant prospect and write a pitch for website, reviews, and local SEO improvement.",
+];
 
 interface ProposalFormState {
   targetName: string;
@@ -133,6 +112,13 @@ interface ProposalFormState {
   originalPrice: string;
   billingInterval: string;
   terms: string;
+}
+
+interface PitchFormState {
+  businessName: string;
+  businessUrl: string;
+  recipientName: string;
+  recipientEmail: string;
 }
 
 function StatusBadge({ status }: { status: Pitch["status"] }) {
@@ -152,25 +138,14 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
   );
 }
 
-function EmptyState({
-  icon,
-  title,
-  text,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  text: string;
-  action?: ReactNode;
-}) {
+function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
+    <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600">
         {icon}
       </div>
       <h3 className="font-semibold text-foreground">{title}</h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{text}</p>
-      {action && <div className="mt-5">{action}</div>}
+      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
@@ -180,36 +155,44 @@ export default function PitchBoardPage() {
   const { toast } = useToast();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [activeTab, setActiveTab] = useState<TabKey>("proposals");
+  const [activeTab, setActiveTab] = useState<TabKey>("proposal");
   const [hasBrand, setHasBrand] = useState<boolean | null>(null);
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [stats, setStats] = useState<PitchStats>({ total: 0, ready: 0, sent: 0, failed: 0, proposals: 0 });
   const [isLoadingPitches, setIsLoadingPitches] = useState(true);
   const [userPlan, setUserPlan] = useState("STARTER");
   const [leadSearchCount, setLeadSearchCount] = useState(0);
-
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [createForm, setCreateForm] = useState({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
-  const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [proposalBrief, setProposalBrief] = useState(PROPOSAL_EXAMPLES[0]);
   const [proposalForm, setProposalForm] = useState<ProposalFormState>({
     targetName: "",
     targetWebsite: "",
     recipientName: "",
     recipientEmail: "",
     preset: "google-business-profile",
-    serviceTitle: PROPOSAL_PRESETS[0].serviceTitle,
-    serviceDescription: PROPOSAL_PRESETS[0].serviceDescription,
+    serviceTitle: "",
+    serviceDescription: "",
     goals: "",
-    price: PROPOSAL_PRESETS[0].price,
-    originalPrice: PROPOSAL_PRESETS[0].originalPrice,
-    billingInterval: PROPOSAL_PRESETS[0].interval,
+    price: "",
+    originalPrice: "",
+    billingInterval: "",
     terms: "",
   });
+  const [showProposalTuning, setShowProposalTuning] = useState(false);
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const [proposalError, setProposalError] = useState("");
+
+  const [pitchBrief, setPitchBrief] = useState(PITCH_EXAMPLES[0]);
+  const [pitchForm, setPitchForm] = useState<PitchFormState>({
+    businessName: "",
+    businessUrl: "",
+    recipientName: "",
+    recipientEmail: "",
+  });
+  const [showPitchTuning, setShowPitchTuning] = useState(false);
+  const [isCreatingPitch, setIsCreatingPitch] = useState(false);
+  const [pitchError, setPitchError] = useState("");
 
   const [leadQuery, setLeadQuery] = useState("");
   const [leadLocation, setLeadLocation] = useState("");
@@ -222,6 +205,7 @@ export default function PitchBoardPage() {
   const [saveListName, setSaveListName] = useState("");
   const [isSavingLeads, setIsSavingLeads] = useState(false);
   const [pitchingLead, setPitchingLead] = useState<number | null>(null);
+  const [proposingLead, setProposingLead] = useState<number | null>(null);
 
   const proposals = useMemo(() => pitches.filter((p) => p.documentType === "service_proposal"), [pitches]);
   const outreachPitches = useMemo(() => pitches.filter((p) => p.documentType !== "service_proposal"), [pitches]);
@@ -229,12 +213,8 @@ export default function PitchBoardPage() {
   const isSubscriber = userPlan !== "STARTER";
   const pitchIsFreeRun = !isSubscriber && stats.total === 0;
   const leadIsFreeRun = !isSubscriber && leadSearchCount === 0;
-  const pitchCreditLabel = pitchIsFreeRun
-    ? "First pitch is free"
-    : isSubscriber
-      ? "15 credits"
-      : "500 credits";
-  const leadCreditLabel = leadIsFreeRun ? "First search is free" : isSubscriber ? "5 credits" : "250 credits";
+  const pitchCreditLabel = pitchIsFreeRun ? "Free first pitch" : isSubscriber ? "15 credits" : "500 credits";
+  const leadCreditLabel = leadIsFreeRun ? "Free first search" : isSubscriber ? "5 credits" : "250 credits";
 
   const loadPitches = useCallback(async () => {
     try {
@@ -274,9 +254,7 @@ export default function PitchBoardPage() {
 
   useEffect(() => {
     const hasActive = pitches.some((p) => p.status === "PENDING" || p.status === "RESEARCHING");
-    if (hasActive && !pollRef.current) {
-      pollRef.current = setInterval(loadPitches, 5000);
-    }
+    if (hasActive && !pollRef.current) pollRef.current = setInterval(loadPitches, 5000);
     if (!hasActive && pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -289,24 +267,11 @@ export default function PitchBoardPage() {
     };
   }, [pitches, loadPitches]);
 
-  function applyPreset(value: string) {
-    const preset = PROPOSAL_PRESETS.find((item) => item.value === value) || PROPOSAL_PRESETS[0];
-    setProposalForm((form) => ({
-      ...form,
-      preset: preset.value,
-      serviceTitle: preset.serviceTitle || form.serviceTitle,
-      serviceDescription: preset.serviceDescription || form.serviceDescription,
-      price: preset.price,
-      originalPrice: preset.originalPrice,
-      billingInterval: preset.interval,
-    }));
-  }
-
   async function handleCreateProposal(e: React.FormEvent) {
     e.preventDefault();
     setProposalError("");
-    if (!proposalForm.targetName.trim() || !proposalForm.serviceTitle.trim() || !proposalForm.serviceDescription.trim()) {
-      setProposalError("Target client, service title, and service details are required.");
+    if (!proposalBrief.trim() && !proposalForm.targetName.trim()) {
+      setProposalError("Tell the AI who the proposal is for and what you want to sell.");
       return;
     }
     setIsCreatingProposal(true);
@@ -314,7 +279,7 @@ export default function PitchBoardPage() {
       const res = await fetch("/api/pitch/proposals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(proposalForm),
+        body: JSON.stringify({ brief: proposalBrief, ...proposalForm }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -322,7 +287,7 @@ export default function PitchBoardPage() {
         setProposalError(data.error?.message || "Failed to generate proposal.");
         return;
       }
-      toast({ title: "Proposal ready", description: "Your branded proposal PDF is ready to review." });
+      toast({ title: "Proposal ready", description: "AI built the branded proposal and PDF." });
       router.push(`/pitch-board/${data.data.id}`);
     } catch {
       setProposalError("Network error. Please try again.");
@@ -333,36 +298,31 @@ export default function PitchBoardPage() {
 
   async function handleCreatePitch(e: React.FormEvent) {
     e.preventDefault();
-    setCreateError("");
-    if (!createForm.businessName.trim()) {
-      setCreateError("Business name is required.");
+    setPitchError("");
+    if (!pitchBrief.trim() && !pitchForm.businessName.trim()) {
+      setPitchError("Tell the AI which business to research.");
       return;
     }
-    setIsCreating(true);
+    setIsCreatingPitch(true);
     try {
       const res = await fetch("/api/pitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({ brief: pitchBrief, ...pitchForm }),
       });
       const data = await res.json();
       if (!data.success) {
-        if (data.error?.code === "BRAND_IDENTITY_REQUIRED") {
-          setShowCreateDialog(false);
-          setHasBrand(false);
-        } else {
-          setCreateError(data.error?.message || "Failed to create pitch.");
-        }
+        if (data.error?.code === "BRAND_IDENTITY_REQUIRED") setHasBrand(false);
+        setPitchError(data.error?.message || "Failed to create pitch.");
         return;
       }
-      setShowCreateDialog(false);
-      setCreateForm({ businessName: "", businessUrl: "", recipientEmail: "", recipientName: "" });
+      toast({ title: "Pitch queued", description: "AI is researching and writing the pitch." });
+      setActiveTab("pitch");
       loadPitches();
-      setActiveTab("pitches");
     } catch {
-      setCreateError("Network error. Please try again.");
+      setPitchError("Network error. Please try again.");
     } finally {
-      setIsCreating(false);
+      setIsCreatingPitch(false);
     }
   }
 
@@ -432,11 +392,15 @@ export default function PitchBoardPage() {
       const res = await fetch("/api/pitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName: lead.name, businessUrl: lead.website || "" }),
+        body: JSON.stringify({
+          brief: `Research ${lead.name} and create a personalized outreach pitch.`,
+          businessName: lead.name,
+          businessUrl: lead.website || "",
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        setActiveTab("pitches");
+        setActiveTab("pitch");
         loadPitches();
       } else {
         toast({ variant: "destructive", title: "Failed to create pitch", description: data.error?.message });
@@ -446,10 +410,41 @@ export default function PitchBoardPage() {
     }
   }
 
+  async function handleCreateProposalFromLead(lead: BusinessLead, idx: number) {
+    setProposingLead(idx);
+    try {
+      const serviceDescription =
+        "Local growth package covering Google Business Profile optimization, local SEO, reviews, website conversion, tracking, and reporting.";
+      const res = await fetch("/api/pitch/proposals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brief: `Create a polished service proposal for ${lead.name}. Use my brand identity and recommend a practical offer for this business. Focus on local growth, search visibility, reviews, website conversion, and lead generation.`,
+          targetName: lead.name,
+          targetWebsite: lead.website || "",
+          preset: "custom",
+          serviceTitle: "Local Growth Proposal",
+          serviceDescription,
+          goals: "Increase local visibility, convert more visitors, and make the business easier to choose online.",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActiveTab("proposal");
+        await loadPitches();
+        router.push(`/pitch-board/${data.data.id}`);
+      } else {
+        toast({ variant: "destructive", title: "Failed to create proposal", description: data.error?.message });
+      }
+    } finally {
+      setProposingLead(null);
+    }
+  }
+
   const renderPitchCard = (pitch: Pitch) => (
     <div
       key={pitch.id}
-      className="group relative cursor-pointer rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-md"
+      className="group relative cursor-pointer rounded-xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
       onClick={() => router.push(`/pitch-board/${pitch.id}`)}
     >
       <button
@@ -463,7 +458,7 @@ export default function PitchBoardPage() {
         {deletingId === pitch.id ? <FlowActionSpinner size={14} /> : <Trash2 className="h-3.5 w-3.5" />}
       </button>
       <div className="flex items-start gap-3 pr-8">
-        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md", pitch.documentType === "service_proposal" ? "bg-violet-500/10 text-violet-600" : "bg-sky-500/10 text-sky-600")}>
+        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", pitch.documentType === "service_proposal" ? "bg-violet-500/10 text-violet-600" : "bg-emerald-500/10 text-emerald-600")}>
           {pitch.documentType === "service_proposal" ? <FileText className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
         </span>
         <span className="min-w-0">
@@ -475,61 +470,61 @@ export default function PitchBoardPage() {
         <StatusBadge status={pitch.status} />
         <span className="text-xs text-muted-foreground">{new Date(pitch.createdAt).toLocaleDateString()}</span>
       </div>
-      {pitch.status === "FAILED" && pitch.errorMessage && (
-        <p className="mt-2 line-clamp-2 text-xs text-red-500">{pitch.errorMessage}</p>
-      )}
+      {pitch.status === "FAILED" && pitch.errorMessage && <p className="mt-2 line-clamp-2 text-xs text-red-500">{pitch.errorMessage}</p>}
+    </div>
+  );
+
+  const renderStats = (items: Array<{ label: string; value: number; icon: ReactNode }>) => (
+    <div className="grid grid-cols-3 gap-3">
+      {items.map((item) => (
+        <div key={item.label} className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">{item.icon}</div>
+          <div className="text-2xl font-black text-foreground">{item.value}</div>
+          <div className="text-xs text-muted-foreground">{item.label}</div>
+        </div>
+      ))}
     </div>
   );
 
   return (
     <div className="flex-1">
       <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <Badge variant="secondary" className="mb-3 gap-1">
-                <Sparkles className="h-3.5 w-3.5 text-sky-500" />
-                AI deal workspace
+                <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
+                AI deal agent
               </Badge>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Pitch Board</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Build proposals, research prospects, and send branded PDFs from one workspace.
+              <h1 className="text-3xl font-black tracking-tight text-foreground">Pitch Board</h1>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                Type the deal. AI extracts the details, researches, writes, and prepares the PDF.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setActiveTab("leads")}>
-                <Search className="h-4 w-4" />
-                Find Leads
-              </Button>
-              <Button onClick={() => setActiveTab("proposals")} disabled={hasBrand === false}>
-                <FileText className="h-4 w-4" />
-                Proposal
-              </Button>
+              {[
+                { id: "proposal", label: "Proposal", icon: FileText },
+                { id: "pitch", label: "Pitch", icon: Briefcase },
+                { id: "leads", label: "Leads", icon: Users },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as TabKey)}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors",
+                      activeTab === tab.id
+                        ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {[
-              { id: "proposals", label: "Proposal", icon: FileText },
-              { id: "pitches", label: "Pitches", icon: Briefcase },
-              { id: "leads", label: "Leads", icon: Users },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabKey)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                    activeTab === tab.id
-                      ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
@@ -538,192 +533,257 @@ export default function PitchBoardPage() {
         <div className="border-b border-amber-500/20 bg-amber-500/10">
           <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 sm:px-6 lg:px-8">
             <ShieldAlert className="h-5 w-5 shrink-0" />
-            <span className="flex-1">Brand identity is required before proposals or pitches can use your services, logo, and colors.</span>
+            <span className="flex-1">Brand identity is required before the agent can write with your services, logo, and colors.</span>
             <a href="/brand" className="font-semibold underline underline-offset-2">Set up Brand</a>
           </div>
         </div>
       )}
 
       <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-        {activeTab === "proposals" && (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(380px,0.48fr)]">
-            <form onSubmit={handleCreateProposal} className="rounded-lg border border-sky-200 bg-sky-50/70 p-5 dark:border-sky-900/60 dark:bg-sky-950/20">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">Proposal agent</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Use your brand identity and a preset to produce a client-ready PDF.</p>
+        {activeTab === "proposal" && (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <form onSubmit={handleCreateProposal} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              <div className="border-b border-border bg-gradient-to-r from-slate-950 via-sky-950 to-emerald-950 p-5 text-white">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <Badge className="mb-3 bg-white/15 text-white hover:bg-white/15">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Proposal Agent
+                    </Badge>
+                    <h2 className="text-2xl font-black">Tell AI what to sell</h2>
+                  </div>
+                  <Badge className="bg-white text-slate-950 hover:bg-white">35 credits</Badge>
                 </div>
-                <Badge variant="secondary">35 credits</Badge>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Target client</Label>
-                  <Input value={proposalForm.targetName} onChange={(e) => setProposalForm((f) => ({ ...f, targetName: e.target.value }))} placeholder="ABC Dental Studio" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Target website</Label>
-                  <Input value={proposalForm.targetWebsite} onChange={(e) => setProposalForm((f) => ({ ...f, targetWebsite: e.target.value }))} placeholder="https://client.com" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Recipient name</Label>
-                  <Input value={proposalForm.recipientName} onChange={(e) => setProposalForm((f) => ({ ...f, recipientName: e.target.value }))} placeholder="Owner or manager" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Recipient email</Label>
-                  <Input type="email" value={proposalForm.recipientEmail} onChange={(e) => setProposalForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@client.com" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Preset</Label>
-                  <select
-                    value={proposalForm.preset}
-                    onChange={(e) => applyPreset(e.target.value)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    {PROPOSAL_PRESETS.map((preset) => (
-                      <option key={preset.value} value={preset.value}>{preset.label}</option>
+              <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="space-y-4 p-5">
+                  <Textarea
+                    value={proposalBrief}
+                    onChange={(e) => setProposalBrief(e.target.value)}
+                    rows={8}
+                    className="min-h-48 resize-y rounded-xl text-base leading-7"
+                    placeholder="Example: Create a $199/month Google Business Profile proposal for ABC Dental Studio..."
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {PROPOSAL_EXAMPLES.map((example, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setProposalBrief(example)}
+                        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        Sample {index + 1}
+                      </button>
                     ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Service package</Label>
-                  <Input value={proposalForm.serviceTitle} onChange={(e) => setProposalForm((f) => ({ ...f, serviceTitle: e.target.value }))} placeholder="Google Business Profile Optimization" />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Service details</Label>
-                  <Textarea rows={4} value={proposalForm.serviceDescription} onChange={(e) => setProposalForm((f) => ({ ...f, serviceDescription: e.target.value }))} placeholder="Define what the service includes, what outcome you want, and how you deliver it." />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Client goal</Label>
-                  <Textarea rows={2} value={proposalForm.goals} onChange={(e) => setProposalForm((f) => ({ ...f, goals: e.target.value }))} placeholder="Increase local calls, improve profile ranking, launch a new website, book more appointments..." />
-                </div>
-                <div className="grid grid-cols-3 gap-3 md:col-span-2">
-                  <div className="space-y-1.5">
-                    <Label>Price</Label>
-                    <Input type="number" value={proposalForm.price} onChange={(e) => setProposalForm((f) => ({ ...f, price: e.target.value }))} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Original</Label>
-                    <Input type="number" value={proposalForm.originalPrice} onChange={(e) => setProposalForm((f) => ({ ...f, originalPrice: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Interval</Label>
-                    <Input value={proposalForm.billingInterval} onChange={(e) => setProposalForm((f) => ({ ...f, billingInterval: e.target.value }))} placeholder="month" />
-                  </div>
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Terms note</Label>
-                  <Textarea rows={2} value={proposalForm.terms} onChange={(e) => setProposalForm((f) => ({ ...f, terms: e.target.value }))} placeholder="No contract, activation call in 24-48 hours, cancellation notice, upfront monthly billing..." />
-                </div>
-              </div>
 
-              {proposalError && (
-                <p className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-                  <AlertCircle className="h-4 w-4" />
-                  {proposalError}
-                </p>
-              )}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button type="submit" size="lg" disabled={isCreatingProposal || hasBrand === false} className="gap-2">
+                      {isCreatingProposal ? <FlowActionSpinner size={16} /> : <Wand2 className="h-4 w-4" />}
+                      {isCreatingProposal ? "AI is building" : "Let AI Build Proposal"}
+                      {!isCreatingProposal && <ArrowRight className="h-4 w-4" />}
+                    </Button>
+                    <Button type="button" variant="outline" size="lg" onClick={() => setShowProposalTuning((v) => !v)} className="gap-2">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Fine tune
+                    </Button>
+                  </div>
 
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <Button type="submit" disabled={isCreatingProposal || hasBrand === false}>
-                  {isCreatingProposal ? <FlowActionSpinner size={16} /> : <Sparkles className="h-4 w-4" />}
-                  {isCreatingProposal ? "Generating" : "Generate Proposal"}
-                </Button>
-                <p className="text-xs text-muted-foreground">Creates a proposal record with a downloadable PDF.</p>
+                  {proposalError && (
+                    <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                      <AlertCircle className="h-4 w-4" />
+                      {proposalError}
+                    </p>
+                  )}
+
+                  {showProposalTuning && (
+                    <div className="grid gap-3 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Client</Label>
+                        <Input value={proposalForm.targetName} onChange={(e) => setProposalForm((f) => ({ ...f, targetName: e.target.value }))} placeholder="ABC Dental Studio" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Website</Label>
+                        <Input value={proposalForm.targetWebsite} onChange={(e) => setProposalForm((f) => ({ ...f, targetWebsite: e.target.value }))} placeholder="https://client.com" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Recipient</Label>
+                        <Input value={proposalForm.recipientName} onChange={(e) => setProposalForm((f) => ({ ...f, recipientName: e.target.value }))} placeholder="Owner" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Email</Label>
+                        <Input type="email" value={proposalForm.recipientEmail} onChange={(e) => setProposalForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@client.com" />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Preset</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {PROPOSAL_PRESETS.map((preset) => (
+                            <button
+                              key={preset.value}
+                              type="button"
+                              onClick={() => setProposalForm((f) => ({ ...f, preset: preset.value }))}
+                              className={cn(
+                                "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                                proposalForm.preset === preset.value ? "border-sky-400 bg-sky-50 text-sky-700" : "border-border bg-background text-muted-foreground",
+                              )}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Service package</Label>
+                        <Input value={proposalForm.serviceTitle} onChange={(e) => setProposalForm((f) => ({ ...f, serviceTitle: e.target.value }))} placeholder="Google Business Profile Optimization" />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Service details</Label>
+                        <Textarea rows={3} value={proposalForm.serviceDescription} onChange={(e) => setProposalForm((f) => ({ ...f, serviceDescription: e.target.value }))} placeholder="Only use this if you want to override the AI brief." />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                        <Input type="number" value={proposalForm.price} onChange={(e) => setProposalForm((f) => ({ ...f, price: e.target.value }))} placeholder="Price" />
+                        <Input type="number" value={proposalForm.originalPrice} onChange={(e) => setProposalForm((f) => ({ ...f, originalPrice: e.target.value }))} placeholder="Original" />
+                        <Input value={proposalForm.billingInterval} onChange={(e) => setProposalForm((f) => ({ ...f, billingInterval: e.target.value }))} placeholder="month" />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Terms</Label>
+                        <Textarea rows={2} value={proposalForm.terms} onChange={(e) => setProposalForm((f) => ({ ...f, terms: e.target.value }))} placeholder="No contract, activation timing, cancellation, billing..." />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-border bg-muted/30 p-5 lg:border-l lg:border-t-0">
+                  <div className="mb-4 text-sm font-semibold text-foreground">AI takes care of</div>
+                  <div className="space-y-3">
+                    {[
+                      ["Extract", "Client, offer, price, terms"],
+                      ["Shape", "Proposal sections and value"],
+                      ["Design", "Branded PDF-ready document"],
+                      ["Prepare", "Review, send, download"],
+                    ].map(([title, text], index) => (
+                      <div key={title} className="flex gap-3 rounded-xl bg-card p-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-700">{index + 1}</span>
+                        <span>
+                          <span className="block text-sm font-semibold text-foreground">{title}</span>
+                          <span className="text-xs text-muted-foreground">{text}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </form>
 
-            <div className="space-y-4">
+            <aside className="space-y-4">
               {isCreatingProposal && (
-                <AIGenerationLoader
-                  compact
-                  currentStep="Building proposal"
-                  subtitle="Using your brand, offer, terms, and selected preset"
-                  className="border border-violet-200 dark:border-violet-900/60"
-                />
+                <AIGenerationLoader compact currentStep="Building proposal" subtitle="Extracting the deal and writing the PDF content" />
               )}
-
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Proposals", value: proposals.length, icon: FileText, tone: "text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/30" },
-                  { label: "Ready", value: stats.ready, icon: CheckCircle2, tone: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/30" },
-                  { label: "Sent", value: stats.sent, icon: Send, tone: "text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/30" },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.label} className="rounded-lg border border-border bg-card p-3">
-                      <span className={cn("mb-2 flex h-8 w-8 items-center justify-center rounded-md", item.tone)}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <div className="text-xl font-bold text-foreground">{item.value}</div>
-                      <div className="text-xs text-muted-foreground">{item.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-
+              {renderStats([
+                { label: "Proposals", value: proposals.length, icon: <FileText className="h-4 w-4" /> },
+                { label: "Ready", value: proposals.filter((p) => p.status === "READY").length, icon: <CheckCircle2 className="h-4 w-4" /> },
+                { label: "Sent", value: proposals.filter((p) => p.status === "SENT").length, icon: <Send className="h-4 w-4" /> },
+              ])}
               {isLoadingPitches ? (
                 <AIGenerationLoader compact currentStep="Loading proposals" />
               ) : proposals.length === 0 ? (
-                <EmptyState
-                  icon={<FileText className="h-6 w-6" />}
-                  title="No proposals yet"
-                  text="Generate your first branded service proposal from the form."
-                />
+                <EmptyState icon={<FileText className="h-6 w-6" />} title="No proposals yet" text="Start from the AI brief on the left." />
               ) : (
                 <div className="grid gap-3">{proposals.map(renderPitchCard)}</div>
               )}
-            </div>
+            </aside>
           </div>
         )}
 
-        {activeTab === "pitches" && (
-          <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-foreground">AI outreach pitches</h2>
-                <p className="text-sm text-muted-foreground">Research a business and generate a personalized pitch.</p>
-              </div>
-              <Button onClick={() => setShowCreateDialog(true)} disabled={hasBrand === false}>
-                <Plus className="h-4 w-4" />
-                New Pitch
-              </Button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: "Total", value: outreachPitches.length },
-                { label: "Ready", value: outreachPitches.filter((p) => p.status === "READY").length },
-                { label: "Sent", value: outreachPitches.filter((p) => p.status === "SENT").length },
-                { label: "Failed", value: outreachPitches.filter((p) => p.status === "FAILED").length },
-              ].map((item) => (
-                <div key={item.label} className="rounded-lg border border-border bg-card p-4">
-                  <div className="text-2xl font-bold text-foreground">{item.value}</div>
-                  <div className="text-xs text-muted-foreground">{item.label}</div>
+        {activeTab === "pitch" && (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <form onSubmit={handleCreatePitch} className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              <div className="border-b border-border bg-gradient-to-r from-slate-950 via-emerald-950 to-sky-950 p-5 text-white">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <Badge className="mb-3 bg-white/15 text-white hover:bg-white/15">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Outreach Agent
+                    </Badge>
+                    <h2 className="text-2xl font-black">Tell AI who to research</h2>
+                  </div>
+                  <Badge className="bg-white text-slate-950 hover:bg-white">{pitchCreditLabel}</Badge>
                 </div>
-              ))}
-            </div>
-            {isLoadingPitches ? (
-              <AIGenerationLoader compact currentStep="Loading pitches" />
-            ) : outreachPitches.length === 0 ? (
-              <EmptyState
-                icon={<Briefcase className="h-6 w-6" />}
-                title="No pitches yet"
-                text={`Create an AI-researched pitch. ${pitchCreditLabel}.`}
-                action={<Button onClick={() => setShowCreateDialog(true)} disabled={hasBrand === false}><Plus className="h-4 w-4" />Create Pitch</Button>}
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{outreachPitches.map(renderPitchCard)}</div>
-            )}
+              </div>
+              <div className="space-y-4 p-5">
+                <Textarea
+                  value={pitchBrief}
+                  onChange={(e) => setPitchBrief(e.target.value)}
+                  rows={7}
+                  className="min-h-44 resize-y rounded-xl text-base leading-7"
+                  placeholder="Example: Research Miami Dental Studio and create a short outreach pitch..."
+                />
+                <div className="flex flex-wrap gap-2">
+                  {PITCH_EXAMPLES.map((example, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => setPitchBrief(example)}
+                      className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      Sample {index + 1}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="submit" size="lg" disabled={isCreatingPitch || hasBrand === false} className="gap-2">
+                    {isCreatingPitch ? <FlowActionSpinner size={16} /> : <Wand2 className="h-4 w-4" />}
+                    {isCreatingPitch ? "AI is researching" : "Let AI Research & Pitch"}
+                    {!isCreatingPitch && <ArrowRight className="h-4 w-4" />}
+                  </Button>
+                  <Button type="button" variant="outline" size="lg" onClick={() => setShowPitchTuning((v) => !v)} className="gap-2">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Fine tune
+                  </Button>
+                </div>
+                {pitchError && (
+                  <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                    <AlertCircle className="h-4 w-4" />
+                    {pitchError}
+                  </p>
+                )}
+                {showPitchTuning && (
+                  <div className="grid gap-3 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-2">
+                    <Input value={pitchForm.businessName} onChange={(e) => setPitchForm((f) => ({ ...f, businessName: e.target.value }))} placeholder="Business name" />
+                    <Input value={pitchForm.businessUrl} onChange={(e) => setPitchForm((f) => ({ ...f, businessUrl: e.target.value }))} placeholder="Website" />
+                    <Input value={pitchForm.recipientName} onChange={(e) => setPitchForm((f) => ({ ...f, recipientName: e.target.value }))} placeholder="Recipient" />
+                    <Input type="email" value={pitchForm.recipientEmail} onChange={(e) => setPitchForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="Email" />
+                  </div>
+                )}
+              </div>
+            </form>
+
+            <aside className="space-y-4">
+              {isCreatingPitch && <AIGenerationLoader compact currentStep="Researching prospect" subtitle="The pitch will appear here when ready" />}
+              {renderStats([
+                { label: "Pitches", value: outreachPitches.length, icon: <Briefcase className="h-4 w-4" /> },
+                { label: "Ready", value: outreachPitches.filter((p) => p.status === "READY").length, icon: <CheckCircle2 className="h-4 w-4" /> },
+                { label: "Sent", value: outreachPitches.filter((p) => p.status === "SENT").length, icon: <Send className="h-4 w-4" /> },
+              ])}
+              {isLoadingPitches ? (
+                <AIGenerationLoader compact currentStep="Loading pitches" />
+              ) : outreachPitches.length === 0 ? (
+                <EmptyState icon={<Briefcase className="h-6 w-6" />} title="No pitches yet" text="Start from the AI brief on the left." />
+              ) : (
+                <div className="grid gap-3">{outreachPitches.map(renderPitchCard)}</div>
+              )}
+            </aside>
           </div>
         )}
 
         {activeTab === "leads" && (
           <div className="space-y-5">
-            <div className="rounded-lg border border-border bg-card p-5">
+            <div className="rounded-2xl border border-border bg-card p-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Lead finder</h2>
-                  <p className="text-sm text-muted-foreground">Search local businesses and create pitches from qualified leads.</p>
+                  <p className="text-sm text-muted-foreground">Find businesses and let AI build a proposal or pitch.</p>
                 </div>
                 <Badge variant="secondary">{leadCreditLabel}</Badge>
               </div>
@@ -744,12 +804,10 @@ export default function PitchBoardPage() {
               {leadError && <p className="mt-3 flex items-center gap-2 text-sm text-red-600"><AlertCircle className="h-4 w-4" />{leadError}</p>}
             </div>
 
-            {isSearchingLeads && (
-              <AIGenerationLoader compact currentStep="Searching businesses" subtitle="Finding leads and public profile signals" />
-            )}
+            {isSearchingLeads && <AIGenerationLoader compact currentStep="Searching businesses" subtitle="Finding leads and public profile signals" />}
 
             {leadResults.length > 0 && (
-              <div className="rounded-lg border border-border bg-card p-4">
+              <div className="rounded-xl border border-border bg-card p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <label className="flex items-center gap-2 text-sm text-muted-foreground">
                     <input
@@ -769,7 +827,7 @@ export default function PitchBoardPage() {
                 </div>
                 <div className="space-y-3">
                   {leadResults.map((lead, idx) => (
-                    <div key={`${lead.name}-${idx}`} className="rounded-md border border-border p-4">
+                    <div key={`${lead.name}-${idx}`} className="rounded-xl border border-border p-4">
                       <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
@@ -796,13 +854,23 @@ export default function PitchBoardPage() {
                                 </div>
                               )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap justify-end gap-2">
                               {lead.googleMapsUrl && (
                                 <Button size="sm" variant="outline" asChild>
                                   <a href={lead.googleMapsUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
                                 </Button>
                               )}
-                              <Button size="sm" disabled={pitchingLead === idx} onClick={() => handleCreatePitchFromLead(lead, idx)}>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={proposingLead === idx}
+                                onClick={() => handleCreateProposalFromLead(lead, idx)}
+                              >
+                                {proposingLead === idx ? <FlowActionSpinner size={14} /> : <FileText className="h-4 w-4" />}
+                                Proposal
+                              </Button>
+                              <Button type="button" size="sm" disabled={pitchingLead === idx} onClick={() => handleCreatePitchFromLead(lead, idx)}>
                                 {pitchingLead === idx ? <FlowActionSpinner size={14} /> : <Briefcase className="h-4 w-4" />}
                                 Pitch
                               </Button>
@@ -823,45 +891,6 @@ export default function PitchBoardPage() {
           </div>
         )}
       </main>
-
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5 text-sky-600" />Create AI Pitch</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreatePitch} className="mt-2 space-y-4">
-            <div className="space-y-1.5">
-              <Label>Business name</Label>
-              <Input value={createForm.businessName} onChange={(e) => setCreateForm((f) => ({ ...f, businessName: e.target.value }))} placeholder="Miami Dental Studio" autoFocus />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Website</Label>
-              <Input value={createForm.businessUrl} onChange={(e) => setCreateForm((f) => ({ ...f, businessUrl: e.target.value }))} placeholder="https://example.com" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Recipient</Label>
-                <Input value={createForm.recipientName} onChange={(e) => setCreateForm((f) => ({ ...f, recipientName: e.target.value }))} placeholder="John Smith" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input type="email" value={createForm.recipientEmail} onChange={(e) => setCreateForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@business.com" />
-              </div>
-            </div>
-            <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300">
-              {pitchCreditLabel}. AI researches the business and generates a pitch.
-            </div>
-            {createError && <p className="flex items-center gap-2 text-sm text-red-600"><AlertCircle className="h-4 w-4" />{createError}</p>}
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={isCreating}>
-                {isCreating ? <FlowActionSpinner size={16} /> : <Briefcase className="h-4 w-4" />}
-                {isCreating ? "Creating" : "Start"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent className="sm:max-w-sm">
