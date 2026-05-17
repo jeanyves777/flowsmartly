@@ -20,6 +20,10 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import sharp from "sharp";
+import { mkdir, writeFile } from "fs/promises";
+import os from "os";
+import path from "path";
+import { randomUUID } from "crypto";
 import {
   ImageStore,
   resolveToBuffer,
@@ -31,6 +35,7 @@ import {
   getClaudeCodeBinaryPath,
 } from "./design-tools";
 import { generateVideoVeo } from "./design-tools/video-tools";
+import { grokVideoClient } from "./grok-video-client";
 
 export interface VideoBrief {
   topic: string;
@@ -160,6 +165,29 @@ export async function runVideoAgent(brief: VideoBrief): Promise<VideoResult> {
           const img = store.get(args.first_frame_image_id);
           firstFrameDataUrl = `data:${img.mimeType};base64,${img.buffer.toString("base64")}`;
         }
+        if (brief.durationSeconds <= 15 && grokVideoClient.isAvailable()) {
+          try {
+            const result = await grokVideoClient.generateVideo(args.prompt, {
+              duration: brief.durationSeconds,
+              aspectRatio: brief.aspectRatio,
+              resolution: "720p",
+              imageUrl: firstFrameDataUrl,
+            });
+            const tmpDir = path.join(os.tmpdir(), "fs-grok-video");
+            await mkdir(tmpDir, { recursive: true });
+            const localPath = path.join(tmpDir, `grok-${randomUUID().slice(0, 8)}.mp4`);
+            await writeFile(localPath, result.videoBuffer);
+            return ok({
+              videoUrl: localPath,
+              jobId: result.requestId,
+              model: "grok-imagine-video",
+              durationSeconds: result.duration || brief.durationSeconds,
+            });
+          } catch (error) {
+            console.warn("[VideoAgent] xAI video failed, using Veo fallback:", error);
+          }
+        }
+
         const veo = await generateVideoVeo({
           prompt: args.prompt,
           aspectRatio: brief.aspectRatio,

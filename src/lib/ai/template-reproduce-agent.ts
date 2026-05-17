@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
-import { OpenAIClient } from "./openai-client";
+import { generateImageXaiFirst } from "./image-router";
 
 /**
  * Claude vision rejects images >5 MB. PNGs from gpt-image-1 routinely
@@ -295,13 +295,10 @@ ${customText.trim().slice(0, 1500)}
   let bgImageBase64: string | null = null;
   if (spec.background.type === "image_prompt" && spec.background.prompt) {
     try {
-      const openai = OpenAIClient.getInstance();
-      const aspect = pickClosestSize(spec.width, spec.height);
-      bgImageBase64 = await openai.generateImage(spec.background.prompt, {
-        size: aspect,
+      const routed = await generateImageXaiFirst(spec.background.prompt, spec.width, spec.height, {
         quality: "high",
-        transparent: false,
       });
+      bgImageBase64 = routed.base64;
       console.log(`[TemplateReproduce] bg generated — ${bgImageBase64?.length || 0} chars`);
     } catch (err) {
       console.warn(`[TemplateReproduce] bg generation failed, falling back to neutral:`, err);
@@ -490,13 +487,6 @@ function clampInt(n: unknown, min: number, max: number, fallback: number): numbe
   const v = typeof n === "number" ? n : parseInt(String(n), 10);
   if (!Number.isFinite(v)) return fallback;
   return Math.max(min, Math.min(max, Math.round(v)));
-}
-
-function pickClosestSize(w: number, h: number): "1024x1024" | "1536x1024" | "1024x1536" {
-  const ar = w / h;
-  if (ar >= 1.25) return "1536x1024";
-  if (ar <= 0.8) return "1024x1536";
-  return "1024x1024";
 }
 
 function gradientCoords(angle: number, w: number, h: number) {

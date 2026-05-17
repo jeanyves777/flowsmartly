@@ -1,7 +1,8 @@
 import { soraClient, type SoraDuration } from "@/lib/ai/sora-client";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { resolveToLocalPath, uploadLocalFileToS3 } from "@/lib/utils/s3-client";
 import { spawn } from "child_process";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import os from "os";
 import type { CartoonScene, CartoonCharacter } from "./script-generator";
@@ -80,6 +81,17 @@ function findFFmpegSync(): string {
   return "ffmpeg";
 }
 
+function localImageToDataUrl(filePath: string | undefined): string | undefined {
+  if (!filePath || !existsSync(filePath)) return undefined;
+  const ext = path.extname(filePath).toLowerCase();
+  const mime = ext === ".jpg" || ext === ".jpeg"
+    ? "image/jpeg"
+    : ext === ".webp"
+      ? "image/webp"
+      : "image/png";
+  return `data:${mime};base64,${readFileSync(filePath).toString("base64")}`;
+}
+
 /**
  * Generate Sora video clips for each scene, then concatenate them
  * with TTS audio into a final video.
@@ -132,31 +144,44 @@ export async function generateSoraVideo(options: {
     const prompt = buildSoraPrompt(scene, style, characters);
     const clipDuration = getClipDuration(scene.durationSeconds);
 
-    onProgress?.(
-      `Generating Sora video for scene ${i + 1}/${scenes.length}...`,
-      10 + Math.round((i / scenes.length) * 50)
-    );
+    onProgress?.(`Generating video for scene ${i + 1}/${scenes.length}...`, 10 + Math.round((i / scenes.length) * 50));
 
     try {
-      const result = await soraClient.generateVideo(
-        prompt,
-        tmpDir,
-        `scene-${scene.sceneNumber}.mp4`,
-        {
-          model: "sora-2",
-          seconds: clipDuration,
-          size: "1280x720",
-          referenceImagePath: refImagePath,
-        }
-      );
+      let localPath = path.join(tmpDir, `scene-${scene.sceneNumber}.mp4`);
+
+      try {
+        if (!grokVideoClient.isAvailable()) throw new Error("xAI video is not configured");
+        const result = await grokVideoClient.generateVideo(prompt, {
+          duration: Number(clipDuration),
+          aspectRatio: "16:9",
+          resolution: "720p",
+          imageUrl: localImageToDataUrl(refImagePath),
+          timeoutMs: 900000,
+        });
+        writeFileSync(localPath, result.videoBuffer);
+      } catch (xaiError) {
+        console.warn(`[CartoonVideo] xAI scene ${scene.sceneNumber} failed, trying Sora fallback:`, xaiError);
+        const result = await soraClient.generateVideo(
+          prompt,
+          tmpDir,
+          `scene-${scene.sceneNumber}.mp4`,
+          {
+            model: "sora-2",
+            seconds: clipDuration,
+            size: "1280x720",
+            referenceImagePath: refImagePath,
+          }
+        );
+        localPath = result.localPath;
+      }
 
       sceneResults.push({
         sceneNumber: scene.sceneNumber,
-        localPath: result.localPath,
+        localPath,
       });
     } catch (error) {
       console.error(
-        `[Sora] Failed to generate scene ${scene.sceneNumber}:`,
+        `[CartoonVideo] Failed to generate scene ${scene.sceneNumber}:`,
         error
       );
       // Continue with other scenes — we'll work with what we have
@@ -164,7 +189,7 @@ export async function generateSoraVideo(options: {
   }
 
   if (sceneResults.length === 0) {
-    throw new Error("Sora failed to generate any scene videos");
+    throw new Error("No video provider generated any scene videos");
   }
 
   onProgress?.("Assembling final video...", 70);
@@ -180,7 +205,6 @@ export async function generateSoraVideo(options: {
     .map((r) => `file '${r.localPath.replace(/\\/g, "/")}'`)
     .join("\n");
 
-  const { writeFileSync } = require("fs");
   writeFileSync(concatFilePath, concatContent);
 
   // Merge all audio files into one track

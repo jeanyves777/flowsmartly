@@ -1,6 +1,6 @@
 import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "./openai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-client";
-import { xaiClient, sizeToAspectRatio } from "./xai-client";
+import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
 import { flowImageClient } from "./flow-image-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 
@@ -56,7 +56,7 @@ export async function generateImageWithProvider(
           aspectRatio,
           resolution: options.quality === "high" ? "2k" : undefined,
         }),
-        model: "grok-imagine-image",
+        model: XAI_IMAGE_MODEL,
         provider,
         format: "jpeg",
       };
@@ -147,11 +147,9 @@ export function referencePreservingEditProviderOrder(
   preferred?: ImageProvider | null,
   intent: ImageEditIntent = "identity",
 ): ImageProvider[] {
+  void intent;
   const order: ImageProvider[] = [];
-  const base: Array<ImageProvider | null | undefined> =
-    intent === "creative" && preferred === "xai"
-      ? ["xai", "openai", "gemini"]
-      : ["openai", preferred === "openai" ? null : preferred, "xai", "gemini"];
+  const base: Array<ImageProvider | null | undefined> = ["xai", preferred, "openai", "gemini"];
 
   for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);
@@ -190,7 +188,7 @@ export async function editImagesXaiFirst(
         const base64s = sourceBuffers.map((buffer) => buffer.toString("base64"));
         return {
           base64: await xaiClient.editImages(prompt, base64s, { aspectRatio }),
-          model: "grok-imagine-image",
+          model: XAI_IMAGE_MODEL,
           provider,
           format: "jpeg",
         };

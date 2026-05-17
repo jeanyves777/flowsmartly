@@ -1,11 +1,7 @@
-import OpenAI from "openai";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import type { CartoonScene, CartoonCharacter } from "./script-generator";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { generateVoice } from "@/lib/voice/voice-engine";
 
 export interface SceneAudio {
   sceneNumber: number;
@@ -61,15 +57,16 @@ async function generateLineAudio(
   text: string,
   voice: Voice
 ): Promise<Buffer> {
-  const response = await openai.audio.speech.create({
-    model: "tts-1",
-    voice,
-    input: text,
-    response_format: "mp3",
+  const result = await generateVoice({
+    text,
+    gender: voice === "echo" || voice === "onyx" || voice === "fable" ? "male" : "female",
+    accent: "american",
+    style: voice === "onyx" ? "dramatic" : voice === "shimmer" ? "calm" : "conversational",
     speed: 0.95,
+    overrideVoice: voice,
   });
 
-  return Buffer.from(await response.arrayBuffer());
+  return result.audioBuffer;
 }
 
 /**

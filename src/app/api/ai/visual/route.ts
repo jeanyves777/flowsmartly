@@ -1337,7 +1337,7 @@ Output a polished, print-ready ${params.category} background. The photo will be 
     base64 = generated.base64;
     model = generated.model;
   } else {
-    switch (useEditApi ? "openai" : provider) {
+    switch (provider) {
     case "openai": {
       const gptSize = getGptImageSize(width, height);
       console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference → edit API)" : ""}`);

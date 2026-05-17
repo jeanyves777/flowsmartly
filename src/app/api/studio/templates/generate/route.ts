@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { OpenAIClient } from "@/lib/ai/openai-client";
+import { XAI_IMAGE_MODEL, sizeToAspectRatio, xaiClient } from "@/lib/ai/xai-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { designTemplateAsHtml, HTML_STYLE_VARIANTS } from "@/lib/ai/template-html-designer";
 import { renderHtmlToPng } from "@/lib/utils/html-renderer";
@@ -163,7 +164,6 @@ export async function POST(req: NextRequest) {
     // with a unique style modifier yields real variety: collage,
     // typographic, photographic, elegant, modern, vintage, corporate,
     // playful — same cost, same latency (parallel), much wider span.
-    const openai = OpenAIClient.getInstance();
     const styledPrompts = STYLE_VARIANTS.map((variant) => ({
       style: variant.label,
       prompt: buildPrompt(rawQuery, variant),
@@ -172,13 +172,7 @@ export async function POST(req: NextRequest) {
     type Gen = { b64: string; style: string; prompt: string };
     const settled = await Promise.allSettled(
       styledPrompts.map((sp): Promise<Gen | null> =>
-        openai
-          .generateImagesBulk(sp.prompt, {
-            n: 1,
-            size: "1024x1024",
-            quality: "low",
-            transparent: false,
-          })
+        generateTemplateImagesBulk(sp.prompt, 1)
           .then((arr) => (arr[0] ? { b64: arr[0], style: sp.style, prompt: sp.prompt } : null)),
       ),
     );
@@ -250,7 +244,7 @@ export async function POST(req: NextRequest) {
         userId: userId ?? null,
         adminId: session?.adminId ?? null,
         feature: "ai_template_generate",
-        model: "gpt-image-1",
+        model: XAI_IMAGE_MODEL,
         inputTokens: 0,
         outputTokens: 0,
         costCents: Math.round(successes.length * 1.1), // ~$0.011/image low quality
@@ -332,6 +326,30 @@ const STYLE_VARIANTS: StyleVariant[] = [
       "Corporate professional clean layout — geometric grid, two-tone color palette anchored on a strong brand primary color, sans-serif typography (Inter / Montserrat feel), a left-aligned column of stacked text levels (eyebrow / headline / subhead / CTA pill / small footer), a rectangular photo PLACEHOLDER occupying the right half. Used for business / event / launch announcements.",
   },
 ];
+
+async function generateTemplateImagesBulk(prompt: string, n: number): Promise<string[]> {
+  if (xaiClient.isAvailable()) {
+    try {
+      const images = await xaiClient.generateImagesBulk(prompt, {
+        n,
+        aspectRatio: sizeToAspectRatio(1024, 1024),
+        resolution: "1k",
+      });
+      if (images.length > 0) return images;
+      throw new Error("xAI returned 0 images");
+    } catch (error) {
+      console.warn("[AiTemplates] xAI image generation failed, using OpenAI fallback:", error);
+    }
+  }
+
+  const openai = OpenAIClient.getInstance();
+  return openai.generateImagesBulk(prompt, {
+    n,
+    size: "1024x1024",
+    quality: "low",
+    transparent: false,
+  });
+}
 
 /**
  * Build the gpt-image-1 prompt for a specific style variant. We
@@ -438,14 +456,8 @@ async function handleDrillDown(
 
   console.log(`[AiTemplates] drill_down cache MISS style="${styleLabel}" query="${parentQuery}" — generating n=8 variations`);
 
-  const openai = OpenAIClient.getInstance();
   const prompt = buildPrompt(parentQuery, variant);
-  const images = await openai.generateImagesBulk(prompt, {
-    n: 8,
-    size: "1024x1024",
-    quality: "low",
-    transparent: false,
-  });
+  const images = await generateTemplateImagesBulk(prompt, 8);
 
   if (images.length === 0) {
     throw new Error("Drill-down generation returned 0 images");
@@ -506,7 +518,7 @@ async function handleDrillDown(
       userId: userId ?? null,
       adminId: session?.adminId ?? null,
       feature: "ai_template_drill_down",
-      model: "gpt-image-1",
+      model: XAI_IMAGE_MODEL,
       inputTokens: 0,
       outputTokens: 0,
       costCents: Math.round(images.length * 1.1),

@@ -1,17 +1,16 @@
 /**
  * xAI Grok Image Generation Client
  *
- * Uses the grok-imagine-image model for fast, non-photorealistic image generation.
- * For photorealistic content (ads, flyers), use gpt-image-1 via openai-client.ts instead.
+ * Primary xAI image client for FlowSmartly media generation.
  *
  * API endpoint: https://api.x.ai/v1/images/generations
- * Model: grok-imagine-image
+ * Model: grok-imagine-image-quality
  * Uses aspect_ratio instead of size parameter.
  */
 
 const XAI_GENERATIONS_URL = "https://api.x.ai/v1/images/generations";
 const XAI_EDITS_URL = "https://api.x.ai/v1/images/edits";
-const XAI_IMAGE_MODEL = process.env.XAI_IMAGE_MODEL || "grok-imagine-image";
+export const XAI_IMAGE_MODEL = process.env.XAI_IMAGE_MODEL || "grok-imagine-image-quality";
 
 type AspectRatio =
   | "1:1"
@@ -45,6 +44,24 @@ async function readImageResponse(data: {
     return buffer.toString("base64");
   }
   return null;
+}
+
+async function readImageResponses(data: {
+  data?: Array<{ b64_json?: string; url?: string }>;
+}): Promise<string[]> {
+  const images = data.data || [];
+  const resolved = await Promise.all(
+    images.map(async (imageData) => {
+      if (imageData?.b64_json) return imageData.b64_json;
+      if (imageData?.url) {
+        const res = await fetch(imageData.url);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        return buffer.toString("base64");
+      }
+      return null;
+    })
+  );
+  return resolved.filter((item): item is string => !!item);
 }
 
 class XAIClient {
@@ -137,6 +154,74 @@ class XAIClient {
 
     const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
     throw new Error(`xAI image generation failed: ${errMsg}`);
+  }
+
+  /**
+   * Generate multiple images from one prompt. Used by template discovery
+   * so xAI can be primary for batch thumbnail generation too.
+   */
+  async generateImagesBulk(
+    prompt: string,
+    options: {
+      aspectRatio?: AspectRatio;
+      n?: number;
+      resolution?: "1k" | "2k";
+    } = {}
+  ): Promise<string[]> {
+    const { aspectRatio = "1:1", n = 4, resolution } = options;
+    const safeN = Math.max(1, Math.min(10, Math.round(n)));
+
+    if (!this.apiKey) {
+      throw new Error("XAI_API_KEY is not configured");
+    }
+
+    const maxRetries = 2;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(XAI_GENERATIONS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: XAI_IMAGE_MODEL,
+            prompt,
+            n: safeN,
+            aspect_ratio: aspectRatio,
+            response_format: "b64_json",
+            ...(resolution ? { resolution } : {}),
+          }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(`xAI bulk image API error (${response.status}): ${errBody}`);
+        }
+
+        const data = await response.json();
+        return readImageResponses(data);
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[XAI] Bulk image generation error (attempt ${attempt + 1}/${maxRetries + 1}):`,
+          error
+        );
+
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        if (!isTransient) break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    }
+
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`xAI bulk image generation failed: ${errMsg}`);
   }
 
   /**

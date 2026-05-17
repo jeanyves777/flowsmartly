@@ -46,7 +46,7 @@ Your job per image: produce ONE high-quality result that matches the placeholder
 
 WORKFLOW:
 1. Read the subject + role + brand context provided in the user message.
-2. Use openai / gpt-image-1 first unless a fallback is explicitly needed:
+2. Use xai first unless the tool reports a failure or unusable result:
    - photorealistic people / complex multi-subject scenes → openai
    - illustrations, stylized art, character portraits → xai
    - photorealistic landscapes / clean product shots → gemini

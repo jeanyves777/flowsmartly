@@ -22,6 +22,8 @@ export { aiHub, AIHub } from "./hub";
 
 // Low-level clients - use only when needed
 export { ai, ClaudeAI } from "./client";
+export { xaiClient, XAIClient } from "./xai-client";
+export { grokVideoClient, GrokVideoClient } from "./grok-video-client";
 export { openaiClient, OpenAIClient } from "./openai-client";
 export { soraClient, SoraClient } from "./sora-client";
 

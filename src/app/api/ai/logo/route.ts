@@ -7,7 +7,7 @@ import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/cost
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { runLogoAgent } from "@/lib/ai/logo-agent";
 
-// POST /api/ai/logo - Generate 3 logo concepts using gpt-image-1
+// POST /api/ai/logo - Generate 3 logo concepts using the xAI-first image router
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "logo_generation_agent",
-        model: "claude-opus-4-7 + gpt-image-1",
+        model: "claude-opus-4-7 + xai-image-router",
         inputTokens: agentRun.usage.inputTokens,
         outputTokens: agentRun.usage.outputTokens,
         prompt: `Logo for ${brandName}`,

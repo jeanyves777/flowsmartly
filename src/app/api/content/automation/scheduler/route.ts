@@ -4,6 +4,7 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
@@ -405,15 +406,33 @@ async function runScheduler(request: NextRequest) {
                 postMediaType = "image";
               }
             } else if (automation.mediaType === "video") {
-              const result = await soraClient.generateVideoBuffer(mediaPrompt, {
-                model: "sora-2",
-                seconds: "8",
-                size: "1280x720",
-              });
+              let videoBuffer: Buffer | null = null;
+              try {
+                if (grokVideoClient.isAvailable()) {
+                  const result = await grokVideoClient.generateVideo(mediaPrompt, {
+                    duration: 8,
+                    aspectRatio: "16:9",
+                    resolution: "720p",
+                    timeoutMs: 900000,
+                  });
+                  videoBuffer = result.videoBuffer;
+                }
+              } catch (videoError) {
+                console.warn(`[Scheduler] xAI video failed for ${automation.id}, trying Sora fallback:`, videoError);
+              }
 
-              if (result?.videoBuffer) {
+              if (!videoBuffer) {
+                const result = await soraClient.generateVideoBuffer(mediaPrompt, {
+                  model: "sora-2",
+                  seconds: "8",
+                  size: "1280x720",
+                });
+                videoBuffer = result.videoBuffer;
+              }
+
+              if (videoBuffer) {
                 const s3Key = `automation/${automation.id}/${Date.now()}.mp4`;
-                await uploadToS3(s3Key, result.videoBuffer, "video/mp4");
+                await uploadToS3(s3Key, videoBuffer, "video/mp4");
                 mediaUrl = s3Key;
                 mediaMeta = JSON.stringify([s3Key]);
                 postMediaType = "video";

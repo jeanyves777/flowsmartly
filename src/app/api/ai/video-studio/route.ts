@@ -15,8 +15,8 @@ import {
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
+import { generateVoice } from "@/lib/voice/voice-engine";
 import { nanoid } from "nanoid";
-import OpenAI from "openai";
 import sharp from "sharp";
 import os from "os";
 import fs from "fs";
@@ -24,7 +24,6 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 type TTSVoice = "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 type RequestedVideoProvider = "auto" | "veo3" | "grok" | "slideshow";
 type RuntimeVideoProvider = "veo3" | "grok" | "slideshow";
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
       voiceAccent = "american" as string,
     } = body;
     const duration = normalizeRequestedVideoDuration(body.duration ?? body.durationSeconds ?? 15);
-    const requestedProvider = normalizeRequestedVideoProvider(body.provider ?? "veo3");
+    const requestedProvider = normalizeRequestedVideoProvider(body.provider ?? "auto");
     if (requestedProvider === "slideshow") {
       return new Response(
         JSON.stringify({ error: "Slideshow video is experimental and is not enabled for production generation yet." }),
@@ -198,7 +197,7 @@ export async function POST(req: NextRequest) {
             } catch (ttsErr) {
               const msg = getErrorMessage(ttsErr);
               if (msg.includes("429") || msg.includes("quota")) {
-                throw new Error("OpenAI TTS quota exceeded. Please check your OpenAI billing at platform.openai.com to continue generating voiceover.");
+                throw new Error("Voice generation quota exceeded. Please try again later or check the configured voice provider.");
               }
               throw new Error(`Voiceover generation failed: ${msg}`);
             }
@@ -242,6 +241,7 @@ export async function POST(req: NextRequest) {
                 referenceImageUrl: refImage,
                 skipGrok: true,
                 allowExperimentalSlideshow: false,
+                skipVeo: true,
                 onStatus: (message) => send({ type: "status", message }),
               });
               finalVideoBuffer = fallbackResult.videoBuffer;
@@ -577,7 +577,7 @@ function getVideoUsageModel(provider: string): string {
 function normalizeRequestedVideoProvider(value: unknown): RequestedVideoProvider {
   return value === "auto" || value === "veo3" || value === "grok" || value === "slideshow"
     ? value
-    : "veo3";
+    : "auto";
 }
 
 function normalizeRequestedVideoDuration(value: unknown): number {
@@ -929,6 +929,7 @@ async function generateFallbackVideoBuffer(opts: {
   duration: number;
   referenceImageUrl?: string | null;
   skipGrok?: boolean;
+  skipVeo?: boolean;
   allowExperimentalSlideshow?: boolean;
   onStatus?: (message: string) => void;
 }): Promise<{ videoBuffer: Buffer; duration: number; provider: string }> {
@@ -954,6 +955,28 @@ async function generateFallbackVideoBuffer(opts: {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(message);
       console.warn("[VideoStudio] Grok video fallback failed:", error);
+    }
+  }
+
+  const veoDuration = opts.duration <= 4 ? "4" : opts.duration <= 6 ? "6" : "8";
+  if (!opts.skipVeo && veoClient.isAvailable()) {
+    try {
+      opts.onStatus?.("Trying the backup long-video engine...");
+      const result = await veoClient.generateVideoBuffer(compactVideoProviderPrompt(opts.prompt), {
+        durationSeconds: veoDuration as "4" | "6" | "8",
+        aspectRatio: opts.aspectRatio === "9:16" ? "9:16" : "16:9",
+        resolution: "720p",
+        referenceImageUrl: opts.referenceImageUrl || undefined,
+      });
+      return {
+        videoBuffer: result.videoBuffer,
+        duration: result.duration || Number(veoDuration),
+        provider: "veo3",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+      console.warn("[VideoStudio] Veo video fallback failed:", error);
     }
   }
 
@@ -1370,22 +1393,23 @@ Requirements:
 }
 
 /**
- * Generate TTS audio from a script using OpenAI TTS.
+ * Generate TTS audio from a script using the shared xAI-first voice engine.
  * Returns the audio as an MP3 Buffer.
  */
 async function generateTTSAudio(
   script: string,
   voice: TTSVoice = "nova"
 ): Promise<Buffer> {
-  const response = await openai.audio.speech.create({
-    model: "tts-1",
-    voice,
-    input: script,
-    response_format: "mp3",
+  const result = await generateVoice({
+    text: script,
+    gender: voice === "echo" || voice === "onyx" || voice === "fable" ? "male" : "female",
+    accent: "american",
+    style: voice === "onyx" ? "dramatic" : voice === "shimmer" ? "calm" : "professional",
     speed: 1.0,
+    overrideVoice: voice,
   });
 
-  return Buffer.from(await response.arrayBuffer());
+  return result.audioBuffer;
 }
 
 /**
