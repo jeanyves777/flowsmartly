@@ -89,26 +89,20 @@ export default function BusinessPlanListPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] p-4 md:p-6 space-y-6">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <Badge variant="secondary" className="mb-3 gap-1">
-              <Sparkles className="h-3.5 w-3.5 text-sky-500" />
-              AI business strategist
-            </Badge>
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <FileText className="h-6 w-6 text-brand-500" />
-              Business Plans
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Generate, edit, export, and share investor-ready plans.
-            </p>
-          </div>
-          <Button onClick={() => router.push("/tools/business-plan/new")} size="lg" className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Plan
-          </Button>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <FileText className="h-6 w-6 text-sky-600" />
+            Business Plans
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Generate, edit, export, and share investor-ready plans.
+          </p>
         </div>
+        <Button onClick={() => router.push("/tools/business-plan/new")} size="lg" className="gap-2">
+          <Plus className="h-4 w-4" />
+          New Plan
+        </Button>
       </div>
 
       {plans.length === 0 ? (
@@ -129,53 +123,53 @@ export default function BusinessPlanListPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {plans.map((plan) => (
-              <Card
-                key={plan.id}
-                className="group relative cursor-pointer overflow-hidden transition-shadow hover:shadow-lg"
-                onClick={() => router.push(`/tools/business-plan/${plan.id}`)}
-              >
-                <div className="h-2" style={{ background: plan.coverColor }} />
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="line-clamp-2 text-base">{decodeEntities(plan.name)}</CardTitle>
-                    <Badge variant={plan.status === "published" ? "default" : "outline"} className="shrink-0">
-                      {plan.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {plan.industry && <span className="capitalize">{plan.industry.replace(/_/g, " ")}</span>}
-                    {plan.stage && <span className="capitalize">{plan.stage}</span>}
-                    {plan.generationCount > 1 && (
-                      <span className="inline-flex items-center gap-1">
-                        <RefreshCw className="h-3 w-3" />
-                        rev. {plan.generationCount}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+          {plans.map((plan) => (
+            <Card
+              key={plan.id}
+              className="group relative cursor-pointer overflow-hidden transition-shadow hover:shadow-lg"
+              onClick={() => router.push(`/tools/business-plan/${plan.id}`)}
+            >
+              <div className="h-2" style={{ background: plan.coverColor }} />
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="line-clamp-2 text-base">{decodeEntities(plan.name)}</CardTitle>
+                  <Badge variant={plan.status === "published" ? "default" : "outline"} className="shrink-0">
+                    {plan.status}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  {plan.industry && <span className="capitalize">{plan.industry.replace(/_/g, " ")}</span>}
+                  {plan.stage && <span className="capitalize">{plan.stage}</span>}
+                  {plan.generationCount > 1 && (
                     <span className="inline-flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(plan.updatedAt).toLocaleDateString()}
+                      <RefreshCw className="h-3 w-3" />
+                      rev. {plan.generationCount}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(plan.id, decodeEntities(plan.name));
-                      }}
-                      aria-label={`Delete ${decodeEntities(plan.name)}`}
-                    >
-                      {deletingId === plan.id ? <FlowActionSpinner size={14} /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(plan.updatedAt).toLocaleDateString()}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(plan.id, decodeEntities(plan.name));
+                    }}
+                    aria-label={`Delete ${decodeEntities(plan.name)}`}
+                  >
+                    {deletingId === plan.id ? <FlowActionSpinner size={14} /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>

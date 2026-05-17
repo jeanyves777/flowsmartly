@@ -464,46 +464,40 @@ export default function PitchBoardPage() {
 
   return (
     <div className="flex-1">
-      <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5">
-            <div className="min-w-0">
-              <Badge variant="secondary" className="mb-3 gap-1">
-                <Wand2 className="h-3.5 w-3.5 text-emerald-500" />
-                AI deal agent
-              </Badge>
-              <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight text-foreground">
-                <Briefcase className="h-7 w-7 text-sky-600" />
-                Pitch Board
-              </h1>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Type the deal. AI extracts the details, researches, writes, and prepares the PDF.
-              </p>
-            </div>
-            <div className="inline-flex w-fit flex-wrap gap-1 rounded-lg bg-muted p-1">
-              {[
-                { id: "proposal", label: "Proposal", icon: FileText },
-                { id: "pitch", label: "Pitch", icon: Briefcase },
-                { id: "leads", label: "Leads", icon: Users },
-              ].map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as TabKey)}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
-                      activeTab === tab.id
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+      <div className="mx-auto max-w-[1500px] px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-5">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight text-foreground">
+              <Briefcase className="h-7 w-7 text-sky-600" />
+              Pitch Board
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Type the deal. AI extracts the details, researches, writes, and prepares the PDF.
+            </p>
+          </div>
+          <div className="inline-flex w-fit flex-wrap gap-1 rounded-lg bg-muted p-1">
+            {[
+              { id: "proposal", label: "Proposal", icon: FileText },
+              { id: "pitch", label: "Pitch", icon: Briefcase },
+              { id: "leads", label: "Leads", icon: Users },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabKey)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
+                    activeTab === tab.id
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
