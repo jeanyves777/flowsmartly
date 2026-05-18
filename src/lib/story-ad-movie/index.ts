@@ -3,10 +3,17 @@ import { prisma } from "@/lib/db/client";
 import { TRANSACTION_TYPES } from "@/lib/credits";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { getPresignedUrl, uploadToS3 } from "@/lib/utils/s3-client";
+import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { nanoid } from "nanoid";
+import { spawn } from "child_process";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import os from "os";
+import path from "path";
 
 export type StoryAdMovieAspectRatio = "9:16" | "1:1" | "16:9";
-export type StoryAdMovieDuration = 8 | 12 | 15;
+export type StoryAdMovieDuration = 10 | 20 | 30 | 40;
+const STORY_AD_SECONDS_PER_CHAPTER = 10;
+export const STORY_AD_CREDITS_PER_10_SECONDS = 100;
 
 export interface StoryAdMovieInput {
   jobId: string;
@@ -145,9 +152,14 @@ function normalizeAspectRatio(value: unknown): StoryAdMovieAspectRatio {
 
 function normalizeDuration(value: unknown): StoryAdMovieDuration {
   const numeric = Number(value);
-  if (numeric <= 8) return 8;
-  if (numeric <= 12) return 12;
-  return 15;
+  if (numeric <= 10) return 10;
+  if (numeric <= 20) return 20;
+  if (numeric <= 30) return 30;
+  return 40;
+}
+
+export function calculateStoryAdMovieCredits(duration: StoryAdMovieDuration): number {
+  return Math.ceil(duration / STORY_AD_SECONDS_PER_CHAPTER) * STORY_AD_CREDITS_PER_10_SECONDS;
 }
 
 function normalizeStringArray(value: unknown, max = 8): string[] {
@@ -199,8 +211,8 @@ export function normalizeStoryAdMovieInput(body: Record<string, unknown>) {
 }
 
 async function generateStoryAdScript(input: StoryAdMovieInput, brand: BrandSnapshot): Promise<StoryAdMovieScript> {
-  const sceneCount = input.duration <= 15 ? 4 : input.duration <= 30 ? 5 : 7;
-  const wordsPerScene = input.duration <= 15 ? 9 : input.duration <= 30 ? 12 : 14;
+  const sceneCount = input.duration <= 10 ? 4 : input.duration <= 20 ? 5 : input.duration <= 30 ? 6 : 8;
+  const wordsPerScene = input.duration <= 10 ? 8 : input.duration <= 20 ? 10 : 12;
   const styleHint = STYLE_HINTS[input.style] || STYLE_HINTS.cinematic;
   const destination = input.destinationUrl || brand.website || "";
   const platforms = input.platforms?.length ? input.platforms.join(", ") : "social feed";
@@ -452,9 +464,14 @@ function isImageReference(url: string): boolean {
   return /\.(png|jpe?g|webp|gif)$/.test(clean);
 }
 
-async function resolveXaiReferenceImage(referenceMediaUrls: string[] = []): Promise<string | undefined> {
-  const rawImage = referenceMediaUrls.find(isImageReference);
+async function resolveXaiReferenceImage(
+  referenceMediaUrls: string[] = [],
+  brand?: BrandSnapshot,
+): Promise<string | undefined> {
+  const rawImage = referenceMediaUrls.find(isImageReference) || brand?.logo || brand?.iconLogo;
   if (!rawImage) return undefined;
+  if (rawImage.startsWith("data:")) return undefined;
+  if (rawImage.startsWith("/") && !rawImage.startsWith("/uploads/")) return undefined;
   if (/^https?:\/\//i.test(rawImage) && !/amazonaws\.com|flowsmartly/i.test(rawImage)) {
     return rawImage;
   }
@@ -465,43 +482,158 @@ async function resolveXaiReferenceImage(referenceMediaUrls: string[] = []): Prom
   }
 }
 
+function compactText(value: string | null | undefined, maxLength: number): string {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return `${clean.slice(0, maxLength - 1).trimEnd()}...`;
+}
+
+function getChapterScenes(
+  scenes: StoryAdMovieScene[],
+  chapterIndex: number,
+  totalChapters: number,
+): StoryAdMovieScene[] {
+  if (totalChapters <= 1 || scenes.length <= 1) return scenes;
+  const start = Math.floor(((chapterIndex - 1) * scenes.length) / totalChapters);
+  const end = Math.max(start + 1, Math.floor((chapterIndex * scenes.length) / totalChapters));
+  return scenes.slice(start, Math.min(end, scenes.length));
+}
+
 function buildDirectXaiVideoPrompt(
   script: StoryAdMovieScript,
   input: StoryAdMovieInput,
-  brand: BrandSnapshot
+  brand: BrandSnapshot,
+  chapter?: { index: number; total: number },
 ): string {
   const platforms = input.platforms?.length ? input.platforms.join(", ") : "social feed";
   const references = input.referenceMediaUrls?.length
-    ? `Reference media supplied (${input.referenceMediaUrls.length}). Preserve the real product, people, location, colors, and visual mood when relevant.`
-    : "No reference media supplied; invent clean brand-safe commercial visuals.";
+    ? `Reference media supplied (${input.referenceMediaUrls.length}). Preserve real product, people, place, colors, and mood when relevant.`
+    : brand.logo || brand.iconLogo
+      ? "Use the brand identity/logo as the visual anchor."
+      : "No reference media supplied; invent clean brand-safe commercial visuals.";
   const referenceSceneMap = input.referenceMedia?.length
-    ? input.referenceMedia.map((item, index) => [
-        `Reference ${index + 1}: ${item.type || "media"}`,
-        item.scene ? `Scene/script: ${item.scene}` : null,
-        item.note ? `Instruction: ${item.note}` : null,
+    ? input.referenceMedia.slice(0, 5).map((item, index) => [
+        `Ref ${index + 1}: ${item.type || "media"}`,
+        item.scene ? `Scene: ${compactText(item.scene, 90)}` : null,
+        item.note ? `Use: ${compactText(item.note, 140)}` : null,
       ].filter(Boolean).join(" | ")).join("\n")
     : "";
-  const sceneArc = script.scenes
+  const activeScenes = chapter ? getChapterScenes(script.scenes, chapter.index, chapter.total) : script.scenes;
+  const sceneArc = activeScenes
     .map((scene) => `${scene.sceneNumber}. ${scene.narration} ${scene.caption ? `(${scene.caption})` : ""}`)
     .join(" ");
+  const chapterLine = chapter
+    ? `This is chapter ${chapter.index} of ${chapter.total} in a ${input.duration}-second campaign. Render exactly ${STORY_AD_SECONDS_PER_CHAPTER} seconds. ${chapter.index === 1 ? "Open with a fast hook." : ""} ${chapter.index === chapter.total ? "End with the strongest call to action." : "End naturally so the next chapter can continue."}`.trim()
+    : "";
+  const brandLine = [
+    brand.name,
+    brand.tagline,
+    brand.industry,
+    brand.targetAudience ? `Audience: ${brand.targetAudience}` : null,
+    brand.voiceTone ? `Voice: ${brand.voiceTone}` : null,
+    brand.uniqueValue,
+  ].filter(Boolean).join(" | ");
 
   return [
-    script.videoPrompt || input.brief,
+    compactText(script.videoPrompt || input.brief, 650),
     "",
     "Generate a complete moving advertisement video, not a slideshow and not separate still frames.",
-    `Duration: ${input.duration} seconds. Aspect ratio: ${input.aspectRatio}. Style: ${STYLE_HINTS[input.style] || STYLE_HINTS.cinematic}.`,
+    chapterLine,
+    `Duration: ${chapter ? STORY_AD_SECONDS_PER_CHAPTER : input.duration} seconds. Aspect ratio: ${input.aspectRatio}. Style: ${STYLE_HINTS[input.style] || STYLE_HINTS.cinematic}.`,
     `Target platforms: ${platforms}.`,
-    `Brand: ${brand.name}${brand.industry ? `, ${brand.industry}` : ""}${brand.targetAudience ? `. Audience: ${brand.targetAudience}` : ""}.`,
-    brand.uniqueValue ? `Unique value: ${brand.uniqueValue}.` : "",
-    input.goal ? `Campaign goal: ${input.goal}.` : "",
-    input.characterBrief ? `Main character or talent: ${input.characterBrief}.` : "",
+    `Brand identity: ${compactText(brandLine, 500)}.`,
+    brand.description ? `Brand description: ${compactText(brand.description, 260)}.` : "",
+    brand.personality.length ? `Brand personality: ${brand.personality.slice(0, 5).join(", ")}.` : "",
+    brand.products.length ? `Products/services: ${brand.products.slice(0, 6).join(", ")}.` : "",
+    input.goal ? `Campaign goal: ${compactText(input.goal, 180)}.` : "",
+    input.characterBrief ? `Main character or talent: ${compactText(input.characterBrief, 240)}.` : "",
     references,
     referenceSceneMap ? `Scene-specific reference map:\n${referenceSceneMap}` : "",
-    `Story arc: ${sceneArc}`,
+    `Story beat: ${compactText(sceneArc, chapter ? 650 : 1000)}`,
     `Call to action: ${script.ctaText || "Learn more"}.`,
     "Use natural camera movement, polished lighting, realistic motion, and native commercial audio or voiceover if supported.",
     "Avoid watermarks, fake competitor logos, unreadable text, distorted hands, broken faces, and cluttered UI screens.",
   ].filter(Boolean).join("\n");
+}
+
+function runFFmpeg(args: string[], timeoutMs = 600000): Promise<void> {
+  const ffmpegPath = findFFmpegPath();
+  if (!ffmpegPath) {
+    throw new Error("Video assembly is not available on this server.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args, { windowsHide: true });
+    let stderr = "";
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error("Video assembly timed out."));
+    }, timeoutMs);
+
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+      if (stderr.length > 8000) stderr = stderr.slice(-8000);
+    });
+    proc.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`Video assembly failed (${code}): ${stderr.slice(-800)}`));
+    });
+  });
+}
+
+async function concatenateXaiChapters(chapters: Buffer[]): Promise<Buffer> {
+  if (chapters.length === 1) return chapters[0];
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "story-ad-movie-"));
+  const outputPath = path.join(tempDir, "final.mp4");
+  const listPath = path.join(tempDir, "chapters.txt");
+
+  try {
+    const chapterPaths: string[] = [];
+    for (let index = 0; index < chapters.length; index++) {
+      const chapterPath = path.join(tempDir, `chapter-${index + 1}.mp4`);
+      await writeFile(chapterPath, chapters[index]);
+      chapterPaths.push(chapterPath);
+    }
+
+    const list = chapterPaths
+      .map((chapterPath) => `file '${chapterPath.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`)
+      .join("\n");
+    await writeFile(listPath, list);
+
+    try {
+      await runFFmpeg([
+        "-f", "concat",
+        "-safe", "0",
+        "-i", listPath,
+        "-c", "copy",
+        "-movflags", "+faststart",
+        "-y", outputPath,
+      ]);
+    } catch {
+      await runFFmpeg([
+        "-f", "concat",
+        "-safe", "0",
+        "-i", listPath,
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "20",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        "-y", outputPath,
+      ], 900000);
+    }
+
+    return await readFile(outputPath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<void> {
@@ -546,28 +678,57 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
       throw new Error("xAI video generation is not configured.");
     }
 
-    const xaiReferenceImage = await resolveXaiReferenceImage(input.referenceMediaUrls);
-    const videoPrompt = buildDirectXaiVideoPrompt(script, input, brand);
+    const xaiReferenceImage = await resolveXaiReferenceImage(input.referenceMediaUrls, brand);
+    const totalChapters = Math.ceil(input.duration / STORY_AD_SECONDS_PER_CHAPTER);
+    const chapterBuffers: Buffer[] = [];
+    let renderedDuration = 0;
 
-    await updateJobStatus(input.jobId, "COMPOSITING", 52, "Sending your story to xAI video...");
-    const result = await grokVideoClient.generateVideo(videoPrompt, {
-      duration: input.duration,
-      aspectRatio: normalizeVideoAspect(input.aspectRatio),
-      resolution: "720p",
-      imageUrl: xaiReferenceImage,
-      timeoutMs: 900000,
-      onStatus: (message) => {
-        updateJobStatus(input.jobId, "COMPOSITING", 68, message).catch(console.error);
-      },
-    });
+    for (let chapter = 1; chapter <= totalChapters; chapter++) {
+      const chapterPrompt = buildDirectXaiVideoPrompt(
+        script,
+        input,
+        brand,
+        totalChapters > 1 ? { index: chapter, total: totalChapters } : undefined,
+      );
+      const progress = 45 + Math.round(((chapter - 1) / totalChapters) * 38);
+      await updateJobStatus(
+        input.jobId,
+        "COMPOSITING",
+        progress,
+        totalChapters > 1
+          ? `Rendering xAI video chapter ${chapter} of ${totalChapters}...`
+          : "Sending your story to xAI video...",
+      );
+
+      const result = await grokVideoClient.generateVideo(chapterPrompt, {
+        duration: totalChapters > 1 ? STORY_AD_SECONDS_PER_CHAPTER : input.duration,
+        aspectRatio: normalizeVideoAspect(input.aspectRatio),
+        resolution: "720p",
+        imageUrl: chapter === 1 ? xaiReferenceImage : undefined,
+        timeoutMs: 900000,
+        onStatus: (message) => {
+          updateJobStatus(
+            input.jobId,
+            "COMPOSITING",
+            progress + 5,
+            totalChapters > 1 ? `Chapter ${chapter}: ${message}` : message,
+          ).catch(console.error);
+        },
+      });
+      chapterBuffers.push(result.videoBuffer);
+      renderedDuration += result.duration || STORY_AD_SECONDS_PER_CHAPTER;
+    }
+
+    await updateJobStatus(input.jobId, "COMPOSITING", 88, "Preparing the final movie...");
+    const finalVideoBuffer = await concatenateXaiChapters(chapterBuffers);
 
     await updateJobStatus(input.jobId, "PROCESSING", 92, "Publishing your ad movie...");
     const videoUrl = await uploadToS3(
       `story-ad-movies/${input.userId}/${input.jobId}/${nanoid(8)}.mp4`,
-      result.videoBuffer,
+      finalVideoBuffer,
       "video/mp4",
     );
-    const thumbnailUrl = input.referenceMediaUrls?.find(isImageReference) || null;
+    const thumbnailUrl = input.referenceMediaUrls?.find(isImageReference) || brand.logo || brand.iconLogo || null;
 
     await prisma.cartoonVideo.update({
       where: { id: input.jobId },
@@ -577,7 +738,7 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
         currentStep: "Story ad movie ready",
         videoUrl,
         thumbnailUrl,
-        videoDuration: result.duration || input.duration,
+        videoDuration: renderedDuration || input.duration,
         completedAt: new Date(),
       },
     });
@@ -587,7 +748,7 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
       title: script.title,
       videoUrl,
       thumbnailUrl,
-      size: result.videoBuffer.length,
+      size: finalVideoBuffer.length,
     });
 
     await prisma.notification.create({

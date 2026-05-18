@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { listCartoonVideos } from "@/lib/cartoon";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import {
+  calculateStoryAdMovieCredits,
   normalizeStoryAdMovieInput,
   processStoryAdMovie,
 } from "@/lib/story-ad-movie";
@@ -41,20 +41,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const creditCost = await getDynamicCreditCost("AI_VIDEO_SLIDESHOW");
+    const creditCost = calculateStoryAdMovieCredits(input.duration);
     const isAdmin = !!session.adminId;
-    const creditCheck = await checkCreditsForFeature(session.userId, "AI_VIDEO_SLIDESHOW", isAdmin);
-    if (creditCheck) {
+    const userCredits = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { aiCredits: true },
+    });
+    if (!isAdmin && (!userCredits || userCredits.aiCredits < creditCost)) {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: creditCheck.code,
-            message: creditCheck.message,
+            code: "INSUFFICIENT_CREDITS",
+            message: `This requires ${creditCost} credits. You have ${userCredits?.aiCredits || 0} credits remaining.`,
             required: creditCost,
+            available: userCredits?.aiCredits || 0,
           },
         },
-        { status: creditCheck.code === "INSUFFICIENT_CREDITS" ? 402 : 403 },
+        { status: 402 },
       );
     }
 
@@ -101,6 +105,7 @@ export async function POST(request: NextRequest) {
           feature: "AI_VIDEO_SLIDESHOW",
           duration: input.duration,
           aspectRatio: input.aspectRatio,
+          pricing: "100 credits per 10 seconds",
           provider: "xai",
         },
       });

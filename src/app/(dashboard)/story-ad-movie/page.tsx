@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaUploader } from "@/components/shared/media-uploader";
-import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
 type AspectRatio = "9:16" | "1:1" | "16:9";
-type Duration = 8 | 12 | 15;
+type Duration = 10 | 20 | 30 | 40;
 type SocialPlatform = "instagram" | "facebook" | "tiktok" | "youtube" | "linkedin" | "x" | "whatsapp";
 type AssistMode = "ideas" | "story" | "script" | "character";
 
@@ -83,9 +83,13 @@ interface StoryAdJob {
 
 interface BrandKit {
   name: string;
+  tagline?: string | null;
   industry?: string | null;
   targetAudience?: string | null;
   website?: string | null;
+  logo?: string | null;
+  iconLogo?: string | null;
+  voiceTone?: string | null;
 }
 
 interface ReferenceMedia {
@@ -166,7 +170,7 @@ function StoryAdMovieContent() {
   const [goal, setGoal] = useState("Get attention, build trust, and drive action.");
   const [ctaUrl, setCtaUrl] = useState("");
   const [style, setStyle] = useState("cinematic");
-  const [duration, setDuration] = useState<Duration>(12);
+  const [duration, setDuration] = useState<Duration>(10);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>(["instagram", "facebook"]);
   const [characterBrief, setCharacterBrief] = useState("");
@@ -175,19 +179,25 @@ function StoryAdMovieContent() {
   const [sceneScripts, setSceneScripts] = useState<SceneScript[]>([]);
   const [assistLoading, setAssistLoading] = useState<AssistMode | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
-  const [storyCost, setStoryCost] = useState<number | null>(null);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [currentJob, setCurrentJob] = useState<StoryAdJob | null>(null);
   const [history, setHistory] = useState<StoryAdJob[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPosting, setIsPosting] = useState<"feed" | "ads" | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [inputsExpanded, setInputsExpanded] = useState(false);
 
   const selectedStyle = STYLE_OPTIONS.find((item) => item.id === style) || STYLE_OPTIONS[0];
   const activeAspectRatio = currentJob?.metadata?.aspectRatio || aspectRatio;
   const activeDuration = currentJob?.duration || currentJob?.metadata?.duration || duration;
   const buttonDisabled = isGenerating || brief.trim().length < 12 || platforms.length === 0;
   const mediaUrls = referenceMedia.map((item) => item.url);
+  const hasReadyVideo = currentJob?.status === "COMPLETED" && !!currentJob.videoUrl;
+  const previewFocused = isGenerating || isWorking(currentJob) || !!hasReadyVideo;
+  const inputsCollapsed = previewFocused && !inputsExpanded;
+  const brandLogo = brandKit?.iconLogo || brandKit?.logo || null;
+  const durationCreditCost = Math.ceil(duration / 10) * 100;
+  const activeCreditCost = Math.ceil(Number(activeDuration || duration) / 10) * 100;
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -214,16 +224,12 @@ function StoryAdMovieContent() {
   useEffect(() => {
     async function loadBasics() {
       try {
-        const [creditsRes, brandRes, costsRes] = await Promise.all([
+        const [creditsRes, brandRes] = await Promise.all([
           fetch("/api/user/credits"),
           fetch("/api/brand"),
-          fetch("/api/credits/costs?keys=AI_VIDEO_SLIDESHOW"),
         ]);
         const creditsData = await creditsRes.json();
         if (creditsData.success) setCredits(creditsData.data.credits);
-
-        const costsData = await costsRes.json();
-        if (costsData.success) setStoryCost(costsData.data.costs?.AI_VIDEO_SLIDESHOW ?? null);
 
         const brandData = await brandRes.json();
         const kit = brandData?.data?.brandKit || null;
@@ -337,6 +343,7 @@ function StoryAdMovieContent() {
   async function handleGenerate() {
     if (buttonDisabled) return;
     setIsGenerating(true);
+    setInputsExpanded(false);
 
     try {
       const response = await fetch("/api/ai/story-ad-movie", {
@@ -457,13 +464,14 @@ function StoryAdMovieContent() {
     setBrief(SAMPLES[0]);
     setGoal("Get attention, build trust, and drive action.");
     setStyle("cinematic");
-    setDuration(12);
+    setDuration(10);
     setAspectRatio("9:16");
     setPlatforms(["instagram", "facebook"]);
     setReferenceMedia([]);
     setCharacterBrief("");
     setIdeas([]);
     setSceneScripts([]);
+    setInputsExpanded(false);
     router.push("/story-ad-movie");
   }
 
@@ -499,8 +507,85 @@ function StoryAdMovieContent() {
         </div>
       </header>
 
-      <main className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.65fr)]">
+      <main
+        className={cn(
+          "grid min-w-0 gap-6",
+          previewFocused
+            ? "xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]"
+            : "xl:grid-cols-[minmax(0,1fr)_minmax(440px,0.72fr)] 2xl:grid-cols-[minmax(0,1.2fr)_minmax(520px,0.8fr)]",
+        )}
+      >
+        {inputsCollapsed ? (
+          <section className="min-w-0 space-y-3 xl:sticky xl:top-5 xl:self-start">
+            <div className="rounded-xl border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+                  {brandLogo ? (
+                    <img src={brandLogo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Clapperboard className="h-5 w-5 text-brand-500" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{brandKit?.name || "Brand identity"}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[brandKit?.industry, brandKit?.voiceTone, activeAspectRatio].filter(Boolean).join(" / ") || "Used by AI"}
+                  </p>
+                </div>
+              </div>
+              <p className="line-clamp-5 text-sm leading-6 text-muted-foreground">{brief}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {platforms.map((platform) => (
+                  <Badge key={platform} variant="secondary" className="capitalize">{platform}</Badge>
+                ))}
+                <Badge variant="outline">{referenceMedia.length} refs</Badge>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4 w-full"
+                onClick={() => setInputsExpanded(true)}
+                disabled={isGenerating || isWorking(currentJob)}
+              >
+                <Wand2 className="h-4 w-4" />
+                Edit Inputs
+              </Button>
+            </div>
+          </section>
+        ) : (
         <section className="min-w-0 space-y-5">
+          <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+                  {brandLogo ? (
+                    <img src={brandLogo} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Sparkles className="h-5 w-5 text-brand-500" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-xl font-bold">{brandKit?.name || "Brand identity"}</h2>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {brandKit
+                      ? [brandKit.tagline, brandKit.industry, brandKit.targetAudience].filter(Boolean).join(" / ")
+                      : "Set a brand so AI can match your voice, offer, and audience."}
+                  </p>
+                </div>
+              </div>
+              {brandKit ? (
+                <Badge variant="secondary" className="w-fit">
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Used by AI
+                </Badge>
+              ) : (
+                <Button asChild variant="outline">
+                  <a href="/brand">Add Brand</a>
+                </Button>
+              )}
+            </div>
+          </div>
+
           <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
@@ -528,7 +613,7 @@ function StoryAdMovieContent() {
                       disabled={!!assistLoading || isGenerating}
                     >
                       {assistLoading === item.mode ? (
-                        <AISpinner className="h-4 w-4 animate-spin" />
+                        <FlowActionSpinner size={16} />
                       ) : (
                         <Icon className="h-4 w-4" />
                       )}
@@ -642,21 +727,24 @@ function StoryAdMovieContent() {
                 <div className="mt-4 grid gap-4 sm:grid-cols-[0.85fr_1.15fr]">
                   <div className="space-y-2">
                     <span className="text-sm font-semibold">Length</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[8, 12, 15].map((seconds) => (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[10, 20, 30, 40].map((seconds) => (
                         <button
                           key={seconds}
                           type="button"
                           onClick={() => setDuration(seconds as Duration)}
                           disabled={isGenerating}
                           className={cn(
-                            "h-12 rounded-lg border text-sm font-semibold transition",
+                            "min-h-12 rounded-lg border px-2 py-2 text-sm font-semibold transition",
                             duration === seconds
                               ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
                               : "hover:border-brand-500/50",
                           )}
                         >
-                          {seconds}s
+                          <span className="block">{seconds}s</span>
+                          <span className="block text-[11px] font-medium text-muted-foreground">
+                            {Math.ceil(seconds / 10) * 100} credits
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -699,7 +787,7 @@ function StoryAdMovieContent() {
                     disabled={!!assistLoading || isGenerating}
                   >
                     {assistLoading === "character" ? (
-                      <AISpinner className="h-4 w-4 animate-spin" />
+                      <FlowActionSpinner size={16} />
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
@@ -810,7 +898,7 @@ function StoryAdMovieContent() {
                 />
               </label>
               <Badge variant="outline" className="h-12 justify-center px-4">
-                {storyCost ?? 25} credits
+                {durationCreditCost} credits
               </Badge>
             </div>
 
@@ -822,7 +910,7 @@ function StoryAdMovieContent() {
             >
               {isGenerating ? (
                 <>
-                  <AISpinner className="h-5 w-5 animate-spin" />
+                  <FlowActionSpinner size={20} />
                   Generating with xAI
                 </>
               ) : (
@@ -835,13 +923,19 @@ function StoryAdMovieContent() {
             </Button>
           </div>
         </section>
+        )}
 
-        <section className="min-w-0 rounded-xl border bg-background p-4 shadow-sm sm:p-5 2xl:sticky 2xl:top-5 2xl:self-start">
+        <section
+          className={cn(
+            "min-w-0 rounded-xl border bg-background p-4 shadow-sm sm:p-5 xl:sticky xl:top-5 xl:self-start",
+            previewFocused && "min-h-[calc(100vh-9rem)]",
+          )}
+        >
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold">Preview</h2>
               <p className="text-sm text-muted-foreground">
-                {selectedStyle.label} / {activeDuration}s / {activeAspectRatio}
+                {selectedStyle.label} / {activeDuration}s / {activeAspectRatio} / {activeCreditCost} credits
               </p>
             </div>
             <Badge variant={currentJob?.status === "FAILED" ? "destructive" : "secondary"}>
@@ -880,11 +974,11 @@ function StoryAdMovieContent() {
 
               <div className="grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
                 <Button onClick={() => handlePost("feed")} disabled={!!isPosting}>
-                  {isPosting === "feed" ? <AISpinner className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {isPosting === "feed" ? <FlowActionSpinner size={16} /> : <Send className="h-4 w-4" />}
                   Post
                 </Button>
                 <Button onClick={() => handlePost("ads")} disabled={!!isPosting} variant="outline">
-                  {isPosting === "ads" ? <AISpinner className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
+                  {isPosting === "ads" ? <FlowActionSpinner size={16} /> : <Megaphone className="h-4 w-4" />}
                   Promote
                 </Button>
                 <Button asChild variant="outline">
@@ -907,7 +1001,7 @@ function StoryAdMovieContent() {
               <div className="mt-5 flex gap-2">
                 <Button onClick={startFresh}>Try Again</Button>
                 <Button variant="outline" onClick={handleDelete} disabled={isDeleting}>
-                  {isDeleting ? <AISpinner className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  {isDeleting ? <FlowActionSpinner size={16} /> : <Trash2 className="h-4 w-4" />}
                   Remove
                 </Button>
               </div>
@@ -1000,7 +1094,7 @@ export default function StoryAdMoviePage() {
     <Suspense
       fallback={
         <div className="flex h-96 items-center justify-center">
-          <AISpinner className="h-8 w-8 animate-spin text-brand-500" />
+          <FlowActionSpinner size={36} />
         </div>
       }
     >

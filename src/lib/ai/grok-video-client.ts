@@ -13,6 +13,7 @@
 
 const XAI_VIDEO_URL = "https://api.x.ai/v1/videos/generations";
 const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
+const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
 type VideoAspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
 type VideoResolution = "480p" | "720p";
@@ -76,12 +77,14 @@ class GrokVideoClient {
       throw new Error("XAI_API_KEY is not configured");
     }
 
+    const safePrompt = clampVideoPrompt(prompt);
+
     console.log(`[GrokVideo] Generating video: duration=${duration}s, aspect=${aspectRatio}, res=${resolution}${imageUrl ? ", with reference image" : ""}`);
-    console.log(`[GrokVideo] Prompt: ${prompt.substring(0, 100)}...`);
+    console.log(`[GrokVideo] Prompt (${safePrompt.length} chars): ${safePrompt.substring(0, 100)}...`);
 
     const bodyPayload: Record<string, unknown> = {
       model: "grok-imagine-video",
-      prompt,
+      prompt: safePrompt,
       duration,
       aspect_ratio: aspectRatio,
       resolution,
@@ -211,3 +214,11 @@ class GrokVideoClient {
 
 export const grokVideoClient = GrokVideoClient.getInstance();
 export { GrokVideoClient };
+
+function clampVideoPrompt(prompt: string): string {
+  const clean = prompt.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (clean.length <= XAI_VIDEO_PROMPT_LIMIT) return clean;
+
+  const suffix = "\n\nKeep it polished, brand-safe, realistic, continuous, and free of watermarks or distorted people.";
+  return clean.slice(0, XAI_VIDEO_PROMPT_LIMIT - suffix.length).trimEnd() + suffix;
+}
