@@ -51,6 +51,7 @@ import {
   List,
   Cpu,
   Video,
+  Clapperboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -104,6 +105,7 @@ const navItems: NavItem[] = [
 // Services section - feature management
 const serviceItems: NavItem[] = [
   { href: "/admin/websites", icon: Globe, label: "Websites", permission: "VIEW_CONTENT" },
+  { href: "/admin/ai-jobs?type=story-ad-movie", icon: Clapperboard, label: "Story Ad Movie", permission: "VIEW_CONTENT" },
   { href: "/admin/ai-jobs", icon: Cpu, label: "AI Jobs", permission: "VIEW_CONTENT" },
   { href: "/admin/ecommerce", icon: ShoppingBag, label: "E-Commerce", permission: "VIEW_CONTENT" },
   { href: "/admin/landing-pages", icon: FileText, label: "Landing Pages", permission: "VIEW_CONTENT" },
@@ -130,6 +132,7 @@ const marketingItems: NavItem[] = [
 const userExperienceItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "User Dashboard" },
   { href: "/studio", icon: Sparkles, label: "AI Studio" },
+  { href: "/story-ad-movie", icon: Clapperboard, label: "Story Ad Movie" },
   { href: "/feed", icon: Rss, label: "Feed" },
   { href: "/campaigns", icon: Megaphone, label: "User Campaigns" },
   { href: "/email-marketing", icon: Mail, label: "Email Marketing" },
@@ -247,8 +250,9 @@ export default function AdminPortalLayout({
 
   const renderNavItems = (items: NavItem[], onItemClick?: () => void, collapsed?: boolean) => {
     return items.map((item) => {
-      const isActive = pathname === item.href ||
-        (item.href !== "/admin" && pathname.startsWith(item.href));
+      const hrefPath = item.href.split("?")[0];
+      const isActive = pathname === hrefPath ||
+        (hrefPath !== "/admin" && pathname.startsWith(hrefPath));
       return (
         <Link
           key={item.href}

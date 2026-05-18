@@ -32,7 +32,7 @@ const DEFAULT_PRICING: {
   { key: "AI_CARTOON_CHARACTER_REGEN", name: "AI Character Regeneration", description: "Regenerate a single character preview image", credits: 10, category: "ai_video" },
   // AI Video Studio
   { key: "AI_VIDEO_STUDIO", name: "AI Video Studio (Veo 3)", description: "Veo 3 AI video per 8s clip (~$0.35 Google cost)", credits: 60, category: "ai_video" },
-  { key: "AI_VIDEO_SLIDESHOW", name: "AI Slideshow Video", description: "Slideshow: AI images + voiceover + our FFmpeg compositing (~$0.15)", credits: 25, category: "ai_video" },
+  { key: "AI_VIDEO_SLIDESHOW", name: "Story Ad Movie", description: "AI story ad movie scenes + voiceover + video compositing", credits: 25, category: "ai_video" },
   // AI Landing Page — Claude text generation
   { key: "AI_LANDING_PAGE", name: "AI Landing Page", description: "Generate a full landing page via AI (~$0.10)", credits: 20, category: "ai_text" },
   // AI Chat Assistant

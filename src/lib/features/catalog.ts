@@ -165,14 +165,14 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
     plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
   },
   {
-    slug: "cartoon-maker",
+    slug: "story-ad-movie",
     name: "Story Ad Movie",
     description: "Create story-driven advertising videos from one AI brief",
     category: "ai-creatives",
     icon: "Clapperboard",
-    route: "/cartoon-maker",
-    routes: ["/cartoon-maker"],
-    plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
+    route: "/story-ad-movie",
+    routes: ["/story-ad-movie"],
+    plans: { STARTER: true, NON_PROFIT: true, PRO: true, BUSINESS: true, ENTERPRISE: true },
   },
   {
     slug: "flow-ai",

@@ -261,7 +261,7 @@ export async function processCartoonVideoPhase1(options: ProcessCartoonOptions):
           type: "CARTOON_REVIEW",
           title: "Review your cartoon characters",
           message: `Your cartoon "${script.title}" has ${script.characters.length} characters and ${backgroundImages.length} scenes ready for review.`,
-          actionUrl: `/cartoon-maker?id=${jobId}`,
+          actionUrl: `/story-ad-movie?id=${jobId}`,
         },
       });
 
@@ -405,7 +405,7 @@ export async function processCartoonVideoPhase2(
             type: "CARTOON_COMPLETE",
             title: "Your cartoon is ready!",
             message: `Your Sora-generated cartoon "${script.title}" is ready to view.`,
-            actionUrl: `/cartoon-maker?id=${jobId}`,
+            actionUrl: `/story-ad-movie?id=${jobId}`,
           },
         });
       }
@@ -590,7 +590,7 @@ export async function processCartoonVideoPhase2(
           type: "CARTOON_COMPLETE",
           title: "Your cartoon is ready!",
           message: `Your cartoon "${script.title}" has been generated and is ready to view.`,
-          actionUrl: `/cartoon-maker?id=${jobId}`,
+          actionUrl: `/story-ad-movie?id=${jobId}`,
         },
       });
     }
@@ -644,7 +644,7 @@ async function handleProcessingError(jobId: string, error: unknown): Promise<voi
           type: "CARTOON_FAILED",
           title: "Cartoon generation failed",
           message: `We couldn't generate your cartoon. Your ${job.creditsCost} credits have been refunded.`,
-          actionUrl: `/cartoon-maker`,
+          actionUrl: `/story-ad-movie`,
         },
       }),
     ]);

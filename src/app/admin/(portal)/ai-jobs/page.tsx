@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Sparkles, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, Video, Clock, CheckCircle2, XCircle, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +36,9 @@ interface Stats {
 }
 
 export default function AdminAIJobsPage() {
+  const searchParams = useSearchParams();
+  const typeFilter = searchParams.get("type") || "";
+  const isStoryAdView = typeFilter === "story-ad-movie";
   const [jobs, setJobs] = useState<AIJob[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +54,7 @@ export default function AdminAIJobsPage() {
       const params = new URLSearchParams({ page: currentPage.toString(), limit: "20" });
       if (searchQuery) params.set("search", searchQuery);
       if (statusFilter) params.set("status", statusFilter);
+      if (typeFilter) params.set("type", typeFilter);
 
       const res = await fetch(`/api/admin/ai-jobs?${params}`);
       const data = await res.json();
@@ -63,7 +68,7 @@ export default function AdminAIJobsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, statusFilter, currentPage]);
+  }, [searchQuery, statusFilter, typeFilter, currentPage]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -84,9 +89,11 @@ export default function AdminAIJobsPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Sparkles className="w-6 h-6" />
-            AI Jobs Monitor
+            {isStoryAdView ? "Story Ad Movie Control" : "AI Jobs Monitor"}
           </h1>
-          <p className="text-muted-foreground mt-1">Track all AI generation jobs (cartoons, videos, voice)</p>
+          <p className="text-muted-foreground mt-1">
+            {isStoryAdView ? "Track Story Ad Movie generation, credits, status, and finished videos." : "Track all AI generation jobs across videos and creative tools."}
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => fetchData()}>
           <RefreshCw className="w-4 h-4 mr-2" />Refresh

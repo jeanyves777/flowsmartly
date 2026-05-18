@@ -377,7 +377,7 @@ async function refundFailedJob(jobId: string, error: unknown) {
         message: chargedCredits > 0
           ? `We could not finish your story ad movie. Your ${chargedCredits} credits were refunded.`
           : "We could not finish your story ad movie.",
-        actionUrl: "/cartoon-maker",
+        actionUrl: "/story-ad-movie",
       },
     });
   });
@@ -508,7 +508,7 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
         type: "AI_VIDEO_COMPLETE",
         title: "Story ad movie ready",
         message: `${script.title} is ready to post or promote.`,
-        actionUrl: `/cartoon-maker?id=${input.jobId}`,
+        actionUrl: `/story-ad-movie?id=${input.jobId}`,
       },
     });
   } catch (error) {

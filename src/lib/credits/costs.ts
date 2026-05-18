@@ -95,7 +95,7 @@ export const DEFAULT_CREDIT_COSTS = {
 
   // --- AI Video Studio ---
   AI_VIDEO_STUDIO: 60,    // Veo 3 per 8s clip (~$0.35 Google cost)
-  AI_VIDEO_SLIDESHOW: 25, // Slideshow: our FFmpeg + GPT Image scenes + TTS
+  AI_VIDEO_SLIDESHOW: 25, // Story Ad Movie: AI scenes + TTS + FFmpeg composition
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
@@ -195,7 +195,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_IMAGE: "FlowAI image generation",
   AI_CHAT_VIDEO: "FlowAI video generation",
   AI_VIDEO_STUDIO: "AI video studio generation",
-  AI_VIDEO_SLIDESHOW: "AI slideshow video generation",
+  AI_VIDEO_SLIDESHOW: "Story Ad Movie generation",
   AI_MARKETING_IMAGE: "AI marketing image generation",
   AI_BG_REMOVE: "AI background removal",
   AI_PRODUCT_COPY: "AI product copy generation",

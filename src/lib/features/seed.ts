@@ -11,6 +11,16 @@ const prisma = new PrismaClient();
 export async function seedFeatures() {
   console.log("Seeding features...");
 
+  const legacyStoryAdFeature = await prisma.feature.findUnique({ where: { slug: "cartoon-maker" } });
+  const storyAdFeature = await prisma.feature.findUnique({ where: { slug: "story-ad-movie" } });
+  if (legacyStoryAdFeature && !storyAdFeature) {
+    await prisma.feature.update({
+      where: { slug: "cartoon-maker" },
+      data: { slug: "story-ad-movie" },
+    });
+    console.log("Migrated feature slug: cartoon-maker -> story-ad-movie");
+  }
+
   let created = 0;
   let updated = 0;
 

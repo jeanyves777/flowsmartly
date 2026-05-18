@@ -19,7 +19,7 @@ export const FEATURE_TO_ROUTES: Record<string, string[]> = {
   AI_CARTOON_VIDEO: ["/video-studio"],
   AI_CARTOON_CHARACTER_REGEN: ["/video-studio"],
   AI_VIDEO_STUDIO: ["/video-studio"],
-  AI_VIDEO_SLIDESHOW: ["/video-studio"],
+  AI_VIDEO_SLIDESHOW: ["/story-ad-movie", "/video-studio"],
   AI_CHAT_MESSAGE: ["/flow-ai"],
   AI_CHAT_IMAGE: ["/flow-ai"],
   AI_CHAT_VIDEO: ["/flow-ai"],

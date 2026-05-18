@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 
-// GET /api/admin/ai-jobs - List all AI generation jobs (cartoons, voice, etc.)
+// GET /api/admin/ai-jobs - List AI generation jobs, including Story Ad Movie.
 export async function GET(request: NextRequest) {
   try {
     const session = await getAdminSession();
@@ -15,10 +15,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const status = searchParams.get("status") || "";
     const search = searchParams.get("search") || "";
+    const type = searchParams.get("type") || "";
 
-    // Cartoon videos
     const cartoonWhere: Record<string, unknown> = {};
     if (status) cartoonWhere.status = status;
+    if (type === "story-ad-movie") cartoonWhere.metadata = { contains: "story_ad_movie" };
     if (search) {
       cartoonWhere.OR = [
         { storyPrompt: { contains: search } },
@@ -39,11 +40,11 @@ export async function GET(request: NextRequest) {
       }),
       prisma.cartoonVideo.count({ where: cartoonWhere }),
       Promise.all([
-        prisma.cartoonVideo.count(),
-        prisma.cartoonVideo.count({ where: { status: "COMPLETED" } }),
-        prisma.cartoonVideo.count({ where: { status: "PROCESSING" } }),
-        prisma.cartoonVideo.count({ where: { status: "FAILED" } }),
-        prisma.cartoonVideo.aggregate({ _sum: { creditsCost: true } }),
+        prisma.cartoonVideo.count({ where: cartoonWhere }),
+        prisma.cartoonVideo.count({ where: { ...cartoonWhere, status: "COMPLETED" } }),
+        prisma.cartoonVideo.count({ where: { ...cartoonWhere, status: "PROCESSING" } }),
+        prisma.cartoonVideo.count({ where: { ...cartoonWhere, status: "FAILED" } }),
+        prisma.cartoonVideo.aggregate({ where: cartoonWhere, _sum: { creditsCost: true } }),
       ]),
     ]);
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       data: {
         jobs: cartoons.map((c) => ({
           id: c.id,
-          type: "cartoon",
+          type: c.metadata?.includes("story_ad_movie") ? "story_ad_movie" : "legacy_cartoon",
           storyPrompt: c.storyPrompt?.substring(0, 100) + (c.storyPrompt && c.storyPrompt.length > 100 ? "..." : ""),
           style: c.style,
           animationType: c.animationType,
