@@ -158,7 +158,7 @@ const FEATURE_CATEGORIES: { label: string; features: { key: string; label: strin
   {
     label: "AI Video",
     features: [
-      { key: "AI_CARTOON_VIDEO", label: "Cartoon Video", cost: 80 },
+      { key: "AI_CARTOON_VIDEO", label: "Legacy Cartoon Video", cost: 80 },
       { key: "AI_VIDEO_STUDIO", label: "Video Studio", cost: 60 },
       { key: "AI_VIDEO_SLIDESHOW", label: "Slideshow Video", cost: 25 },
     ],

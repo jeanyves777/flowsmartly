@@ -166,16 +166,13 @@ export const FEATURE_CATALOG: FeatureDefinition[] = [
   },
   {
     slug: "cartoon-maker",
-    name: "Cartoon Maker",
-    description: "Create AI animated cartoon videos from stories",
+    name: "Story Ad Movie",
+    description: "Create story-driven advertising videos from one AI brief",
     category: "ai-creatives",
     icon: "Clapperboard",
     route: "/cartoon-maker",
     routes: ["/cartoon-maker"],
     plans: { PRO: true, BUSINESS: true, ENTERPRISE: true },
-    // Phase A of recovery (2026-04-20): hidden while we rebuild the
-    // animation pipeline. Generation API returns 503; page shows banner.
-    disabled: true,
   },
   {
     slug: "flow-ai",

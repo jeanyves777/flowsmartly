@@ -673,9 +673,12 @@ export async function getCartoonJobStatus(jobId: string, userId: string) {
 
   // Parse script to get characters if available
   let script: CartoonScript | null = null;
+  let scriptExtras: Record<string, unknown> = {};
   if (job.script) {
     try {
-      script = JSON.parse(job.script);
+      const parsed = JSON.parse(job.script);
+      script = parsed;
+      scriptExtras = parsed && typeof parsed === "object" ? parsed : {};
     } catch {
       // Ignore parse errors
     }
@@ -708,6 +711,16 @@ export async function getCartoonJobStatus(jobId: string, userId: string) {
     completedAt: job.completedAt,
     // Include script data for character preview
     title: script?.title,
+    campaignCaption: typeof scriptExtras.campaignCaption === "string" ? scriptExtras.campaignCaption : undefined,
+    ctaText: typeof scriptExtras.ctaText === "string" ? scriptExtras.ctaText : undefined,
+    hashtags: Array.isArray(scriptExtras.hashtags) ? scriptExtras.hashtags : [],
+    metadata: (() => {
+      try {
+        return JSON.parse(job.metadata || "{}");
+      } catch {
+        return {};
+      }
+    })(),
     characters: script?.characters || [],
     scenes: script?.scenes || [],
     sceneImages,
@@ -719,7 +732,10 @@ export async function getCartoonJobStatus(jobId: string, userId: string) {
  */
 export async function listCartoonVideos(userId: string, limit = 20) {
   return prisma.cartoonVideo.findMany({
-    where: { userId },
+    where: {
+      userId,
+      metadata: { contains: "story_ad_movie" },
+    },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: {

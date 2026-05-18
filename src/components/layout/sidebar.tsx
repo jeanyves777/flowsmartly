@@ -116,6 +116,7 @@ const contentNavigation = [
 // AI Creatives
 const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
+  { name: "Story Ad Movie", href: "/cartoon-maker", icon: Clapperboard },
   { name: "Video Editor", href: "/video-editor", icon: Clapperboard },
   // { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Voice Studio", href: "/voice-studio", icon: Mic },
@@ -552,7 +553,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
 
             {/* Filtered AI Creatives */}
             {filterByAllowed(aiCreativesNavigation).length > 0 &&
-              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-editor", "/voice-studio", "/logo-generator", "/media", "/designs"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
+              renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/cartoon-maker", "/video-editor", "/voice-studio", "/logo-generator", "/media", "/designs"].some(p => pathname.startsWith(p)), filterByAllowed(aiCreativesNavigation))}
 
             {/* Filtered Marketing */}
             {filterByAllowed(marketingNavigation).length > 0 &&
@@ -608,7 +609,7 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
             {/* AI Creatives Section */}
             {(() => {
               const items = filterByActivated(aiCreativesNavigation);
-              return items.length > 0 && renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/video-editor", "/voice-studio", "/logo-generator", "/media", "/designs"].some(p => pathname.startsWith(p)), items);
+              return items.length > 0 && renderCollapsibleSection("AI Creatives", Palette, aiCreativesOpen, setAiCreativesOpen, ["/studio", "/cartoon-maker", "/video-editor", "/voice-studio", "/logo-generator", "/media", "/designs"].some(p => pathname.startsWith(p)), items);
             })()}
 
             {/* Marketing Section */}

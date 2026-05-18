@@ -28,7 +28,7 @@ const DEFAULT_PRICING: {
   { key: "AI_VISUAL_DESIGN", name: "AI Visual Design", description: "Generate a single visual design/graphic (~$0.08)", credits: 15, category: "ai_image" },
   { key: "AI_MARKETING_IMAGE", name: "AI Marketing Image", description: "Single image for MMS/email campaigns (~$0.06)", credits: 12, category: "ai_image" },
   // AI Video Generation
-  { key: "AI_CARTOON_VIDEO", name: "AI Cartoon Video", description: "6-8 scene images + TTS audio + video composition (~$0.50)", credits: 80, category: "ai_video" },
+  { key: "AI_CARTOON_VIDEO", name: "Legacy AI Cartoon Video", description: "Legacy cartoon pipeline", credits: 80, category: "ai_video" },
   { key: "AI_CARTOON_CHARACTER_REGEN", name: "AI Character Regeneration", description: "Regenerate a single character preview image", credits: 10, category: "ai_video" },
   // AI Video Studio
   { key: "AI_VIDEO_STUDIO", name: "AI Video Studio (Veo 3)", description: "Veo 3 AI video per 8s clip (~$0.35 Google cost)", credits: 60, category: "ai_video" },
