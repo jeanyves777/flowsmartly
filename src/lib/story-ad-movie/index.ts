@@ -1,18 +1,12 @@
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import { TRANSACTION_TYPES } from "@/lib/credits";
-import { generateVoice } from "@/lib/voice/voice-engine";
-import {
-  compositeSlideshowVideo,
-  generateSlideshowImages,
-  type SlideshowScene,
-} from "@/lib/video-studio";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { getPresignedUrl, uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
-import fs from "fs";
 
 export type StoryAdMovieAspectRatio = "9:16" | "1:1" | "16:9";
-export type StoryAdMovieDuration = 15 | 30 | 45;
+export type StoryAdMovieDuration = 8 | 12 | 15;
 
 export interface StoryAdMovieInput {
   jobId: string;
@@ -23,6 +17,17 @@ export interface StoryAdMovieInput {
   style: string;
   goal?: string | null;
   destinationUrl?: string | null;
+  platforms?: string[];
+  referenceMediaUrls?: string[];
+  referenceMedia?: StoryAdMovieReferenceMedia[];
+  characterBrief?: string | null;
+}
+
+export interface StoryAdMovieReferenceMedia {
+  url: string;
+  scene?: string | null;
+  note?: string | null;
+  type?: "image" | "video" | "media" | null;
 }
 
 interface BrandSnapshot {
@@ -47,7 +52,15 @@ export interface StoryAdMovieScript {
   campaignCaption: string;
   ctaText: string;
   hashtags: string[];
-  scenes: SlideshowScene[];
+  videoPrompt: string;
+  scenes: StoryAdMovieScene[];
+}
+
+export interface StoryAdMovieScene {
+  sceneNumber: number;
+  narration: string;
+  imagePrompt: string;
+  caption?: string;
 }
 
 const STYLE_HINTS: Record<string, string> = {
@@ -132,13 +145,45 @@ function normalizeAspectRatio(value: unknown): StoryAdMovieAspectRatio {
 
 function normalizeDuration(value: unknown): StoryAdMovieDuration {
   const numeric = Number(value);
-  if (numeric <= 15) return 15;
-  if (numeric <= 30) return 30;
-  return 45;
+  if (numeric <= 8) return 8;
+  if (numeric <= 12) return 12;
+  return 15;
+}
+
+function normalizeStringArray(value: unknown, max = 8): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim())
+  )].slice(0, max);
+}
+
+function normalizeReferenceMedia(value: unknown): StoryAdMovieReferenceMedia[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: StoryAdMovieReferenceMedia[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const url = typeof record.url === "string" ? record.url.trim() : "";
+    if (!url) continue;
+    const rawType = typeof record.type === "string" ? record.type : null;
+    normalized.push({
+      url,
+      scene: typeof record.scene === "string" ? record.scene.trim().slice(0, 120) : null,
+      note: typeof record.note === "string" ? record.note.trim().slice(0, 400) : null,
+      type: rawType === "image" || rawType === "video" || rawType === "media" ? rawType : null,
+    });
+  }
+  return normalized.slice(0, 12);
 }
 
 export function normalizeStoryAdMovieInput(body: Record<string, unknown>) {
   const brief = String(body.brief || body.storyPrompt || "").trim();
+  const referenceMedia = normalizeReferenceMedia(body.referenceMedia);
+  const referenceMediaUrls = [
+    ...normalizeStringArray(body.referenceMediaUrls, 10),
+    ...referenceMedia.map((item) => item.url),
+  ];
   return {
     brief,
     aspectRatio: normalizeAspectRatio(body.aspectRatio),
@@ -146,6 +191,10 @@ export function normalizeStoryAdMovieInput(body: Record<string, unknown>) {
     style: typeof body.style === "string" && body.style.trim() ? body.style.trim() : "cinematic",
     goal: typeof body.goal === "string" ? body.goal.trim() : null,
     destinationUrl: typeof body.destinationUrl === "string" ? body.destinationUrl.trim() : null,
+    platforms: normalizeStringArray(body.platforms),
+    referenceMediaUrls: [...new Set(referenceMediaUrls)].slice(0, 12),
+    referenceMedia,
+    characterBrief: typeof body.characterBrief === "string" ? body.characterBrief.trim() : null,
   };
 }
 
@@ -154,8 +203,19 @@ async function generateStoryAdScript(input: StoryAdMovieInput, brand: BrandSnaps
   const wordsPerScene = input.duration <= 15 ? 9 : input.duration <= 30 ? 12 : 14;
   const styleHint = STYLE_HINTS[input.style] || STYLE_HINTS.cinematic;
   const destination = input.destinationUrl || brand.website || "";
+  const platforms = input.platforms?.length ? input.platforms.join(", ") : "social feed";
+  const referenceItems: StoryAdMovieReferenceMedia[] = input.referenceMedia?.length
+    ? input.referenceMedia
+    : (input.referenceMediaUrls || []).map((url) => ({ url }));
+  const references = referenceItems.length
+    ? referenceItems.map((item, index) => [
+        `${index + 1}. ${item.url}`,
+        item.scene ? `Scene: ${item.scene}` : null,
+        item.note ? `Use for: ${item.note}` : null,
+      ].filter(Boolean).join(" | ")).join("\n")
+    : "No reference media supplied";
 
-  const prompt = `Create a story-driven advertising still movie for this business.
+  const prompt = `Create a direct xAI video-generation plan for a story-driven advertising movie.
 
 BRAND
 - Name: ${brand.name}
@@ -175,8 +235,17 @@ ${input.brief}
 GOAL
 ${input.goal || "Create desire, trust, and a clear reason to act."}
 
-DESTINATION
+SOCIAL DESTINATIONS
+${platforms}
+
+CTA LINK OR WEBSITE
 ${destination || "No URL provided"}
+
+CHARACTER OR TALENT
+${input.characterBrief || "AI should choose natural people, product moments, or scene talent that fit the brand."}
+
+REFERENCE MEDIA
+${references}
 
 FORMAT
 - ${input.duration} seconds
@@ -185,13 +254,14 @@ FORMAT
 - Visual style: ${styleHint}
 
 REQUIREMENTS
-1. This is not a cartoon. It is a premium advertising still movie built from cinematic scenes.
+1. This is not a cartoon and not a patched slideshow. It is a direct AI-generated advertising video with real motion.
 2. Tell a mini story: hook, customer pain, transformation, proof, offer, call to action.
-3. Every scene must have concise voiceover narration, around ${wordsPerScene} words.
-4. imagePrompt must describe a realistic or polished commercial still with NO text, NO fake logos, NO readable letters, NO UI, NO captions in the image.
-5. caption must be 0 to 4 words. Keep at least two captions empty for a clean ad.
-6. campaignCaption should be ready to post on a social feed.
-7. hashtags should be 3 to 6 clean business hashtags.
+3. Every scene must have concise narration or native audio direction, around ${wordsPerScene} words.
+4. videoPrompt must be a single polished prompt ready for xAI Grok video generation.
+5. imagePrompt is only a visual beat description for timeline preview; do not ask for separate generated images.
+6. Keep on-screen text minimal. No fake logos, watermarks, distorted hands, or unreadable UI.
+7. campaignCaption should be ready to post on the selected social platforms.
+8. hashtags should be 3 to 6 clean business hashtags.
 
 Return strict JSON only:
 {
@@ -199,6 +269,7 @@ Return strict JSON only:
   "campaignCaption": "Social post caption",
   "ctaText": "Short CTA",
   "hashtags": ["#Example"],
+  "videoPrompt": "One direct video-generation prompt for xAI",
   "scenes": [
     {
       "sceneNumber": 1,
@@ -240,46 +311,13 @@ Return strict JSON only:
     title: String(result.title || `${brand.name} Story Ad`).trim().slice(0, 90),
     campaignCaption: String(result.campaignCaption || input.brief).trim().slice(0, 700),
     ctaText: String(result.ctaText || "Learn More").trim().slice(0, 40),
+    videoPrompt: String(result.videoPrompt || "").trim(),
     hashtags: (Array.isArray(result.hashtags) ? result.hashtags : [])
       .map((tag) => String(tag).trim())
       .filter(Boolean)
       .slice(0, 6),
     scenes,
   };
-}
-
-async function generateVoiceoverAudio(script: StoryAdMovieScript, brand: BrandSnapshot): Promise<Buffer> {
-  const narration = script.scenes.map((scene) => scene.narration).join(" ");
-  const voiceTone = (brand.voiceTone || "").toLowerCase();
-  const dramatic = voiceTone.includes("bold") || voiceTone.includes("luxury") || voiceTone.includes("premium");
-
-  const result = await generateVoice({
-    text: narration,
-    gender: dramatic ? "male" : "female",
-    accent: "american",
-    style: dramatic ? "dramatic" : "professional",
-    speed: 0.98,
-    overrideVoice: dramatic ? "onyx" : "nova",
-  });
-
-  return result.audioBuffer;
-}
-
-async function resolveBrandLogo(brand: BrandSnapshot): Promise<string | null> {
-  const logo = brand.logo || brand.iconLogo;
-  if (!logo) return null;
-  if (logo.startsWith("data:") || logo.startsWith("http") || logo.startsWith("/")) {
-    try {
-      return logo.startsWith("http") ? await getPresignedUrl(logo) : logo;
-    } catch {
-      return logo;
-    }
-  }
-  try {
-    return await getPresignedUrl(logo);
-  } catch {
-    return null;
-  }
 }
 
 async function ensureStoryAdMovieFolder(userId: string): Promise<string> {
@@ -389,6 +427,7 @@ function toCartoonCompatibleScript(script: StoryAdMovieScript) {
     campaignCaption: script.campaignCaption,
     ctaText: script.ctaText,
     hashtags: script.hashtags,
+    videoPrompt: script.videoPrompt,
     characters: [],
     scenes: script.scenes.map((scene) => ({
       sceneNumber: scene.sceneNumber,
@@ -404,11 +443,71 @@ function toCartoonCompatibleScript(script: StoryAdMovieScript) {
   };
 }
 
+function normalizeVideoAspect(aspectRatio: StoryAdMovieAspectRatio): "16:9" | "9:16" | "1:1" {
+  return aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9";
+}
+
+function isImageReference(url: string): boolean {
+  const clean = url.split("?")[0].toLowerCase();
+  return /\.(png|jpe?g|webp|gif)$/.test(clean);
+}
+
+async function resolveXaiReferenceImage(referenceMediaUrls: string[] = []): Promise<string | undefined> {
+  const rawImage = referenceMediaUrls.find(isImageReference);
+  if (!rawImage) return undefined;
+  if (/^https?:\/\//i.test(rawImage) && !/amazonaws\.com|flowsmartly/i.test(rawImage)) {
+    return rawImage;
+  }
+  try {
+    return await getPresignedUrl(rawImage, 3600);
+  } catch {
+    return rawImage;
+  }
+}
+
+function buildDirectXaiVideoPrompt(
+  script: StoryAdMovieScript,
+  input: StoryAdMovieInput,
+  brand: BrandSnapshot
+): string {
+  const platforms = input.platforms?.length ? input.platforms.join(", ") : "social feed";
+  const references = input.referenceMediaUrls?.length
+    ? `Reference media supplied (${input.referenceMediaUrls.length}). Preserve the real product, people, location, colors, and visual mood when relevant.`
+    : "No reference media supplied; invent clean brand-safe commercial visuals.";
+  const referenceSceneMap = input.referenceMedia?.length
+    ? input.referenceMedia.map((item, index) => [
+        `Reference ${index + 1}: ${item.type || "media"}`,
+        item.scene ? `Scene/script: ${item.scene}` : null,
+        item.note ? `Instruction: ${item.note}` : null,
+      ].filter(Boolean).join(" | ")).join("\n")
+    : "";
+  const sceneArc = script.scenes
+    .map((scene) => `${scene.sceneNumber}. ${scene.narration} ${scene.caption ? `(${scene.caption})` : ""}`)
+    .join(" ");
+
+  return [
+    script.videoPrompt || input.brief,
+    "",
+    "Generate a complete moving advertisement video, not a slideshow and not separate still frames.",
+    `Duration: ${input.duration} seconds. Aspect ratio: ${input.aspectRatio}. Style: ${STYLE_HINTS[input.style] || STYLE_HINTS.cinematic}.`,
+    `Target platforms: ${platforms}.`,
+    `Brand: ${brand.name}${brand.industry ? `, ${brand.industry}` : ""}${brand.targetAudience ? `. Audience: ${brand.targetAudience}` : ""}.`,
+    brand.uniqueValue ? `Unique value: ${brand.uniqueValue}.` : "",
+    input.goal ? `Campaign goal: ${input.goal}.` : "",
+    input.characterBrief ? `Main character or talent: ${input.characterBrief}.` : "",
+    references,
+    referenceSceneMap ? `Scene-specific reference map:\n${referenceSceneMap}` : "",
+    `Story arc: ${sceneArc}`,
+    `Call to action: ${script.ctaText || "Learn more"}.`,
+    "Use natural camera movement, polished lighting, realistic motion, and native commercial audio or voiceover if supported.",
+    "Avoid watermarks, fake competitor logos, unreadable text, distorted hands, broken faces, and cluttered UI screens.",
+  ].filter(Boolean).join("\n");
+}
+
 export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<void> {
   try {
     await updateJobStatus(input.jobId, "PROCESSING", 8, "Reading your brand and offer...");
     const brand = await getBrandSnapshot(input.userId);
-    const brandLogo = await resolveBrandLogo(brand);
 
     await updateJobStatus(input.jobId, "PROCESSING", 18, "Writing the ad story...");
     const script = await generateStoryAdScript(input, brand);
@@ -433,53 +532,42 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
         style: input.style,
         goal: input.goal || null,
         destinationUrl: input.destinationUrl || brand.website || null,
+        platforms: input.platforms || [],
+        referenceMediaUrls: input.referenceMediaUrls || [],
+        referenceMedia: input.referenceMedia || [],
+        characterBrief: input.characterBrief || null,
+        provider: "xai",
+        model: "grok-imagine-video",
         brand,
       }),
     });
 
-    const images = await generateSlideshowImages(script.scenes, input.aspectRatio, (current, total) => {
-      updateJobStatus(
-        input.jobId,
-        "PROCESSING",
-        30 + Math.round((current / total) * 30),
-        `Creating scene ${current}/${total}...`,
-      ).catch(console.error);
-    });
+    if (!grokVideoClient.isAvailable()) {
+      throw new Error("xAI video generation is not configured.");
+    }
 
-    const sceneImages = await Promise.all(images.map(async (image, index) => {
-      const buffer = fs.readFileSync(image.localPath);
-      const imageUrl = await uploadToS3(
-        `story-ad-movies/${input.userId}/${input.jobId}/scene-${index + 1}.png`,
-        buffer,
-        "image/png",
-      );
-      return { sceneNumber: image.sceneNumber, imageUrl };
-    }));
+    const xaiReferenceImage = await resolveXaiReferenceImage(input.referenceMediaUrls);
+    const videoPrompt = buildDirectXaiVideoPrompt(script, input, brand);
 
-    const thumbnailUrl = sceneImages[0]?.imageUrl || null;
-    await updateJobStatus(input.jobId, "PROCESSING", 64, "Recording voiceover...", {
-      sceneImages: JSON.stringify(sceneImages),
-      thumbnailUrl,
-    });
-
-    const audioBuffer = await generateVoiceoverAudio(script, brand);
-
-    await updateJobStatus(input.jobId, "COMPOSITING", 78, "Turning scenes into a movie...");
-    const videoBuffer = await compositeSlideshowVideo({
-      scenes: script.scenes,
-      images,
-      audioBuffer,
+    await updateJobStatus(input.jobId, "COMPOSITING", 52, "Sending your story to xAI video...");
+    const result = await grokVideoClient.generateVideo(videoPrompt, {
+      duration: input.duration,
+      aspectRatio: normalizeVideoAspect(input.aspectRatio),
       resolution: "720p",
-      aspectRatio: input.aspectRatio,
-      brandLogo,
+      imageUrl: xaiReferenceImage,
+      timeoutMs: 900000,
+      onStatus: (message) => {
+        updateJobStatus(input.jobId, "COMPOSITING", 68, message).catch(console.error);
+      },
     });
 
     await updateJobStatus(input.jobId, "PROCESSING", 92, "Publishing your ad movie...");
     const videoUrl = await uploadToS3(
       `story-ad-movies/${input.userId}/${input.jobId}/${nanoid(8)}.mp4`,
-      videoBuffer,
+      result.videoBuffer,
       "video/mp4",
     );
+    const thumbnailUrl = input.referenceMediaUrls?.find(isImageReference) || null;
 
     await prisma.cartoonVideo.update({
       where: { id: input.jobId },
@@ -489,7 +577,7 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
         currentStep: "Story ad movie ready",
         videoUrl,
         thumbnailUrl,
-        videoDuration: input.duration,
+        videoDuration: result.duration || input.duration,
         completedAt: new Date(),
       },
     });
@@ -499,7 +587,7 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
       title: script.title,
       videoUrl,
       thumbnailUrl,
-      size: videoBuffer.length,
+      size: result.videoBuffer.length,
     });
 
     await prisma.notification.create({

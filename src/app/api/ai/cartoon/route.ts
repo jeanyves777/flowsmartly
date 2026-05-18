@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { listCartoonVideos } from "@/lib/cartoon";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import {
   normalizeStoryAdMovieInput,
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { message: "Tell AI what you want to advertise." } },
         { status: 400 },
+      );
+    }
+
+    if (!grokVideoClient.isAvailable()) {
+      return NextResponse.json(
+        { success: false, error: { message: "xAI video generation is not configured." } },
+        { status: 503 },
       );
     }
 
@@ -69,6 +77,12 @@ export async function POST(request: NextRequest) {
           style: input.style,
           goal: input.goal || null,
           destinationUrl: input.destinationUrl || null,
+          platforms: input.platforms || [],
+          referenceMediaUrls: input.referenceMediaUrls || [],
+          referenceMedia: input.referenceMedia || [],
+          characterBrief: input.characterBrief || null,
+          provider: "xai",
+          model: "grok-imagine-video",
           chargedCredits: isAdmin ? 0 : creditCost,
         }),
       },
@@ -87,6 +101,7 @@ export async function POST(request: NextRequest) {
           feature: "AI_VIDEO_SLIDESHOW",
           duration: input.duration,
           aspectRatio: input.aspectRatio,
+          provider: "xai",
         },
       });
 
@@ -109,6 +124,10 @@ export async function POST(request: NextRequest) {
       style: input.style,
       goal: input.goal,
       destinationUrl: input.destinationUrl,
+      platforms: input.platforms,
+      referenceMediaUrls: input.referenceMediaUrls,
+      referenceMedia: input.referenceMedia,
+      characterBrief: input.characterBrief,
     }).catch((error) => {
       console.error("[StoryAdMovie] background processing failed:", error);
     });
