@@ -48,7 +48,7 @@ interface AdCampaign {
     email: string;
     avatarUrl: string | null;
   };
-  post: { id: string; caption: string | null; mediaUrl: string | null } | null;
+  post: { id: string; caption: string | null; mediaUrl: string | null; mediaType?: string | null } | null;
   adPage: { id: string; slug: string; views: number; clicks: number } | null;
   landingPage: { id: string; title: string; slug: string; thumbnailUrl: string | null } | null;
 }
@@ -66,6 +66,12 @@ const FILTER_TABS = [
   { id: "REJECTED", label: "Rejected", icon: XCircle, color: "text-red-500" },
   { id: "all", label: "All", icon: Megaphone, color: "text-muted-foreground" },
 ];
+
+function isVideoLikeUrl(value?: string | null): boolean {
+  if (!value) return false;
+  const clean = value.split("?")[0].split("#")[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v)$/.test(clean) || clean.includes("/video/");
+}
 
 export default function AdminAdsPage() {
   const { toast } = useToast();
@@ -247,6 +253,8 @@ export default function AdminAdsPage() {
           {campaigns.map(campaign => {
             const typeConfig = AD_TYPE_CONFIG[campaign.adType] || AD_TYPE_CONFIG.POST;
             const TypeIcon = typeConfig.icon;
+            const previewUrl = campaign.videoUrl || campaign.mediaUrl || campaign.post?.mediaUrl || null;
+            const previewIsVideo = isVideoLikeUrl(previewUrl) || !!campaign.post?.mediaType?.toLowerCase().includes("video");
 
             return (
               <motion.div
@@ -259,10 +267,12 @@ export default function AdminAdsPage() {
                     <div className="flex gap-4">
                       {/* Media Preview */}
                       <div className="w-32 h-32 rounded-xl bg-muted overflow-hidden shrink-0">
-                        {campaign.mediaUrl ? (
-                          <img src={campaign.mediaUrl} alt="" className="w-full h-full object-cover" />
-                        ) : campaign.post?.mediaUrl ? (
-                          <img src={campaign.post.mediaUrl} alt="" className="w-full h-full object-cover" />
+                        {previewUrl ? (
+                          previewIsVideo ? (
+                            <video src={previewUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                          ) : (
+                            <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <TypeIcon className={`w-8 h-8 ${typeConfig.color} opacity-40`} />
@@ -433,9 +443,13 @@ export default function AdminAdsPage() {
                   <span>By: {reviewCampaign.user.name || reviewCampaign.user.email}</span>
                   <span>Budget: {reviewCampaign.budget} credits</span>
                 </div>
-                {reviewCampaign.mediaUrl && (
+                {(reviewCampaign.videoUrl || reviewCampaign.mediaUrl) && (
                   <div className="w-full h-32 rounded-xl overflow-hidden bg-muted">
-                    <img src={reviewCampaign.mediaUrl} alt="" className="w-full h-full object-cover" />
+                    {isVideoLikeUrl(reviewCampaign.videoUrl || reviewCampaign.mediaUrl) ? (
+                      <video src={reviewCampaign.videoUrl || reviewCampaign.mediaUrl || undefined} className="w-full h-full object-cover" controls />
+                    ) : (
+                      <img src={reviewCampaign.mediaUrl || ""} alt="" className="w-full h-full object-cover" />
+                    )}
                   </div>
                 )}
               </div>

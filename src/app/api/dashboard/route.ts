@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { parseAdTargeting, SYSTEM_PREMIER_SPOTLIGHT_FLAG, targetingRequestsSpotlight } from "@/lib/ads/spotlight";
 
 function firstMediaUrl(mediaMeta?: string | null, fallback?: string | null): string | null {
   if (mediaMeta) {
@@ -21,6 +22,28 @@ function firstMediaUrl(mediaMeta?: string | null, fallback?: string | null): str
 
 function isVideoUrl(value?: string | null): boolean {
   return !!value?.match(/\.(mp4|webm|mov|m4v)(\?|#|$)/i);
+}
+
+function firstVideoMediaUrl(mediaMeta?: string | null, fallback?: string | null): string | null {
+  if (isVideoUrl(fallback)) return fallback || null;
+  if (mediaMeta) {
+    try {
+      const parsed = JSON.parse(mediaMeta);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const url = typeof item === "string"
+            ? item
+            : item && typeof item === "object" && typeof item.url === "string"
+              ? item.url
+              : null;
+          if (isVideoUrl(url)) return url;
+        }
+      }
+    } catch {
+      // Use the stored fallback below.
+    }
+  }
+  return isVideoUrl(fallback) ? fallback || null : null;
 }
 
 function parseJsonObject(value?: string | null): Record<string, unknown> {
@@ -247,6 +270,7 @@ export async function GET() {
         where: {
           status: "ACTIVE",
           userId: { not: userId },
+          targeting: { contains: "spotlight" },
           OR: [
             { videoUrl: { not: null } },
             { mediaUrl: { contains: ".mp4" } },
@@ -270,6 +294,7 @@ export async function GET() {
           videoUrl: true,
           destinationUrl: true,
           ctaText: true,
+          targeting: true,
           user: {
             select: { name: true, avatarUrl: true },
           },
@@ -281,6 +306,7 @@ export async function GET() {
           deletedAt: null,
           status: "PUBLISHED",
           userId: { not: userId },
+          adCampaign: { is: { targeting: { contains: "spotlight" } } },
           OR: [
             { mediaType: { contains: "video" } },
             { mediaUrl: { contains: ".mp4" } },
@@ -309,7 +335,7 @@ export async function GET() {
           likeCount: true,
           commentCount: true,
           adCampaign: {
-            select: { destinationUrl: true, ctaText: true },
+            select: { destinationUrl: true, ctaText: true, targeting: true },
           },
           user: {
             select: { name: true, avatarUrl: true },
@@ -484,26 +510,30 @@ export async function GET() {
       premierVideos: [
         ...premierVideoAds
           .map((ad) => {
+            if (!targetingRequestsSpotlight(ad.targeting)) return null;
             const videoUrl = ad.videoUrl || (isVideoUrl(ad.mediaUrl) ? ad.mediaUrl : null);
             if (!videoUrl) return null;
+            const adTargeting = parseAdTargeting(ad.targeting);
+            const isSystemSpotlight = adTargeting[SYSTEM_PREMIER_SPOTLIGHT_FLAG] === true;
             return {
               id: `ad-${ad.id}`,
               title: ad.headline || ad.name,
               description: ad.description || "Premier boosted video from a FlowSmartly client.",
               videoUrl,
               posterUrl: !isVideoUrl(ad.mediaUrl) ? ad.mediaUrl : null,
-              destinationUrl: ad.destinationUrl || "/feed",
-              ctaText: ad.ctaText || "Learn more",
+              destinationUrl: ad.destinationUrl || (isSystemSpotlight ? "/ads/create" : "/feed"),
+              ctaText: ad.ctaText || (isSystemSpotlight ? "Create a campaign" : "Learn more"),
               authorName: ad.user.name,
               authorAvatar: ad.user.avatarUrl,
-              source: "Premier boosted ad",
+              source: isSystemSpotlight ? "FlowSmartly premier" : "Premier boosted ad",
             };
           })
           .filter(Boolean),
         ...premierVideoPosts
           .map((post) => {
-            const mediaUrl = firstMediaUrl(post.mediaMeta, post.mediaUrl);
-            if (!mediaUrl || (!isVideoUrl(mediaUrl) && !post.mediaType?.toLowerCase().includes("video"))) return null;
+            if (!targetingRequestsSpotlight(post.adCampaign?.targeting)) return null;
+            const mediaUrl = firstVideoMediaUrl(post.mediaMeta, post.mediaUrl);
+            if (!mediaUrl) return null;
             return {
               id: `post-${post.id}`,
               postId: post.id,

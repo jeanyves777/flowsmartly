@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { activateOnAllChannels } from "@/lib/ads/placement-engine";
+import { getSpotlightFeeCredits } from "@/lib/ads/spotlight";
 
 // POST /api/admin/ads/[campaignId]/review - Approve or reject an ad campaign
 export async function POST(
@@ -131,7 +132,7 @@ export async function POST(
 
       // Optionally refund credits
       if (refundCredits) {
-        const refundAmount = Math.round(campaign.budgetCents / 1); // 1 credit = 1 cent
+        const refundAmount = Math.round(campaign.budgetCents / 1) + getSpotlightFeeCredits(campaign.targeting); // 1 credit = 1 cent
         await creditService.addCredits({
           userId: campaign.userId,
           type: TRANSACTION_TYPES.REFUND,

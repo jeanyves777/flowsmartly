@@ -6,8 +6,41 @@ import { creditService, TRANSACTION_TYPES, CREDIT_TO_CENTS } from "@/lib/credits
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { generateAdPageHtml, generateAdPageSlug } from "@/lib/ads/ad-page-generator";
 import { getPlacementChannels, getRequestedPlacementChannels } from "@/lib/ads/placement-engine";
+import { getSpotlightFeeCredits, isVideoLikeUrl, targetingRequestsSpotlight } from "@/lib/ads/spotlight";
 
 const VALID_AD_TYPES = ["POST", "PRODUCT_LINK", "LANDING_PAGE", "EXTERNAL_URL"] as const;
+
+function postHasVideoMedia(post: { mediaType: string | null; mediaUrl: string | null; mediaMeta: string | null }): boolean {
+  if (post.mediaType?.toLowerCase().includes("video")) return true;
+  if (isVideoLikeUrl(post.mediaUrl)) return true;
+  if (!post.mediaMeta) return false;
+  try {
+    const parsed = JSON.parse(post.mediaMeta);
+    return Array.isArray(parsed) && parsed.some((item) => {
+      if (typeof item === "string") return isVideoLikeUrl(item);
+      if (item && typeof item === "object" && "url" in item) {
+        return isVideoLikeUrl((item as { url?: string }).url);
+      }
+      return false;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function firstPostMediaUrl(post: { mediaUrl: string | null; mediaMeta: string | null }): string | null {
+  if (!post.mediaMeta) return post.mediaUrl;
+  try {
+    const parsed = JSON.parse(post.mediaMeta);
+    if (!Array.isArray(parsed)) return post.mediaUrl;
+    const first = parsed[0];
+    if (typeof first === "string" && first) return first;
+    if (first && typeof first === "object" && typeof first.url === "string") return first.url;
+  } catch {
+    return post.mediaUrl;
+  }
+  return post.mediaUrl;
+}
 
 // GET /api/ads - Get user's ad campaigns
 export async function GET(request: NextRequest) {
@@ -50,6 +83,8 @@ export async function GET(request: NextRequest) {
               id: true,
               caption: true,
               mediaUrl: true,
+              mediaMeta: true,
+              mediaType: true,
             },
             take: 1,
           },
@@ -137,7 +172,14 @@ export async function GET(request: NextRequest) {
         tiktokAdsAdGroupId: campaign.tiktokAdsAdGroupId,
       },
       // Relations
-      post: campaign.posts[0] || null,
+      post: campaign.posts[0]
+        ? {
+          id: campaign.posts[0].id,
+          caption: campaign.posts[0].caption,
+          mediaUrl: firstPostMediaUrl(campaign.posts[0]),
+          mediaType: campaign.posts[0].mediaType,
+        }
+        : null,
       adPage: campaign.adPage || null,
       landingPage: campaign.landingPage || null,
       createdAt: campaign.createdAt.toISOString(),
@@ -313,15 +355,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let validatedPosts: Array<{ id: string; mediaType: string | null; mediaUrl: string | null; mediaMeta: string | null }> = [];
     if (resolvedPostIds.length > 0) {
-      const userPosts = await prisma.post.findMany({
+      validatedPosts = await prisma.post.findMany({
         where: { id: { in: resolvedPostIds }, userId: session.userId },
-        select: { id: true },
+        select: { id: true, mediaType: true, mediaUrl: true, mediaMeta: true },
       });
-      if (userPosts.length !== resolvedPostIds.length) {
+      if (validatedPosts.length !== resolvedPostIds.length) {
         return NextResponse.json(
           { success: false, error: { message: "One or more posts not found" } },
           { status: 404 }
+        );
+      }
+    }
+
+    const spotlightRequested = targetingRequestsSpotlight(targeting);
+    if (spotlightRequested) {
+      const hasVideoCreative = adType === "POST"
+        ? validatedPosts.some(postHasVideoMedia)
+        : isVideoLikeUrl(videoUrl) || isVideoLikeUrl(mediaUrl);
+
+      if (!hasVideoCreative) {
+        return NextResponse.json(
+          { success: false, error: { message: "Premier video spotlight needs a video post or video creative." } },
+          { status: 400 }
         );
       }
     }
@@ -343,10 +400,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const spotlightFeeCredits = getSpotlightFeeCredits(targeting);
+    const totalChargeCredits = creditBudget + spotlightFeeCredits;
     const balance = await creditService.getBalance(session.userId);
-    if (balance < creditBudget) {
+    if (balance < totalChargeCredits) {
       return NextResponse.json(
-        { success: false, error: { message: `Insufficient credits. You need ${creditBudget} credits (you have ${balance}).` } },
+        { success: false, error: { message: `Insufficient credits. You need ${totalChargeCredits} credits (you have ${balance}).` } },
         { status: 400 }
       );
     }
@@ -356,10 +415,8 @@ export async function POST(request: NextRequest) {
     await creditService.deductCredits({
       userId: session.userId,
       type: TRANSACTION_TYPES.USAGE,
-      amount: creditBudget,
-      description: isBoost
-        ? `Ad boost: ${name} (${creditBudget} credits)`
-        : `Ad campaign: ${name} (${creditBudget} credits)`,
+      amount: totalChargeCredits,
+      description: `${isBoost ? "Ad boost" : "Ad campaign"}: ${name} (${totalChargeCredits} credits${spotlightFeeCredits ? ", includes premier spotlight" : ""})`,
       referenceType: "ad_campaign",
     });
 
@@ -453,6 +510,7 @@ export async function POST(request: NextRequest) {
           status: campaign.status.toLowerCase(),
           approvalStatus: campaign.approvalStatus,
           createdAt: campaign.createdAt.toISOString(),
+          creditsCharged: totalChargeCredits,
         },
       }),
     });

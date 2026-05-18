@@ -72,12 +72,14 @@ interface AdCampaign {
   description: string | null;
   destinationUrl: string | null;
   mediaUrl: string | null;
+  videoUrl: string | null;
   rejectionReason: string | null;
   providers?: string[];
   post: {
     id: string;
     caption: string;
     mediaUrl: string | null;
+    mediaType?: string | null;
   } | null;
   adPage: {
     id: string;
@@ -146,6 +148,12 @@ function formatNumber(value: number) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function isVideoLikeUrl(value?: string | null): boolean {
+  if (!value) return false;
+  const clean = value.split("?")[0].split("#")[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v)$/.test(clean) || clean.includes("/video/");
 }
 
 export default function AdsPage() {
@@ -432,7 +440,8 @@ export default function AdsPage() {
                 const canPause = campaign.status === "active";
                 const canDelete = campaign.status === "draft" || campaign.status === "scheduled";
                 const hasMenuActions = Boolean(campaign.destinationUrl || campaign.adPage || canDelete);
-                const previewImage = campaign.mediaUrl || campaign.post?.mediaUrl || campaign.landingPage?.thumbnailUrl;
+                const previewMedia = campaign.videoUrl || campaign.mediaUrl || campaign.post?.mediaUrl || campaign.landingPage?.thumbnailUrl;
+                const previewIsVideo = isVideoLikeUrl(campaign.videoUrl) || isVideoLikeUrl(campaign.mediaUrl) || isVideoLikeUrl(campaign.post?.mediaUrl) || !!campaign.post?.mediaType?.toLowerCase().includes("video");
                 const title = campaign.headline || campaign.landingPage?.title || campaign.name;
                 const description = campaign.description || campaign.post?.caption || campaign.destinationUrl || "No description yet";
 
@@ -441,8 +450,12 @@ export default function AdsPage() {
                     <CardContent className="p-0">
                       <div className="grid gap-0 lg:grid-cols-[180px_minmax(0,1fr)]">
                         <div className="relative min-h-40 bg-muted">
-                          {previewImage ? (
-                            <img src={previewImage} alt="" className="h-full min-h-40 w-full object-cover" />
+                          {previewMedia ? (
+                            previewIsVideo ? (
+                              <video src={previewMedia} className="h-full min-h-40 w-full object-cover" muted playsInline preload="metadata" />
+                            ) : (
+                              <img src={previewMedia} alt="" className="h-full min-h-40 w-full object-cover" />
+                            )
                           ) : (
                             <div className="flex h-full min-h-40 items-center justify-center">
                               <TypeIcon className="h-9 w-9 text-muted-foreground/50" />

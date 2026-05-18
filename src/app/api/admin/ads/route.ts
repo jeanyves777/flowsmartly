@@ -3,6 +3,20 @@ import { prisma } from "@/lib/db/client";
 import { getAdminSession } from "@/lib/admin/auth";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 
+function firstPostMediaUrl(post: { mediaUrl: string | null; mediaMeta: string | null }): string | null {
+  if (!post.mediaMeta) return post.mediaUrl;
+  try {
+    const parsed = JSON.parse(post.mediaMeta);
+    if (!Array.isArray(parsed)) return post.mediaUrl;
+    const first = parsed[0];
+    if (typeof first === "string" && first) return first;
+    if (first && typeof first === "object" && typeof first.url === "string") return first.url;
+  } catch {
+    return post.mediaUrl;
+  }
+  return post.mediaUrl;
+}
+
 // GET /api/admin/ads - List ad campaigns for admin review
 export async function GET(request: NextRequest) {
   try {
@@ -45,6 +59,8 @@ export async function GET(request: NextRequest) {
               id: true,
               caption: true,
               mediaUrl: true,
+              mediaMeta: true,
+              mediaType: true,
             },
             take: 1,
           },
@@ -112,7 +128,14 @@ export async function GET(request: NextRequest) {
       createdAt: campaign.createdAt.toISOString(),
       // Relations
       user: campaign.user,
-      post: campaign.posts[0] || null,
+      post: campaign.posts[0]
+        ? {
+          id: campaign.posts[0].id,
+          caption: campaign.posts[0].caption,
+          mediaUrl: firstPostMediaUrl(campaign.posts[0]),
+          mediaType: campaign.posts[0].mediaType,
+        }
+        : null,
       adPage: campaign.adPage || null,
       landingPage: campaign.landingPage || null,
     }));

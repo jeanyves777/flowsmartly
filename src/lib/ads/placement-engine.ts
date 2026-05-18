@@ -11,12 +11,14 @@ import { activateOnMetaAds, pauseOnMetaAds } from "./meta-ads-handler";
 import { isTikTokAdsConfigured } from "./tiktok-ads-client";
 import { activateOnTikTokAds, pauseOnTikTokAds } from "./tiktok-ads-handler";
 import { REGIONS } from "@/lib/constants/regions";
+import { PREMIER_SPOTLIGHT_CHANNEL_ID, PREMIER_SPOTLIGHT_FEE_CREDITS } from "@/lib/ads/spotlight";
 
 export interface PlacementChannel {
   id: string;
   name: string;
   enabled: boolean;
   description?: string;
+  feeCredits?: number;
 }
 
 export interface AdCandidate {
@@ -35,9 +37,10 @@ export interface AdCandidate {
   adPage: { slug: string } | null;
 }
 
-export type PlacementChannelId = "feed" | "google_ads" | "meta_ads" | "tiktok_ads";
+export type PlacementChannelId = "feed" | "google_ads" | "meta_ads" | "tiktok_ads" | "spotlight";
 
-const ALL_PLACEMENT_CHANNEL_IDS: PlacementChannelId[] = ["feed", "google_ads", "meta_ads", "tiktok_ads"];
+const BASE_PLACEMENT_CHANNEL_IDS: PlacementChannelId[] = ["feed", "google_ads", "meta_ads", "tiktok_ads"];
+const ALL_PLACEMENT_CHANNEL_IDS: PlacementChannelId[] = [...BASE_PLACEMENT_CHANNEL_IDS, PREMIER_SPOTLIGHT_CHANNEL_ID];
 
 export function getRequestedPlacementChannels(targeting?: string | null): PlacementChannelId[] {
   let parsed: { providers?: unknown; placementChannels?: unknown } = {};
@@ -55,7 +58,7 @@ export function getRequestedPlacementChannels(targeting?: string | null): Placem
       : null;
 
   if (!requested) {
-    return ALL_PLACEMENT_CHANNEL_IDS;
+    return BASE_PLACEMENT_CHANNEL_IDS;
   }
 
   const channels = requested.filter((id): id is PlacementChannelId =>
@@ -163,6 +166,13 @@ export function getPlacementChannels(): PlacementChannel[] {
       enabled: isTikTokAdsConfigured(),
       description: "Pushes approved link and product ads to TikTok Ads when configured.",
     },
+    {
+      id: PREMIER_SPOTLIGHT_CHANNEL_ID,
+      name: "Premier video spotlight",
+      enabled: true,
+      description: "Features eligible video ads in the dashboard spotlight.",
+      feeCredits: PREMIER_SPOTLIGHT_FEE_CREDITS,
+    },
   ];
 }
 
@@ -172,6 +182,7 @@ export const PLACEMENT_CHANNELS: PlacementChannel[] = [
   { id: "google_ads", name: "Google Ads", enabled: false },
   { id: "meta_ads", name: "Meta Ads", enabled: false },
   { id: "tiktok_ads", name: "TikTok Ads", enabled: false },
+  { id: PREMIER_SPOTLIGHT_CHANNEL_ID, name: "Premier video spotlight", enabled: true, feeCredits: PREMIER_SPOTLIGHT_FEE_CREDITS },
 ];
 
 /**
@@ -183,6 +194,7 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
   googleAds: boolean;
   metaAds: boolean;
   tiktokAds: boolean;
+  spotlight: boolean;
 }> {
   const campaign = await prisma.adCampaign.findUnique({
     where: { id: campaignId },
@@ -208,7 +220,7 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
   });
 
   if (!campaign) {
-    return { feed: false, googleAds: false, metaAds: false, tiktokAds: false };
+    return { feed: false, googleAds: false, metaAds: false, tiktokAds: false, spotlight: false };
   }
 
   // Feed placement is always active (handled by the feed API query)
@@ -233,7 +245,13 @@ export async function activateOnAllChannels(campaignId: string): Promise<{
     tiktokAdsResult = await activateOnTikTokAds(campaign);
   }
 
-  return { feed: feedResult, googleAds: googleAdsResult, metaAds: metaAdsResult, tiktokAds: tiktokAdsResult };
+  return {
+    feed: feedResult,
+    googleAds: googleAdsResult,
+    metaAds: metaAdsResult,
+    tiktokAds: tiktokAdsResult,
+    spotlight: requestedChannels.has(PREMIER_SPOTLIGHT_CHANNEL_ID),
+  };
 }
 
 /**

@@ -209,7 +209,7 @@ const FLOWSMARTLY_PREMIER_VIDEOS: DashboardPremierVideo[] = [
     description: "A premium FlowSmartly showcase for brands that need posts, ads, and creative assets moving fast.",
     videoUrl: "/marketing/videos/flowsmartly-premier-creative.mp4",
     posterUrl: "/marketing/flowsmartly-studio-team.jpg",
-    destinationUrl: "/content/posts",
+    destinationUrl: "/ads/create",
     ctaText: "Create a campaign",
     authorName: "FlowSmartly",
     authorAvatar: "/icon.png",
@@ -221,8 +221,8 @@ const FLOWSMARTLY_PREMIER_VIDEOS: DashboardPremierVideo[] = [
     description: "A quick look at the operating system behind smarter content, automation, and performance.",
     videoUrl: "/marketing/videos/flowsmartly-premier-growth.mp4",
     posterUrl: "/marketing/transparent/flowsmartly-dashboard-cutout.png",
-    destinationUrl: "/analytics",
-    ctaText: "See analytics",
+    destinationUrl: "/ads/create",
+    ctaText: "Create a campaign",
     authorName: "FlowSmartly",
     authorAvatar: "/icon.png",
     source: "FlowSmartly premier",
@@ -975,7 +975,7 @@ function PremierVideoShowcase({
             </span>
             Premier video spotlight
             <Badge variant="secondary" className="text-[10px]">
-              {videos.some((video) => !video.id.startsWith("flowsmartly-")) ? "Client boosted" : "FlowSmartly premier"}
+              {videos.some((video) => !video.source.toLowerCase().includes("flowsmartly")) ? "Client boosted" : "FlowSmartly premier"}
             </Badge>
           </CardTitle>
           <Button

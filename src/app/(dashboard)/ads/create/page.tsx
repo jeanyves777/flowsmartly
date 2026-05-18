@@ -18,6 +18,7 @@ import {
   Lock,
   Megaphone,
   MessageCircle,
+  Play,
   Rocket,
   Search,
   Settings,
@@ -26,12 +27,14 @@ import {
   Sparkles,
   Target,
   Users,
+  Video,
   Wand2,
   X,
 } from "lucide-react";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { cn } from "@/lib/utils/cn";
 import { REGIONS } from "@/lib/constants/regions";
+import { isVideoLikeUrl, PREMIER_SPOTLIGHT_CHANNEL_ID, PREMIER_SPOTLIGHT_FEE_CREDITS } from "@/lib/ads/spotlight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIIdeasHistory } from "@/components/shared/ai-ideas-history";
@@ -54,6 +58,7 @@ interface UserPost {
   id: string;
   content: string | null;
   mediaUrls: string[];
+  mediaType: string | null;
   likesCount: number;
   commentsCount: number;
   isPromoted: boolean;
@@ -78,6 +83,7 @@ interface AdProvider {
   name: string;
   enabled: boolean;
   description?: string;
+  feeCredits?: number;
 }
 
 const AD_TYPES: Array<{
@@ -172,6 +178,10 @@ const PROVIDER_META: Record<string, { icon: ComponentType<{ className?: string }
     icon: Sparkles,
     tone: "border-neutral-500 bg-neutral-500/10 text-neutral-700 dark:text-neutral-300",
   },
+  spotlight: {
+    icon: Video,
+    tone: "border-cyan-500 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
+  },
 };
 
 const DEFAULT_PROVIDERS: AdProvider[] = [
@@ -182,6 +192,14 @@ const DEFAULT_PROVIDERS: AdProvider[] = [
     description: "Shows approved ads inside FlowSmartly.",
   },
 ];
+
+const DEFAULT_SPOTLIGHT_PROVIDER: AdProvider = {
+  id: PREMIER_SPOTLIGHT_CHANNEL_ID,
+  name: "Premier video spotlight",
+  enabled: true,
+  description: "Feature an eligible video in the dashboard spotlight.",
+  feeCredits: PREMIER_SPOTLIGHT_FEE_CREDITS,
+};
 
 const CTA_OPTIONS = ["Shop Now", "Learn More", "Get Started", "Sign Up", "Visit Site"];
 
@@ -228,6 +246,7 @@ export default function CreateCampaignPage() {
   const [description, setDescription] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [ctaText, setCtaText] = useState("Learn More");
 
   const [landingPages, setLandingPages] = useState<LandingPageOption[]>([]);
@@ -255,6 +274,9 @@ export default function CreateCampaignPage() {
   const selectedLandingPage = landingPages.find((page) => page.id === selectedLandingPageId);
 
   const budgetCredits = Math.round(parseFloat(budget) || 0);
+  const spotlightSelected = selectedProviderIds.has(PREMIER_SPOTLIGHT_CHANNEL_ID);
+  const spotlightFeeCredits = spotlightSelected ? PREMIER_SPOTLIGHT_FEE_CREDITS : 0;
+  const totalChargeCredits = budgetCredits + spotlightFeeCredits;
   const budgetCents = budgetCredits * CREDIT_TO_CENTS;
   const budgetDollars = budgetCents / 100;
   const cpvDollars = parseFloat(costPerView) || 0.01;
@@ -274,6 +296,19 @@ export default function CreateCampaignPage() {
     () => providers.filter((provider) => selectedProviderIds.has(provider.id)),
     [providers, selectedProviderIds]
   );
+  const availableProviders = providersLoading ? DEFAULT_PROVIDERS : providers;
+  const standardProviders = availableProviders.filter((provider) => provider.id !== PREMIER_SPOTLIGHT_CHANNEL_ID);
+  const spotlightProvider = availableProviders.find((provider) => provider.id === PREMIER_SPOTLIGHT_CHANNEL_ID) || DEFAULT_SPOTLIGHT_PROVIDER;
+  const selectedPosts = useMemo(
+    () => posts.filter((post) => selectedPostIds.has(post.id)),
+    [posts, selectedPostIds]
+  );
+  const selectedVideoPostCount = selectedPosts.filter((post) => (
+    post.mediaType?.toLowerCase().includes("video") || post.mediaUrls.some(isVideoLikeUrl)
+  )).length;
+  const hasVideoCreative = adType === "POST"
+    ? selectedVideoPostCount > 0
+    : isVideoLikeUrl(videoUrl) || isVideoLikeUrl(mediaUrl);
 
   useEffect(() => {
     async function loadBasics() {
@@ -322,6 +357,7 @@ export default function CreateCampaignPage() {
             id: post.id as string,
             content: post.content as string | null,
             mediaUrls: (post.mediaUrls as string[]) || [],
+            mediaType: (post.mediaType as string | null) || null,
             likesCount: (post.likesCount as number) || 0,
             commentsCount: (post.commentsCount as number) || 0,
             isPromoted: Boolean(post.isPromoted),
@@ -364,6 +400,13 @@ export default function CreateCampaignPage() {
     setAiSuggestedTags([]);
     if (nextType === "POST") {
       setSelectedProviderIds(new Set(["feed"]));
+    } else if (nextType === "LANDING_PAGE") {
+      setSelectedProviderIds((current) => {
+        const next = new Set(current);
+        next.delete(PREMIER_SPOTLIGHT_CHANNEL_ID);
+        next.add("feed");
+        return next;
+      });
     }
   }
 
@@ -392,6 +435,12 @@ export default function CreateCampaignPage() {
     if (!provider.enabled) return;
     setSelectedProviderIds((current) => {
       const next = new Set(current);
+      if (provider.id === PREMIER_SPOTLIGHT_CHANNEL_ID) {
+        if (next.has(PREMIER_SPOTLIGHT_CHANNEL_ID)) next.delete(PREMIER_SPOTLIGHT_CHANNEL_ID);
+        else next.add(PREMIER_SPOTLIGHT_CHANNEL_ID);
+        next.add("feed");
+        return next;
+      }
       if (provider.id === "feed") {
         next.add("feed");
         return next;
@@ -536,6 +585,14 @@ export default function CreateCampaignPage() {
       toast({ title: "Budget must be at least 1 credit", variant: "destructive" });
       return;
     }
+    if (spotlightSelected && !hasVideoCreative) {
+      toast({
+        title: "Choose a video for spotlight",
+        description: adType === "POST" ? "Select at least one video post." : "Upload a video creative first.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (adType !== "POST" && !contentPolicyAgreed) {
       toast({ title: "Confirm the content policy", variant: "destructive" });
       return;
@@ -558,6 +615,7 @@ export default function CreateCampaignPage() {
           description: description.trim() || undefined,
           destinationUrl: destinationUrl.trim() || undefined,
           mediaUrl: mediaUrl || undefined,
+          videoUrl: videoUrl || undefined,
           ctaText: ctaText || "Learn More",
           adCategory: adType === "POST" ? undefined : adCategory,
           landingPageId: selectedLandingPageId || undefined,
@@ -765,6 +823,8 @@ export default function CreateCampaignPage() {
                     <div className="grid max-h-[460px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
                       {filteredPosts.map((post) => {
                         const selected = selectedPostIds.has(post.id);
+                        const primaryMediaUrl = post.mediaUrls[0] || null;
+                        const isVideoPost = post.mediaType?.toLowerCase().includes("video") || isVideoLikeUrl(primaryMediaUrl);
                         return (
                           <button
                             key={post.id}
@@ -776,8 +836,23 @@ export default function CreateCampaignPage() {
                             )}
                           >
                             <div className="relative aspect-[4/3] bg-muted">
-                              {post.mediaUrls[0] ? (
-                                <img src={post.mediaUrls[0]} alt="" className="h-full w-full object-cover" />
+                              {primaryMediaUrl ? (
+                                isVideoPost ? (
+                                  <>
+                                    <video
+                                      src={primaryMediaUrl}
+                                      className="h-full w-full object-cover"
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                    />
+                                    <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-white">
+                                      <Play className="h-3.5 w-3.5 fill-current" />
+                                    </span>
+                                  </>
+                                ) : (
+                                  <img src={primaryMediaUrl} alt="" className="h-full w-full object-cover" />
+                                )
                               ) : (
                                 <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
                                   {post.content || "Text post"}
@@ -944,6 +1019,19 @@ export default function CreateCampaignPage() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>Video</Label>
+                      <MediaUploader
+                        value={videoUrl ? [videoUrl] : []}
+                        onChange={(urls) => setVideoUrl(urls[0] || "")}
+                        accept="video/mp4,video/webm,video/quicktime"
+                        maxSize={120 * 1024 * 1024}
+                        filterTypes={["video"]}
+                        variant="gallery"
+                        placeholder="Add video"
+                        libraryTitle="Select ad video"
+                      />
+                    </div>
+                    <div className="space-y-2">
                       <Label>Call to action</Label>
                       <div className="flex flex-wrap gap-2">
                         {CTA_OPTIONS.map((cta) => (
@@ -981,7 +1069,7 @@ export default function CreateCampaignPage() {
 
               <TooltipProvider delayDuration={0}>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {(providersLoading ? DEFAULT_PROVIDERS : providers).map((provider) => {
+                  {standardProviders.map((provider) => {
                     const meta = PROVIDER_META[provider.id] || PROVIDER_META.feed;
                     const Icon = meta.icon;
                     const selected = selectedProviderIds.has(provider.id);
@@ -1019,6 +1107,39 @@ export default function CreateCampaignPage() {
                   })}
                 </div>
               </TooltipProvider>
+
+              <div className={cn(
+                "flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between",
+                spotlightSelected ? "border-cyan-500/45 bg-cyan-500/10" : "bg-background"
+              )}>
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-600">
+                    <Video className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{spotlightProvider.name}</p>
+                      <Badge variant="outline" className="text-[10px]">
+                        +{spotlightProvider.feeCredits || PREMIER_SPOTLIGHT_FEE_CREDITS} credits
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Feature a video post or video ad in the Premier spotlight.
+                    </p>
+                    {spotlightSelected && !hasVideoCreative && (
+                      <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-300">
+                        Add a video before launch.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Switch
+                  checked={spotlightSelected}
+                  disabled={adType === "LANDING_PAGE"}
+                  onCheckedChange={() => toggleProvider(spotlightProvider)}
+                  aria-label="Toggle Premier video spotlight"
+                />
+              </div>
 
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
@@ -1082,9 +1203,11 @@ export default function CreateCampaignPage() {
                   <p className="text-xs text-muted-foreground">credits/day</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Dates</p>
-                  <p className="text-lg font-semibold">{formatDate(startDate)}</p>
-                  <p className="text-xs text-muted-foreground">to {formatDate(endDate)}</p>
+                  <p className="text-xs text-muted-foreground">Total charge</p>
+                  <p className="text-lg font-semibold">{totalChargeCredits} credits</p>
+                  <p className="text-xs text-muted-foreground">
+                    {spotlightSelected ? `includes ${spotlightFeeCredits} spotlight` : `${formatDate(startDate)} to ${formatDate(endDate)}`}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -1199,14 +1322,22 @@ export default function CreateCampaignPage() {
                 {adType === "POST" && selectedPostIds.size > 0 ? (
                   Array.from(selectedPostIds).slice(0, 1).map((id) => {
                     const post = posts.find((item) => item.id === id);
-                    return post?.mediaUrls[0] ? (
-                      <img key={id} src={post.mediaUrls[0]} alt="" className="aspect-video w-full object-cover" />
+                    const selectedMediaUrl = post?.mediaUrls[0] || null;
+                    const selectedIsVideo = post?.mediaType?.toLowerCase().includes("video") || isVideoLikeUrl(selectedMediaUrl);
+                    return selectedMediaUrl ? (
+                      selectedIsVideo ? (
+                        <video key={id} src={selectedMediaUrl} className="aspect-video w-full object-cover" muted playsInline controls />
+                      ) : (
+                        <img key={id} src={selectedMediaUrl} alt="" className="aspect-video w-full object-cover" />
+                      )
                     ) : (
                       <div key={id} className="flex aspect-video items-center justify-center p-6 text-center text-sm text-muted-foreground">
                         {post?.content || "Selected post"}
                       </div>
                     );
                   })
+                ) : videoUrl ? (
+                  <video src={videoUrl} className="aspect-video w-full object-cover" muted playsInline controls />
                 ) : mediaUrl ? (
                   <img src={mediaUrl} alt="" className="aspect-video w-full object-cover" />
                 ) : (
@@ -1235,7 +1366,7 @@ export default function CreateCampaignPage() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Budget</span>
-                  <span className="font-medium">{budgetCredits} credits</span>
+                  <span className="font-medium">{totalChargeCredits} credits</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Estimate</span>
@@ -1250,7 +1381,7 @@ export default function CreateCampaignPage() {
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Providers</p>
                 <div className="flex flex-wrap gap-2">
-                  {selectedProviders.map((provider) => {
+                  {(selectedProviders.length ? selectedProviders : [DEFAULT_PROVIDERS[0]]).map((provider) => {
                     const meta = PROVIDER_META[provider.id] || PROVIDER_META.feed;
                     const Icon = meta.icon;
                     return (
