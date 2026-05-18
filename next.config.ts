@@ -39,6 +39,16 @@ const nextConfig: NextConfig = {
     middlewareClientMaxBodySize: "500mb",
   },
 
+  async redirects() {
+    return [
+      {
+        source: "/cartoon-maker",
+        destination: "/story-ad-movie",
+        permanent: true,
+      },
+    ];
+  },
+
   // API versioning — `/api/v1/*` aliases the current unversioned routes.
   // Frontend callers can migrate to `/api/v1/...` today. When a breaking
   // change is needed, a physical `/api/v2/` tree will host the new shape and
