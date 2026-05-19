@@ -148,7 +148,7 @@ export function FloatingPanel({
       onPointerDown={bringToFront}
     >
       <div
-        className="flex cursor-move touch-none select-none items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3 dark:bg-white/[0.03]"
+        className="flex cursor-move touch-none select-none items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-3 py-2 dark:bg-white/[0.03]"
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           if (isPanelControl(event.target)) return;
@@ -180,7 +180,7 @@ export function FloatingPanel({
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-8 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 px-3 text-sm font-bold text-white shadow-sm">
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 px-2.5 text-xs font-bold text-white shadow-sm sm:text-sm">
               {icon}
               {title}
             </span>
@@ -195,14 +195,14 @@ export function FloatingPanel({
           data-panel-control="true"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => onOpenChange(false)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
           <span className="sr-only">Close</span>
         </button>
       </div>
 
-      <div className={cn("min-h-0 flex-1 overflow-auto p-4", contentClassName)}>
+      <div className={cn("min-h-0 flex-1 overflow-auto p-3", contentClassName)}>
         {children}
       </div>
 

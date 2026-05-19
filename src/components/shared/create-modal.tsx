@@ -1459,8 +1459,6 @@ function FlowCreativeModal({
   };
 
   const isBusy = isGeneratingFlowMedia || isImprovingFlowMedia || isPreparingPost;
-  const selectedTemplatePreview = selectedFlowMediaTemplate?.thumbnail || null;
-
   return (
     <>
       <FloatingPanel
@@ -1471,35 +1469,35 @@ function FlowCreativeModal({
         title="FlowCreative"
         description={`Generate images and videos from ${brandName}'s brand identity.`}
         icon={<ImagePlus className="h-4 w-4" />}
-        defaultSize={{ width: 860, height: 760 }}
+        defaultSize={{ width: 760, height: 680 }}
         defaultPosition={{ y: 92 }}
-        minSize={{ width: 340, height: 420 }}
+        minSize={{ width: 320, height: 360 }}
       >
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
-                <Sparkles className="h-5 w-5" />
+        <div className="space-y-3">
+          <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-3 dark:from-cyan-400/10 dark:to-violet-400/10">
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
+                <Sparkles className="h-4 w-4" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold">Create with FlowCreative anywhere</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="line-clamp-1 text-xs text-muted-foreground">
                   Pick a brand-aware template, tune the prompt, and generate with exact references and a real logo overlay.
                 </p>
                 {brandKit?.logo || brandKit?.iconLogo ? (
-                  <p className="mt-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+                  <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-cyan-700 dark:text-cyan-300">
                     FlowSmartly uses the real brand kit logo without asking the AI to draw logo boxes or placeholders.
                   </p>
                 ) : null}
               </div>
-              <Badge variant="outline" className="ml-auto shrink-0">
+              <Badge variant="outline" className="ml-auto h-7 shrink-0 px-2 text-xs">
                 <Sparkles className="mr-1 h-3 w-3 text-violet-500" />
                 {creditsRemaining} credits
               </Badge>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {[
               { id: "image" as const, label: "Image Studio", icon: ImageIcon, helper: "Campaign images, offer cards, proof visuals" },
               { id: "video" as const, label: "Video Studio", icon: Film, helper: "8s, 15s, or 30s story-driven videos" },
@@ -1513,17 +1511,19 @@ function FlowCreativeModal({
                   onClick={() => {
                     usePromptOnlyFlowMedia(mode.id);
                   }}
-                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                  className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition hover:shadow-sm ${
                     isActive
                       ? "border-cyan-500 bg-cyan-500/10 shadow-sm"
                       : "bg-background/80 text-muted-foreground hover:border-cyan-500/40 hover:text-foreground"
                   }`}
                 >
-                  <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
-                    <Icon className="h-5 w-5" />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                    <Icon className="h-4 w-4" />
                   </span>
-                  <span className="block text-base font-bold text-foreground">{mode.label}</span>
-                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{mode.helper}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-foreground">{mode.label}</span>
+                    <span className="line-clamp-1 text-[11px] text-muted-foreground">{mode.helper}</span>
+                  </span>
                 </button>
               );
             })}
@@ -1553,26 +1553,26 @@ function FlowCreativeModal({
             />
           ) : (
             <>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
                   {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
                 </div>
-                <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid max-h-[360px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 md:grid-cols-3">
                   <button
                     type="button"
                     onClick={() => usePromptOnlyFlowMedia(flowMediaMode)}
-                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    className={`rounded-xl border p-3 text-left transition hover:shadow-sm ${
                       selectedFlowMediaTemplateId === CUSTOM_FLOW_MEDIA_TEMPLATE_ID
                         ? "border-brand-500 bg-brand-500/10"
                         : "bg-background hover:border-brand-500/40"
                     }`}
                   >
-                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
-                      <WandSparkles className="h-5 w-5" />
+                    <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                      <WandSparkles className="h-4 w-4" />
                     </span>
-                    <span className="block text-sm font-bold">Start from prompt</span>
-                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                    <span className="block text-xs font-bold sm:text-sm">Start from prompt</span>
+                    <span className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
                       Generate from your instruction and brand kit without using a template image.
                     </span>
                   </button>
@@ -1581,7 +1581,7 @@ function FlowCreativeModal({
                     return (
                       <div
                         key={template.id}
-                        className={`group relative overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-sm ${
+                        className={`group relative overflow-hidden rounded-xl border transition hover:shadow-sm ${
                           isActive ? "border-brand-500 bg-brand-500/10" : "bg-background hover:border-brand-500/40"
                         }`}
                       >
@@ -1591,8 +1591,8 @@ function FlowCreativeModal({
                           className="block w-full text-left"
                         >
                           {template.thumbnail ? (
-                            <div className="relative bg-muted/40 p-2">
-                              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-background/80">
+                            <div className="relative bg-muted/40 p-1.5">
+                              <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg border bg-background/80 sm:h-28">
                                 <img
                                   src={template.thumbnail}
                                   alt={`${template.title} FlowCreative template preview`}
@@ -1600,19 +1600,19 @@ function FlowCreativeModal({
                                   loading="lazy"
                                 />
                               </div>
-                              <span className="absolute left-4 top-4 rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-bold text-foreground shadow-sm">
+                              <span className="absolute left-2 top-2 max-w-[calc(100%-3rem)] truncate rounded-full bg-background/95 px-1.5 py-0.5 text-[9px] font-bold text-foreground shadow-sm">
                                 {template.badge}
                               </span>
                               {flowMediaMode === "video" ? (
                                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
-                                    <Play className="h-5 w-5 fill-white/40" />
+                                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
+                                    <Play className="h-4 w-4 fill-white/40" />
                                   </span>
                                 </span>
                               ) : null}
                               {isActive ? (
-                                <span className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
-                                  <Check className="h-4 w-4" />
+                                <span className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                  <Check className="h-3.5 w-3.5" />
                                 </span>
                               ) : null}
                             </div>
@@ -1631,12 +1631,12 @@ function FlowCreativeModal({
                               ) : null}
                             </div>
                           )}
-                          <div className="p-3">
+                          <div className="p-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="line-clamp-1 text-sm font-bold">{template.title}</span>
+                              <span className="line-clamp-1 text-xs font-bold sm:text-sm">{template.title}</span>
                               <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            <p className="mt-0.5 line-clamp-1 text-[11px] leading-relaxed text-muted-foreground">
                               {template.helper || template.prompt}
                             </p>
                           </div>
@@ -1648,10 +1648,10 @@ function FlowCreativeModal({
                               event.stopPropagation();
                               setExpandedMediaUrl(template.thumbnail || null);
                             }}
-                            className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                            className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
                             aria-label={`Preview ${template.title}`}
                           >
-                            <ZoomIn className="h-4 w-4" />
+                            <ZoomIn className="h-3.5 w-3.5" />
                           </button>
                         ) : null}
                       </div>
@@ -1665,7 +1665,7 @@ function FlowCreativeModal({
                 <textarea
                   value={flowMediaPrompt}
                   onChange={(event) => setFlowMediaPrompt(event.target.value)}
-                  className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="min-h-[84px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="Describe the media you want FlowCreative to create..."
                 />
               </div>
@@ -1679,7 +1679,7 @@ function FlowCreativeModal({
                 />
               ) : null}
 
-              <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+              <div className="space-y-2 rounded-xl border bg-background/70 p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <Label className="text-xs font-semibold text-muted-foreground">Reference images</Label>
                   <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
@@ -1698,16 +1698,16 @@ function FlowCreativeModal({
                   variant="small"
                   libraryTitle="Choose reference image"
                 />
-                <p className="text-xs leading-relaxed text-muted-foreground">
+                <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
                   Add the exact product, person, style, or scene references. The first image is treated as the real subject source for image designs; for talking reviews, upload the presenter first and product second.
                 </p>
               </div>
 
               {flowMediaMode === "image" ? (
-                <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background/70 p-3">
+                <div className="flex items-center justify-between gap-3 rounded-xl border bg-background/70 p-2.5">
                   <div className="min-w-0">
                     <p className="text-sm font-bold">Quality check</p>
-                    <p className="text-xs text-muted-foreground">Review and retry the image before delivery. Uses 3x credits.</p>
+                    <p className="line-clamp-1 text-[11px] text-muted-foreground">Review and retry before delivery. Uses 3x credits.</p>
                   </div>
                   <Switch
                     checked={flowMediaQualityCheckEnabled}
@@ -1777,31 +1777,6 @@ function FlowCreativeModal({
               )}
             </div>
           )}
-
-          {!generatedFlowMedia && selectedTemplatePreview ? (
-            <button
-              type="button"
-              onClick={() => setExpandedMediaUrl(selectedTemplatePreview)}
-              className="group w-full overflow-hidden rounded-2xl border bg-muted/20 text-left transition hover:border-cyan-500/40"
-            >
-              <div className="flex min-h-[320px] items-center justify-center bg-background/80 p-3">
-                <img
-                  src={selectedTemplatePreview}
-                  alt="Selected template preview"
-                  className="max-h-[520px] w-full object-contain"
-                />
-              </div>
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <div>
-                  <p className="text-sm font-bold">Selected design inspiration</p>
-                  <p className="text-xs text-muted-foreground">Click to inspect the full template before generation.</p>
-                </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm transition group-hover:text-foreground">
-                  <ZoomIn className="h-4 w-4" />
-                </span>
-              </div>
-            </button>
-          ) : null}
 
           {!generatedFlowMedia ? (
             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
@@ -1962,7 +1937,7 @@ function GeneratedFlowCreativeResult({
   onCreateAnother: () => void;
 }) {
   return (
-    <div className="rounded-2xl border bg-muted/25 p-4">
+    <div className="rounded-xl border bg-muted/25 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold">FlowCreative result</p>
@@ -1975,7 +1950,7 @@ function GeneratedFlowCreativeResult({
       <button
         type="button"
         onClick={() => onPreview(generatedFlowMedia.url)}
-        className="group relative flex min-h-[420px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-2xl border bg-background"
+        className="group relative flex min-h-[240px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-xl border bg-background"
       >
         {generatedFlowMedia.type === "video" ? (
           <video
@@ -1983,10 +1958,10 @@ function GeneratedFlowCreativeResult({
             controls
             muted
             playsInline
-            className="max-h-[640px] w-full bg-black object-contain"
+            className="max-h-[360px] w-full bg-black object-contain"
           />
         ) : (
-          <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-[680px] w-full object-contain" />
+          <img src={generatedFlowMedia.url} alt="Generated media" className="max-h-[380px] w-full object-contain" />
         )}
         {generatedFlowMedia.type === "image" ? (
           <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
@@ -2014,11 +1989,11 @@ function GeneratedFlowCreativeResult({
           <textarea
             value={flowMediaImprovePrompt}
             onChange={(event) => onImprovePromptChange(event.target.value)}
-            className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-[76px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
             disabled={isImprovingFlowMedia || isPreparingPost}
           />
-          <div className="space-y-2 rounded-xl border bg-background/80 p-3">
+          <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-xs font-semibold text-muted-foreground">Media for this edit</Label>
               <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
@@ -2037,7 +2012,7 @@ function GeneratedFlowCreativeResult({
               variant="small"
               libraryTitle="Choose edit media"
             />
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
               Add replacement product, person, background, or style media when the edit should use a new visual source.
             </p>
           </div>

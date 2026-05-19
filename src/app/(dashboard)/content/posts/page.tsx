@@ -3140,26 +3140,26 @@ export default function ContentPostsPage() {
           title="FlowCreative"
           description={`Generate images and videos from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
-          defaultSize={{ width: 860, height: 760 }}
+          defaultSize={{ width: 760, height: 680 }}
           defaultPosition={{ y: 92 }}
-          minSize={{ width: 340, height: 420 }}
+          minSize={{ width: 320, height: 360 }}
         >
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
-                  <Sparkles className="h-5 w-5" />
+          <div className="space-y-3">
+            <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-3 dark:from-cyan-400/10 dark:to-violet-400/10">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 via-brand-500 to-violet-500 text-white shadow-sm">
+                  <Sparkles className="h-4 w-4" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-bold">Create with FlowCreative without leaving the post</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="line-clamp-1 text-xs text-muted-foreground">
                     Pick a brand-aware template, tune the prompt, and generate with your real brand logo and references.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {[
                 {
                   id: "image" as const,
@@ -3184,17 +3184,19 @@ export default function ContentPostsPage() {
                       setFlowMediaMode(mode.id);
                       setGeneratedFlowMedia(null);
                     }}
-                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition hover:shadow-sm ${
                       isActive
                         ? "border-cyan-500 bg-cyan-500/10 shadow-sm"
                         : "bg-background/80 text-muted-foreground hover:border-cyan-500/40 hover:text-foreground"
                     }`}
                   >
-                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
-                      <Icon className="h-5 w-5" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                      <Icon className="h-4 w-4" />
                     </span>
-                    <span className="block text-base font-bold text-foreground">{mode.label}</span>
-                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{mode.helper}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-foreground">{mode.label}</span>
+                      <span className="line-clamp-1 text-[11px] text-muted-foreground">{mode.helper}</span>
+                    </span>
                   </button>
                 );
               })}
@@ -3202,18 +3204,18 @@ export default function ContentPostsPage() {
 
             {(!generatedFlowMedia || isGeneratingFlowMedia) && (
               <>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-bold">
-                <Lightbulb className="h-4 w-4 text-amber-500" />
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
                 {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
               </div>
-              <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid max-h-[360px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 md:grid-cols-3">
                 {visibleFlowMediaTemplates.map((template) => {
                   const isActive = selectedFlowMediaTemplateId === template.id && flowMediaMode === template.mode;
                   return (
                     <div
                       key={template.id}
-                      className={`group relative overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      className={`group relative overflow-hidden rounded-xl border transition hover:shadow-sm ${
                         isActive
                           ? "border-brand-500 bg-brand-500/10"
                           : "bg-background hover:border-brand-500/40"
@@ -3225,8 +3227,8 @@ export default function ContentPostsPage() {
                         className="block w-full text-left"
                       >
                         {template.thumbnail ? (
-                          <div className="relative bg-muted/40 p-2">
-                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-background/80">
+                          <div className="relative bg-muted/40 p-1.5">
+                            <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg border bg-background/80 sm:h-28">
                               <img
                                 src={template.thumbnail}
                                 alt={`${template.title} FlowCreative template preview`}
@@ -3234,29 +3236,29 @@ export default function ContentPostsPage() {
                                 loading="lazy"
                               />
                             </div>
-                            <span className="absolute left-4 top-4 rounded-full bg-background/95 px-2 py-0.5 text-[10px] font-bold text-foreground shadow-sm">
+                            <span className="absolute left-2 top-2 max-w-[calc(100%-3rem)] truncate rounded-full bg-background/95 px-1.5 py-0.5 text-[9px] font-bold text-foreground shadow-sm">
                               {template.badge}
                             </span>
                             {flowMediaMode === "video" ? (
                               <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
-                                  <Play className="h-5 w-5 fill-white/40" />
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
+                                  <Play className="h-4 w-4 fill-white/40" />
                                 </span>
                               </span>
                             ) : null}
                             {isActive ? (
-                              <span className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
-                                <Check className="h-4 w-4" />
+                              <span className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm">
+                                <Check className="h-3.5 w-3.5" />
                               </span>
                             ) : null}
                           </div>
                         ) : null}
-                        <div className="p-3">
+                        <div className="p-2">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="line-clamp-1 text-sm font-bold">{template.title}</span>
+                            <span className="line-clamp-1 text-xs font-bold sm:text-sm">{template.title}</span>
                             <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
                           </div>
-                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                          <p className="mt-0.5 line-clamp-1 text-[11px] leading-relaxed text-muted-foreground">
                             {template.helper || template.prompt}
                           </p>
                         </div>
@@ -3268,10 +3270,10 @@ export default function ContentPostsPage() {
                             event.stopPropagation();
                             setExpandedMediaUrl(template.thumbnail || null);
                           }}
-                          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
+                          className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition hover:text-foreground group-hover:opacity-100"
                           aria-label={`Preview ${template.title}`}
                         >
-                          <ZoomIn className="h-4 w-4" />
+                          <ZoomIn className="h-3.5 w-3.5" />
                         </button>
                       ) : null}
                     </div>
@@ -3285,7 +3287,7 @@ export default function ContentPostsPage() {
               <textarea
                 value={flowMediaPrompt}
                 onChange={(event) => setFlowMediaPrompt(event.target.value)}
-                className="min-h-[120px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-h-[84px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 placeholder="Describe the media you want FlowCreative to create..."
               />
             </div>
@@ -3360,7 +3362,7 @@ export default function ContentPostsPage() {
               </div>
             )}
 
-            <div className="space-y-2 rounded-2xl border bg-background/70 p-3">
+            <div className="space-y-2 rounded-xl border bg-background/70 p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs font-semibold text-muted-foreground">Reference images</Label>
                 <span className="text-[11px] font-medium text-muted-foreground">
@@ -3381,18 +3383,16 @@ export default function ContentPostsPage() {
                 variant="small"
                 libraryTitle="Choose reference image"
               />
-              <p className="text-xs leading-relaxed text-muted-foreground">
+              <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
                 Add the exact product, person, style, or scene references. For talking reviews, upload the presenter first and product second; FlowCreative combines them into one identity anchor so the face and item stay locked instead of being reinvented.
               </p>
             </div>
 
             {flowMediaMode === "image" && (
-              <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background/70 p-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border bg-background/70 p-2.5">
                 <div className="min-w-0">
                   <p className="text-sm font-bold">Quality check</p>
-                  <p className="text-xs text-muted-foreground">
-                    Review and retry the image before attaching it. Uses 3x credits.
-                  </p>
+                  <p className="line-clamp-1 text-[11px] text-muted-foreground">Review and retry before attaching. Uses 3x credits.</p>
                 </div>
                 <Switch
                   checked={flowMediaQualityCheckEnabled}
@@ -3464,7 +3464,7 @@ export default function ContentPostsPage() {
             )}
 
             {generatedFlowMedia && (
-              <div className="rounded-2xl border bg-muted/25 p-4">
+              <div className="rounded-xl border bg-muted/25 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-bold">FlowCreative result</p>
@@ -3476,25 +3476,25 @@ export default function ContentPostsPage() {
                     Ready
                   </span>
                 </div>
-                <div className="overflow-hidden rounded-2xl border bg-background">
+                <div className="overflow-hidden rounded-xl border bg-background">
                   {generatedFlowMedia.type === "video" ? (
                     <video
                       src={generatedFlowMedia.url}
                       controls
                       muted
                       playsInline
-                      className="max-h-[560px] min-h-[320px] w-full bg-black object-contain"
+                      className="max-h-[360px] min-h-[220px] w-full bg-black object-contain"
                     />
                   ) : (
                     <button
                       type="button"
                       onClick={() => setExpandedMediaUrl(generatedFlowMedia.url)}
-                      className="group relative flex min-h-[360px] w-full cursor-zoom-in items-center justify-center bg-muted/10"
+                      className="group relative flex min-h-[240px] w-full cursor-zoom-in items-center justify-center bg-muted/10"
                     >
                       <img
                         src={generatedFlowMedia.url}
                         alt="Generated media"
-                        className="max-h-[620px] w-full object-contain"
+                        className="max-h-[380px] w-full object-contain"
                       />
                       <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/95 text-muted-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
                         <ZoomIn className="h-4 w-4" />
@@ -3517,11 +3517,11 @@ export default function ContentPostsPage() {
                     <textarea
                       value={flowMediaImprovePrompt}
                       onChange={(event) => setFlowMediaImprovePrompt(event.target.value)}
-                      className="min-h-[90px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-h-[76px] w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
                       disabled={isImprovingFlowMedia || isPreparingFlowMediaPost}
                     />
-                    <div className="space-y-2 rounded-xl border bg-background/80 p-3">
+                    <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="text-xs font-semibold text-muted-foreground">Media for this edit</Label>
                         <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
@@ -3540,7 +3540,7 @@ export default function ContentPostsPage() {
                         variant="small"
                         libraryTitle="Choose edit media"
                       />
-                      <p className="text-xs leading-relaxed text-muted-foreground">
+                      <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
                         Add replacement product, person, background, or style media when the edit should use a new visual source.
                       </p>
                     </div>
@@ -3612,34 +3612,35 @@ export default function ContentPostsPage() {
           title="AI Product Ad"
           description="Design product ads from references, templates, and edit prompts."
           icon={<Sparkles className="h-4 w-4" />}
-          defaultSize={{ width: 1060, height: 900 }}
+          defaultSize={{ width: 800, height: 700 }}
           defaultPosition={{ y: 92 }}
+          minSize={{ width: 320, height: 380 }}
         >
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-4 dark:from-cyan-400/10 dark:to-amber-400/10">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
-                    <ImagePlus className="h-5 w-5" />
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-amber-500/10 p-3 dark:from-cyan-400/10 dark:to-amber-400/10">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
+                <div className="flex items-start gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-amber-400 via-brand-500 to-cyan-400 text-white shadow-sm">
+                    <ImagePlus className="h-4 w-4" />
                   </div>
-                  <div>
-                    <p className="text-base font-bold">Product ad playground</p>
-                    <p className="text-sm leading-6 text-muted-foreground">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">Product ad playground</p>
+                    <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                       Upload the real product, person, or site references, choose an ad layout, then generate and edit the design in place. Finished images are saved to the media library before you attach them to the post.
                     </p>
                   </div>
                 </div>
-                <div className="rounded-2xl border bg-background/85 p-2.5 shadow-sm">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                <div className="rounded-xl border bg-background/85 p-2 shadow-sm">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="min-w-0 rounded-lg bg-muted/50 px-2 py-1.5 text-center">
                       <p className="truncate text-sm font-black leading-tight">{productAdReferenceUrls.length}</p>
                       <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Refs</p>
                     </div>
-                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                    <div className="min-w-0 rounded-lg bg-muted/50 px-2 py-1.5 text-center">
                       <p className="truncate text-sm font-black leading-tight">{getFlowMediaAspect(productAdAspect).label}</p>
                       <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Format</p>
                     </div>
-                    <div className="min-w-0 rounded-xl bg-muted/50 px-2.5 py-2 text-center">
+                    <div className="min-w-0 rounded-lg bg-muted/50 px-2 py-1.5 text-center">
                       <p className="truncate text-sm font-black capitalize leading-tight">{productAdStyle}</p>
                       <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Style</p>
                     </div>
@@ -3648,13 +3649,13 @@ export default function ContentPostsPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_360px]">
-              <div className="space-y-4">
-                <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="space-y-3">
+                <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold">Reference assets</p>
-                      <p className="text-xs text-muted-foreground">The first image anchors the product or person identity.</p>
+                    <p className="line-clamp-1 text-[11px] text-muted-foreground">The first image anchors the product or person identity.</p>
                     </div>
                     <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
                       Exact lock
@@ -3676,12 +3677,12 @@ export default function ContentPostsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <PenSquare className="h-4 w-4 text-brand-500" />
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    <PenSquare className="h-3.5 w-3.5 text-brand-500" />
                     Visual ad templates
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid max-h-[320px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 lg:grid-cols-3">
                     {PRODUCT_AD_TEMPLATES.map((template) => {
                       const isActive = productAdTemplate === template.id;
                       return (
@@ -3689,18 +3690,18 @@ export default function ContentPostsPage() {
                           key={template.id}
                           type="button"
                           onClick={() => applyProductAdTemplate(template)}
-                          className={`group overflow-hidden rounded-2xl border text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                          className={`group overflow-hidden rounded-xl border text-left transition hover:shadow-sm ${
                             isActive ? "border-brand-500 bg-brand-500/10 shadow-sm" : "bg-background hover:border-brand-500/40"
                           }`}
                         >
-                          <div className="relative h-32 overflow-hidden bg-muted/40 p-2">
+                          <div className="relative h-24 overflow-hidden bg-muted/40 p-1.5 sm:h-28">
                             <img
                               src={template.thumbnail}
                               alt={`${template.title} product ad example`}
-                              className="h-full w-full rounded-xl object-contain"
+                              className="h-full w-full rounded-lg object-contain"
                               loading="lazy"
                             />
-                            <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-900 shadow-sm">
+                            <span className="absolute left-2 top-2 max-w-[calc(100%-3rem)] truncate rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-slate-900 shadow-sm">
                               {template.badge}
                             </span>
                             {isActive ? (
@@ -3709,12 +3710,12 @@ export default function ContentPostsPage() {
                               </span>
                             ) : null}
                           </div>
-                          <div className="p-3">
+                          <div className="p-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-bold">{template.title}</span>
+                              <span className="line-clamp-1 text-xs font-bold sm:text-sm">{template.title}</span>
                               <span className="text-[10px] font-semibold text-muted-foreground">{template.aspect}</span>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{template.helper}</p>
+                            <p className="mt-0.5 line-clamp-1 text-[11px] leading-relaxed text-muted-foreground">{template.helper}</p>
                           </div>
                         </button>
                       );
@@ -3722,7 +3723,7 @@ export default function ContentPostsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
                   <div className="flex items-center gap-2 text-sm font-bold">
                     <SlidersHorizontal className="h-4 w-4 text-cyan-600" />
                     Preset instruction
@@ -3755,7 +3756,7 @@ export default function ContentPostsPage() {
                     <textarea
                       value={productAdPrompt}
                       onChange={(event) => setProductAdPrompt(event.target.value)}
-                      className="min-h-[150px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-h-[100px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       placeholder="Describe the product ad: headline, offer, audience, scene, CTA, colors, and what must stay exact from your references..."
                     />
                     <div className="flex flex-wrap gap-1.5">
@@ -3774,7 +3775,7 @@ export default function ContentPostsPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-3 rounded-2xl border bg-background/80 p-3">
+                  <div className="space-y-3 rounded-xl border bg-background/80 p-2.5">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Format</Label>
                       <div className="grid grid-cols-3 gap-1 rounded-full bg-muted/50 p-1">
@@ -3827,11 +3828,11 @@ export default function ContentPostsPage() {
               </div>
 
               <div className="space-y-3">
-                <div className="rounded-2xl border bg-background/80 p-3">
+                <div className="rounded-xl border bg-background/80 p-2.5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold">Live preview</p>
-                      <p className="text-xs text-muted-foreground">Generate, inspect, edit, then attach.</p>
+                    <p className="line-clamp-1 text-[11px] text-muted-foreground">Generate, inspect, edit, then attach.</p>
                     </div>
                     {generatedProductAd?.creditsUsed ? (
                       <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
@@ -3843,7 +3844,7 @@ export default function ContentPostsPage() {
                   <button
                     type="button"
                     onClick={() => productAdPreviewUrl && setExpandedMediaUrl(productAdPreviewUrl)}
-                    className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl border bg-muted/20 ${
+                    className={`relative flex max-h-[360px] w-full items-center justify-center overflow-hidden rounded-xl border bg-muted/20 ${
                       productAdAspect === "9:16" ? "aspect-[9/16]" : productAdAspect === "16:9" ? "aspect-video" : "aspect-square"
                     }`}
                   >
@@ -3867,7 +3868,7 @@ export default function ContentPostsPage() {
                         <img
                           src={selectedProductAdTemplate.thumbnail}
                           alt={`${selectedProductAdTemplate.title} example preview`}
-                          className="h-full w-full rounded-xl object-contain"
+                          className="h-full w-full rounded-lg object-contain"
                           loading="lazy"
                         />
                         <div className="absolute left-4 right-4 top-4 flex items-center justify-between gap-3">
@@ -3901,7 +3902,7 @@ export default function ContentPostsPage() {
                 </div>
 
                 {generatedProductAd && (
-                  <div className="space-y-2 rounded-2xl border bg-background/80 p-3">
+                  <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
                     <div className="flex items-center gap-2 text-sm font-bold">
                       <WandSparkles className="h-4 w-4 text-brand-500" />
                       Edit this design
@@ -3909,7 +3910,7 @@ export default function ContentPostsPage() {
                     <textarea
                       value={productAdEditPrompt}
                       onChange={(event) => setProductAdEditPrompt(event.target.value)}
-                      className="min-h-[92px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-h-[76px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       placeholder="Example: make the product larger, change the background to a luxury studio, add more space for the CTA..."
                       disabled={isGeneratingProductAd}
                     />
@@ -3930,7 +3931,7 @@ export default function ContentPostsPage() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-2 rounded-2xl border bg-background/80 p-3">
+                <div className="flex flex-col gap-2 rounded-xl border bg-background/80 p-2.5">
                   <Button
                     type="button"
                     onClick={() => handleGenerateProductAd(false)}
@@ -3981,7 +3982,7 @@ export default function ContentPostsPage() {
             title="Media preview"
             description="Inspect the full media without leaving the composer."
             icon={<ZoomIn className="h-4 w-4" />}
-            defaultSize={{ width: 860, height: 820 }}
+            defaultSize={{ width: 760, height: 720 }}
             defaultPosition={{ x: 70, y: 86 }}
             contentClassName="p-3"
           >
