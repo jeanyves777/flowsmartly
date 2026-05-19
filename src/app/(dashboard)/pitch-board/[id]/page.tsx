@@ -259,6 +259,25 @@ function formatProposalPrice(proposal: ServiceProposalContent): string {
   return `$${amount.toLocaleString()}${interval === "project" ? "" : `/${interval}`}`;
 }
 
+function isHex(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function getProposalTheme(proposal: ServiceProposalContent) {
+  const snapshotColors = proposal.brandSnapshot?.colors as Record<string, string> | undefined;
+  const designColors = proposal.design?.colorPalette || {};
+  const primary = isHex(designColors.primary) ? designColors.primary : isHex(snapshotColors?.primary) ? snapshotColors.primary : "#0ea5e9";
+  const secondary = isHex(designColors.secondary) ? designColors.secondary : isHex(snapshotColors?.secondary) ? snapshotColors.secondary : "#8b5cf6";
+  const accent = isHex(designColors.accent) ? designColors.accent : isHex(snapshotColors?.accent) ? snapshotColors.accent : "#f59e0b";
+  const bg = isHex(designColors.background) ? designColors.background : "#f8fafc";
+  const ink = isHex(designColors.ink) ? designColors.ink : "#0f172a";
+  return { primary, secondary, accent, bg, ink };
+}
+
+function getProposalVisual(proposal: ServiceProposalContent, kind: "cover" | "about" | "impact") {
+  return proposal.visualAssets?.images?.find((asset) => asset.kind === kind)?.url;
+}
+
 export default function PitchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -392,6 +411,10 @@ export default function PitchDetailPage() {
   const isReady = pitch.status === "READY" || pitch.status === "SENT";
   const isProcessing = pitch.status === "PENDING" || pitch.status === "RESEARCHING";
   const { overall, categories } = isReady && !isProposal ? computeDigitalScore(research) : { overall: 0, categories: [] };
+  const proposalTheme = proposal ? getProposalTheme(proposal) : null;
+  const proposalCoverVisual = proposal ? getProposalVisual(proposal, "cover") : undefined;
+  const proposalAboutVisual = proposal ? getProposalVisual(proposal, "about") : undefined;
+  const proposalImpactVisual = proposal ? getProposalVisual(proposal, "impact") : undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -479,34 +502,57 @@ export default function PitchDetailPage() {
       {isReady && isProposal && proposal && (
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-              <div className="border-b border-border bg-gradient-to-br from-violet-600 via-sky-600 to-cyan-500 px-6 py-8 text-white">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-                  <FileText className="h-3.5 w-3.5" />
-                  Service Proposal
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div
+                className="relative overflow-hidden border-b border-border px-6 py-7 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${proposalTheme?.primary}, ${proposalTheme?.secondary})`,
+                }}
+              >
+                <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div>
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                      <FileText className="h-3.5 w-3.5" />
+                      {proposal.design?.themeName || "Service Proposal"}
+                    </div>
+                    <h2 className="max-w-3xl text-3xl font-black tracking-tight">{proposal.title}</h2>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85">{proposal.subtitle}</p>
+                    <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                      {[
+                        ["Prepared for", proposal.preparedFor],
+                        ["Prepared by", proposal.preparedBy || brandName || "Your team"],
+                        ["Offer", formatProposalPrice(proposal)],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-lg bg-white/12 p-3">
+                          <div className="text-xs text-white/70">{label}</div>
+                          <div className="truncate font-semibold">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {proposalCoverVisual && (
+                    <div className="hidden overflow-hidden rounded-lg border border-white/20 bg-white/10 shadow-xl lg:block">
+                      <img src={proposalCoverVisual} alt="" className="h-full min-h-[210px] w-full object-cover" />
+                    </div>
+                  )}
                 </div>
-                <h2 className="max-w-3xl text-3xl font-black tracking-tight">{proposal.title}</h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85">{proposal.subtitle}</p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg bg-white/12 p-3">
-                    <div className="text-xs text-white/70">Prepared for</div>
-                    <div className="font-semibold">{proposal.preparedFor}</div>
-                  </div>
-                  <div className="rounded-lg bg-white/12 p-3">
-                    <div className="text-xs text-white/70">Prepared by</div>
-                    <div className="font-semibold">{proposal.preparedBy || brandName || "Your team"}</div>
-                  </div>
-                  <div className="rounded-lg bg-white/12 p-3">
-                    <div className="text-xs text-white/70">Offer</div>
-                    <div className="font-semibold">{formatProposalPrice(proposal)}</div>
-                  </div>
-                </div>
+                <div
+                  className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-25"
+                  style={{ background: proposalTheme?.accent }}
+                />
               </div>
 
               <div className="space-y-8 p-6">
-                <section>
-                  <h3 className="mb-2 text-base font-bold text-foreground">Overview</h3>
-                  <p className="text-sm leading-7 text-muted-foreground">{proposal.executiveSummary}</p>
+                <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  <div>
+                    <h3 className="mb-2 text-base font-bold text-foreground">Overview</h3>
+                    <p className="text-sm leading-7 text-muted-foreground">{proposal.executiveSummary}</p>
+                  </div>
+                  {proposalAboutVisual && (
+                    <div className="overflow-hidden rounded-lg border border-border bg-muted">
+                      <img src={proposalAboutVisual} alt="" className="h-40 w-full object-cover" />
+                    </div>
+                  )}
                 </section>
 
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -559,15 +605,28 @@ export default function PitchDetailPage() {
                   </section>
                 )}
 
-                <section className="rounded-lg border border-sky-200 bg-sky-50/60 p-5 dark:border-sky-900/60 dark:bg-sky-950/20">
+                <section
+                  className="rounded-lg border p-5"
+                  style={{
+                    borderColor: `${proposalTheme?.primary}40`,
+                    background: `linear-gradient(135deg, ${proposalTheme?.primary}12, ${proposalTheme?.secondary}10)`,
+                  }}
+                >
                   <h3 className="mb-3 text-base font-bold text-foreground">Expected Benefits</h3>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {proposal.benefits.map((item, index) => (
-                      <div key={index} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                        <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-500" />
-                        {item}
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {proposal.benefits.map((item, index) => (
+                        <div key={index} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
+                          <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0" style={{ color: proposalTheme?.primary }} />
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    {proposalImpactVisual && (
+                      <div className="overflow-hidden rounded-lg border border-border bg-background">
+                        <img src={proposalImpactVisual} alt="" className="h-36 w-full object-cover" />
                       </div>
-                    ))}
+                    )}
                   </div>
                 </section>
               </div>
@@ -576,7 +635,7 @@ export default function PitchDetailPage() {
             <aside className="space-y-4">
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="mb-3 text-sm font-bold text-foreground">Pricing</h3>
-                <div className="text-3xl font-black text-foreground">{formatProposalPrice(proposal)}</div>
+                <div className="text-3xl font-black" style={{ color: proposalTheme?.primary }}>{formatProposalPrice(proposal)}</div>
                 {typeof proposal.pricing?.originalAmount === "number" && (
                   <div className="mt-1 text-sm text-muted-foreground">
                     Promotional from <span className="line-through">${proposal.pricing.originalAmount.toLocaleString()}</span>
@@ -591,7 +650,7 @@ export default function PitchDetailPage() {
                   <div className="grid gap-3">
                     {proposal.proofPoints.map((point, index) => (
                       <div key={index} className="rounded-lg bg-muted/40 p-3">
-                        <div className="text-xl font-black text-sky-600 dark:text-sky-300">{point.metric}</div>
+                        <div className="text-xl font-black" style={{ color: proposalTheme?.primary }}>{point.metric}</div>
                         <div className="text-sm font-semibold text-foreground">{point.label}</div>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">{point.note}</p>
                       </div>
@@ -617,7 +676,7 @@ export default function PitchDetailPage() {
                 <div className="space-y-3">
                   {proposal.nextSteps.map((step, index) => (
                     <div key={index} className="flex gap-3 text-sm">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-xs font-bold text-sky-600 dark:text-sky-300">{index + 1}</span>
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: proposalTheme?.primary }}>{index + 1}</span>
                       <span className="leading-6 text-muted-foreground">{step}</span>
                     </div>
                   ))}

@@ -2,11 +2,13 @@ import type { PitchContent } from "./generator";
 import type { ServiceProposalContent } from "./proposal-agent";
 import type { ResearchData } from "./researcher";
 import { computeDigitalScore, scoreHexColor } from "./scorer";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 
 interface BrandInfo {
   name: string;
   primaryColor?: string;
   secondaryColor?: string;
+  accentColor?: string;
   logo?: string;          // base64 data URI of the brand logo
   logoAspectRatio?: number; // width / height — needed for correct sizing in PDF
 }
@@ -32,6 +34,76 @@ function wrapText(text: string, maxChars: number): string[] {
   }
   if (cur) lines.push(cur);
   return lines;
+}
+
+function normalizeHex(value: unknown, fallback: string): string {
+  const raw = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(raw) ? raw : fallback;
+}
+
+function mixRgb(hex: string, amount: number, target = { r: 255, g: 255, b: 255 }) {
+  const rgb = hexToRgb(normalizeHex(hex, "#2563eb"));
+  return {
+    r: Math.round(rgb.r + (target.r - rgb.r) * amount),
+    g: Math.round(rgb.g + (target.g - rgb.g) * amount),
+    b: Math.round(rgb.b + (target.b - rgb.b) * amount),
+  };
+}
+
+function imageFormat(dataUri: string): "PNG" | "JPEG" | "WEBP" {
+  if (/^data:image\/jpe?g/i.test(dataUri)) return "JPEG";
+  if (/^data:image\/webp/i.test(dataUri)) return "WEBP";
+  return "PNG";
+}
+
+function pdfSafeText(value: unknown): string {
+  return String(value || "")
+    .replace(/[–—]/g, "-")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[★☆⭐]/g, "+")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function resolvePdfImageDataUri(src: string | undefined | null): Promise<string | null> {
+  if (!src) return null;
+  if (src.startsWith("data:")) return src;
+
+  try {
+    let response: Response | null = null;
+    if (src.startsWith("http")) {
+      response = await fetch(src);
+      if (!response.ok) {
+        response = await fetch(await getPresignedUrl(src));
+      }
+    } else if (src.startsWith("/")) {
+      const { readFile } = await import("fs/promises");
+      const { join } = await import("path");
+      const file = await readFile(join(process.cwd(), "public", src));
+      return `data:image/png;base64,${file.toString("base64")}`;
+    } else {
+      response = await fetch(await getPresignedUrl(src));
+    }
+
+    if (!response?.ok) return null;
+    const input = Buffer.from(await response.arrayBuffer());
+    try {
+      const sharp = (await import("sharp")).default;
+      const jpeg = await sharp(input)
+        .resize({ width: 1400, withoutEnlargement: true })
+        .jpeg({ quality: 86, mozjpeg: true })
+        .toBuffer();
+      return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
+    } catch {
+      const type = response.headers.get("content-type")?.split(";")[0] || "image/png";
+      return `data:${type};base64,${input.toString("base64")}`;
+    }
+  } catch (error) {
+    console.warn("[proposal pdf] Could not resolve image asset:", error);
+    return null;
+  }
 }
 
 // Draw a horizontal score bar at position (x, y)
@@ -466,7 +538,7 @@ export async function generatePitchPDF(
   return Buffer.from(arrayBuffer);
 }
 
-export async function generateServiceProposalPDF(
+async function generateServiceProposalPDFLegacy(
   proposal: ServiceProposalContent,
   brand: BrandInfo
 ): Promise<Buffer> {
@@ -704,6 +776,335 @@ export async function generateServiceProposalPDF(
     doc.text(`${brand.name} - Service Proposal`, margin, pageH - 4);
     doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 4, { align: "right" });
   }
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
+export async function generateServiceProposalPDF(
+  proposal: ServiceProposalContent,
+  brand: BrandInfo
+): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = 297;
+  const pageH = 210;
+  const margin = 16;
+  const contentW = pageW - margin * 2;
+  const design = proposal.design || {};
+  const colors = design.colorPalette || {};
+  const primaryHex = normalizeHex(colors.primary || brand.primaryColor, "#0ea5e9");
+  const secondaryHex = normalizeHex(colors.secondary || brand.secondaryColor, "#8b5cf6");
+  const accentHex = normalizeHex(colors.accent || brand.accentColor, "#f59e0b");
+  const bgHex = normalizeHex(colors.background, "#f8fafc");
+  const inkHex = normalizeHex(colors.ink, "#0f172a");
+  const primary = hexToRgb(primaryHex);
+  const secondary = hexToRgb(secondaryHex);
+  const accent = hexToRgb(accentHex);
+  const ink = hexToRgb(inkHex);
+  const softPrimary = mixRgb(primaryHex, 0.9);
+  const softSecondary = mixRgb(secondaryHex, 0.9);
+  const softAccent = mixRgb(accentHex, 0.82);
+
+  const visual = (kind: "cover" | "about" | "impact") =>
+    proposal.visualAssets?.images?.find((asset) => asset.kind === kind)?.url;
+  const [coverImage, aboutImage, impactImage] = await Promise.all([
+    resolvePdfImageDataUri(visual("cover")),
+    resolvePdfImageDataUri(visual("about")),
+    resolvePdfImageDataUri(visual("impact")),
+  ]);
+
+  const addImage = (image: string | null, x: number, y: number, w: number, h: number) => {
+    if (!image) return false;
+    try {
+      doc.addImage(image, imageFormat(image), x, y, w, h);
+      return true;
+    } catch (error) {
+      console.warn("[proposal pdf] Could not place image:", error);
+      return false;
+    }
+  };
+
+  const logo = (x: number, y: number, maxW = 42, maxH = 16, light = false) => {
+    if (brand.logo) {
+      try {
+        const ratio = brand.logoAspectRatio || 3;
+        const w = Math.min(maxW, maxH * ratio);
+        const h = Math.min(maxH, w / ratio);
+        doc.addImage(brand.logo, imageFormat(brand.logo), x, y, w, h);
+        return;
+      } catch {
+        // Fall through to text.
+      }
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(light ? 255 : ink.r, light ? 255 : ink.g, light ? 255 : ink.b);
+    doc.text(brand.name.toUpperCase(), x, y + 8);
+  };
+
+  const background = () => {
+    const bg = hexToRgb(bgHex);
+    doc.setFillColor(bg.r, bg.g, bg.b);
+    doc.rect(0, 0, pageW, pageH, "F");
+    doc.setFillColor(softPrimary.r, softPrimary.g, softPrimary.b);
+    doc.circle(pageW - 24, 24, 45, "F");
+    doc.setFillColor(softSecondary.r, softSecondary.g, softSecondary.b);
+    doc.circle(28, pageH - 16, 38, "F");
+    doc.setFillColor(softAccent.r, softAccent.g, softAccent.b);
+    doc.roundedRect(pageW - 92, pageH - 18, 74, 6, 3, 3, "F");
+    doc.setDrawColor(primary.r, primary.g, primary.b);
+    doc.setLineWidth(0.6);
+    doc.line(margin, 22, pageW - margin, 22);
+  };
+
+  const footer = (page: number, label: string) => {
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.rect(0, pageH - 10, pageW, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.8);
+    doc.text(`${brand.name}  |  ${label}`, margin, pageH - 4);
+    doc.text(String(page).padStart(2, "0"), pageW - margin, pageH - 4, { align: "right" });
+  };
+
+  const title = (text: string, subtitle?: string) => {
+    background();
+    logo(margin, 8, 38, 13);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(ink.r, ink.g, ink.b);
+    doc.setFontSize(24);
+    doc.text(doc.splitTextToSize(text, 158), margin, 45);
+    if (subtitle) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(70, 82, 104);
+      doc.text(doc.splitTextToSize(subtitle, 155), margin, 66);
+    }
+  };
+
+  const pill = (text: string, x: number, y: number, w: number, fill = accent) => {
+    doc.setFillColor(fill.r, fill.g, fill.b);
+    doc.roundedRect(x, y, w, 12, 6, 6, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(text, x + w / 2, y + 7.8, { align: "center" });
+  };
+
+  const para = (text: string | undefined, x: number, y: number, w: number, size = 9, color = { r: 51, g: 65, b: 85 }) => {
+    if (!text) return y;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(color.r, color.g, color.b);
+    const lines = doc.splitTextToSize(text, w);
+    doc.text(lines, x, y);
+    return y + lines.length * (size * 0.55) + 4;
+  };
+
+  const bulletList = (items: string[], x: number, y: number, w: number, limit = 8) => {
+    doc.setDrawColor(primary.r, primary.g, primary.b);
+    doc.setLineWidth(0.55);
+    doc.line(x + 2, y - 4, x + 2, y + Math.min(items.length, limit) * 11);
+    items.slice(0, limit).forEach((item, index) => {
+      const cy = y + index * 11;
+      doc.setFillColor(primary.r, primary.g, primary.b);
+      doc.circle(x + 2, cy - 2.2, 1.5, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.4);
+      doc.setTextColor(35, 45, 66);
+      doc.text(doc.splitTextToSize(item, w - 10).slice(0, 2), x + 9, cy);
+    });
+  };
+
+  const card = (x: number, y: number, w: number, h: number, fill = { r: 255, g: 255, b: 255 }) => {
+    doc.setFillColor(fill.r, fill.g, fill.b);
+    doc.setDrawColor(223, 230, 242);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(x, y, w, h, 5, 5, "FD");
+  };
+
+  // Page 1: cover
+  doc.setFillColor(primary.r, primary.g, primary.b);
+  doc.rect(0, 0, pageW, pageH, "F");
+  doc.setFillColor(secondary.r, secondary.g, secondary.b);
+  doc.triangle(pageW, 0, pageW, pageH, 112, pageH, "F");
+  logo(margin, 16, 48, 18, true);
+  pill("SERVICE PROPOSAL", margin, 45, 44, accent);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(30);
+  doc.text(doc.splitTextToSize(proposal.title, 118), margin, 74);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(226, 240, 255);
+  doc.text(doc.splitTextToSize(proposal.subtitle, 112), margin, 108);
+  doc.setFontSize(8.5);
+  doc.text(`Prepared for ${proposal.preparedFor}`, margin, 135);
+  doc.text(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), margin, 143);
+  const price = proposal.pricing?.amount;
+  if (typeof price === "number") {
+    card(margin, 154, 74, 29, { r: 255, g: 255, b: 255 });
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(19);
+    doc.text(`$${price.toLocaleString()}`, margin + 8, 168);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.text(`per ${proposal.pricing.interval || "project"}`, margin + 8, 176);
+    if (proposal.pricing.originalAmount) {
+      doc.text(`Promo from $${proposal.pricing.originalAmount.toLocaleString()}`, margin + 33, 176);
+    }
+  }
+  if (coverImage && addImage(coverImage, 152, 32, 122, 118)) {
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(1.2);
+    doc.roundedRect(152, 32, 122, 118, 9, 9, "S");
+  }
+  doc.setFontSize(8);
+  doc.setTextColor(230, 245, 255);
+  doc.text(proposal.contact.website || brand.name, margin, pageH - 20);
+
+  // Page 2: about and need
+  doc.addPage();
+  title(`About ${proposal.preparedBy || brand.name}`, design.themeName);
+  card(margin, 78, 122, 75);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(primary.r, primary.g, primary.b);
+  doc.text("Our Vision", margin + 8, 94);
+  para(proposal.aboutBrand, margin + 8, 108, 106, 9.2);
+  card(margin, 160, 122, 24, softAccent);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.text("Prepared for", margin + 8, 171);
+  doc.setFontSize(13);
+  doc.text(proposal.preparedFor, margin + 8, 179);
+  addImage(aboutImage, 158, 50, 112, 92);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.text("Why This Matters", 158, 159);
+  para(proposal.clientNeed, 158, 172, 112, 8.8);
+  footer(2, "About and vision");
+
+  // Page 3: commitments
+  doc.addPage();
+  title("Our Commitments", `Perks and benefits of ${proposal.preparedBy || brand.name}`);
+  bulletList(proposal.commitments, margin, 82, 132, 10);
+  card(172, 76, 94, 70, softPrimary);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(primary.r, primary.g, primary.b);
+  doc.text("Offer Snapshot", 182, 95);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.setFontSize(11);
+  doc.text(doc.splitTextToSize(proposal.pricing?.name || proposal.serviceTitle, 72), 182, 108);
+  if (typeof price === "number") {
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.setFontSize(24);
+    doc.text(`$${price.toLocaleString()}`, 182, 130);
+    doc.setFontSize(9);
+    doc.text(`/${proposal.pricing.interval || "project"}`, 221, 130);
+  }
+  if (proposal.pricing?.note) para(proposal.pricing.note, 172, 158, 94, 8.2);
+  footer(3, "Commitments");
+
+  // Page 4: benefits and deliverables
+  doc.addPage();
+  title("Benefits and Scope", "What the client receives and why it matters.");
+  bulletList(proposal.benefits, margin, 78, 118, 9);
+  const dX = 152;
+  const deliverables = proposal.deliverables.slice(0, 6);
+  deliverables.forEach((item, index) => {
+    const y = 66 + index * 20;
+    card(dX, y, 118, 15, index % 2 === 0 ? { r: 255, g: 255, b: 255 } : softPrimary);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.2);
+    doc.setTextColor(ink.r, ink.g, ink.b);
+    doc.text(item.title, dX + 6, y + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.7);
+    doc.setTextColor(72, 84, 104);
+    doc.text(doc.splitTextToSize(item.description, 104).slice(0, 2), dX + 6, y + 11);
+  });
+  footer(4, "Benefits and scope");
+
+  // Page 5: proof and timeline
+  doc.addPage();
+  title("Expected Impact", "Realistic outcome ranges, not guaranteed results.");
+  addImage(impactImage, margin, 63, 112, 88);
+  const points = proposal.proofPoints.slice(0, 6);
+  points.forEach((point, index) => {
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    const x = 144 + col * 43;
+    const y = 68 + row * 42;
+    card(x, y, 36, 32, row === 0 ? softSecondary : { r: 255, g: 255, b: 255 });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.text(pdfSafeText(point.metric), x + 5, y + 11);
+    doc.setFontSize(7);
+    doc.setTextColor(ink.r, ink.g, ink.b);
+    doc.text(doc.splitTextToSize(point.label, 27).slice(0, 2), x + 5, y + 19);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.8);
+    doc.setTextColor(86, 98, 116);
+    doc.text(doc.splitTextToSize(point.note, 27).slice(0, 2), x + 5, y + 27);
+  });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.text("Launch Timeline", margin, 168);
+  (proposal.timeline || []).slice(0, 4).forEach((step, index) => {
+    const x = margin + index * 65;
+    card(x, 176, 56, 17, { r: 255, g: 255, b: 255 });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.7);
+    doc.setTextColor(primary.r, primary.g, primary.b);
+    doc.text(pdfSafeText(step.label), x + 5, 183);
+    doc.setTextColor(ink.r, ink.g, ink.b);
+    doc.text(doc.splitTextToSize(step.title, 45).slice(0, 1), x + 5, 189);
+  });
+  footer(5, "Proof and timeline");
+
+  // Page 6: terms and next steps
+  doc.addPage();
+  title("Terms and Next Steps", "Clear expectations before work begins.");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.text("Terms", margin, 74);
+  bulletList(proposal.terms, margin, 88, 132, 7);
+  doc.text("Next Steps", 166, 74);
+  (proposal.nextSteps || []).slice(0, 5).forEach((step, index) => {
+    const y = 86 + index * 18;
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.circle(170, y - 2, 4, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.text(String(index + 1), 170, y, { align: "center" });
+    doc.setTextColor(45, 55, 75);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.4);
+    doc.text(doc.splitTextToSize(step, 98).slice(0, 2), 180, y);
+  });
+  card(166, 166, 104, 22, softAccent);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(ink.r, ink.g, ink.b);
+  doc.text("Contact", 174, 177);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.4);
+  doc.text(
+    [proposal.contact?.email, proposal.contact?.phone, proposal.contact?.website].filter(Boolean).join("  |  "),
+    174,
+    185,
+  );
+  footer(6, "Terms and next steps");
 
   return Buffer.from(doc.output("arraybuffer"));
 }

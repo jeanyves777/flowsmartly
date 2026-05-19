@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
 import { sendPitchEmail } from "@/lib/email";
 import { sendMarketingEmail, createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 import type { PitchContent } from "@/lib/pitch/generator";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import type { ResearchData } from "@/lib/pitch/researcher";
@@ -78,7 +79,7 @@ export async function POST(
     const [brandKit, user, marketingConfig] = await Promise.all([
       prisma.brandKit.findFirst({
         where: { userId: session.userId },
-        select: { name: true, colors: true, logo: true, website: true },
+        select: { name: true, colors: true, logo: true, iconLogo: true, website: true },
       }),
       prisma.user.findUnique({
         where: { id: session.userId },
@@ -97,7 +98,7 @@ export async function POST(
       }),
     ]);
 
-    const brandColors = JSON.parse(brandKit?.colors || "{}") as { primary?: string; secondary?: string };
+    const brandColors = JSON.parse(brandKit?.colors || "{}") as { primary?: string; secondary?: string; accent?: string };
 
     // Resolve brand logo to base64 + detect aspect ratio
     let logoBase64: string | undefined;
@@ -110,12 +111,26 @@ export async function POST(
         if (src.startsWith("data:")) {
           buffer = Buffer.from(src.replace(/^data:image\/[^;]+;base64,/, ""), "base64");
         } else if (src.startsWith("http")) {
-          const r = await fetch(src);
+          let r = await fetch(src);
+          if (!r.ok) {
+            try {
+              r = await fetch(await getPresignedUrl(src));
+            } catch {
+              // Keep the original response error below.
+            }
+          }
+          if (!r.ok) throw new Error(`Logo fetch failed: ${r.status}`);
           buffer = Buffer.from(await r.arrayBuffer());
         } else {
-          const { readFile } = await import("fs/promises");
-          const { join } = await import("path");
-          buffer = await readFile(join(process.cwd(), "public", src));
+          if (src.startsWith("/")) {
+            const { readFile } = await import("fs/promises");
+            const { join } = await import("path");
+            buffer = await readFile(join(process.cwd(), "public", src));
+          } else {
+            const r = await fetch(await getPresignedUrl(src));
+            if (!r.ok) throw new Error(`Logo fetch failed: ${r.status}`);
+            buffer = Buffer.from(await r.arrayBuffer());
+          }
         }
         const meta = await sharp(buffer).metadata();
         const w = meta.width || 100;
@@ -133,6 +148,7 @@ export async function POST(
       name: brandKit?.name || "FlowSmartly",
       primaryColor: brandColors.primary || "#2563eb",
       secondaryColor: brandColors.secondary,
+      accentColor: brandColors.accent,
       logo: logoBase64,
       logoAspectRatio,
     };

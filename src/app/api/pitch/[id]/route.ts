@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 // GET /api/pitch/[id]
 export async function GET(
@@ -24,6 +25,7 @@ export async function GET(
     let pitchContent = {};
     try { research = JSON.parse(pitch.research || "{}"); } catch {}
     try { pitchContent = JSON.parse(pitch.pitchContent || "{}"); } catch {}
+    pitchContent = await presignAllUrls(pitchContent);
 
     return NextResponse.json({
       success: true,

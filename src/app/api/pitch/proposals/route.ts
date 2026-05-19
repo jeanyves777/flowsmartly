@@ -4,6 +4,7 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
+import { generateProposalVisualAssets } from "@/lib/pitch/proposal-visuals";
 
 const PRESETS = new Set<ProposalPreset>([
   "google-business-profile",
@@ -60,7 +61,19 @@ export async function POST(request: NextRequest) {
       prisma.brandKit.findFirst({
         where: { userId: session.userId },
         orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          tagline: true,
+          description: true,
+          industry: true,
+          niche: true,
+          targetAudience: true,
+          voiceTone: true,
+          uniqueValue: true,
+          colors: true,
+          fonts: true,
+        },
       }),
       prisma.user.findUnique({
         where: { id: session.userId },
@@ -115,6 +128,20 @@ export async function POST(request: NextRequest) {
       terms: cleanText(body.terms || inferred.terms, 2000) || undefined,
     });
 
+    let proposal = result.proposal;
+    try {
+      proposal = await generateProposalVisualAssets({
+        userId: session.userId,
+        preset,
+        targetName,
+        serviceTitle,
+        proposal,
+        brandKit,
+      });
+    } catch (visualError) {
+      console.warn("[ProposalAgent] Visual asset generation failed:", visualError);
+    }
+
     const pitch = await prisma.pitch.create({
       data: {
         userId: session.userId,
@@ -130,7 +157,7 @@ export async function POST(request: NextRequest) {
           targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite),
           serviceTitle,
         }),
-        pitchContent: JSON.stringify(result.proposal),
+        pitchContent: JSON.stringify(proposal),
       },
     });
 
@@ -159,7 +186,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "service_proposal_generate",
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-7+xai-image-first",
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         costCents: 0,
