@@ -1034,18 +1034,37 @@ export async function generateServiceProposalPDF(
   };
 
   const clean = (value: unknown) => pdfSafeText(value);
+  const tidyEnding = (value: string, addPeriod = true) => {
+    let text = value.replace(/[,;:|-]\s*$/g, "").trim();
+    const weakEndings = new Set(["to", "and", "or", "with", "for", "of", "in", "on", "at", "by", "from", "your", "our", "the", "a", "an"]);
+    let parts = text.split(/\s+/);
+    while (parts.length > 3 && weakEndings.has(parts[parts.length - 1].toLowerCase())) {
+      parts = parts.slice(0, -1);
+      text = parts.join(" ");
+    }
+    if (addPeriod && text && !/[.!?]$/.test(text)) return `${text}.`;
+    return text;
+  };
+  const phraseTrim = (value: unknown, max = 105) => {
+    const text = clean(value);
+    if (text.length <= max) return text;
+    const cut = text.slice(0, max).trim();
+    const breakAt = Math.max(cut.lastIndexOf(";"), cut.lastIndexOf(","), cut.lastIndexOf(" - "), cut.lastIndexOf(" and "));
+    if (breakAt > Math.floor(max * 0.52)) return tidyEnding(cut.slice(0, breakAt), false);
+    return tidyEnding(cut.replace(/\s+\S*$/, ""), false);
+  };
   const truncateClean = (value: unknown, max = 180) => {
     const text = clean(value);
     if (text.length <= max) return text;
     const cut = text.slice(0, max).trim();
     const sentenceEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
     if (sentenceEnd > Math.floor(max * 0.45)) return cut.slice(0, sentenceEnd + 1);
-    return `${cut.replace(/\s+\S*$/, "")}...`;
+    return tidyEnding(cut.replace(/\s+\S*$/, ""));
   };
   const shortText = (value: unknown, max = 105) => {
     const text = clean(value);
     if (text.length <= max) return text;
-    return `${text.slice(0, max).replace(/\s+\S*$/, "")}...`;
+    return phraseTrim(text, max);
   };
   const fitTextToLines = (value: unknown, w: number, size: number, maxLines: number) => {
     const maxChars = Math.max(48, Math.floor((w / Math.max(size, 1)) * maxLines * 2.15));
@@ -1124,9 +1143,11 @@ export async function generateServiceProposalPDF(
 
   const footer = () => {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(19);
+    doc.setFontSize(15);
     doc.setTextColor(softInk.r, softInk.g, softInk.b);
-    doc.text(website, margin, pageH - 38);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(margin - 8, pageH - 45, Math.min(360, website.length * 8 + 18), 26, 8, 8, "F");
+    doc.text(website, margin, pageH - 28);
   };
 
   const h1 = (text: string, x = margin, y = 150, w = 760, size = 64, maxLines = 3) => {
@@ -1207,6 +1228,16 @@ export async function generateServiceProposalPDF(
 
   const slideBody = (role: ProposalDeckSlideRole, fallback = "") =>
     clean(slideFor(role)?.body) || fallback;
+  const publicSlideHeadline = (role: ProposalDeckSlideRole, fallback: string) => {
+    const headline = slideHeadline(role, fallback);
+    if (role === "proof" && /starting point|public profile signals?/i.test(headline)) return "Expected Local Impact";
+    return headline;
+  };
+  const publicSlideBody = (role: ProposalDeckSlideRole, fallback = "") => {
+    const body = slideBody(role, fallback);
+    if (role === "proof" && /public profile signals?|raw context|specific and measurable/i.test(body)) return fallback;
+    return body;
+  };
 
   const slideBullets = (role: ProposalDeckSlideRole, fallback: string[] = []) =>
     cleanBullets(slideFor(role)?.bullets || [], fallback);
@@ -1214,6 +1245,19 @@ export async function generateServiceProposalPDF(
   const boldLead = (text: string) => {
     const parts = text.split(":");
     return parts.length > 1 ? { lead: parts[0], rest: parts.slice(1).join(":").trim() } : { lead: text, rest: "" };
+  };
+  const nextStepLabel = (value: string) => {
+    const text = clean(value);
+    const lower = text.toLowerCase();
+    if (lower.includes("reply") && lower.includes("email")) return "Reply with your preferred contact details.";
+    if (lower.includes("google business profile") || lower.includes("access")) return "Share the required profile access.";
+    if (lower.includes("email list")) return "Share approved email list details.";
+    if (lower.includes("content calendar") || lower.includes("brand voice")) return "Approve the content calendar and brand voice.";
+    if (lower.includes("first") && lower.includes("content")) return "Review the first content batch.";
+    if (lower.includes("confirm") || lower.includes("accept")) return "Confirm proposal acceptance.";
+    if (lower.includes("onboarding")) return "Complete onboarding details.";
+    if (lower.includes("kickoff") || lower.includes("schedule")) return "Schedule the kickoff call.";
+    return truncateClean(text, 78);
   };
 
   const bigBulletList = (
@@ -1347,12 +1391,13 @@ export async function generateServiceProposalPDF(
   const aboutTitleEnd = h1(slideHeadline("about", "About Us"), margin, 135, 570, 56, 3);
   const aboutBarY = Math.max(265, aboutTitleEnd + 28);
   titleBar(clean(slideFor("about")?.subhead) || "Built to Grow Local Businesses", margin, aboutBarY, 610, 90, red, 33);
-  para(slideBody("about", proposal.aboutBrand), margin, aboutBarY + 138, 820, 23, softInk, 1.28, 4);
+  const aboutTextW = 650;
+  para(slideBody("about", proposal.aboutBrand), margin, aboutBarY + 138, aboutTextW, 23, softInk, 1.28, 4);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(25);
   setColor(ink);
   doc.text("Client Need", margin, 606);
-  para(proposal.clientNeed, margin, 644, 820, 21, softInk, 1.2, 2);
+  para(proposal.clientNeed, margin, 644, aboutTextW, 21, softInk, 1.2, 2);
   if (aboutIsPortrait) {
     addHeroImage(aboutVisuals[0] || aboutImage, 760, 95, 335, 575, { alignY: 0.56 });
     addHeroImage(aboutVisuals[1] || impactImage || coverImage, 1080, 155, 300, 210, { shadow: false });
@@ -1411,8 +1456,8 @@ export async function generateServiceProposalPDF(
   // Page 5: proof and timeline
   doc.addPage();
   base(5, "tl");
-  const proofTitleEnd = h1(slideHeadline("proof", "Expected Impact"), margin + 10, 125, 760, 54, 3);
-  para(slideBody("proof", "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see in calls, views, directions, and booked work."), margin + 10, proofTitleEnd + 28, 760, 21, softInk, 1.22, 2);
+  const proofTitleEnd = h1(publicSlideHeadline("proof", "Expected Impact"), margin + 10, 125, 680, 54, 3);
+  para(publicSlideBody("proof", "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see in calls, views, directions, and booked work."), margin + 10, proofTitleEnd + 28, 670, 21, softInk, 1.22, 2);
   const clientInsightPoints = (proposal.clientProfile?.insights || []).map((insight) => ({
     metric: insight.metric,
     label: insight.label,
@@ -1456,10 +1501,10 @@ export async function generateServiceProposalPDF(
     "Complete onboarding",
     "Share brand assets",
     "Schedule kickoff",
-  ]);
+  ]).map(nextStepLabel);
   h2("Next Steps", 940, 260, ink, 36);
-  bigBulletList(nextItems, 940, 330, 360, { limit: 4, rowH: 78, size: 20, bold: true, maxLines: 3 });
-  addHeroImage(termsVisuals[0] || pricingTagImage || aboutImage || creatorImage, 1025, 615, 245, 150, { alignY: 0.55, shadow: false });
+  bigBulletList(nextItems, 940, 330, 360, { limit: 4, rowH: 72, size: 18, bold: true, maxLines: 2 });
+  addHeroImage(termsVisuals[0] || pricingTagImage || aboutImage || creatorImage, 1035, 632, 230, 122, { alignY: 0.55, shadow: false });
   footer();
 
   let closingPage = 7;

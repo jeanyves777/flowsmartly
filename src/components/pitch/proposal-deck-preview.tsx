@@ -26,7 +26,10 @@ function text(value: unknown, fallback = ""): string {
 function shortText(value: unknown, max = 120): string {
   const clean = text(value);
   if (clean.length <= max) return clean;
-  return `${clean.slice(0, max).replace(/\s+\S*$/, "")}...`;
+  const cut = clean.slice(0, max).trim();
+  const breakAt = Math.max(cut.lastIndexOf(";"), cut.lastIndexOf(","), cut.lastIndexOf(" - "), cut.lastIndexOf(" and "));
+  const trimmed = breakAt > Math.floor(max * 0.52) ? cut.slice(0, breakAt) : cut.replace(/\s+\S*$/, "");
+  return trimmed.replace(/[,;:|-]\s*$/g, "").trim();
 }
 
 function priceText(proposal: ServiceProposalContent): string {
@@ -38,6 +41,35 @@ function priceText(proposal: ServiceProposalContent): string {
 
 function slideFor(proposal: ServiceProposalContent, role: ProposalDeckSlideRole) {
   return proposal.deckPlan?.slides?.find((slide) => slide.role === role);
+}
+
+function publicProofHeadline(value: unknown): string {
+  const headline = text(value, "Expected Impact");
+  if (/starting point|public profile signals?/i.test(headline)) return "Expected Local Impact";
+  return headline;
+}
+
+function publicProofBody(value: unknown): string {
+  const body = text(value);
+  if (!body || /public profile signals?|raw context|specific and measurable/i.test(body)) {
+    return "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.";
+  }
+  return body;
+}
+
+function nextStepLabel(value: unknown): string {
+  const step = text(value);
+  const lower = step.toLowerCase();
+  if (lower.includes("reply") && lower.includes("email")) return "Reply with your preferred contact details.";
+  if (lower.includes("google business profile") || lower.includes("access")) return "Share the required profile access.";
+  if (lower.includes("email list")) return "Share approved email list details.";
+  if (lower.includes("content calendar") || lower.includes("brand voice")) return "Approve the content calendar and brand voice.";
+  if (lower.includes("first") && lower.includes("content")) return "Review the first content batch.";
+  if (lower.includes("confirm") || lower.includes("accept")) return "Confirm proposal acceptance.";
+  if (lower.includes("onboarding")) return "Complete onboarding details.";
+  if (lower.includes("kickoff") || lower.includes("schedule")) return "Schedule the kickoff call.";
+  const shortened = shortText(step, 84);
+  return shortened && !/[.!?]$/.test(shortened) ? `${shortened}.` : shortened;
 }
 
 function visualForKind(proposal: ServiceProposalContent, kind: "cover" | "about" | "impact") {
@@ -179,7 +211,7 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
       </SlideShell>
 
       <SlideShell page={2} website={website}>
-        <div className="grid h-full grid-cols-[minmax(0,0.95fr)_minmax(0,0.75fr)] gap-12">
+        <div className="grid h-full grid-cols-[minmax(0,0.88fr)_minmax(0,0.82fr)] gap-16">
           <div className="min-w-0">
             <h2 className="max-w-xl break-words text-5xl font-black leading-tight text-slate-950">
               {shortText(about?.headline || "About Us", 78)}
@@ -187,13 +219,13 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
             <div className="mt-8 rounded-2xl bg-red-600 px-8 py-5 text-2xl font-black leading-tight text-white">
               <span className="line-clamp-2 break-words">{shortText(about?.subhead || "Built to Grow Local Businesses", 120)}</span>
             </div>
-            <p className="mt-8 line-clamp-4 break-words text-lg leading-8 text-slate-700">
+            <p className="mt-8 break-words text-lg leading-8 text-slate-700">
               {about?.body || proposal.aboutBrand}
             </p>
             <h3 className="mt-10 text-2xl font-black text-slate-950">Client Need</h3>
-            <p className="mt-4 line-clamp-3 break-words text-lg leading-8 text-slate-700">{proposal.clientNeed}</p>
+            <p className="mt-4 break-words text-lg leading-8 text-slate-700">{proposal.clientNeed}</p>
           </div>
-          <VisualStack urls={slideVisuals(proposal, "about", ["about", "impact"])} className="max-h-[570px]" />
+          <VisualStack urls={slideVisuals(proposal, "about", ["about", "impact"])} className="max-h-[520px]" />
         </div>
       </SlideShell>
 
@@ -249,9 +281,9 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
       <SlideShell page={5} website={website}>
         <div className="grid h-full grid-cols-[minmax(0,0.98fr)_minmax(0,0.75fr)] gap-10">
           <div className="min-w-0">
-            <h2 className="break-words text-5xl font-black leading-tight text-slate-950">{shortText(proof?.headline || "Expected Impact", 82)}</h2>
-            <p className="mt-7 line-clamp-2 break-words text-lg leading-8 text-slate-700">
-              {proof?.body || "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see."}
+            <h2 className="break-words text-5xl font-black leading-tight text-slate-950">{shortText(publicProofHeadline(proof?.headline), 82)}</h2>
+            <p className="mt-7 break-words text-lg leading-8 text-slate-700">
+              {publicProofBody(proof?.body)}
             </p>
             <div className="mt-12 flex flex-wrap gap-7">
               {proofPoints.map((point, index) => (
@@ -294,7 +326,7 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
               {proposal.nextSteps.slice(0, 4).map((step, index) => (
                 <div key={index} className="flex gap-4">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ backgroundColor: theme.primary }}>{index + 1}</span>
-                  <p className="line-clamp-3 break-words text-lg font-semibold leading-7 text-slate-700">{step}</p>
+                  <p className="break-words text-base font-semibold leading-6 text-slate-700">{nextStepLabel(step)}</p>
                 </div>
               ))}
             </div>

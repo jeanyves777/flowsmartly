@@ -113,7 +113,7 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     commitments: proposal.clientNeed,
     benefits: proposal.executiveSummary,
     proof: proposal.clientProfile?.insights?.length
-      ? "Current public profile signals plus realistic outcome ranges help make the proposal specific and measurable."
+      ? "This section highlights the local growth opportunity with practical, realistic targets."
       : "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.",
     terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
     closing: proposal.executiveSummary,
@@ -315,6 +315,8 @@ Rules:
 - Keep headlines and red callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
 - If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
 - Keep bullets concise enough for PDF layout.
+- Use client-facing language only. Do not show internal wording such as "public profile signals" or "raw context".
+- Write complete short phrases. Do not end visible slide copy mid-sentence.
 - Do not put raw prompts, backend/provider details, or template instructions in any visible text.
 - Do not invent guaranteed results.`,
     },
