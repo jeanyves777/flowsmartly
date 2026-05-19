@@ -13,6 +13,49 @@ function isServiceProposal(content: PitchContent | ServiceProposalContent): cont
   return (content as ServiceProposalContent).documentType === "service_proposal";
 }
 
+function isManagedLogoReference(src: string) {
+  if (!src) return false;
+  if (src.includes("/api/image-proxy?url=")) return true;
+  if (src.includes("amazonaws.com/")) return true;
+  if (src.includes("flowsmartly-media")) return true;
+  return /^[a-zA-Z0-9_-]+\/.+\.[a-zA-Z0-9]+(?:\?.*)?$/.test(src);
+}
+
+async function fetchLogoBuffer(src: string): Promise<Buffer> {
+  const candidates: string[] = [];
+
+  if (isManagedLogoReference(src)) {
+    try {
+      candidates.push(await getPresignedUrl(src));
+    } catch {
+      // Fall back to direct fetch/local handling below.
+    }
+  }
+
+  if (src.startsWith("http")) candidates.push(src);
+
+  for (const url of candidates) {
+    const response = await fetch(url);
+    const contentType = response.headers.get("content-type") || "";
+    if (response.ok && contentType.toLowerCase().startsWith("image/")) {
+      return Buffer.from(await response.arrayBuffer());
+    }
+  }
+
+  if (src.startsWith("/api/image-proxy?url=") || /^[a-zA-Z0-9_-]+\/.+\.[a-zA-Z0-9]+(?:\?.*)?$/.test(src)) {
+    const response = await fetch(await getPresignedUrl(src));
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.toLowerCase().startsWith("image/")) {
+      throw new Error(`Logo fetch failed: ${response.status} ${contentType || "unknown content type"}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  const { readFile } = await import("fs/promises");
+  const { join } = await import("path");
+  return readFile(join(process.cwd(), "public", src));
+}
+
 function proposalToPitchEmail(proposal: ServiceProposalContent): PitchContent {
   return {
     subject: proposal.subject,
@@ -110,27 +153,8 @@ export async function POST(
         const src = brandKit.logo;
         if (src.startsWith("data:")) {
           buffer = Buffer.from(src.replace(/^data:image\/[^;]+;base64,/, ""), "base64");
-        } else if (src.startsWith("http")) {
-          let r = await fetch(src);
-          if (!r.ok) {
-            try {
-              r = await fetch(await getPresignedUrl(src));
-            } catch {
-              // Keep the original response error below.
-            }
-          }
-          if (!r.ok) throw new Error(`Logo fetch failed: ${r.status}`);
-          buffer = Buffer.from(await r.arrayBuffer());
         } else {
-          if (src.startsWith("/")) {
-            const { readFile } = await import("fs/promises");
-            const { join } = await import("path");
-            buffer = await readFile(join(process.cwd(), "public", src));
-          } else {
-            const r = await fetch(await getPresignedUrl(src));
-            if (!r.ok) throw new Error(`Logo fetch failed: ${r.status}`);
-            buffer = Buffer.from(await r.arrayBuffer());
-          }
+          buffer = await fetchLogoBuffer(src);
         }
         const meta = await sharp(buffer).metadata();
         const w = meta.width || 100;
