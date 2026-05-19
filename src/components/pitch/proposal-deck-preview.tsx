@@ -2,6 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import type { ProposalDeckSlideRole } from "@/lib/pitch/proposal-deck-types";
+import { clientProofBody, clientProofHeadline, isInternalProofCopy } from "@/lib/pitch/proposal-proof-copy";
 import { cn } from "@/lib/utils/cn";
 
 type ProposalTheme = {
@@ -43,17 +44,15 @@ function slideFor(proposal: ServiceProposalContent, role: ProposalDeckSlideRole)
   return proposal.deckPlan?.slides?.find((slide) => slide.role === role);
 }
 
-function publicProofHeadline(value: unknown): string {
+function publicProofHeadline(proposal: ServiceProposalContent, value: unknown): string {
   const headline = text(value, "Expected Impact");
-  if (/starting point|public profile signals?/i.test(headline)) return "Expected Local Impact";
+  if (/starting point|public profile signals?|proof points?|your proof/i.test(headline)) return clientProofHeadline(proposal);
   return headline;
 }
 
-function publicProofBody(value: unknown): string {
+function publicProofBody(proposal: ServiceProposalContent, value: unknown): string {
   const body = text(value);
-  if (!body || /public profile signals?|raw context|specific and measurable/i.test(body)) {
-    return "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.";
-  }
+  if (!body || isInternalProofCopy(body)) return clientProofBody(proposal);
   return body;
 }
 
@@ -281,9 +280,9 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
       <SlideShell page={5} website={website}>
         <div className="grid h-full grid-cols-[minmax(0,0.98fr)_minmax(0,0.75fr)] gap-10">
           <div className="min-w-0">
-            <h2 className="break-words text-5xl font-black leading-tight text-slate-950">{shortText(publicProofHeadline(proof?.headline), 82)}</h2>
+            <h2 className="break-words text-5xl font-black leading-tight text-slate-950">{shortText(publicProofHeadline(proposal, proof?.headline), 82)}</h2>
             <p className="mt-7 break-words text-lg leading-8 text-slate-700">
-              {publicProofBody(proof?.body)}
+              {publicProofBody(proposal, proof?.body)}
             </p>
             <div className="mt-12 flex flex-wrap gap-7">
               {proofPoints.map((point, index) => (

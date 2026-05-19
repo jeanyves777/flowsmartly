@@ -1,6 +1,7 @@
 import type { PitchContent } from "./generator";
 import type { ServiceProposalContent } from "./proposal-agent";
 import type { ProposalDeckSlide, ProposalDeckSlideRole } from "./proposal-deck-types";
+import { clientProofBody, clientProofHeadline, isInternalProofCopy } from "./proposal-proof-copy";
 import type { ResearchData } from "./researcher";
 import { computeDigitalScore, scoreHexColor } from "./scorer";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
@@ -1230,12 +1231,14 @@ export async function generateServiceProposalPDF(
     clean(slideFor(role)?.body) || fallback;
   const publicSlideHeadline = (role: ProposalDeckSlideRole, fallback: string) => {
     const headline = slideHeadline(role, fallback);
-    if (role === "proof" && /starting point|public profile signals?/i.test(headline)) return "Expected Local Impact";
+    if (role === "proof" && /starting point|public profile signals?|proof points?|your proof/i.test(headline)) {
+      return clientProofHeadline(proposal);
+    }
     return headline;
   };
   const publicSlideBody = (role: ProposalDeckSlideRole, fallback = "") => {
     const body = slideBody(role, fallback);
-    if (role === "proof" && /public profile signals?|raw context|specific and measurable/i.test(body)) return fallback;
+    if (role === "proof" && isInternalProofCopy(body)) return clientProofBody(proposal);
     return body;
   };
 
@@ -1457,7 +1460,7 @@ export async function generateServiceProposalPDF(
   doc.addPage();
   base(5, "tl");
   const proofTitleEnd = h1(publicSlideHeadline("proof", "Expected Impact"), margin + 10, 125, 680, 54, 3);
-  para(publicSlideBody("proof", "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see in calls, views, directions, and booked work."), margin + 10, proofTitleEnd + 28, 670, 21, softInk, 1.22, 2);
+  para(publicSlideBody("proof", clientProofBody(proposal)), margin + 10, proofTitleEnd + 28, 670, 21, softInk, 1.22, 2);
   const clientInsightPoints = (proposal.clientProfile?.insights || []).map((insight) => ({
     metric: insight.metric,
     label: insight.label,

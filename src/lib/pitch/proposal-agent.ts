@@ -322,6 +322,7 @@ Rules:
 - Keep terms plain and fair: activation timing, client information needed, cancellation/refund expectations, reporting, and provider delays if relevant.
 - Use short sentences suitable for a PDF layout.
 - For proofPoints, use realistic marketing outcome ranges, not guaranteed results.
+- For proofPoints and proof slide copy, turn facts into client-facing reasons to act: state what the finding means, why it matters, and what the offer will improve. Do not write meta copy such as "this section", "proof points", "proposal builder", or "the client can see".
 - Keep proofPoint metric values ASCII-only and short, such as "2-3x", "+40%", "4.8+", or "Top 3". Do not use star symbols, emoji, or decorative characters in metric values.
 - If Client Google/local profile facts are available and the request is about local presence, Google Business Profile, local SEO, reviews, maps, or nearby customers, cite the actual rating, review count, category, address, or status in clientNeed, proofPoints, or benefits. Do not invent Google stats when unavailable.
 - Match the brand voice and service category.

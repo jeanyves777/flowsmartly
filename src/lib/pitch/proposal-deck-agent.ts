@@ -4,6 +4,7 @@ import type { ProposalDeckLayout, ProposalDeckPlan, ProposalDeckSlide, ProposalD
 import type { ProposalLibraryAsset } from "./proposal-asset-library";
 import { listProposalVisualAssets } from "./proposal-asset-library";
 import type { ServiceProposalContent, ServiceProposalInput } from "./proposal-agent";
+import { clientProofBody, clientProofHeadline } from "./proposal-proof-copy";
 
 const SLIDE_ROLES: ProposalDeckSlideRole[] = [
   "cover",
@@ -112,9 +113,7 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     about: proposal.aboutBrand,
     commitments: proposal.clientNeed,
     benefits: proposal.executiveSummary,
-    proof: proposal.clientProfile?.insights?.length
-      ? "This section highlights the local growth opportunity with practical, realistic targets."
-      : "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.",
+    proof: clientProofBody(proposal),
     terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
     closing: proposal.executiveSummary,
   };
@@ -137,7 +136,7 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     about: "About Us",
     commitments: "Our Commitments",
     benefits: `Benefits of ${proposal.serviceTitle || "the Service"}`,
-    proof: "Expected Impact",
+    proof: clientProofHeadline(proposal),
     terms: "Clear Expectations",
     closing: "Ready to get found, trusted, and chosen?",
   };
@@ -316,6 +315,8 @@ Rules:
 - If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
 - Keep bullets concise enough for PDF layout.
 - Use client-facing language only. Do not show internal wording such as "public profile signals" or "raw context".
+- Speak directly to the client using "you" and "your". Do not write meta phrases such as "this section", "proof points", "slide", "proposal builder", or "the client can see".
+- For the proof slide, use a client-facing headline such as "Your Local Growth Opportunity" or "What Your Local Profile Shows", not "Your Proof Points".
 - Write complete short phrases. Do not end visible slide copy mid-sentence.
 - Do not put raw prompts, backend/provider details, or template instructions in any visible text.
 - Do not invent guaranteed results.`,

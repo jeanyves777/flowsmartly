@@ -73,29 +73,32 @@ export function proposalClientProfileFromGoogle(
       label: "Google rating",
       note:
         reviewCount !== undefined
-          ? `${compactNumber(reviewCount)} public reviews shape local trust before a visitor reaches the website.`
-          : "Public rating is a visible trust signal in local search.",
+          ? `${compactNumber(reviewCount)} public reviews shape trust before prospects reach your website.`
+          : "Your public rating is a visible trust signal in local search.",
     });
   }
   if (reviewCount !== undefined) {
     insights.push({
       metric: compactNumber(reviewCount),
       label: "Google reviews",
-      note: "Review volume can be used as proof while the proposal improves visibility and conversion paths.",
+      note:
+        reviewCount < 10
+          ? "Fresh reviews can make your rating feel more credible to nearby prospects."
+          : "Review depth gives nearby prospects proof they can trust before contacting you.",
     });
   }
   if (types.length > 0) {
     insights.push({
       metric: "Local",
       label: types[0].replace(/_/g, " "),
-      note: "The offer should be framed around how nearby customers compare and choose this category.",
+      note: "Nearby prospects compare this category quickly, so profile clarity matters.",
     });
   }
   if (businessStatus) {
     insights.push({
       metric: businessStatus === "OPERATIONAL" ? "Open" : "Listed",
       label: "Profile status",
-      note: "The Google profile is a practical channel to optimize, measure, and keep current.",
+      note: "Your active profile can be kept current, measurable, and easier to choose.",
     });
   }
 
