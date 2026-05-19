@@ -2,6 +2,7 @@ import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import type { AgentTool } from "@/lib/ai/client";
 import type { ProposalDeckPlan } from "./proposal-deck-types";
+import type { ProposalClientProfile } from "./client-profile";
 
 export type ProposalPreset =
   | "google-business-profile"
@@ -23,6 +24,7 @@ export interface ServiceProposalInput {
   originalPrice?: number;
   billingInterval?: string;
   terms?: string;
+  clientProfile?: ProposalClientProfile;
 }
 
 export interface ProposalPricing {
@@ -100,6 +102,7 @@ export interface ServiceProposalContent {
   design: ProposalDesignDirection;
   visualAssets?: ProposalVisualAssets;
   deckPlan?: ProposalDeckPlan;
+  clientProfile?: ProposalClientProfile;
   brandSnapshot: Record<string, unknown>;
 }
 
@@ -230,6 +233,18 @@ function buildTools(ctx: { userId: string; preset: ProposalPreset }): AgentTool[
 }
 
 function systemPrompt(input: ServiceProposalInput): string {
+  const clientProfileContext = input.clientProfile
+    ? `
+Client Google/local profile facts:
+- Google rating: ${input.clientProfile.rating !== undefined ? `${input.clientProfile.rating}/5` : "not available"}
+- Review count: ${input.clientProfile.reviewCount ?? "not available"}
+- Address: ${input.clientProfile.address || "not available"}
+- Phone: ${input.clientProfile.phone || "not available"}
+- Business status: ${input.clientProfile.businessStatus || "not available"}
+- Business categories: ${input.clientProfile.types?.join(", ") || "not available"}
+`
+    : "Client Google/local profile facts: not available.";
+
   return `You are FlowSmartly's dedicated Service Proposal Agent.
 
 Your job is to generate a polished service proposal and a brand-aware art direction packet for a visual PDF deck.
@@ -294,6 +309,7 @@ Rules:
 - Use short sentences suitable for a PDF layout.
 - For proofPoints, use realistic marketing outcome ranges, not guaranteed results.
 - Keep proofPoint metric values ASCII-only and short, such as "2-3x", "+40%", "4.8+", or "Top 3". Do not use star symbols, emoji, or decorative characters in metric values.
+- If Client Google/local profile facts are available and the request is about local presence, Google Business Profile, local SEO, reviews, maps, or nearby customers, cite the actual rating, review count, category, address, or status in clientNeed, proofPoints, or benefits. Do not invent Google stats when unavailable.
 - Match the brand voice and service category.
 - Design must use the live BrandKit: colors, fonts, logo availability, audience, voice, services, and unique value.
 - Image prompts are for background/hero PNG assets only. They must NEVER ask the image model to draw text, words, UI labels, logos, logo boxes, logo placeholders, white reserved rectangles, dashed frames, or fake brand marks. The real logo is overlaid after generation.
@@ -308,7 +324,9 @@ Proposal request:
 - Goals: ${input.goals || "not provided"}
 - Pricing: ${input.price ? `$${input.price}` : "not provided"}${input.billingInterval ? ` per ${input.billingInterval}` : ""}
 - Original price: ${input.originalPrice ? `$${input.originalPrice}` : "not provided"}
-- Terms note: ${input.terms || "not provided"}`;
+- Terms note: ${input.terms || "not provided"}
+
+${clientProfileContext}`;
 }
 
 export async function runServiceProposalAgent(input: ServiceProposalInput): Promise<{
@@ -362,6 +380,11 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
         uniqueValue: kit.uniqueValue,
       }
     : {};
+  const clientProofPoints = input.clientProfile?.insights?.map((insight) => ({
+    metric: cleanMetric(insight.metric),
+    label: String(insight.label || "").replace(/\s+/g, " ").trim().slice(0, 80),
+    note: String(insight.note || "").replace(/\s+/g, " ").trim().slice(0, 180),
+  })) || [];
 
   const proposal: ServiceProposalContent = {
     documentType: "service_proposal",
@@ -379,13 +402,16 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
     benefits: Array.isArray(raw.benefits) ? raw.benefits.slice(0, 12) : [],
     deliverables: Array.isArray(raw.deliverables) ? raw.deliverables.slice(0, 10) : [],
     timeline: Array.isArray(raw.timeline) ? raw.timeline.slice(0, 8) : [],
-    proofPoints: Array.isArray(raw.proofPoints)
-      ? raw.proofPoints.slice(0, 6).map((point) => ({
-          metric: cleanMetric(point.metric),
-          label: String(point.label || "").replace(/\s+/g, " ").trim().slice(0, 80),
-          note: String(point.note || "").replace(/\s+/g, " ").trim().slice(0, 180),
-        }))
-      : [],
+    proofPoints: [
+      ...clientProofPoints,
+      ...(Array.isArray(raw.proofPoints)
+        ? raw.proofPoints.slice(0, 6).map((point) => ({
+            metric: cleanMetric(point.metric),
+            label: String(point.label || "").replace(/\s+/g, " ").trim().slice(0, 80),
+            note: String(point.note || "").replace(/\s+/g, " ").trim().slice(0, 180),
+          }))
+        : []),
+    ].slice(0, 6),
     pricing: {
       name: raw.pricing?.name || input.serviceTitle,
       amount: typeof input.price === "number" ? input.price : raw.pricing?.amount,
@@ -452,6 +478,7 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
         ? raw.design.layoutNotes.slice(0, 6)
         : ["Use a visual deck layout with one strong idea per page.", "Overlay the real brand logo in code, not in generated images."],
     },
+    clientProfile: input.clientProfile,
     brandSnapshot,
   };
 

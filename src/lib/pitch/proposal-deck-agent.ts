@@ -17,9 +17,9 @@ const SLIDE_ROLES: ProposalDeckSlideRole[] = [
 
 const ROLE_LAYOUT: Record<ProposalDeckSlideRole, ProposalDeckLayout> = {
   cover: "hero-split",
-  about: "two-visuals",
+  about: "visual-right",
   commitments: "visual-right",
-  benefits: "two-visuals",
+  benefits: "visual-right",
   proof: "metrics",
   terms: "terms",
   closing: "closing",
@@ -94,7 +94,7 @@ function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLib
       };
       return score(b) - score(a);
     })
-    .slice(0, role === "cover" || role === "proof" ? 1 : 2);
+    .slice(0, 1);
 }
 
 function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalContent, assets: ProposalLibraryAsset[]): ProposalDeckSlide {
@@ -112,7 +112,9 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     about: proposal.aboutBrand,
     commitments: proposal.clientNeed,
     benefits: proposal.executiveSummary,
-    proof: "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.",
+    proof: proposal.clientProfile?.insights?.length
+      ? "Current public profile signals plus realistic outcome ranges help make the proposal specific and measurable."
+      : "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see.",
     terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
     closing: proposal.executiveSummary,
   };
@@ -122,7 +124,10 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     about: [proposal.clientNeed].filter(Boolean),
     commitments: proposal.commitments,
     benefits: proposal.deliverables.map((item) => item.title || item.description),
-    proof: proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
+    proof: [
+      ...(proposal.clientProfile?.insights || []).map((item) => `${item.metric} ${item.label}`),
+      ...proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
+    ],
     terms: proposal.terms,
     closing: proposal.nextSteps,
   };
@@ -175,7 +180,9 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
       if (id) rawIds.push(id);
     });
 
-    const uniqueIds = Array.from(new Set(rawIds)).filter((id) => assetById.has(id)).slice(0, 2);
+    const layout = layoutFrom(slide.layout, role);
+    const maxVisuals = layout === "two-visuals" && (role === "about" || role === "benefits") ? 2 : 1;
+    const uniqueIds = Array.from(new Set(rawIds)).filter((id) => assetById.has(id)).slice(0, maxVisuals);
     const selectedAssets = uniqueIds.length
       ? uniqueIds.map((id) => assetById.get(id)).filter(Boolean) as ProposalLibraryAsset[]
       : preferredAssetsForRole(role, assets, proposal.preset);
@@ -189,7 +196,7 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
       bullets: cleanList(slide.bullets, role === "terms" ? 4 : 6, 140).length
         ? cleanList(slide.bullets, role === "terms" ? 4 : 6, 140)
         : fallback.bullets,
-      layout: layoutFrom(slide.layout, role),
+      layout,
       visualIds: selectedAssets.map((asset) => asset.id),
       visuals: selectedAssets.map((asset, index) => ({
         id: asset.id,
@@ -244,6 +251,7 @@ function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[
         visualRules: [
           "Use big transparent PNG or cutout images directly on the page, not boxed screenshots.",
           "Some slides should use two images when it helps fill the visual area.",
+          "Use a second image only when it adds a different idea, such as client trust plus growth, not a repeated version of the same story.",
           "Use concise bullets with strong hierarchy; avoid paragraphs that become noisy.",
           "Use red rounded callout bars or tags for pricing and critical terms.",
           "Never use prompt text as a caption.",
@@ -303,7 +311,9 @@ Rules:
 - Use all seven slide roles exactly once.
 - Choose image IDs from list_available_images only.
 - Favor reusable transparent PNG / 3D cutout assets.
-- Make the visual sections feel full. Use two-visuals for about or benefits when helpful.
+- Make the visual sections feel full. Use two-visuals for about or benefits only when the second selected image adds a clearly different idea.
+- Keep headlines and red callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
+- If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
 - Keep bullets concise enough for PDF layout.
 - Do not put raw prompts, backend/provider details, or template instructions in any visible text.
 - Do not invent guaranteed results.`,

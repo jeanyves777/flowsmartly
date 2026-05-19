@@ -931,10 +931,16 @@ export async function generateServiceProposalPDF(
   );
 
   const slideImages = (role: ProposalDeckSlideRole, fallbacks: Array<ResolvedPdfImage | null>) => {
+    const slide = slideFor(role);
+    const wantsTwo = slide?.layout === "two-visuals" && (role === "about" || role === "benefits");
     const planned = (slideFor(role)?.visuals || [])
       .map((visualItem) => plannedImageByUrl.get(visualItem.url))
       .filter(Boolean) as ResolvedPdfImage[];
-    return [...planned, ...fallbacks.filter(Boolean)].slice(0, 2) as ResolvedPdfImage[];
+    const unique = [...planned, ...fallbacks.filter(Boolean)].filter((image, index, images) => {
+      if (!image) return false;
+      return images.findIndex((candidate) => candidate?.dataUri === image.dataUri) === index;
+    }) as ResolvedPdfImage[];
+    return unique.slice(0, wantsTwo ? 2 : 1);
   };
 
   const addRawImage = (image: ResolvedPdfImage | null, x: number, y: number, w: number, h: number) => {
@@ -1249,10 +1255,18 @@ export async function generateServiceProposalPDF(
     doc.roundedRect(x, y, w, h, 24, 24, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(size);
-    const lines = doc.splitTextToSize(clean(text), w - 72).slice(0, 2);
-    const lineHeight = size * 0.98;
-    const startY = y + (h - (lines.length - 1) * lineHeight) / 2 + size * 0.34;
+    let actualSize = size;
+    doc.setFontSize(actualSize);
+    let fitted = fitTextToLines(text, w - 72, actualSize, 2);
+    let lines = doc.splitTextToSize(fitted, w - 72).slice(0, 2);
+    while ((lines.length > 2 || lines.length * actualSize * 1.02 > h - 18) && actualSize > 26) {
+      actualSize -= 2;
+      fitted = fitTextToLines(text, w - 72, actualSize, 2);
+      doc.setFontSize(actualSize);
+      lines = doc.splitTextToSize(fitted, w - 72).slice(0, 2);
+    }
+    const lineHeight = actualSize * 0.98;
+    const startY = y + (h - (lines.length - 1) * lineHeight) / 2 + actualSize * 0.34;
     doc.text(lines, x + 36, startY, { lineHeightFactor: 0.98 });
   };
 
@@ -1281,19 +1295,19 @@ export async function generateServiceProposalPDF(
 
   const drawMetricRing = (x: number, y: number, metric: string, label: string, color: { r: number; g: number; b: number }) => {
     doc.setDrawColor(220, 226, 235);
-    doc.setLineWidth(14);
-    doc.circle(x, y, 58, "S");
+    doc.setLineWidth(12);
+    doc.circle(x, y, 52, "S");
     doc.setDrawColor(color.r, color.g, color.b);
-    doc.setLineWidth(14);
-    doc.circle(x, y, 58, "S");
+    doc.setLineWidth(12);
+    doc.circle(x, y, 52, "S");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
+    doc.setFontSize(clean(metric).length > 5 ? 22 : 26);
     doc.setTextColor(ink.r, ink.g, ink.b);
-    doc.text(clean(metric), x, y - 4, { align: "center" });
+    doc.text(shortText(metric, 8), x, y + 8, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(88, 99, 120);
-    doc.text(doc.splitTextToSize(clean(label), 118).slice(0, 2), x, y + 27, { align: "center", lineHeightFactor: 1.05 });
+    doc.text(doc.splitTextToSize(shortText(label, 40), 138).slice(0, 2), x, y + 76, { align: "center", lineHeightFactor: 1.08 });
   };
 
   const coverVisuals = slideImages("cover", [coverImage]);
@@ -1399,7 +1413,14 @@ export async function generateServiceProposalPDF(
   base(5, "tl");
   const proofTitleEnd = h1(slideHeadline("proof", "Expected Impact"), margin + 10, 125, 760, 54, 3);
   para(slideBody("proof", "Realistic outcome ranges, not guaranteed results. The goal is practical local growth the client can see in calls, views, directions, and booked work."), margin + 10, proofTitleEnd + 28, 760, 21, softInk, 1.22, 2);
-  const points = proposal.proofPoints.slice(0, 4);
+  const clientInsightPoints = (proposal.clientProfile?.insights || []).map((insight) => ({
+    metric: insight.metric,
+    label: insight.label,
+    note: insight.note,
+  }));
+  const points = [...clientInsightPoints, ...proposal.proofPoints]
+    .filter((point, index, all) => all.findIndex((item) => `${item.metric}:${item.label}` === `${point.metric}:${point.label}`) === index)
+    .slice(0, 4);
   points.forEach((point, index) => {
     drawMetricRing(margin + 110 + index * 155, 405, point.metric, point.label, [primary, secondary, accent, red][index] || primary);
   });
@@ -1455,13 +1476,13 @@ export async function generateServiceProposalPDF(
   setColor(ink);
   doc.text(clean(proposal.contact?.name || proposal.preparedBy || brand.name), 875, 625);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(21);
+  doc.setFontSize(18);
   doc.setTextColor(softInk.r, softInk.g, softInk.b);
-  doc.text(
+  const contactLines = doc.splitTextToSize(
     [proposal.contact?.email, proposal.contact?.phone, proposal.contact?.website].filter(Boolean).map(clean).join("  |  "),
-    875,
-    665,
-  );
+    345,
+  ).slice(0, 2);
+  doc.text(contactLines, 875, 665, { lineHeightFactor: 1.15 });
   footer();
 
   return Buffer.from(doc.output("arraybuffer"));

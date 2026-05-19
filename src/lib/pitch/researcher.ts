@@ -211,7 +211,7 @@ function extractContact(html: string): { email?: string; phone?: string; address
 
 // ── Google Places lookup ──────────────────────────────────────────────────────
 
-async function lookupGooglePlaces(businessName: string, websiteUrl: string): Promise<GooglePlacesData | null> {
+export async function lookupGooglePlaces(businessName: string, websiteUrl: string): Promise<GooglePlacesData | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
 

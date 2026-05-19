@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Mail, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp, FileText, Sparkles } from "lucide-react";
+import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
 import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
+import { ProposalDeckPreview } from "@/components/pitch/proposal-deck-preview";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -252,13 +253,6 @@ function isServiceProposalContent(content: PitchContent | Record<string, never> 
   return !!content && (content as ServiceProposalContent).documentType === "service_proposal";
 }
 
-function formatProposalPrice(proposal: ServiceProposalContent): string {
-  const amount = proposal.pricing?.amount;
-  if (typeof amount !== "number") return "Custom";
-  const interval = proposal.pricing?.interval || "project";
-  return `$${amount.toLocaleString()}${interval === "project" ? "" : `/${interval}`}`;
-}
-
 function isHex(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
@@ -272,10 +266,6 @@ function getProposalTheme(proposal: ServiceProposalContent) {
   const bg = isHex(designColors.background) ? designColors.background : "#f8fafc";
   const ink = isHex(designColors.ink) ? designColors.ink : "#0f172a";
   return { primary, secondary, accent, bg, ink };
-}
-
-function getProposalVisual(proposal: ServiceProposalContent, kind: "cover" | "about" | "impact") {
-  return proposal.visualAssets?.images?.find((asset) => asset.kind === kind)?.url;
 }
 
 export default function PitchDetailPage() {
@@ -412,9 +402,6 @@ export default function PitchDetailPage() {
   const isProcessing = pitch.status === "PENDING" || pitch.status === "RESEARCHING";
   const { overall, categories } = isReady && !isProposal ? computeDigitalScore(research) : { overall: 0, categories: [] };
   const proposalTheme = proposal ? getProposalTheme(proposal) : null;
-  const proposalCoverVisual = proposal ? getProposalVisual(proposal, "cover") : undefined;
-  const proposalAboutVisual = proposal ? getProposalVisual(proposal, "about") : undefined;
-  const proposalImpactVisual = proposal ? getProposalVisual(proposal, "impact") : undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -500,199 +487,13 @@ export default function PitchDetailPage() {
 
       {/* Proposal content */}
       {isReady && isProposal && proposal && (
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-              <div
-                className="relative overflow-hidden border-b border-border px-6 py-7 text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${proposalTheme?.primary}, ${proposalTheme?.secondary})`,
-                }}
-              >
-                <div className="relative z-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-                  <div>
-                    <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-                      <FileText className="h-3.5 w-3.5" />
-                      {proposal.design?.themeName || "Service Proposal"}
-                    </div>
-                    <h2 className="max-w-3xl text-3xl font-black tracking-tight">{proposal.title}</h2>
-                    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85">{proposal.subtitle}</p>
-                    <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                      {[
-                        ["Prepared for", proposal.preparedFor],
-                        ["Prepared by", proposal.preparedBy || brandName || "Your team"],
-                        ["Offer", formatProposalPrice(proposal)],
-                      ].map(([label, value]) => (
-                        <div key={label} className="rounded-lg bg-white/12 p-3">
-                          <div className="text-xs text-white/70">{label}</div>
-                          <div className="truncate font-semibold">{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {proposalCoverVisual && (
-                    <div className="hidden overflow-hidden rounded-lg border border-white/20 bg-white/10 shadow-xl lg:block">
-                      <img src={proposalCoverVisual} alt="" className="h-full min-h-[210px] w-full object-cover" />
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="absolute -right-16 -top-20 h-52 w-52 rounded-full opacity-25"
-                  style={{ background: proposalTheme?.accent }}
-                />
-              </div>
-
-              <div className="space-y-8 p-6">
-                <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
-                  <div>
-                    <h3 className="mb-2 text-base font-bold text-foreground">Overview</h3>
-                    <p className="text-sm leading-7 text-muted-foreground">{proposal.executiveSummary}</p>
-                  </div>
-                  {proposalAboutVisual && (
-                    <div className="overflow-hidden rounded-lg border border-border bg-muted">
-                      <img src={proposalAboutVisual} alt="" className="h-40 w-full object-cover" />
-                    </div>
-                  )}
-                </section>
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <section className="rounded-lg border border-border bg-muted/30 p-4">
-                    <h3 className="mb-2 text-sm font-bold text-foreground">Why This Matters</h3>
-                    <p className="text-sm leading-6 text-muted-foreground">{proposal.clientNeed}</p>
-                  </section>
-                  <section className="rounded-lg border border-border bg-muted/30 p-4">
-                    <h3 className="mb-2 text-sm font-bold text-foreground">About {proposal.preparedBy || brandName || "Us"}</h3>
-                    <p className="text-sm leading-6 text-muted-foreground">{proposal.aboutBrand}</p>
-                  </section>
-                </div>
-
-                <section>
-                  <h3 className="mb-3 text-base font-bold text-foreground">Commitments</h3>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {proposal.commitments.map((item, index) => (
-                      <div key={index} className="flex gap-3 rounded-lg border border-border p-3">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                        <span className="text-sm leading-6 text-foreground">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="mb-3 text-base font-bold text-foreground">Deliverables</h3>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {proposal.deliverables.map((item, index) => (
-                      <div key={index} className="rounded-lg border border-border bg-background p-4">
-                        <div className="text-sm font-semibold text-foreground">{item.title}</div>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                {proposal.timeline.length > 0 && (
-                  <section>
-                    <h3 className="mb-3 text-base font-bold text-foreground">Timeline</h3>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {proposal.timeline.map((step, index) => (
-                        <div key={index} className="rounded-lg border border-border p-4">
-                          <span className="text-xs font-semibold uppercase text-sky-600 dark:text-sky-300">{step.label}</span>
-                          <div className="mt-1 text-sm font-semibold text-foreground">{step.title}</div>
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                <section
-                  className="rounded-lg border p-5"
-                  style={{
-                    borderColor: `${proposalTheme?.primary}40`,
-                    background: `linear-gradient(135deg, ${proposalTheme?.primary}12, ${proposalTheme?.secondary}10)`,
-                  }}
-                >
-                  <h3 className="mb-3 text-base font-bold text-foreground">Expected Benefits</h3>
-                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {proposal.benefits.map((item, index) => (
-                        <div key={index} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                          <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0" style={{ color: proposalTheme?.primary }} />
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                    {proposalImpactVisual && (
-                      <div className="overflow-hidden rounded-lg border border-border bg-background">
-                        <img src={proposalImpactVisual} alt="" className="h-36 w-full object-cover" />
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <aside className="space-y-4">
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="mb-3 text-sm font-bold text-foreground">Pricing</h3>
-                <div className="text-3xl font-black" style={{ color: proposalTheme?.primary }}>{formatProposalPrice(proposal)}</div>
-                {typeof proposal.pricing?.originalAmount === "number" && (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Promotional from <span className="line-through">${proposal.pricing.originalAmount.toLocaleString()}</span>
-                  </div>
-                )}
-                {proposal.pricing?.note && <p className="mt-3 text-sm leading-6 text-muted-foreground">{proposal.pricing.note}</p>}
-              </div>
-
-              {proposal.proofPoints.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-5">
-                  <h3 className="mb-3 text-sm font-bold text-foreground">Proof Points</h3>
-                  <div className="grid gap-3">
-                    {proposal.proofPoints.map((point, index) => (
-                      <div key={index} className="rounded-lg bg-muted/40 p-3">
-                        <div className="text-xl font-black" style={{ color: proposalTheme?.primary }}>{point.metric}</div>
-                        <div className="text-sm font-semibold text-foreground">{point.label}</div>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{point.note}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="mb-3 text-sm font-bold text-foreground">Terms</h3>
-                <div className="space-y-2">
-                  {proposal.terms.map((term, index) => (
-                    <div key={index} className="flex gap-2 text-sm leading-6 text-muted-foreground">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                      {term}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="mb-3 text-sm font-bold text-foreground">Next Steps</h3>
-                <div className="space-y-3">
-                  {proposal.nextSteps.map((step, index) => (
-                    <div key={index} className="flex gap-3 text-sm">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: proposalTheme?.primary }}>{index + 1}</span>
-                      <span className="leading-6 text-muted-foreground">{step}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="mb-3 text-sm font-bold text-foreground">Contact</h3>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  {proposal.contact?.email && <div className="flex gap-2"><Mail className="h-4 w-4" />{proposal.contact.email}</div>}
-                  {proposal.contact?.phone && <div className="flex gap-2"><Phone className="h-4 w-4" />{proposal.contact.phone}</div>}
-                  {proposal.contact?.website && <div className="flex gap-2"><Globe className="h-4 w-4" />{proposal.contact.website}</div>}
-                </div>
-              </div>
-            </aside>
-          </div>
+        <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+          <ProposalDeckPreview
+            proposal={proposal}
+            brandName={brandName}
+            businessUrl={pitch.businessUrl}
+            theme={proposalTheme || { primary: "#0ea5e9", secondary: "#8b5cf6", accent: "#f59e0b", bg: "#f8fafc", ink: "#0f172a" }}
+          />
         </div>
       )}
 

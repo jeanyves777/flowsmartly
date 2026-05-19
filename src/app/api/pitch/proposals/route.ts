@@ -6,6 +6,8 @@ import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
 import { attachProposalLibraryVisuals } from "@/lib/pitch/proposal-asset-library";
 import { runServiceProposalDeckAgent } from "@/lib/pitch/proposal-deck-agent";
+import { proposalClientProfileFromGoogle } from "@/lib/pitch/client-profile";
+import { lookupGooglePlaces } from "@/lib/pitch/researcher";
 
 const PRESETS = new Set<ProposalPreset>([
   "google-business-profile",
@@ -32,6 +34,11 @@ function cleanMoney(value: unknown): number | undefined {
   return Math.round(n);
 }
 
+function isLocalPresenceRequest(parts: Array<unknown>): boolean {
+  const text = parts.map((part) => cleanText(part, 2000)).join(" ").toLowerCase();
+  return /\b(local|nearby|maps|google|gbp|business profile|reviews?|reputation|citation|seo|3-pack|ranking)\b/.test(text);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -47,6 +54,7 @@ export async function POST(request: NextRequest) {
     const serviceDescription = cleanText(body.serviceDescription || inferred.serviceDescription || brief, 3000);
     const presetRaw = cleanText(body.preset || inferred.preset, 80) as ProposalPreset;
     const preset = PRESETS.has(presetRaw) ? presetRaw : "custom";
+    const targetWebsite = cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined;
 
     if (!targetName || !serviceTitle || !serviceDescription) {
       return NextResponse.json(
@@ -113,10 +121,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let clientProfile = proposalClientProfileFromGoogle(body.clientGoogleProfile || body.googleProfile);
+    const shouldPullGoogleStats = isLocalPresenceRequest([preset, brief, serviceTitle, serviceDescription, body.goals, inferred.goals]);
+    if (!clientProfile && shouldPullGoogleStats) {
+      try {
+        clientProfile = proposalClientProfileFromGoogle(await lookupGooglePlaces(targetName, targetWebsite || ""));
+      } catch (googleError) {
+        console.warn("[ProposalAgent] Google Places enrichment failed:", googleError);
+      }
+    }
+
     const result = await runServiceProposalAgent({
       userId: session.userId,
       targetName,
-      targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined,
+      targetWebsite,
       recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
       recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
       preset,
@@ -127,6 +145,7 @@ export async function POST(request: NextRequest) {
       originalPrice: cleanMoney(body.originalPrice ?? inferred.originalPrice),
       billingInterval: cleanText(body.billingInterval || inferred.billingInterval, 60) || undefined,
       terms: cleanText(body.terms || inferred.terms, 2000) || undefined,
+      clientProfile,
     });
 
     let proposal = result.proposal;
@@ -149,7 +168,7 @@ export async function POST(request: NextRequest) {
         request: {
           userId: session.userId,
           targetName,
-          targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined,
+          targetWebsite,
           recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
           recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
           preset,
@@ -160,6 +179,7 @@ export async function POST(request: NextRequest) {
           originalPrice: cleanMoney(body.originalPrice ?? inferred.originalPrice),
           billingInterval: cleanText(body.billingInterval || inferred.billingInterval, 60) || undefined,
           terms: cleanText(body.terms || inferred.terms, 2000) || undefined,
+          clientProfile,
         },
         brandKit: brandKit as unknown as Record<string, unknown>,
       });
@@ -176,7 +196,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.userId,
         businessName: targetName,
-        businessUrl: cleanUrl(body.targetWebsite || inferred.targetWebsite),
+        businessUrl: targetWebsite,
         recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || null,
         recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || null,
         status: "READY",
@@ -184,8 +204,9 @@ export async function POST(request: NextRequest) {
           documentType: "service_proposal",
           preset,
           generatedAt: new Date().toISOString(),
-          targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite),
+          targetWebsite,
           serviceTitle,
+          googlePlaces: clientProfile || undefined,
         }),
         pitchContent: JSON.stringify(proposal),
       },

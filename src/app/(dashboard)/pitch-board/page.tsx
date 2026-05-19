@@ -63,6 +63,7 @@ interface PitchStats {
 }
 
 interface BusinessLead {
+  placeId?: string;
   name: string;
   address?: string;
   phone?: string;
@@ -72,6 +73,34 @@ interface BusinessLead {
   businessStatus?: string;
   types?: string[];
   googleMapsUrl?: string;
+}
+
+interface BrandKitSummary {
+  name?: string;
+  description?: string;
+  industry?: string;
+  niche?: string;
+  uniqueValue?: string;
+  products?: string[];
+}
+
+type LeadActionMode = "proposal" | "pitch";
+
+interface LeadActionState {
+  mode: LeadActionMode;
+  lead: BusinessLead;
+  index: number;
+}
+
+interface LeadOfferFormState {
+  preset: string;
+  serviceTitle: string;
+  serviceDescription: string;
+  goals: string;
+  price: string;
+  originalPrice: string;
+  billingInterval: string;
+  terms: string;
 }
 
 interface LeadSearchResult {
@@ -138,6 +167,34 @@ function StatusBadge({ status }: { status: Pitch["status"] }) {
   );
 }
 
+function leadGoogleSummary(lead: BusinessLead): string {
+  const parts = [
+    lead.rating !== undefined ? `${lead.rating}/5 Google rating` : "",
+    lead.reviewCount !== undefined ? `${lead.reviewCount.toLocaleString()} reviews` : "",
+    lead.address || "",
+    lead.types?.slice(0, 2).join(", ") || "",
+  ].filter(Boolean);
+  return parts.join(" | ");
+}
+
+function defaultLeadOfferForm(lead: BusinessLead, brandKit: BrandKitSummary | null): LeadOfferFormState {
+  const firstService = brandKit?.products?.find(Boolean) || "";
+  const serviceTitle = firstService || "Local Growth Proposal";
+  const brandDetail = [brandKit?.description, brandKit?.uniqueValue].filter(Boolean).join(" ");
+  return {
+    preset: "google-business-profile",
+    serviceTitle,
+    serviceDescription:
+      brandDetail ||
+      "Google Business Profile optimization, local SEO, review improvement, website conversion, tracking, and monthly reporting.",
+    goals: `Help ${lead.name} attract more local customers, improve trust signals, and convert more visitors into inquiries.`,
+    price: "",
+    originalPrice: "",
+    billingInterval: "month",
+    terms: "Month-to-month service. Setup begins after access and onboarding details are confirmed.",
+  };
+}
+
 export default function PitchBoardPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -145,6 +202,7 @@ export default function PitchBoardPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("proposal");
   const [hasBrand, setHasBrand] = useState<boolean | null>(null);
+  const [brandKit, setBrandKit] = useState<BrandKitSummary | null>(null);
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [stats, setStats] = useState<PitchStats>({ total: 0, ready: 0, sent: 0, failed: 0, proposals: 0 });
   const [isLoadingPitches, setIsLoadingPitches] = useState(true);
@@ -194,9 +252,16 @@ export default function PitchBoardPage() {
   const [isSavingLeads, setIsSavingLeads] = useState(false);
   const [pitchingLead, setPitchingLead] = useState<number | null>(null);
   const [proposingLead, setProposingLead] = useState<number | null>(null);
+  const [leadAction, setLeadAction] = useState<LeadActionState | null>(null);
+  const [leadOfferForm, setLeadOfferForm] = useState<LeadOfferFormState | null>(null);
+  const [leadActionError, setLeadActionError] = useState("");
 
   const proposals = useMemo(() => pitches.filter((p) => p.documentType === "service_proposal"), [pitches]);
   const outreachPitches = useMemo(() => pitches.filter((p) => p.documentType !== "service_proposal"), [pitches]);
+  const brandServiceOptions = useMemo(
+    () => (brandKit?.products || []).map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8),
+    [brandKit],
+  );
 
   const isSubscriber = userPlan !== "STARTER";
   const pitchIsFreeRun = !isSubscriber && stats.total === 0;
@@ -227,9 +292,12 @@ export default function PitchBoardPage() {
       }
       if (brandRes.ok) {
         const brandData = await brandRes.json();
-        setHasBrand(!!brandData.data?.brandKit?.name);
+        const kit = brandData.data?.brandKit || null;
+        setHasBrand(!!kit?.name);
+        setBrandKit(kit);
       } else {
         setHasBrand(false);
+        setBrandKit(null);
       }
     } finally {
       setIsLoadingPitches(false);
@@ -374,58 +442,87 @@ export default function PitchBoardPage() {
     }
   }
 
-  async function handleCreatePitchFromLead(lead: BusinessLead, idx: number) {
-    setPitchingLead(idx);
-    try {
-      const res = await fetch("/api/pitch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          brief: `Research ${lead.name} and create a personalized outreach pitch.`,
-          businessName: lead.name,
-          businessUrl: lead.website || "",
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setActiveTab("pitch");
-        loadPitches();
-      } else {
-        toast({ variant: "destructive", title: "Failed to create pitch", description: data.error?.message });
-      }
-    } finally {
-      setPitchingLead(null);
-    }
+  function openLeadAction(lead: BusinessLead, idx: number, mode: LeadActionMode) {
+    setLeadAction({ lead, index: idx, mode });
+    setLeadOfferForm(defaultLeadOfferForm(lead, brandKit));
+    setLeadActionError("");
   }
 
-  async function handleCreateProposalFromLead(lead: BusinessLead, idx: number) {
-    setProposingLead(idx);
+  async function handleSubmitLeadAction(e: React.FormEvent) {
+    e.preventDefault();
+    if (!leadAction || !leadOfferForm) return;
+
+    const { lead, index, mode } = leadAction;
+    setLeadActionError("");
+    if (!leadOfferForm.serviceTitle.trim() || !leadOfferForm.serviceDescription.trim()) {
+      setLeadActionError("Confirm the service package and details before AI builds this.");
+      return;
+    }
+
+    if (mode === "pitch") setPitchingLead(index);
+    else setProposingLead(index);
     try {
-      const serviceDescription =
-        "Local growth package covering Google Business Profile optimization, local SEO, reviews, website conversion, tracking, and reporting.";
-      const res = await fetch("/api/pitch/proposals", {
+      const clientGoogleProfile = {
+        placeId: lead.placeId,
+        rating: lead.rating,
+        reviewCount: lead.reviewCount,
+        address: lead.address,
+        phone: lead.phone,
+        businessStatus: lead.businessStatus,
+        types: lead.types,
+        googleMapsUrl: lead.googleMapsUrl,
+      };
+      const confirmedOffer = [
+        `Confirmed offer: ${leadOfferForm.serviceTitle}`,
+        `Service details: ${leadOfferForm.serviceDescription}`,
+        leadOfferForm.goals ? `Goals: ${leadOfferForm.goals}` : "",
+        leadGoogleSummary(lead) ? `Client Google profile: ${leadGoogleSummary(lead)}` : "",
+      ].filter(Boolean).join("\n");
+
+      const res = await fetch(mode === "pitch" ? "/api/pitch" : "/api/pitch/proposals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          brief: `Create a polished service proposal for ${lead.name}. Use my brand identity and recommend a practical offer for this business. Focus on local growth, search visibility, reviews, website conversion, and lead generation.`,
-          targetName: lead.name,
-          targetWebsite: lead.website || "",
-          preset: "custom",
-          serviceTitle: "Local Growth Proposal",
-          serviceDescription,
-          goals: "Increase local visibility, convert more visitors, and make the business easier to choose online.",
-        }),
+        body: JSON.stringify(mode === "pitch"
+          ? {
+              brief: `Research ${lead.name} and create a personalized outreach pitch for this confirmed offer.\n${confirmedOffer}`,
+              businessName: lead.name,
+              businessUrl: lead.website || "",
+            }
+          : {
+              brief: `Create a polished service proposal for ${lead.name} using this confirmed offer.\n${confirmedOffer}`,
+              targetName: lead.name,
+              targetWebsite: lead.website || "",
+              preset: leadOfferForm.preset,
+              serviceTitle: leadOfferForm.serviceTitle,
+              serviceDescription: leadOfferForm.serviceDescription,
+              goals: leadOfferForm.goals,
+              price: leadOfferForm.price,
+              originalPrice: leadOfferForm.originalPrice,
+              billingInterval: leadOfferForm.billingInterval,
+              terms: leadOfferForm.terms,
+              clientGoogleProfile,
+            }),
       });
       const data = await res.json();
       if (data.success) {
-        setActiveTab("proposal");
-        await loadPitches();
-        router.push(`/pitch-board/${data.data.id}`);
+        setLeadAction(null);
+        setLeadOfferForm(null);
+        if (mode === "pitch") {
+          setActiveTab("pitch");
+          loadPitches();
+        } else {
+          setActiveTab("proposal");
+          await loadPitches();
+          router.push(`/pitch-board/${data.data.id}`);
+        }
       } else {
-        toast({ variant: "destructive", title: "Failed to create proposal", description: data.error?.message });
+        const message = data.error?.message || `Failed to create ${mode}.`;
+        setLeadActionError(message);
+        toast({ variant: "destructive", title: `Failed to create ${mode}`, description: message });
       }
     } finally {
-      setProposingLead(null);
+      if (mode === "pitch") setPitchingLead(null);
+      else setProposingLead(null);
     }
   }
 
@@ -808,12 +905,12 @@ export default function PitchBoardPage() {
                                 size="sm"
                                 variant="outline"
                                 disabled={proposingLead === idx}
-                                onClick={() => handleCreateProposalFromLead(lead, idx)}
+                                onClick={() => openLeadAction(lead, idx, "proposal")}
                               >
                                 {proposingLead === idx ? <FlowActionSpinner size={14} /> : <FileText className="h-4 w-4" />}
                                 Proposal
                               </Button>
-                              <Button type="button" size="sm" disabled={pitchingLead === idx} onClick={() => handleCreatePitchFromLead(lead, idx)}>
+                              <Button type="button" size="sm" disabled={pitchingLead === idx} onClick={() => openLeadAction(lead, idx, "pitch")}>
                                 {pitchingLead === idx ? <FlowActionSpinner size={14} /> : <Briefcase className="h-4 w-4" />}
                                 Pitch
                               </Button>
@@ -854,6 +951,165 @@ export default function PitchBoardPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!leadAction}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLeadAction(null);
+            setLeadOfferForm(null);
+            setLeadActionError("");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {leadAction?.mode === "proposal" ? <FileText className="h-5 w-5 text-sky-600" /> : <Briefcase className="h-5 w-5 text-sky-600" />}
+              Confirm offer details
+            </DialogTitle>
+          </DialogHeader>
+          {leadAction && leadOfferForm && (
+            <form onSubmit={handleSubmitLeadAction} className="mt-2 space-y-5">
+              <div className="rounded-xl border border-border bg-muted/25 p-4">
+                <div className="font-semibold text-foreground">{leadAction.lead.name}</div>
+                <div className="mt-2 grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
+                  {leadAction.lead.website && <span className="flex gap-2 break-all"><Globe className="mt-0.5 h-3.5 w-3.5 shrink-0" />{leadAction.lead.website}</span>}
+                  {leadAction.lead.phone && <span className="flex gap-2"><Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" />{leadAction.lead.phone}</span>}
+                  {leadAction.lead.address && <span className="flex gap-2 md:col-span-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{leadAction.lead.address}</span>}
+                </div>
+                {leadGoogleSummary(leadAction.lead) && (
+                  <div className="mt-3 rounded-lg bg-background px-3 py-2 text-xs font-medium text-muted-foreground">
+                    {leadGoogleSummary(leadAction.lead)}
+                  </div>
+                )}
+              </div>
+
+              {(brandKit?.name || brandServiceOptions.length > 0 || brandKit?.description || brandKit?.uniqueValue) && (
+                <div className="rounded-xl border border-border p-4">
+                  <div className="text-sm font-semibold text-foreground">From your brand</div>
+                  {brandKit?.name && <p className="mt-1 text-sm text-muted-foreground">{brandKit.name}</p>}
+                  {(brandKit?.description || brandKit?.uniqueValue) && (
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{brandKit.uniqueValue || brandKit.description}</p>
+                  )}
+                  {brandServiceOptions.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {brandServiceOptions.map((service) => (
+                        <button
+                          key={service}
+                          type="button"
+                          onClick={() => setLeadOfferForm((form) => form ? { ...form, serviceTitle: service } : form)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                            leadOfferForm.serviceTitle === service
+                              ? "border-sky-400 bg-sky-50 text-sky-700"
+                              : "border-border bg-background text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {service}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {leadAction.mode === "proposal" && (
+                <div className="space-y-1.5">
+                  <Label>Proposal type</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {PROPOSAL_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => setLeadOfferForm((form) => form ? { ...form, preset: preset.value } : form)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                          leadOfferForm.preset === preset.value
+                            ? "border-sky-400 bg-sky-50 text-sky-700"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Service package</Label>
+                  <Input
+                    value={leadOfferForm.serviceTitle}
+                    onChange={(e) => setLeadOfferForm((form) => form ? { ...form, serviceTitle: e.target.value } : form)}
+                    placeholder="Google Business Profile Optimization"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Service details</Label>
+                  <Textarea
+                    rows={4}
+                    value={leadOfferForm.serviceDescription}
+                    onChange={(e) => setLeadOfferForm((form) => form ? { ...form, serviceDescription: e.target.value } : form)}
+                    placeholder="Confirm the exact offer before AI builds anything."
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Client goals</Label>
+                  <Textarea
+                    rows={2}
+                    value={leadOfferForm.goals}
+                    onChange={(e) => setLeadOfferForm((form) => form ? { ...form, goals: e.target.value } : form)}
+                    placeholder="What should this offer help the client achieve?"
+                  />
+                </div>
+                {leadAction.mode === "proposal" && (
+                  <>
+                    <Input
+                      type="number"
+                      value={leadOfferForm.price}
+                      onChange={(e) => setLeadOfferForm((form) => form ? { ...form, price: e.target.value } : form)}
+                      placeholder="Price"
+                    />
+                    <Input
+                      type="number"
+                      value={leadOfferForm.originalPrice}
+                      onChange={(e) => setLeadOfferForm((form) => form ? { ...form, originalPrice: e.target.value } : form)}
+                      placeholder="Original price"
+                    />
+                    <Input
+                      value={leadOfferForm.billingInterval}
+                      onChange={(e) => setLeadOfferForm((form) => form ? { ...form, billingInterval: e.target.value } : form)}
+                      placeholder="month"
+                    />
+                    <Input
+                      value={leadOfferForm.terms}
+                      onChange={(e) => setLeadOfferForm((form) => form ? { ...form, terms: e.target.value } : form)}
+                      placeholder="Terms"
+                    />
+                  </>
+                )}
+              </div>
+
+              {leadActionError && (
+                <p className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                  <AlertCircle className="h-4 w-4" />
+                  {leadActionError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setLeadAction(null)}>Cancel</Button>
+                <Button type="submit" disabled={proposingLead === leadAction.index || pitchingLead === leadAction.index}>
+                  {proposingLead === leadAction.index || pitchingLead === leadAction.index ? <FlowActionSpinner size={16} /> : leadAction.mode === "proposal" ? <FileText className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />}
+                  Build {leadAction.mode === "proposal" ? "Proposal" : "Pitch"}
+                </Button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
