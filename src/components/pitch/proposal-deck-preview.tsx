@@ -95,8 +95,8 @@ function SlideShell({
         )}
       >
         <div className="absolute inset-0 bg-[linear-gradient(105deg,transparent_0_18%,rgba(226,232,240,0.55)_18.2%,transparent_18.6%,transparent_34%,rgba(226,232,240,0.55)_34.2%,transparent_34.6%,transparent_100%)]" />
-        <div className="relative z-10 h-full p-12">{children}</div>
-        {website && <div className="absolute bottom-8 left-12 z-20 text-sm font-medium text-slate-700">{website}</div>}
+        <div className="relative z-10 h-full px-12 pb-24 pt-12">{children}</div>
+        {website && <div className="absolute bottom-5 left-12 z-20 rounded bg-white/85 px-1.5 py-0.5 text-xs font-medium text-slate-700">{website}</div>}
         <div className="absolute bottom-0 right-0 z-20 flex h-16 w-16 items-center justify-center bg-red-600 text-2xl font-black text-white">
           {String(page).padStart(2, "0")}
         </div>
@@ -116,11 +116,11 @@ function LogoMark({ proposal, brandName }: { proposal: ServiceProposalContent; b
 
 function MetricRing({ metric, label, color }: { metric: string; label: string; color: string }) {
   return (
-    <div className="flex w-36 flex-col items-center text-center">
-      <div className="flex h-28 w-28 items-center justify-center rounded-full border-[10px] bg-white" style={{ borderColor: color }}>
-        <span className="max-w-20 break-words text-2xl font-black leading-none text-slate-950">{shortText(metric, 8)}</span>
+    <div className="flex w-32 flex-col items-center text-center">
+      <div className="flex h-24 w-24 items-center justify-center rounded-full border-[8px] bg-white" style={{ borderColor: color }}>
+        <span className="max-w-16 break-words text-xl font-black leading-none text-slate-950">{shortText(metric, 8)}</span>
       </div>
-      <div className="mt-3 min-h-10 text-xs font-semibold leading-5 text-slate-700">{shortText(label, 44)}</div>
+      <div className="mt-2 min-h-9 text-[11px] font-semibold leading-4 text-slate-700">{shortText(label, 38)}</div>
     </div>
   );
 }
@@ -151,6 +151,8 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
   const closing = slideFor(proposal, "closing");
   const proofPoints = metricPoints(proposal);
   const colors = [theme.primary, theme.secondary, theme.accent, "#dc2626"];
+  const customSections = proposal.customSections?.filter((section) => text(section.title)) || [];
+  const closingPage = 7 + customSections.length;
 
   return (
     <div className="space-y-6">
@@ -209,14 +211,14 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
               ))}
             </div>
           </div>
-          <div className="flex min-w-0 flex-col items-center justify-center gap-7">
-            <VisualStack urls={slideVisuals(proposal, "commitments", ["impact"])} className="max-h-[300px]" />
-            <div className="w-96 rounded-3xl bg-red-600 px-8 py-6 text-center text-2xl font-black leading-tight text-white">
+          <div className="flex min-w-0 flex-col items-center justify-center gap-5 pb-4">
+            <VisualStack urls={slideVisuals(proposal, "commitments", ["impact"])} className="max-h-[235px]" />
+            <div className="w-96 rounded-3xl bg-red-600 px-8 py-4 text-center text-xl font-black leading-tight text-white">
               <span className="line-clamp-2 break-words">{commitments?.emphasis || "No Contract | No Automatic Billing"}</span>
             </div>
-            <div className="w-80 rounded-3xl bg-blue-950 px-8 py-6 text-center text-white">
-              <div className="text-xl font-bold">Pricing</div>
-              <div className="mt-2 text-3xl font-black">{priceText(proposal)}</div>
+            <div className="w-80 rounded-3xl bg-blue-950 px-8 py-4 text-center text-white">
+              <div className="text-lg font-bold">Pricing</div>
+              <div className="mt-1 text-2xl font-black">{priceText(proposal)}</div>
             </div>
           </div>
         </div>
@@ -277,7 +279,7 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
             <div className="mt-8 rounded-2xl px-8 py-5 text-2xl font-black leading-tight text-white" style={{ backgroundColor: theme.primary }}>
               <span className="line-clamp-2 break-words">{shortText(terms?.subhead || "What Happens Next", 96)}</span>
             </div>
-            <div className="mt-10 space-y-6">
+            <div className="mt-8 space-y-5">
               {(terms?.bullets?.length ? terms.bullets : proposal.terms).slice(0, 4).map((item, index) => (
                 <div key={index} className="flex gap-4">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
@@ -286,9 +288,9 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
               ))}
             </div>
           </div>
-          <div className="min-w-0 pt-28">
+          <div className="min-w-0 pt-20">
             <h3 className="text-3xl font-black text-slate-950">Next Steps</h3>
-            <div className="mt-8 space-y-7">
+            <div className="mt-7 space-y-5">
               {proposal.nextSteps.slice(0, 4).map((step, index) => (
                 <div key={index} className="flex gap-4">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ backgroundColor: theme.primary }}>{index + 1}</span>
@@ -301,7 +303,29 @@ export function ProposalDeckPreview({ proposal, brandName, businessUrl, theme }:
         </div>
       </SlideShell>
 
-      <SlideShell page={7} website={website}>
+      {customSections.map((section, index) => (
+        <SlideShell key={`custom-${index}`} page={7 + index} website={website}>
+          <div className="grid h-full grid-cols-[minmax(0,0.95fr)_minmax(0,0.75fr)] gap-12">
+            <div className="min-w-0">
+              <h2 className="break-words text-5xl font-black leading-tight text-slate-950">{shortText(section.title, 82)}</h2>
+              {section.body && (
+                <p className="mt-8 line-clamp-4 break-words text-xl leading-8 text-slate-700">{section.body}</p>
+              )}
+              <div className="mt-10 space-y-6">
+                {(section.bullets || []).slice(0, 5).map((item, bulletIndex) => (
+                  <div key={bulletIndex} className="flex gap-4">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                    <p className="line-clamp-2 break-words text-lg leading-7 text-slate-700">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <VisualStack urls={slideVisuals(proposal, index % 2 === 0 ? "benefits" : "proof", ["impact", "about"])} className="max-h-[510px]" />
+          </div>
+        </SlideShell>
+      ))}
+
+      <SlideShell page={closingPage} website={website}>
         <div className="grid h-full grid-cols-[minmax(0,0.95fr)_minmax(0,0.75fr)] gap-12">
           <div className="flex min-w-0 flex-col">
             <LogoMark proposal={proposal} brandName={brandName} />

@@ -34,6 +34,20 @@ function cleanMoney(value: unknown): number | undefined {
   return Math.round(n);
 }
 
+function cleanStringArray(value: unknown, maxItems = 12, maxChars = 180): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => cleanText(item, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function cleanPresetArray(value: unknown, fallback: ProposalPreset): ProposalPreset[] {
+  const items = cleanStringArray(value, 6, 80)
+    .filter((item): item is ProposalPreset => PRESETS.has(item as ProposalPreset));
+  return Array.from(new Set(items.length ? items : [fallback]));
+}
+
 function isLocalPresenceRequest(parts: Array<unknown>): boolean {
   const text = parts.map((part) => cleanText(part, 2000)).join(" ").toLowerCase();
   return /\b(local|nearby|maps|google|gbp|business profile|reviews?|reputation|citation|seo|3-pack|ranking)\b/.test(text);
@@ -54,6 +68,9 @@ export async function POST(request: NextRequest) {
     const serviceDescription = cleanText(body.serviceDescription || inferred.serviceDescription || brief, 3000);
     const presetRaw = cleanText(body.preset || inferred.preset, 80) as ProposalPreset;
     const preset = PRESETS.has(presetRaw) ? presetRaw : "custom";
+    const proposalTypes = cleanPresetArray(body.proposalTypes, preset);
+    const servicePackages = cleanStringArray(body.servicePackages || body.selectedServices, 12, 180);
+    const customAdditions = cleanStringArray(body.customAdditions, 12, 220);
     const targetWebsite = cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined;
 
     if (!targetName || !serviceTitle || !serviceDescription) {
@@ -122,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     let clientProfile = proposalClientProfileFromGoogle(body.clientGoogleProfile || body.googleProfile);
-    const shouldPullGoogleStats = isLocalPresenceRequest([preset, brief, serviceTitle, serviceDescription, body.goals, inferred.goals]);
+    const shouldPullGoogleStats = isLocalPresenceRequest([preset, proposalTypes.join(" "), brief, serviceTitle, serviceDescription, servicePackages.join(" "), customAdditions.join(" "), body.goals, inferred.goals]);
     if (!clientProfile && shouldPullGoogleStats) {
       try {
         clientProfile = proposalClientProfileFromGoogle(await lookupGooglePlaces(targetName, targetWebsite || ""));
@@ -138,6 +155,9 @@ export async function POST(request: NextRequest) {
       recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
       recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
       preset,
+      proposalTypes,
+      servicePackages,
+      customAdditions,
       serviceTitle,
       serviceDescription,
       goals: cleanText(body.goals || inferred.goals, 2000) || undefined,
@@ -172,6 +192,9 @@ export async function POST(request: NextRequest) {
           recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
           recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
           preset,
+          proposalTypes,
+          servicePackages,
+          customAdditions,
           serviceTitle,
           serviceDescription,
           goals: cleanText(body.goals || inferred.goals, 2000) || undefined,
@@ -203,9 +226,12 @@ export async function POST(request: NextRequest) {
         research: JSON.stringify({
           documentType: "service_proposal",
           preset,
+          proposalTypes,
           generatedAt: new Date().toISOString(),
           targetWebsite,
           serviceTitle,
+          servicePackages,
+          customAdditions,
           googlePlaces: clientProfile || undefined,
         }),
         pitchContent: JSON.stringify(proposal),

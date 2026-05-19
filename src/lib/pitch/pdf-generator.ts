@@ -1462,9 +1462,35 @@ export async function generateServiceProposalPDF(
   addHeroImage(termsVisuals[0] || pricingTagImage || aboutImage || creatorImage, 1025, 615, 245, 150, { alignY: 0.55, shadow: false });
   footer();
 
-  // Page 7: closing CTA
+  let closingPage = 7;
+  const customSections = (proposal.customSections || [])
+    .filter((section) => clean(section.title))
+    .slice(0, 4);
+
+  customSections.forEach((section) => {
+    doc.addPage();
+    base(closingPage);
+    const customTitleEnd = h1(clean(section.title), margin, 135, 760, 54, 3);
+    para(clean(section.body), margin, customTitleEnd + 30, 780, 23, softInk, 1.25, 4);
+    const customBullets = cleanBullets(section.bullets || [], []);
+    if (customBullets.length) {
+      bigBulletList(customBullets, margin, Math.max(390, customTitleEnd + 160), 720, { limit: 5, rowH: 62, size: 21, maxLines: 2 });
+    }
+    addHeroImage(
+      closingPage % 2 === 0 ? aboutImage || impactImage || coverImage : impactImage || aboutImage || coverImage,
+      850,
+      140,
+      470,
+      440,
+      { shadow: false },
+    );
+    footer();
+    closingPage += 1;
+  });
+
+  // Closing CTA
   doc.addPage();
-  base(7);
+  base(closingPage);
   logo(margin, 64, 250, 78);
   h1(slideHeadline("closing", "Ready to get found, trusted, and chosen?"), margin, 255, 720, 64);
   para(slideBody("closing", proposal.executiveSummary), margin, 430, 760, 28, softInk, 1.35, 5);

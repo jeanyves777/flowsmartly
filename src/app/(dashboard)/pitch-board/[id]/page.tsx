@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Briefcase, AlertCircle, CheckCircle2, Clock, Send, Download, Globe, Phone, ShieldCheck, ShieldAlert, Smartphone, BarChart3, MessageCircle, Calendar, ShoppingCart, Code2, Link2, TrendingUp, AlertTriangle, Star, ExternalLink, MapPin, Trophy, Target, Zap, Users, ChevronDown, ChevronUp, Pencil, Save, Plus, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -268,6 +269,299 @@ function getProposalTheme(proposal: ServiceProposalContent) {
   return { primary, secondary, accent, bg, ink };
 }
 
+function cloneContent<T>(content: T): T {
+  return JSON.parse(JSON.stringify(content || {})) as T;
+}
+
+function normalizeLines(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function StringListEditor({
+  title,
+  items,
+  onChange,
+  placeholder = "Add item",
+}: {
+  title: string;
+  items: string[];
+  onChange: (items: string[]) => void;
+  placeholder?: string;
+}) {
+  const safeItems = Array.isArray(items) ? items : [];
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange([...safeItems, ""])}>
+          <Plus className="h-3.5 w-3.5" />
+          Add
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {safeItems.map((item, index) => (
+          <div key={`${title}-${index}`} className="flex gap-2">
+            <Textarea
+              rows={2}
+              value={item}
+              onChange={(event) => onChange(safeItems.map((entry, entryIndex) => entryIndex === index ? event.target.value : entry))}
+              placeholder={placeholder}
+            />
+            <Button type="button" variant="ghost" size="icon" onClick={() => onChange(safeItems.filter((_, entryIndex) => entryIndex !== index))}>
+              <Trash2 className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </div>
+        ))}
+        {safeItems.length === 0 && <p className="text-sm text-muted-foreground">No items yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ProposalPlanEditor({
+  proposal,
+  onChange,
+}: {
+  proposal: ServiceProposalContent;
+  onChange: (proposal: ServiceProposalContent) => void;
+}) {
+  const setProposal = (patch: Partial<ServiceProposalContent>) => onChange({ ...proposal, ...patch });
+  const setPricing = (patch: Partial<ServiceProposalContent["pricing"]>) =>
+    setProposal({ pricing: { ...proposal.pricing, ...patch } });
+  const customSections = proposal.customSections || [];
+
+  return (
+    <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Editable final proposal plan</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Change the content here before generating or sending the PDF.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Title</Label>
+          <Input value={proposal.title || ""} onChange={(event) => setProposal({ title: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Service package</Label>
+          <Input value={proposal.serviceTitle || ""} onChange={(event) => setProposal({ serviceTitle: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Subtitle</Label>
+          <Input value={proposal.subtitle || ""} onChange={(event) => setProposal({ subtitle: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Executive summary</Label>
+          <Textarea rows={4} value={proposal.executiveSummary || ""} onChange={(event) => setProposal({ executiveSummary: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>About your brand</Label>
+          <Textarea rows={5} value={proposal.aboutBrand || ""} onChange={(event) => setProposal({ aboutBrand: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Client need</Label>
+          <Textarea rows={5} value={proposal.clientNeed || ""} onChange={(event) => setProposal({ clientNeed: event.target.value })} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="space-y-1.5">
+          <Label>Pricing name</Label>
+          <Input value={proposal.pricing?.name || ""} onChange={(event) => setPricing({ name: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Price</Label>
+          <Input type="number" value={proposal.pricing?.amount ?? ""} onChange={(event) => setPricing({ amount: event.target.value ? Number(event.target.value) : undefined })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Original price</Label>
+          <Input type="number" value={proposal.pricing?.originalAmount ?? ""} onChange={(event) => setPricing({ originalAmount: event.target.value ? Number(event.target.value) : undefined })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Interval</Label>
+          <Input value={proposal.pricing?.interval || ""} onChange={(event) => setPricing({ interval: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-4">
+          <Label>Pricing note</Label>
+          <Textarea rows={2} value={proposal.pricing?.note || ""} onChange={(event) => setPricing({ note: event.target.value })} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <StringListEditor title="Commitments" items={proposal.commitments || []} onChange={(items) => setProposal({ commitments: items })} />
+        <StringListEditor title="Benefits" items={proposal.benefits || []} onChange={(items) => setProposal({ benefits: items })} />
+        <StringListEditor title="Terms" items={proposal.terms || []} onChange={(items) => setProposal({ terms: items })} />
+        <StringListEditor title="Next steps" items={proposal.nextSteps || []} onChange={(items) => setProposal({ nextSteps: items })} />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Deliverables</h3>
+          <Button type="button" variant="outline" size="sm" onClick={() => setProposal({ deliverables: [...(proposal.deliverables || []), { title: "", description: "" }] })}>
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {(proposal.deliverables || []).map((item, index) => (
+            <div key={`deliverable-${index}`} className="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-[minmax(0,0.35fr)_minmax(0,1fr)_auto]">
+              <Input value={item.title || ""} onChange={(event) => setProposal({ deliverables: proposal.deliverables.map((entry, entryIndex) => entryIndex === index ? { ...entry, title: event.target.value } : entry) })} placeholder="Title" />
+              <Textarea rows={2} value={item.description || ""} onChange={(event) => setProposal({ deliverables: proposal.deliverables.map((entry, entryIndex) => entryIndex === index ? { ...entry, description: event.target.value } : entry) })} placeholder="Description" />
+              <Button type="button" variant="ghost" size="icon" onClick={() => setProposal({ deliverables: proposal.deliverables.filter((_, entryIndex) => entryIndex !== index) })}>
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Timeline</h3>
+            <Button type="button" variant="outline" size="sm" onClick={() => setProposal({ timeline: [...(proposal.timeline || []), { label: "", title: "", description: "" }] })}>
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {(proposal.timeline || []).map((item, index) => (
+              <div key={`timeline-${index}`} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="flex gap-2">
+                  <Input value={item.label || ""} onChange={(event) => setProposal({ timeline: proposal.timeline.map((entry, entryIndex) => entryIndex === index ? { ...entry, label: event.target.value } : entry) })} placeholder="Week 1" />
+                  <Input value={item.title || ""} onChange={(event) => setProposal({ timeline: proposal.timeline.map((entry, entryIndex) => entryIndex === index ? { ...entry, title: event.target.value } : entry) })} placeholder="Title" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setProposal({ timeline: proposal.timeline.filter((_, entryIndex) => entryIndex !== index) })}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+                <Textarea rows={2} value={item.description || ""} onChange={(event) => setProposal({ timeline: proposal.timeline.map((entry, entryIndex) => entryIndex === index ? { ...entry, description: event.target.value } : entry) })} placeholder="Description" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Proof points</h3>
+            <Button type="button" variant="outline" size="sm" onClick={() => setProposal({ proofPoints: [...(proposal.proofPoints || []), { metric: "", label: "", note: "" }] })}>
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {(proposal.proofPoints || []).map((item, index) => (
+              <div key={`proof-${index}`} className="space-y-2 rounded-lg border border-border p-3">
+                <div className="grid gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto]">
+                  <Input value={item.metric || ""} onChange={(event) => setProposal({ proofPoints: proposal.proofPoints.map((entry, entryIndex) => entryIndex === index ? { ...entry, metric: event.target.value } : entry) })} placeholder="2-3x" />
+                  <Input value={item.label || ""} onChange={(event) => setProposal({ proofPoints: proposal.proofPoints.map((entry, entryIndex) => entryIndex === index ? { ...entry, label: event.target.value } : entry) })} placeholder="Label" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setProposal({ proofPoints: proposal.proofPoints.filter((_, entryIndex) => entryIndex !== index) })}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+                <Textarea rows={2} value={item.note || ""} onChange={(event) => setProposal({ proofPoints: proposal.proofPoints.map((entry, entryIndex) => entryIndex === index ? { ...entry, note: event.target.value } : entry) })} placeholder="Note" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Custom sections</h3>
+          <Button type="button" variant="outline" size="sm" onClick={() => setProposal({ customSections: [...customSections, { title: "", body: "", bullets: [] }] })}>
+            <Plus className="h-3.5 w-3.5" />
+            Add section
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {customSections.map((section, index) => (
+            <div key={`custom-section-${index}`} className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex gap-2">
+                <Input
+                  value={section.title || ""}
+                  onChange={(event) => setProposal({ customSections: customSections.map((entry, entryIndex) => entryIndex === index ? { ...entry, title: event.target.value } : entry) })}
+                  placeholder="Section title"
+                />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setProposal({ customSections: customSections.filter((_, entryIndex) => entryIndex !== index) })}>
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+              <Textarea
+                rows={3}
+                value={section.body || ""}
+                onChange={(event) => setProposal({ customSections: customSections.map((entry, entryIndex) => entryIndex === index ? { ...entry, body: event.target.value } : entry) })}
+                placeholder="Short body copy"
+              />
+              <Textarea
+                rows={4}
+                value={(section.bullets || []).join("\n")}
+                onChange={(event) => setProposal({ customSections: customSections.map((entry, entryIndex) => entryIndex === index ? { ...entry, bullets: normalizeLines(event.target.value) } : entry) })}
+                placeholder="One bullet per line"
+              />
+            </div>
+          ))}
+          {customSections.length === 0 && <p className="text-sm text-muted-foreground">Add a section when this client needs something specific in the PDF.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OutreachPitchEditor({
+  content,
+  onChange,
+}: {
+  content: OutreachPitchContent;
+  onChange: (content: OutreachPitchContent) => void;
+}) {
+  const setContent = (patch: Partial<OutreachPitchContent>) => onChange({ ...content, ...patch });
+  return (
+    <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Editable final pitch</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Adjust the pitch before sending or downloading the PDF.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Subject</Label>
+          <Input value={content.subject || ""} onChange={(event) => setContent({ subject: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>CTA</Label>
+          <Input value={content.ctaText || ""} onChange={(event) => setContent({ ctaText: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Headline</Label>
+          <Input value={content.headline || ""} onChange={(event) => setContent({ headline: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Personalized hook</Label>
+          <Textarea rows={3} value={content.personalizedHook || ""} onChange={(event) => setContent({ personalizedHook: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Opportunity paragraph</Label>
+          <Textarea rows={4} value={content.opportunityParagraph || ""} onChange={(event) => setContent({ opportunityParagraph: event.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Impact paragraph</Label>
+          <Textarea rows={4} value={content.impactParagraph || ""} onChange={(event) => setContent({ impactParagraph: event.target.value })} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <Label>Closing line</Label>
+          <Input value={content.closingLine || ""} onChange={(event) => setContent({ closingLine: event.target.value })} />
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <StringListEditor title="Key findings" items={content.keyFindings || []} onChange={(items) => setContent({ keyFindings: items })} />
+        <StringListEditor title="Solution bullets" items={content.solutionBullets || []} onChange={(items) => setContent({ solutionBullets: items })} />
+      </div>
+    </div>
+  );
+}
+
 export default function PitchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -286,6 +580,10 @@ export default function PitchDetailPage() {
   const [sendError, setSendError] = useState("");
   const [sendSuccess, setSendSuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [editableContent, setEditableContent] = useState<PitchContent | null>(null);
+  const [isEditingContent, setIsEditingContent] = useState(false);
+  const [isSavingEdits, setIsSavingEdits] = useState(false);
+  const [editError, setEditError] = useState("");
 
   const loadPitch = useCallback(async () => {
     try {
@@ -298,6 +596,7 @@ export default function PitchDetailPage() {
       if (data.success) {
         const p = data.data.pitch;
         setPitch(p);
+        setEditableContent(cloneContent(p.pitchContent || {}));
         const proposalMode = isServiceProposalContent(p.pitchContent);
         // Pre-fill send form: prefer previously used recipient, fall back to scraped contact info
         setSendForm(f => ({
@@ -329,6 +628,10 @@ export default function PitchDetailPage() {
     e.preventDefault();
     setSendError("");
     if (!sendForm.email.trim()) { setSendError("Recipient email is required."); return; }
+    if (hasUnsavedEdits) {
+      const saved = await saveContentEdits();
+      if (!saved) return;
+    }
     setIsSending(true);
     try {
       const res = await fetch(`/api/pitch/${id}/send`, {
@@ -348,7 +651,42 @@ export default function PitchDetailPage() {
     }
   }
 
+  const hasUnsavedEdits = !!pitch && !!editableContent && JSON.stringify(editableContent) !== JSON.stringify(pitch.pitchContent || {});
+
+  async function saveContentEdits(): Promise<boolean> {
+    if (!pitch || !editableContent) return true;
+    setEditError("");
+    setIsSavingEdits(true);
+    try {
+      const res = await fetch(`/api/pitch/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pitchContent: editableContent }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setEditError(data.error?.message || "Failed to save edits.");
+        return false;
+      }
+      const updated = data.data.pitch as Pitch;
+      setPitch(updated);
+      setEditableContent(cloneContent(updated.pitchContent || {}));
+      setIsEditingContent(false);
+      toast({ title: "Proposal updated", description: "Your edits will be used for the PDF and send flow." });
+      return true;
+    } catch {
+      setEditError("Network error while saving edits.");
+      return false;
+    } finally {
+      setIsSavingEdits(false);
+    }
+  }
+
   async function handleDownloadPDF() {
+    if (hasUnsavedEdits) {
+      const saved = await saveContentEdits();
+      if (!saved) return;
+    }
     setIsDownloading(true);
     try {
       const res = await fetch(`/api/pitch/${id}/send`, {
@@ -393,7 +731,7 @@ export default function PitchDetailPage() {
   }
 
   const research = pitch.research || {};
-  const rawContent = pitch.pitchContent || {};
+  const rawContent = (isEditingContent && editableContent ? editableContent : pitch.pitchContent) || {};
   const isProposal = isServiceProposalContent(rawContent);
   const proposal = isProposal ? rawContent : null;
   const pc = isProposal ? ({} as OutreachPitchContent) : (rawContent as OutreachPitchContent);
@@ -434,6 +772,20 @@ export default function PitchDetailPage() {
             </div>
             {isReady && (
               <div className="flex items-center gap-2 flex-shrink-0">
+                {isEditingContent ? (
+                  <>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setEditableContent(cloneContent(pitch.pitchContent || {})); setIsEditingContent(false); setEditError(""); }} disabled={isSavingEdits}>
+                      <X className="w-3.5 h-3.5" /> Cancel
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={saveContentEdits} disabled={isSavingEdits}>
+                      {isSavingEdits ? <FlowActionSpinner size={14} /> : <Save className="w-3.5 h-3.5" />} Save
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setEditableContent(cloneContent(pitch.pitchContent || {})); setIsEditingContent(true); setEditError(""); }}>
+                    <Pencil className="w-3.5 h-3.5" /> Edit Plan
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadPDF} disabled={isDownloading}>
                   {isDownloading ? <FlowActionSpinner size={14} /> : <Download className="w-3.5 h-3.5" />} PDF
                 </Button>
@@ -487,7 +839,26 @@ export default function PitchDetailPage() {
 
       {/* Proposal content */}
       {isReady && isProposal && proposal && (
-        <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Final plan review</h2>
+              <p className="text-sm text-muted-foreground">Edit, remove, or add sections before generating the PDF.</p>
+            </div>
+            {hasUnsavedEdits && <Badge variant="secondary">Unsaved edits</Badge>}
+          </div>
+          {editError && (
+            <p className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              {editError}
+            </p>
+          )}
+          {isEditingContent && (
+            <ProposalPlanEditor
+              proposal={proposal}
+              onChange={(nextProposal) => setEditableContent(nextProposal)}
+            />
+          )}
           <ProposalDeckPreview
             proposal={proposal}
             brandName={brandName}
@@ -500,6 +871,27 @@ export default function PitchDetailPage() {
       {/* Main content */}
       {isReady && !isProposal && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Final pitch review</h2>
+              <p className="text-sm text-muted-foreground">Edit the pitch before sending or generating the PDF.</p>
+            </div>
+            {hasUnsavedEdits && <Badge variant="secondary">Unsaved edits</Badge>}
+          </div>
+          {editError && (
+            <p className="mb-6 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              {editError}
+            </p>
+          )}
+          {isEditingContent && (
+            <div className="mb-6">
+              <OutreachPitchEditor
+                content={pc}
+                onChange={(nextContent) => setEditableContent(nextContent)}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
             {/* ═══ LEFT: Research & Analytics Panel ═══════════════════════ */}

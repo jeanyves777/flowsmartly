@@ -275,6 +275,22 @@ export function sanitizeCanvasJsonForStorage(canvasJson: string): string {
 // Fabric serializes loaded image src as absolute, so old designs hit
 // the absolute path; the previous startsWith("/api/image-proxy?url=")
 // check missed those and the inner expired signature leaked through.
+/**
+ * Strip expiring presigned query strings and proxy wrappers from a JSON-safe
+ * value before storing it. This is useful when edited browser data came from an
+ * API response that presigned media URLs for display.
+ */
+export function sanitizeUrlsForStorage<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  try {
+    const cloned = JSON.parse(JSON.stringify(data)) as T;
+    _walkAndSanitize(cloned);
+    return cloned;
+  } catch {
+    return data;
+  }
+}
+
 const PROXY_WRAPPER_RE = /^(?:https?:\/\/[^/]+)?\/api\/image-proxy\?url=(.+)$/i;
 
 function _extractProxyInner(src: string): string | null {

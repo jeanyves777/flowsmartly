@@ -14,6 +14,7 @@ import {
   Globe,
   MapPin,
   Phone,
+  Plus,
   Search,
   Send,
   ShieldAlert,
@@ -23,6 +24,7 @@ import {
   Trash2,
   Users,
   Wand2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,6 +96,9 @@ interface LeadActionState {
 
 interface LeadOfferFormState {
   preset: string;
+  proposalTypes: string[];
+  selectedServices: string[];
+  customAdditions: string[];
   serviceTitle: string;
   serviceDescription: string;
   goals: string;
@@ -134,6 +139,9 @@ interface ProposalFormState {
   recipientName: string;
   recipientEmail: string;
   preset: string;
+  proposalTypes: string[];
+  selectedServices: string[];
+  customAdditions: string[];
   serviceTitle: string;
   serviceDescription: string;
   goals: string;
@@ -183,6 +191,9 @@ function defaultLeadOfferForm(lead: BusinessLead, brandKit: BrandKitSummary | nu
   const brandDetail = [brandKit?.description, brandKit?.uniqueValue].filter(Boolean).join(" ");
   return {
     preset: "google-business-profile",
+    proposalTypes: ["google-business-profile"],
+    selectedServices: firstService ? [firstService] : [],
+    customAdditions: [],
     serviceTitle,
     serviceDescription:
       brandDetail ||
@@ -193,6 +204,37 @@ function defaultLeadOfferForm(lead: BusinessLead, brandKit: BrandKitSummary | nu
     billingInterval: "month",
     terms: "Month-to-month service. Setup begins after access and onboarding details are confirmed.",
   };
+}
+
+function toggleArrayValue(values: string[], value: string, allowEmpty = true): string[] {
+  const exists = values.includes(value);
+  if (exists) {
+    const next = values.filter((item) => item !== value);
+    return !allowEmpty && next.length === 0 ? values : next;
+  }
+  return [...values, value];
+}
+
+function firstProposalPreset(types: string[], fallback: string): string {
+  return types.find((type) => PROPOSAL_PRESETS.some((preset) => preset.value === type)) || fallback || "custom";
+}
+
+function serviceSummary(selectedServices: string[], customAdditions: string[], fallback: string): string {
+  const items = [...selectedServices, ...customAdditions].map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) return fallback;
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} + ${items[1]}`;
+  return `${items.slice(0, 2).join(", ")} + ${items.length - 2} more`;
+}
+
+function combinedServiceDetails(base: string, selectedServices: string[], customAdditions: string[], proposalTypes: string[]): string {
+  const lines = [
+    base.trim(),
+    selectedServices.length ? `Selected services: ${selectedServices.join(", ")}` : "",
+    customAdditions.length ? `Custom additions: ${customAdditions.join("; ")}` : "",
+    proposalTypes.length ? `Proposal types to combine: ${proposalTypes.join(", ")}` : "",
+  ].filter(Boolean);
+  return lines.join("\n");
 }
 
 export default function PitchBoardPage() {
@@ -217,6 +259,9 @@ export default function PitchBoardPage() {
     recipientName: "",
     recipientEmail: "",
     preset: "google-business-profile",
+    proposalTypes: ["google-business-profile"],
+    selectedServices: [],
+    customAdditions: [],
     serviceTitle: "",
     serviceDescription: "",
     goals: "",
@@ -228,6 +273,7 @@ export default function PitchBoardPage() {
   const [showProposalTuning, setShowProposalTuning] = useState(false);
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const [proposalError, setProposalError] = useState("");
+  const [proposalCustomAdditionDraft, setProposalCustomAdditionDraft] = useState("");
 
   const [pitchBrief, setPitchBrief] = useState(PITCH_EXAMPLES[0]);
   const [pitchForm, setPitchForm] = useState<PitchFormState>({
@@ -255,6 +301,7 @@ export default function PitchBoardPage() {
   const [leadAction, setLeadAction] = useState<LeadActionState | null>(null);
   const [leadOfferForm, setLeadOfferForm] = useState<LeadOfferFormState | null>(null);
   const [leadActionError, setLeadActionError] = useState("");
+  const [leadCustomAdditionDraft, setLeadCustomAdditionDraft] = useState("");
 
   const proposals = useMemo(() => pitches.filter((p) => p.documentType === "service_proposal"), [pitches]);
   const outreachPitches = useMemo(() => pitches.filter((p) => p.documentType !== "service_proposal"), [pitches]);
@@ -332,10 +379,26 @@ export default function PitchBoardPage() {
     }
     setIsCreatingProposal(true);
     try {
+      const serviceTitle = serviceSummary(proposalForm.selectedServices, proposalForm.customAdditions, proposalForm.serviceTitle);
+      const serviceDescription = combinedServiceDetails(
+        proposalForm.serviceDescription || proposalBrief,
+        proposalForm.selectedServices,
+        proposalForm.customAdditions,
+        proposalForm.proposalTypes,
+      );
       const res = await fetch("/api/pitch/proposals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brief: proposalBrief, ...proposalForm }),
+        body: JSON.stringify({
+          brief: proposalBrief,
+          ...proposalForm,
+          preset: firstProposalPreset(proposalForm.proposalTypes, proposalForm.preset),
+          serviceTitle,
+          serviceDescription,
+          proposalTypes: proposalForm.proposalTypes,
+          servicePackages: proposalForm.selectedServices,
+          customAdditions: proposalForm.customAdditions,
+        }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -446,6 +509,7 @@ export default function PitchBoardPage() {
     setLeadAction({ lead, index: idx, mode });
     setLeadOfferForm(defaultLeadOfferForm(lead, brandKit));
     setLeadActionError("");
+    setLeadCustomAdditionDraft("");
   }
 
   async function handleSubmitLeadAction(e: React.FormEvent) {
@@ -454,7 +518,14 @@ export default function PitchBoardPage() {
 
     const { lead, index, mode } = leadAction;
     setLeadActionError("");
-    if (!leadOfferForm.serviceTitle.trim() || !leadOfferForm.serviceDescription.trim()) {
+    const serviceTitle = serviceSummary(leadOfferForm.selectedServices, leadOfferForm.customAdditions, leadOfferForm.serviceTitle);
+    const serviceDescription = combinedServiceDetails(
+      leadOfferForm.serviceDescription,
+      leadOfferForm.selectedServices,
+      leadOfferForm.customAdditions,
+      leadOfferForm.proposalTypes,
+    );
+    if (!serviceTitle.trim() || !serviceDescription.trim()) {
       setLeadActionError("Confirm the service package and details before AI builds this.");
       return;
     }
@@ -473,8 +544,11 @@ export default function PitchBoardPage() {
         googleMapsUrl: lead.googleMapsUrl,
       };
       const confirmedOffer = [
-        `Confirmed offer: ${leadOfferForm.serviceTitle}`,
-        `Service details: ${leadOfferForm.serviceDescription}`,
+        `Confirmed offer: ${serviceTitle}`,
+        leadOfferForm.proposalTypes.length ? `Proposal types to combine: ${leadOfferForm.proposalTypes.join(", ")}` : "",
+        leadOfferForm.selectedServices.length ? `Selected services: ${leadOfferForm.selectedServices.join(", ")}` : "",
+        leadOfferForm.customAdditions.length ? `Custom additions: ${leadOfferForm.customAdditions.join("; ")}` : "",
+        `Service details: ${serviceDescription}`,
         leadOfferForm.goals ? `Goals: ${leadOfferForm.goals}` : "",
         leadGoogleSummary(lead) ? `Client Google profile: ${leadGoogleSummary(lead)}` : "",
       ].filter(Boolean).join("\n");
@@ -492,9 +566,12 @@ export default function PitchBoardPage() {
               brief: `Create a polished service proposal for ${lead.name} using this confirmed offer.\n${confirmedOffer}`,
               targetName: lead.name,
               targetWebsite: lead.website || "",
-              preset: leadOfferForm.preset,
-              serviceTitle: leadOfferForm.serviceTitle,
-              serviceDescription: leadOfferForm.serviceDescription,
+              preset: firstProposalPreset(leadOfferForm.proposalTypes, leadOfferForm.preset),
+              proposalTypes: leadOfferForm.proposalTypes,
+              servicePackages: leadOfferForm.selectedServices,
+              customAdditions: leadOfferForm.customAdditions,
+              serviceTitle,
+              serviceDescription,
               goals: leadOfferForm.goals,
               price: leadOfferForm.price,
               originalPrice: leadOfferForm.originalPrice,
@@ -686,16 +763,19 @@ export default function PitchBoardPage() {
                         <Input type="email" value={proposalForm.recipientEmail} onChange={(e) => setProposalForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@client.com" />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <Label>Preset</Label>
+                        <Label>Proposal types</Label>
                         <div className="flex flex-wrap gap-2">
                           {PROPOSAL_PRESETS.map((preset) => (
                             <button
                               key={preset.value}
                               type="button"
-                              onClick={() => setProposalForm((f) => ({ ...f, preset: preset.value }))}
+                              onClick={() => setProposalForm((f) => {
+                                const proposalTypes = toggleArrayValue(f.proposalTypes, preset.value, false);
+                                return { ...f, proposalTypes, preset: firstProposalPreset(proposalTypes, f.preset) };
+                              })}
                               className={cn(
                                 "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                                proposalForm.preset === preset.value ? "border-sky-400 bg-sky-50 text-sky-700" : "border-border bg-background text-muted-foreground",
+                                proposalForm.proposalTypes.includes(preset.value) ? "border-sky-400 bg-sky-50 text-sky-700" : "border-border bg-background text-muted-foreground",
                               )}
                             >
                               {preset.label}
@@ -706,6 +786,74 @@ export default function PitchBoardPage() {
                       <div className="space-y-1.5 md:col-span-2">
                         <Label>Service package</Label>
                         <Input value={proposalForm.serviceTitle} onChange={(e) => setProposalForm((f) => ({ ...f, serviceTitle: e.target.value }))} placeholder="Google Business Profile Optimization" />
+                        {brandServiceOptions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            {brandServiceOptions.map((service) => (
+                              <button
+                                key={service}
+                                type="button"
+                                onClick={() => setProposalForm((f) => {
+                                  const selectedServices = toggleArrayValue(f.selectedServices, service);
+                                  return {
+                                    ...f,
+                                    selectedServices,
+                                    serviceTitle: serviceSummary(selectedServices, f.customAdditions, f.serviceTitle),
+                                  };
+                                })}
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                                  proposalForm.selectedServices.includes(service)
+                                    ? "border-sky-400 bg-sky-50 text-sky-700"
+                                    : "border-border bg-background text-muted-foreground hover:text-foreground",
+                                )}
+                              >
+                                {service}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Custom additions</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={proposalCustomAdditionDraft}
+                            onChange={(e) => setProposalCustomAdditionDraft(e.target.value)}
+                            placeholder="Add another service, deliverable, guarantee, or note"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const value = proposalCustomAdditionDraft.trim();
+                              if (!value) return;
+                              setProposalForm((f) => ({
+                                ...f,
+                                customAdditions: [...f.customAdditions, value],
+                                serviceTitle: serviceSummary(f.selectedServices, [...f.customAdditions, value], f.serviceTitle),
+                              }));
+                              setProposalCustomAdditionDraft("");
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add
+                          </Button>
+                        </div>
+                        {proposalForm.customAdditions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            {proposalForm.customAdditions.map((addition) => (
+                              <button
+                                key={addition}
+                                type="button"
+                                onClick={() => setProposalForm((f) => ({ ...f, customAdditions: f.customAdditions.filter((item) => item !== addition) }))}
+                                className="inline-flex items-center gap-1 rounded-full border border-sky-400 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                              >
+                                {addition}
+                                <X className="h-3 w-3" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <Label>Service details</Label>
@@ -727,7 +875,7 @@ export default function PitchBoardPage() {
             </form>
 
             {isCreatingProposal && (
-              <AIGenerationLoader compact currentStep="Building proposal" subtitle="Extracting the deal and writing the PDF content" />
+              <AIGenerationLoader currentStep="Building proposal" subtitle="Extracting the deal, writing the plan, and preparing the PDF experience" />
             )}
             {!isLoadingPitches && proposals.length > 0 && (
               <section className="rounded-2xl border border-border bg-card p-4">
@@ -804,7 +952,7 @@ export default function PitchBoardPage() {
               </div>
             </form>
 
-            {isCreatingPitch && <AIGenerationLoader compact currentStep="Researching prospect" subtitle="The pitch will appear here when ready" />}
+            {isCreatingPitch && <AIGenerationLoader currentStep="Researching prospect" subtitle="Checking public signals and shaping the final pitch" />}
             {!isLoadingPitches && outreachPitches.length > 0 && (
               <section className="rounded-2xl border border-border bg-card p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -844,7 +992,7 @@ export default function PitchBoardPage() {
               {leadError && <p className="mt-3 flex items-center gap-2 text-sm text-red-600"><AlertCircle className="h-4 w-4" />{leadError}</p>}
             </div>
 
-            {isSearchingLeads && <AIGenerationLoader compact currentStep="Searching businesses" subtitle="Finding leads and public profile signals" />}
+            {isSearchingLeads && <AIGenerationLoader currentStep="Searching businesses" subtitle="Finding leads and public profile signals" />}
 
             {leadResults.length > 0 && (
               <div className="rounded-xl border border-border bg-card p-4">
@@ -961,6 +1109,7 @@ export default function PitchBoardPage() {
             setLeadAction(null);
             setLeadOfferForm(null);
             setLeadActionError("");
+            setLeadCustomAdditionDraft("");
           }
         }}
       >
@@ -1000,10 +1149,18 @@ export default function PitchBoardPage() {
                         <button
                           key={service}
                           type="button"
-                          onClick={() => setLeadOfferForm((form) => form ? { ...form, serviceTitle: service } : form)}
+                          onClick={() => setLeadOfferForm((form) => {
+                            if (!form) return form;
+                            const selectedServices = toggleArrayValue(form.selectedServices, service);
+                            return {
+                              ...form,
+                              selectedServices,
+                              serviceTitle: serviceSummary(selectedServices, form.customAdditions, form.serviceTitle),
+                            };
+                          })}
                           className={cn(
                             "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                            leadOfferForm.serviceTitle === service
+                            leadOfferForm.selectedServices.includes(service)
                               ? "border-sky-400 bg-sky-50 text-sky-700"
                               : "border-border bg-background text-muted-foreground hover:text-foreground",
                           )}
@@ -1018,16 +1175,20 @@ export default function PitchBoardPage() {
 
               {leadAction.mode === "proposal" && (
                 <div className="space-y-1.5">
-                  <Label>Proposal type</Label>
+                  <Label>Proposal types</Label>
                   <div className="flex flex-wrap gap-2">
                     {PROPOSAL_PRESETS.map((preset) => (
                       <button
                         key={preset.value}
                         type="button"
-                        onClick={() => setLeadOfferForm((form) => form ? { ...form, preset: preset.value } : form)}
+                        onClick={() => setLeadOfferForm((form) => {
+                          if (!form) return form;
+                          const proposalTypes = toggleArrayValue(form.proposalTypes, preset.value, false);
+                          return { ...form, proposalTypes, preset: firstProposalPreset(proposalTypes, form.preset) };
+                        })}
                         className={cn(
                           "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                          leadOfferForm.preset === preset.value
+                          leadOfferForm.proposalTypes.includes(preset.value)
                             ? "border-sky-400 bg-sky-50 text-sky-700"
                             : "border-border bg-background text-muted-foreground hover:text-foreground",
                         )}
@@ -1047,6 +1208,58 @@ export default function PitchBoardPage() {
                     onChange={(e) => setLeadOfferForm((form) => form ? { ...form, serviceTitle: e.target.value } : form)}
                     placeholder="Google Business Profile Optimization"
                   />
+                  {(leadOfferForm.selectedServices.length > 0 || leadOfferForm.customAdditions.length > 0) && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {[...leadOfferForm.selectedServices, ...leadOfferForm.customAdditions].map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setLeadOfferForm((form) => form
+                            ? {
+                                ...form,
+                                selectedServices: form.selectedServices.filter((service) => service !== item),
+                                customAdditions: form.customAdditions.filter((addition) => addition !== item),
+                              }
+                            : form)}
+                          className="inline-flex items-center gap-1 rounded-full border border-sky-400 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                        >
+                          {item}
+                          <X className="h-3 w-3" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Custom additions</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={leadCustomAdditionDraft}
+                      onChange={(e) => setLeadCustomAdditionDraft(e.target.value)}
+                      placeholder="Add another service, section, deliverable, or offer detail"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const value = leadCustomAdditionDraft.trim();
+                        if (!value) return;
+                        setLeadOfferForm((form) => {
+                          if (!form) return form;
+                          const customAdditions = [...form.customAdditions, value];
+                          return {
+                            ...form,
+                            customAdditions,
+                            serviceTitle: serviceSummary(form.selectedServices, customAdditions, form.serviceTitle),
+                          };
+                        });
+                        setLeadCustomAdditionDraft("");
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label>Service details</Label>
@@ -1099,6 +1312,13 @@ export default function PitchBoardPage() {
                   <AlertCircle className="h-4 w-4" />
                   {leadActionError}
                 </p>
+              )}
+
+              {(proposingLead === leadAction.index || pitchingLead === leadAction.index) && (
+                <AIGenerationLoader
+                  currentStep={leadAction.mode === "proposal" ? "Building proposal" : "Building pitch"}
+                  subtitle="Using the confirmed offer details and your brand information"
+                />
               )}
 
               <div className="flex justify-end gap-2">

@@ -17,6 +17,9 @@ export interface ServiceProposalInput {
   recipientName?: string;
   recipientEmail?: string;
   preset: ProposalPreset;
+  proposalTypes?: ProposalPreset[];
+  servicePackages?: string[];
+  customAdditions?: string[];
   serviceTitle: string;
   serviceDescription: string;
   goals?: string;
@@ -72,6 +75,12 @@ export interface ProposalVisualAssets {
   images: ProposalVisualAsset[];
 }
 
+export interface ProposalCustomSection {
+  title: string;
+  body?: string;
+  bullets: string[];
+}
+
 export interface ServiceProposalContent {
   documentType: "service_proposal";
   subject: string;
@@ -92,6 +101,7 @@ export interface ServiceProposalContent {
   pricing: ProposalPricing;
   terms: string[];
   nextSteps: string[];
+  customSections?: ProposalCustomSection[];
   contact: {
     name?: string;
     email?: string;
@@ -103,6 +113,9 @@ export interface ServiceProposalContent {
   visualAssets?: ProposalVisualAssets;
   deckPlan?: ProposalDeckPlan;
   clientProfile?: ProposalClientProfile;
+  proposalTypes?: ProposalPreset[];
+  servicePackages?: string[];
+  customAdditions?: string[];
   brandSnapshot: Record<string, unknown>;
 }
 
@@ -287,6 +300,7 @@ Return ONLY valid JSON with this shape:
   "pricing": {"name":"...", "amount":199, "originalAmount":399, "interval":"month", "note":"..."},
   "terms": ["5-8 clear terms"],
   "nextSteps": ["3-5 next steps"],
+  "customSections": [{"title":"Optional section requested by user", "body":"short body", "bullets":["short bullet"]}],
   "contact": {"name":"...", "email":"...", "phone":"...", "website":"...", "address":"..."},
   "design": {
     "themeName": "Short branded theme name",
@@ -311,6 +325,7 @@ Rules:
 - Keep proofPoint metric values ASCII-only and short, such as "2-3x", "+40%", "4.8+", or "Top 3". Do not use star symbols, emoji, or decorative characters in metric values.
 - If Client Google/local profile facts are available and the request is about local presence, Google Business Profile, local SEO, reviews, maps, or nearby customers, cite the actual rating, review count, category, address, or status in clientNeed, proofPoints, or benefits. Do not invent Google stats when unavailable.
 - Match the brand voice and service category.
+- If multiple proposal types, service packages, or custom additions are provided, blend them into one coherent proposal. Do not drop custom user additions.
 - Design must use the live BrandKit: colors, fonts, logo availability, audience, voice, services, and unique value.
 - Image prompts are for background/hero PNG assets only. They must NEVER ask the image model to draw text, words, UI labels, logos, logo boxes, logo placeholders, white reserved rectangles, dashed frames, or fake brand marks. The real logo is overlaid after generation.
 - Make the PDF feel like a polished sales deck, not a plain document: strong cover, section imagery, price badge, proof metrics, branded footer, and clear visual hierarchy.
@@ -319,6 +334,9 @@ Proposal request:
 - Target client/entity: ${input.targetName}
 - Target website: ${input.targetWebsite || "not provided"}
 - Recipient: ${input.recipientName || "not provided"}
+- Selected proposal types: ${input.proposalTypes?.length ? input.proposalTypes.join(", ") : input.preset}
+- Selected services/packages: ${input.servicePackages?.length ? input.servicePackages.join(", ") : "not provided"}
+- Custom additions: ${input.customAdditions?.length ? input.customAdditions.join("; ") : "not provided"}
 - Service title: ${input.serviceTitle}
 - Service description: ${input.serviceDescription}
 - Goals: ${input.goals || "not provided"}
@@ -421,6 +439,18 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
     },
     terms: Array.isArray(raw.terms) ? raw.terms.slice(0, 10) : [],
     nextSteps: Array.isArray(raw.nextSteps) ? raw.nextSteps.slice(0, 6) : [],
+    customSections: Array.isArray(raw.customSections)
+      ? raw.customSections
+          .map((section) => ({
+            title: String(section?.title || "").replace(/\s+/g, " ").trim().slice(0, 90),
+            body: String(section?.body || "").replace(/\s+/g, " ").trim().slice(0, 650),
+            bullets: Array.isArray(section?.bullets)
+              ? section.bullets.map((item) => String(item || "").replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean).slice(0, 6)
+              : [],
+          }))
+          .filter((section) => section.title)
+          .slice(0, 4)
+      : [],
     contact: {
       name: raw.contact?.name,
       email: raw.contact?.email || String(brandSnapshot.email || ""),
@@ -479,6 +509,9 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
         : ["Use a visual deck layout with one strong idea per page.", "Overlay the real brand logo in code, not in generated images."],
     },
     clientProfile: input.clientProfile,
+    proposalTypes: input.proposalTypes?.length ? input.proposalTypes.slice(0, 4) : [input.preset],
+    servicePackages: input.servicePackages?.slice(0, 12) || [],
+    customAdditions: input.customAdditions?.slice(0, 12) || [],
     brandSnapshot,
   };
 
