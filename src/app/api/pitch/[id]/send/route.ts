@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
 import { sendPitchEmail } from "@/lib/email";
-import { sendMarketingEmail, createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
-import { getPresignedUrl } from "@/lib/utils/s3-client";
+import { createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
+import { getPresignedUrl, sanitizeUrlsForStorage } from "@/lib/utils/s3-client";
 import type { PitchContent } from "@/lib/pitch/generator";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
+import { ensureFullProposalSections } from "@/lib/pitch/proposal-full-agent";
 import type { ResearchData } from "@/lib/pitch/researcher";
 
 function isServiceProposal(content: PitchContent | ServiceProposalContent): content is ServiceProposalContent {
@@ -179,8 +180,14 @@ export async function POST(
     let proposalContent: ServiceProposalContent | null = null;
     let emailPitchContent: PitchContent;
     if (isServiceProposal(pitchContent)) {
-      proposalContent = pitchContent;
-      emailPitchContent = proposalToPitchEmail(pitchContent);
+      proposalContent = await ensureFullProposalSections(pitchContent);
+      if (JSON.stringify(proposalContent) !== JSON.stringify(pitchContent)) {
+        await prisma.pitch.update({
+          where: { id },
+          data: { pitchContent: JSON.stringify(sanitizeUrlsForStorage(proposalContent)) },
+        });
+      }
+      emailPitchContent = proposalToPitchEmail(proposalContent);
     } else {
       emailPitchContent = pitchContent;
     }
@@ -193,6 +200,9 @@ export async function POST(
         : await generatePitchPDF(emailPitchContent, research, pitch.businessName, brand);
     } catch (pdfErr) {
       console.error("[send pitch] PDF generation failed:", pdfErr);
+      if (proposalContent) {
+        return NextResponse.json({ success: false, error: { message: "Proposal PDF generation failed. Please try again." } }, { status: 500 });
+      }
       // Continue without PDF and still send the HTML email.
     }
 
@@ -224,47 +234,7 @@ export async function POST(
     const fromEmail = marketingConfig?.defaultFromEmail || user?.email || "info@flowsmartly.com";
     const replyToAddr = marketingConfig?.defaultReplyTo || user?.email;
 
-    if (canUseUserEmail) {
-      // Build pitch email HTML then send via user's provider
-      const { buildPitchEmailHtml } = await import("@/lib/email");
-      const html = buildPitchEmailHtml({
-        recipientName: toName || undefined,
-        businessName: pitch.businessName,
-        pitch: emailPitchContent,
-        research,
-        pdfBuffer,
-        senderName: fromName,
-        customMessage: message || undefined,
-        brandPrimaryColor: brand.primaryColor,
-        brandWebsite: brandKit?.website || undefined,
-      });
-
-      const attachments = pdfBuffer
-        ? [{ filename: `${pitch.businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`, content: pdfBuffer }]
-        : [];
-
-      // Mailgun uses HTTP API; everything else uses nodemailer
-      if (marketingConfig.emailProvider === "MAILGUN") {
-        await sendViaMailgunApi(
-          emailCfg,
-          `${fromName} <${fromEmail}>`,
-          toEmail,
-          emailPitchContent.subject,
-          html,
-          undefined
-        );
-      } else {
-        const transporter = createTransporter(marketingConfig.emailProvider, emailCfg);
-        await transporter.sendMail({
-          from: `${fromName} <${fromEmail}>`,
-          to: toEmail,
-          subject: emailPitchContent.subject,
-          html,
-          replyTo: replyToAddr,
-          attachments: attachments.map(a => ({ filename: a.filename, content: a.content })),
-        });
-      }
-    } else {
+    const sendWithFallbackSmtp = async () => {
       // Fall back to FlowSmartly's SMTP
       await sendPitchEmail({
         to: toEmail,
@@ -279,6 +249,56 @@ export async function POST(
         brandPrimaryColor: brand.primaryColor,
         brandWebsite: brandKit?.website || undefined,
       });
+    };
+
+    if (canUseUserEmail) {
+      try {
+        // Build pitch email HTML then send via user's provider
+        const { buildPitchEmailHtml } = await import("@/lib/email");
+        const html = buildPitchEmailHtml({
+          recipientName: toName || undefined,
+          businessName: pitch.businessName,
+          pitch: emailPitchContent,
+          research,
+          pdfBuffer,
+          senderName: fromName,
+          customMessage: message || undefined,
+          brandPrimaryColor: brand.primaryColor,
+          brandWebsite: brandKit?.website || undefined,
+        });
+
+        const attachments = pdfBuffer
+          ? [{ filename: `${pitch.businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`, content: pdfBuffer }]
+          : [];
+
+        // Mailgun uses HTTP API; everything else uses nodemailer
+        if (marketingConfig.emailProvider === "MAILGUN") {
+          await sendViaMailgunApi(
+            emailCfg,
+            `${fromName} <${fromEmail}>`,
+            toEmail,
+            emailPitchContent.subject,
+            html,
+            undefined,
+            attachments,
+          );
+        } else {
+          const transporter = createTransporter(marketingConfig.emailProvider, emailCfg);
+          await transporter.sendMail({
+            from: `${fromName} <${fromEmail}>`,
+            to: toEmail,
+            subject: emailPitchContent.subject,
+            html,
+            replyTo: replyToAddr,
+            attachments: attachments.map(a => ({ filename: a.filename, content: a.content })),
+          });
+        }
+      } catch (providerError) {
+        console.warn("[send pitch] User email provider failed; falling back to FlowSmartly SMTP:", providerError);
+        await sendWithFallbackSmtp();
+      }
+    } else {
+      await sendWithFallbackSmtp();
     }
 
     // Update pitch status

@@ -93,17 +93,25 @@ export async function sendViaMailgunApi(
   to: string,
   subject: string,
   html: string,
-  text?: string
+  text?: string,
+  attachments: Array<{ filename: string; content: Buffer; contentType?: string }> = [],
 ): Promise<void> {
   const domain = emailConfig.domain as string;
   const apiKey = emailConfig.apiKey as string;
 
-  const formData = new URLSearchParams();
+  const formData = new FormData();
   formData.append("from", from);
   formData.append("to", to);
   formData.append("subject", subject);
   formData.append("html", html);
   if (text) formData.append("text", text);
+  for (const attachment of attachments) {
+    formData.append(
+      "attachment",
+      new Blob([new Uint8Array(attachment.content)], { type: attachment.contentType || "application/pdf" }),
+      attachment.filename,
+    );
+  }
 
   const response = await fetch(
     `https://api.mailgun.net/v3/${domain}/messages`,

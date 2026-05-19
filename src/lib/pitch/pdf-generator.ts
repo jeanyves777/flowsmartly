@@ -1513,27 +1513,77 @@ export async function generateServiceProposalPDF(
   let closingPage = 7;
   const customSections = (proposal.customSections || [])
     .filter((section) => clean(section.title))
-    .slice(0, 4);
+    .slice(0, 12);
 
   customSections.forEach((section) => {
-    doc.addPage();
-    base(closingPage);
-    const customTitleEnd = h1(clean(section.title), margin, 135, 760, 54, 3);
-    para(clean(section.body), margin, customTitleEnd + 30, 780, 23, softInk, 1.25, 4);
-    const customBullets = cleanBullets(section.bullets || [], []);
-    if (customBullets.length) {
-      bigBulletList(customBullets, margin, Math.max(390, customTitleEnd + 160), 720, { limit: 5, rowH: 62, size: 21, maxLines: 2 });
-    }
-    addHeroImage(
-      closingPage % 2 === 0 ? aboutImage || impactImage || coverImage : impactImage || aboutImage || coverImage,
-      850,
-      140,
-      470,
-      440,
-      { shadow: false },
-    );
-    footer();
-    closingPage += 1;
+    const title = clean(section.title);
+    const bodyLines = clean(section.body) ? doc.splitTextToSize(clean(section.body), 790) as string[] : [];
+    const bullets = cleanBullets(section.bullets || [], []);
+    let bodyIndex = 0;
+    let bulletIndex = 0;
+    let part = 0;
+
+    do {
+      doc.addPage();
+      base(closingPage);
+      const customTitleEnd = h1(part ? `${title} Continued` : title, margin, 125, 800, 52, 3);
+      const firstPage = part === 0;
+      const textX = margin;
+      const textW = firstPage ? 790 : 1110;
+      let y = customTitleEnd + 34;
+      const bottom = 700;
+
+      if (firstPage) {
+        addHeroImage(
+          closingPage % 2 === 0 ? aboutImage || impactImage || coverImage : impactImage || aboutImage || coverImage,
+          925,
+          165,
+          390,
+          340,
+          { shadow: false },
+        );
+      }
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(21);
+      doc.setTextColor(softInk.r, softInk.g, softInk.b);
+      const maxBodyLines = Math.max(0, Math.floor((bottom - y) / 27));
+      const bodyChunk = bodyLines.slice(bodyIndex, bodyIndex + maxBodyLines);
+      if (bodyChunk.length) {
+        doc.text(bodyChunk, textX, y, { lineHeightFactor: 1.18 });
+        bodyIndex += bodyChunk.length;
+        y += bodyChunk.length * 24.8 + 24;
+      }
+
+      if (bodyIndex >= bodyLines.length && bulletIndex < bullets.length) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(25);
+        setColor(ink);
+        if (y < bottom - 42) {
+          doc.text("What this means for you", textX, y);
+          y += 34;
+        }
+        while (bulletIndex < bullets.length && y < bottom - 28) {
+          const bullet = bullets[bulletIndex];
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(19);
+          doc.setTextColor(softInk.r, softInk.g, softInk.b);
+          const fitted = fitTextToLines(bullet, textW - 52, 19, 3);
+          const lines = doc.splitTextToSize(fitted, textW - 52).slice(0, 3);
+          const needed = lines.length * 22 + 16;
+          if (y + needed > bottom) break;
+          doc.setFillColor(red.r, red.g, red.b);
+          doc.circle(textX + 8, y - 7, 6, "F");
+          doc.text(lines, textX + 34, y, { lineHeightFactor: 1.14 });
+          y += needed;
+          bulletIndex += 1;
+        }
+      }
+
+      footer();
+      closingPage += 1;
+      part += 1;
+    } while (bodyIndex < bodyLines.length || bulletIndex < bullets.length || (part === 1 && !bodyLines.length && !bullets.length));
   });
 
   // Closing CTA
