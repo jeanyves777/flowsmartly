@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { prisma } from "@/lib/db/client";
-import type { AgentTool } from "./client";
+import { HAIKU_MODEL, type AgentTool } from "./client";
 
 /**
  * Logo agent tools — three orchestration tools the logo agent uses to:
@@ -157,7 +157,7 @@ Reply ONLY with valid JSON: { "score": <1-10>, "brandNameCorrect": <bool>, "fill
 
         try {
           const response = await anthropic.messages.create({
-            model: "claude-opus-4-7",
+            model: HAIKU_MODEL,
             max_tokens: 600,
             messages: [{
               role: "user",

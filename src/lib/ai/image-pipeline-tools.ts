@@ -3,7 +3,7 @@ import { generateImageWithProvider, xaiFirstImageProviderOrder } from "./image-r
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveToFile, saveToFileLocal } from "@/lib/utils/file-storage";
 import { randomUUID } from "crypto";
-import type { AgentTool } from "./client";
+import { HAIKU_MODEL, type AgentTool } from "./client";
 
 /**
  * Image pipeline agent tools — drop-in replacement for the hardcoded
@@ -193,7 +193,7 @@ Reply ONLY with valid JSON: { "score": <1-10>, "subjectMatches": <bool>, "transp
 
         try {
           const response = await anthropic.messages.create({
-            model: "claude-opus-4-7",
+            model: HAIKU_MODEL,
             max_tokens: 600,
             messages: [{
               role: "user",

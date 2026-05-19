@@ -65,7 +65,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_POST: 3,
   AI_CAPTION: 3,
   AI_HASHTAGS: 2,
-  AI_IDEAS: 8, // Bumped to 8: agent loop + Opus 4.7 (~1.7x cost vs Sonnet) + extended thinking
+  AI_IDEAS: 8, // Agent loop + tool use
   AI_AUTO: 3,
   AI_AUDIENCE: 3,
   AI_CAMPAIGN_NAME: 2,
@@ -78,7 +78,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_LOGO_FINALIZE: 15,   // Legacy: single image finalize
   AI_LOGO_GENERATION: 60, // Bumped from 40: agent loop with vision eval + retries (~$0.50)
   AI_VISUAL_DESIGN: 15,   // Single image gen (~$0.08 + margin)
-  AI_DESIGN_LAYOUT: 14,   // Bumped to 14: agent loop + Opus 4.7 (~1.7x cost vs Sonnet) + thinking
+  AI_DESIGN_LAYOUT: 14,   // Agent loop + layout QA
   AI_DESIGN_LAYOUT_IMAGE: 22, // Bumped from 15: agent picks provider + vision QA + 1 retry
 
   // --- AI Video Generation ---
@@ -153,7 +153,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_TEMPLATE_GENERATE: 10,       // 8x gpt-image-1 low-quality thumbnails (~$0.09). Cached forever per query hash so subsequent searchers get them free.
 
   // --- AI Premium Template Designer (Claude → HTML+CSS → headless Chromium screenshot) ---
-  AI_TEMPLATE_HTML_DESIGN: 60,    // 8x Claude Opus 4.7 HTML designs with adaptive thinking (~$0.40 first batch, ~$0.20 with cache hits). Pixel-perfect typography via real Google Fonts + CSS gradients — replaces blurry gpt-image-1 text. Cached per (query, batch).
+  AI_TEMPLATE_HTML_DESIGN: 60,    // 8x Claude Haiku HTML designs with cached screenshots. Pixel-perfect typography via real Google Fonts + CSS gradients.
 
   // --- AI Template Remix (gpt-image-1 edit-multi: keep design layout, swap text + photos) ---
   AI_TEMPLATE_REMIX: 30,          // ONE gpt-image-1 edit-multi call (~$0.10-0.20). Source design = primary reference (composition preserved), user photos = aux refs to drop into placeholders, custom text overlaid in same hierarchy. FLAT output — for editable, use AI_TEMPLATE_REPRODUCE instead.

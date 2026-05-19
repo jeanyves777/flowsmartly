@@ -886,7 +886,7 @@ async function evaluateGeneratedImageQuality(
     }
 
     const createParams = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 700,
       temperature: 0,
       messages: [{ role: "user" as const, content }],
@@ -2034,7 +2034,7 @@ async function logoContainsBrandName(
     let response;
     try {
       response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 10,
       temperature: 0,
       messages: [{
@@ -2051,7 +2051,7 @@ async function logoContainsBrandName(
         console.warn("[Visual] Primary Anthropic key failed, using backup");
         const backupClient = new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY });
         response = await backupClient.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 10,
           temperature: 0,
           messages: [{

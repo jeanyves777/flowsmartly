@@ -536,7 +536,7 @@ async function handleDrillDown(
 }
 
 /**
- * Premium HTML designer — Claude Opus 4.7 emits a complete HTML+CSS
+ * Premium HTML designer - Claude Haiku emits a complete HTML+CSS
  * document per style, headless Chromium screenshots it to PNG. Real
  * Google Fonts, real CSS gradients, pixel-perfect typography. Replaces
  * gpt-image-1 for users who want Featured-template tier polish.
@@ -737,7 +737,7 @@ async function handleHtmlDesign(
       userId: userId ?? null,
       adminId: session?.adminId ?? null,
       feature: "ai_template_html_design",
-      model: "claude-opus-4-7",
+      model: "claude-haiku-4-5-20251001",
       inputTokens: 0,
       outputTokens: 0,
       // Rough cost estimate: ~$0.05 per Claude HTML design with cache hits.

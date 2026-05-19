@@ -784,15 +784,13 @@ export async function runChatTurn(opts: RunChatTurnOpts): Promise<RunChatTurnRes
   for (; iter < maxIterations; iter++) {
     let response: Anthropic.Message;
     try {
-      // SPEED: Sonnet 4.6 for the conversational chat — ~3x faster than
-      // Opus 4.7 for data-collection turns and totally adequate for tool
-      // selection in this constrained surface (8 tools, structured args).
-      // Adaptive thinking is intentionally OFF here — the worker agents
+      // Keep the conversational router on Haiku to avoid premium-model spend.
+      // Adaptive thinking is intentionally OFF here - the worker agents
       // (visual/layout/video/remix) reason heavily on their own; the
       // chat agent is just a router. Keeping it lean keeps perceived
       // latency near-instant on "what size?" / "which brand?" turns.
       const params: Record<string, unknown> = {
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 2048,
         system: SYSTEM_PROMPT + stateLine,
         tools: toolDefs,

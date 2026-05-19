@@ -52,6 +52,7 @@ import {
   Cpu,
   Video,
   Clapperboard,
+  Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -113,6 +114,7 @@ const serviceItems: NavItem[] = [
   { href: "/admin/automations", icon: Zap, label: "Automations", permission: "VIEW_CONTENT" },
   { href: "/admin/events", icon: Calendar, label: "Events", permission: "VIEW_CONTENT" },
   { href: "/admin/listsmartly", icon: List, label: "ListSmartly", permission: "VIEW_CONTENT" },
+  { href: "/admin/proposal-visuals", icon: Images, label: "Proposal Visuals", permission: "VIEW_CONTENT" },
 ];
 
 // Marketing section

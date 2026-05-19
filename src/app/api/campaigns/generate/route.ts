@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.userId,
         feature: `campaign_${type}_${templateType || "custom"}`,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: 500, // Estimate
         outputTokens: type === "email" ? 800 : 100,
         costCents: creditCost,

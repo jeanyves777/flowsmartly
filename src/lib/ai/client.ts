@@ -12,21 +12,31 @@ const backupClient = process.env.ANTHROPIC_BACKUP_API_KEY
   : null;
 
 /**
- * Default Claude model. As of 2026-04-20 we use Opus 4.7 — the most capable
- * model — for everything. Per-call overrides are still supported via
- * `options.model`.
+ * Default Claude model. Keep routine FlowSmartly automations on Haiku so
+ * customer workflows do not burn expensive premium-model credits.
  */
-export const DEFAULT_MODEL = "claude-opus-4-7";
+export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+export const DEFAULT_MODEL = HAIKU_MODEL;
+
+function resolveClaudeModel(modelOverride?: string): string {
+  const requested = modelOverride || DEFAULT_MODEL;
+  if (/^claude-/i.test(requested) && !/claude-haiku/i.test(requested)) return HAIKU_MODEL;
+  return requested;
+}
+
+function isHaikuModel(model: string): boolean {
+  return /claude-haiku/i.test(model);
+}
 
 /**
  * Models that require ADAPTIVE thinking (no `budget_tokens`) AND reject
  * sampling parameters (`temperature`, `top_p`, `top_k`). Sending those on
  * these models returns a 400 from the API.
  *
- * Keep this list narrow — only Opus 4.7+ has the strict surface today.
+ * Compatibility list only. Premium model requests are normalized to Haiku
+ * by `resolveClaudeModel` before requests run.
  */
 const ADAPTIVE_THINKING_MODELS = new Set<string>([
-  "claude-opus-4-7",
 ]);
 
 /**
@@ -34,10 +44,7 @@ const ADAPTIVE_THINKING_MODELS = new Set<string>([
  * `budget_tokens` is *deprecated* (still accepted, but warned). Sampling
  * parameters still work here.
  */
-const ADAPTIVE_THINKING_PREFERRED = new Set<string>([
-  "claude-opus-4-6",
-  "claude-sonnet-4-6",
-]);
+const ADAPTIVE_THINKING_PREFERRED = new Set<string>([]);
 
 function isStrictModel(model: string): boolean {
   return ADAPTIVE_THINKING_MODELS.has(model);
@@ -156,14 +163,14 @@ class ClaudeAI {
       model: modelOverride,
     } = options;
 
-    const model = modelOverride || DEFAULT_MODEL;
+    const model = resolveClaudeModel(modelOverride);
     const strict = isStrictModel(model);
 
     const maxRetries = 3;
     let lastError: unknown;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // On strict models (Opus 4.7+) the API rejects `temperature`,
+        // On strict models the API rejects `temperature`,
         // `top_p`, and `top_k`. Drop them silently rather than 400'ing.
         const baseParams: Record<string, unknown> = {
           model: model as Parameters<typeof this.client.messages.create>[0]["model"],
@@ -220,7 +227,7 @@ class ClaudeAI {
       model: modelOverride,
     } = options;
 
-    const model = modelOverride || DEFAULT_MODEL;
+    const model = resolveClaudeModel(modelOverride);
     const strict = isStrictModel(model);
 
     try {
@@ -266,7 +273,7 @@ class ClaudeAI {
       model: modelOverride,
     } = options;
 
-    const model = modelOverride || DEFAULT_MODEL;
+    const model = resolveClaudeModel(modelOverride);
     const strict = isStrictModel(model);
 
     try {
@@ -358,15 +365,15 @@ class ClaudeAI {
       thinkingBudget = 2000,
     } = options;
 
-    const model = modelOverride || DEFAULT_MODEL;
+    const model = resolveClaudeModel(modelOverride);
     const useAdaptiveThinking = prefersAdaptiveThinking(model);
     const strictParams = isStrictModel(model);
 
-    // Thinking config — Opus 4.7 only accepts adaptive; older models accept
+    // Thinking config: strict models accept adaptive; older models accept
     // {type: "enabled", budget_tokens: N}. We pick the right shape per model
     // and only enable thinking when the caller asked for it.
     const thinkingRequested =
-      typeof thinkingBudget === "number" && thinkingBudget >= 1024;
+      !isHaikuModel(model) && typeof thinkingBudget === "number" && thinkingBudget >= 1024;
     const effectiveBudget = thinkingRequested ? Math.max(1024, thinkingBudget as number) : 0;
     const requestedMax = options.maxTokens ?? 2048;
     // Even with adaptive thinking, leave headroom for thinking + output
@@ -396,7 +403,7 @@ class ClaudeAI {
     for (let iter = 0; iter < maxIterations; iter++) {
       let response: Anthropic.Message;
       try {
-        // Build params dynamically — Opus 4.7 rejects temperature, requires
+        // Build params dynamically: strict models reject temperature and require
         // adaptive thinking; older models want enabled+budget_tokens.
         const createParams: Record<string, unknown> = {
           model: model as Parameters<typeof this.client.messages.create>[0]["model"],

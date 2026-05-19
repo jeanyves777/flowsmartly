@@ -1,4 +1,4 @@
-import { ClaudeAI } from "@/lib/ai/client";
+import { ClaudeAI, HAIKU_MODEL } from "@/lib/ai/client";
 
 export interface ResearchData {
   websiteTitle: string;
@@ -469,7 +469,7 @@ IMPORTANT:
 
 Data:
 ${analysisContext}`,
-    { model: "claude-opus-4-6", maxTokens: 2048 }
+    { model: HAIKU_MODEL, maxTokens: 2048 }
   );
 
   // Merge contact info: Google Places > AI extraction > regex

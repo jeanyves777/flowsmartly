@@ -109,7 +109,7 @@ export async function POST(
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "business_plan_regenerate",
-        model: "claude-opus-4-7",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         costCents: 0,

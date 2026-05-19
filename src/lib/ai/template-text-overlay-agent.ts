@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU_MODEL } from "./client";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -128,7 +129,7 @@ For text regions you can't map to user content, MIRROR the original text from th
     : "Mirror every text region from the source character-for-character (capitalization, punctuation, line breaks via \\n).";
 
   const response = (await anthropic.messages.create({
-    model: "claude-opus-4-7",
+    model: HAIKU_MODEL,
     max_tokens: 4096,
     system: systemPrompt,
     messages: [

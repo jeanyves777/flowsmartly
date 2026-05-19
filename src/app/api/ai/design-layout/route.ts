@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "design_layout_agent",
-        model: imagesGenerated > 0 ? "claude-opus-4-7 + agent-image-pipeline" : "claude-opus-4-7",
+        model: imagesGenerated > 0 ? "claude-haiku-4-5-20251001 + agent-image-pipeline" : "claude-haiku-4-5-20251001",
         inputTokens: agentResult.usage.inputTokens + imageAgentTokens.inputTokens,
         outputTokens: agentResult.usage.outputTokens + imageAgentTokens.outputTokens,
         costCents: 0,

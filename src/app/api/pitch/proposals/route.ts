@@ -4,7 +4,8 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
-import { generateProposalVisualAssets } from "@/lib/pitch/proposal-visuals";
+import { attachProposalLibraryVisuals } from "@/lib/pitch/proposal-asset-library";
+import { runServiceProposalDeckAgent } from "@/lib/pitch/proposal-deck-agent";
 
 const PRESETS = new Set<ProposalPreset>([
   "google-business-profile",
@@ -129,9 +130,9 @@ export async function POST(request: NextRequest) {
     });
 
     let proposal = result.proposal;
+    let usage = { ...result.usage };
     try {
-      proposal = await generateProposalVisualAssets({
-        userId: session.userId,
+      proposal = await attachProposalLibraryVisuals({
         preset,
         targetName,
         serviceTitle,
@@ -139,7 +140,36 @@ export async function POST(request: NextRequest) {
         brandKit,
       });
     } catch (visualError) {
-      console.warn("[ProposalAgent] Visual asset generation failed:", visualError);
+      console.warn("[ProposalAgent] Visual asset selection failed:", visualError);
+    }
+
+    try {
+      const deck = await runServiceProposalDeckAgent({
+        proposal,
+        request: {
+          userId: session.userId,
+          targetName,
+          targetWebsite: cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined,
+          recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
+          recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
+          preset,
+          serviceTitle,
+          serviceDescription,
+          goals: cleanText(body.goals || inferred.goals, 2000) || undefined,
+          price: cleanMoney(body.price ?? inferred.price),
+          originalPrice: cleanMoney(body.originalPrice ?? inferred.originalPrice),
+          billingInterval: cleanText(body.billingInterval || inferred.billingInterval, 60) || undefined,
+          terms: cleanText(body.terms || inferred.terms, 2000) || undefined,
+        },
+        brandKit: brandKit as unknown as Record<string, unknown>,
+      });
+      proposal = { ...proposal, deckPlan: deck.plan };
+      usage = {
+        inputTokens: usage.inputTokens + deck.usage.inputTokens,
+        outputTokens: usage.outputTokens + deck.usage.outputTokens,
+      };
+    } catch (deckError) {
+      console.warn("[ProposalAgent] Claude Haiku deck planning failed, using renderer fallback:", deckError);
     }
 
     const pitch = await prisma.pitch.create({
@@ -186,9 +216,9 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "service_proposal_generate",
-        model: "claude-opus-4-7+xai-image-first",
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
+        model: "claude-haiku-4-5-20251001+proposal-deck-agent+visual-library",
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
         costCents: 0,
       },
     });

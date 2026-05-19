@@ -264,7 +264,7 @@ Generate 4 wildly different, creative, brand-aligned story suggestions:`;
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "cartoon_suggestions",
-        model: "claude-sonnet",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: ai.estimateTokens(prompt),
         outputTokens: ai.estimateTokens(JSON.stringify(result.suggestions)),
       },

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "design_studio_ideas_agent",
-        model: "claude-opus-4-7",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: agentRun.usage.inputTokens,
         outputTokens: agentRun.usage.outputTokens,
         costCents: 0,

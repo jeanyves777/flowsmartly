@@ -91,7 +91,7 @@ Pick the right provider, generate, evaluate, retry if needed (max 1 retry), then
       {
         systemPrompt: SYSTEM_PROMPT,
         maxTokens: 4000,
-        temperature: 1, // Opus 4.7 ignores; legacy keeps
+        temperature: 1,
         maxIterations: 6, // 1 generate + 1 evaluate + 1 retry generate + 1 retry evaluate + 2 buffer
         thinkingBudget: 1500,
       },

@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "logo_generation_agent",
-        model: "claude-opus-4-7 + xai-image-router",
+        model: "claude-haiku-4-5-20251001 + xai-image-router",
         inputTokens: agentRun.usage.inputTokens,
         outputTokens: agentRun.usage.outputTokens,
         prompt: `Logo for ${brandName}`,

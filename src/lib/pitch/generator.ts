@@ -1,4 +1,4 @@
-import { ClaudeAI } from "@/lib/ai/client";
+import { ClaudeAI, HAIKU_MODEL } from "@/lib/ai/client";
 import type { ResearchData } from "./researcher";
 
 export interface PitchContent {
@@ -132,7 +132,7 @@ Return a JSON object with these exact fields:
   "ctaSubtext": "1 sentence below CTA — what happens next (e.g. 'No commitment. Just a quick chat about your goals.')",
   "closingLine": "Warm professional closing (1 sentence from ${senderName} at ${brand.name})"
 }`,
-    { model: "claude-opus-4-6", maxTokens: 2048 }
+    { model: HAIKU_MODEL, maxTokens: 2048 }
   );
 
   return {

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU_MODEL } from "./client";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -241,7 +242,7 @@ export async function designTemplateAsHtml(
   // the params through unknown so we still get the 90% prompt-cache
   // discount on the second+ parallel call. Same pattern client.ts uses.
   const stream = anthropic.messages.stream({
-    model: "claude-opus-4-7",
+    model: HAIKU_MODEL,
     max_tokens: 8192,
     system: [
       {

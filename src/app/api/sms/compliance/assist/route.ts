@@ -129,7 +129,7 @@ Do not invent legal advice. Keep language practical, carrier-review friendly, an
       data: {
         userId: session.userId,
         feature: "sms_compliance_assist",
-        model: "claude-opus-4-7",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: ai.estimateTokens(prompt),
         outputTokens: ai.estimateTokens(JSON.stringify(cleaned)),
         costCents: creditCost,

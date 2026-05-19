@@ -1,6 +1,7 @@
-import { ai } from "@/lib/ai/client";
+import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import type { AgentTool } from "@/lib/ai/client";
+import type { ProposalDeckPlan } from "./proposal-deck-types";
 
 export type ProposalPreset =
   | "google-business-profile"
@@ -98,6 +99,7 @@ export interface ServiceProposalContent {
   };
   design: ProposalDesignDirection;
   visualAssets?: ProposalVisualAssets;
+  deckPlan?: ProposalDeckPlan;
   brandSnapshot: Record<string, unknown>;
 }
 
@@ -320,9 +322,10 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
     buildTools({ userId: input.userId, preset: input.preset }),
     {
       systemPrompt: systemPrompt(input),
+      model: HAIKU_MODEL,
       maxTokens: 10000,
       maxIterations: 6,
-      thinkingBudget: 3000,
+      thinkingBudget: false,
     },
   );
 

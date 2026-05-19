@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "video_studio_ideas",
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: ai.estimateTokens(prompt),
         outputTokens: ai.estimateTokens(JSON.stringify(result.ideas)),
         costCents: 0,

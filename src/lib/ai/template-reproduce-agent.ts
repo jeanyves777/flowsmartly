@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { generateImageXaiFirst } from "./image-router";
+import { HAIKU_MODEL } from "./client";
 
 /**
  * Claude vision rejects images >5 MB. PNGs from gpt-image-1 routinely
@@ -256,7 +257,7 @@ ${customText.trim().slice(0, 1500)}
 
   // ─── Step 1: vision pass ─────────────────────────────────────────────
   const response = (await anthropic.messages.create({
-    model: "claude-opus-4-7",
+    model: HAIKU_MODEL,
     max_tokens: 8000,
     thinking: { type: "adaptive" },
     system: SYSTEM_PROMPT,

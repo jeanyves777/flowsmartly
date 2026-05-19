@@ -156,7 +156,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Run the section-update agent — same pattern as websites route.
     // Agent has tools to list/read existing components which prevents the
-    // ghost-import bug + uses Opus 4.7 with adaptive thinking by default.
+    // ghost-import bug and keeps the section edit grounded in real files.
     const basePath = `/stores/${store.slug}`;
     const agentResult = await runSectionUpdateAgent({
       siteDir: storeDir,

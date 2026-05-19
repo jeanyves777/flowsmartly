@@ -18,8 +18,7 @@ import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/cost
  * Streaming: SSE token-by-token for instant feel. The frontend (FlowAI
  * shell) consumes deltas as they arrive.
  *
- * Performance: uses Sonnet 4.6 (no adaptive thinking) for speed —
- * matches the studio chat agent perf profile from commit c9d51fd.
+ * Performance: uses Haiku with no adaptive thinking for speed and cost control.
  * Final FlowAI page response should feel near-instant after first byte.
  */
 
@@ -122,9 +121,7 @@ export async function POST(req: NextRequest) {
         let tokenCount = 0;
 
         try {
-          // Sonnet 4.6 + temperature 0.7 — fast, conversational, plenty
-          // smart for chat. Opus headroom isn't paying for itself in a
-          // text-only assistant surface.
+          // Lower-cost text stream for the text-only assistant surface.
           for await (const chunk of geminiText.streamConversation(messages, {
             systemPrompt,
             maxTokens: 2048,

@@ -396,7 +396,7 @@ export async function runEditableDesignAgent(brief: EditableDesignBrief): Promis
       systemPrompt,
       mcpServers: { editable_design_engine: server },
       allowedTools,
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
       maxTurns: 30,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),

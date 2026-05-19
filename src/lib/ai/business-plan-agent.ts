@@ -1,4 +1,4 @@
-import { ai } from "@/lib/ai/client";
+import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import type { AgentTool } from "./client";
 
@@ -265,10 +265,11 @@ export async function runBusinessPlanAgent(
     tools,
     {
       systemPrompt: buildSystemPrompt(input),
+      model: HAIKU_MODEL,
       maxTokens: 16000,
       maxIterations: 8,
-      // Adaptive thinking — Opus 4.7 runs deep when the task warrants it.
-      thinkingBudget: 4000,
+      // Keep planning on Haiku; shared client disables thinking for Haiku.
+      thinkingBudget: false,
     },
   );
 

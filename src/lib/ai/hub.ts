@@ -152,7 +152,7 @@ class AIHub {
           feature,
           inputTokens,
           outputTokens,
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
         },
       });
       return (sessionCredits ?? 0) - creditsUsed;
@@ -171,7 +171,7 @@ class AIHub {
           feature,
           inputTokens,
           outputTokens,
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
         },
       }),
     ]);

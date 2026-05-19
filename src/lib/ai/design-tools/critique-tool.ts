@@ -80,7 +80,7 @@ export async function critiqueDesign(
 
   // Haiku 4.5 for vision review — structured JSON output, no creative
   // generation, plenty smart enough for "ship/iterate" + a few short
-  // suggestions. 5x cheaper than Opus and ~3x faster.
+  // suggestions. Kept on Haiku for fast, lower-cost critique.
   const response = (await anthropic.messages.create({
     model: "claude-haiku-4-5",
     max_tokens: 2000,

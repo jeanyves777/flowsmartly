@@ -1,4 +1,4 @@
-import { ai } from "@/lib/ai/client";
+import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import type { ProposalPreset } from "./proposal-agent";
 
 export type DealBriefMode = "proposal" | "pitch";
@@ -91,6 +91,7 @@ Rules:
 - Do not invent a website, email, or person name.
 - If a field is not in the brief and cannot be inferred, return null.`,
       {
+        model: HAIKU_MODEL,
         maxTokens: 1600,
         systemPrompt: "You convert messy business instructions into clean JSON for an automated proposal and pitch system. Return JSON only.",
       },

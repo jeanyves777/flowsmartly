@@ -111,7 +111,7 @@ export async function runLogoAgent(input: LogoAgentInput): Promise<LogoAgentResu
     {
       systemPrompt: SYSTEM_PROMPT,
       maxTokens: 8000,
-      temperature: 1, // Opus 4.7 ignores this; legacy models keep it
+      temperature: 1,
       maxIterations: 16, // 3 generates + 3 evaluates + up to 2 retries each = ~12
       thinkingBudget: 2500,
     },

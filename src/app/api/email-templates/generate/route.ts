@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.userId,
         feature: `email_${mode || "content"}_generation`,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         inputTokens: 600,
         outputTokens: 1200,
         costCents: creditCost,

@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
         adminId: isAdmin ? session.adminId : null,
         feature: "template_remix",
         // Combined feature — gpt-image-1 + Claude vision text overlay
-        model: "gpt-image-1+claude-opus-4-7",
+        model: "gpt-image-1+claude-haiku-4-5-20251001",
         inputTokens: overlayUsage.inputTokens,
         outputTokens: overlayUsage.outputTokens,
         // Rough — gpt-image-1 high (~$0.15) + Claude vision (~$0.05) ≈ $0.20

@@ -194,8 +194,8 @@ export async function runFlatImageAgent(brief: FlatImageBrief): Promise<FlatImag
       systemPrompt,
       mcpServers: { flat_image_engine: server },
       allowedTools,
-      // Sonnet 4.6 — instruction-following matters most here.
-      model: "claude-sonnet-4-6",
+      // Haiku keeps tool-agent cost under control.
+      model: "claude-haiku-4-5-20251001",
       canUseTool: async () => ({ behavior: "allow" as const, updatedInput: {} }),
       maxTurns: 12,
       pathToClaudeCodeExecutable: getClaudeCodeBinaryPath(),
