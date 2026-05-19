@@ -28,9 +28,11 @@ const getViewportSafePosition = (
   size: { width: number; height: number }
 ) => {
   if (typeof window === "undefined") return position;
+  const maxX = Math.max(8, window.innerWidth - size.width - 8);
+  const maxY = Math.max(8, window.innerHeight - size.height - 8);
   return {
-    x: clamp(position.x, 8, Math.max(8, window.innerWidth - Math.min(96, size.width / 2))),
-    y: clamp(position.y, 8, Math.max(8, window.innerHeight - 72)),
+    x: clamp(position.x, 8, maxX),
+    y: clamp(position.y, 8, maxY),
   };
 };
 
@@ -40,9 +42,10 @@ const getInitialSize = (defaultSize?: { width: number; height: number }) => {
   }
 
   const preferred = defaultSize || { width: 460, height: 520 };
+  const compactMargin = window.innerWidth < 640 ? 16 : 24;
   return {
-    width: Math.min(preferred.width, window.innerWidth - 24),
-    height: Math.min(preferred.height, window.innerHeight - 32),
+    width: Math.min(preferred.width, Math.max(280, window.innerWidth - compactMargin)),
+    height: Math.min(preferred.height, Math.max(260, window.innerHeight - compactMargin)),
   };
 };
 
@@ -132,6 +135,7 @@ export function FloatingPanel({
         "fixed left-0 top-0 flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/95 text-foreground shadow-2xl backdrop-blur-xl",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
         "dark:border-white/10 dark:bg-neutral-950/95",
+        "max-sm:rounded-lg",
         className
       )}
       data-state="open"
@@ -144,7 +148,7 @@ export function FloatingPanel({
       onPointerDown={bringToFront}
     >
       <div
-        className="flex cursor-move touch-none select-none items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-4 py-3 dark:bg-white/[0.03]"
+        className="flex cursor-move touch-none select-none items-center justify-between gap-3 border-b border-border/60 bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3 dark:bg-white/[0.03]"
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           if (isPanelControl(event.target)) return;
@@ -219,11 +223,13 @@ export function FloatingPanel({
         onPointerMove={(event) => {
           const resize = resizeRef.current;
           if (!resize || resize.pointerId !== event.pointerId) return;
-          const maxWidth = typeof window === "undefined" ? 1000 : window.innerWidth - 16;
-          const maxHeight = typeof window === "undefined" ? 900 : window.innerHeight - 16;
+          const maxWidth = typeof window === "undefined" ? 1000 : Math.max(280, window.innerWidth - 16);
+          const maxHeight = typeof window === "undefined" ? 900 : Math.max(260, window.innerHeight - 16);
+          const minWidth = Math.min(minSize.width, maxWidth);
+          const minHeight = Math.min(minSize.height, maxHeight);
           setSize({
-            width: clamp(resize.width + event.clientX - resize.startX, minSize.width, maxWidth),
-            height: clamp(resize.height + event.clientY - resize.startY, minSize.height, maxHeight),
+            width: clamp(resize.width + event.clientX - resize.startX, minWidth, maxWidth),
+            height: clamp(resize.height + event.clientY - resize.startY, minHeight, maxHeight),
           });
         }}
         onPointerUp={(event) => {

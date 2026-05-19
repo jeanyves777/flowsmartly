@@ -250,7 +250,7 @@ export async function PATCH(request: NextRequest) {
     // Find the post and validate ownership
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { userId: true, status: true },
+      select: { userId: true, status: true, caption: true, platforms: true },
     });
 
     if (!post) {
@@ -268,6 +268,36 @@ export async function PATCH(request: NextRequest) {
         },
         { status: 403 }
       );
+    }
+
+    const start = new Date(scheduledDate);
+    start.setSeconds(0, 0);
+    const end = new Date(start.getTime() + 60_000);
+    const duplicate = await prisma.post.findFirst({
+      where: {
+        id: { not: postId },
+        userId: session.userId,
+        status: "SCHEDULED",
+        deletedAt: null,
+        scheduledAt: { gte: start, lt: end },
+        platforms: post.platforms,
+        caption: post.caption,
+      },
+      select: { id: true, scheduledAt: true, status: true },
+    });
+
+    if (duplicate) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          duplicateSkipped: true,
+          post: {
+            id: duplicate.id,
+            scheduledAt: duplicate.scheduledAt?.toISOString() || null,
+            status: duplicate.status,
+          },
+        },
+      });
     }
 
     const updatedPost = await prisma.post.update({

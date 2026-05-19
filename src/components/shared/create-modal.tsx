@@ -77,6 +77,19 @@ type GeneratedMedia = {
   designId?: string;
 };
 
+type FlowMediaCreationMemory = {
+  mode: FlowMediaMode;
+  originalPrompt: string;
+  promptUsed: string;
+  templateTitle?: string | null;
+  templatePrompt?: string | null;
+  aspect: FlowMediaAspect;
+  style: string;
+  references: string[];
+  brandName?: string | null;
+  edits: string[];
+};
+
 export type CreateModalTarget =
   | { type: "contentPost" }
   | {
@@ -231,6 +244,36 @@ const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
   website: brandKit?.website || null,
   hasLogo: Boolean(brandKit?.logo || brandKit?.iconLogo),
 });
+
+const buildFlowCreativeEditPrompt = (
+  refinedPrompt: string,
+  memory: FlowMediaCreationMemory | null,
+  editReferenceUrls: string[]
+) => {
+  const memoryBlock = memory
+    ? [
+        "Original FlowCreative creation context:",
+        `- Original user prompt: ${memory.originalPrompt}`,
+        memory.templateTitle ? `- Template: ${memory.templateTitle}` : null,
+        memory.templatePrompt ? `- Template direction: ${memory.templatePrompt}` : null,
+        `- Format: ${memory.aspect}`,
+        `- Style: ${memory.style}`,
+        memory.brandName ? `- Brand: ${memory.brandName}` : null,
+        memory.references.length ? `- Original references: ${memory.references.join(", ")}` : null,
+        memory.edits.length ? `- Earlier edit requests: ${memory.edits.join(" | ")}` : null,
+      ].filter(Boolean).join("\n")
+    : "Original FlowCreative creation context: preserve the current design's campaign purpose, brand identity, layout, subject, and visual hierarchy.";
+
+  return [
+    memoryBlock,
+    editReferenceUrls.length
+      ? `Current edit reference media: ${editReferenceUrls.join(", ")}. Treat uploaded references as exact replacement or guidance assets only when the edit instruction asks to use them.`
+      : null,
+    "Current edit instruction:",
+    refinedPrompt,
+    "Edit memory rules: apply only the requested change, preserve the original creation context, keep text readable, keep the real product/person/logo identity stable, and do not repaint unrelated areas. If the requested change needs new uploaded media, use the uploaded reference naturally rather than inventing a substitute.",
+  ].filter(Boolean).join("\n\n");
+};
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((option) => option.id === aspect) || FLOW_MEDIA_ASPECTS[0];
@@ -911,9 +954,9 @@ function FlowCreativeModal({
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
   const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<GeneratedMedia | null>(null);
+  const [flowMediaCreationMemory, setFlowMediaCreationMemory] = useState<FlowMediaCreationMemory | null>(null);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
-  const [pendingFlowMediaEditPlan, setPendingFlowMediaEditPlan] = useState<EditIntentPlan | null>(null);
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [isPreparingPost, setIsPreparingPost] = useState(false);
@@ -973,9 +1016,9 @@ function FlowCreativeModal({
     if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
     if (template.duration) setFlowVideoDuration(template.duration);
     setGeneratedFlowMedia(null);
+    setFlowMediaCreationMemory(null);
     setFlowMediaStatus("");
     setFlowMediaImprovePrompt("");
-    setPendingFlowMediaEditPlan(null);
   };
 
   const usePromptOnlyFlowMedia = (mode: FlowMediaMode = flowMediaMode) => {
@@ -983,9 +1026,9 @@ function FlowCreativeModal({
     setFlowMediaMode(mode);
     setFlowMediaAspect(isWhatsAppStatusTarget && mode === "image" ? "9:16" : mode === "image" ? "1:1" : "9:16");
     setGeneratedFlowMedia(null);
+    setFlowMediaCreationMemory(null);
     setFlowMediaStatus("");
     setFlowMediaImprovePrompt("");
-    setPendingFlowMediaEditPlan(null);
   };
 
   const handleDownload = async () => {
@@ -1105,6 +1148,8 @@ function FlowCreativeModal({
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const originalUrl = generatedFlowMedia.url;
+    const editInstruction = flowMediaImprovePrompt.trim();
+    const editPrompt = buildFlowCreativeEditPrompt(plan.refinedPrompt, flowMediaCreationMemory, flowMediaReferenceUrls);
     setIsImprovingFlowMedia(true);
     setFlowMediaStatus("Improving the FlowCreative image...");
 
@@ -1113,7 +1158,7 @@ function FlowCreativeModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: plan.refinedPrompt,
+          prompt: editPrompt,
           category: "social_post",
           size: aspect.imageSize,
           style: flowMediaStyle,
@@ -1140,8 +1185,16 @@ function FlowCreativeModal({
       const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
       setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
+      setFlowMediaCreationMemory((current) =>
+        current
+          ? {
+              ...current,
+              references: flowMediaReferenceUrls,
+              edits: [...current.edits, editInstruction].filter(Boolean).slice(-6),
+            }
+          : current
+      );
       setFlowMediaImprovePrompt("");
-      setPendingFlowMediaEditPlan(null);
       setFlowMediaStatus("Improved image ready.");
       if (data.data?.creditsRemaining !== undefined) {
         setCreditsRemaining(data.data.creditsRemaining);
@@ -1173,18 +1226,7 @@ function FlowCreativeModal({
       brandName: brandKit?.name || null,
     });
 
-    if (plan.needsConfirmation) {
-      setPendingFlowMediaEditPlan(plan);
-      setFlowMediaStatus("");
-      return;
-    }
-
     void executeFlowMediaEdit(plan);
-  };
-
-  const handleConfirmFlowMediaEdit = () => {
-    if (!pendingFlowMediaEditPlan) return;
-    void executeFlowMediaEdit(pendingFlowMediaEditPlan);
   };
 
   const handleGenerateFlowMedia = async () => {
@@ -1218,15 +1260,15 @@ function FlowCreativeModal({
     const rawBrandIdentity = buildRawBrandIdentity(brandKit);
     const hasBrandLogo = Boolean(brandKit?.logo || brandKit?.iconLogo);
     const logoPolicy = hasBrandLogo
-      ? "Logo lock: the AI must not draw any logo, wordmark, emblem, seal, crest, mascot, badge, monogram, or abstract brand mark. The template's top-left outlined area is intentionally blank; leave that clean low-detail logo safe zone empty because FlowSmartly will composite the real brand logo onto that coordinate after generation."
+      ? "Logo lock: the AI must not draw any logo, wordmark, emblem, seal, crest, mascot, badge, monogram, or abstract brand mark. FlowSmartly may overlay the real brand logo after generation, but the AI must not create a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator. Let the design and background remain natural."
       : "Do not invent a logo, icon, seal, crest, monogram, mascot, badge, or brand mark that the user did not provide. Use plain brand-name text only when the prompt explicitly asks for it.";
     const exactReferencePolicy = flowMediaReferenceUrls.length
-      ? "Exact reference handling: FlowSmartly will use the first uploaded reference as the real subject source and composite it into the design after generation when possible. Do not synthesize a similar-looking face, group, product, or logo. Reserve a clean photo/product zone and design around it so the exact uploaded image can belong naturally in the final design."
+      ? "Exact reference handling: use the uploaded reference as the real subject source. Do not synthesize a similar-looking face, group, product, or logo. Integrate the exact product, person, style, or scene naturally when the prompt asks for it."
       : null;
     const imagePrompt = [
       prompt,
       templateImageUrl
-        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. Use the attached template as a reference design for grid, alignment, hierarchy, spacing, CTA placement, and photo/logo safe zones. Do not copy its placeholder text, fake logo area, sample product, sample people, or brand.`
+        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. Use the attached template as a reference design for grid, alignment, hierarchy, spacing, CTA placement, and photo placement. Do not copy its placeholder text, fake logo area, sample product, sample people, or brand, and do not reproduce visible logo-space boxes or indicators.`
         : null,
       exactReferencePolicy,
       logoPolicy,
@@ -1240,7 +1282,7 @@ function FlowCreativeModal({
       `Target video length: ${flowVideoDuration} seconds.`,
       `Video format: ${videoSpeechOption.label}. ${videoSpeechOption.rule}`,
       templateImageUrl
-        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. The attached template image is the reference design for grid, alignment, hierarchy, timing, CTA placement, and safe zones. Do not copy its placeholder text, fake logo area, product, people, or brand. Use the user's prompt, uploaded references, and real brand kit for the final media.`
+        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. The attached template image is the reference design for grid, alignment, hierarchy, timing, and CTA placement. Do not copy its placeholder text, fake logo area, product, people, brand, or visible logo-space indicators. Use the user's prompt, uploaded references, and real brand kit for the final media.`
         : null,
       flowMediaReferenceUrls.length
         ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
@@ -1264,6 +1306,7 @@ function FlowCreativeModal({
 
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
+    setFlowMediaCreationMemory(null);
     setFlowMediaImprovePrompt("");
     setFlowMediaStatus(
       flowMediaMode === "image"
@@ -1281,7 +1324,7 @@ function FlowCreativeModal({
             category: "social_post",
             size: aspect.imageSize,
             style: flowMediaStyle,
-            provider: "openai",
+            provider: "xai",
             strictProvider: true,
             promptMode: "raw_brand",
             brandIdentity: rawBrandIdentity,
@@ -1312,6 +1355,18 @@ function FlowCreativeModal({
         const imageUrl = normalizeGeneratedMediaUrl(data.data?.design?.imageUrl);
         if (!imageUrl) throw new Error("Image generated but no media URL was returned");
         setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
+        setFlowMediaCreationMemory({
+          mode: "image",
+          originalPrompt: prompt,
+          promptUsed: imagePrompt,
+          templateTitle: selectedFlowMediaTemplate?.title || null,
+          templatePrompt: selectedFlowMediaTemplate?.prompt || null,
+          aspect: flowMediaAspect,
+          style: flowMediaStyle,
+          references: flowMediaReferenceUrls,
+          brandName: brandKit?.name || null,
+          edits: [],
+        });
         setFlowMediaStatus("Image ready.");
         if (data.data?.creditsRemaining !== undefined) {
           setCreditsRemaining(data.data.creditsRemaining);
@@ -1416,9 +1471,9 @@ function FlowCreativeModal({
         title="FlowCreative"
         description={`Generate images and videos from ${brandName}'s brand identity.`}
         icon={<ImagePlus className="h-4 w-4" />}
-        defaultSize={{ width: 900, height: 860 }}
-        defaultPosition={{ y: 118 }}
-        minSize={{ width: 620, height: 520 }}
+        defaultSize={{ width: 860, height: 760 }}
+        defaultPosition={{ y: 92 }}
+        minSize={{ width: 340, height: 420 }}
       >
         <div className="space-y-4">
           <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
@@ -1433,7 +1488,7 @@ function FlowCreativeModal({
                 </p>
                 {brandKit?.logo || brandKit?.iconLogo ? (
                   <p className="mt-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
-                    The AI leaves logo space blank; FlowSmartly adds the real brand kit logo after generation.
+                    FlowSmartly uses the real brand kit logo without asking the AI to draw logo boxes or placeholders.
                   </p>
                 ) : null}
               </div>
@@ -1478,18 +1533,14 @@ function FlowCreativeModal({
             <GeneratedFlowCreativeResult
               generatedFlowMedia={generatedFlowMedia}
               flowMediaImprovePrompt={flowMediaImprovePrompt}
-              pendingEditPlan={pendingFlowMediaEditPlan}
+              editReferenceUrls={flowMediaReferenceUrls}
               isImprovingFlowMedia={isImprovingFlowMedia}
               isPreparingPost={isPreparingPost}
               prepareStatus={flowMediaStatus}
               attachTargetLabel={isWhatsAppStatusTarget ? "WhatsApp Status" : "post"}
-              onImprovePromptChange={(value) => {
-                setFlowMediaImprovePrompt(value);
-                setPendingFlowMediaEditPlan(null);
-              }}
+              onImprovePromptChange={setFlowMediaImprovePrompt}
+              onEditReferenceUrlsChange={setFlowMediaReferenceUrls}
               onImprove={handleImproveFlowMedia}
-              onConfirmImprove={handleConfirmFlowMediaEdit}
-              onCancelImproveConfirmation={() => setPendingFlowMediaEditPlan(null)}
               onOpenStudio={handleOpenInStudio}
               onAttachToPost={handleAttachToPost}
               onDownload={handleDownload}
@@ -1635,10 +1686,7 @@ function FlowCreativeModal({
                 </div>
                 <MediaUploader
                   value={flowMediaReferenceUrls}
-                  onChange={(urls) => {
-                    setFlowMediaReferenceUrls(urls);
-                    setPendingFlowMediaEditPlan(null);
-                  }}
+                  onChange={setFlowMediaReferenceUrls}
                   multiple
                   maxFiles={3}
                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -1663,10 +1711,7 @@ function FlowCreativeModal({
                   </div>
                   <Switch
                     checked={flowMediaQualityCheckEnabled}
-                    onCheckedChange={(value) => {
-                      setFlowMediaQualityCheckEnabled(value);
-                      setPendingFlowMediaEditPlan(null);
-                    }}
+                    onCheckedChange={setFlowMediaQualityCheckEnabled}
                     aria-label="Enable FlowCreative media quality check"
                   />
                 </div>
@@ -1886,15 +1931,14 @@ function VideoControls({
 function GeneratedFlowCreativeResult({
   generatedFlowMedia,
   flowMediaImprovePrompt,
-  pendingEditPlan,
+  editReferenceUrls,
   isImprovingFlowMedia,
   isPreparingPost,
   prepareStatus,
   attachTargetLabel,
   onImprovePromptChange,
+  onEditReferenceUrlsChange,
   onImprove,
-  onConfirmImprove,
-  onCancelImproveConfirmation,
   onOpenStudio,
   onAttachToPost,
   onDownload,
@@ -1903,15 +1947,14 @@ function GeneratedFlowCreativeResult({
 }: {
   generatedFlowMedia: GeneratedMedia;
   flowMediaImprovePrompt: string;
-  pendingEditPlan: EditIntentPlan | null;
+  editReferenceUrls: string[];
   isImprovingFlowMedia: boolean;
   isPreparingPost: boolean;
   prepareStatus?: string;
   attachTargetLabel: string;
   onImprovePromptChange: (value: string) => void;
+  onEditReferenceUrlsChange: (urls: string[]) => void;
   onImprove: () => void;
-  onConfirmImprove: () => void;
-  onCancelImproveConfirmation: () => void;
   onOpenStudio: () => void;
   onAttachToPost: () => void;
   onDownload: () => void;
@@ -1975,31 +2018,35 @@ function GeneratedFlowCreativeResult({
             placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
             disabled={isImprovingFlowMedia || isPreparingPost}
           />
-          {pendingEditPlan ? (
-            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed">
-              <div className="mb-1 font-bold text-amber-900 dark:text-amber-100">Confirm edit before spending credits</div>
-              <p className="text-amber-900/90 dark:text-amber-100/90">{pendingEditPlan.confirmReason}</p>
-              <ul className="mt-2 space-y-1 text-amber-900/90 dark:text-amber-100/90">
-                {pendingEditPlan.bullets.slice(0, 4).map((item) => (
-                  <li key={item}>- {item}</li>
-                ))}
-              </ul>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={onConfirmImprove} disabled={isImprovingFlowMedia || isPreparingPost}>
-                  Continue edit
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={onCancelImproveConfirmation} disabled={isImprovingFlowMedia}>
-                  Revise prompt
-                </Button>
-              </div>
+          <div className="space-y-2 rounded-xl border bg-background/80 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs font-semibold text-muted-foreground">Media for this edit</Label>
+              <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
             </div>
-          ) : null}
+            <MediaUploader
+              value={editReferenceUrls}
+              onChange={onEditReferenceUrlsChange}
+              multiple
+              maxFiles={4}
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              maxSize={25 * 1024 * 1024}
+              filterTypes={["image"]}
+              uploadEndpoint="/api/media"
+              disabled={isImprovingFlowMedia || isPreparingPost}
+              placeholder="Add media"
+              variant="small"
+              libraryTitle="Choose edit media"
+            />
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Add replacement product, person, background, or style media when the edit should use a new visual source.
+            </p>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <Button
               type="button"
               variant="outline"
               onClick={onImprove}
-              disabled={isImprovingFlowMedia || isPreparingPost || !!pendingEditPlan || flowMediaImprovePrompt.trim().length < 6}
+              disabled={isImprovingFlowMedia || isPreparingPost || flowMediaImprovePrompt.trim().length < 6}
               className="gap-2"
             >
               {isImprovingFlowMedia ? <AISpinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

@@ -651,7 +651,7 @@ export default function CreateEmailAutomationPage() {
           category: "birthday",
           size: "1024x1024",
           style: "professional celebratory",
-          provider: "openai",
+          provider: "xai",
           strictProvider: true,
           promptMode: "raw_brand",
           heroType: "people",

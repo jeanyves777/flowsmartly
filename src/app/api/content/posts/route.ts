@@ -6,6 +6,25 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
 import { extractS3Key, presignAllUrls } from "@/lib/utils/s3-client";
 
+function scheduledMinuteWindow(value: Date) {
+  const start = new Date(value);
+  start.setSeconds(0, 0);
+  const end = new Date(start.getTime() + 60 * 1000);
+  return { start, end };
+}
+
+function parseMediaMeta(value: string | null, fallback: string | null) {
+  if (value) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === "string");
+    } catch {
+      // fall through to fallback
+    }
+  }
+  return fallback ? [fallback] : [];
+}
+
 // GET /api/content/posts - Fetch user's own posts (all statuses)
 export async function GET(request: NextRequest) {
   try {
@@ -265,6 +284,61 @@ export async function POST(request: NextRequest) {
     const mediaType = allMediaUrls.length > 0
       ? (bodyMediaType === "video" ? "video" : "image")
       : null;
+    const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
+    const platformsJson = JSON.stringify(platformsList);
+
+    if (status === "SCHEDULED" && parsedScheduledAt) {
+      const { start, end } = scheduledMinuteWindow(parsedScheduledAt);
+      const existing = await prisma.post.findFirst({
+        where: {
+          userId: session.userId,
+          status: "SCHEDULED",
+          deletedAt: null,
+          scheduledAt: { gte: start, lt: end },
+          platforms: platformsJson,
+          caption: finalCaption,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      });
+
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          data: await presignAllUrls({
+            post: {
+              id: existing.id,
+              caption: existing.caption,
+              mediaUrls: parseMediaMeta(existing.mediaMeta, existing.mediaUrl),
+              mediaType: existing.mediaType,
+              hashtags,
+              mentions,
+              platforms: platformsList,
+              status: existing.status,
+              scheduledAt: existing.scheduledAt?.toISOString() || null,
+              publishedAt: existing.publishedAt?.toISOString() || null,
+              author: {
+                id: existing.user.id,
+                name: existing.user.name,
+                username: existing.user.username,
+                avatarUrl: existing.user.avatarUrl,
+              },
+              createdAt: existing.createdAt.toISOString(),
+            },
+            aiGenerated: !!aiGenerate,
+            duplicateSkipped: true,
+          }),
+        });
+      }
+    }
 
     const post = await prisma.post.create({
       data: {
@@ -276,9 +350,7 @@ export async function POST(request: NextRequest) {
           allMediaKeys.length > 0 ? JSON.stringify(allMediaKeys) : null,
         hashtags: JSON.stringify(hashtags),
         mentions: JSON.stringify(mentions),
-        platforms: JSON.stringify(
-          Array.isArray(platforms) ? platforms : ["feed"]
-        ),
+        platforms: platformsJson,
         status,
         scheduledAt: parsedScheduledAt,
         publishedAt: status === "PUBLISHED" ? new Date() : null,
@@ -296,7 +368,6 @@ export async function POST(request: NextRequest) {
     });
 
     // Publish to external social platforms (await results)
-    const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
     const hasExternalPlatforms = platformsList.some((p) => p !== "feed");
     let publishResults: Record<string, { success: boolean; postId?: string; error?: string }> = {};
 

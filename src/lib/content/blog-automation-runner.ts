@@ -63,7 +63,7 @@ export async function runBlogAutomationPublication(params: {
   if (automation.includeMedia && automation.mediaType === "image") {
     const generatedImage = await generateImageXaiFirst(
       blogPost.imagePrompt ||
-        `Create a polished website blog hero image for: ${blogPost.title}. Leave a clean logo-safe area for compositing.`,
+        `Create a polished website blog hero image for: ${blogPost.title}. Do not draw a logo placeholder, blank logo box, dashed frame, label, or visible reserved logo area.`,
       1536,
       1024,
       { quality: "medium" }

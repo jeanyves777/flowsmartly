@@ -212,9 +212,14 @@ function buildFallbackPreparedPost(params: {
 }): PreparedPost {
   const brandName = extractBrandName(params.brandBrief);
   const promptText = (params.userPrompt || "").trim();
-  const cleanPrompt = promptText
+  const quotedTopic = promptText.match(/["']([^"']{4,90})["']/)?.[1]?.trim();
+  const cleanPrompt = (quotedTopic || promptText)
     .replace(/\s+/g, " ")
     .replace(/^user prompt:\s*/i, "")
+    .replace(/\b(?:destination|audience|angle|cta|platforms?)\s*:[^.;\n]+[.;]?/gi, "")
+    .replace(/\b(?:schedule|create|write|generate|draft|publish|repurpose|mirror(?:ed)?)\b/gi, "")
+    .replace(/\b(?:weekly|daily|monthly|instagram|facebook|linkedin|twitter|social media|posts?|captions?|content calendar)\b/gi, "")
+    .replace(/^[\s:;,.|-]+|[\s:;,.|-]+$/g, "")
     .slice(0, 260);
   const mediaLabel = params.mediaType === "video" ? "video" : "visual";
   const topic = cleanPrompt || `a new ${mediaLabel} from ${brandName}`;
@@ -222,8 +227,8 @@ function buildFallbackPreparedPost(params: {
   const finalHashtags = hashtags.length ? hashtags : ["#Marketing", "#SmallBusiness", "#BrandStory"];
 
   const caption = [
-    `${brandName} just put together a fresh ${mediaLabel} for this offer.`,
-    topic,
+    `${brandName} has a fresh ${mediaLabel} to share.`,
+    `Here is a quick look at ${topic}.`,
     "Take a look, save it for later, and reach out when you are ready to learn more.",
     finalHashtags.join(" "),
   ].join("\n\n");
@@ -241,6 +246,8 @@ function normalizePreparedPost(raw: unknown): PreparedPost | null {
   const item = raw as Record<string, unknown>;
   const caption = typeof item.caption === "string" ? item.caption.trim() : "";
   if (!caption) return null;
+  if (/\b(?:destination|audience|angle|cta|saved prompt|platforms?)\s*:/i.test(caption)) return null;
+  if (/\b(?:schedule|create|write|generate|draft|publish|repurpose|mirror(?:ed)?)\b.{0,90}\b(?:posts?|captions?|content calendar|instagram|facebook|linkedin|twitter|social)\b/i.test(caption)) return null;
   const hashtags = normalizeHashtags(item.hashtags, caption);
   const seoKeywords = normalizeKeywords(item.seoKeywords || item.keywords, caption);
   const missingTags = hashtags.filter((tag) => !caption.toLowerCase().includes(tag.toLowerCase()));

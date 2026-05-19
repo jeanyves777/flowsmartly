@@ -303,7 +303,7 @@ export async function POST(
         const captionExcerpt = generatedContent.replace(/#[\w]+/g, "").trim().substring(0, 200);
         const mediaPrompt =
           generatedAsset.mediaPrompt ||
-          `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Leave logo space blank for compositing.`;
+          `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Do not draw a visible logo placeholder, blank logo box, white reserved rectangle, dashed frame, label, or logo-space indicator. Let the layout and background remain natural.`;
 
         if (automation.mediaType === "image") {
           console.log("[AutomationRun] Generating image with shared image router...");

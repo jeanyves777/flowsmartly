@@ -676,7 +676,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "Brand identity:",
     JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand, null, 2),
     params.brandLogo
-      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and is composited after generation. Leave the top-left logo coordinate clean and low-detail. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template."
+      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and may be composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template. Do not draw a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator; let the design and background remain natural anywhere a logo may later sit."
       : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
@@ -1148,7 +1148,7 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
   const hasLogo = !!params.brandLogo;
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly will composite it after generation. Leave the top-left logo area clean. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image.`;
+    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly may composite it after generation. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
     if (showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {

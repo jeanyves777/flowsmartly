@@ -15,6 +15,13 @@ function parseStringArray(value: string | null | undefined): string[] {
   }
 }
 
+function scheduledMinuteWindow(value: Date) {
+  const start = new Date(value);
+  start.setSeconds(0, 0);
+  const end = new Date(start.getTime() + 60 * 1000);
+  return { start, end };
+}
+
 // GET /api/posts - Get feed posts
 export async function GET(request: NextRequest) {
   try {
@@ -277,6 +284,73 @@ export async function POST(request: NextRequest) {
     const mentions = content.match(/@\w+/g) || [];
 
     const platformsList: string[] = Array.isArray(platforms) ? platforms : ["feed"];
+    const platformsJson = JSON.stringify(platformsList);
+    const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+
+    if (scheduledAt && (!parsedScheduledAt || Number.isNaN(parsedScheduledAt.getTime()))) {
+      return NextResponse.json(
+        { success: false, error: { message: "Invalid date format for scheduledAt" } },
+        { status: 400 }
+      );
+    }
+
+    if (parsedScheduledAt && !Number.isNaN(parsedScheduledAt.getTime())) {
+      const { start, end } = scheduledMinuteWindow(parsedScheduledAt);
+      const existing = await prisma.post.findFirst({
+        where: {
+          userId: session.userId,
+          status: "SCHEDULED",
+          deletedAt: null,
+          scheduledAt: { gte: start, lt: end },
+          platforms: platformsJson,
+          caption: content,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              avatarUrl: true,
+              plan: true,
+            },
+          },
+        },
+      });
+
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          data: await presignAllUrls({
+            post: {
+              id: existing.id,
+              content: existing.caption,
+              mediaUrls: parseStringArray(existing.mediaMeta).length
+                ? parseStringArray(existing.mediaMeta)
+                : existing.mediaUrl ? [existing.mediaUrl] : [],
+              mediaType: existing.mediaType,
+              hashtags: allHashtags,
+              platforms: platformsList,
+              author: {
+                id: existing.user.id,
+                name: existing.user.name,
+                username: existing.user.username,
+                avatarUrl: existing.user.avatarUrl,
+                isVerified: existing.user.plan !== "STARTER",
+              },
+              likesCount: existing.likeCount,
+              commentsCount: 0,
+              sharesCount: existing.shareCount,
+              viewCount: existing.viewCount,
+              isLiked: false,
+              isBookmarked: false,
+              createdAt: existing.createdAt.toISOString(),
+            },
+            duplicateSkipped: true,
+          }),
+        });
+      }
+    }
 
     const post = await prisma.post.create({
       data: {
@@ -287,9 +361,9 @@ export async function POST(request: NextRequest) {
         mediaMeta: allMediaKeys.length > 0 ? JSON.stringify(allMediaKeys) : null,
         hashtags: JSON.stringify(allHashtags),
         mentions: JSON.stringify(mentions),
-        platforms: JSON.stringify(platformsList),
+        platforms: platformsJson,
         status: scheduledAt ? "SCHEDULED" : "PUBLISHED",
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        scheduledAt: parsedScheduledAt,
         publishedAt: scheduledAt ? null : new Date(),
       },
       include: {

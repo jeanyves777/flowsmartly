@@ -83,6 +83,12 @@ const META_OUTPUT_PATTERNS = [
   /\b(?:this plan|the plan below|below is a plan|outline below)\b/i,
 ];
 
+const PROMPT_LEAK_PATTERNS = [
+  /\b(?:destination|audience|angle|cta|saved prompt|platforms?|media requested)\s*:/i,
+  /\b(?:schedule|create|write|generate|draft|publish|repurpose|mirror(?:ed)?)\b.{0,90}\b(?:posts?|captions?|content calendar|instagram|facebook|linkedin|twitter|social)\b/i,
+  /\b(?:same \d+\s+.+topics|stronger hook in the first line|first line|call to action)\b/i,
+];
+
 function parseStringArray(value: Jsonish): string[] {
   if (!value) return [];
   try {
@@ -132,11 +138,32 @@ export function isMetaPlanningOutput(value: string | null | undefined) {
   const text = cleanCaption(value);
   if (!text) return true;
   if (META_OUTPUT_PATTERNS.some((pattern) => pattern.test(text))) return true;
+  if (PROMPT_LEAK_PATTERNS.some((pattern) => pattern.test(text))) return true;
 
   const numberedIdeaLines = text
     .split(/\r?\n/)
     .filter((line) => /^\s*\d+[\).]\s+/.test(line)).length;
   return numberedIdeaLines >= 3;
+}
+
+function extractPublicTopic(value: string | null | undefined) {
+  const source = cleanCaption(value);
+  if (!source) return "";
+
+  const quoted = source.match(/["']([^"']{4,90})["']/);
+  if (quoted?.[1]) return quoted[1].trim();
+
+  return source
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^(destination|audience|angle|cta|platform|prompt)\s*:/i.test(line))
+    .join(" ")
+    .replace(/\b(?:schedule|create|write|generate|draft|publish|repurpose|mirror(?:ed)?)\b/gi, "")
+    .replace(/\b(?:weekly|daily|monthly|instagram|facebook|linkedin|twitter|social media|posts?|captions?|content calendar)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s:;,.|-]+|[\s:;,.|-]+$/g, "")
+    .slice(0, 90)
+    .trim();
 }
 
 function normalizeHashtag(tag: string) {
@@ -229,8 +256,12 @@ export function buildStrategyAutomationPrompt(input: {
 
 function buildFallbackCaption(input: AutomationExecutionInput) {
   const brandName = input.brand?.name?.trim();
-  const title = input.task?.title || input.topic || "new update";
-  const description = input.task?.description || input.aiPrompt || "";
+  const topic =
+    extractPublicTopic(input.task?.title) ||
+    extractPublicTopic(input.topic) ||
+    extractPublicTopic(input.task?.description) ||
+    "a helpful update";
+  const audience = input.brand?.targetAudience?.trim();
   const cta =
     input.platforms?.includes("linkedin")
       ? "Connect with us to learn more."
@@ -239,8 +270,12 @@ function buildFallbackCaption(input: AutomationExecutionInput) {
   const hashtags = uniqueStrings(preferred, 4);
   return cleanCaption(
     [
-      brandName ? `${brandName} is sharing an important update: ${title}.` : title,
-      description ? description.replace(/\s+/g, " ").slice(0, 220) : null,
+      brandName
+        ? `${brandName} is sharing a practical reminder about ${topic}.`
+        : `A practical reminder about ${topic}.`,
+      audience
+        ? `For ${audience}, small timely steps can make the next decision easier.`
+        : "Small timely steps can make the next decision easier.",
       cta,
       hashtags.length ? hashtags.join(" ") : null,
     ].filter(Boolean).join("\n\n")
@@ -251,7 +286,7 @@ function buildMediaPrompt(input: AutomationExecutionInput, caption: string, gene
   if (!input.includeMedia) return null;
   const prompt = generatedPrompt?.trim() || `Create a professional social media ${input.mediaType || "image"} that supports this caption: ${caption.slice(0, 280)}`;
   const style = input.mediaStyle ? ` Style direction: ${input.mediaStyle}.` : "";
-  return `${prompt}${style} Do not invent, redraw, or fabricate brand logos. Leave a clean blank logo-safe area so the real brand logo can be composited later. Do not invent real people's faces or create close resemblances unless exact source imagery is provided; use product, environment, symbolic, or design-led visuals instead.`;
+  return `${prompt}${style} Do not invent, redraw, or fabricate brand logos. Do not draw a visible logo placeholder, blank logo box, dashed frame, white reserved rectangle, label, watermark, or logo-space indicator. Let the background and layout remain natural wherever a logo might later be overlaid. Do not invent real people's faces or create close resemblances unless exact source imagery is provided; use product, environment, symbolic, or design-led visuals instead.`;
 }
 
 export async function generateAutomationAsset(input: AutomationExecutionInput): Promise<AutomationGeneratedAsset> {
@@ -278,7 +313,7 @@ Do not return planning notes, recommendations, an outline, a content calendar, a
 Do not say "here is/are", "let's define", "this framework", or "content plan".
 Include a concrete audience hook, brand-specific value, and clear call to action.
 Use 2-6 hashtags when natural. Keep the caption concise and platform-ready.
-For mediaPrompt, describe a usable creative direction. Do not fabricate logos or real-person faces; leave logo space blank for later compositing.
+For mediaPrompt, describe a usable creative direction. Do not fabricate logos or real-person faces, and do not ask for visible logo placeholders, blank boxes, dashed frames, or logo-space labels.
 
 Return ONLY valid JSON:
 {
@@ -393,7 +428,7 @@ function fallbackBlogContent(input: AutomationExecutionInput) {
     excerpt: detail.replace(/\s+/g, " ").slice(0, 180),
     content,
     category: "Blog",
-    imagePrompt: `Create a professional blog hero image for ${brandName}: ${title}. Use brand-relevant atmosphere and leave a clean logo-safe area for compositing.`,
+    imagePrompt: `Create a professional blog hero image for ${brandName}: ${title}. Use brand-relevant atmosphere. Do not draw a logo placeholder, blank logo box, dashed frame, label, or visible reserved logo area.`,
     socialCaption: `${brandName} published a new blog article: ${title}. Read the latest update on our website.`,
   };
 }
@@ -418,7 +453,7 @@ Write the real blog article, not instructions, an outline, a draft note, a strat
 Personalize the article with the brand name, brand-specific value, audience, location/contact/service details when available in the brand context.
 Use clear paragraphs. No markdown headings are required, but the content should read like a polished website blog post.
 Do not include placeholder links like [Link to Blog Post Here].
-For imagePrompt, describe a brand-relevant hero image and leave a clean logo-safe area for the real logo to be composited.
+For imagePrompt, describe a brand-relevant hero image. Do not request visible logo placeholders, blank logo boxes, dashed frames, labels, or reserved logo areas.
 
 Return ONLY valid JSON:
 {

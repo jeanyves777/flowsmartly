@@ -129,6 +129,18 @@ type FlowMediaTemplate = {
   thumbnail?: string;
 };
 
+type FlowMediaCreationMemory = {
+  originalPrompt: string;
+  promptUsed: string;
+  templateTitle?: string | null;
+  templatePrompt?: string | null;
+  aspect: FlowMediaAspect;
+  style: string;
+  references: string[];
+  brandName?: string | null;
+  edits: string[];
+};
+
 type ProductAdTemplate = {
   id: ProductAdTemplateId;
   title: string;
@@ -230,6 +242,35 @@ const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
   website: brandKit?.website || null,
   logo: brandKit?.logo || brandKit?.iconLogo || null,
 });
+
+const buildFlowCreativeEditPrompt = (
+  editInstruction: string,
+  memory: FlowMediaCreationMemory | null,
+  editReferenceUrls: string[]
+) => {
+  const memoryBlock = memory
+    ? [
+        "Original FlowCreative creation context:",
+        `- Original user prompt: ${memory.originalPrompt}`,
+        memory.templateTitle ? `- Template: ${memory.templateTitle}` : null,
+        memory.templatePrompt ? `- Template direction: ${memory.templatePrompt}` : null,
+        `- Format: ${memory.aspect}`,
+        `- Style: ${memory.style}`,
+        memory.brandName ? `- Brand: ${memory.brandName}` : null,
+        memory.references.length ? `- Original references: ${memory.references.join(", ")}` : null,
+        memory.edits.length ? `- Earlier edit requests: ${memory.edits.join(" | ")}` : null,
+      ].filter(Boolean).join("\n")
+    : "Original FlowCreative creation context: preserve the current post creative's campaign purpose, brand identity, layout, subject, and visual hierarchy.";
+
+  return [
+    memoryBlock,
+    editReferenceUrls.length
+      ? `Current edit reference media: ${editReferenceUrls.join(", ")}. Treat uploaded references as exact replacement or guidance assets only when the edit instruction asks to use them.`
+      : null,
+    `Current edit instruction: ${editInstruction}`,
+    "Edit memory rules: apply only the requested change, preserve the original creation context, keep text readable, keep the real product/person/logo identity stable, and do not repaint unrelated areas.",
+  ].filter(Boolean).join("\n\n");
+};
 
 const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): FlowMediaTemplate[] => {
   const brandName = getBrandName(brandKit);
@@ -1038,6 +1079,7 @@ export default function ContentPostsPage() {
   const [isGeneratingFlowMedia, setIsGeneratingFlowMedia] = useState(false);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<{ type: FlowMediaMode; url: string; designId?: string } | null>(null);
+  const [flowMediaCreationMemory, setFlowMediaCreationMemory] = useState<FlowMediaCreationMemory | null>(null);
   const [flowMediaImprovePrompt, setFlowMediaImprovePrompt] = useState("");
   const [isImprovingFlowMedia, setIsImprovingFlowMedia] = useState(false);
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
@@ -1557,6 +1599,7 @@ export default function ContentPostsPage() {
     if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
     if (template.duration) setFlowVideoDuration(template.duration);
     setGeneratedFlowMedia(null);
+    setFlowMediaCreationMemory(null);
     setFlowMediaStatus("");
   };
 
@@ -1656,6 +1699,8 @@ export default function ContentPostsPage() {
 
     const originalUrl = generatedFlowMedia.url;
     const aspect = getFlowMediaAspect(flowMediaAspect);
+    const editInstruction = flowMediaImprovePrompt.trim();
+    const editPrompt = buildFlowCreativeEditPrompt(editInstruction, flowMediaCreationMemory, flowMediaReferenceUrls);
     setIsImprovingFlowMedia(true);
     setFlowMediaStatus("Improving the FlowCreative image...");
 
@@ -1665,7 +1710,7 @@ export default function ContentPostsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: flowMediaImprovePrompt.trim(),
+          prompt: editPrompt,
           category: "social_post",
           size: aspect.imageSize,
           style: flowMediaStyle,
@@ -1691,6 +1736,15 @@ export default function ContentPostsPage() {
       if (!imageUrl) throw new Error("Image improved but no media URL was returned");
 
       setGeneratedFlowMedia({ type: "image", url: imageUrl, designId: data.data?.design?.id });
+      setFlowMediaCreationMemory((current) =>
+        current
+          ? {
+              ...current,
+              references: flowMediaReferenceUrls,
+              edits: [...current.edits, editInstruction].filter(Boolean).slice(-6),
+            }
+          : current
+      );
       setFlowMediaImprovePrompt("");
       setFlowMediaStatus("Improved image ready.");
       toast({ title: "FlowCreative image improved", description: "Review the edited version, then attach it to the post." });
@@ -1961,6 +2015,7 @@ export default function ContentPostsPage() {
       .join("\n\n");
     setIsGeneratingFlowMedia(true);
     setGeneratedFlowMedia(null);
+    setFlowMediaCreationMemory(null);
     setFlowMediaImprovePrompt("");
     setFlowMediaStatus(
       flowMediaMode === "image"
@@ -2007,6 +2062,17 @@ export default function ContentPostsPage() {
         if (!imageUrl) throw new Error("Image generated but no media URL was returned");
 
         setGeneratedFlowMediaResult("image", imageUrl, data.data?.design?.id);
+        setFlowMediaCreationMemory({
+          originalPrompt: prompt,
+          promptUsed: prompt,
+          templateTitle: selectedFlowMediaTemplate?.title || null,
+          templatePrompt: selectedFlowMediaTemplate?.prompt || null,
+          aspect: flowMediaAspect,
+          style: flowMediaStyle,
+          references: flowMediaReferenceUrls,
+          brandName: brandKit?.name || null,
+          edits: [],
+        });
         setFlowMediaStatus("Image ready.");
         toast({
           title: "Image generated",
@@ -3074,8 +3140,9 @@ export default function ContentPostsPage() {
           title="FlowCreative"
           description={`Generate images and videos from ${brandName}'s brand identity.`}
           icon={<ImagePlus className="h-4 w-4" />}
-          defaultSize={{ width: 900, height: 860 }}
-          defaultPosition={{ y: 118 }}
+          defaultSize={{ width: 860, height: 760 }}
+          defaultPosition={{ y: 92 }}
+          minSize={{ width: 340, height: 420 }}
         >
           <div className="space-y-4">
             <div className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-violet-500/10 p-4 dark:from-cyan-400/10 dark:to-violet-400/10">
@@ -3454,6 +3521,29 @@ export default function ContentPostsPage() {
                       placeholder="Tell FlowCreative what to change while keeping the real product, person, and brand logo locked..."
                       disabled={isImprovingFlowMedia || isPreparingFlowMediaPost}
                     />
+                    <div className="space-y-2 rounded-xl border bg-background/80 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs font-semibold text-muted-foreground">Media for this edit</Label>
+                        <span className="text-[11px] font-medium text-muted-foreground">Optional</span>
+                      </div>
+                      <MediaUploader
+                        value={flowMediaReferenceUrls}
+                        onChange={setFlowMediaReferenceUrls}
+                        multiple
+                        maxFiles={4}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        maxSize={25 * 1024 * 1024}
+                        filterTypes={["image"]}
+                        uploadEndpoint="/api/media"
+                        disabled={isImprovingFlowMedia || isPreparingFlowMediaPost}
+                        placeholder="Add media"
+                        variant="small"
+                        libraryTitle="Choose edit media"
+                      />
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Add replacement product, person, background, or style media when the edit should use a new visual source.
+                      </p>
+                    </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Button
                         type="button"

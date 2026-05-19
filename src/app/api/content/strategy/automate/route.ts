@@ -497,32 +497,46 @@ export async function POST(request: NextRequest) {
           "Execution rule: write the real article and optional hero image direction. Do not output a plan, outline, draft note, or placeholder link.",
         ].filter(Boolean).join("\n");
 
-        const automation = await prisma.postAutomation.create({
-          data: {
+        const automationData = {
+          userId: session.userId,
+          name: `Strategy: ${task.title}`,
+          type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
+          enabled: true,
+          schedule,
+          topic: task.title,
+          aiPrompt: blogPrompt,
+          aiTone: globalTone,
+          includeMedia: config.includeMedia,
+          mediaType: config.includeMedia ? "image" : null,
+          mediaStyle: config.includeMedia ? config.mediaStyle : null,
+          platforms: JSON.stringify(["blog"]),
+          startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
+          endDate: isOneTime
+            ? null
+            : config.endDate
+            ? new Date(config.endDate)
+            : globalEndDate
+            ? new Date(globalEndDate)
+            : null,
+          strategyTaskId: task.id,
+          sourceStrategyId: strategyId,
+        };
+        const existingAutomation = await prisma.postAutomation.findFirst({
+          where: {
             userId: session.userId,
-            name: `Strategy: ${task.title}`,
-            type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
-            enabled: true,
-            schedule,
-            topic: task.title,
-            aiPrompt: blogPrompt,
-            aiTone: globalTone,
-            includeMedia: config.includeMedia,
-            mediaType: config.includeMedia ? "image" : null,
-            mediaStyle: config.includeMedia ? config.mediaStyle : null,
-            platforms: JSON.stringify(["blog"]),
-            startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
-            endDate: isOneTime
-              ? null
-              : config.endDate
-              ? new Date(config.endDate)
-              : globalEndDate
-              ? new Date(globalEndDate)
-              : null,
             strategyTaskId: task.id,
             sourceStrategyId: strategyId,
+            enabled: true,
           },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true },
         });
+        const automation = existingAutomation
+          ? await prisma.postAutomation.update({
+              where: { id: existingAutomation.id },
+              data: automationData,
+            })
+          : await prisma.postAutomation.create({ data: automationData });
 
         createdPostAutomations.push(automation.id);
         taskUpdates.push({
@@ -555,32 +569,46 @@ export async function POST(request: NextRequest) {
       });
       const isOneTime = config.frequency === "ONCE";
 
-      const automation = await prisma.postAutomation.create({
-        data: {
+      const automationData = {
+        userId: session.userId,
+        name: `Strategy: ${task.title}`,
+        type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
+        enabled: true,
+        schedule,
+        topic: task.title,
+        aiPrompt: taskPrompt,
+        aiTone: globalTone,
+        includeMedia: config.includeMedia,
+        mediaType: config.includeMedia ? config.mediaType : null,
+        mediaStyle: config.includeMedia ? config.mediaStyle : null,
+        platforms: JSON.stringify(configPlatforms),
+        startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
+        endDate: isOneTime
+          ? null
+          : config.endDate
+          ? new Date(config.endDate)
+          : globalEndDate
+          ? new Date(globalEndDate)
+          : null,
+        strategyTaskId: task.id,
+        sourceStrategyId: strategyId,
+      };
+      const existingAutomation = await prisma.postAutomation.findFirst({
+        where: {
           userId: session.userId,
-          name: `Strategy: ${task.title}`,
-          type: isOneTime ? "EVENT_BASED" : "AI_GENERATED",
-          enabled: true,
-          schedule,
-          topic: task.title,
-          aiPrompt: taskPrompt,
-          aiTone: globalTone,
-          includeMedia: config.includeMedia,
-          mediaType: config.includeMedia ? config.mediaType : null,
-          mediaStyle: config.includeMedia ? config.mediaStyle : null,
-          platforms: JSON.stringify(configPlatforms),
-          startDate: combineDateAndTime(config.startDate || task.startDate, config.time),
-          endDate: isOneTime
-            ? null
-            : config.endDate
-            ? new Date(config.endDate)
-            : globalEndDate
-            ? new Date(globalEndDate)
-            : null,
           strategyTaskId: task.id,
           sourceStrategyId: strategyId,
+          enabled: true,
         },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
       });
+      const automation = existingAutomation
+        ? await prisma.postAutomation.update({
+            where: { id: existingAutomation.id },
+            data: automationData,
+          })
+        : await prisma.postAutomation.create({ data: automationData });
 
       createdPostAutomations.push(automation.id);
       taskUpdates.push({

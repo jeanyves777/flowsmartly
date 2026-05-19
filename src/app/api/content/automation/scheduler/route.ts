@@ -185,23 +185,23 @@ function getLastScheduledOccurrence(
 /**
  * Check if an automation is due to run based on its schedule and last trigger time.
  */
-function isDue(
+function getDueOccurrence(
   schedule: ScheduleConfig,
   lastTriggered: Date | null,
   now: Date,
   startDate: Date,
   timeZone: string
-): boolean {
+): Date | null {
   const frequency = schedule.frequency?.toUpperCase();
   if (frequency === "ONCE" || schedule.triggerType === "one_time") {
-    if (lastTriggered) return false;
-    return startDate <= now;
+    if (lastTriggered || startDate > now) return null;
+    return startDate;
   }
 
   const occurrence = getLastScheduledOccurrence(schedule, now, timeZone || "UTC");
-  if (!occurrence || occurrence > now || occurrence < startDate) return false;
-  if (lastTriggered && lastTriggered >= occurrence) return false;
-  return true;
+  if (!occurrence || occurrence > now || occurrence < startDate) return null;
+  if (lastTriggered && lastTriggered >= occurrence) return null;
+  return occurrence;
 }
 
 // POST /api/content/automation/scheduler
@@ -241,7 +241,8 @@ async function runScheduler(request: NextRequest) {
       const isOneTime = schedule.frequency?.toUpperCase() === "ONCE" || schedule.triggerType === "one_time";
       const timeZone = automation.user.timezone || "UTC";
 
-      if (!isDue(schedule, automation.lastTriggered, now, automation.startDate, timeZone)) {
+      const dueOccurrence = getDueOccurrence(schedule, automation.lastTriggered, now, automation.startDate, timeZone);
+      if (!dueOccurrence) {
         continue;
       }
 
@@ -262,6 +263,28 @@ async function runScheduler(request: NextRequest) {
           name: automation.name,
           status: "skipped",
           reason: `Insufficient credits (need ${creditCost}, have ${automation.user.aiCredits})`,
+        });
+        continue;
+      }
+
+      const claim = await prisma.postAutomation.updateMany({
+        where: {
+          id: automation.id,
+          enabled: true,
+          OR: [
+            { lastTriggered: null },
+            { lastTriggered: { lt: dueOccurrence } },
+          ],
+        },
+        data: { lastTriggered: now },
+      });
+
+      if (claim.count === 0) {
+        results.push({
+          automationId: automation.id,
+          name: automation.name,
+          status: "skipped",
+          reason: "Already claimed for this scheduled occurrence",
         });
         continue;
       }
@@ -324,7 +347,6 @@ async function runScheduler(request: NextRequest) {
               data: {
                 enabled: isOneTime ? false : undefined,
                 endDate: isOneTime ? now : undefined,
-                lastTriggered: now,
                 totalGenerated: { increment: 1 },
                 totalCreditsSpent: { increment: creditCost },
               },
@@ -379,7 +401,7 @@ async function runScheduler(request: NextRequest) {
             const captionExcerpt = generatedContent.replace(/#[\w]+/g, "").trim().substring(0, 200);
             const mediaPrompt =
               generatedAsset.mediaPrompt ||
-              `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Leave logo space blank for compositing.`;
+              `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Do not draw a visible logo placeholder, blank logo box, white reserved rectangle, dashed frame, label, or logo-space indicator. Let the layout and background remain natural.`;
 
             if (automation.mediaType === "image") {
               const generatedImage = await generateImageXaiFirst(mediaPrompt, 1536, 1024, { quality: "medium" });
@@ -480,7 +502,6 @@ async function runScheduler(request: NextRequest) {
             data: {
               enabled: isOneTime ? false : undefined,
               endDate: isOneTime ? now : undefined,
-              lastTriggered: now,
               totalGenerated: { increment: 1 },
               totalCreditsSpent: { increment: creditCost },
             },
