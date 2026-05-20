@@ -1,6 +1,15 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import type { AgentTool } from "@/lib/ai/client";
-import type { ProposalDeckLayout, ProposalDeckPlan, ProposalDeckSlide, ProposalDeckSlideRole } from "./proposal-deck-types";
+import type {
+  ProposalDeckBackgroundStyle,
+  ProposalDeckColorRole,
+  ProposalDeckLayout,
+  ProposalDeckMarkerStyle,
+  ProposalDeckPlan,
+  ProposalDeckSlide,
+  ProposalDeckSlideRole,
+  ProposalDeckStyleVariant,
+} from "./proposal-deck-types";
 import type { ProposalLibraryAsset } from "./proposal-asset-library";
 import { listProposalVisualAssets } from "./proposal-asset-library";
 import type { ServiceProposalContent, ServiceProposalInput } from "./proposal-agent";
@@ -26,6 +35,11 @@ const ROLE_LAYOUT: Record<ProposalDeckSlideRole, ProposalDeckLayout> = {
   closing: "closing",
 };
 
+const STYLE_VARIANTS: ProposalDeckStyleVariant[] = ["clean-light", "bold-brand", "editorial", "dark-cover", "minimal-grid"];
+const COLOR_ROLES: ProposalDeckColorRole[] = ["primary", "secondary", "accent"];
+const BACKGROUND_STYLES: ProposalDeckBackgroundStyle[] = ["white", "soft-tint", "split-band", "brand-wash"];
+const MARKER_STYLES: ProposalDeckMarkerStyle[] = ["corner-block", "side-tab", "small-pill"];
+
 interface ProposalDeckAgentInput {
   proposal: ServiceProposalContent;
   request: ServiceProposalInput;
@@ -43,6 +57,35 @@ function cleanList(value: unknown, maxItems = 6, maxChars = 160): string[] {
   return Array.isArray(value)
     ? value.map((item) => cleanText(item, maxChars)).filter(Boolean).slice(0, maxItems)
     : [];
+}
+
+function pickBySeed<T>(seed: string, values: T[]): T {
+  const hash = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return values[Math.abs(hash) % values.length];
+}
+
+function styleVariantFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckStyleVariant {
+  const raw = String(value || "").toLowerCase();
+  if (STYLE_VARIANTS.includes(raw as ProposalDeckStyleVariant)) return raw as ProposalDeckStyleVariant;
+  return pickBySeed(`${proposal.preparedBy}:${proposal.preparedFor}:${proposal.preset}`, STYLE_VARIANTS);
+}
+
+function colorRoleFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckColorRole {
+  const raw = String(value || "").toLowerCase();
+  if (COLOR_ROLES.includes(raw as ProposalDeckColorRole)) return raw as ProposalDeckColorRole;
+  return pickBySeed(`${proposal.serviceTitle}:${proposal.preparedFor}`, COLOR_ROLES);
+}
+
+function backgroundStyleFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckBackgroundStyle {
+  const raw = String(value || "").toLowerCase();
+  if (BACKGROUND_STYLES.includes(raw as ProposalDeckBackgroundStyle)) return raw as ProposalDeckBackgroundStyle;
+  return pickBySeed(`${proposal.preparedFor}:${proposal.serviceTitle}:background`, BACKGROUND_STYLES);
+}
+
+function markerStyleFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckMarkerStyle {
+  const raw = String(value || "").toLowerCase();
+  if (MARKER_STYLES.includes(raw as ProposalDeckMarkerStyle)) return raw as ProposalDeckMarkerStyle;
+  return pickBySeed(`${proposal.preparedBy}:${proposal.preparedFor}:marker`, MARKER_STYLES);
 }
 
 function roleFrom(value: unknown): ProposalDeckSlideRole | null {
@@ -77,6 +120,43 @@ function assetSummary(asset: ProposalLibraryAsset) {
     width: asset.width,
     height: asset.height,
   };
+}
+
+function redLikeHex(value: unknown): boolean {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return /red|crimson|rose|ruby/i.test(raw);
+  const hex = match[1];
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return r > 150 && g < 120 && b < 120;
+}
+
+function brandAllowsRedAssets(input: ProposalDeckAgentInput): boolean {
+  const colors = [
+    input.proposal.design?.colorPalette?.primary,
+    input.proposal.design?.colorPalette?.secondary,
+    input.proposal.design?.colorPalette?.accent,
+  ];
+  const brandColors = input.brandKit?.colors;
+  if (typeof brandColors === "string") {
+    try {
+      const parsed = JSON.parse(brandColors) as Record<string, unknown>;
+      colors.push(parsed.primary as string, parsed.secondary as string, parsed.accent as string);
+    } catch {
+      colors.push(brandColors);
+    }
+  } else if (brandColors && typeof brandColors === "object") {
+    const parsed = brandColors as Record<string, unknown>;
+    colors.push(parsed.primary as string, parsed.secondary as string, parsed.accent as string);
+  }
+  return colors.some(redLikeHex);
+}
+
+function filterAssetsForBrand(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[]) {
+  if (brandAllowsRedAssets(input)) return assets;
+  return assets.filter((asset) => !/\bred\b/i.test(`${asset.id} ${asset.title} ${asset.tags.join(" ")}`));
 }
 
 function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLibraryAsset[], preset: string): ProposalLibraryAsset[] {
@@ -212,11 +292,15 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
     generatedBy: "claude-haiku-deck-agent",
     styleSummary:
       cleanText(rawObj.styleSummary, 320) ||
-      "Premium 16:9 sales deck with large transparent PNG visuals, compact copy, branded red callouts, and generous whitespace.",
+      "Premium 16:9 sales deck with large transparent PNG visuals, compact copy, brand-color callouts, and generous whitespace.",
+    styleVariant: styleVariantFrom(rawObj.styleVariant, proposal),
+    calloutColor: colorRoleFrom(rawObj.calloutColor, proposal),
+    backgroundStyle: backgroundStyleFrom(rawObj.backgroundStyle, proposal),
+    markerStyle: markerStyleFrom(rawObj.markerStyle, proposal),
     copyDensity: rawObj.copyDensity === "tight" ? "tight" : "balanced",
     colorUse:
       cleanText(rawObj.colorUse, 220) ||
-      "Use brand colors for accents, red for callout bands, dark ink for headings, and light page backgrounds.",
+      "Use the brand palette for accents, callouts, page markers, metric rings, and support shapes.",
     designerNotes: cleanList(rawObj.designerNotes, 6, 160),
     selectedAssetIds: Array.from(new Set(slides.flatMap((slide) => slide.visualIds || []))),
     slides,
@@ -252,10 +336,27 @@ function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[
           "Some slides should use two images when it helps fill the visual area.",
           "Use a second image only when it adds a different idea, such as client trust plus growth, not a repeated version of the same story.",
           "Use concise bullets with strong hierarchy; avoid paragraphs that become noisy.",
-          "Use red rounded callout bars or tags for pricing and critical terms.",
+          "Use brand-colored callout bars or tags for pricing and critical terms.",
           "Never use prompt text as a caption.",
           "Never ask image AI to draw logos, logo boxes, white logo spaces, dashed placeholders, or fake indicators.",
           "Use the real brand logo separately in the renderer.",
+        ],
+      }),
+    },
+    {
+      name: "get_design_system_options",
+      description: "Return the PDF renderer style options. Pick one combination that fits the brand and client instead of reusing the same deck style every time.",
+      input_schema: { type: "object", properties: {} },
+      handler: async () => ({
+        styleVariant: STYLE_VARIANTS,
+        calloutColor: COLOR_ROLES,
+        backgroundStyle: BACKGROUND_STYLES,
+        markerStyle: MARKER_STYLES,
+        guidance: [
+          "Choose a style variant based on the sender brand, offer, and client industry.",
+          "Use the sender's actual brand palette; only use red if it is truly part of that brand palette.",
+          "Vary page markers, background treatment, and section composition across users.",
+          "Keep the final deck concise and premium, usually 7-9 slides.",
         ],
       }),
     },
@@ -267,7 +368,7 @@ export async function runServiceProposalDeckAgent(input: ProposalDeckAgentInput)
   usage: { inputTokens: number; outputTokens: number };
   toolsUsed: string[];
 }> {
-  const assets = await listProposalVisualAssets({ presign: false });
+  const assets = filterAssetsForBrand(input, await listProposalVisualAssets({ presign: false }));
   const run = await ai.runWithTools<ProposalDeckPlan>(
     `Plan the PDF deck for ${input.proposal.preparedFor}. Return only valid JSON.`,
     buildTools(input, assets),
@@ -282,14 +383,19 @@ Required tool flow:
 1. Call get_raw_proposal_context.
 2. Call list_available_images.
 3. Call get_pdf_style_reference.
+4. Call get_design_system_options.
 
 Return ONLY valid JSON. Do not include markdown.
 
 Return this exact shape:
 {
   "styleSummary": "short deck style direction",
+  "styleVariant": "clean-light | bold-brand | editorial | dark-cover | minimal-grid",
+  "calloutColor": "primary | secondary | accent",
+  "backgroundStyle": "white | soft-tint | split-band | brand-wash",
+  "markerStyle": "corner-block | side-tab | small-pill",
   "copyDensity": "tight | balanced",
-  "colorUse": "how to use brand colors and red callouts",
+  "colorUse": "how to use actual brand colors in callouts, markers, metrics, and support shapes",
   "designerNotes": ["short implementation notes"],
   "slides": [
     {
@@ -310,8 +416,10 @@ Rules:
 - Use all seven slide roles exactly once.
 - Choose image IDs from list_available_images only.
 - Favor reusable transparent PNG / 3D cutout assets.
+- Pick a different design treatment when the brand, industry, or offer calls for it. Do not default every proposal to the same accent template.
+- Use the actual brand colors from raw context. Only choose red-like callouts if the brand palette includes a red-like color.
 - Make the visual sections feel full. Use two-visuals for about or benefits only when the second selected image adds a clearly different idea.
-- Keep headlines and red callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
+- Keep headlines and callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
 - If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
 - Keep bullets concise enough for PDF layout.
 - Use client-facing language only. Do not show internal wording such as "public profile signals" or "raw context".

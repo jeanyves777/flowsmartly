@@ -4,10 +4,9 @@ import { getSession } from "@/lib/auth/session";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
 import { sendPitchEmail } from "@/lib/email";
 import { createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
-import { getPresignedUrl, sanitizeUrlsForStorage } from "@/lib/utils/s3-client";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
 import type { PitchContent } from "@/lib/pitch/generator";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
-import { ensureFullProposalSections } from "@/lib/pitch/proposal-full-agent";
 import type { ResearchData } from "@/lib/pitch/researcher";
 
 function isServiceProposal(content: PitchContent | ServiceProposalContent): content is ServiceProposalContent {
@@ -180,13 +179,7 @@ export async function POST(
     let proposalContent: ServiceProposalContent | null = null;
     let emailPitchContent: PitchContent;
     if (isServiceProposal(pitchContent)) {
-      proposalContent = await ensureFullProposalSections(pitchContent);
-      if (JSON.stringify(proposalContent) !== JSON.stringify(pitchContent)) {
-        await prisma.pitch.update({
-          where: { id },
-          data: { pitchContent: JSON.stringify(sanitizeUrlsForStorage(proposalContent)) },
-        });
-      }
+      proposalContent = pitchContent;
       emailPitchContent = proposalToPitchEmail(proposalContent);
     } else {
       emailPitchContent = pitchContent;

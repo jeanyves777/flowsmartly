@@ -15,6 +15,19 @@ export type ProposalDeckLayout =
   | "terms"
   | "closing";
 
+export type ProposalDeckStyleVariant =
+  | "clean-light"
+  | "bold-brand"
+  | "editorial"
+  | "dark-cover"
+  | "minimal-grid";
+
+export type ProposalDeckColorRole = "primary" | "secondary" | "accent";
+
+export type ProposalDeckBackgroundStyle = "white" | "soft-tint" | "split-band" | "brand-wash";
+
+export type ProposalDeckMarkerStyle = "corner-block" | "side-tab" | "small-pill";
+
 export interface ProposalDeckVisual {
   id: string;
   title: string;
@@ -39,6 +52,10 @@ export interface ProposalDeckSlide {
 export interface ProposalDeckPlan {
   generatedBy: "claude-haiku-deck-agent" | "fallback";
   styleSummary: string;
+  styleVariant: ProposalDeckStyleVariant;
+  calloutColor: ProposalDeckColorRole;
+  backgroundStyle: ProposalDeckBackgroundStyle;
+  markerStyle: ProposalDeckMarkerStyle;
   copyDensity: "tight" | "balanced";
   colorUse: string;
   designerNotes: string[];

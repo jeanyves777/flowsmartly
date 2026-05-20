@@ -873,20 +873,31 @@ export async function generateServiceProposalPDF(
   const colors = design.colorPalette || {};
   const primaryHex = normalizeHex(colors.primary || brand.primaryColor, "#0ea5e9");
   const secondaryHex = normalizeHex(colors.secondary || brand.secondaryColor, "#8b5cf6");
-  const accentHex = normalizeHex(colors.accent || brand.accentColor, "#ef4444");
+  const accentHex = normalizeHex(colors.accent || brand.accentColor, "#f59e0b");
   const inkHex = normalizeHex(colors.ink, "#0f172a");
   const primary = hexToRgb(primaryHex);
   const secondary = hexToRgb(secondaryHex);
   const accent = hexToRgb(accentHex);
   const ink = hexToRgb(inkHex);
-  const navy = hexToRgb("#082f6f");
-  const red = hexToRgb("#d90416");
+  const deckPlan = proposal.deckPlan;
+  const styleVariant = deckPlan?.styleVariant || "clean-light";
+  const backgroundStyle = deckPlan?.backgroundStyle || "white";
+  const markerStyle = deckPlan?.markerStyle || "corner-block";
+  const colorByRole = {
+    primary,
+    secondary,
+    accent,
+  };
+  const callout = colorByRole[deckPlan?.calloutColor || "accent"] || accent;
+  const navy = styleVariant === "dark-cover"
+    ? mixRgb(primaryHex, 0.24, { r: 0, g: 0, b: 0 })
+    : mixRgb(secondaryHex, 0.28, { r: 0, g: 0, b: 0 });
+  const red = callout;
   const softInk = { r: 31, g: 42, b: 64 };
   const softPrimary = mixRgb(primaryHex, 0.88);
   const softSecondary = mixRgb(secondaryHex, 0.88);
   const softAccent = mixRgb(accentHex, 0.82);
 
-  const deckPlan = proposal.deckPlan;
   const slideFor = (role: ProposalDeckSlideRole): ProposalDeckSlide | undefined =>
     deckPlan?.slides?.find((slide) => slide.role === role);
   const visual = (kind: "cover" | "about" | "impact") =>
@@ -916,14 +927,13 @@ export async function generateServiceProposalPDF(
       .filter(Boolean),
   ));
 
-  const [coverImage, aboutImage, impactImage, commerceImage, creatorImage, growthSceneImage, pricingTagImage, ...plannedImages] = await Promise.all([
+  const [coverImage, aboutImage, impactImage, commerceImage, creatorImage, growthSceneImage, ...plannedImages] = await Promise.all([
     selectCutout("cover"),
     selectCutout("about"),
     selectCutout("impact"),
     resolvePdfImage("/proposal-assets/pregenerated/local-store-price-growth.png"),
     resolvePdfImage("/proposal-assets/pregenerated/strategy-dashboard-consultant.png"),
     resolvePdfImage("/proposal-assets/pregenerated/chart-growth-analytics.png"),
-    resolvePdfImage("/proposal-assets/pregenerated/red-pricing-tag-blank.png"),
     ...plannedVisualUrls.map((url) => resolvePdfImage(url)),
   ]);
 
@@ -1120,25 +1130,56 @@ export async function generateServiceProposalPDF(
   };
 
   const base = (page?: number, pageCorner: "tl" | "br" = "br") => {
-    doc.setFillColor(255, 255, 255);
+    const pageFill = backgroundStyle === "brand-wash"
+      ? mixRgb(primaryHex, 0.94)
+      : backgroundStyle === "soft-tint"
+        ? mixRgb(secondaryHex, 0.96)
+        : { r: 255, g: 255, b: 255 };
+    doc.setFillColor(pageFill.r, pageFill.g, pageFill.b);
     doc.rect(0, 0, pageW, pageH, "F");
-    drawCityGhost();
-    doc.setFillColor(246, 249, 252);
-    doc.circle(1300, 62, 46, "F");
-    drawDots(pageW - 250, pageH - 150, 6, 12, { r: 218, g: 229, b: 243 });
+    if (backgroundStyle === "split-band") {
+      const band = styleVariant === "editorial" ? softSecondary : softPrimary;
+      doc.setFillColor(band.r, band.g, band.b);
+      doc.rect(0, 0, 410, pageH, "F");
+    }
+    if (styleVariant === "minimal-grid") {
+      doc.setDrawColor(232, 238, 247);
+      doc.setLineWidth(1);
+      for (let x = 94; x < pageW; x += 96) doc.line(x, 78, x, pageH - 92);
+      for (let y = 92; y < pageH; y += 82) doc.line(64, y, pageW - 64, y);
+    } else {
+      drawCityGhost();
+    }
+    doc.setFillColor(softPrimary.r, softPrimary.g, softPrimary.b);
+    doc.circle(1300, 62, styleVariant === "editorial" ? 34 : 46, "F");
+    drawDots(pageW - 250, pageH - 150, styleVariant === "minimal-grid" ? 4 : 6, 12, backgroundStyle === "brand-wash" ? softSecondary : { r: 218, g: 229, b: 243 });
     doc.setDrawColor(navy.r, navy.g, navy.b);
-    doc.setLineWidth(42);
-    doc.circle(525, pageH + 120, 150, "S");
+    doc.setLineWidth(styleVariant === "bold-brand" ? 58 : 34);
+    doc.circle(styleVariant === "editorial" ? 190 : 525, pageH + 120, styleVariant === "bold-brand" ? 190 : 150, "S");
     if (page) {
       const label = String(page).padStart(2, "0");
-      const x = pageCorner === "tl" ? 0 : pageW - 78;
-      const y = pageCorner === "tl" ? 0 : pageH - 78;
       doc.setFillColor(red.r, red.g, red.b);
-      doc.rect(x, y, 78, 78, "F");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(34);
       doc.setTextColor(255, 255, 255);
-      doc.text(label, x + 39, y + 50, { align: "center" });
+      if (markerStyle === "small-pill") {
+        const x = pageCorner === "tl" ? 36 : pageW - 132;
+        const y = pageCorner === "tl" ? 28 : pageH - 58;
+        doc.roundedRect(x, y, 96, 38, 19, 19, "F");
+        doc.setFontSize(20);
+        doc.text(label, x + 48, y + 25, { align: "center" });
+      } else if (markerStyle === "side-tab") {
+        const x = pageCorner === "tl" ? 0 : pageW - 104;
+        const y = pageCorner === "tl" ? 82 : pageH - 142;
+        doc.roundedRect(x, y, 104, 58, 0, 0, "F");
+        doc.setFontSize(26);
+        doc.text(label, x + 52, y + 38, { align: "center" });
+      } else {
+        const x = pageCorner === "tl" ? 0 : pageW - 78;
+        const y = pageCorner === "tl" ? 0 : pageH - 78;
+        doc.rect(x, y, 78, 78, "F");
+        doc.setFontSize(34);
+        doc.text(label, x + 39, y + 50, { align: "center" });
+      }
     }
   };
 
@@ -1362,15 +1403,34 @@ export async function generateServiceProposalPDF(
   const commitmentVisuals = slideImages("commitments", [impactImage, coverImage]);
   const benefitVisuals = slideImages("benefits", [creatorImage || aboutImage, commerceImage || coverImage]);
   const proofVisuals = slideImages("proof", [growthSceneImage || impactImage, coverImage]);
-  const termsVisuals = slideImages("terms", [pricingTagImage || impactImage, aboutImage]);
+  const termsVisuals = slideImages("terms", [impactImage || commerceImage, aboutImage]);
   const closingVisuals = slideImages("closing", [commerceImage || aboutImage, coverImage]);
 
   // Page 1: cover
   base();
-  doc.setFillColor(primary.r, primary.g, primary.b);
-  doc.circle(pageW - 40, -10, 230, "F");
-  doc.setFillColor(secondary.r, secondary.g, secondary.b);
-  doc.circle(pageW - 88, 62, 190, "F");
+  if (styleVariant === "dark-cover") {
+    doc.setFillColor(navy.r, navy.g, navy.b);
+    doc.rect(760, 0, pageW - 760, pageH, "F");
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.circle(pageW - 105, 92, 178, "F");
+  } else if (styleVariant === "bold-brand") {
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.rect(0, 0, pageW, 26, "F");
+    doc.setFillColor(secondary.r, secondary.g, secondary.b);
+    doc.circle(pageW - 80, 24, 220, "F");
+    doc.setFillColor(red.r, red.g, red.b);
+    doc.circle(pageW - 170, 105, 150, "F");
+  } else if (styleVariant === "editorial") {
+    doc.setFillColor(red.r, red.g, red.b);
+    doc.rect(0, 0, 34, pageH, "F");
+    doc.setFillColor(softPrimary.r, softPrimary.g, softPrimary.b);
+    doc.rect(660, 88, 650, 500, "F");
+  } else {
+    doc.setFillColor(primary.r, primary.g, primary.b);
+    doc.circle(pageW - 40, -10, 230, "F");
+    doc.setFillColor(secondary.r, secondary.g, secondary.b);
+    doc.circle(pageW - 88, 62, 190, "F");
+  }
   logo(margin, 58, 250, 78);
   const coverTitleEnd = h1(slideHeadline("cover", "Business Development Proposal"), margin, 286, 610, 60, 3);
   doc.setFont("helvetica", "bold");
@@ -1385,7 +1445,7 @@ export async function generateServiceProposalPDF(
   button("Visit Us", margin, 666, 205, 64, red);
   footer();
   doc.setFillColor(navy.r, navy.g, navy.b);
-  doc.circle(820, pageH + 115, 210, "F");
+  if (styleVariant !== "editorial") doc.circle(820, pageH + 115, 210, "F");
   addHeroImage(coverVisuals[0] || coverImage, 690, 140, 690, 520, { alignY: 0.52 });
 
   // Page 2: about and need
@@ -1507,83 +1567,33 @@ export async function generateServiceProposalPDF(
   ]).map(nextStepLabel);
   h2("Next Steps", 940, 260, ink, 36);
   bigBulletList(nextItems, 940, 330, 360, { limit: 4, rowH: 72, size: 18, bold: true, maxLines: 2 });
-  addHeroImage(termsVisuals[0] || pricingTagImage || aboutImage || creatorImage, 1035, 632, 230, 122, { alignY: 0.55, shadow: false });
+  addHeroImage(termsVisuals[0] || impactImage || aboutImage || creatorImage, 1035, 632, 230, 122, { alignY: 0.55, shadow: false });
   footer();
 
   let closingPage = 7;
   const customSections = (proposal.customSections || [])
     .filter((section) => clean(section.title))
-    .slice(0, 12);
+    .slice(0, 2);
 
   customSections.forEach((section) => {
-    const title = clean(section.title);
-    const bodyLines = clean(section.body) ? doc.splitTextToSize(clean(section.body), 790) as string[] : [];
-    const bullets = cleanBullets(section.bullets || [], []);
-    let bodyIndex = 0;
-    let bulletIndex = 0;
-    let part = 0;
-
-    do {
-      doc.addPage();
-      base(closingPage);
-      const customTitleEnd = h1(part ? `${title} Continued` : title, margin, 125, 800, 52, 3);
-      const firstPage = part === 0;
-      const textX = margin;
-      const textW = firstPage ? 790 : 1110;
-      let y = customTitleEnd + 34;
-      const bottom = 700;
-
-      if (firstPage) {
-        addHeroImage(
-          closingPage % 2 === 0 ? aboutImage || impactImage || coverImage : impactImage || aboutImage || coverImage,
-          925,
-          165,
-          390,
-          340,
-          { shadow: false },
-        );
-      }
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(21);
-      doc.setTextColor(softInk.r, softInk.g, softInk.b);
-      const maxBodyLines = Math.max(0, Math.floor((bottom - y) / 27));
-      const bodyChunk = bodyLines.slice(bodyIndex, bodyIndex + maxBodyLines);
-      if (bodyChunk.length) {
-        doc.text(bodyChunk, textX, y, { lineHeightFactor: 1.18 });
-        bodyIndex += bodyChunk.length;
-        y += bodyChunk.length * 24.8 + 24;
-      }
-
-      if (bodyIndex >= bodyLines.length && bulletIndex < bullets.length) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(25);
-        setColor(ink);
-        if (y < bottom - 42) {
-          doc.text("What this means for you", textX, y);
-          y += 34;
-        }
-        while (bulletIndex < bullets.length && y < bottom - 28) {
-          const bullet = bullets[bulletIndex];
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(19);
-          doc.setTextColor(softInk.r, softInk.g, softInk.b);
-          const fitted = fitTextToLines(bullet, textW - 52, 19, 3);
-          const lines = doc.splitTextToSize(fitted, textW - 52).slice(0, 3);
-          const needed = lines.length * 22 + 16;
-          if (y + needed > bottom) break;
-          doc.setFillColor(red.r, red.g, red.b);
-          doc.circle(textX + 8, y - 7, 6, "F");
-          doc.text(lines, textX + 34, y, { lineHeightFactor: 1.14 });
-          y += needed;
-          bulletIndex += 1;
-        }
-      }
-
-      footer();
-      closingPage += 1;
-      part += 1;
-    } while (bodyIndex < bodyLines.length || bulletIndex < bullets.length || (part === 1 && !bodyLines.length && !bullets.length));
+    doc.addPage();
+    base(closingPage);
+    const customTitleEnd = h1(clean(section.title), margin, 125, 800, 52, 3);
+    para(clean(section.body), margin, customTitleEnd + 34, 790, 21, softInk, 1.22, 5);
+    const bullets = cleanBullets(section.bullets || [], []).slice(0, 4);
+    if (bullets.length) {
+      bigBulletList(bullets, margin, Math.max(430, customTitleEnd + 190), 720, { limit: 4, rowH: 58, size: 19, maxLines: 2 });
+    }
+    addHeroImage(
+      closingPage % 2 === 0 ? aboutImage || impactImage || coverImage : impactImage || aboutImage || coverImage,
+      925,
+      165,
+      390,
+      340,
+      { shadow: false },
+    );
+    footer();
+    closingPage += 1;
   });
 
   // Closing CTA

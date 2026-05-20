@@ -116,8 +116,6 @@ export interface ServiceProposalContent {
   proposalTypes?: ProposalPreset[];
   servicePackages?: string[];
   customAdditions?: string[];
-  fullProposalReady?: boolean;
-  fullProposalGeneratedAt?: string;
   brandSnapshot: Record<string, unknown>;
 }
 
@@ -302,7 +300,7 @@ Return ONLY valid JSON with this shape:
   "pricing": {"name":"...", "amount":199, "originalAmount":399, "interval":"month", "note":"..."},
   "terms": ["5-8 clear terms"],
   "nextSteps": ["3-5 next steps"],
-  "customSections": [{"title":"Client-ready proposal section", "body":"2-4 client-facing paragraphs", "bullets":["3-6 specific bullets"]}],
+  "customSections": [{"title":"Optional client-ready add-on section", "body":"short client-facing body", "bullets":["2-4 specific bullets"]}],
   "contact": {"name":"...", "email":"...", "phone":"...", "website":"...", "address":"..."},
   "design": {
     "themeName": "Short branded theme name",
@@ -329,7 +327,7 @@ Rules:
 - If Client Google/local profile facts are available and the request is about local presence, Google Business Profile, local SEO, reviews, maps, or nearby customers, cite the actual rating, review count, category, address, or status in clientNeed, proofPoints, or benefits. Do not invent Google stats when unavailable.
 - Match the brand voice and service category.
 - If multiple proposal types, service packages, or custom additions are provided, blend them into one coherent proposal. Do not drop custom user additions.
-- customSections must make this a complete proposal, not a short pitch deck. Generate 8-12 substantial client-facing sections such as current findings, recommended strategy, detailed scope by service, implementation plan, measurement/reporting, client responsibilities, risk reduction, why now, and success criteria. Adapt the section titles to the actual client and services.
+- Keep the proposal deck concise. Use customSections only for truly useful client-specific add-ons, special custom user additions, promotional terms, or cross-sell details. Generate 0-2 customSections unless the user explicitly added more sections in the editor.
 - Design must use the live BrandKit: colors, fonts, logo availability, audience, voice, services, and unique value.
 - Image prompts are for background/hero PNG assets only. They must NEVER ask the image model to draw text, words, UI labels, logos, logo boxes, logo placeholders, white reserved rectangles, dashed frames, or fake brand marks. The real logo is overlaid after generation.
 - Make the PDF feel like a polished sales deck, not a plain document: strong cover, section imagery, price badge, proof metrics, branded footer, and clear visual hierarchy.
@@ -447,13 +445,13 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
       ? raw.customSections
           .map((section) => ({
             title: String(section?.title || "").replace(/\s+/g, " ").trim().slice(0, 90),
-            body: String(section?.body || "").replace(/\s+/g, " ").trim().slice(0, 1500),
+            body: String(section?.body || "").replace(/\s+/g, " ").trim().slice(0, 650),
             bullets: Array.isArray(section?.bullets)
-              ? section.bullets.map((item) => String(item || "").replace(/\s+/g, " ").trim().slice(0, 220)).filter(Boolean).slice(0, 8)
+              ? section.bullets.map((item) => String(item || "").replace(/\s+/g, " ").trim().slice(0, 170)).filter(Boolean).slice(0, 5)
               : [],
           }))
           .filter((section) => section.title)
-          .slice(0, 12)
+          .slice(0, 2)
       : [],
     contact: {
       name: raw.contact?.name,

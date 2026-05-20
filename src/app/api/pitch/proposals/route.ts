@@ -6,7 +6,6 @@ import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
 import { attachProposalLibraryVisuals } from "@/lib/pitch/proposal-asset-library";
 import { runServiceProposalDeckAgent } from "@/lib/pitch/proposal-deck-agent";
-import { ensureFullProposalSections } from "@/lib/pitch/proposal-full-agent";
 import { proposalClientProfileFromGoogle } from "@/lib/pitch/client-profile";
 import { lookupGooglePlaces } from "@/lib/pitch/researcher";
 
@@ -171,11 +170,6 @@ export async function POST(request: NextRequest) {
 
     let proposal = result.proposal;
     let usage = { ...result.usage };
-    try {
-      proposal = await ensureFullProposalSections(proposal);
-    } catch (fullProposalError) {
-      console.warn("[ProposalAgent] Full proposal expansion failed:", fullProposalError);
-    }
     try {
       proposal = await attachProposalLibraryVisuals({
         preset,
