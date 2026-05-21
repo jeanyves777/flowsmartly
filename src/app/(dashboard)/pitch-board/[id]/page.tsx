@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils/cn";
 import { scoreHexColor, scoreLabel } from "@/lib/pitch/scorer";
 import { useToast } from "@/hooks/use-toast";
 import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
-import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
+import type { ProposalBuilderType, ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -530,6 +530,15 @@ function proposalTypeLabel(value: string | undefined) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function proposalBuilderLabel(value: ProposalBuilderType | string | undefined) {
+  const labels: Record<ProposalBuilderType, string> = {
+    "visual-sales-deck": "Visual Sales Deck",
+    "professional-services": "Professional Services",
+    "process-framework": "Process Framework",
+  };
+  return labels[value as ProposalBuilderType] || "Visual Sales Deck";
+}
+
 function ProposalDocumentSection({
   id,
   index,
@@ -681,6 +690,7 @@ function ProposalDocumentWorkspace({
           <div className="mt-7 flex flex-wrap gap-3 text-sm text-white/90">
             <span className="rounded-full bg-white/15 px-3 py-1">Prepared for {working.preparedFor || businessName}</span>
             <span className="rounded-full bg-white/15 px-3 py-1">Prepared by {working.preparedBy || brandName || "FlowSmartly"}</span>
+            <span className="rounded-full bg-white/15 px-3 py-1">{proposalBuilderLabel(working.builderType)}</span>
             <span className="rounded-full bg-white/15 px-3 py-1">{proposalTypeLabel(working.preset)}</span>
             {contactWebsite && <span className="rounded-full bg-white/15 px-3 py-1">{contactWebsite.replace(/^https?:\/\//, "")}</span>}
           </div>

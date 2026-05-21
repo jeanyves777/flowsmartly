@@ -3,7 +3,12 @@ import { getSession } from "@/lib/auth/session";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
-import { runServiceProposalAgent, type ProposalPreset } from "@/lib/pitch/proposal-agent";
+import {
+  DEFAULT_PROPOSAL_BUILDER_TYPE,
+  runServiceProposalAgent,
+  type ProposalBuilderType,
+  type ProposalPreset,
+} from "@/lib/pitch/proposal-agent";
 import { attachProposalLibraryVisuals } from "@/lib/pitch/proposal-asset-library";
 import { runServiceProposalDeckAgent } from "@/lib/pitch/proposal-deck-agent";
 import { proposalClientProfileFromGoogle } from "@/lib/pitch/client-profile";
@@ -14,6 +19,12 @@ const PRESETS = new Set<ProposalPreset>([
   "website-redesign",
   "local-seo",
   "custom",
+]);
+
+const BUILDER_TYPES = new Set<ProposalBuilderType>([
+  "visual-sales-deck",
+  "professional-services",
+  "process-framework",
 ]);
 
 function cleanText(value: unknown, max = 2000): string {
@@ -48,6 +59,11 @@ function cleanPresetArray(value: unknown, fallback: ProposalPreset): ProposalPre
   return Array.from(new Set(items.length ? items : [fallback]));
 }
 
+function cleanBuilderType(value: unknown): ProposalBuilderType {
+  const raw = cleanText(value, 80) as ProposalBuilderType;
+  return BUILDER_TYPES.has(raw) ? raw : DEFAULT_PROPOSAL_BUILDER_TYPE;
+}
+
 function isLocalPresenceRequest(parts: Array<unknown>): boolean {
   const text = parts.map((part) => cleanText(part, 2000)).join(" ").toLowerCase();
   return /\b(local|nearby|maps|google|gbp|business profile|reviews?|reputation|citation|seo|3-pack|ranking)\b/.test(text);
@@ -69,6 +85,7 @@ export async function POST(request: NextRequest) {
     const presetRaw = cleanText(body.preset || inferred.preset, 80) as ProposalPreset;
     const preset = PRESETS.has(presetRaw) ? presetRaw : "custom";
     const proposalTypes = cleanPresetArray(body.proposalTypes, preset);
+    const builderType = cleanBuilderType(body.builderType);
     const servicePackages = cleanStringArray(body.servicePackages || body.selectedServices, 12, 180);
     const customAdditions = cleanStringArray(body.customAdditions, 12, 220);
     const targetWebsite = cleanUrl(body.targetWebsite || inferred.targetWebsite) || undefined;
@@ -154,6 +171,7 @@ export async function POST(request: NextRequest) {
       targetWebsite,
       recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
       recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
+      builderType,
       preset,
       proposalTypes,
       servicePackages,
@@ -191,6 +209,7 @@ export async function POST(request: NextRequest) {
           targetWebsite,
           recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || undefined,
           recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || undefined,
+          builderType,
           preset,
           proposalTypes,
           servicePackages,
@@ -225,6 +244,7 @@ export async function POST(request: NextRequest) {
         status: "READY",
         research: JSON.stringify({
           documentType: "service_proposal",
+          builderType,
           preset,
           proposalTypes,
           generatedAt: new Date().toISOString(),
@@ -263,7 +283,7 @@ export async function POST(request: NextRequest) {
         userId: isAdmin ? null : session.userId,
         adminId: isAdmin ? session.adminId : null,
         feature: "service_proposal_generate",
-        model: "claude-haiku-4-5-20251001+proposal-deck-agent+visual-library",
+        model: "claude-haiku-4-5-20251001+proposal-builder-routing+deck-agent+visual-library",
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         costCents: 0,

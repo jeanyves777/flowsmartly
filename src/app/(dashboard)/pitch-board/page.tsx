@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
 type TabKey = "proposal" | "pitch" | "leads";
+type ProposalBuilderType = "visual-sales-deck" | "professional-services" | "process-framework";
 
 interface Pitch {
   id: string;
@@ -95,6 +96,7 @@ interface LeadActionState {
 }
 
 interface LeadOfferFormState {
+  builderType: ProposalBuilderType;
   preset: string;
   proposalTypes: string[];
   selectedServices: string[];
@@ -121,10 +123,55 @@ const PROPOSAL_PRESETS = [
   { value: "custom", label: "Custom" },
 ] as const;
 
-const PROPOSAL_EXAMPLES = [
-  "Create a polished $199/month Google Business Profile optimization proposal for ABC Dental Studio. Include weekly posts, review improvement, citations, local ranking, reporting, no long-term contract, and a $399 original promotional comparison.",
-  "Build a website redesign proposal for a restaurant that needs online reservations, mobile menu, SEO pages, tracking, and a launch plan. Price it as a $999 project with a $1,999 original value.",
-  "Create a local SEO growth proposal for a law firm. Focus on local rankings, service-area pages, reputation, citations, and monthly reporting.",
+const PROPOSAL_BUILDER_TYPES: Array<{ value: ProposalBuilderType; label: string; description: string }> = [
+  {
+    value: "visual-sales-deck",
+    label: "Visual sales deck",
+    description: "Short, branded, image-led proposal with proof, pricing, and next steps.",
+  },
+  {
+    value: "professional-services",
+    label: "Professional services",
+    description: "Overview, scope of work, timeline, fee estimate, credentials, and next steps.",
+  },
+  {
+    value: "process-framework",
+    label: "Process framework",
+    description: "Executive summary, phased framework, owners, mitigations, quick wins, and success criteria.",
+  },
+];
+
+const PROPOSAL_EXAMPLES: Array<{
+  label: string;
+  builderType: ProposalBuilderType;
+  preset: string;
+  proposalTypes: string[];
+  brief: string;
+}> = [
+  {
+    label: "Local growth deck",
+    builderType: "visual-sales-deck",
+    preset: "google-business-profile",
+    proposalTypes: ["google-business-profile"],
+    brief:
+      "Create a polished $199/month Google Business Profile optimization proposal for ABC Dental Studio. Include weekly posts, review improvement, citations, local ranking, reporting, no long-term contract, and a $399 original promotional comparison.",
+  },
+  {
+    label: "Tax services",
+    builderType: "professional-services",
+    preset: "custom",
+    proposalTypes: ["custom"],
+    brief:
+      "Create a professional tax and accounting services proposal for a client needing personal and small business tax preparation for tax years 2024 and 2025. Include introduction, scope for personal returns, business returns and accounting support, proposed timeline, fee estimate, why work with us, and next steps.",
+  },
+  {
+    label: "Budget process",
+    builderType: "process-framework",
+    preset: "custom",
+    proposalTypes: ["custom"],
+    brief:
+      "Create an annual budget process design and implementation framework proposal. Include executive summary, commitment, what the engagement covers, a phased budget framework with timing and owner language, common failure points and mitigations, quick wins, success criteria, and next steps.",
+  },
 ];
 
 const PITCH_EXAMPLES = [
@@ -138,6 +185,7 @@ interface ProposalFormState {
   targetWebsite: string;
   recipientName: string;
   recipientEmail: string;
+  builderType: ProposalBuilderType;
   preset: string;
   proposalTypes: string[];
   selectedServices: string[];
@@ -190,6 +238,7 @@ function defaultLeadOfferForm(lead: BusinessLead, brandKit: BrandKitSummary | nu
   const serviceTitle = firstService || "Local Growth Proposal";
   const brandDetail = [brandKit?.description, brandKit?.uniqueValue].filter(Boolean).join(" ");
   return {
+    builderType: "visual-sales-deck",
     preset: "google-business-profile",
     proposalTypes: ["google-business-profile"],
     selectedServices: firstService ? [firstService] : [],
@@ -219,6 +268,41 @@ function firstProposalPreset(types: string[], fallback: string): string {
   return types.find((type) => PROPOSAL_PRESETS.some((preset) => preset.value === type)) || fallback || "custom";
 }
 
+function proposalBuilderLabel(value: ProposalBuilderType | string | undefined): string {
+  return PROPOSAL_BUILDER_TYPES.find((builder) => builder.value === value)?.label || "Visual sales deck";
+}
+
+function ProposalBuilderSelector({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: ProposalBuilderType;
+  onChange: (value: ProposalBuilderType) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn("grid gap-2", compact ? "sm:grid-cols-3" : "md:grid-cols-3")}>
+      {PROPOSAL_BUILDER_TYPES.map((builder) => (
+        <button
+          key={builder.value}
+          type="button"
+          onClick={() => onChange(builder.value)}
+          className={cn(
+            "rounded-lg border p-3 text-left transition-colors",
+            value === builder.value
+              ? "border-sky-400 bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200"
+              : "border-border bg-background text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <span className="block text-sm font-semibold">{builder.label}</span>
+          <span className={cn("mt-1 block leading-5", compact ? "text-[11px]" : "text-xs")}>{builder.description}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function serviceSummary(selectedServices: string[], customAdditions: string[], fallback: string): string {
   const items = [...selectedServices, ...customAdditions].map((item) => item.trim()).filter(Boolean);
   if (items.length === 0) return fallback;
@@ -227,7 +311,12 @@ function serviceSummary(selectedServices: string[], customAdditions: string[], f
   return `${items.slice(0, 2).join(", ")} + ${items.length - 2} more`;
 }
 
-function combinedServiceDetails(base: string, selectedServices: string[], customAdditions: string[], proposalTypes: string[]): string {
+function combinedServiceDetails(
+  base: string,
+  selectedServices: string[],
+  customAdditions: string[],
+  proposalTypes: string[],
+): string {
   const lines = [
     base.trim(),
     selectedServices.length ? `Selected services: ${selectedServices.join(", ")}` : "",
@@ -252,12 +341,13 @@ export default function PitchBoardPage() {
   const [leadSearchCount, setLeadSearchCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [proposalBrief, setProposalBrief] = useState(PROPOSAL_EXAMPLES[0]);
+  const [proposalBrief, setProposalBrief] = useState(PROPOSAL_EXAMPLES[0].brief);
   const [proposalForm, setProposalForm] = useState<ProposalFormState>({
     targetName: "",
     targetWebsite: "",
     recipientName: "",
     recipientEmail: "",
+    builderType: "visual-sales-deck",
     preset: "google-business-profile",
     proposalTypes: ["google-business-profile"],
     selectedServices: [],
@@ -566,6 +656,7 @@ export default function PitchBoardPage() {
               brief: `Create a polished service proposal for ${lead.name} using this confirmed offer.\n${confirmedOffer}`,
               targetName: lead.name,
               targetWebsite: lead.website || "",
+              builderType: leadOfferForm.builderType,
               preset: firstProposalPreset(leadOfferForm.proposalTypes, leadOfferForm.preset),
               proposalTypes: leadOfferForm.proposalTypes,
               servicePackages: leadOfferForm.selectedServices,
@@ -705,6 +796,19 @@ export default function PitchBoardPage() {
 
               <div className="space-y-5 p-5">
                 <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <Label>Proposal builder</Label>
+                        <p className="text-xs text-muted-foreground">Choose the structure the agent should write from.</p>
+                      </div>
+                      <Badge variant="secondary">{proposalBuilderLabel(proposalForm.builderType)}</Badge>
+                    </div>
+                    <ProposalBuilderSelector
+                      value={proposalForm.builderType}
+                      onChange={(builderType) => setProposalForm((f) => ({ ...f, builderType }))}
+                    />
+                  </div>
                   <Textarea
                     value={proposalBrief}
                     onChange={(e) => setProposalBrief(e.target.value)}
@@ -717,10 +821,18 @@ export default function PitchBoardPage() {
                       <button
                         key={index}
                         type="button"
-                        onClick={() => setProposalBrief(example)}
+                        onClick={() => {
+                          setProposalBrief(example.brief);
+                          setProposalForm((f) => ({
+                            ...f,
+                            builderType: example.builderType,
+                            preset: example.preset,
+                            proposalTypes: example.proposalTypes,
+                          }));
+                        }}
                         className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
                       >
-                        Sample {index + 1}
+                        {example.label}
                       </button>
                     ))}
                   </div>
@@ -761,6 +873,14 @@ export default function PitchBoardPage() {
                       <div className="space-y-1.5">
                         <Label>Email</Label>
                         <Input type="email" value={proposalForm.recipientEmail} onChange={(e) => setProposalForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@client.com" />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Proposal builder</Label>
+                        <ProposalBuilderSelector
+                          value={proposalForm.builderType}
+                          onChange={(builderType) => setProposalForm((f) => ({ ...f, builderType }))}
+                          compact
+                        />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <Label>Proposal types</Label>
@@ -1174,28 +1294,38 @@ export default function PitchBoardPage() {
               )}
 
               {leadAction.mode === "proposal" && (
-                <div className="space-y-1.5">
-                  <Label>Proposal types</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {PROPOSAL_PRESETS.map((preset) => (
-                      <button
-                        key={preset.value}
-                        type="button"
-                        onClick={() => setLeadOfferForm((form) => {
-                          if (!form) return form;
-                          const proposalTypes = toggleArrayValue(form.proposalTypes, preset.value, false);
-                          return { ...form, proposalTypes, preset: firstProposalPreset(proposalTypes, form.preset) };
-                        })}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                          leadOfferForm.proposalTypes.includes(preset.value)
-                            ? "border-sky-400 bg-sky-50 text-sky-700"
-                            : "border-border bg-background text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label>Proposal builder</Label>
+                    <ProposalBuilderSelector
+                      value={leadOfferForm.builderType}
+                      onChange={(builderType) => setLeadOfferForm((form) => form ? { ...form, builderType } : form)}
+                      compact
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Proposal types</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {PROPOSAL_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => setLeadOfferForm((form) => {
+                            if (!form) return form;
+                            const proposalTypes = toggleArrayValue(form.proposalTypes, preset.value, false);
+                            return { ...form, proposalTypes, preset: firstProposalPreset(proposalTypes, form.preset) };
+                          })}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                            leadOfferForm.proposalTypes.includes(preset.value)
+                              ? "border-sky-400 bg-sky-50 text-sky-700"
+                              : "border-border bg-background text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

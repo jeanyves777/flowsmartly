@@ -12,7 +12,7 @@ import type {
 } from "./proposal-deck-types";
 import type { ProposalLibraryAsset } from "./proposal-asset-library";
 import { listProposalVisualAssets } from "./proposal-asset-library";
-import type { ServiceProposalContent, ServiceProposalInput } from "./proposal-agent";
+import { DEFAULT_PROPOSAL_BUILDER_TYPE, type ProposalBuilderType, type ServiceProposalContent, type ServiceProposalInput } from "./proposal-agent";
 import { clientProofBody, clientProofHeadline } from "./proposal-proof-copy";
 
 const SLIDE_ROLES: ProposalDeckSlideRole[] = [
@@ -178,7 +178,12 @@ function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLib
     .slice(0, 1);
 }
 
+function proposalBuilderType(proposal: ServiceProposalContent): ProposalBuilderType {
+  return proposal.builderType || DEFAULT_PROPOSAL_BUILDER_TYPE;
+}
+
 function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalContent, assets: ProposalLibraryAsset[]): ProposalDeckSlide {
+  const builderType = proposalBuilderType(proposal);
   const selected = preferredAssetsForRole(role, assets, proposal.preset);
   const visuals = selected.map((asset, index) => ({
     id: asset.id,
@@ -188,45 +193,116 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     fit: asset.width && asset.height && asset.height > asset.width ? "portrait" as const : "contain" as const,
   }));
 
-  const bodyByRole: Record<ProposalDeckSlideRole, string> = {
-    cover: proposal.subtitle,
-    about: proposal.aboutBrand,
-    commitments: proposal.clientNeed,
-    benefits: proposal.executiveSummary,
-    proof: clientProofBody(proposal),
-    terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
-    closing: proposal.executiveSummary,
+  const visualDeck = {
+    bodyByRole: {
+      cover: proposal.subtitle,
+      about: proposal.aboutBrand,
+      commitments: proposal.clientNeed,
+      benefits: proposal.executiveSummary,
+      proof: clientProofBody(proposal),
+      terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
+      closing: proposal.executiveSummary,
+    },
+    bulletsByRole: {
+      cover: [],
+      about: [proposal.clientNeed].filter(Boolean),
+      commitments: proposal.commitments,
+      benefits: proposal.deliverables.map((item) => item.title || item.description),
+      proof: [
+        ...(proposal.clientProfile?.insights || []).map((item) => `${item.metric} ${item.label}`),
+        ...proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
+      ],
+      terms: proposal.terms,
+      closing: proposal.nextSteps,
+    },
+    headlineByRole: {
+      cover: proposal.title || "Business Development Proposal",
+      about: "About Us",
+      commitments: "Our Commitments",
+      benefits: `Benefits of ${proposal.serviceTitle || "the Service"}`,
+      proof: clientProofHeadline(proposal),
+      terms: "Clear Expectations",
+      closing: "Ready to get found, trusted, and chosen?",
+    },
+  } satisfies {
+    bodyByRole: Record<ProposalDeckSlideRole, string>;
+    bulletsByRole: Record<ProposalDeckSlideRole, string[]>;
+    headlineByRole: Record<ProposalDeckSlideRole, string>;
   };
 
-  const bulletsByRole: Record<ProposalDeckSlideRole, string[]> = {
-    cover: [],
-    about: [proposal.clientNeed].filter(Boolean),
-    commitments: proposal.commitments,
-    benefits: proposal.deliverables.map((item) => item.title || item.description),
-    proof: [
-      ...(proposal.clientProfile?.insights || []).map((item) => `${item.metric} ${item.label}`),
-      ...proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
-    ],
-    terms: proposal.terms,
-    closing: proposal.nextSteps,
-  };
+  const professionalServices = {
+    bodyByRole: {
+      cover: proposal.subtitle,
+      about: proposal.executiveSummary || proposal.aboutBrand,
+      commitments: proposal.clientNeed,
+      benefits: proposal.aboutBrand,
+      proof: "A clear timeline keeps review, approval, and delivery moving without surprises.",
+      terms: proposal.pricing?.note || "Fees, scope boundaries, and payment expectations are documented before work begins.",
+      closing: proposal.executiveSummary,
+    },
+    bulletsByRole: {
+      cover: [],
+      about: [proposal.aboutBrand, proposal.clientNeed].filter(Boolean),
+      commitments: [...proposal.deliverables.map((item) => item.title || item.description), ...proposal.commitments],
+      benefits: proposal.benefits,
+      proof: proposal.timeline.map((item) => `${item.label}: ${item.title}`),
+      terms: proposal.terms,
+      closing: proposal.nextSteps,
+    },
+    headlineByRole: {
+      cover: proposal.title || "Professional Services Proposal",
+      about: "Professional Overview",
+      commitments: "Scope of Work",
+      benefits: "Why Work With Us",
+      proof: "Proposed Timeline",
+      terms: "Fee Estimate and Terms",
+      closing: "Next Steps",
+    },
+  } satisfies typeof visualDeck;
 
-  const headlineByRole: Record<ProposalDeckSlideRole, string> = {
-    cover: proposal.title || "Business Development Proposal",
-    about: "About Us",
-    commitments: "Our Commitments",
-    benefits: `Benefits of ${proposal.serviceTitle || "the Service"}`,
-    proof: clientProofHeadline(proposal),
-    terms: "Clear Expectations",
-    closing: "Ready to get found, trusted, and chosen?",
-  };
+  const processFramework = {
+    bodyByRole: {
+      cover: proposal.subtitle,
+      about: proposal.executiveSummary,
+      commitments: proposal.clientNeed,
+      benefits: "The framework turns the engagement into clear phases, owners, deliverables, and measurable checkpoints.",
+      proof: "The plan addresses the gaps that typically slow execution before they become expensive delays.",
+      terms: proposal.pricing?.note || "We begin with practical quick wins, then move into the full operating framework.",
+      closing: proposal.executiveSummary,
+    },
+    bulletsByRole: {
+      cover: [],
+      about: [proposal.aboutBrand, proposal.clientNeed].filter(Boolean),
+      commitments: proposal.commitments,
+      benefits: proposal.timeline.map((item) => `${item.label}: ${item.title}`),
+      proof: proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
+      terms: [...proposal.terms, ...proposal.benefits].slice(0, 6),
+      closing: proposal.nextSteps,
+    },
+    headlineByRole: {
+      cover: proposal.title || "Implementation Framework Proposal",
+      about: "Executive Summary",
+      commitments: "Engagement Coverage",
+      benefits: "Implementation Framework",
+      proof: "Risks We Will Resolve",
+      terms: "Quick Wins and Working Terms",
+      closing: "Success Criteria and Next Steps",
+    },
+  } satisfies typeof visualDeck;
+
+  const copy =
+    builderType === "professional-services"
+      ? professionalServices
+      : builderType === "process-framework"
+        ? processFramework
+        : visualDeck;
 
   return {
     role,
-    headline: headlineByRole[role],
+    headline: copy.headlineByRole[role],
     subhead: role === "cover" ? proposal.serviceTitle : undefined,
-    body: cleanText(bodyByRole[role], 420),
-    bullets: cleanList(bulletsByRole[role], role === "terms" ? 4 : 6, 130),
+    body: cleanText(copy.bodyByRole[role], 420),
+    bullets: cleanList(copy.bulletsByRole[role], role === "terms" ? 4 : 6, 130),
     layout: ROLE_LAYOUT[role],
     visualIds: selected.map((asset) => asset.id),
     visuals,
@@ -314,6 +390,7 @@ function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[
       description: "Return all available raw proposal, request, pricing, brand, and business context for the deck.",
       input_schema: { type: "object", properties: {} },
       handler: async () => ({
+        builderType: input.proposal.builderType || input.request.builderType || DEFAULT_PROPOSAL_BUILDER_TYPE,
         request: input.request,
         proposal: input.proposal,
         brandKit: input.brandKit || input.proposal.brandSnapshot,
@@ -414,6 +491,11 @@ Return this exact shape:
 
 Rules:
 - Use all seven slide roles exactly once.
+- The proposal builder type from raw context controls the story:
+  - visual-sales-deck: sell the offer with a concise branded deck, visual proof, pricing, terms, and next steps.
+  - professional-services: structure the deck as professional overview, scope of work, proposed timeline, fee estimate, why work with us, and next steps.
+  - process-framework: structure the deck as executive summary, engagement coverage, phased framework, risks or failure points, quick wins, success criteria, and next steps.
+- Proposal types and service packages describe what is being sold; builder type describes how the proposal should be organized.
 - Choose image IDs from list_available_images only.
 - Favor reusable transparent PNG / 3D cutout assets.
 - Pick a different design treatment when the brand, industry, or offer calls for it. Do not default every proposal to the same accent template.
@@ -421,6 +503,7 @@ Rules:
 - Make the visual sections feel full. Use two-visuals for about or benefits only when the second selected image adds a clearly different idea.
 - Keep headlines and callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
 - If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
+- For professional-services or process-framework proposals, do not force Google/local-growth language unless the request is actually about local presence.
 - Keep bullets concise enough for PDF layout.
 - Use client-facing language only. Do not show internal wording such as "public profile signals" or "raw context".
 - Speak directly to the client using "you" and "your". Do not write meta phrases such as "this section", "proof points", "slide", "proposal builder", or "the client can see".

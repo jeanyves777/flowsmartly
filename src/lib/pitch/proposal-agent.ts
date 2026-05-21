@@ -10,12 +10,20 @@ export type ProposalPreset =
   | "local-seo"
   | "custom";
 
+export type ProposalBuilderType =
+  | "visual-sales-deck"
+  | "professional-services"
+  | "process-framework";
+
+export const DEFAULT_PROPOSAL_BUILDER_TYPE: ProposalBuilderType = "visual-sales-deck";
+
 export interface ServiceProposalInput {
   userId: string;
   targetName: string;
   targetWebsite?: string;
   recipientName?: string;
   recipientEmail?: string;
+  builderType?: ProposalBuilderType;
   preset: ProposalPreset;
   proposalTypes?: ProposalPreset[];
   servicePackages?: string[];
@@ -88,6 +96,7 @@ export interface ServiceProposalContent {
   subtitle: string;
   preparedFor: string;
   preparedBy: string;
+  builderType?: ProposalBuilderType;
   preset: ProposalPreset;
   serviceTitle: string;
   executiveSummary: string;
@@ -174,6 +183,64 @@ const PRESET_CONTEXT: Record<ProposalPreset, { name: string; focus: string; sect
   },
 };
 
+const BUILDER_CONTEXT: Record<ProposalBuilderType, { name: string; intent: string; sections: string[]; rules: string[] }> = {
+  "visual-sales-deck": {
+    name: "Visual sales deck",
+    intent:
+      "A concise branded PDF sales deck that uses strong visuals, short client-facing copy, proof metrics, pricing, and next steps.",
+    sections: [
+      "Cover with offer and client name",
+      "About the sender brand and client opportunity",
+      "Commitments and deliverables",
+      "Benefits and business outcomes",
+      "Relevant proof, findings, or local profile stats",
+      "Pricing, terms, and next steps",
+    ],
+    rules: [
+      "Use compact copy that fits a visual deck.",
+      "Use proof metrics only when they support the client's buying decision.",
+      "Keep the deck usually 7-9 slides.",
+    ],
+  },
+  "professional-services": {
+    name: "Professional services proposal",
+    intent:
+      "A services proposal patterned after professional tax/accounting style proposals: overview, scope, timeline, fees, credentials, and next steps.",
+    sections: [
+      "Introduction and professional overview",
+      "Scope of work by service area",
+      "Proposed timeline",
+      "Fee estimate and payment expectations",
+      "Why work with us",
+      "Next steps and contact details",
+    ],
+    rules: [
+      "Do not force local marketing proof language when the work is professional services.",
+      "Make scope boundaries, client responsibilities, timeline, and fee assumptions clear.",
+      "Use proofPoints for trust, readiness, timeline, document status, or decision criteria when marketing metrics are not relevant.",
+    ],
+  },
+  "process-framework": {
+    name: "Process/framework proposal",
+    intent:
+      "A structured implementation framework patterned after annual budget process proposals: executive summary, phases, ownership, failure points, quick wins, success criteria, and next steps.",
+    sections: [
+      "Executive summary",
+      "Our commitment",
+      "What the engagement covers",
+      "Phased framework with timing, owner, and key deliverable",
+      "Common failure points and mitigations",
+      "Quick wins and implementation approach",
+      "Success criteria and next steps",
+    ],
+    rules: [
+      "Write like an implementation partner presenting a clear operating framework.",
+      "Use timeline entries as phases with timing, owner, and deliverable language where possible.",
+      "Use customSections for failure points, quick wins, success criteria, or implementation notes when helpful.",
+    ],
+  },
+};
+
 function safeJSON<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
   try {
@@ -193,7 +260,7 @@ function cleanMetric(value: unknown): string {
     .slice(0, 18);
 }
 
-function buildTools(ctx: { userId: string; preset: ProposalPreset }): AgentTool[] {
+function buildTools(ctx: { userId: string; preset: ProposalPreset; builderType: ProposalBuilderType }): AgentTool[] {
   return [
     {
       name: "get_brand_identity",
@@ -242,10 +309,19 @@ function buildTools(ctx: { userId: string; preset: ProposalPreset }): AgentTool[
       input_schema: { type: "object", properties: {} },
       handler: async () => PRESET_CONTEXT[ctx.preset],
     },
+    {
+      name: "get_proposal_builder_pattern",
+      description:
+        "Return the selected proposal builder pattern. Use it to decide whether the proposal should read like a visual sales deck, a professional services proposal, or a process/framework proposal.",
+      input_schema: { type: "object", properties: {} },
+      handler: async () => BUILDER_CONTEXT[ctx.builderType],
+    },
   ];
 }
 
 function systemPrompt(input: ServiceProposalInput): string {
+  const builderType = input.builderType || DEFAULT_PROPOSAL_BUILDER_TYPE;
+  const builderContext = BUILDER_CONTEXT[builderType];
   const clientProfileContext = input.clientProfile
     ? `
 Client Google/local profile facts:
@@ -265,17 +341,15 @@ Your job is to generate a polished service proposal and a brand-aware art direct
 Required tool flow:
 1. Call get_brand_identity first. If configured:false, return {"error":"BRAND_NOT_CONFIGURED"}.
 2. Call get_proposal_template before writing the proposal.
+3. Call get_proposal_builder_pattern before writing the proposal.
 
-The sample proposal pattern is:
-- Cover page with service offer and brand website
-- About / vision page
-- Commitments and perks
-- Benefits of the service
-- Expected outcome / top placement value
-- Proof points or client stats
-- Terms and conditions
-- Optional promotional discount or cross-sell
-- Thank-you and contact page
+Selected proposal builder:
+- Builder type: ${builderContext.name} (${builderType})
+- Builder intent: ${builderContext.intent}
+- Builder structure: ${builderContext.sections.join(" | ")}
+- Builder rules: ${builderContext.rules.join(" | ")}
+
+The selected builder controls the proposal structure. The selected proposal types and service packages control the offer being sold.
 
 Do not mention that a template or PDF sample was used. Do not expose backend details.
 
@@ -287,6 +361,7 @@ Return ONLY valid JSON with this shape:
   "subtitle": "Short value proposition",
   "preparedFor": "Target client/entity",
   "preparedBy": "Sender brand",
+  "builderType": "${builderType}",
   "preset": "${input.preset}",
   "serviceTitle": "Service package name",
   "executiveSummary": "Tight 3-5 sentence summary.",
@@ -318,10 +393,11 @@ Return ONLY valid JSON with this shape:
 
 Rules:
 - Make the content useful for a real customer, not generic filler.
+- Follow the selected proposal builder. For professional-services proposals, write scope, timeline, fees, credentials, and next steps. For process-framework proposals, write executive summary, commitment, engagement coverage, phases, mitigations, quick wins, success criteria, and next steps. For visual-sales-deck proposals, write compact sales-deck copy with strong value and proof.
 - If price is provided, include it. If originalPrice is provided, present it as a promotional comparison.
 - Keep terms plain and fair: activation timing, client information needed, cancellation/refund expectations, reporting, and provider delays if relevant.
 - Use short sentences suitable for a PDF layout.
-- For proofPoints, use realistic marketing outcome ranges, not guaranteed results.
+- For proofPoints, use realistic evidence, decision factors, or outcome ranges, not guaranteed results.
 - For proofPoints and proof slide copy, turn facts into client-facing reasons to act: state what the finding means, why it matters, and what the offer will improve. Do not write meta copy such as "this section", "proof points", "proposal builder", or "the client can see".
 - Keep proofPoint metric values ASCII-only and short, such as "2-3x", "+40%", "4.8+", or "Top 3". Do not use star symbols, emoji, or decorative characters in metric values.
 - If Client Google/local profile facts are available and the request is about local presence, Google Business Profile, local SEO, reviews, maps, or nearby customers, cite the actual rating, review count, category, address, or status in clientNeed, proofPoints, or benefits. Do not invent Google stats when unavailable.
@@ -336,6 +412,7 @@ Proposal request:
 - Target client/entity: ${input.targetName}
 - Target website: ${input.targetWebsite || "not provided"}
 - Recipient: ${input.recipientName || "not provided"}
+- Proposal builder: ${builderContext.name}
 - Selected proposal types: ${input.proposalTypes?.length ? input.proposalTypes.join(", ") : input.preset}
 - Selected services/packages: ${input.servicePackages?.length ? input.servicePackages.join(", ") : "not provided"}
 - Custom additions: ${input.customAdditions?.length ? input.customAdditions.join("; ") : "not provided"}
@@ -355,9 +432,10 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
   iterations: number;
   toolsUsed: string[];
 }> {
+  const builderType = input.builderType || DEFAULT_PROPOSAL_BUILDER_TYPE;
   const run = await ai.runWithTools<ServiceProposalContent | { error: string }>(
     `Generate the service proposal for ${input.targetName}. Return only the requested JSON object.`,
-    buildTools({ userId: input.userId, preset: input.preset }),
+    buildTools({ userId: input.userId, preset: input.preset, builderType }),
     {
       systemPrompt: systemPrompt(input),
       model: HAIKU_MODEL,
@@ -413,6 +491,7 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
     subtitle: raw.subtitle || "A practical growth plan prepared for your team.",
     preparedFor: raw.preparedFor || input.targetName,
     preparedBy: raw.preparedBy || String(brandSnapshot.name || "FlowSmartly"),
+    builderType,
     preset: input.preset,
     serviceTitle: raw.serviceTitle || input.serviceTitle,
     executiveSummary: raw.executiveSummary || "",
