@@ -1,6 +1,7 @@
 import type { PitchContent } from "./generator";
 import type { ServiceProposalContent } from "./proposal-agent";
 import type { ProposalDeckSlide, ProposalDeckSlideRole } from "./proposal-deck-types";
+import type { jsPDF as JsPDF } from "jspdf";
 import { clientProofBody, clientProofHeadline, isInternalProofCopy } from "./proposal-proof-copy";
 import type { ResearchData } from "./researcher";
 import { computeDigitalScore, scoreHexColor } from "./scorer";
@@ -859,10 +860,484 @@ async function generateServiceProposalPDFLegacy(
   return Buffer.from(doc.output("arraybuffer"));
 }
 
+interface StructuredPdfTheme {
+  primaryHex: string;
+  secondaryHex: string;
+  accentHex: string;
+  inkHex: string;
+  primary: { r: number; g: number; b: number };
+  secondary: { r: number; g: number; b: number };
+  accent: { r: number; g: number; b: number };
+  ink: { r: number; g: number; b: number };
+  softPrimary: { r: number; g: number; b: number };
+  softSecondary: { r: number; g: number; b: number };
+  softAccent: { r: number; g: number; b: number };
+}
+
+function structuredTheme(proposal: ServiceProposalContent, brand: BrandInfo): StructuredPdfTheme {
+  const colors = proposal.design?.colorPalette || {};
+  const primaryHex = normalizeHex(colors.primary || brand.primaryColor, "#0ea5e9");
+  const secondaryHex = normalizeHex(colors.secondary || brand.secondaryColor, "#334155");
+  const accentHex = normalizeHex(colors.accent || brand.accentColor, "#f59e0b");
+  const inkHex = normalizeHex(colors.ink, "#0f172a");
+  return {
+    primaryHex,
+    secondaryHex,
+    accentHex,
+    inkHex,
+    primary: hexToRgb(primaryHex),
+    secondary: hexToRgb(secondaryHex),
+    accent: hexToRgb(accentHex),
+    ink: hexToRgb(inkHex),
+    softPrimary: mixRgb(primaryHex, 0.9),
+    softSecondary: mixRgb(secondaryHex, 0.92),
+    softAccent: mixRgb(accentHex, 0.86),
+  };
+}
+
+function moneyText(value: number | undefined, fallback = "Custom") {
+  return typeof value === "number" ? `$${value.toLocaleString()}` : fallback;
+}
+
+function cleanPdfList(items: Array<string | undefined | null>, fallback: string[] = []) {
+  return (items.length ? items : fallback).map((item) => pdfSafeText(item)).filter(Boolean);
+}
+
+function compactPdfText(value: unknown, max = 220) {
+  const text = pdfSafeText(value);
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max).trim();
+  const sentenceEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+  if (sentenceEnd > Math.floor(max * 0.45)) return cut.slice(0, sentenceEnd + 1);
+  return `${cut.replace(/\s+\S*$/, "").replace(/[,;:|-]\s*$/g, "")}.`;
+}
+
+function drawStructuredLogo(doc: JsPDF, brand: BrandInfo, theme: StructuredPdfTheme, x: number, y: number, maxW = 150, maxH = 48, light = false) {
+  if (brand.logo) {
+    try {
+      const ratio = brand.logoAspectRatio || 3;
+      const w = Math.min(maxW, maxH * ratio);
+      const h = Math.min(maxH, w / ratio);
+      doc.addImage(brand.logo, imageFormat(brand.logo), x, y, w, h);
+      return;
+    } catch {
+      // Fall through to text logo.
+    }
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(light ? 255 : theme.ink.r, light ? 255 : theme.ink.g, light ? 255 : theme.ink.b);
+  doc.text(pdfSafeText(brand.name), x, y + 28);
+}
+
+function drawStructuredFooter(doc: JsPDF, brand: BrandInfo, theme: StructuredPdfTheme, pageW: number, pageH: number, margin: number, page: number) {
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.8);
+  doc.line(margin, pageH - 42, pageW - margin, pageH - 42);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(92, 104, 124);
+  doc.text(pdfSafeText(brand.name), margin, pageH - 23);
+  doc.text(`Page ${page}`, pageW - margin, pageH - 23, { align: "right" });
+  doc.setFillColor(theme.primary.r, theme.primary.g, theme.primary.b);
+  doc.rect(margin, pageH - 17, 44, 3, "F");
+}
+
+async function generateProfessionalServicesProposalPDF(
+  proposal: ServiceProposalContent,
+  brand: BrandInfo,
+): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+  const pageW = 612;
+  const pageH = 792;
+  const margin = 54;
+  const theme = structuredTheme(proposal, brand);
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  let page = 1;
+  let y = margin;
+
+  const setText = (color = theme.ink) => doc.setTextColor(color.r, color.g, color.b);
+  const addPage = () => {
+    drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+    doc.addPage();
+    page += 1;
+    y = margin;
+  };
+  const ensure = (height: number) => {
+    if (y + height > pageH - 74) addPage();
+  };
+  const heading = (text: string) => {
+    ensure(54);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(21);
+    setText(theme.ink);
+    doc.text(pdfSafeText(text), margin, y);
+    doc.setFillColor(theme.primary.r, theme.primary.g, theme.primary.b);
+    doc.rect(margin, y + 11, 58, 4, "F");
+    y += 36;
+  };
+  const paragraph = (text: unknown, size = 10.8, width = pageW - margin * 2) => {
+    const source = pdfSafeText(text);
+    if (!source) return;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(46, 59, 78);
+    const lines = doc.splitTextToSize(source, width);
+    ensure(lines.length * size * 1.45 + 12);
+    doc.text(lines, margin, y, { lineHeightFactor: 1.35 });
+    y += lines.length * size * 1.45 + 10;
+  };
+  const bullets = (items: string[], limit = 7) => {
+    cleanPdfList(items).slice(0, limit).forEach((item) => {
+      const lines = doc.splitTextToSize(compactPdfText(item, 155), pageW - margin * 2 - 22);
+      ensure(lines.length * 13 + 12);
+      doc.setFillColor(theme.primary.r, theme.primary.g, theme.primary.b);
+      doc.circle(margin + 4, y - 3, 3, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(46, 59, 78);
+      doc.text(lines, margin + 18, y, { lineHeightFactor: 1.24 });
+      y += lines.length * 13 + 8;
+    });
+  };
+  const twoColCards = (items: Array<{ title?: string; description?: string }>, fallback: string[]) => {
+    const cards = items.length
+      ? items.map((item) => ({ title: pdfSafeText(item.title), description: pdfSafeText(item.description) }))
+      : fallback.map((item) => ({ title: item, description: "" }));
+    const gap = 14;
+    const w = (pageW - margin * 2 - gap) / 2;
+    cards.slice(0, 8).forEach((item, index) => {
+      const col = index % 2;
+      if (col === 0) ensure(118);
+      const x = margin + col * (w + gap);
+      const cardY = y;
+      doc.setFillColor(index % 2 === 0 ? theme.softPrimary.r : theme.softSecondary.r, index % 2 === 0 ? theme.softPrimary.g : theme.softSecondary.g, index % 2 === 0 ? theme.softPrimary.b : theme.softSecondary.b);
+      doc.setDrawColor(225, 231, 240);
+      doc.roundedRect(x, cardY, w, 96, 8, 8, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      setText(theme.ink);
+      doc.text(doc.splitTextToSize(item.title || "Service scope", w - 28).slice(0, 2), x + 14, cardY + 24, { lineHeightFactor: 1.1 });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.8);
+      doc.setTextColor(74, 85, 104);
+      doc.text(doc.splitTextToSize(compactPdfText(item.description, 120), w - 28).slice(0, 4), x + 14, cardY + 53, { lineHeightFactor: 1.18 });
+      if (col === 1 || index === cards.slice(0, 8).length - 1) y += 112;
+    });
+  };
+  const timelineTable = () => {
+    const rows = (proposal.timeline || []).slice(0, 6);
+    if (!rows.length) return;
+    ensure(62 + rows.length * 58);
+    const widths = [90, 145, pageW - margin * 2 - 235];
+    doc.setFillColor(theme.secondary.r, theme.secondary.g, theme.secondary.b);
+    doc.roundedRect(margin, y, pageW - margin * 2, 34, 8, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    ["Timing", "Focus", "Deliverable"].forEach((label, index) => {
+      doc.text(label, margin + widths.slice(0, index).reduce((sum, width) => sum + width, 0) + 12, y + 22);
+    });
+    y += 38;
+    rows.forEach((row, index) => {
+      const rowH = 56;
+      doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 250, index % 2 === 0 ? 255 : 252);
+      doc.rect(margin, y, pageW - margin * 2, rowH, "F");
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(margin, y, pageW - margin * 2, rowH, "S");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      setText(theme.primary);
+      doc.text(doc.splitTextToSize(pdfSafeText(row.label), widths[0] - 18).slice(0, 2), margin + 10, y + 22);
+      doc.setTextColor(theme.ink.r, theme.ink.g, theme.ink.b);
+      doc.text(doc.splitTextToSize(pdfSafeText(row.title), widths[1] - 18).slice(0, 2), margin + widths[0] + 10, y + 22);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.7);
+      doc.setTextColor(74, 85, 104);
+      doc.text(doc.splitTextToSize(compactPdfText(row.description, 155), widths[2] - 18).slice(0, 3), margin + widths[0] + widths[1] + 10, y + 18, { lineHeightFactor: 1.15 });
+      y += rowH;
+    });
+    y += 16;
+  };
+
+  // Cover
+  doc.setFillColor(theme.primary.r, theme.primary.g, theme.primary.b);
+  doc.rect(0, 0, pageW, 112, "F");
+  doc.setFillColor(theme.secondary.r, theme.secondary.g, theme.secondary.b);
+  doc.rect(0, 112, pageW, 12, "F");
+  drawStructuredLogo(doc, brand, theme, margin, 34, 150, 48, true);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(pageW - 228, 36, 174, 34, 17, 17, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  setText(theme.primary);
+  doc.text("PROFESSIONAL SERVICES", pageW - 141, 58, { align: "center" });
+  y = 206;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(34);
+  setText(theme.ink);
+  doc.text(doc.splitTextToSize(pdfSafeText(proposal.title || "Professional Services Proposal"), pageW - margin * 2), margin, y, { lineHeightFactor: 1.02 });
+  y += 88;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(14);
+  doc.setTextColor(74, 85, 104);
+  doc.text(doc.splitTextToSize(pdfSafeText(proposal.subtitle || proposal.serviceTitle), pageW - margin * 2), margin, y, { lineHeightFactor: 1.24 });
+  y += 92;
+  doc.setFillColor(theme.softPrimary.r, theme.softPrimary.g, theme.softPrimary.b);
+  doc.roundedRect(margin, y, pageW - margin * 2, 142, 12, 12, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  setText(theme.ink);
+  doc.text("Prepared for", margin + 22, y + 36);
+  doc.text("Prepared by", margin + 22, y + 78);
+  doc.text("Date", margin + 22, y + 120);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(46, 59, 78);
+  doc.text(pdfSafeText(proposal.preparedFor), margin + 136, y + 36);
+  doc.text(pdfSafeText(proposal.preparedBy || brand.name), margin + 136, y + 78);
+  doc.text(today, margin + 136, y + 120);
+  drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+
+  addPage();
+  heading("Introduction & Professional Overview");
+  paragraph(proposal.executiveSummary, 11.2);
+  paragraph(proposal.aboutBrand, 10.5);
+  heading("Client Need");
+  paragraph(proposal.clientNeed, 10.5);
+
+  heading("Scope of Work");
+  twoColCards(proposal.deliverables || [], proposal.commitments || []);
+  heading("Our Commitment");
+  bullets(proposal.commitments, 6);
+
+  addPage();
+  heading("Proposed Timeline");
+  timelineTable();
+  heading("Fee Estimate");
+  const pricingNote = [
+    `${proposal.pricing?.name || proposal.serviceTitle}: ${moneyText(proposal.pricing?.amount)}${proposal.pricing?.interval ? ` / ${proposal.pricing.interval}` : ""}`,
+    proposal.pricing?.originalAmount ? `Original estimate: ${moneyText(proposal.pricing.originalAmount)}` : "",
+    proposal.pricing?.note || "",
+  ].filter(Boolean).join(". ");
+  paragraph(pricingNote, 10.8);
+  heading("Terms");
+  bullets(proposal.terms, 7);
+
+  heading(`Why Work With ${proposal.preparedBy || brand.name}`);
+  bullets(proposal.benefits, 7);
+  heading("Next Steps");
+  bullets(proposal.nextSteps, 5);
+  heading("Submitted By");
+  paragraph([proposal.contact?.name || proposal.preparedBy || brand.name, proposal.contact?.email, proposal.contact?.phone, proposal.contact?.website].filter(Boolean).join(" | "), 10.5);
+
+  drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
+async function generateProcessFrameworkProposalPDF(
+  proposal: ServiceProposalContent,
+  brand: BrandInfo,
+): Promise<Buffer> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+  const pageW = 612;
+  const pageH = 792;
+  const margin = 50;
+  const theme = structuredTheme(proposal, brand);
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  let page = 1;
+  let y = margin;
+
+  const addPage = () => {
+    drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+    doc.addPage();
+    page += 1;
+    y = margin + 6;
+  };
+  const ensure = (height: number) => {
+    if (y + height > pageH - 78) addPage();
+  };
+  const section = (label: string, title: string) => {
+    ensure(74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(theme.primary.r, theme.primary.g, theme.primary.b);
+    doc.text(pdfSafeText(label).toUpperCase(), margin, y);
+    y += 20;
+    doc.setFontSize(23);
+    doc.setTextColor(theme.ink.r, theme.ink.g, theme.ink.b);
+    doc.text(doc.splitTextToSize(pdfSafeText(title), pageW - margin * 2), margin, y, { lineHeightFactor: 1.05 });
+    y += 42;
+  };
+  const paragraph = (text: unknown, size = 10.5, width = pageW - margin * 2) => {
+    const source = pdfSafeText(text);
+    if (!source) return;
+    const lines = doc.splitTextToSize(source, width);
+    ensure(lines.length * size * 1.45 + 12);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(48, 61, 80);
+    doc.text(lines, margin, y, { lineHeightFactor: 1.34 });
+    y += lines.length * size * 1.45 + 10;
+  };
+  const bulletGrid = (items: string[], limit = 8) => {
+    const data = cleanPdfList(items).slice(0, limit);
+    const gap = 12;
+    const w = (pageW - margin * 2 - gap) / 2;
+    data.forEach((item, index) => {
+      const col = index % 2;
+      if (col === 0) ensure(76);
+      const x = margin + col * (w + gap);
+      const cardY = y;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(222, 229, 239);
+      doc.roundedRect(x, cardY, w, 62, 8, 8, "FD");
+      doc.setFillColor(theme.accent.r, theme.accent.g, theme.accent.b);
+      doc.circle(x + 16, cardY + 22, 4, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.8);
+      doc.setTextColor(48, 61, 80);
+      doc.text(doc.splitTextToSize(compactPdfText(item, 105), w - 42).slice(0, 3), x + 30, cardY + 20, { lineHeightFactor: 1.18 });
+      if (col === 1 || index === data.length - 1) y += 76;
+    });
+  };
+  const phaseFramework = () => {
+    const phases = (proposal.timeline || []).slice(0, 6);
+    if (!phases.length) return;
+    ensure(52 + phases.length * 66);
+    doc.setFillColor(theme.ink.r, theme.ink.g, theme.ink.b);
+    doc.roundedRect(margin, y, pageW - margin * 2, 36, 10, 10, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Phase", margin + 12, y + 23);
+    doc.text("Timing", margin + 98, y + 23);
+    doc.text("Owner / Focus", margin + 198, y + 23);
+    doc.text("Key Deliverable", margin + 348, y + 23);
+    y += 42;
+    phases.forEach((phase, index) => {
+      const rowH = 64;
+      const fill = index % 2 === 0 ? theme.softPrimary : { r: 255, g: 255, b: 255 };
+      doc.setFillColor(fill.r, fill.g, fill.b);
+      doc.setDrawColor(222, 229, 239);
+      doc.roundedRect(margin, y, pageW - margin * 2, rowH, 8, 8, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(theme.primary.r, theme.primary.g, theme.primary.b);
+      doc.text(String(index + 1).padStart(2, "0"), margin + 20, y + 38);
+      doc.setFontSize(8.7);
+      doc.text(doc.splitTextToSize(pdfSafeText(phase.label), 78).slice(0, 2), margin + 98, y + 24);
+      doc.setTextColor(theme.ink.r, theme.ink.g, theme.ink.b);
+      doc.text(doc.splitTextToSize(pdfSafeText(phase.title), 130).slice(0, 2), margin + 198, y + 24);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.2);
+      doc.setTextColor(68, 82, 103);
+      doc.text(doc.splitTextToSize(compactPdfText(phase.description, 145), 190).slice(0, 3), margin + 348, y + 20, { lineHeightFactor: 1.15 });
+      y += rowH + 8;
+    });
+  };
+  const customSectionByWords = (words: RegExp) =>
+    (proposal.customSections || []).find((section) => words.test(`${section.title} ${section.body}`));
+
+  // Cover
+  doc.setFillColor(theme.ink.r, theme.ink.g, theme.ink.b);
+  doc.rect(0, 0, 178, pageH, "F");
+  doc.setFillColor(theme.primary.r, theme.primary.g, theme.primary.b);
+  doc.rect(178, 0, pageW - 178, 18, "F");
+  drawStructuredLogo(doc, brand, theme, 34, 46, 110, 42, true);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text("FRAMEWORK", 34, 150);
+  doc.text("PROPOSAL", 34, 168);
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(2);
+  doc.line(34, 192, 130, 192);
+  doc.setFontSize(8.8);
+  doc.setFont("helvetica", "normal");
+  doc.text(doc.splitTextToSize(`Prepared for ${pdfSafeText(proposal.preparedFor)}`, 112), 34, 238, { lineHeightFactor: 1.22 });
+  doc.text(today, 34, 318);
+  y = 126;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(32);
+  doc.setTextColor(theme.ink.r, theme.ink.g, theme.ink.b);
+  doc.text(doc.splitTextToSize(pdfSafeText(proposal.title || "Design & Implementation Framework"), 330), 220, y, { lineHeightFactor: 1.03 });
+  y += 112;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
+  doc.setTextColor(68, 82, 103);
+  doc.text(doc.splitTextToSize(pdfSafeText(proposal.subtitle || proposal.serviceTitle), 330), 220, y, { lineHeightFactor: 1.24 });
+  y += 112;
+  doc.setFillColor(theme.softAccent.r, theme.softAccent.g, theme.softAccent.b);
+  doc.roundedRect(220, y, 320, 118, 12, 12, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.setTextColor(theme.ink.r, theme.ink.g, theme.ink.b);
+  doc.text("Prepared by", 244, y + 38);
+  doc.text("Engagement", 244, y + 78);
+  doc.setFont("helvetica", "normal");
+  doc.text(pdfSafeText(proposal.preparedBy || brand.name), 340, y + 38);
+  doc.text(pdfSafeText(proposal.serviceTitle), 340, y + 78);
+  drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+
+  addPage();
+  section("01", "Executive Summary");
+  paragraph(proposal.executiveSummary, 11);
+  section("02", "Our Commitment");
+  bulletGrid(proposal.commitments, 6);
+  section("03", "What This Engagement Covers");
+  bulletGrid((proposal.deliverables || []).map((item) => `${item.title}: ${item.description}`), 6);
+
+  addPage();
+  section("04", "Phased Framework");
+  phaseFramework();
+  section("05", "Why Phasing Matters");
+  paragraph(proposal.clientNeed || "The work is sequenced so the team can align on priorities, reduce avoidable rework, and keep each decision tied to a clear deliverable.", 10.5);
+
+  const failureSection = customSectionByWords(/failure|risk|mitigation/i);
+  const quickWinsSection = customSectionByWords(/quick|implementation/i);
+  const successSection = customSectionByWords(/success|criteria|looks like/i);
+  section("06", "Common Failure Points & Mitigation");
+  if (failureSection) {
+    paragraph(failureSection.body, 10);
+    bulletGrid(failureSection.bullets, 6);
+  } else {
+    bulletGrid(proposal.proofPoints.map((point) => `${point.label}: ${point.note || point.metric}`), 6);
+  }
+  section("07", "Quick Wins & Implementation Approach");
+  if (quickWinsSection) {
+    paragraph(quickWinsSection.body, 10);
+    bulletGrid(quickWinsSection.bullets, 6);
+  } else {
+    bulletGrid(proposal.benefits, 6);
+  }
+  section("08", "Success Looks Like This");
+  if (successSection) {
+    paragraph(successSection.body, 10);
+    bulletGrid(successSection.bullets, 5);
+  } else {
+    bulletGrid(proposal.nextSteps, 5);
+  }
+  section("09", "Next Steps");
+  bulletGrid(proposal.nextSteps, 5);
+  paragraph([proposal.contact?.email, proposal.contact?.phone, proposal.contact?.website].filter(Boolean).join(" | "), 9.5);
+
+  drawStructuredFooter(doc, brand, theme, pageW, pageH, margin, page);
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
 export async function generateServiceProposalPDF(
   proposal: ServiceProposalContent,
   brand: BrandInfo
 ): Promise<Buffer> {
+  if (proposal.builderType === "professional-services") {
+    return generateProfessionalServicesProposalPDF(proposal, brand);
+  }
+  if (proposal.builderType === "process-framework") {
+    return generateProcessFrameworkProposalPDF(proposal, brand);
+  }
+
   const { jsPDF } = await import("jspdf");
 
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: [1440, 810] });

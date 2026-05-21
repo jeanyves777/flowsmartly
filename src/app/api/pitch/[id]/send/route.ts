@@ -13,6 +13,33 @@ function isServiceProposal(content: PitchContent | ServiceProposalContent): cont
   return (content as ServiceProposalContent).documentType === "service_proposal";
 }
 
+const SERVICE_PROPOSAL_BUILDER_TYPES = new Set([
+  "visual-sales-deck",
+  "professional-services",
+  "process-framework",
+] as const);
+
+function cleanProposalBuilderType(value: unknown): ServiceProposalContent["builderType"] | undefined {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (SERVICE_PROPOSAL_BUILDER_TYPES.has(raw as NonNullable<ServiceProposalContent["builderType"]>)) {
+    return raw as NonNullable<ServiceProposalContent["builderType"]>;
+  }
+  return undefined;
+}
+
+function restoreProposalBuilderType(
+  proposal: ServiceProposalContent,
+  research: ResearchData,
+): ServiceProposalContent {
+  const builderType =
+    cleanProposalBuilderType(proposal.builderType)
+    || cleanProposalBuilderType((research as { builderType?: unknown }).builderType);
+
+  return builderType && builderType !== proposal.builderType
+    ? { ...proposal, builderType }
+    : proposal;
+}
+
 function isManagedLogoReference(src: string) {
   if (!src) return false;
   if (src.includes("/api/image-proxy?url=")) return true;
@@ -179,7 +206,7 @@ export async function POST(
     let proposalContent: ServiceProposalContent | null = null;
     let emailPitchContent: PitchContent;
     if (isServiceProposal(pitchContent)) {
-      proposalContent = pitchContent;
+      proposalContent = restoreProposalBuilderType(pitchContent, research);
       emailPitchContent = proposalToPitchEmail(proposalContent);
     } else {
       emailPitchContent = pitchContent;
