@@ -156,23 +156,28 @@ export async function POST(request: NextRequest, { params }: Params) {
     select: { platform: true, platformUsername: true },
   });
 
-  const contactBits: string[] = [];
+  // Build a prioritized contact list and CAP at 3 items so the footer stays
+  // clean. Order: website > email > phone > one social handle (the first
+  // active one). The user explicitly limited this to 3 — overflow looks
+  // cramped and the AI tries to fabricate when given too many slots.
+  const allBits: string[] = [];
   if (brandKit?.website)
-    contactBits.push(
+    allBits.push(
       `website ${brandKit.website.replace(/^https?:\/\//, "").replace(/^www\./, "")}`,
     );
-  if (brandKit?.email) contactBits.push(`email ${brandKit.email}`);
-  if (brandKit?.phone) contactBits.push(`phone ${brandKit.phone}`);
+  if (brandKit?.email) allBits.push(`email ${brandKit.email}`);
+  if (brandKit?.phone) allBits.push(`phone ${brandKit.phone}`);
   for (const sa of socialAccounts) {
     const handle = sa.platformUsername!.startsWith("@")
       ? sa.platformUsername!
       : `@${sa.platformUsername}`;
-    contactBits.push(`${sa.platform} ${handle}`);
+    allBits.push(`${sa.platform} ${handle}`);
   }
+  const contactBits = allBits.slice(0, 3);
 
   const contactLine = contactBits.length
-    ? `Contact + social details to RENDER in a DESIGNED FOOTER (not as a plain text line) — each one as its own styled pill, icon-badge, or chip in brand color with a recognisable platform/contact icon next to it (globe icon for website, envelope for email, phone receiver for phone, camera-aperture for instagram, F for facebook, X for twitter, in for linkedin, TT for tiktok, play-button for youtube, P for pinterest, @ for threads). Items to include: ${contactBits.join("; ")}. The footer band should use brand-primary or brand-secondary color as background with the pills sitting on top in white or contrasting color. NEVER render this as a comma-separated text line — make it look like a proper social-media post footer with visual hierarchy and platform icons.`
-    : "";
+    ? `Contact details to render in a DESIGNED footer band — each as its own styled pill / icon-badge / chip in brand color with a recognisable platform icon next to it (globe for website, envelope for email, phone receiver for phone, camera-aperture for instagram, F for facebook, X for twitter, in for linkedin, TT for tiktok, play-button for youtube, P for pinterest, @ for threads). Items to render — EXACTLY THESE ${contactBits.length}, no more, no fewer: ${contactBits.join("; ")}. The footer band uses brand-primary or brand-secondary color as background with the pills sitting on top in white or contrasting color. CRITICAL: do NOT invent, fabricate, hallucinate, or add ANY other phone number, email, URL, social handle, address, or contact field that I did not list above. If a field is missing from my list, OMIT it. Render ONLY the ${contactBits.length} items above, exactly as I gave them, character-for-character.`
+    : "Do NOT render any contact info / contact footer / contact pills. The brand has no contact info to display — leave the bottom area for decorative brand-color accents only. Do NOT fabricate fake phone numbers, emails, URLs, or social handles.";
 
   const brandLine = brandKit
     ? `Brand: ${brandKit.name}${brandKit.description ? ` (${brandKit.description})` : ""}. This design is FOR and ON BEHALF OF ${brandKit.name} only. The voice / signature on the design is "${brandKit.name}", "${brandKit.name} team", or simply the brand name — NOT any third-party platform, software, tool, marketing app, SaaS, or service that may have generated this design. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the text. Speak as ${brandKit.name} to ${brandKit.name}'s customers.`
@@ -223,11 +228,13 @@ export async function POST(request: NextRequest, { params }: Params) {
     `Tone: ${automation.aiTone || "friendly"}.`,
     // Canvas rule — the image IS the post, no surrounding frame.
     "Canvas rule: the image fills the entire 1024×1024 frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.",
-    "Render the headline / message as legible on-brand typography integrated into the design (header strap, callout, or hero text). Render the contact info in a clean footer band, pill, or strip using the brand colors. Use the brand colors purposefully as accents, ribbons, separators, or backgrounds — not just thrown in. The result should look like a piece of work from a brand designer, not a plain photo.",
-    // Safe corner for the post-generation logo composite — a wide top-left
-    // STRIP so the user's full wordmark logo fits cleanly. Phrased as a
-    // generic design constraint, not a "logo area".
-    "Design constraint: leave a HORIZONTAL STRIP in the TOP-LEFT of the image visually quiet — specifically a region roughly 30% of the image width and 16% of the image height, starting at the very top-left corner. That strip should be either solid brand-color background, soft gradient, photo blur, or other low-detail surface. Absolutely no text, headline, graphic element, decoration, or important subject in that specific top-left strip. The rest of the design has full creative freedom and should fill the remaining canvas richly.",
+    // Copy length — keep it social-post-tight, not a blog post.
+    "Copy length: this is a SOCIAL MEDIA post, NOT a blog post. Total visible text on the design must be SHORT and PRECISE — one headline (3-7 words max) PLUS at most one short sub-line (max 12 words). NO paragraphs. NO multi-sentence essays. NO body-copy blocks. If you write more than 2 short lines of text on the image, you have failed this brief.",
+    "Render the headline as legible on-brand typography (a hero header). Render the contact pills in a footer band using brand colors. Use brand colors purposefully as accents, ribbons, separators, or backgrounds. The result should look like the work of a brand designer.",
+    // Safe corner for the logo composite — make it explicit and hard to ignore.
+    "Logo-overlay reservation (CRITICAL): a brand logo will be composited on top of this image at the TOP-LEFT corner, taking up roughly the top-left 30% of the width × 18% of the height. You MUST keep that specific top-left region visually quiet — solid brand color, soft gradient, photo blur, or low-detail surface. The HEADLINE and any other text MUST NOT extend into that top-left region. If your headline is left-aligned, start it at least 32% across from the left edge — never from the very left. Do NOT draw a placeholder rectangle / blank box / outlined card in that area — leave it as part of the natural design background.",
+    // Anti-fabrication rule for dates / years / facts.
+    "Anti-fabrication: only render text I have explicitly given you (headline, brand name, contact items above, year context). Do NOT invent slogans that reference past years, future years, phone numbers, addresses, percentages, prices, statistics, customer counts, founding dates, or any factual claim about the brand that I did not provide. If you reference a year, use ONLY the occurrence year I specified — never any other year.",
     "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
   ]
     .filter(Boolean)
