@@ -64,6 +64,28 @@ function clipText(value: string, max: number): string {
  *   - A title strap rendered near the top in a brand-accent ribbon, falls back
  *     to skipped when no postTitle is provided
  */
+// Returns SVG dimensions for the white logo card on the bottom-left so the
+// real logo can be composited directly inside it after the SVG layer.
+interface FooterLayout {
+  footerH: number;
+  footerY: number;
+  logoCardX: number;
+  logoCardY: number;
+  logoCardW: number;
+  logoCardH: number;
+}
+
+function computeFooterLayout(width: number, height: number): FooterLayout {
+  const footerH = Math.round(height * 0.16);
+  const footerY = height - footerH;
+  const logoCardW = Math.round(width * 0.24);
+  const logoCardH = footerH + Math.round(height * 0.03);
+  const logoCardX = Math.round(width * 0.02);
+  // Card sits straddling the top of the footer band by ~3% of height.
+  const logoCardY = footerY - Math.round(height * 0.03);
+  return { footerH, footerY, logoCardX, logoCardY, logoCardW, logoCardH };
+}
+
 function buildFooterBarSvg(params: {
   width: number;
   height: number;
@@ -72,71 +94,77 @@ function buildFooterBarSvg(params: {
   website: string | null;
   email: string | null;
   postTitle: string | null;
+  layout: FooterLayout;
 }): string {
-  const { width, height, colors, brandName, website, email, postTitle } = params;
-  const footerH = Math.round(height * 0.16);
-  const footerY = height - footerH;
-  const logoCardW = Math.round(width * 0.26);
-  const logoCardH = footerH + Math.round(height * 0.04);
-  const logoCardY = height - logoCardH + Math.round(footerH * 0.1);
+  const { width, height, colors, brandName, website, postTitle, layout } = params;
+  const { footerH, footerY, logoCardX, logoCardY, logoCardW, logoCardH } = layout;
 
-  // Header ribbon for the title (only when title present)
+  // Title strap — short, conservative width so it never clips.
   const titleSvg = postTitle
     ? (() => {
-        const txt = clipText(postTitle, 56);
-        const ribbonH = Math.round(height * 0.13);
-        const ribbonY = Math.round(height * 0.04);
+        const txt = clipText(postTitle, 28);
+        const fontPx = Math.round(height * 0.04);
+        // Approximate width: 0.6em per char + padding, capped to 78% of width
+        const approxW = Math.min(
+          Math.round(width * 0.78),
+          Math.round(txt.length * fontPx * 0.6 + 64),
+        );
+        const ribbonH = Math.round(fontPx * 1.7);
+        const ribbonX = Math.round(width * 0.5 - approxW / 2);
+        const ribbonY = Math.round(height * 0.05);
         return `
           <g>
-            <rect x="${Math.round(width * 0.55)}" y="${ribbonY}" rx="${ribbonH / 2}" ry="${ribbonH / 2}" width="${Math.round(width * 0.4)}" height="${ribbonH}" fill="${colors.secondary}" opacity="0.94"/>
-            <text x="${Math.round(width * 0.75)}" y="${ribbonY + ribbonH * 0.66}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.round(ribbonH * 0.4)}" font-weight="700" fill="#ffffff">${escapeXml(txt)}</text>
+            <rect x="${ribbonX}" y="${ribbonY}" rx="${ribbonH / 2}" ry="${ribbonH / 2}" width="${approxW}" height="${ribbonH}" fill="${colors.secondary}" opacity="0.95"/>
+            <text x="${ribbonX + approxW / 2}" y="${ribbonY + ribbonH * 0.68}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${fontPx}" font-weight="700" fill="${colors.primary}">${escapeXml(txt)}</text>
           </g>
         `;
       })()
     : "";
 
-  const websiteText = website ? clipText(website.replace(/^https?:\/\//, ""), 32) : null;
-  const emailText = email ? clipText(email, 32) : null;
-  const handleSvg: string[] = [];
-  let handleX = Math.round(width * 0.42);
-  const handleY = footerY + Math.round(footerH * 0.32);
-  const handleH = Math.round(footerH * 0.4);
-  if (websiteText) {
-    const pillW = Math.max(140, websiteText.length * Math.round(handleH * 0.42) + 40);
-    handleSvg.push(`
-      <g>
-        <rect x="${handleX}" y="${handleY}" rx="${handleH / 2}" ry="${handleH / 2}" width="${pillW}" height="${handleH}" fill="#ffffff" opacity="0.96"/>
-        <text x="${handleX + pillW / 2}" y="${handleY + handleH * 0.66}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.round(handleH * 0.42)}" font-weight="600" fill="${colors.primary}">🌐 ${escapeXml(websiteText)}</text>
-      </g>
-    `);
-    handleX += pillW + 12;
-  }
-  if (emailText) {
-    const pillW = Math.max(140, emailText.length * Math.round(handleH * 0.42) + 40);
-    handleSvg.push(`
-      <g>
-        <rect x="${handleX}" y="${handleY}" rx="${handleH / 2}" ry="${handleH / 2}" width="${pillW}" height="${handleH}" fill="#ffffff" opacity="0.96"/>
-        <text x="${handleX + pillW / 2}" y="${handleY + handleH * 0.66}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.round(handleH * 0.42)}" font-weight="500" fill="${colors.primary}">✉ ${escapeXml(emailText)}</text>
-      </g>
-    `);
-  }
+  const websiteText = website
+    ? clipText(website.replace(/^https?:\/\//, "").replace(/^www\./, ""), 36)
+    : null;
 
-  const brandText = clipText(brandName, 28);
+  // ONE contact pill (website) on the right of the footer. Email is fine but
+  // keeps the footer clean — caller can request additional pills later.
+  const handleY = footerY + Math.round(footerH * 0.3);
+  const handleH = Math.round(footerH * 0.45);
+  const pillSvg = websiteText
+    ? (() => {
+        const fontPx = Math.round(handleH * 0.5);
+        const approxW = Math.min(
+          Math.round(width * 0.5),
+          Math.round(websiteText.length * fontPx * 0.55 + 64),
+        );
+        const pillX = width - approxW - Math.round(width * 0.02);
+        return `
+          <g>
+            <rect x="${pillX}" y="${handleY}" rx="${handleH / 2}" ry="${handleH / 2}" width="${approxW}" height="${handleH}" fill="#ffffff" opacity="0.96"/>
+            <text x="${pillX + approxW / 2}" y="${handleY + handleH * 0.68}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${fontPx}" font-weight="600" fill="${colors.primary}">${escapeXml(websiteText)}</text>
+          </g>
+        `;
+      })()
+    : "";
 
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <!-- Optional title ribbon -->
-      ${titleSvg}
-      <!-- Footer bar -->
-      <rect x="0" y="${footerY}" width="${width}" height="${footerH}" fill="${colors.primary}"/>
-      <!-- Logo card (white) -->
-      <rect x="${Math.round(width * 0.02)}" y="${logoCardY}" rx="${Math.round(footerH * 0.15)}" ry="${Math.round(footerH * 0.15)}" width="${logoCardW}" height="${logoCardH}" fill="#ffffff"/>
-      <!-- Brand name text below the logo card (fallback in case logo composite fails) -->
-      <text x="${Math.round(width * 0.02) + logoCardW / 2}" y="${logoCardY + logoCardH - Math.round(footerH * 0.18)}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${Math.round(footerH * 0.22)}" font-weight="600" fill="${colors.primary}" opacity="0">${escapeXml(brandText)}</text>
-      <!-- Contact pills on the right of the footer -->
-      ${handleSvg.join("\n")}
-    </svg>
-  `;
+  // Subtle brand name above the website pill if present, else as a fallback
+  // when no website is set so the footer is never empty.
+  const brandText = clipText(brandName, 36);
+  const brandNameSvg = !websiteText
+    ? (() => {
+        const fontPx = Math.round(handleH * 0.55);
+        return `
+          <text x="${width - Math.round(width * 0.03)}" y="${footerY + footerH * 0.62}" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="${fontPx}" font-weight="600" fill="#ffffff">${escapeXml(brandText)}</text>
+        `;
+      })()
+    : "";
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    ${titleSvg}
+    <rect x="0" y="${footerY}" width="${width}" height="${footerH}" fill="${colors.primary}"/>
+    <rect x="${logoCardX}" y="${logoCardY}" rx="${Math.round(footerH * 0.18)}" ry="${Math.round(footerH * 0.18)}" width="${logoCardW}" height="${logoCardH}" fill="#ffffff"/>
+    ${pillSvg}
+    ${brandNameSvg}
+  </svg>`;
 }
 
 export async function compositeBrandedTemplate(
@@ -163,6 +191,7 @@ export async function compositeBrandedTemplate(
   const width = meta.width || 1024;
   const height = meta.height || 1024;
   const colors = parseColors(brandKit.colors);
+  const layout = computeFooterLayout(width, height);
 
   const svg = buildFooterBarSvg({
     width,
@@ -172,6 +201,7 @@ export async function compositeBrandedTemplate(
     website: brandKit.website,
     email: brandKit.email,
     postTitle: postTitle ?? null,
+    layout,
   });
 
   // Layer the SVG over the photo first.
@@ -180,33 +210,32 @@ export async function compositeBrandedTemplate(
     .png()
     .toBuffer();
 
-  // Then overlay the REAL logo inside the white card on the bottom-left.
-  // We use the existing compositor and a placement that targets the card area.
+  // Logo lands inside the white card on the bottom-left of the footer.
+  // The base compositor's placement.x/y are 0–1 fractions of image dims
+  // (the TOP-LEFT corner of the logo). sizePercent is clamped to 8–28 of
+  // image width.
   const logoSource = brandKit.iconLogo || brandKit.logo;
   if (!logoSource) return withFooter;
 
   try {
-    const footerH = Math.round(height * 0.16);
-    const logoCardW = Math.round(width * 0.26);
-    const logoCardH = footerH + Math.round(height * 0.04);
-    const logoCardX = Math.round(width * 0.02);
-    const logoCardY = height - logoCardH + Math.round(footerH * 0.1);
-    // Place the logo within the card with some padding.
-    const padded = Math.round(Math.min(logoCardW, logoCardH) * 0.18);
-    const targetW = logoCardW - padded * 2;
-    const targetH = logoCardH - padded * 2;
-    const logoCenterX = logoCardX + logoCardW / 2;
-    const logoCenterY = logoCardY + logoCardH / 2;
-    // The base compositor expects sizePercent + x/y as a percentage of image
-    // dimensions; we approximate by sizing to the card and centering inside it.
-    const sizePercent = Math.round(((targetW + targetH) / 2 / width) * 100);
-    const xPct = Math.round((logoCenterX / width) * 100);
-    const yPct = Math.round((logoCenterY / height) * 100);
+    const { logoCardX, logoCardY, logoCardW, logoCardH } = layout;
+    const padding = Math.round(Math.min(logoCardW, logoCardH) * 0.14);
+    // Target size: fit inside the card with padding; sizePercent is width-based.
+    const targetW = logoCardW - padding * 2;
+    const sizePercent = Math.max(
+      8,
+      Math.min(28, Math.round((targetW / width) * 100)),
+    );
+    // Logo top-left = card top-left + padding, as 0–1 fractions.
+    // The base compositor will resize so the actual rendered W may be < targetW;
+    // it still anchors to top-left so this lands inside the card.
+    const xFrac = (logoCardX + padding) / width;
+    const yFrac = (logoCardY + padding) / height;
 
     return await compositeBrandLogoOnImageBuffer({
       imageBuffer: withFooter,
       logoSource,
-      placement: { x: xPct, y: yPct, sizePercent },
+      placement: { x: xFrac, y: yFrac, sizePercent },
     });
   } catch (err) {
     console.warn(
