@@ -5,10 +5,15 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export const OPENAI_IMAGE_GEN_MODEL =
+  process.env.OPENAI_IMAGE_GEN_MODEL ||
+  process.env.OPENAI_IMAGE_MODEL ||
+  "gpt-image-2";
+
 export const OPENAI_IMAGE_EDIT_MODEL =
   process.env.OPENAI_IMAGE_EDIT_MODEL ||
   process.env.OPENAI_IMAGE_MODEL ||
-  "gpt-image-1.5";
+  "gpt-image-2";
 
 /**
  * OpenAI Client for FlowSmartly
@@ -50,15 +55,15 @@ class OpenAIClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.images.generate({
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_GEN_MODEL,
           prompt,
           n: 1,
           size,
           quality,
           ...(transparent ? { background: "transparent" as const } : {}),
-        });
+        } as Parameters<typeof this.client.images.generate>[0]);
 
-        // gpt-image-1 returns base64 by default
+        // gpt-image returns base64 by default
         const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData && imageData.b64_json) {
           return imageData.b64_json;
@@ -117,13 +122,13 @@ class OpenAIClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.images.generate({
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_GEN_MODEL,
           prompt,
           n: safeN,
           size,
           quality,
           ...(transparent ? { background: "transparent" as const } : {}),
-        });
+        } as Parameters<typeof this.client.images.generate>[0]);
 
         const datas = response.data || [];
         // Resolve each datum: prefer b64_json, fall back to url-fetch.

@@ -5,6 +5,7 @@ import { getCartoonJobStatus, processCartoonVideoPhase1, processCartoonVideoPhas
 import { generateCharacterPreview, generateSceneImage, type ImageProvider } from "@/lib/cartoon/image-generator";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { OPENAI_IMAGE_GEN_MODEL } from "@/lib/ai/openai-client";
 
 // GET /api/ai/cartoon/[id] - Get job status
 export async function GET(
@@ -409,7 +410,7 @@ export async function PATCH(
         data: {
           userId: session.userId,
           feature: "cartoon_character_regen",
-          model: "gpt-image-1",
+          model: OPENAI_IMAGE_GEN_MODEL,
           inputTokens: 0,
           outputTokens: 0,
         },
@@ -541,7 +542,7 @@ async function handleRegenerateSceneBackground(
       data: {
         userId,
         feature: "cartoon_scene_regen",
-        model: "gpt-image-1",
+        model: OPENAI_IMAGE_GEN_MODEL,
         inputTokens: 0,
         outputTokens: 0,
       },

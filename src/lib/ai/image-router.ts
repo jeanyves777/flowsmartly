@@ -1,4 +1,4 @@
-import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "./openai-client";
+import { OPENAI_IMAGE_EDIT_MODEL, OPENAI_IMAGE_GEN_MODEL, openaiClient } from "./openai-client";
 import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-client";
 import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
 import { flowImageClient } from "./flow-image-client";
@@ -69,7 +69,7 @@ export async function generateImageWithProvider(
           quality: options.quality || "high",
           transparent: options.transparent,
         }),
-        model: "gpt-image-1",
+        model: OPENAI_IMAGE_GEN_MODEL,
         provider,
         format: "png",
       };
