@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { generateImageWithProvider } from "@/lib/ai/image-router";
@@ -319,12 +320,27 @@ export async function POST(request: NextRequest, { params }: Params) {
     // over the icon-only logo so the brand reads clearly; icon is only a
     // fallback when no full logo is set. Compositor auto-handles aspect and
     // scales the logo to a readable size that fits the reserved corner.
-    let finalBuffer = aiBuffer;
+    // Strip uniform-color borders ("mats") from the AI output before the
+    // logo composite. xAI in particular tends to wrap the design in a solid
+    // colored frame; trimming reveals the actual design so the logo lands
+    // on it instead of on the mat. No-op when the image has no uniform
+    // border (OpenAI / Gemini outputs).
+    let prepedBuffer = aiBuffer;
+    try {
+      prepedBuffer = await sharp(aiBuffer).trim({ threshold: 25 }).toBuffer();
+    } catch (trimErr) {
+      console.warn(
+        "[generate-media] Pre-composite trim failed; using untrimmed AI buffer:",
+        trimErr instanceof Error ? trimErr.message : trimErr,
+      );
+    }
+
+    let finalBuffer = prepedBuffer;
     const logoSource = brandKit?.logo || brandKit?.iconLogo || null;
     if (logoSource) {
       try {
         finalBuffer = await compositeBrandLogoOnImageBuffer({
-          imageBuffer: aiBuffer,
+          imageBuffer: prepedBuffer,
           logoSource,
           // Smart placement: the chosen layout variant dictates which corner
           // is "safe" (no text / subject sits there). Compositor preserves
