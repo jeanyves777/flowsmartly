@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarDays, Plus, Sparkles, Wand2, X, Check } from "lucide-react";
-import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AILoaderOverlay } from "@/components/shared/ai-loader-overlay";
 import {
   US_HOLIDAYS,
   getHolidayDate,
@@ -154,22 +155,20 @@ export default function BulkCalendarDialog({
 
   return (
     <>
-      {saving && (
-        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur flex items-center justify-center">
-          <AIGenerationLoader
-            currentStep={
-              aiFill
-                ? `Creating ${selected.size} item${selected.size === 1 ? "" : "s"} with AI...`
-                : `Creating ${selected.size} item${selected.size === 1 ? "" : "s"}...`
-            }
-            subtitle={
-              aiFill
-                ? "Brand-aware captions are being generated for each event"
-                : "Adding to your campaign"
-            }
-          />
-        </div>
-      )}
+      <AILoaderOverlay
+        open={saving}
+        zIndex={100}
+        currentStep={
+          aiFill
+            ? `Creating ${selected.size} item${selected.size === 1 ? "" : "s"} with AI...`
+            : `Creating ${selected.size} item${selected.size === 1 ? "" : "s"}...`
+        }
+        subtitle={
+          aiFill
+            ? "Brand-aware captions are being generated for each event"
+            : "Adding to your campaign"
+        }
+      />
     <FloatingPanel
       open
       onOpenChange={(next) => !next && !saving && onClose()}

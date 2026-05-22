@@ -24,7 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AILoaderOverlay } from "@/components/shared/ai-loader-overlay";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import AddItemDialog from "./add-item-dialog";
 import ImportStrategyDialog from "./import-strategy-dialog";
@@ -295,22 +296,16 @@ export default function CampaignDetailPage({
 
   return (
     <div className="space-y-6">
-      {campaignBusy === "cancel" && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
-          <AIGenerationLoader
-            currentStep="Canceling campaign..."
-            subtitle="Removing future scheduled posts from the calendar"
-          />
-        </div>
-      )}
-      {campaignBusy === "delete" && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
-          <AIGenerationLoader
-            currentStep="Deleting draft campaign..."
-            subtitle="Cleaning up"
-          />
-        </div>
-      )}
+      <AILoaderOverlay
+        open={campaignBusy === "cancel"}
+        currentStep="Canceling campaign..."
+        subtitle="Removing future scheduled posts from the calendar"
+      />
+      <AILoaderOverlay
+        open={campaignBusy === "delete"}
+        currentStep="Deleting draft campaign..."
+        subtitle="Cleaning up"
+      />
       <div className="flex items-center gap-2">
         <Link
           href="/content/campaigns"
@@ -334,7 +329,7 @@ export default function CampaignDetailPage({
         </div>
       )}
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="space-y-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight">{campaign.name}</h1>

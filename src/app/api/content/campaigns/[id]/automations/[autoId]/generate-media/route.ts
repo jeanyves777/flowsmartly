@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageWithProvider } from "@/lib/ai/image-router";
+import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
+import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 
 interface Params {
   params: Promise<{ id: string; autoId: string }>;
@@ -15,6 +17,45 @@ function parseJsonSafe<T>(value: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// Tier → ordered provider list. Primary first, Google as universal fallback,
+// then the other tier's primary as last resort. UI never sees these names.
+function providerOrderForTier(tier: "premium" | "standard"): ImageProvider[] {
+  if (tier === "premium") return ["openai", "gemini", "xai"];
+  return ["xai", "gemini", "openai"];
+}
+
+async function tryGenerate(
+  prompt: string,
+  width: number,
+  height: number,
+  tier: "premium" | "standard",
+): Promise<{ buffer: Buffer; provider: ImageProvider }> {
+  const order = providerOrderForTier(tier);
+  let lastError: unknown;
+  for (const provider of order) {
+    try {
+      const result = await generateImageWithProvider(
+        provider,
+        prompt,
+        width,
+        height,
+        { quality: tier === "premium" ? "high" : "medium" },
+      );
+      if (!result.base64) throw new Error(`${provider} returned no image`);
+      return { buffer: Buffer.from(result.base64, "base64"), provider };
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[generate-media] ${provider} failed for tier=${tier}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  throw new Error(
+    lastError instanceof Error ? lastError.message : "All providers failed",
+  );
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -30,9 +71,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     tier?: string;
     appliesTo?: string;
   };
-  const tier = body.tier === "premium" ? "premium" : "standard";
-  // appliesTo = "all" | "YYYY" — controls which year(s) the generated image is
-  // used for in CALENDAR_EVENT triggers. Anything else falls back to "all".
+  const tier: "premium" | "standard" =
+    body.tier === "premium" ? "premium" : "standard";
   const appliesTo =
     typeof body.appliesTo === "string" && /^(all|\d{4})$/.test(body.appliesTo)
       ? body.appliesTo
@@ -72,12 +112,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     {},
   );
 
-  // Build brand-aware image prompt
+  // Load brand identity once — used for prompt context and logo composition.
   let brandKit = await prisma.brandKit.findFirst({
     where: { userId: session.userId, isDefault: true },
   });
   if (!brandKit) {
-    brandKit = await prisma.brandKit.findFirst({ where: { userId: session.userId } });
+    brandKit = await prisma.brandKit.findFirst({
+      where: { userId: session.userId },
+    });
   }
 
   const subject =
@@ -88,32 +130,48 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const style = aiConfig.style || "natural";
   const brandLine = brandKit
-    ? `Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
+    ? `Brand context for thematic reference only: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
     : "";
 
+  // CRITICAL: never let the AI fabricate a logo. The real BrandKit logo is
+  // composited on top of the generated image after the fact.
   const prompt = [
     `High-quality social media image about: ${subject}.`,
     brandLine,
     `Style: ${style}. Tone: ${automation.aiTone || "friendly"}.`,
-    "Composition: clean, scroll-stopping, suitable as a 1:1 social post. No text overlays unless explicitly requested.",
+    "Composition: clean, scroll-stopping, suitable as a 1:1 social post.",
+    "Do NOT draw, render, or fabricate any logo, brand mark, watermark, text overlay, signature, badge, or storefront sign. The real brand logo will be composited on top of this image by a separate step — leave a neutral area in a corner where it can be placed without overlapping the subject.",
   ]
     .filter(Boolean)
     .join(" ");
 
   try {
-    // Tier mapping: Premium = OpenAI (preferred, with fallback to xAI on failure),
-    // Standard = xAI (preferred). Provider names never leak to the UI.
-    const preferredProvider = tier === "premium" ? "openai" : "xai";
-    const result = await generateImageXaiFirst(prompt, 1024, 1024, {
-      quality: tier === "premium" ? "high" : "medium",
-      preferredProvider,
-    });
-    if (!result.base64) {
-      throw new Error("Image generator returned no image");
+    const { buffer: aiBuffer, provider } = await tryGenerate(
+      prompt,
+      1024,
+      1024,
+      tier,
+    );
+
+    // Composite the real BrandKit logo on top (skipped silently if no logo set).
+    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+    let finalBuffer = aiBuffer;
+    if (logoSource) {
+      try {
+        finalBuffer = await compositeBrandLogoOnImageBuffer({
+          imageBuffer: aiBuffer,
+          logoSource,
+        });
+      } catch (compositeErr) {
+        console.warn(
+          "[generate-media] Logo composite failed; using bare AI image:",
+          compositeErr instanceof Error ? compositeErr.message : compositeErr,
+        );
+      }
     }
-    const buffer = Buffer.from(result.base64, "base64");
+
     const key = `campaigns/${session.userId}/${autoId}-${Date.now()}.png`;
-    const url = await uploadToS3(key, buffer, "image/png");
+    const url = await uploadToS3(key, finalBuffer, "image/png");
 
     // Merge tier + appliesTo into aiMediaConfig so the scheduler can decide
     // per-occurrence whether to use this URL or regenerate at post time.
@@ -135,8 +193,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       appliesTo,
     };
 
-    // Set the URL + switch to UPLOAD mode so the scheduler uses this exact image
-    // (subject to the appliesTo scope it now stores on aiMediaConfig).
     const updated = await prisma.contentAutomation.update({
       where: { id: autoId },
       data: {
@@ -146,6 +202,11 @@ export async function POST(request: NextRequest, { params }: Params) {
       },
       select: { id: true, mediaUrl: true, mediaMode: true },
     });
+
+    // Log provider used server-side only — don't leak to client.
+    console.log(
+      `[generate-media] tier=${tier} provider=${provider} appliesTo=${appliesTo}`,
+    );
 
     return NextResponse.json({
       success: true,

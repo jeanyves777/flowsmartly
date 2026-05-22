@@ -21,7 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AILoaderOverlay } from "@/components/shared/ai-loader-overlay";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { MediaUploader } from "@/components/shared/media-uploader";
 
@@ -423,26 +424,20 @@ export default function ItemEditorPage({
 
   return (
     <div className="space-y-6">
-      {aiBusy === "pregen_media" && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
-          <AIGenerationLoader
-            currentStep={
-              mediaTier === "premium"
-                ? "Generating premium-quality media..."
-                : "Generating media..."
-            }
-            subtitle="Creating a brand-aware image for this post"
-          />
-        </div>
-      )}
-      {aiBusy === "full" && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
-          <AIGenerationLoader
-            currentStep="Filling this item with AI..."
-            subtitle="Generating topic, caption, hashtags, and prompt"
-          />
-        </div>
-      )}
+      <AILoaderOverlay
+        open={aiBusy === "pregen_media"}
+        currentStep={
+          mediaTier === "premium"
+            ? "Generating premium-quality media..."
+            : "Generating media..."
+        }
+        subtitle="Creating a brand-aware image — the real brand logo is composited on top"
+      />
+      <AILoaderOverlay
+        open={aiBusy === "full"}
+        currentStep="Filling this item with AI..."
+        subtitle="Generating topic, caption, hashtags, and prompt"
+      />
       <div className="flex items-center gap-2">
         <Link
           href={`/content/campaigns/${id}`}
