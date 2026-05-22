@@ -65,7 +65,6 @@ export default function BulkCalendarDialog({
   const [styleStrategy, setStyleStrategy] = useState<"ai" | "variant" | "same">("ai");
   const [sameTier, setSameTier] = useState<"standard" | "premium">("standard");
   const [sameStyle, setSameStyle] = useState<"realistic" | "3d">("realistic");
-  const [sameTemplate, setSameTemplate] = useState<"footer_bar" | "minimal">("footer_bar");
   const [platforms, setPlatforms] = useState<string[]>(
     defaultPlatforms.length > 0 ? defaultPlatforms : ["instagram", "facebook"],
   );
@@ -142,7 +141,6 @@ export default function BulkCalendarDialog({
             styleStrategy,
             sameTier,
             sameStyle,
-            sameTemplate,
           }),
         },
       );
@@ -397,21 +395,6 @@ export default function BulkCalendarDialog({
                       className={`px-3 py-1.5 text-xs font-medium ${s !== "realistic" ? "border-l" : ""} ${sameStyle === s ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
                     >
                       {s === "realistic" ? "Realistic" : "3D"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Label className="text-xs">Template:</Label>
-                <div className="flex rounded-md border overflow-hidden">
-                  {(["footer_bar", "minimal"] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setSameTemplate(t)}
-                      className={`px-3 py-1.5 text-xs font-medium ${t !== "footer_bar" ? "border-l" : ""} ${sameTemplate === t ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
-                    >
-                      {t === "footer_bar" ? "Footer bar" : "Minimal"}
                     </button>
                   ))}
                 </div>

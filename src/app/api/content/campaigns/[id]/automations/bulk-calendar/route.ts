@@ -131,7 +131,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     styleStrategy?: "ai" | "variant" | "same";
     sameTier?: "premium" | "standard";
     sameStyle?: "realistic" | "3d";
-    sameTemplate?: "footer_bar" | "minimal";
   };
 
   const holidayIds = Array.isArray(body.holidayIds)
@@ -224,40 +223,30 @@ export async function POST(request: NextRequest, { params }: Params) {
   const styleStrategy = body.styleStrategy ?? "ai";
   const sameTier = body.sameTier === "premium" ? "premium" : "standard";
   const sameStyle = body.sameStyle === "3d" ? "3d" : "realistic";
-  const sameTemplate = body.sameTemplate === "minimal" ? "minimal" : "footer_bar";
   function aiConfigForHoliday(idx: number, h: (typeof US_HOLIDAYS)[number]): string {
     if (styleStrategy === "same") {
       return JSON.stringify({
         type: "image",
         tier: sameTier,
         style: sameStyle,
-        template: sameTemplate,
         appliesTo: "all",
       });
     }
     if (styleStrategy === "variant") {
-      // Alternate realistic / 3d for visual variety; keep footer_bar template.
       return JSON.stringify({
         type: "image",
         tier: "standard",
         style: idx % 2 === 0 ? "realistic" : "3d",
-        template: "footer_bar",
         appliesTo: "all",
       });
     }
-    // styleStrategy === "ai": pick by holiday category.
-    // commercial → realistic; cultural → 3d; major → realistic premium.
+    // "ai": pick by holiday category — commercial → realistic; cultural → 3D;
+    // major → premium tier.
     let style: "realistic" | "3d" = "realistic";
     let tier: "premium" | "standard" = "standard";
     if (h.category === "cultural") style = "3d";
     if (h.category === "major") tier = "premium";
-    return JSON.stringify({
-      type: "image",
-      tier,
-      style,
-      template: "footer_bar",
-      appliesTo: "all",
-    });
+    return JSON.stringify({ type: "image", tier, style, appliesTo: "all" });
   }
 
   const created: string[] = [];

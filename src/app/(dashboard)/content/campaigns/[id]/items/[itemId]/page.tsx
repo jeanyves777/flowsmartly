@@ -145,7 +145,6 @@ export default function ItemEditorPage({
   const [mediaTier, setMediaTier] = useState<"standard" | "premium">("standard");
   const [mediaAppliesTo, setMediaAppliesTo] = useState<string>("all");
   const [mediaStyle, setMediaStyle] = useState<"realistic" | "3d">("realistic");
-  const [mediaTemplate, setMediaTemplate] = useState<"footer_bar" | "minimal">("footer_bar");
 
   // editable fields
   const [name, setName] = useState("");
@@ -183,12 +182,10 @@ export default function ItemEditorPage({
         tier?: string;
         appliesTo?: string;
         style?: string;
-        template?: string;
       }>(auto.aiMediaConfig, {});
       setMediaTier(cfg.tier === "premium" ? "premium" : "standard");
       setMediaAppliesTo(cfg.appliesTo ?? "all");
       setMediaStyle(cfg.style === "3d" ? "3d" : "realistic");
-      setMediaTemplate(cfg.template === "minimal" ? "minimal" : "footer_bar");
     }
     setLoading(false);
   }, [id, itemId]);
@@ -279,27 +276,6 @@ export default function ItemEditorPage({
       setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {
       setAiBusy(null);
-    }
-  };
-
-  // Auto-persist template (footer_bar / minimal) on change, same pattern as tier.
-  const changeMediaTemplate = async (next: "footer_bar" | "minimal") => {
-    if (next === mediaTemplate) return;
-    setMediaTemplate(next);
-    try {
-      const existing = parseJsonSafe<Record<string, unknown>>(
-        a?.aiMediaConfig ?? null,
-        {},
-      );
-      const merged = { ...existing, template: next, type: existing.type ?? "image" };
-      await fetch(`/api/content/campaigns/${id}/automations/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aiMediaConfig: merged }),
-      });
-      if (a) setA({ ...a, aiMediaConfig: JSON.stringify(merged) });
-    } catch {
-      setMediaTemplate(mediaTemplate);
     }
   };
 
