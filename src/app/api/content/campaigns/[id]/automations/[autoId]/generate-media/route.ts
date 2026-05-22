@@ -5,7 +5,10 @@ import { generateImageWithProvider } from "@/lib/ai/image-router";
 import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
-import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import {
+  compositeBrandedTemplate,
+  type BrandedTemplate,
+} from "@/lib/media/branded-template-compositor";
 
 interface Params {
   params: Promise<{ id: string; autoId: string }>;
@@ -72,6 +75,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     tier?: string;
     appliesTo?: string;
     style?: string;
+    template?: string;
   };
   const tier: "premium" | "standard" =
     body.tier === "premium" ? "premium" : "standard";
@@ -80,6 +84,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? body.appliesTo
       : "all";
   const style: "realistic" | "3d" = body.style === "3d" ? "3d" : "realistic";
+  const template: BrandedTemplate =
+    body.template === "minimal" ? "minimal" : "footer_bar";
 
   const automation = await prisma.contentAutomation.findFirst({
     where: { id: autoId, campaignId, userId: session.userId },
@@ -161,14 +167,17 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   // The AI image must contain ZERO drawn text, letters, signage, logos, etc.
   // The REAL brand logo is composited on top of the result after generation.
+  // CRITICAL: do NOT hint to the AI about where the logo will be placed — it
+  // will draw a literal placeholder box/square/frame. The composite happens
+  // entirely afterwards and finds its own space.
   const prompt = [
     `High-quality social media image about: ${subject}.`,
     styleLine,
     dateContext,
     brandLine,
     `Tone: ${automation.aiTone || "friendly"}.`,
-    "Composition: clean, scroll-stopping, suitable as a 1:1 social post. Leave a small neutral area in a corner (top-left or top-right) free of busy content where a brand logo can be placed without overlapping the subject.",
-    "ABSOLUTE PROHIBITION: do NOT draw, render, paint, write, or fabricate ANY text, letters, words, numbers, dates, captions, slogans, taglines, signage, signs, banners, billboards, logos, brand marks, watermarks, signatures, badges, stamps, certificates, screens-with-text, t-shirts-with-text, printed material, phones with visible UI, tablets with visible apps, laptops or monitors with visible content, billboards, or any digital surface that could show readable content. The image must contain ZERO readable characters of any language. Subjects only — physical, real-world (or stylized 3D) objects, people, places, scenes.",
+    "Composition: clean, scroll-stopping, suitable as a 1:1 social post. Naturally distribute the visual interest across the frame.",
+    "ABSOLUTE PROHIBITION — the image must have ZERO of the following: text of any kind (no letters, words, numbers, dates, captions, slogans, taglines), no signage / signs / banners / billboards / printed material, no logos / brand marks / watermarks / signatures / badges / stamps / certificates, no phones / tablets / laptops / monitors / screens / displays showing UI or content, no t-shirts or clothing with prints, no placeholder rectangles / empty boxes / blank frames / floating cards / empty white squares / outlined shapes that look like containers for content, no UI mockups, no app interfaces, no swatches or color palette callouts. Subjects only — physical, real-world (or stylized 3D) objects, people, places, scenes. Treat the entire frame as a pure visual scene with no reserved areas, placeholders, or branding spots.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -181,27 +190,39 @@ export async function POST(request: NextRequest, { params }: Params) {
       tier,
     );
 
-    // HARD RULE: composite the REAL BrandKit logo on every generated image.
-    // The AI prompt forbids it from drawing any logo (so it doesn't fabricate
-    // a fake one), and here we lay the real logo on top via the canonical
-    // brand-logo compositor. Skip silently only if the user has no logo set.
-    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+    // HARD RULE: every generated image is wrapped in a branded template
+    // that combines the user's real BrandKit logo + brand colors + contact
+    // info. The AI prompt forbids the model from drawing logos / text /
+    // placeholders, so all branding comes from the compositor.
     let finalBuffer = aiBuffer;
-    if (logoSource) {
+    if (brandKit) {
       try {
-        finalBuffer = await compositeBrandLogoOnImageBuffer({
+        finalBuffer = await compositeBrandedTemplate({
           imageBuffer: aiBuffer,
-          logoSource,
+          brandKit: {
+            name: brandKit.name,
+            logo: brandKit.logo,
+            iconLogo: brandKit.iconLogo,
+            colors: brandKit.colors || "{}",
+            website: brandKit.website,
+            email: brandKit.email,
+            phone: brandKit.phone,
+          },
+          template,
+          postTitle:
+            automation.topic ||
+            automation.calendarSourceLabel ||
+            automation.name,
         });
       } catch (compositeErr) {
         console.warn(
-          "[generate-media] Logo composite failed; using bare AI image:",
+          "[generate-media] Branded template composite failed; using bare AI image:",
           compositeErr instanceof Error ? compositeErr.message : compositeErr,
         );
       }
     } else {
       console.warn(
-        `[generate-media] User ${session.userId} has no BrandKit logo set; skipping composite.`,
+        `[generate-media] User ${session.userId} has no BrandKit; skipping branded template.`,
       );
     }
 
@@ -226,6 +247,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       style,
       tier,
       appliesTo,
+      template,
     };
 
     const updated = await prisma.contentAutomation.update({

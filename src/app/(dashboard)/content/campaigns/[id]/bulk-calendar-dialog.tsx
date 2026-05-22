@@ -62,6 +62,10 @@ export default function BulkCalendarDialog({
   const [error, setError] = useState<string | null>(null);
   const [aiFill, setAiFill] = useState(true);
   const [mediaMode, setMediaMode] = useState("AI_AT_POST_TIME");
+  const [styleStrategy, setStyleStrategy] = useState<"ai" | "variant" | "same">("ai");
+  const [sameTier, setSameTier] = useState<"standard" | "premium">("standard");
+  const [sameStyle, setSameStyle] = useState<"realistic" | "3d">("realistic");
+  const [sameTemplate, setSameTemplate] = useState<"footer_bar" | "minimal">("footer_bar");
   const [platforms, setPlatforms] = useState<string[]>(
     defaultPlatforms.length > 0 ? defaultPlatforms : ["instagram", "facebook"],
   );
@@ -135,6 +139,10 @@ export default function BulkCalendarDialog({
             mediaMode,
             tone: defaultTone ?? undefined,
             aiFill,
+            styleStrategy,
+            sameTier,
+            sameStyle,
+            sameTemplate,
           }),
         },
       );
@@ -328,6 +336,88 @@ export default function BulkCalendarDialog({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Per-event media style strategy */}
+        <div className="space-y-3 rounded-lg border bg-zinc-50 dark:bg-zinc-900/40 p-4">
+          <div>
+            <Label className="text-sm font-semibold">Media style for each event</Label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Pick once for the whole batch — applied to all selected events so
+              you don&apos;t need to set Quality / Style / Template on each one
+              individually.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {([
+              { v: "ai", label: "AI picks best fit", hint: "Recommended — each event gets a style that suits the holiday (commercial → realistic, cultural → 3D)" },
+              { v: "variant", label: "Variety per event", hint: "Alternate realistic and 3D for a varied feed" },
+              { v: "same", label: "Same for all", hint: "One Quality / Style / Template applied to every event" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => setStyleStrategy(opt.v)}
+                className={`text-left px-3 py-2 rounded-md border text-sm ${
+                  styleStrategy === opt.v
+                    ? "bg-blue-50 border-blue-500 dark:bg-blue-900/20"
+                    : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-700"
+                }`}
+              >
+                <div className="font-medium">{opt.label}</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">{opt.hint}</div>
+              </button>
+            ))}
+          </div>
+          {styleStrategy === "same" && (
+            <div className="space-y-2 rounded-md border bg-white dark:bg-zinc-950 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs">Quality:</Label>
+                <div className="flex rounded-md border overflow-hidden">
+                  {(["standard", "premium"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSameTier(t)}
+                      className={`px-3 py-1.5 text-xs font-medium ${t !== "standard" ? "border-l" : ""} ${sameTier === t ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
+                    >
+                      {t === "standard" ? "Standard" : "Premium"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs">Style:</Label>
+                <div className="flex rounded-md border overflow-hidden">
+                  {(["realistic", "3d"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSameStyle(s)}
+                      className={`px-3 py-1.5 text-xs font-medium ${s !== "realistic" ? "border-l" : ""} ${sameStyle === s ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
+                    >
+                      {s === "realistic" ? "Realistic" : "3D"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs">Template:</Label>
+                <div className="flex rounded-md border overflow-hidden">
+                  {(["footer_bar", "minimal"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSameTemplate(t)}
+                      className={`px-3 py-1.5 text-xs font-medium ${t !== "footer_bar" ? "border-l" : ""} ${sameTemplate === t ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
+                    >
+                      {t === "footer_bar" ? "Footer bar" : "Minimal"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* AI fill */}

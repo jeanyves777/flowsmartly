@@ -126,6 +126,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     mediaMode?: string;
     tone?: string;
     aiFill?: boolean;
+    // Bulk style strategy — applied per-event into aiMediaConfig so the user
+    // doesn't have to touch each of N items individually after creation.
+    styleStrategy?: "ai" | "variant" | "same";
+    sameTier?: "premium" | "standard";
+    sameStyle?: "realistic" | "3d";
+    sameTemplate?: "footer_bar" | "minimal";
   };
 
   const holidayIds = Array.isArray(body.holidayIds)
@@ -214,6 +220,46 @@ export async function POST(request: NextRequest, { params }: Params) {
       )
     : holidays.map(() => null);
 
+  // Decide per-event aiMediaConfig based on the user's bulk strategy.
+  const styleStrategy = body.styleStrategy ?? "ai";
+  const sameTier = body.sameTier === "premium" ? "premium" : "standard";
+  const sameStyle = body.sameStyle === "3d" ? "3d" : "realistic";
+  const sameTemplate = body.sameTemplate === "minimal" ? "minimal" : "footer_bar";
+  function aiConfigForHoliday(idx: number, h: (typeof US_HOLIDAYS)[number]): string {
+    if (styleStrategy === "same") {
+      return JSON.stringify({
+        type: "image",
+        tier: sameTier,
+        style: sameStyle,
+        template: sameTemplate,
+        appliesTo: "all",
+      });
+    }
+    if (styleStrategy === "variant") {
+      // Alternate realistic / 3d for visual variety; keep footer_bar template.
+      return JSON.stringify({
+        type: "image",
+        tier: "standard",
+        style: idx % 2 === 0 ? "realistic" : "3d",
+        template: "footer_bar",
+        appliesTo: "all",
+      });
+    }
+    // styleStrategy === "ai": pick by holiday category.
+    // commercial → realistic; cultural → 3d; major → realistic premium.
+    let style: "realistic" | "3d" = "realistic";
+    let tier: "premium" | "standard" = "standard";
+    if (h.category === "cultural") style = "3d";
+    if (h.category === "major") tier = "premium";
+    return JSON.stringify({
+      type: "image",
+      tier,
+      style,
+      template: "footer_bar",
+      appliesTo: "all",
+    });
+  }
+
   const created: string[] = [];
   const failed: { id: string; reason: string }[] = [];
 
@@ -252,7 +298,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           mediaFolderId: mediaMode === "FOLDER" ? campaign.mediaFolderId : null,
           aiMediaConfig:
             mediaMode === "AI_AT_POST_TIME"
-              ? JSON.stringify({ type: "image", style: "natural" })
+              ? aiConfigForHoliday(i, h)
               : null,
           reviewStatus: "PENDING_REVIEW",
           enabled: true,
