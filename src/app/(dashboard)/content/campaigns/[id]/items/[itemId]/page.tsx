@@ -144,6 +144,7 @@ export default function ItemEditorPage({
   const [headerBusy, setHeaderBusy] = useState<"approve" | "revert" | "skip" | "cancel" | null>(null);
   const [mediaTier, setMediaTier] = useState<"standard" | "premium">("standard");
   const [mediaAppliesTo, setMediaAppliesTo] = useState<string>("all");
+  const [mediaStyle, setMediaStyle] = useState<"realistic" | "3d">("realistic");
 
   // editable fields
   const [name, setName] = useState("");
@@ -176,13 +177,15 @@ export default function ItemEditorPage({
       setMediaMode(auto.mediaMode);
       setMediaUrl(auto.mediaUrl ?? "");
       setEndDate(auto.endDate ? auto.endDate.slice(0, 10) : "");
-      // Restore persisted tier + apply-to scope from aiMediaConfig
-      const cfg = parseJsonSafe<{ tier?: string; appliesTo?: string }>(
-        auto.aiMediaConfig,
-        {},
-      );
+      // Restore persisted tier + apply-to scope + style from aiMediaConfig
+      const cfg = parseJsonSafe<{
+        tier?: string;
+        appliesTo?: string;
+        style?: string;
+      }>(auto.aiMediaConfig, {});
       setMediaTier(cfg.tier === "premium" ? "premium" : "standard");
       setMediaAppliesTo(cfg.appliesTo ?? "all");
+      setMediaStyle(cfg.style === "3d" ? "3d" : "realistic");
     }
     setLoading(false);
   }, [id, itemId]);
@@ -258,7 +261,11 @@ export default function ItemEditorPage({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: mediaTier, appliesTo: mediaAppliesTo }),
+          body: JSON.stringify({
+            tier: mediaTier,
+            appliesTo: mediaAppliesTo,
+            style: mediaStyle,
+          }),
         },
       );
       const json = await res.json();
@@ -269,6 +276,29 @@ export default function ItemEditorPage({
       setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {
       setAiBusy(null);
+    }
+  };
+
+  // Auto-persist style (realistic / 3d) on change, same pattern as tier.
+  const changeMediaStyle = async (next: "realistic" | "3d") => {
+    if (next === mediaStyle) return;
+    setMediaStyle(next);
+    try {
+      const existing = parseJsonSafe<Record<string, unknown>>(
+        a?.aiMediaConfig ?? null,
+        {},
+      );
+      const merged = { ...existing, style: next, type: existing.type ?? "image" };
+      await fetch(`/api/content/campaigns/${id}/automations/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiMediaConfig: merged }),
+      });
+      if (a) {
+        setA({ ...a, aiMediaConfig: JSON.stringify(merged) });
+      }
+    } catch {
+      setMediaStyle(mediaStyle);
     }
   };
 
@@ -737,6 +767,35 @@ export default function ItemEditorPage({
                         }`}
                       >
                         Premium
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs">Style:</Label>
+                    <div className="flex rounded-md border bg-white dark:bg-zinc-950 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => changeMediaStyle("realistic")}
+                        disabled={canceled || locked || aiBusy === "pregen_media"}
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          mediaStyle === "realistic"
+                            ? "bg-blue-600 text-white"
+                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        Realistic
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeMediaStyle("3d")}
+                        disabled={canceled || locked || aiBusy === "pregen_media"}
+                        className={`px-3 py-1.5 text-xs font-medium border-l ${
+                          mediaStyle === "3d"
+                            ? "bg-blue-600 text-white"
+                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        3D
                       </button>
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { generateImageWithProvider } from "@/lib/ai/image-router";
 import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
+import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 
 interface Params {
   params: Promise<{ id: string; autoId: string }>;
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const body = (await request.json().catch(() => ({}))) as {
     tier?: string;
     appliesTo?: string;
+    style?: string;
   };
   const tier: "premium" | "standard" =
     body.tier === "premium" ? "premium" : "standard";
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     typeof body.appliesTo === "string" && /^(all|\d{4})$/.test(body.appliesTo)
       ? body.appliesTo
       : "all";
+  const style: "realistic" | "3d" = body.style === "3d" ? "3d" : "realistic";
 
   const automation = await prisma.contentAutomation.findFirst({
     where: { id: autoId, campaignId, userId: session.userId },
@@ -130,10 +133,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     automation.calendarSourceLabel ||
     automation.name;
 
-  const style = aiConfig.style || "natural";
   const brandLine = brandKit
     ? `Brand context for thematic reference only (do NOT depict this brand name visually): ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
     : "";
+
+  const styleLine =
+    style === "3d"
+      ? "Render style: high-quality 3D render — stylized CGI scene with rich materials, dramatic lighting, and depth of field. NOT a photograph."
+      : "Render style: photorealistic photograph — real-world scene, natural lighting, professional photography aesthetic. NOT an illustration or 3D render.";
 
   // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
   // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
@@ -152,31 +159,51 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
     : `Today's date: ${todayIso}.`;
 
-  // CRITICAL — natural image only. No text, no letters, no words, no logos.
-  // The image must be visually clean so any branding (if applied) happens
-  // later via a separate pipeline.
+  // The AI image must contain ZERO drawn text, letters, signage, logos, etc.
+  // The REAL brand logo is composited on top of the result after generation.
   const prompt = [
-    `Photorealistic, high-quality social media image about: ${subject}.`,
+    `High-quality social media image about: ${subject}.`,
+    styleLine,
     dateContext,
     brandLine,
-    `Style: ${style}. Tone: ${automation.aiTone || "friendly"}.`,
-    "Composition: clean, scroll-stopping, suitable as a 1:1 social post.",
-    "ABSOLUTE PROHIBITION: do NOT draw, render, paint, write, or fabricate ANY text, letters, words, numbers, dates, captions, slogans, taglines, signage, signs, banners, billboards, logos, brand marks, watermarks, signatures, badges, stamps, certificates, screens-with-text, t-shirts-with-text, or printed material. The image must contain ZERO readable characters of any language. Leave the composition purely visual — natural objects, people, places, scenes only.",
+    `Tone: ${automation.aiTone || "friendly"}.`,
+    "Composition: clean, scroll-stopping, suitable as a 1:1 social post. Leave a small neutral area in a corner (top-left or top-right) free of busy content where a brand logo can be placed without overlapping the subject.",
+    "ABSOLUTE PROHIBITION: do NOT draw, render, paint, write, or fabricate ANY text, letters, words, numbers, dates, captions, slogans, taglines, signage, signs, banners, billboards, logos, brand marks, watermarks, signatures, badges, stamps, certificates, screens-with-text, t-shirts-with-text, printed material, phones with visible UI, tablets with visible apps, laptops or monitors with visible content, billboards, or any digital surface that could show readable content. The image must contain ZERO readable characters of any language. Subjects only — physical, real-world (or stylized 3D) objects, people, places, scenes.",
   ]
     .filter(Boolean)
     .join(" ");
 
   try {
-    const { buffer: finalBuffer, provider } = await tryGenerate(
+    const { buffer: aiBuffer, provider } = await tryGenerate(
       prompt,
       1024,
       1024,
       tier,
     );
 
-    // No logo compositing at this stage — the image stays natural. Any
-    // branding (overlay logo, text, frame) belongs to a later publishing
-    // step, not the AI-generation step. Per user request 2026-05-22.
+    // HARD RULE: composite the REAL BrandKit logo on every generated image.
+    // The AI prompt forbids it from drawing any logo (so it doesn't fabricate
+    // a fake one), and here we lay the real logo on top via the canonical
+    // brand-logo compositor. Skip silently only if the user has no logo set.
+    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+    let finalBuffer = aiBuffer;
+    if (logoSource) {
+      try {
+        finalBuffer = await compositeBrandLogoOnImageBuffer({
+          imageBuffer: aiBuffer,
+          logoSource,
+        });
+      } catch (compositeErr) {
+        console.warn(
+          "[generate-media] Logo composite failed; using bare AI image:",
+          compositeErr instanceof Error ? compositeErr.message : compositeErr,
+        );
+      }
+    } else {
+      console.warn(
+        `[generate-media] User ${session.userId} has no BrandKit logo set; skipping composite.`,
+      );
+    }
 
     const key = `campaigns/${session.userId}/${autoId}-${Date.now()}.png`;
     const url = await uploadToS3(key, finalBuffer, "image/png");
@@ -196,7 +223,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const mergedConfig = {
       ...existingConfig,
       type: existingConfig.type ?? "image",
-      style: existingConfig.style ?? "natural",
+      style,
       tier,
       appliesTo,
     };
