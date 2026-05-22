@@ -29,7 +29,7 @@ function providerOrderForTier(tier: "premium" | "standard"): ImageProvider[] {
 }
 
 async function tryGenerate(
-  prompt: string,
+  prompts: { openai: string; xai: string; gemini: string },
   width: number,
   height: number,
   tier: "premium" | "standard",
@@ -40,7 +40,7 @@ async function tryGenerate(
     try {
       const result = await generateImageWithProvider(
         provider,
-        prompt,
+        prompts[provider],
         width,
         height,
         { quality: tier === "premium" ? "high" : "medium" },
@@ -324,10 +324,33 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
     : `Today's date: ${todayIso}.`;
 
-  // The AI designs the ENTIRE branded social media post — text, headline,
-  // brand-colored accents, contact info, layout. The only thing it must NOT
-  // draw is the actual brand logo (we composite the real one on top after).
-  const prompt = [
+  // OpenAI works best with ALL raw data and ZERO rules — gpt-image-1 is
+  // strong at composition / typography / brand fidelity when not constrained
+  // by long prohibition clauses. xAI and Gemini need the rules to behave.
+  // Build two prompt variants and feed each provider its preferred shape.
+
+  const openaiPrompt = [
+    "Design a branded social media post (1:1).",
+    `Subject: ${subject}.`,
+    headline ? `Headline: "${headline}".` : "",
+    brandKit
+      ? `Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
+      : "",
+    brandColors.primary || brandColors.secondary || brandColors.accent
+      ? `Brand colors: primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
+      : "",
+    contactBits.length ? `Contact: ${contactBits.join(" · ")}.` : "",
+    occurrenceYear ? `Date: today ${todayIso}, occurrence year ${occurrenceYear}.` : `Today: ${todayIso}.`,
+    `Tone: ${automation.aiTone || "friendly"}.`,
+    `Style: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}.`,
+    chosenLayout.description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // xAI / Gemini need explicit guardrails — they fabricate logos, ignore
+  // year context, write blog-length copy, etc. without them.
+  const ruledPrompt = [
     `Design a complete, premium, scroll-stopping 1:1 social media post about: ${subject}.`,
     headlineLine,
     styleLine,
@@ -338,15 +361,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     contactLine,
     dateContext,
     `Tone: ${automation.aiTone || "friendly"}.`,
-    // Canvas rule — the image IS the post, no surrounding frame.
     "Canvas rule: the image fills the entire 1024×1024 frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.",
-    // Copy length — keep it social-post-tight, not a blog post.
     "Copy length: this is a SOCIAL MEDIA post, NOT a blog post. Total visible text on the design must be SHORT and PRECISE — one headline (3-7 words max) PLUS at most one short sub-line (max 12 words). NO paragraphs. NO multi-sentence essays. NO body-copy blocks. If you write more than 2 short lines of text on the image, you have failed this brief.",
     "Render the headline as legible on-brand typography (a hero header). Render the contact pills in a footer band using brand colors. Use brand colors purposefully as accents, ribbons, separators, or backgrounds. The result should look like the work of a brand designer.",
-    // Safe corner for the logo composite — driven by the chosen layout
-    // variant so the logo lands where text/subject ISN'T.
     `Logo-overlay reservation (CRITICAL — read carefully): ${reservedLine} The HEADLINE and any other text MUST NOT extend into that reserved area. Do NOT draw a placeholder rectangle, blank box, outlined card, or any visible container in the reserved area — leave it as part of the natural design background.`,
-    // Anti-fabrication rule for dates / years / facts.
     "Anti-fabrication: only render text I have explicitly given you (headline, brand name, contact items above, year context). Do NOT invent slogans that reference past years, future years, phone numbers, addresses, percentages, prices, statistics, customer counts, founding dates, or any factual claim about the brand that I did not provide. If you reference a year, use ONLY the occurrence year I specified — never any other year.",
     "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
   ]
@@ -355,7 +373,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const { buffer: aiBuffer, provider } = await tryGenerate(
-      prompt,
+      { openai: openaiPrompt, xai: ruledPrompt, gemini: ruledPrompt },
       1024,
       1024,
       tier,
