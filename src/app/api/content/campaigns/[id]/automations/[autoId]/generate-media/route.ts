@@ -216,13 +216,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Contact details to render in a DESIGNED footer band — each as its own styled pill / icon-badge / chip in brand color with a recognisable platform icon next to it (globe for website, envelope for email, phone receiver for phone, camera-aperture for instagram, F for facebook, X for twitter, in for linkedin, TT for tiktok, play-button for youtube, P for pinterest, @ for threads). Items to render — EXACTLY THESE ${contactBits.length}, no more, no fewer: ${contactBits.join("; ")}. The footer band uses brand-primary or brand-secondary color as background with the pills sitting on top in white or contrasting color. CRITICAL: do NOT invent, fabricate, hallucinate, or add ANY other phone number, email, URL, social handle, address, or contact field that I did not list above. If a field is missing from my list, OMIT it. Render ONLY the ${contactBits.length} items above, exactly as I gave them, character-for-character.`
     : "Do NOT render any contact info / contact footer / contact pills. The brand has no contact info to display — leave the bottom area for decorative brand-color accents only. Do NOT fabricate fake phone numbers, emails, URLs, or social handles.";
 
-  const brandLine = brandKit
-    ? `Brand context (for tone only — do NOT render the brand name as on-image text or as a wordmark; the real brand logo is composited on top of the image after generation, so the brand name will appear there): ${brandKit.description || "(no description)"}. This design is FOR and ON BEHALF OF this brand. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the rendered text.`
-    : "";
-
   // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
   // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
-  // Computed BEFORE headline scrubbing so the scrubber can replace stale years.
   let occurrenceYear: number | null = null;
   if (automation.calendarSourceType === "HOLIDAY" && automation.calendarSourceId) {
     const h = getHolidayById(automation.calendarSourceId);
@@ -234,162 +229,19 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
   }
   const todayIso = new Date().toISOString().slice(0, 10);
-  const dateContext = occurrenceYear
-    ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
-    : `Today's date: ${todayIso}.`;
 
-  // Build a SHORT punchy headline for on-image rendering. The automation's
-  // stored topic is often a multi-sentence brief — that's for the post
-  // CAPTION, not the image. The image gets a 3-7 word hook.
-  //
-  // Preferred sources, in order:
-  //   1. calendarSourceLabel — already short (e.g. "New Year's Eve") → prefix
-  //      with "Happy" or contextual greeting
-  //   2. automation.name — usually short
-  //   3. first sentence / clause of automation.topic, capped at ~8 words
-  //
-  // Then scrub stale year mentions: replace 19xx/20xx with the correct
-  // occurrence year (or strip if no year context).
-  const auto = automation; // type narrowed — already null-checked above
-  function buildShortHeadline(): string | null {
-    const label = auto.calendarSourceLabel;
-    const brandNameMaybe = brandKit?.name ?? "";
-
-    let candidate: string | null = null;
-    if (label) {
-      const greeting =
-        /new year/i.test(label) && /eve/i.test(label)
-          ? "Happy New Year"
-          : /day/i.test(label) || /eve/i.test(label) || /easter|christmas|hanukkah|kwanzaa|halloween|thanksgiving/i.test(label)
-          ? `Happy ${label}`
-          : label;
-      candidate = greeting;
-    } else if (auto.name && auto.name.length > 0 && auto.name.length <= 60) {
-      candidate = auto.name;
-    } else if (auto.topic) {
-      const firstSentence = auto.topic.split(/[.!?\n]/)[0] || auto.topic;
-      const words = firstSentence.split(/\s+/).filter(Boolean).slice(0, 8);
-      candidate = words.join(" ");
-    }
-    if (!candidate) return null;
-
-    // Remove the brand's own name from the headline — the composited logo
-    // handles brand attribution; the headline shouldn't repeat it.
-    if (brandNameMaybe) {
-      const re = new RegExp(
-        `\\b${brandNameMaybe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-        "gi",
-      );
-      candidate = candidate.replace(re, "").replace(/\s{2,}/g, " ").trim();
-    }
-
-    // Year scrub
-    const correctYear = occurrenceYear ? String(occurrenceYear) : null;
-    if (correctYear) {
-      candidate = candidate.replace(/\b(19|20)\d{2}\b/g, correctYear);
-    } else {
-      candidate = candidate
-        .replace(/\b(?:Ring\s+in|Welcome\s+to|Hello)\s+(19|20)\d{2}\b/gi, "")
-        .replace(/\b(19|20)\d{2}\b/g, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-    }
-    return candidate || null;
-  }
-  const headline = buildShortHeadline();
-  const headlineLine = headline
-    ? `Headline / message to render legibly as part of the design (typography styled in brand colors): "${headline}".`
-    : "";
-
-  const styleLine =
-    style === "3d"
-      ? "Aesthetic: high-quality 3D-rendered scene — stylized CGI with rich materials, dramatic lighting, depth of field — wrapped in a clean modern social-media design layout."
-      : "Aesthetic: photorealistic photograph as the hero subject — natural lighting, professional photography — wrapped in a clean modern social-media design layout.";
-
-  // Layout variants with SMART per-layout logo placement.
-  // - description: feeds the AI prompt
-  // - reservedDesc: tells AI exactly which corner to keep quiet for the logo
-  //   (the SAME corner where the compositor will land the logo)
-  // - placement: x/y are 0-1 fractions of image dims pointing to the
-  //   TOP-LEFT of the logo bounding box; sizePercent is logo width as % of
-  //   image width
-  // Seeded by item id so re-runs on the same item pick the same variant.
-  interface LayoutVariant {
-    description: string;
-    reservedDesc: string;
-    placement: { x: number; y: number; sizePercent: number };
-  }
-  const LAYOUT_VARIANTS: LayoutVariant[] = [
-    {
-      description:
-        "Layout: editorial split — the bold serif headline sits on the LEFT half of the canvas over a brand-colored panel; a full-bleed hero photo fills the RIGHT half. A thin brand-accent vertical stripe separates them.",
-      reservedDesc:
-        "Logo will be placed BOTTOM-LEFT (over the brand-colored left panel, below the headline). Leave a ~30% width × 18% height quiet area in the BOTTOM-LEFT of the left panel — no text, no decorative element there.",
-      placement: { x: 0.03, y: 0.78, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: magazine cover — a single large hero photo fills most of the canvas. A wide brand-color band sits at the BOTTOM holding the headline in a heavy display sans-serif and the contact pills on a row below.",
-      reservedDesc:
-        "Logo will be placed TOP-LEFT on the photo. Leave a ~30% width × 18% height quiet area in the TOP-LEFT — keep that part of the photo low-detail (sky, blur, soft surface). Photographic subject of interest should sit center or right.",
-      placement: { x: 0.03, y: 0.03, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: stacked card — hero photo fills the upper 55% of the canvas with a soft brand-color gradient overlay; lower 45% is a solid brand-color block holding the headline in big bold typography and the contact pills as styled chips.",
-      reservedDesc:
-        "Logo will be placed TOP-LEFT on the photo upper half. Leave a ~30% width × 18% height quiet area in the TOP-LEFT — low-detail photo background there. The headline in the lower brand block can use the full bottom.",
-      placement: { x: 0.03, y: 0.03, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: diagonal accent — a large brand-color triangular wedge cuts diagonally across the upper-left of the canvas; the headline lives inside the wedge in white type; the rest of the canvas is the hero photo with the contact band at the bottom.",
-      reservedDesc:
-        "Logo will be placed TOP-LEFT inside the brand-color wedge. Place the headline BELOW the logo area within the wedge. Leave the very top-left ~24% width × 14% height of the wedge clear of headline text for the logo.",
-      placement: { x: 0.03, y: 0.03, sizePercent: 20 },
-    },
-    {
-      description:
-        "Layout: modern poster — a bold typographic headline dominates the canvas (huge display type filling 40% of the height) over a soft brand-color gradient. A smaller photo sits as a tasteful inset or corner accent. Contact pills as a clean strip at the bottom.",
-      reservedDesc:
-        "Logo will be placed TOP-RIGHT. Leave a ~30% width × 18% height quiet area in the TOP-RIGHT corner. The huge headline can dominate the center / left but must NOT extend into the top-right.",
-      placement: { x: 0.67, y: 0.03, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: frame-in-frame — the hero photo is inset from the edges with a thick brand-color border around all four sides. The headline sits in the top border (white typography on brand-color); contact pills sit in the bottom border.",
-      reservedDesc:
-        "Logo will be placed in the LEFT side of the TOP border. Reserve ~28% width × 12% height on the LEFT END of the top border for the logo. The headline within the top border should be aligned RIGHT or centered after that left logo area.",
-      placement: { x: 0.03, y: 0.02, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: ribbon strap — a brand-color ribbon strap cuts horizontally across the upper-third holding the headline in bold script or serif typography; the hero photo fills the rest of the canvas with a clean footer band at the bottom for contact pills.",
-      reservedDesc:
-        "Logo will be placed at the LEFT END of the ribbon strap. Reserve ~28% width × 14% height on the LEFT END of the ribbon for the logo. The headline on the ribbon should be aligned RIGHT or centered after that left logo area.",
-      placement: { x: 0.03, y: 0.05, sizePercent: 22 },
-    },
-    {
-      description:
-        "Layout: gradient overlay — a single dramatic photo fills the entire canvas with a brand-color radial or diagonal gradient overlay. The headline sits in white display typography in the LOWER-LEFT. Contact pills as a translucent rounded card overlaid on the bottom-right.",
-      reservedDesc:
-        "Logo will be placed TOP-RIGHT. Reserve ~30% width × 18% height in the TOP-RIGHT corner — keep that part of the photo low-detail. The headline lives in the LOWER-LEFT, NOT the top.",
-      placement: { x: 0.67, y: 0.03, sizePercent: 22 },
-    },
+  // Logo placement variants — x/y are 0-1 fractions pointing to the TOP-LEFT
+  // of the logo box; sizePercent is logo width as % of image width. Random
+  // pick per generation so re-runs vary the corner.
+  const LAYOUT_VARIANTS: Array<{ x: number; y: number; sizePercent: number }> = [
+    { x: 0.03, y: 0.78, sizePercent: 22 }, // bottom-left
+    { x: 0.03, y: 0.03, sizePercent: 22 }, // top-left
+    { x: 0.67, y: 0.03, sizePercent: 22 }, // top-right
+    { x: 0.03, y: 0.02, sizePercent: 22 }, // top-left tight
   ];
-  // Random layout pick per generation so re-generating the same item gives
-  // visual variety. (Was stable per item id — too "same" when testing.)
-  const chosenLayout =
-    LAYOUT_VARIANTS[Math.floor(Math.random() * LAYOUT_VARIANTS.length)];
-  const layoutLine = chosenLayout.description;
-  const reservedLine = chosenLayout.reservedDesc;
-
-  // Premium tier earns a stronger styling push — gpt-image-1 can produce
-  // editorial-magazine-grade type when nudged.
-  const premiumPolish =
-    tier === "premium"
-      ? "Premium quality bar: design should match the work of a senior brand designer at a top studio — confident type hierarchy, considered color contrast, real attention to spacing, photographic quality should feel art-directed, NOT generic stock. Treat this like an editorial magazine cover or a high-end brand campaign, not a basic social post template. Vary your composition — DO NOT default to a centered title + paragraph layout."
-      : "";
+  const chosenLayout = {
+    placement: LAYOUT_VARIANTS[Math.floor(Math.random() * LAYOUT_VARIANTS.length)],
+  };
 
   // OpenAI works best with ALL raw data and ZERO rules — gpt-image-1 is
   // strong at composition / typography / brand fidelity when not constrained
@@ -434,12 +286,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "";
 
   const ruleBlock =
-    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) Render the headline and contact items below character-for-character exactly as given; do NOT fabricate slogans, phone numbers, emails, addresses, prices, statistics, or any year other than the one I specify. (3) Style and lay out the contact items as part of the design — your choice (icon-and-value pills, chips, a tasteful footer band, scattered icon+value pairs along an edge, whatever fits the composition). Render each item as an ICON + value — NEVER prefix the value with a text label like \"website:\", \"email:\", \"phone:\", \"instagram:\". The icon replaces the label. (4) LEGIBILITY IS NON-NEGOTIABLE — every text element (headline and contact items) must be highly readable from a phone thumbnail. Each text element needs STRONG contrast against the pixels directly behind it: if the area behind is light/bright, use dark text OR place a solid darker color block / scrim / band behind that specific text; if the area behind is dark/busy/photographic, use light text OR place a lighter scrim. NO ghost text, watermark text, low-opacity text, or transparent text. Use ONE solid color per text element — no gradients, no soft glows, no double-exposure effects. Text edges must be CRISP and sharp, not soft, blurry, or distressed. (5) Keep on-image text minimal — short headline plus the icon+value contact items only; no body paragraphs or marketing copy.";
+    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) For the contact items below: render each character-for-character exactly as given; do NOT fabricate or alter phone numbers, emails, URLs, addresses, or social handles. Any other text you add is YOUR creative call — see rule (3). (3) You are free to author your own short hero phrase / greeting / headline based on the subject and event below — keep it concise (a few words), make it feel native to the event, and do not invent fake slogans, prices, statistics, or any year other than the one I specify. (4) Style and lay out the contact items as part of the design — your choice (icon-and-value pills, chips, a tasteful footer band, scattered icon+value pairs along an edge, whatever fits the composition). Render each item as an ICON + value — NEVER prefix the value with a text label like \"website:\", \"email:\", \"phone:\", \"instagram:\". The icon replaces the label. (5) LEGIBILITY IS NON-NEGOTIABLE — every text element you add must be highly readable from a phone thumbnail with STRONG contrast against the pixels directly behind it: if the area behind is light/bright, use dark text or place a darker scrim/band behind that specific text; if dark/busy/photographic, use light text or a lighter scrim. NO ghost text, watermark text, low-opacity text, transparent text. Use ONE solid color per text element — no gradients, no soft glows, no double-exposure effects. Text edges must be CRISP and sharp, not soft, blurry, or distressed. (6) Keep on-image text minimal — at most a short authored hero phrase plus the icon+value contact items; no body paragraphs or marketing copy.";
 
   const dataBlock = [
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
-    `Subject: ${subject}.`,
-    headline ? `Headline (render exactly): "${headline}".` : "",
+    `Subject / event: ${subject}.`,
     brandKit?.description ? `Brand description (context only, do not render as text): ${brandKit.description}.` : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
       ? `Brand colors to USE in the design (do NOT render the hex strings as text): primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
@@ -479,11 +330,11 @@ export async function POST(request: NextRequest, { params }: Params) {
           // is "safe" (no text / subject sits there). Compositor preserves
           // aspect, so wordmarks and square icons both fit cleanly.
           placement: chosenLayout.placement,
-          // Smart backdrop: if the AI's bg color at the logo target area
-          // matches the logo color, drop a subtle rounded translucent
-          // backdrop so the logo stays visible. Only fills the logo's
-          // bounding rect — never hides headline / contact pills.
-          smartBackdrop: true,
+          // No smart backdrop — the rectangle around the logo was obstructing
+          // the design. Logo composites bare; legibility is handled by the
+          // AI choosing a low-detail corner per the chosen layout's reserved
+          // area + the prompt's "leave a quiet area" instruction.
+          smartBackdrop: false,
         });
       } catch (compositeErr) {
         console.warn(
