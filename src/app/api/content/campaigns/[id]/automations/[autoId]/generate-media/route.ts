@@ -403,9 +403,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? "landscape (16:9)"
       : "square (1:1)";
 
-  // OpenAI prompt: rules FIRST (gpt-image-1 weights leading instructions
-  // more strongly), then the raw data. Three essential rules kept tight.
-  // Contact items rendered as character-exact strings so the model doesn't
+  // ONE short rule block, then raw data. No layout prescription. Same shape
+  // for both OpenAI and xAI — let each engine design freely from the data.
+  // Contact items passed as character-exact strings so the model doesn't
   // typo (e.g. "info@pflowsmartly.com" instead of "info@flowsmartly.com").
   const exactContacts = contactBits.length
     ? contactBits
@@ -413,50 +413,26 @@ export async function POST(request: NextRequest, { params }: Params) {
         .join(", ")
     : "";
 
-  const openaiPrompt = [
-    // RULES FIRST — short, clear, non-negotiable.
-    "STRICT — no logos and NO BRAND NAME AS TEXT. Do NOT draw, write, fabricate, sketch, or include any logo, brand mark, wordmark, monogram, leaf icon, app icon, abstract emblem, watermark, signature, or any visual element that resembles a brand identity mark. Do NOT write the brand's name anywhere on the image as typography (no large wordmark, no header brand-name, no footer brand-name, no signature). We composite the REAL brand logo (including its wordmark) on top of this image AFTER generation — the brand name appears ONLY through that composited logo, never as AI-rendered text. Leave a small visually-quiet area in the top corner for the composite.",
-    "STRICT — no fabricated text. The headline and contact items below are the ONLY text you may render. Do NOT invent slogans, taglines, body copy, dates, prices, percentages, statistics. Do NOT add, modify, mistype, or extend any contact item — render each one character-for-character exactly as I give it. Do NOT include any year on the image that I did not specify.",
-    "STRICT — minimal on-image text. Render the SHORT headline (3-7 words) as a hero header AND the contact items as small footer pills. That is ALL the text on the image. No body paragraphs, no descriptions, no multi-sentence essays, no quote bubbles, no extra labels, no marketing copy. If the headline I give you is short (e.g. 'Happy New Year'), keep it short — do NOT pad it with extra text. The post's detailed caption lives separately as social-post copy and is NOT to be rendered on this image.",
-    // DATA — clean structured fields.
+  const ruleBlock =
+    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) Render the headline and contact items below character-for-character exactly as given; do NOT fabricate slogans, phone numbers, emails, addresses, prices, statistics, or any year other than the one I specify. (3) Keep on-image text minimal — short headline plus small contact items only; no body paragraphs or marketing copy.";
+
+  const dataBlock = [
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
-    `Subject of the post: ${subject}.`,
-    headline ? `Headline text to render EXACTLY (no edits, no additions): "${headline}".` : "",
-    brandKit
-      ? `Brand identity: name "${brandKit.name}"${brandKit.description ? `, description "${brandKit.description}"` : ""}.`
-      : "",
+    `Subject: ${subject}.`,
+    headline ? `Headline (render exactly): "${headline}".` : "",
+    brandKit?.description ? `Brand description (context only, do not render as text): ${brandKit.description}.` : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
       ? `Brand colors to USE in the design (do NOT render the hex strings as text): primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
       : "",
-    exactContacts ? `Contact items to render EXACTLY as footer pills (character-for-character, no typos, no extra letters): ${exactContacts}.` : "",
-    occurrenceYear ? `If the design needs to mention a year, the ONLY allowed year is ${occurrenceYear}. Today's date: ${todayIso}.` : `Today's date: ${todayIso}.`,
-    chosenLayout.description,
+    exactContacts ? `Contact items (render exactly): ${exactContacts}.` : "",
+    occurrenceYear ? `Year: ${occurrenceYear}. Today: ${todayIso}.` : `Today: ${todayIso}.`,
   ]
     .filter(Boolean)
     .join(" ");
 
-  // xAI / Gemini need explicit guardrails — they fabricate logos, ignore
-  // year context, write blog-length copy, etc. without them.
-  const ruledPrompt = [
-    `Design a complete, premium, scroll-stopping ${aspectLabel} social media post about: ${subject}.`,
-    headlineLine,
-    styleLine,
-    layoutLine,
-    premiumPolish,
-    brandLine,
-    colorLine,
-    contactLine,
-    dateContext,
-    `Tone: ${automation.aiTone || "friendly"}.`,
-    `Canvas rule: the image fills the entire ${dims.width}×${dims.height} (${aspectLabel}) frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.`,
-    "Copy length: this is a SOCIAL MEDIA post, NOT a blog post. Total visible text on the design must be SHORT and PRECISE — one headline (3-7 words max) PLUS at most one short sub-line (max 12 words). NO paragraphs. NO multi-sentence essays. NO body-copy blocks. If you write more than 2 short lines of text on the image, you have failed this brief.",
-    "Render the headline as legible on-brand typography (a hero header). Render the contact pills in a footer band using brand colors. Use brand colors purposefully as accents, ribbons, separators, or backgrounds. The result should look like the work of a brand designer.",
-    `Logo-overlay reservation (CRITICAL — read carefully): ${reservedLine} The HEADLINE and any other text MUST NOT extend into that reserved area. Do NOT draw a placeholder rectangle, blank box, outlined card, or any visible container in the reserved area — leave it as part of the natural design background.`,
-    "Anti-fabrication: only render text I have explicitly given you (headline, brand name, contact items above, year context). Do NOT invent slogans that reference past years, future years, phone numbers, addresses, percentages, prices, statistics, customer counts, founding dates, or any factual claim about the brand that I did not provide. If you reference a year, use ONLY the occurrence year I specified — never any other year.",
-    "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const prompt = `Design a branded social media post. ${ruleBlock} ${dataBlock}`;
+  const openaiPrompt = prompt;
+  const ruledPrompt = prompt;
 
   try {
     const { buffer: aiBuffer, provider } = await tryGenerate(
