@@ -224,10 +224,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Canvas rule — the image IS the post, no surrounding frame.
     "Canvas rule: the image fills the entire 1024×1024 frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.",
     "Render the headline / message as legible on-brand typography integrated into the design (header strap, callout, or hero text). Render the contact info in a clean footer band, pill, or strip using the brand colors. Use the brand colors purposefully as accents, ribbons, separators, or backgrounds — not just thrown in. The result should look like a piece of work from a brand designer, not a plain photo.",
-    // Safe corner for the post-generation logo composite. Phrased as a generic
-    // design constraint, not a "logo area" — saying "logo" makes the AI draw
-    // a placeholder square (verified failure mode).
-    "Design constraint: leave the TOP-LEFT corner of the image visually quiet — specifically a roughly 18% × 18% square in the corner. That corner should be either solid brand-color background, soft gradient, photo blur, or other low-detail surface. Absolutely no text, headline, graphic element, decoration, or important subject in that specific top-left corner. The rest of the design has full creative freedom and should fill the remaining 82% of the canvas richly.",
+    // Safe corner for the post-generation logo composite — a wide top-left
+    // STRIP so the user's full wordmark logo fits cleanly. Phrased as a
+    // generic design constraint, not a "logo area".
+    "Design constraint: leave a HORIZONTAL STRIP in the TOP-LEFT of the image visually quiet — specifically a region roughly 30% of the image width and 16% of the image height, starting at the very top-left corner. That strip should be either solid brand-color background, soft gradient, photo blur, or other low-detail surface. Absolutely no text, headline, graphic element, decoration, or important subject in that specific top-left strip. The rest of the design has full creative freedom and should fill the remaining canvas richly.",
     "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
   ]
     .filter(Boolean)
@@ -242,15 +242,22 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
 
     // The AI does the entire branded design (text, colors, contact, layout).
-    // We only composite the REAL brand logo on top — that's the one thing the
-    // AI can't reproduce. No template SVG, no contact pills, no extra layers.
+    // We only composite the REAL brand FULL logo on top — that's the one
+    // thing the AI can't reproduce. Prefer the full logo (wordmark + icon)
+    // over the icon-only logo so the brand reads clearly; icon is only a
+    // fallback when no full logo is set. Compositor auto-handles aspect and
+    // scales the logo to a readable size that fits the reserved corner.
     let finalBuffer = aiBuffer;
-    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+    const logoSource = brandKit?.logo || brandKit?.iconLogo || null;
     if (logoSource) {
       try {
         finalBuffer = await compositeBrandLogoOnImageBuffer({
           imageBuffer: aiBuffer,
           logoSource,
+          // Bump default size so full wordmark logos read clearly. The
+          // underlying compositor clamps to 8–28% of image width and
+          // auto-shrinks the height to preserve aspect ratio.
+          placement: { sizePercent: 22 },
         });
       } catch (compositeErr) {
         console.warn(
