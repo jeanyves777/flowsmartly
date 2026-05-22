@@ -217,7 +217,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "Do NOT render any contact info / contact footer / contact pills. The brand has no contact info to display — leave the bottom area for decorative brand-color accents only. Do NOT fabricate fake phone numbers, emails, URLs, or social handles.";
 
   const brandLine = brandKit
-    ? `Brand: ${brandKit.name}${brandKit.description ? ` (${brandKit.description})` : ""}. This design is FOR and ON BEHALF OF ${brandKit.name} only. The voice / signature on the design is "${brandKit.name}", "${brandKit.name} team", or simply the brand name — NOT any third-party platform, software, tool, marketing app, SaaS, or service that may have generated this design. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the text. Speak as ${brandKit.name} to ${brandKit.name}'s customers.`
+    ? `Brand context (for tone only — do NOT render the brand name as on-image text or as a wordmark; the real brand logo is composited on top of the image after generation, so the brand name will appear there): ${brandKit.description || "(no description)"}. This design is FOR and ON BEHALF OF this brand. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the rendered text.`
     : "";
 
   // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
@@ -238,29 +238,65 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
     : `Today's date: ${todayIso}.`;
 
-  // Scrub any stale year mentions in the stored topic so we never carry
-  // forward a "Ring in 2025" baked in from when the item was first filled.
-  // Replaces any 19xx / 20xx with the correct occurrence year (or removes
-  // the year + surrounding "Ring in / Welcome / Hello" phrasing if we
-  // don't have an occurrence year).
-  const rawHeadline =
-    automation.topic ||
-    automation.calendarSourceLabel ||
-    automation.name ||
-    null;
-  const headline = rawHeadline
-    ? (() => {
-        const correctYear = occurrenceYear ? String(occurrenceYear) : null;
-        let h = rawHeadline;
-        if (correctYear) {
-          h = h.replace(/\b(19|20)\d{2}\b/g, correctYear);
-        } else {
-          h = h.replace(/\b(?:Ring\s+in|Welcome\s+to|Hello)\s+(19|20)\d{2}\b/gi, "");
-          h = h.replace(/\b(19|20)\d{2}\b/g, "").replace(/\s{2,}/g, " ").trim();
-        }
-        return h;
-      })()
-    : null;
+  // Build a SHORT punchy headline for on-image rendering. The automation's
+  // stored topic is often a multi-sentence brief — that's for the post
+  // CAPTION, not the image. The image gets a 3-7 word hook.
+  //
+  // Preferred sources, in order:
+  //   1. calendarSourceLabel — already short (e.g. "New Year's Eve") → prefix
+  //      with "Happy" or contextual greeting
+  //   2. automation.name — usually short
+  //   3. first sentence / clause of automation.topic, capped at ~8 words
+  //
+  // Then scrub stale year mentions: replace 19xx/20xx with the correct
+  // occurrence year (or strip if no year context).
+  const auto = automation; // type narrowed — already null-checked above
+  function buildShortHeadline(): string | null {
+    const label = auto.calendarSourceLabel;
+    const brandNameMaybe = brandKit?.name ?? "";
+
+    let candidate: string | null = null;
+    if (label) {
+      const greeting =
+        /new year/i.test(label) && /eve/i.test(label)
+          ? "Happy New Year"
+          : /day/i.test(label) || /eve/i.test(label) || /easter|christmas|hanukkah|kwanzaa|halloween|thanksgiving/i.test(label)
+          ? `Happy ${label}`
+          : label;
+      candidate = greeting;
+    } else if (auto.name && auto.name.length > 0 && auto.name.length <= 60) {
+      candidate = auto.name;
+    } else if (auto.topic) {
+      const firstSentence = auto.topic.split(/[.!?\n]/)[0] || auto.topic;
+      const words = firstSentence.split(/\s+/).filter(Boolean).slice(0, 8);
+      candidate = words.join(" ");
+    }
+    if (!candidate) return null;
+
+    // Remove the brand's own name from the headline — the composited logo
+    // handles brand attribution; the headline shouldn't repeat it.
+    if (brandNameMaybe) {
+      const re = new RegExp(
+        `\\b${brandNameMaybe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        "gi",
+      );
+      candidate = candidate.replace(re, "").replace(/\s{2,}/g, " ").trim();
+    }
+
+    // Year scrub
+    const correctYear = occurrenceYear ? String(occurrenceYear) : null;
+    if (correctYear) {
+      candidate = candidate.replace(/\b(19|20)\d{2}\b/g, correctYear);
+    } else {
+      candidate = candidate
+        .replace(/\b(?:Ring\s+in|Welcome\s+to|Hello)\s+(19|20)\d{2}\b/gi, "")
+        .replace(/\b(19|20)\d{2}\b/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+    return candidate || null;
+  }
+  const headline = buildShortHeadline();
   const headlineLine = headline
     ? `Headline / message to render legibly as part of the design (typography styled in brand colors): "${headline}".`
     : "";
@@ -379,9 +415,9 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const openaiPrompt = [
     // RULES FIRST — short, clear, non-negotiable.
-    "STRICT — no logos. Do NOT draw, write, fabricate, sketch, or include any logo, brand mark, wordmark, monogram, leaf icon, app icon, abstract emblem, watermark, signature, or any visual element that resembles a brand identity mark. The image must NOT contain anything that looks like a logo. We composite the real brand logo on top of this image AFTER generation — leave a small visually-quiet area in the top corner for it.",
-    "STRICT — no fabricated text. The headline, brand name, and contact items below are the ONLY text you may render. Do NOT invent slogans, taglines, body copy, dates, prices, percentages, statistics. Do NOT add, modify, mistype, or extend any contact item — render each one character-for-character exactly as I give it. Do NOT include any year on the image that I did not specify.",
-    "STRICT — minimal on-image text. Render the headline as a hero header AND the contact items as small footer pills. That is ALL the text. No body paragraphs, no descriptions, no multi-sentence essays, no quote bubbles, no extra labels. The post's detailed caption lives separately and is NOT to be rendered on this image.",
+    "STRICT — no logos and NO BRAND NAME AS TEXT. Do NOT draw, write, fabricate, sketch, or include any logo, brand mark, wordmark, monogram, leaf icon, app icon, abstract emblem, watermark, signature, or any visual element that resembles a brand identity mark. Do NOT write the brand's name anywhere on the image as typography (no large wordmark, no header brand-name, no footer brand-name, no signature). We composite the REAL brand logo (including its wordmark) on top of this image AFTER generation — the brand name appears ONLY through that composited logo, never as AI-rendered text. Leave a small visually-quiet area in the top corner for the composite.",
+    "STRICT — no fabricated text. The headline and contact items below are the ONLY text you may render. Do NOT invent slogans, taglines, body copy, dates, prices, percentages, statistics. Do NOT add, modify, mistype, or extend any contact item — render each one character-for-character exactly as I give it. Do NOT include any year on the image that I did not specify.",
+    "STRICT — minimal on-image text. Render the SHORT headline (3-7 words) as a hero header AND the contact items as small footer pills. That is ALL the text on the image. No body paragraphs, no descriptions, no multi-sentence essays, no quote bubbles, no extra labels, no marketing copy. If the headline I give you is short (e.g. 'Happy New Year'), keep it short — do NOT pad it with extra text. The post's detailed caption lives separately as social-post copy and is NOT to be rendered on this image.",
     // DATA — clean structured fields.
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
     `Subject of the post: ${subject}.`,
