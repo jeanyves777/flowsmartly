@@ -220,11 +220,47 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Brand: ${brandKit.name}${brandKit.description ? ` (${brandKit.description})` : ""}. This design is FOR and ON BEHALF OF ${brandKit.name} only. The voice / signature on the design is "${brandKit.name}", "${brandKit.name} team", or simply the brand name — NOT any third-party platform, software, tool, marketing app, SaaS, or service that may have generated this design. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the text. Speak as ${brandKit.name} to ${brandKit.name}'s customers.`
     : "";
 
-  const headline =
+  // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
+  // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
+  // Computed BEFORE headline scrubbing so the scrubber can replace stale years.
+  let occurrenceYear: number | null = null;
+  if (automation.calendarSourceType === "HOLIDAY" && automation.calendarSourceId) {
+    const h = getHolidayById(automation.calendarSourceId);
+    if (h) {
+      const thisYear = new Date().getFullYear();
+      const dt = getHolidayDate(h, thisYear);
+      const thisInstance = new Date(thisYear, dt.month - 1, dt.day).getTime();
+      occurrenceYear = thisInstance >= Date.now() ? thisYear : thisYear + 1;
+    }
+  }
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dateContext = occurrenceYear
+    ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
+    : `Today's date: ${todayIso}.`;
+
+  // Scrub any stale year mentions in the stored topic so we never carry
+  // forward a "Ring in 2025" baked in from when the item was first filled.
+  // Replaces any 19xx / 20xx with the correct occurrence year (or removes
+  // the year + surrounding "Ring in / Welcome / Hello" phrasing if we
+  // don't have an occurrence year).
+  const rawHeadline =
     automation.topic ||
     automation.calendarSourceLabel ||
     automation.name ||
     null;
+  const headline = rawHeadline
+    ? (() => {
+        const correctYear = occurrenceYear ? String(occurrenceYear) : null;
+        let h = rawHeadline;
+        if (correctYear) {
+          h = h.replace(/\b(19|20)\d{2}\b/g, correctYear);
+        } else {
+          h = h.replace(/\b(?:Ring\s+in|Welcome\s+to|Hello)\s+(19|20)\d{2}\b/gi, "");
+          h = h.replace(/\b(19|20)\d{2}\b/g, "").replace(/\s{2,}/g, " ").trim();
+        }
+        return h;
+      })()
+    : null;
   const headlineLine = headline
     ? `Headline / message to render legibly as part of the design (typography styled in brand colors): "${headline}".`
     : "";
@@ -305,11 +341,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       placement: { x: 0.67, y: 0.03, sizePercent: 22 },
     },
   ];
-  const layoutSeed = autoId.split("").reduce(
-    (acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0,
-    0,
-  );
-  const chosenLayout = LAYOUT_VARIANTS[layoutSeed % LAYOUT_VARIANTS.length];
+  // Random layout pick per generation so re-generating the same item gives
+  // visual variety. (Was stable per item id — too "same" when testing.)
+  const chosenLayout =
+    LAYOUT_VARIANTS[Math.floor(Math.random() * LAYOUT_VARIANTS.length)];
   const layoutLine = chosenLayout.description;
   const reservedLine = chosenLayout.reservedDesc;
 
@@ -319,23 +354,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     tier === "premium"
       ? "Premium quality bar: design should match the work of a senior brand designer at a top studio — confident type hierarchy, considered color contrast, real attention to spacing, photographic quality should feel art-directed, NOT generic stock. Treat this like an editorial magazine cover or a high-end brand campaign, not a basic social post template. Vary your composition — DO NOT default to a centered title + paragraph layout."
       : "";
-
-  // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
-  // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
-  let occurrenceYear: number | null = null;
-  if (automation.calendarSourceType === "HOLIDAY" && automation.calendarSourceId) {
-    const h = getHolidayById(automation.calendarSourceId);
-    if (h) {
-      const thisYear = new Date().getFullYear();
-      const dt = getHolidayDate(h, thisYear);
-      const thisInstance = new Date(thisYear, dt.month - 1, dt.day).getTime();
-      occurrenceYear = thisInstance >= Date.now() ? thisYear : thisYear + 1;
-    }
-  }
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const dateContext = occurrenceYear
-    ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
-    : `Today's date: ${todayIso}.`;
 
   // OpenAI works best with ALL raw data and ZERO rules — gpt-image-1 is
   // strong at composition / typography / brand fidelity when not constrained
@@ -349,29 +367,34 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? "landscape (16:9)"
       : "square (1:1)";
 
-  // OpenAI prompt: raw data + the MINIMUM essential rules. gpt-image-1 still
-  // needs to be told the three things it ignores by default: no logo (we
-  // composite ours), no fabricated facts (year, phone, etc.), and minimal
-  // on-image text (long copy belongs in the post caption, not the image).
+  // OpenAI prompt: rules FIRST (gpt-image-1 weights leading instructions
+  // more strongly), then the raw data. Three essential rules kept tight.
+  // Contact items rendered as character-exact strings so the model doesn't
+  // typo (e.g. "info@pflowsmartly.com" instead of "info@flowsmartly.com").
+  const exactContacts = contactBits.length
+    ? contactBits
+        .map((c) => `"${c.replace(/^(\w+)\s+/, "$1: ")}"`)
+        .join(", ")
+    : "";
+
   const openaiPrompt = [
-    `Design a branded social media post (${aspectLabel}).`,
-    `Subject: ${subject}.`,
-    headline ? `Headline (this is the ONLY large text on the image): "${headline}".` : "",
+    // RULES FIRST — short, clear, non-negotiable.
+    "STRICT — no logos. Do NOT draw, write, fabricate, sketch, or include any logo, brand mark, wordmark, monogram, leaf icon, app icon, abstract emblem, watermark, signature, or any visual element that resembles a brand identity mark. The image must NOT contain anything that looks like a logo. We composite the real brand logo on top of this image AFTER generation — leave a small visually-quiet area in the top corner for it.",
+    "STRICT — no fabricated text. The headline, brand name, and contact items below are the ONLY text you may render. Do NOT invent slogans, taglines, body copy, dates, prices, percentages, statistics. Do NOT add, modify, mistype, or extend any contact item — render each one character-for-character exactly as I give it. Do NOT include any year on the image that I did not specify.",
+    "STRICT — minimal on-image text. Render the headline as a hero header AND the contact items as small footer pills. That is ALL the text. No body paragraphs, no descriptions, no multi-sentence essays, no quote bubbles, no extra labels. The post's detailed caption lives separately and is NOT to be rendered on this image.",
+    // DATA — clean structured fields.
+    `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
+    `Subject of the post: ${subject}.`,
+    headline ? `Headline text to render EXACTLY (no edits, no additions): "${headline}".` : "",
     brandKit
-      ? `Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
+      ? `Brand identity: name "${brandKit.name}"${brandKit.description ? `, description "${brandKit.description}"` : ""}.`
       : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
-      ? `Brand colors: primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
+      ? `Brand colors to USE in the design (do NOT render the hex strings as text): primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
       : "",
-    contactBits.length ? `Contact items to render as small footer pills: ${contactBits.join(" · ")}.` : "",
-    occurrenceYear ? `Today: ${todayIso}. Occurrence year: ${occurrenceYear}.` : `Today: ${todayIso}.`,
-    `Tone: ${automation.aiTone || "friendly"}.`,
-    `Style: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}.`,
+    exactContacts ? `Contact items to render EXACTLY as footer pills (character-for-character, no typos, no extra letters): ${exactContacts}.` : "",
+    occurrenceYear ? `If the design needs to mention a year, the ONLY allowed year is ${occurrenceYear}. Today's date: ${todayIso}.` : `Today's date: ${todayIso}.`,
     chosenLayout.description,
-    // Three essential rules — kept minimal. OpenAI handles the rest.
-    "Keep on-image text MINIMAL — just the headline plus the small footer contact pills. No body paragraphs, no multi-sentence descriptions, no blog-style copy on the image. The detailed post caption lives separately as social-post copy, not rendered on the image itself.",
-    "Do NOT draw, write, or fabricate any logo / brand mark / wordmark / monogram / app icon / abstract emblem / watermark / signature. We composite the real brand logo on top after generation — leave a small visually-quiet area in a corner for it.",
-    "Only render text I gave you. Do NOT invent slogans referencing other years, fake phone numbers, fake addresses, prices, percentages, or any factual claim. Use ONLY the occurrence year I specified.",
   ]
     .filter(Boolean)
     .join(" ");
