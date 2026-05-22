@@ -80,15 +80,41 @@ interface MediaResolution {
   skipReason: string | null;
 }
 
-async function resolveMedia(automation: {
-  mediaMode: string;
-  mediaUrl: string | null;
-  mediaFileId: string | null;
-  mediaFolderId: string | null;
-  mediaFolderLastUsedIndex: number;
-}): Promise<MediaResolution> {
+async function resolveMedia(
+  automation: {
+    mediaMode: string;
+    mediaUrl: string | null;
+    mediaFileId: string | null;
+    mediaFolderId: string | null;
+    mediaFolderLastUsedIndex: number;
+    aiMediaConfig?: string | null;
+  },
+  occurrenceYear?: number,
+): Promise<MediaResolution> {
   switch (automation.mediaMode) {
     case "UPLOAD": {
+      // For CALENDAR_EVENT automations, the pre-generated image may be scoped
+      // to a specific year via aiMediaConfig.appliesTo. If the current
+      // occurrence's year doesn't match, fall through to text-only so the
+      // user can pre-generate a fresh image for that year.
+      const cfg = parseJson<{ appliesTo?: string }>(
+        automation.aiMediaConfig ?? null,
+        {},
+      );
+      if (
+        cfg.appliesTo &&
+        cfg.appliesTo !== "all" &&
+        occurrenceYear !== undefined &&
+        cfg.appliesTo !== String(occurrenceYear)
+      ) {
+        return {
+          mediaUrl: null,
+          mediaType: null,
+          mediaFileId: null,
+          nextFolderIndex: null,
+          skipReason: null,
+        };
+      }
       return {
         mediaUrl: automation.mediaUrl,
         mediaType: automation.mediaUrl ? "image" : null,
@@ -367,7 +393,10 @@ export async function processDueContentAutomations(
           });
           if (seen) continue;
 
-          const media = await resolveMedia({ ...a, mediaFolderLastUsedIndex: folderIndex });
+          const media = await resolveMedia(
+            { ...a, mediaFolderLastUsedIndex: folderIndex },
+            occurrenceAt.getFullYear(),
+          );
           if (media.skipReason) {
             await logSkipped(a.id, occurrenceKey, media.skipReason);
             result.skipped += 1;

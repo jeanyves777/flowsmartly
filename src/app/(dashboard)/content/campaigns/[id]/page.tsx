@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import AddItemDialog from "./add-item-dialog";
 import ImportStrategyDialog from "./import-strategy-dialog";
@@ -132,6 +132,8 @@ export default function CampaignDetailPage({
   const [showImport, setShowImport] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [campaignBusy, setCampaignBusy] = useState<null | "cancel" | "delete">(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,18 +147,30 @@ export default function CampaignDetailPage({
     load();
   }, [load]);
 
+  // Each per-automation action holds the busy state through the full request
+  // AND the reload, so the AISpinner stays visible until the new state lands.
   const review = async (autoId: string, action: "approve" | "skip" | "revert") => {
+    if (actioningId) return;
     setActioningId(autoId);
-    await fetch(
-      `/api/content/campaigns/${id}/automations/${autoId}/review`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      },
-    );
-    setActioningId(null);
-    load();
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `/api/content/campaigns/${id}/automations/${autoId}/review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        },
+      );
+      const json = await res.json();
+      if (!json?.success) {
+        setActionError(json?.error?.message ?? "Review action failed");
+        return;
+      }
+      await load();
+    } finally {
+      setActioningId(null);
+    }
   };
 
   const cancelAutomation = async (autoId: string) => {
@@ -169,12 +183,21 @@ export default function CampaignDetailPage({
     });
     if (!ok) return;
     setActioningId(autoId);
-    await fetch(
-      `/api/content/campaigns/${id}/automations/${autoId}/cancel`,
-      { method: "POST" },
-    );
-    setActioningId(null);
-    load();
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `/api/content/campaigns/${id}/automations/${autoId}/cancel`,
+        { method: "POST" },
+      );
+      const json = await res.json();
+      if (!json?.success) {
+        setActionError(json?.error?.message ?? "Cancel failed");
+        return;
+      }
+      await load();
+    } finally {
+      setActioningId(null);
+    }
   };
 
   const deleteAutomation = async (autoId: string) => {
@@ -186,12 +209,21 @@ export default function CampaignDetailPage({
     });
     if (!ok) return;
     setActioningId(autoId);
-    await fetch(
-      `/api/content/campaigns/${id}/automations/${autoId}`,
-      { method: "DELETE" },
-    );
-    setActioningId(null);
-    load();
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `/api/content/campaigns/${id}/automations/${autoId}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json();
+      if (!json?.success) {
+        setActionError(json?.error?.message ?? "Delete failed");
+        return;
+      }
+      await load();
+    } finally {
+      setActioningId(null);
+    }
   };
 
   const cancelCampaign = async () => {
@@ -203,24 +235,46 @@ export default function CampaignDetailPage({
       variant: "destructive",
     });
     if (!ok) return;
-    await fetch(`/api/content/campaigns/${id}/cancel`, { method: "POST" });
-    load();
+    setCampaignBusy("cancel");
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/content/campaigns/${id}/cancel`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json?.success) {
+        setActionError(json?.error?.message ?? "Cancel campaign failed");
+        return;
+      }
+      await load();
+    } finally {
+      setCampaignBusy(null);
+    }
   };
 
   const deleteCampaign = async () => {
     const ok = await confirmDialog({
       title: "Delete this draft campaign?",
-      description: "This will permanently remove the campaign and all its items.",
+      description:
+        "This will permanently remove the campaign and all its items.",
       confirmText: "Delete",
       variant: "destructive",
     });
     if (!ok) return;
-    const res = await fetch(`/api/content/campaigns/${id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (json?.success) {
-      router.push("/content/campaigns");
-    } else {
-      alert(json?.error?.message ?? "Cannot delete this campaign");
+    setCampaignBusy("delete");
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/content/campaigns/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json?.success) {
+        router.push("/content/campaigns");
+      } else {
+        setActionError(json?.error?.message ?? "Cannot delete this campaign");
+      }
+    } finally {
+      setCampaignBusy(null);
     }
   };
 
@@ -241,6 +295,22 @@ export default function CampaignDetailPage({
 
   return (
     <div className="space-y-6">
+      {campaignBusy === "cancel" && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
+          <AIGenerationLoader
+            currentStep="Canceling campaign..."
+            subtitle="Removing future scheduled posts from the calendar"
+          />
+        </div>
+      )}
+      {campaignBusy === "delete" && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
+          <AIGenerationLoader
+            currentStep="Deleting draft campaign..."
+            subtitle="Cleaning up"
+          />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Link
           href="/content/campaigns"
@@ -250,6 +320,19 @@ export default function CampaignDetailPage({
           Campaigns
         </Link>
       </div>
+
+      {actionError && (
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 flex items-center justify-between gap-3">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-xs underline opacity-70 hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
@@ -308,14 +391,30 @@ export default function CampaignDetailPage({
             </>
           )}
           {campaignDraft && (
-            <Button variant="outline" onClick={deleteCampaign}>
-              <Trash2 className="w-4 h-4 mr-2" />
+            <Button
+              variant="outline"
+              onClick={deleteCampaign}
+              disabled={!!campaignBusy}
+            >
+              {campaignBusy === "delete" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
               Delete draft
             </Button>
           )}
           {!campaignCanceled && !campaignDraft && (
-            <Button variant="destructive" onClick={cancelCampaign}>
-              <XCircle className="w-4 h-4 mr-2" />
+            <Button
+              variant="destructive"
+              onClick={cancelCampaign}
+              disabled={!!campaignBusy}
+            >
+              {campaignBusy === "cancel" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <XCircle className="w-4 h-4 mr-2" />
+              )}
               Cancel campaign
             </Button>
           )}

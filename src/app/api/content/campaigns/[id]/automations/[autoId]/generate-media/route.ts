@@ -26,8 +26,17 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
   const { id: campaignId, autoId } = await params;
-  const body = (await request.json().catch(() => ({}))) as { tier?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    tier?: string;
+    appliesTo?: string;
+  };
   const tier = body.tier === "premium" ? "premium" : "standard";
+  // appliesTo = "all" | "YYYY" — controls which year(s) the generated image is
+  // used for in CALENDAR_EVENT triggers. Anything else falls back to "all".
+  const appliesTo =
+    typeof body.appliesTo === "string" && /^(all|\d{4})$/.test(body.appliesTo)
+      ? body.appliesTo
+      : "all";
 
   const automation = await prisma.contentAutomation.findFirst({
     where: { id: autoId, campaignId, userId: session.userId },
@@ -106,12 +115,34 @@ export async function POST(request: NextRequest, { params }: Params) {
     const key = `campaigns/${session.userId}/${autoId}-${Date.now()}.png`;
     const url = await uploadToS3(key, buffer, "image/png");
 
-    // Set the URL + switch to UPLOAD mode so the scheduler uses this exact image.
+    // Merge tier + appliesTo into aiMediaConfig so the scheduler can decide
+    // per-occurrence whether to use this URL or regenerate at post time.
+    const existingConfig = (() => {
+      try {
+        return JSON.parse(automation.aiMediaConfig ?? "{}") as Record<
+          string,
+          unknown
+        >;
+      } catch {
+        return {} as Record<string, unknown>;
+      }
+    })();
+    const mergedConfig = {
+      ...existingConfig,
+      type: existingConfig.type ?? "image",
+      style: existingConfig.style ?? "natural",
+      tier,
+      appliesTo,
+    };
+
+    // Set the URL + switch to UPLOAD mode so the scheduler uses this exact image
+    // (subject to the appliesTo scope it now stores on aiMediaConfig).
     const updated = await prisma.contentAutomation.update({
       where: { id: autoId },
       data: {
         mediaUrl: url,
         mediaMode: "UPLOAD",
+        aiMediaConfig: JSON.stringify(mergedConfig),
       },
       select: { id: true, mediaUrl: true, mediaMode: true },
     });

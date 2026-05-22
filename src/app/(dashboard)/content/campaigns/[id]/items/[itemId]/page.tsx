@@ -49,6 +49,7 @@ interface Automation {
   calendarOffsets: string;
   startDate: string | null;
   endDate: string | null;
+  aiMediaConfig: string | null;
   firstPostCreatedAt: string | null;
   totalGenerated: number;
   logs?: { id: string; status: string; reason: string | null; triggeredAt: string }[];
@@ -139,7 +140,9 @@ export default function ItemEditorPage({
   const [error, setError] = useState<string | null>(null);
   const [aiHint, setAiHint] = useState("");
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [headerBusy, setHeaderBusy] = useState<"approve" | "revert" | "skip" | "cancel" | null>(null);
   const [mediaTier, setMediaTier] = useState<"standard" | "premium">("standard");
+  const [mediaAppliesTo, setMediaAppliesTo] = useState<string>("all");
 
   // editable fields
   const [name, setName] = useState("");
@@ -172,6 +175,13 @@ export default function ItemEditorPage({
       setMediaMode(auto.mediaMode);
       setMediaUrl(auto.mediaUrl ?? "");
       setEndDate(auto.endDate ? auto.endDate.slice(0, 10) : "");
+      // Restore persisted tier + apply-to scope from aiMediaConfig
+      const cfg = parseJsonSafe<{ tier?: string; appliesTo?: string }>(
+        auto.aiMediaConfig,
+        {},
+      );
+      setMediaTier(cfg.tier === "premium" ? "premium" : "standard");
+      setMediaAppliesTo(cfg.appliesTo ?? "all");
     }
     setLoading(false);
   }, [id, itemId]);
@@ -208,6 +218,36 @@ export default function ItemEditorPage({
     }
   };
 
+  // Auto-persist the Premium/Standard tier on click so it sticks across reloads.
+  // Stored inside the existing aiMediaConfig JSON column.
+  const changeMediaTier = async (next: "standard" | "premium") => {
+    if (next === mediaTier) return;
+    setMediaTier(next); // optimistic
+    try {
+      const existing = parseJsonSafe<Record<string, unknown>>(
+        a?.aiMediaConfig ?? null,
+        {},
+      );
+      const merged = { ...existing, tier: next, type: existing.type ?? "image" };
+      await fetch(
+        `/api/content/campaigns/${id}/automations/${itemId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aiMediaConfig: merged }),
+        },
+      );
+      // Reflect new value in the local automation snapshot so subsequent
+      // changes merge cleanly.
+      if (a) {
+        setA({ ...a, aiMediaConfig: JSON.stringify(merged) });
+      }
+    } catch {
+      // Revert on failure
+      setMediaTier(mediaTier);
+    }
+  };
+
   const preGenerateMedia = async () => {
     setAiBusy("pregen_media");
     setError(null);
@@ -217,7 +257,7 @@ export default function ItemEditorPage({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: mediaTier }),
+          body: JSON.stringify({ tier: mediaTier, appliesTo: mediaAppliesTo }),
         },
       );
       const json = await res.json();
@@ -228,6 +268,33 @@ export default function ItemEditorPage({
       setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {
       setAiBusy(null);
+    }
+  };
+
+  // Auto-persist apply-to scope on change, same pattern as tier.
+  const changeAppliesTo = async (next: string) => {
+    if (next === mediaAppliesTo) return;
+    setMediaAppliesTo(next);
+    try {
+      const existing = parseJsonSafe<Record<string, unknown>>(
+        a?.aiMediaConfig ?? null,
+        {},
+      );
+      const merged = {
+        ...existing,
+        appliesTo: next,
+        type: existing.type ?? "image",
+      };
+      await fetch(`/api/content/campaigns/${id}/automations/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiMediaConfig: merged }),
+      });
+      if (a) {
+        setA({ ...a, aiMediaConfig: JSON.stringify(merged) });
+      }
+    } catch {
+      setMediaAppliesTo(mediaAppliesTo);
     }
   };
 
@@ -264,6 +331,7 @@ export default function ItemEditorPage({
   };
 
   const save = async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     const tags = hashtags
@@ -283,33 +351,42 @@ export default function ItemEditorPage({
       mediaUrl: mediaMode === "UPLOAD" ? mediaUrl : null,
       endDate: endDate || null,
     };
-    const res = await fetch(
-      `/api/content/campaigns/${id}/automations/${itemId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
-    const json = await res.json();
-    setSaving(false);
-    if (!json?.success) {
-      setError(json?.error?.message ?? "Save failed");
-      return;
+    try {
+      const res = await fetch(
+        `/api/content/campaigns/${id}/automations/${itemId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const json = await res.json();
+      if (!json?.success) {
+        setError(json?.error?.message ?? "Save failed");
+        return;
+      }
+      await load();
+    } finally {
+      setSaving(false);
     }
-    load();
   };
 
   const review = async (action: "approve" | "skip" | "revert") => {
-    await fetch(
-      `/api/content/campaigns/${id}/automations/${itemId}/review`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      },
-    );
-    load();
+    if (headerBusy) return;
+    setHeaderBusy(action);
+    try {
+      await fetch(
+        `/api/content/campaigns/${id}/automations/${itemId}/review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        },
+      );
+      await load();
+    } finally {
+      setHeaderBusy(null);
+    }
   };
 
   const cancel = async () => {
@@ -321,11 +398,16 @@ export default function ItemEditorPage({
       variant: "destructive",
     });
     if (!ok) return;
-    await fetch(
-      `/api/content/campaigns/${id}/automations/${itemId}/cancel`,
-      { method: "POST" },
-    );
-    load();
+    setHeaderBusy("cancel");
+    try {
+      await fetch(
+        `/api/content/campaigns/${id}/automations/${itemId}/cancel`,
+        { method: "POST" },
+      );
+      await load();
+    } finally {
+      setHeaderBusy(null);
+    }
   };
 
   if (loading || !a) return <PageLoader />;
@@ -388,18 +470,40 @@ export default function ItemEditorPage({
         {!canceled && (
           <div className="flex gap-2">
             {a.reviewStatus === "PENDING_REVIEW" && (
-              <Button onClick={() => review("approve")}>
-                <CheckCircle2 className="w-4 h-4 mr-2" />
+              <Button
+                onClick={() => review("approve")}
+                disabled={!!headerBusy}
+              >
+                {headerBusy === "approve" ? (
+                  <AISpinner className="w-4 h-4 mr-2" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                )}
                 Approve
               </Button>
             )}
             {a.reviewStatus === "APPROVED" && (
-              <Button variant="outline" onClick={() => review("revert")}>
+              <Button
+                variant="outline"
+                onClick={() => review("revert")}
+                disabled={!!headerBusy}
+              >
+                {headerBusy === "revert" && (
+                  <AISpinner className="w-4 h-4 mr-2" />
+                )}
                 Unapprove
               </Button>
             )}
-            <Button variant="destructive" onClick={cancel}>
-              <XCircle className="w-4 h-4 mr-2" />
+            <Button
+              variant="destructive"
+              onClick={cancel}
+              disabled={!!headerBusy}
+            >
+              {headerBusy === "cancel" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <XCircle className="w-4 h-4 mr-2" />
+              )}
               Cancel
             </Button>
           </div>
@@ -617,7 +721,7 @@ export default function ItemEditorPage({
                     <div className="flex rounded-md border bg-white dark:bg-zinc-950 overflow-hidden">
                       <button
                         type="button"
-                        onClick={() => setMediaTier("standard")}
+                        onClick={() => changeMediaTier("standard")}
                         disabled={canceled || locked || aiBusy === "pregen_media"}
                         className={`px-3 py-1.5 text-xs font-medium ${
                           mediaTier === "standard"
@@ -629,7 +733,7 @@ export default function ItemEditorPage({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setMediaTier("premium")}
+                        onClick={() => changeMediaTier("premium")}
                         disabled={canceled || locked || aiBusy === "pregen_media"}
                         className={`px-3 py-1.5 text-xs font-medium border-l ${
                           mediaTier === "premium"
@@ -640,6 +744,31 @@ export default function ItemEditorPage({
                         Premium
                       </button>
                     </div>
+                  </div>
+                  {a.triggerType === "CALENDAR_EVENT" && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label className="text-xs">Apply to:</Label>
+                      <select
+                        value={mediaAppliesTo}
+                        onChange={(e) => changeAppliesTo(e.target.value)}
+                        disabled={canceled || locked || aiBusy === "pregen_media"}
+                        className="text-xs border rounded px-2 py-1.5 bg-white dark:bg-zinc-950 dark:border-zinc-700"
+                      >
+                        <option value="all">All future years (reuse every year)</option>
+                        <option value={String(new Date().getFullYear())}>
+                          This year only ({new Date().getFullYear()})
+                        </option>
+                        <option value={String(new Date().getFullYear() + 1)}>
+                          Next year only ({new Date().getFullYear() + 1})
+                        </option>
+                      </select>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 w-full">
+                        Holidays repeat yearly. Pick &quot;this year only&quot; if
+                        you want a different image generated next year.
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex">
                     <Button
                       type="button"
                       onClick={preGenerateMedia}
