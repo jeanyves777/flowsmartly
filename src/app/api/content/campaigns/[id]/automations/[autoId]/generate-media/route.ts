@@ -197,6 +197,32 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? "Aesthetic: high-quality 3D-rendered scene — stylized CGI with rich materials, dramatic lighting, depth of field — wrapped in a clean modern social-media design layout."
       : "Aesthetic: photorealistic photograph as the hero subject — natural lighting, professional photography — wrapped in a clean modern social-media design layout.";
 
+  // Layout variants — pick one per generation so we get visual variety
+  // across items in a batch instead of the same blocky composition every
+  // time. Seeded by item id so the same item is stable across regenerations
+  // but different items differ.
+  const LAYOUT_VARIANTS = [
+    "Layout: editorial split — the bold serif headline sits on the LEFT half of the canvas over a brand-colored panel; a full-bleed hero photo fills the RIGHT half. A thin brand-accent vertical stripe separates them.",
+    "Layout: magazine cover — a single large hero photo fills most of the canvas. A wide brand-color band sits at the BOTTOM holding the headline in a heavy display sans-serif and the contact pills on a row below.",
+    "Layout: stacked card — hero photo fills the upper 55% of the canvas with a soft brand-color gradient overlay; lower 45% is a solid brand-color block holding the headline in big bold typography and the contact pills as styled chips.",
+    "Layout: diagonal accent — a large brand-color triangular wedge cuts diagonally across the upper-left of the canvas; the headline lives inside the wedge in white type; the rest of the canvas is the hero photo with the contact band at the bottom.",
+    "Layout: modern poster — a bold typographic headline dominates the canvas (huge display type filling 40% of the height) over a soft brand-color gradient. A smaller photo sits as a tasteful inset or corner accent. Contact pills as a clean strip at the bottom.",
+    "Layout: frame-in-frame — the hero photo is inset from the edges with a thick brand-color border around all four sides. The headline sits in the top border (white typography on brand-color); contact pills sit in the bottom border.",
+    "Layout: ribbon strap — a brand-color ribbon strap cuts horizontally across the upper-third holding the headline in bold script or serif typography; the hero photo fills the rest of the canvas with a clean footer band at the bottom for contact pills.",
+    "Layout: gradient overlay — a single dramatic photo fills the entire canvas with a brand-color radial or diagonal gradient overlay. The headline sits in white display typography in the lower-left (with the reserved top-left strip kept quiet). Contact pills as a translucent rounded card overlaid on the bottom-right.",
+  ];
+  // Stable seed from autoId so re-running on the same item picks the same
+  // variant (unless user regenerates by hand). Hashes the id to int.
+  const layoutSeed = autoId.split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
+  const layoutLine = LAYOUT_VARIANTS[layoutSeed % LAYOUT_VARIANTS.length];
+
+  // Premium tier earns a stronger styling push — gpt-image-1 can produce
+  // editorial-magazine-grade type when nudged.
+  const premiumPolish =
+    tier === "premium"
+      ? "Premium quality bar: design should match the work of a senior brand designer at a top studio — confident type hierarchy, considered color contrast, real attention to spacing, photographic quality should feel art-directed, NOT generic stock. Treat this like an editorial magazine cover or a high-end brand campaign, not a basic social post template. Vary your composition — DO NOT default to a centered title + paragraph layout."
+      : "";
+
   // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
   // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
   let occurrenceYear: number | null = null;
@@ -221,6 +247,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     `Design a complete, premium, scroll-stopping 1:1 social media post about: ${subject}.`,
     headlineLine,
     styleLine,
+    layoutLine,
+    premiumPolish,
     brandLine,
     colorLine,
     contactLine,
