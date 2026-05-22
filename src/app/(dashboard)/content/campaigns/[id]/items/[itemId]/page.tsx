@@ -145,6 +145,7 @@ export default function ItemEditorPage({
   const [mediaTier, setMediaTier] = useState<"standard" | "premium">("standard");
   const [mediaAppliesTo, setMediaAppliesTo] = useState<string>("all");
   const [mediaStyle, setMediaStyle] = useState<"realistic" | "3d">("realistic");
+  const [mediaAspect, setMediaAspect] = useState<"square" | "portrait" | "landscape">("square");
 
   // editable fields
   const [name, setName] = useState("");
@@ -182,10 +183,16 @@ export default function ItemEditorPage({
         tier?: string;
         appliesTo?: string;
         style?: string;
+        aspect?: string;
       }>(auto.aiMediaConfig, {});
       setMediaTier(cfg.tier === "premium" ? "premium" : "standard");
       setMediaAppliesTo(cfg.appliesTo ?? "all");
       setMediaStyle(cfg.style === "3d" ? "3d" : "realistic");
+      setMediaAspect(
+        cfg.aspect === "portrait" || cfg.aspect === "landscape"
+          ? cfg.aspect
+          : "square",
+      );
     }
     setLoading(false);
   }, [id, itemId]);
@@ -265,6 +272,7 @@ export default function ItemEditorPage({
             tier: mediaTier,
             appliesTo: mediaAppliesTo,
             style: mediaStyle,
+            aspect: mediaAspect,
           }),
         },
       );
@@ -288,6 +296,27 @@ export default function ItemEditorPage({
       setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {
       setAiBusy(null);
+    }
+  };
+
+  // Auto-persist aspect (square / portrait / landscape) on change.
+  const changeMediaAspect = async (next: "square" | "portrait" | "landscape") => {
+    if (next === mediaAspect) return;
+    setMediaAspect(next);
+    try {
+      const existing = parseJsonSafe<Record<string, unknown>>(
+        a?.aiMediaConfig ?? null,
+        {},
+      );
+      const merged = { ...existing, aspect: next, type: existing.type ?? "image" };
+      await fetch(`/api/content/campaigns/${id}/automations/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiMediaConfig: merged }),
+      });
+      if (a) setA({ ...a, aiMediaConfig: JSON.stringify(merged) });
+    } catch {
+      setMediaAspect(mediaAspect);
     }
   };
 
@@ -810,6 +839,36 @@ export default function ItemEditorPage({
                         3D
                       </button>
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs">Format:</Label>
+                    <div className="flex rounded-md border bg-white dark:bg-zinc-950 overflow-hidden">
+                      {(
+                        [
+                          { v: "square", label: "Square 1:1" },
+                          { v: "portrait", label: "Portrait 4:5" },
+                          { v: "landscape", label: "Landscape 16:9" },
+                        ] as const
+                      ).map((a, i) => (
+                        <button
+                          key={a.v}
+                          type="button"
+                          onClick={() => changeMediaAspect(a.v)}
+                          disabled={canceled || locked || aiBusy === "pregen_media"}
+                          className={`px-3 py-1.5 text-xs font-medium ${i > 0 ? "border-l" : ""} ${
+                            mediaAspect === a.v
+                              ? "bg-blue-600 text-white"
+                              : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 w-full">
+                      Pick a non-square format when the content needs more text
+                      or vertical space (tax tips, multi-line breakdowns).
+                    </p>
                   </div>
                   {a.triggerType === "CALENDAR_EVENT" && (
                     <div className="flex flex-wrap items-center gap-2">

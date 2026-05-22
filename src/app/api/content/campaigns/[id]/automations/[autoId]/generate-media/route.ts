@@ -73,6 +73,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     tier?: string;
     appliesTo?: string;
     style?: string;
+    aspect?: string;
   };
   const tier: "premium" | "standard" =
     body.tier === "premium" ? "premium" : "standard";
@@ -81,6 +82,18 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? body.appliesTo
       : "all";
   const style: "realistic" | "3d" = body.style === "3d" ? "3d" : "realistic";
+  // Aspect ratio: "square" 1024×1024 (IG feed), "portrait" 1024×1536 (IG
+  // story / Pinterest / longer copy), "landscape" 1536×1024 (Twitter / LI).
+  const aspect: "square" | "portrait" | "landscape" =
+    body.aspect === "portrait" || body.aspect === "landscape"
+      ? body.aspect
+      : "square";
+  const dims =
+    aspect === "portrait"
+      ? { width: 1024, height: 1536 }
+      : aspect === "landscape"
+      ? { width: 1536, height: 1024 }
+      : { width: 1024, height: 1024 };
 
   const automation = await prisma.contentAutomation.findFirst({
     where: { id: autoId, campaignId, userId: session.userId },
@@ -329,21 +342,36 @@ export async function POST(request: NextRequest, { params }: Params) {
   // by long prohibition clauses. xAI and Gemini need the rules to behave.
   // Build two prompt variants and feed each provider its preferred shape.
 
+  const aspectLabel =
+    aspect === "portrait"
+      ? "portrait (4:5)"
+      : aspect === "landscape"
+      ? "landscape (16:9)"
+      : "square (1:1)";
+
+  // OpenAI prompt: raw data + the MINIMUM essential rules. gpt-image-1 still
+  // needs to be told the three things it ignores by default: no logo (we
+  // composite ours), no fabricated facts (year, phone, etc.), and minimal
+  // on-image text (long copy belongs in the post caption, not the image).
   const openaiPrompt = [
-    "Design a branded social media post (1:1).",
+    `Design a branded social media post (${aspectLabel}).`,
     `Subject: ${subject}.`,
-    headline ? `Headline: "${headline}".` : "",
+    headline ? `Headline (this is the ONLY large text on the image): "${headline}".` : "",
     brandKit
       ? `Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
       : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
       ? `Brand colors: primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
       : "",
-    contactBits.length ? `Contact: ${contactBits.join(" · ")}.` : "",
-    occurrenceYear ? `Date: today ${todayIso}, occurrence year ${occurrenceYear}.` : `Today: ${todayIso}.`,
+    contactBits.length ? `Contact items to render as small footer pills: ${contactBits.join(" · ")}.` : "",
+    occurrenceYear ? `Today: ${todayIso}. Occurrence year: ${occurrenceYear}.` : `Today: ${todayIso}.`,
     `Tone: ${automation.aiTone || "friendly"}.`,
     `Style: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}.`,
     chosenLayout.description,
+    // Three essential rules — kept minimal. OpenAI handles the rest.
+    "Keep on-image text MINIMAL — just the headline plus the small footer contact pills. No body paragraphs, no multi-sentence descriptions, no blog-style copy on the image. The detailed post caption lives separately as social-post copy, not rendered on the image itself.",
+    "Do NOT draw, write, or fabricate any logo / brand mark / wordmark / monogram / app icon / abstract emblem / watermark / signature. We composite the real brand logo on top after generation — leave a small visually-quiet area in a corner for it.",
+    "Only render text I gave you. Do NOT invent slogans referencing other years, fake phone numbers, fake addresses, prices, percentages, or any factual claim. Use ONLY the occurrence year I specified.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -351,7 +379,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   // xAI / Gemini need explicit guardrails — they fabricate logos, ignore
   // year context, write blog-length copy, etc. without them.
   const ruledPrompt = [
-    `Design a complete, premium, scroll-stopping 1:1 social media post about: ${subject}.`,
+    `Design a complete, premium, scroll-stopping ${aspectLabel} social media post about: ${subject}.`,
     headlineLine,
     styleLine,
     layoutLine,
@@ -361,7 +389,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     contactLine,
     dateContext,
     `Tone: ${automation.aiTone || "friendly"}.`,
-    "Canvas rule: the image fills the entire 1024×1024 frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.",
+    `Canvas rule: the image fills the entire ${dims.width}×${dims.height} (${aspectLabel}) frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.`,
     "Copy length: this is a SOCIAL MEDIA post, NOT a blog post. Total visible text on the design must be SHORT and PRECISE — one headline (3-7 words max) PLUS at most one short sub-line (max 12 words). NO paragraphs. NO multi-sentence essays. NO body-copy blocks. If you write more than 2 short lines of text on the image, you have failed this brief.",
     "Render the headline as legible on-brand typography (a hero header). Render the contact pills in a footer band using brand colors. Use brand colors purposefully as accents, ribbons, separators, or backgrounds. The result should look like the work of a brand designer.",
     `Logo-overlay reservation (CRITICAL — read carefully): ${reservedLine} The HEADLINE and any other text MUST NOT extend into that reserved area. Do NOT draw a placeholder rectangle, blank box, outlined card, or any visible container in the reserved area — leave it as part of the natural design background.`,
@@ -374,8 +402,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { buffer: aiBuffer, provider } = await tryGenerate(
       { openai: openaiPrompt, xai: ruledPrompt, gemini: ruledPrompt },
-      1024,
-      1024,
+      dims.width,
+      dims.height,
       tier,
     );
 
@@ -396,6 +424,11 @@ export async function POST(request: NextRequest, { params }: Params) {
           // is "safe" (no text / subject sits there). Compositor preserves
           // aspect, so wordmarks and square icons both fit cleanly.
           placement: chosenLayout.placement,
+          // Smart backdrop: if the AI's bg color at the logo target area
+          // matches the logo color, drop a subtle rounded translucent
+          // backdrop so the logo stays visible. Only fills the logo's
+          // bounding rect — never hides headline / contact pills.
+          smartBackdrop: true,
         });
       } catch (compositeErr) {
         console.warn(
@@ -426,6 +459,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       style,
       tier,
       appliesTo,
+      aspect,
     };
 
     // Now that the image is in S3 and stamped on the automation, deduct

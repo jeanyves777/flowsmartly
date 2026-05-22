@@ -9,6 +9,14 @@ export interface BrandLogoPlacement {
   sizePercent?: number;
 }
 
+/**
+ * Average luminance (0-255) of an RGB sample.
+ * 0.299 R + 0.587 G + 0.114 B — Rec. 601 perceptual.
+ */
+function rgbLuminance(r: number, g: number, b: number) {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -64,6 +72,14 @@ export async function compositeBrandLogoOnImageBuffer(params: {
   imageBuffer: Buffer;
   logoSource: string;
   placement?: BrandLogoPlacement | null;
+  /**
+   * When true, samples the background luminance at the logo target area and,
+   * if it's similar to the logo's own luminance (low contrast → logo would
+   * disappear), drops a subtle rounded backdrop behind the logo so it stays
+   * visible. Backdrop is only added in the logo's bounding rect — does not
+   * cover or hide any text elsewhere in the image.
+   */
+  smartBackdrop?: boolean;
 }): Promise<Buffer> {
   const imageMeta = await sharp(params.imageBuffer).metadata();
   const imgW = imageMeta.width || 1536;
@@ -106,10 +122,56 @@ export async function compositeBrandLogoOnImageBuffer(params: {
   const left = clamp(Math.round(imgW * normalizedX), 0, Math.max(0, imgW - renderedW));
   const top = clamp(Math.round(imgH * normalizedY), 0, Math.max(0, imgH - renderedH));
 
-  return sharp(params.imageBuffer)
-    .composite([{ input: resizedLogo, left, top }])
-    .png()
-    .toBuffer();
+  // Smart backdrop: sample background luminance under the logo and add a
+  // subtle rounded translucent backdrop only if the logo would otherwise
+  // disappear into a same-tone background. Backdrop covers ONLY the logo's
+  // bounding rect (with a small padding) — never extends into the rest of
+  // the design, so no risk of hiding headline / contact pills / etc.
+  const composites: Array<{ input: Buffer; left: number; top: number }> = [];
+  if (params.smartBackdrop) {
+    try {
+      const bgRegion = await sharp(params.imageBuffer)
+        .extract({ left, top, width: renderedW, height: renderedH })
+        .stats();
+      const logoStats = await sharp(resizedLogo).stats();
+      const bgL = rgbLuminance(
+        bgRegion.channels[0].mean,
+        bgRegion.channels[1].mean,
+        bgRegion.channels[2].mean,
+      );
+      const logoL = rgbLuminance(
+        logoStats.channels[0].mean,
+        logoStats.channels[1].mean,
+        logoStats.channels[2].mean,
+      );
+      const lumaDelta = Math.abs(bgL - logoL);
+      if (lumaDelta < 55) {
+        // Same-tone background → drop a subtle backdrop. Pick a fill that
+        // contrasts with the BG luminance (light fill over dark bg, dark
+        // fill over light bg).
+        const pad = Math.max(12, Math.round(Math.min(renderedW, renderedH) * 0.12));
+        const bdW = renderedW + pad * 2;
+        const bdH = renderedH + pad * 2;
+        const bdLeft = clamp(left - pad, 0, Math.max(0, imgW - bdW));
+        const bdTop = clamp(top - pad, 0, Math.max(0, imgH - bdH));
+        const fill =
+          bgL > 128 ? "rgba(15,23,42,0.18)" : "rgba(255,255,255,0.72)";
+        const radius = Math.round(pad * 1.3);
+        const backdropSvg = Buffer.from(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="${bdW}" height="${bdH}"><rect x="0" y="0" rx="${radius}" ry="${radius}" width="${bdW}" height="${bdH}" fill="${fill}"/></svg>`,
+        );
+        composites.push({ input: backdropSvg, left: bdLeft, top: bdTop });
+      }
+    } catch (err) {
+      console.warn(
+        "[logo-compositor] smartBackdrop detection failed; using bare logo:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  composites.push({ input: resizedLogo, left, top });
+
+  return sharp(params.imageBuffer).composite(composites).png().toBuffer();
 }
 
 export async function compositeBrandLogoOnImageBase64(params: {
