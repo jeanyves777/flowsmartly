@@ -61,7 +61,7 @@ class OpenAIClient {
           size,
           quality,
           ...(transparent ? { background: "transparent" as const } : {}),
-        } as Parameters<typeof this.client.images.generate>[0]);
+        });
 
         // gpt-image returns base64 by default
         const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
@@ -128,7 +128,7 @@ class OpenAIClient {
           size,
           quality,
           ...(transparent ? { background: "transparent" as const } : {}),
-        } as Parameters<typeof this.client.images.generate>[0]);
+        });
 
         const datas = response.data || [];
         // Resolve each datum: prefer b64_json, fall back to url-fetch.
