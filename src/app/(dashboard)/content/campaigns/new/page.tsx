@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { US_HOLIDAYS, getHolidayDate } from "@/lib/marketing/holidays";
 import { Check } from "lucide-react";
 
@@ -233,6 +233,18 @@ export default function NewCampaignPage() {
 
   return (
     <div className="space-y-6">
+      {saving && savingStep && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center">
+          <AIGenerationLoader
+            currentStep={savingStep}
+            subtitle={
+              eventIds.size > 0 && eventAiFill
+                ? "Brand-aware captions are being generated for each event"
+                : "Almost there"
+            }
+          />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Link
           href="/content/campaigns"
