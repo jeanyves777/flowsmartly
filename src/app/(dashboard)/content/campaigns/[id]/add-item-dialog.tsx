@@ -1,19 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Repeat, Zap, Sparkles, Plus, X } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { CalendarDays, Repeat, Zap, Sparkles, Plus, X, ListPlus } from "lucide-react";
 
 interface CalendarSource {
   type: "EVENT" | "SCHEDULED_POST" | "HOLIDAY";
@@ -183,12 +178,15 @@ export default function AddItemDialog({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add content item</DialogTitle>
-        </DialogHeader>
-
+    <FloatingPanel
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Add content item"
+      description="Pick a trigger, set platforms and media, then create."
+      icon={<ListPlus className="h-4 w-4" />}
+      defaultSize={{ width: 720, height: 720 }}
+      minSize={{ width: 360, height: 420 }}
+    >
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Item name</Label>
@@ -462,16 +460,16 @@ export default function AddItemDialog({
             </div>
           )}
 
-          <DialogFooter>
+          <div className="flex justify-end gap-2 pt-2 border-t mt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
+              {saving && <AISpinner className="w-4 h-4 mr-2" />}
               {saving ? "Creating..." : "Create item"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+    </FloatingPanel>
   );
 }

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { MediaUploader } from "@/components/shared/media-uploader";
 
 interface Automation {
   id: string;
@@ -138,6 +139,7 @@ export default function ItemEditorPage({
   const [error, setError] = useState<string | null>(null);
   const [aiHint, setAiHint] = useState("");
   const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [mediaTier, setMediaTier] = useState<"standard" | "premium">("standard");
 
   // editable fields
   const [name, setName] = useState("");
@@ -201,6 +203,29 @@ export default function ItemEditorPage({
       else if (field === "item_ai_prompt") setAiPrompt(value);
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI suggestion failed");
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const preGenerateMedia = async () => {
+    setAiBusy("pregen_media");
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/content/campaigns/${id}/automations/${itemId}/generate-media`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: mediaTier }),
+        },
+      );
+      const json = await res.json();
+      if (!json?.success) throw new Error(json?.error?.message ?? "Generation failed");
+      // Refresh from server so mediaUrl + mediaMode reflect the new state
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {
       setAiBusy(null);
     }
@@ -522,9 +547,9 @@ export default function ItemEditorPage({
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>
-                Media mode
+                Media
                 {locked && (
                   <span className="ml-2 text-xs text-amber-600">locked</span>
                 )}
@@ -536,22 +561,94 @@ export default function ItemEditorPage({
                 className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
               >
                 <option value="AI_AT_POST_TIME">AI generated at post time</option>
+                <option value="UPLOAD">Upload / pick from library / pre-generated</option>
                 <option value="FOLDER">From a folder (round-robin)</option>
-                <option value="SPECIFIC_FILE">Specific file</option>
-                <option value="UPLOAD">Direct URL</option>
+                <option value="SPECIFIC_FILE">Specific file (advanced)</option>
                 <option value="NONE">No media (text only)</option>
               </select>
+
               {mediaMode === "UPLOAD" && (
-                <Input
-                  value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder="https://..."
-                  disabled={canceled}
-                />
+                <div className="space-y-2 rounded-md border bg-zinc-50 dark:bg-zinc-900/40 p-3">
+                  <MediaUploader
+                    value={mediaUrl ? [mediaUrl] : []}
+                    onChange={(urls) => setMediaUrl(urls[0] ?? "")}
+                    multiple={false}
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                    filterTypes={["image", "video"]}
+                    libraryTitle="Pick media for this item"
+                    variant="gallery"
+                    disabled={canceled || locked}
+                    description="Upload your own image / video or pick from your media library."
+                  />
+                </div>
               )}
+
+              {mediaMode === "AI_AT_POST_TIME" && (
+                <div className="rounded-md border bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-950/30 dark:to-violet-950/30 border-blue-200 dark:border-blue-900 p-3 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">AI media at post time</p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                      Media is generated fresh just before the scheduler emits
+                      the post. Pre-generate now to lock a specific image.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs">Quality:</Label>
+                    <div className="flex rounded-md border bg-white dark:bg-zinc-950 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setMediaTier("standard")}
+                        disabled={canceled || locked || aiBusy === "pregen_media"}
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          mediaTier === "standard"
+                            ? "bg-blue-600 text-white"
+                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        Standard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMediaTier("premium")}
+                        disabled={canceled || locked || aiBusy === "pregen_media"}
+                        className={`px-3 py-1.5 text-xs font-medium border-l ${
+                          mediaTier === "premium"
+                            ? "bg-blue-600 text-white"
+                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        Premium
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={preGenerateMedia}
+                      disabled={canceled || locked || aiBusy === "pregen_media"}
+                      className="bg-blue-600 hover:bg-blue-700 text-white ml-auto"
+                    >
+                      {aiBusy === "pregen_media" ? (
+                        <AISpinner className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      )}
+                      {aiBusy === "pregen_media"
+                        ? "Generating..."
+                        : "Pre-generate media now"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {(mediaMode === "FOLDER" || mediaMode === "SPECIFIC_FILE") && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Open the Media library to pick a folder/file. Field-level pickers are coming next iteration.
+                  Folder / specific-file pickers are coming next iteration. Use
+                  Upload mode for now.
+                </p>
+              )}
+
+              {mediaUrl && mediaMode !== "UPLOAD" && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Current stored URL: {mediaUrl}
                 </p>
               )}
             </div>

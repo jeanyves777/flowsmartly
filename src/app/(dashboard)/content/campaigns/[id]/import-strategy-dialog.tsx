@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { Target } from "lucide-react";
 
 interface Strategy {
   id: string;
@@ -123,14 +119,19 @@ export default function ImportStrategyDialog({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Import from a marketing strategy</DialogTitle>
-        </DialogHeader>
+    <FloatingPanel
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Import from a marketing strategy"
+      description="Pick tasks to clone into this campaign."
+      icon={<Target className="h-4 w-4" />}
+      defaultSize={{ width: 680, height: 640 }}
+      minSize={{ width: 360, height: 420 }}
+    >
 
         {loading ? (
-          <div className="py-10 text-center text-sm text-zinc-500">
+          <div className="py-10 text-center text-sm text-zinc-500 flex items-center justify-center gap-2">
+            <AISpinner className="w-4 h-4" />
             Loading...
           </div>
         ) : strategies.length === 0 ? (
@@ -160,7 +161,10 @@ export default function ImportStrategyDialog({
             <div className="space-y-2">
               <Label>Tasks to import</Label>
               {tasksLoading ? (
-                <div className="text-sm text-zinc-500">Loading tasks...</div>
+                <div className="text-sm text-zinc-500 flex items-center gap-2">
+                  <AISpinner className="w-4 h-4" />
+                  Loading tasks...
+                </div>
               ) : tasks.length === 0 ? (
                 <div className="text-sm text-zinc-500">No tasks in this strategy.</div>
               ) : (
@@ -212,7 +216,7 @@ export default function ImportStrategyDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <div className="flex justify-end gap-2 pt-3 border-t mt-3">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
@@ -221,10 +225,10 @@ export default function ImportStrategyDialog({
             onClick={submit}
             disabled={saving || selected.size === 0 || !selectedStrategy}
           >
+            {saving && <AISpinner className="w-4 h-4 mr-2" />}
             {saving ? "Importing..." : `Import ${selected.size} task(s)`}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+    </FloatingPanel>
   );
 }

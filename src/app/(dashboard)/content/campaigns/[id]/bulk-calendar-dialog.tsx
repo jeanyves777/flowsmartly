@@ -1,13 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -159,20 +153,16 @@ export default function BulkCalendarDialog({
   const allSelected = selected.size === sortedHolidays.length;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-blue-600" />
-            Bulk-create from calendar events
-          </DialogTitle>
-        </DialogHeader>
-
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Each selected event becomes its own automation with the offsets,
-          platforms, and media mode you set below. Each gets its own AI-fresh
-          caption.
-        </p>
+    <FloatingPanel
+      open
+      onOpenChange={(next) => !next && !saving && onClose()}
+      title="Bulk-create from calendar events"
+      description="Each selected event becomes its own automation with the offsets, platforms, and media mode below."
+      icon={<CalendarDays className="h-4 w-4" />}
+      defaultSize={{ width: 880, height: 760 }}
+      minSize={{ width: 380, height: 480 }}
+    >
+      <div className="space-y-4">
 
         {/* Pick events */}
         <div className="space-y-3">
@@ -337,7 +327,7 @@ export default function BulkCalendarDialog({
           <div className="text-sm text-rose-600 dark:text-rose-400">{error}</div>
         )}
 
-        <DialogFooter>
+        <div className="flex justify-end gap-2 pt-3 border-t mt-3">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
@@ -357,8 +347,8 @@ export default function BulkCalendarDialog({
                 : `Creating ${selected.size} items...`
               : `Create ${selected.size || 0} item${selected.size === 1 ? "" : "s"}`}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </FloatingPanel>
   );
 }

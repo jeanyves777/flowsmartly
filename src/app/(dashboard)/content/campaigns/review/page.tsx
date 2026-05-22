@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface PendingItem {
   id: string;
@@ -185,7 +186,11 @@ export default function ReviewQueuePage() {
                         onClick={() => action(item, "approve")}
                         disabled={inFlight}
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        {inFlight ? (
+                          <AISpinner className="w-4 h-4 mr-1" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                        )}
                         Approve
                       </Button>
                       <Button
@@ -194,7 +199,11 @@ export default function ReviewQueuePage() {
                         onClick={() => action(item, "skip")}
                         disabled={inFlight}
                       >
-                        <EyeOff className="w-4 h-4 mr-1" />
+                        {inFlight ? (
+                          <AISpinner className="w-4 h-4 mr-1" />
+                        ) : (
+                          <EyeOff className="w-4 h-4 mr-1" />
+                        )}
                         Skip
                       </Button>
                       <Link

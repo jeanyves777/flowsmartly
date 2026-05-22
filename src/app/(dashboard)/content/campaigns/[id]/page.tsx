@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import AddItemDialog from "./add-item-dialog";
 import ImportStrategyDialog from "./import-strategy-dialog";
@@ -458,7 +459,11 @@ export default function CampaignDetailPage({
                             onClick={() => review(a.id, "approve")}
                             disabled={inFlight}
                           >
-                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            {inFlight ? (
+                              <AISpinner className="w-4 h-4 mr-1" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4 mr-1" />
+                            )}
                             Approve
                           </Button>
                         )}
@@ -469,7 +474,11 @@ export default function CampaignDetailPage({
                             onClick={() => review(a.id, "revert")}
                             disabled={inFlight}
                           >
-                            <RefreshCcw className="w-4 h-4 mr-1" />
+                            {inFlight ? (
+                              <AISpinner className="w-4 h-4 mr-1" />
+                            ) : (
+                              <RefreshCcw className="w-4 h-4 mr-1" />
+                            )}
                             Unapprove
                           </Button>
                         )}
@@ -480,7 +489,11 @@ export default function CampaignDetailPage({
                             onClick={() => review(a.id, "skip")}
                             disabled={inFlight}
                           >
-                            <EyeOff className="w-4 h-4 mr-1" />
+                            {inFlight ? (
+                              <AISpinner className="w-4 h-4 mr-1" />
+                            ) : (
+                              <EyeOff className="w-4 h-4 mr-1" />
+                            )}
                             Skip
                           </Button>
                         )}
@@ -504,7 +517,11 @@ export default function CampaignDetailPage({
                             onClick={() => deleteAutomation(a.id)}
                             disabled={inFlight}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {inFlight ? (
+                              <AISpinner className="w-4 h-4" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </Button>
                         ) : (
                           <Button
@@ -513,7 +530,11 @@ export default function CampaignDetailPage({
                             onClick={() => cancelAutomation(a.id)}
                             disabled={inFlight}
                           >
-                            <XCircle className="w-4 h-4" />
+                            {inFlight ? (
+                              <AISpinner className="w-4 h-4" />
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
                           </Button>
                         )}
                       </div>
