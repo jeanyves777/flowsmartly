@@ -141,8 +141,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       return {} as BrandColors;
     }
   })();
-  const colorLine = brandKit
-    ? `Brand colors to incorporate purposefully in the design: primary ${brandColors.primary || "(unspecified)"}, secondary ${brandColors.secondary || "(unspecified)"}, accent ${brandColors.accent || "(unspecified)"}.`
+  const colorLine = brandKit && (brandColors.primary || brandColors.secondary || brandColors.accent)
+    ? `Use these exact brand colors throughout the design as background tints, accent strips, ribbons, separators, decorative bars, and typography color — primary ${brandColors.primary || "(none)"}, secondary ${brandColors.secondary || "(none)"}, accent ${brandColors.accent || "(none)"}. Do NOT render the hex code strings as visible text in the image — apply the colors visually only.`
     : "";
 
   const contactBits: string[] = [];
