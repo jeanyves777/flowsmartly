@@ -286,16 +286,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "";
 
   const ruleBlock =
-    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) For the contact items below: render each character-for-character exactly as given; do NOT fabricate or alter phone numbers, emails, URLs, addresses, or social handles. Any other text you add is YOUR creative call — see rule (3). (3) You are free to author your own short hero phrase / greeting / headline based on the subject and event below — keep it concise (a few words), make it feel native to the event, and do not invent fake slogans, prices, statistics, or any year other than the one I specify. (4) Style and lay out the contact items as part of the design — your choice (icon-and-value pills, chips, a tasteful footer band, scattered icon+value pairs along an edge, whatever fits the composition). Render each item as an ICON + value — NEVER prefix the value with a text label like \"website:\", \"email:\", \"phone:\", \"instagram:\". The icon replaces the label. (5) LEGIBILITY IS NON-NEGOTIABLE — every text element you add must be highly readable from a phone thumbnail with STRONG contrast against the pixels directly behind it: if the area behind is light/bright, use dark text or place a darker scrim/band behind that specific text; if dark/busy/photographic, use light text or a lighter scrim. NO ghost text, watermark text, low-opacity text, transparent text. Use ONE solid color per text element — no gradients, no soft glows, no double-exposure effects. Text edges must be CRISP and sharp, not soft, blurry, or distressed. (6) Keep on-image text minimal — at most a short authored hero phrase plus the icon+value contact items; no body paragraphs or marketing copy.";
+    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature anywhere — the real brand logo is composited on top after generation. (2) If you include the contact items listed below, copy each value character-for-character; do NOT alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
 
   const dataBlock = [
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
     `Subject / event: ${subject}.`,
-    brandKit?.description ? `Brand description (context only, do not render as text): ${brandKit.description}.` : "",
+    brandKit?.description ? `Brand description: ${brandKit.description}.` : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
-      ? `Brand colors to USE in the design (do NOT render the hex strings as text): primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
+      ? `Brand palette: primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
       : "",
-    exactContacts ? `Contact items — render each as icon + value pair, value character-for-character: ${exactContacts}.` : "",
+    exactContacts ? `Contact items: ${exactContacts}.` : "",
     occurrenceYear ? `Year: ${occurrenceYear}. Today: ${todayIso}.` : `Today: ${todayIso}.`,
   ]
     .filter(Boolean)
