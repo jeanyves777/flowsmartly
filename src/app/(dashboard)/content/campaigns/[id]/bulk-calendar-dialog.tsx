@@ -181,11 +181,18 @@ export default function BulkCalendarDialog({
             {sortedHolidays.map((h) => {
               const checked = selected.has(h.id);
               return (
-                <button
+                <div
                   key={h.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggle(h.id)}
-                  className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggle(h.id);
+                    }
+                  }}
+                  className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors cursor-pointer select-none ${
                     checked
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500"
                       : "bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -195,6 +202,7 @@ export default function BulkCalendarDialog({
                     checked={checked}
                     onClick={(e) => e.stopPropagation()}
                     onCheckedChange={() => toggle(h.id)}
+                    tabIndex={-1}
                   />
                   <span className="text-lg leading-none">{h.icon}</span>
                   <span className="min-w-0 flex-1">
@@ -205,7 +213,7 @@ export default function BulkCalendarDialog({
                       {holidayDateLabel(h)} · {h.category}
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
