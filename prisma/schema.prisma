@@ -110,6 +110,8 @@ model User {
   referrals             Referral[]
   aiConversations       AIConversation[]
   postAutomations       PostAutomation[]
+  contentCampaigns      ContentCampaign[]
+  contentAutomations    ContentAutomation[]
   marketingStrategies   MarketingStrategy[]
   strategyScores        StrategyScore[]
   strategyMilestones    StrategyMilestone[]
@@ -310,9 +312,12 @@ model Post {
   publishResults String? // JSON: {"facebook": {"success": true, "postId": "..."}, "instagram": {...}}
 
   // Status
-  status      String    @default("PUBLISHED")
+  status      String    @default("PUBLISHED") // PUBLISHED | SCHEDULED | DRAFT | CANCELED
   scheduledAt DateTime?
   publishedAt DateTime?
+
+  // Link back to content automation (when this Post was emitted by ContentAutomation)
+  contentAutomationId String?
 
   // Metadata
   createdAt DateTime  @default(now())
@@ -325,20 +330,22 @@ model Post {
   flagCount        Int     @default(0)
 
   // Relations
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  adCampaign      AdCampaign?      @relation(fields: [campaignId], references: [id])
-  comments        Comment[]
-  likes           Like[]
-  bookmarks       Bookmark[]
-  shares          Share[]
-  postViews       PostView[]
-  contentVariants ContentVariant[]
-  contentFlags    ContentFlag[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adCampaign        AdCampaign?        @relation(fields: [campaignId], references: [id])
+  contentAutomation ContentAutomation? @relation(fields: [contentAutomationId], references: [id], onDelete: SetNull)
+  comments          Comment[]
+  likes             Like[]
+  bookmarks         Bookmark[]
+  shares            Share[]
+  postViews         PostView[]
+  contentVariants   ContentVariant[]
+  contentFlags      ContentFlag[]
 
   @@index([userId])
   @@index([status, scheduledAt])
   @@index([isPromoted, status])
   @@index([createdAt])
+  @@index([contentAutomationId, status])
 }
 
 model Comment {
@@ -2248,39 +2255,42 @@ model GeneratedContent {
 // ============================================
 
 model MediaFolder {
-  id        String        @id @default(cuid())
-  userId    String
-  name      String
-  parentId  String?
-  parent    MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id])
-  children  MediaFolder[] @relation("FolderTree")
-  files     MediaFile[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  userId             String
+  name               String
+  parentId           String?
+  parent             MediaFolder?        @relation("FolderTree", fields: [parentId], references: [id])
+  children           MediaFolder[]       @relation("FolderTree")
+  files              MediaFile[]
+  campaigns          ContentCampaign[]   @relation("CampaignMediaFolder")
+  contentAutomations ContentAutomation[] @relation("AutomationMediaFolder")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([parentId])
 }
 
 model MediaFile {
-  id           String       @id @default(cuid())
-  userId       String
-  filename     String
-  originalName String
-  url          String
-  type         String // "image", "video", "document", "svg"
-  mimeType     String
-  size         Int
-  width        Int?
-  height       Int?
-  folderId     String?
-  tags         String       @default("[]")
-  metadata     String       @default("{}")
-  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  userId             String
+  filename           String
+  originalName       String
+  url                String
+  type               String // "image", "video", "document", "svg"
+  mimeType           String
+  size               Int
+  width              Int?
+  height             Int?
+  folderId           String?
+  tags               String              @default("[]")
+  metadata           String              @default("{}")
+  folder             MediaFolder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  contentAutomations ContentAutomation[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([folderId])
@@ -2910,7 +2920,8 @@ model StrategyTask {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  strategy MarketingStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  strategy      MarketingStrategy             @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  campaignLinks ContentCampaignStrategyTask[]
 
   @@index([strategyId])
   @@index([status])
@@ -2971,6 +2982,152 @@ model StrategyMilestone {
   @@index([userId])
   @@index([strategyId])
   @@index([achievedAt])
+}
+
+// ============================================
+// CONTENT CAMPAIGNS & CONTENT AUTOMATION
+// ============================================
+
+model ContentCampaign {
+  id     String @id @default(cuid())
+  userId String
+
+  name        String
+  description String?
+  status      String  @default("DRAFT") // DRAFT | ACTIVE | PAUSED | CANCELED | COMPLETED
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  // Optional dedicated media folder for this campaign
+  mediaFolderId String?
+
+  // Defaults applied to new automations in this campaign
+  defaultTone      String?
+  defaultPlatforms String  @default("[]") // JSON array
+  defaultAiPrompt  String?
+
+  // Legacy email/SMS Automation IDs bundled into this campaign
+  emailAutomationIds String @default("[]") // JSON array
+
+  // If seeded from a strategy
+  sourceStrategyId String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  canceledAt DateTime?
+
+  user          User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaFolder   MediaFolder?                  @relation("CampaignMediaFolder", fields: [mediaFolderId], references: [id], onDelete: SetNull)
+  automations   ContentAutomation[]
+  strategyLinks ContentCampaignStrategyTask[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model ContentAutomation {
+  id         String @id @default(cuid())
+  userId     String
+  campaignId String
+
+  channel String @default("SOCIAL") // SOCIAL (v1; future: BLOG)
+
+  name        String
+  description String?
+
+  triggerType   String // RECURRING | CALENDAR_EVENT | ONE_OFF | AI_GENERATED
+  triggerConfig String @default("{}") // JSON: { frequency, dayOfWeek, time, timezone } for RECURRING
+
+  // Calendar source (when triggerType=CALENDAR_EVENT)
+  calendarSourceType  String? // EVENT | SCHEDULED_POST | HOLIDAY
+  calendarSourceId    String? // Event.id, Post.id, or holiday slug
+  calendarSourceLabel String? // denormalized for display + survives source delete
+  calendarOffsets     String  @default("[]") // JSON: [{ days: -7, time: "09:00", tz: "user" }, ...]
+
+  // Content
+  topic     String?
+  aiPrompt  String?
+  aiTone    String?
+  copy      String?
+  hashtags  String  @default("[]")
+  platforms String  @default("[]") // JSON array
+
+  // Media (5 modes)
+  mediaMode     String  @default("AI_AT_POST_TIME") // FOLDER | SPECIFIC_FILE | UPLOAD | AI_AT_POST_TIME | NONE
+  mediaFolderId String?
+  mediaFileId   String?
+  mediaUrl      String?
+  aiMediaConfig String? // JSON: { type:"image"|"video", style, prompt }
+
+  mediaFolderLastUsedIndex Int @default(0) // round-robin pointer
+
+  // Review
+  reviewStatus String    @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | SKIPPED
+  reviewedAt   DateTime?
+
+  // Status
+  enabled    Boolean   @default(true)
+  status     String    @default("DRAFT") // DRAFT | SCHEDULED | RUNNING | CANCELED | COMPLETED | FAILED
+  startDate  DateTime?
+  endDate    DateTime?
+  canceledAt DateTime?
+
+  // Strategy link
+  sourceStrategyTaskId String?
+
+  // Stats
+  totalGenerated     Int       @default(0)
+  totalCreditsSpent  Int       @default(0)
+  lastTriggered      DateTime?
+  firstPostCreatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    ContentCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mediaFolder MediaFolder?           @relation("AutomationMediaFolder", fields: [mediaFolderId], references: [id], onDelete: SetNull)
+  mediaFile   MediaFile?             @relation(fields: [mediaFileId], references: [id], onDelete: SetNull)
+  logs        ContentAutomationLog[]
+  posts       Post[]
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([enabled, status, reviewStatus])
+  @@index([triggerType])
+}
+
+model ContentAutomationLog {
+  id                  String @id @default(cuid())
+  contentAutomationId String
+
+  // Optional link to the Post created (null when SKIPPED/FAILED before Post creation)
+  postId String?
+
+  status        String // TRIGGERED | SKIPPED | FAILED
+  reason        String?
+  creditsSpent  Int     @default(0)
+  occurrenceKey String? // e.g. "event-abc:offset--7" — per-offset dedupe key
+
+  triggeredAt DateTime @default(now())
+
+  automation ContentAutomation @relation(fields: [contentAutomationId], references: [id], onDelete: Cascade)
+
+  @@unique([contentAutomationId, occurrenceKey])
+  @@index([contentAutomationId, triggeredAt])
+}
+
+model ContentCampaignStrategyTask {
+  campaignId     String
+  strategyTaskId String
+  importedAt     DateTime @default(now())
+
+  campaign     ContentCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  strategyTask StrategyTask    @relation(fields: [strategyTaskId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, strategyTaskId])
+  @@index([strategyTaskId])
 }
 
 // ============================================

@@ -74,7 +74,8 @@ const topNavigation = [
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
-  { name: "Strategy & Automation", href: "/content/strategy", icon: Target },
+  { name: "Strategy", href: "/strategy", icon: Target },
+  { name: "Content Campaigns", href: "/content/campaigns", icon: Sparkles },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 

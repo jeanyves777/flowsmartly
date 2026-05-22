@@ -410,9 +410,11 @@ export default function ContentSchedulePage() {
       const end = startOfDay(getItemEndDate(post));
       const spanStart = end < start ? end : start;
       const spanEnd = end < start ? start : end;
-      const activeDays = post.itemType === "strategy"
-        ? eachDayOfInterval({ start: spanStart, end: spanEnd })
-        : [spanStart];
+      // Render each item in exactly one cell. Strategy tasks land on their
+      // dueDate (spanEnd); scheduled posts land on their scheduledAt. The
+      // prior implementation called eachDayOfInterval for strategy items,
+      // duplicating the same task across every day in [startDate, dueDate].
+      const activeDays = post.itemType === "strategy" ? [spanEnd] : [spanStart];
 
       for (const activeDay of activeDays) {
         const dateKey = format(activeDay, "yyyy-MM-dd");

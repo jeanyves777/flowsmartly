@@ -13,6 +13,7 @@ import {
   shouldPublishAsBlogAutomation,
   runBlogAutomationPublication,
 } from "@/lib/content/blog-automation-runner";
+import { processDueContentAutomations } from "@/lib/content/campaign-scheduler";
 
 interface ScheduleConfig {
   frequency?: string;
@@ -537,9 +538,33 @@ async function runScheduler(request: NextRequest) {
       `[Scheduler] Checked ${automations.length} automations: ${triggered} triggered, ${failed} failed, ${skipped} skipped`
     );
 
+    // Also process new ContentAutomation rows (campaigns layer).
+    let campaignResult = {
+      checked: 0,
+      emitted: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+    try {
+      campaignResult = await processDueContentAutomations();
+      console.log(
+        `[Scheduler] ContentAutomation: checked ${campaignResult.checked}, emitted ${campaignResult.emitted}, skipped ${campaignResult.skipped}, failed ${campaignResult.failed}`
+      );
+    } catch (campaignErr) {
+      console.error("[Scheduler] ContentAutomation processor error:", campaignErr);
+    }
+
     return NextResponse.json({
       success: true,
-      data: { checked: automations.length, triggered, failed, skipped, results },
+      data: {
+        checked: automations.length,
+        triggered,
+        failed,
+        skipped,
+        results,
+        contentAutomation: campaignResult,
+      },
     });
   } catch (error) {
     console.error("Automation scheduler error:", error);

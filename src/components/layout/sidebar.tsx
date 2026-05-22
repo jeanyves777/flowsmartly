@@ -109,7 +109,8 @@ const topNavigation = [
 const contentNavigation = [
   { name: "Posts", href: "/content/posts", icon: PenSquare },
   { name: "Schedule", href: "/content/schedule", icon: CalendarDays },
-  { name: "Strategy & Automation", href: "/content/strategy", icon: Target },
+  { name: "Strategy", href: "/strategy", icon: Target },
+  { name: "Content Campaigns", href: "/content/campaigns", icon: Sparkles },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
 
@@ -184,8 +185,9 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "feed": ["/feed"],
     "content-posts": ["/content/posts"],
     "content-schedule": ["/content/schedule"],
-    "content-automation": ["/content/strategy"],
-    "content-strategy": ["/content/strategy"],
+    "content-automation": ["/content/campaigns", "/content/strategy"],
+    "content-strategy": ["/strategy", "/content/strategy"],
+    "content-campaigns": ["/content/campaigns"],
     "image-studio": ["/studio"],
     "video-editor": ["/video-editor"],
     "voice-studio": ["/voice-studio"],
@@ -256,7 +258,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
         item.href === r ||
         item.href.startsWith(r + "/") ||
         r.startsWith(item.href + "/") ||
-        (item.href === "/content/strategy" && r === "/content/automation")
+        (item.href === "/strategy" && r === "/content/strategy") ||
+        (item.href === "/content/campaigns" && (r === "/content/automation" || r === "/content/strategy"))
       )
     );
   };
