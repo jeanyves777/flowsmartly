@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -919,10 +919,16 @@ function DroppableTaskColumn({
 
 export default function StrategyAutomationPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [view, setView] = useState<ViewMode>(
-    searchParams.get("view") === "automations" ? "automations" : "plan"
-  );
+  // Automation lives in /content/campaigns now — Strategy only shows Plan & Sync.
+  // If a legacy link arrives with ?view=automations, redirect to the new home.
+  useEffect(() => {
+    if (searchParams.get("view") === "automations") {
+      router.replace("/content/campaigns");
+    }
+  }, [router, searchParams]);
+  const [view, setView] = useState<ViewMode>("plan");
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1098,10 +1104,7 @@ export default function StrategyAutomationPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const nextView = searchParams.get("view");
-    if (nextView === "automations") setView("automations");
-  }, [searchParams]);
+  // Note: ?view=automations is handled by the top-level redirect to /content/campaigns.
 
   const tasks = strategy?.tasks || [];
   const strategyTaskIds = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
@@ -1434,7 +1437,7 @@ export default function StrategyAutomationPage() {
       endDate: task?.dueDate?.slice(0, 10) || DEFAULT_AUTOMATION.endDate,
       strategyTaskId: task?.id || "",
     });
-    setView("automations");
+    router.push("/content/campaigns");
     setWorkspacePanelOpen(true);
   };
 
@@ -1514,7 +1517,7 @@ export default function StrategyAutomationPage() {
       endDate: draft.endDate || getDefaultAutomationEndDate(),
     }));
     setAutomationBuilderOpen(true);
-    setView("automations");
+    router.push("/content/campaigns");
   };
 
   const createStrategy = async () => {
@@ -1747,7 +1750,7 @@ export default function StrategyAutomationPage() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error?.message || "Automations were not launched");
       await loadData();
-      setView("automations");
+      router.push("/content/campaigns");
       setAutomationBuilderOpen(false);
       setAutomationConfigOpen(false);
       toast({
@@ -1804,7 +1807,7 @@ export default function StrategyAutomationPage() {
         );
         setStrategy(improvedStrategy);
         setStrategyBuilderOpen(false);
-        setView("automations");
+        router.push("/content/campaigns");
         setAutomationBuilder((draft) => ({
           ...draft,
           frequency: "ONCE",
@@ -4910,12 +4913,20 @@ export default function StrategyAutomationPage() {
           <SegmentedButton active={view === "plan"} onClick={() => setView("plan")} icon={Target}>
             Plan
           </SegmentedButton>
-          <SegmentedButton active={view === "automations"} onClick={() => setView("automations")} icon={Zap}>
-            Automations
-          </SegmentedButton>
           <SegmentedButton active={view === "sync"} onClick={() => setView("sync")} icon={Activity}>
             Sync
           </SegmentedButton>
+          <Button
+            variant="outline"
+            asChild
+            className="h-9 px-2 text-xs sm:px-3 sm:text-sm"
+            title="Content Campaigns"
+          >
+            <Link href="/content/campaigns">
+              <Zap className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Content Campaigns →</span>
+            </Link>
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <Button variant="outline" onClick={() => openStrategyBuilder("create")} className="h-9 px-2 text-xs sm:px-3 sm:text-sm" title="Create Strategy">

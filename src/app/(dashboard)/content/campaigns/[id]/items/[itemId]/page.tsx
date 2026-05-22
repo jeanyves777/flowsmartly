@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Image as ImageIcon,
   CalendarDays,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/shared/page-loader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Automation {
@@ -62,6 +65,13 @@ const ALL_PLATFORMS = [
   "pinterest",
 ];
 
+type SuggestField =
+  | "item_name"
+  | "item_topic"
+  | "item_copy"
+  | "item_hashtags"
+  | "item_ai_prompt";
+
 function parseJsonSafe<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
   try {
@@ -69,6 +79,50 @@ function parseJsonSafe<T>(value: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+async function aiSuggest(
+  field: SuggestField,
+  campaignId: string,
+  itemId: string,
+  hint: string,
+  overrides: Record<string, unknown> = {},
+) {
+  const res = await fetch("/api/content/campaigns/ai-suggest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ field, hint, campaignId, itemId, overrides }),
+  });
+  const json = await res.json();
+  if (!json?.success) throw new Error(json?.error?.message ?? "AI suggestion failed");
+  return json.data.value as string;
+}
+
+interface SuggestButtonProps {
+  field: SuggestField;
+  busy: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+function SuggestButton({ field: _field, busy, onClick, disabled }: SuggestButtonProps) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      disabled={busy || disabled}
+      className="h-7 text-xs"
+    >
+      {busy ? (
+        <AISpinner className="w-3.5 h-3.5 mr-1" />
+      ) : (
+        <Sparkles className="w-3.5 h-3.5 mr-1" />
+      )}
+      Suggest
+    </Button>
+  );
 }
 
 export default function ItemEditorPage({
@@ -82,6 +136,8 @@ export default function ItemEditorPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiHint, setAiHint] = useState("");
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
 
   // editable fields
   const [name, setName] = useState("");
@@ -126,6 +182,60 @@ export default function ItemEditorPage({
     setPlatforms((prev) =>
       prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
     );
+  };
+
+  const runSuggest = async (field: SuggestField) => {
+    setAiBusy(field);
+    setError(null);
+    try {
+      const overrides: Record<string, unknown> = {
+        itemName: name || undefined,
+        itemTopic: topic || undefined,
+        platforms: platforms.length ? platforms : undefined,
+      };
+      const value = await aiSuggest(field, id, itemId, aiHint, overrides);
+      if (field === "item_name") setName(value);
+      else if (field === "item_topic") setTopic(value);
+      else if (field === "item_copy") setCopy(value);
+      else if (field === "item_hashtags") setHashtags(value);
+      else if (field === "item_ai_prompt") setAiPrompt(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI suggestion failed");
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const runFullFill = async () => {
+    if (!aiHint.trim() && !topic.trim() && !name.trim()) {
+      setError("Type a quick idea above (or set a name/topic) so AI knows what to fill.");
+      return;
+    }
+    setAiBusy("full");
+    setError(null);
+    try {
+      const overrides: Record<string, unknown> = {
+        itemName: name || undefined,
+        itemTopic: topic || undefined,
+        platforms: platforms.length ? platforms : undefined,
+      };
+      // Topic first (gives copy/hashtags better context), then the rest in parallel
+      const newTopic = topic || (await aiSuggest("item_topic", id, itemId, aiHint, overrides));
+      if (!topic) setTopic(newTopic);
+      const enriched = { ...overrides, itemTopic: newTopic };
+      const [newCopy, newHashtags, newPrompt] = await Promise.all([
+        aiSuggest("item_copy", id, itemId, aiHint, enriched),
+        aiSuggest("item_hashtags", id, itemId, aiHint, enriched),
+        aiSuggest("item_ai_prompt", id, itemId, aiHint, enriched),
+      ]);
+      setCopy(newCopy);
+      setHashtags(newHashtags);
+      setAiPrompt(newPrompt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI fill failed");
+    } finally {
+      setAiBusy(null);
+    }
   };
 
   const save = async () => {
@@ -205,7 +315,7 @@ export default function ItemEditorPage({
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Link
           href={`/content/campaigns/${id}`}
@@ -265,200 +375,291 @@ export default function ItemEditorPage({
         </Card>
       )}
 
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="space-y-2">
-            <Label>Name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={canceled}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              disabled={canceled}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>
-              Topic
-              {locked && (
-                <span className="ml-2 text-xs text-amber-600">locked</span>
-              )}
-            </Label>
-            <Input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              disabled={canceled || locked}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>
-              Copy (pre-written caption — overrides AI)
-              {locked && (
-                <span className="ml-2 text-xs text-amber-600">locked</span>
-              )}
-            </Label>
-            <Textarea
-              value={copy}
-              onChange={(e) => setCopy(e.target.value)}
-              rows={4}
-              disabled={canceled || locked}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>
-              AI prompt (when copy is empty)
-              {locked && (
-                <span className="ml-2 text-xs text-amber-600">locked</span>
-              )}
-            </Label>
-            <Textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              rows={3}
-              disabled={canceled || locked}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tone</Label>
-              <Input
-                value={aiTone}
-                onChange={(e) => setAiTone(e.target.value)}
-                placeholder="friendly, professional..."
-                disabled={canceled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Hashtags (comma-separated)</Label>
-              <Input
-                value={hashtags}
-                onChange={(e) => setHashtags(e.target.value)}
-                placeholder="summer, sale, promo"
-                disabled={canceled}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Platforms</Label>
-            <div className="flex flex-wrap gap-2">
-              {ALL_PLATFORMS.map((p) => (
-                <Badge
-                  key={p}
-                  onClick={() => !canceled && togglePlatform(p)}
-                  className={`cursor-pointer capitalize ${
-                    platforms.includes(p)
-                      ? "bg-blue-600 text-white"
-                      : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                  } ${canceled ? "cursor-not-allowed opacity-60" : ""}`}
-                >
-                  {p}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>
-              Media mode
-              {locked && (
-                <span className="ml-2 text-xs text-amber-600">locked</span>
-              )}
-            </Label>
-            <select
-              value={mediaMode}
-              onChange={(e) => setMediaMode(e.target.value)}
-              disabled={canceled || locked}
-              className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
-            >
-              <option value="AI_AT_POST_TIME">AI generated at post time</option>
-              <option value="FOLDER">From a folder (round-robin)</option>
-              <option value="SPECIFIC_FILE">Specific file</option>
-              <option value="UPLOAD">Direct URL</option>
-              <option value="NONE">No media (text only)</option>
-            </select>
-            {mediaMode === "UPLOAD" && (
-              <Input
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder="https://..."
-                disabled={canceled}
-              />
-            )}
-            {(mediaMode === "FOLDER" || mediaMode === "SPECIFIC_FILE") && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Open the Media library to pick a folder/file. Field-level pickers
-                are coming next iteration.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>End date (optional)</Label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              disabled={canceled}
-            />
-          </div>
-
-          {error && (
-            <div className="text-sm text-rose-600 dark:text-rose-400 flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {error}
-            </div>
-          )}
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={save} disabled={saving || canceled}>
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save changes"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {a.logs && a.logs.length > 0 && (
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         <Card>
-          <CardContent className="p-6">
-            <h3 className="font-semibold mb-3 text-sm">Recent activity</h3>
-            <div className="space-y-2 text-xs">
-              {a.logs.slice(0, 10).map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1"
-                >
-                  <span className="flex items-center gap-2">
-                    {log.status === "TRIGGERED" && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                    {log.status === "SKIPPED" && <ImageIcon className="w-3 h-3 text-amber-600" />}
-                    {log.status === "FAILED" && <XCircle className="w-3 h-3 text-rose-600" />}
-                    {log.status}
-                    {log.reason && (
-                      <span className="text-zinc-500">— {log.reason}</span>
-                    )}
-                  </span>
-                  <span className="text-zinc-400">
-                    {new Date(log.triggeredAt).toLocaleString()}
-                  </span>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Name</Label>
+                <SuggestButton
+                  field="item_name"
+                  busy={aiBusy === "item_name"}
+                  onClick={() => runSuggest("item_name")}
+                  disabled={canceled}
+                />
+              </div>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={canceled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                disabled={canceled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  Topic
+                  {locked && (
+                    <span className="ml-2 text-xs text-amber-600">locked</span>
+                  )}
+                </Label>
+                <SuggestButton
+                  field="item_topic"
+                  busy={aiBusy === "item_topic"}
+                  onClick={() => runSuggest("item_topic")}
+                  disabled={canceled || locked}
+                />
+              </div>
+              <Textarea
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                rows={2}
+                disabled={canceled || locked}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  Copy (pre-written caption — overrides AI)
+                  {locked && (
+                    <span className="ml-2 text-xs text-amber-600">locked</span>
+                  )}
+                </Label>
+                <SuggestButton
+                  field="item_copy"
+                  busy={aiBusy === "item_copy"}
+                  onClick={() => runSuggest("item_copy")}
+                  disabled={canceled || locked}
+                />
+              </div>
+              <Textarea
+                value={copy}
+                onChange={(e) => setCopy(e.target.value)}
+                rows={4}
+                disabled={canceled || locked}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  AI prompt (when copy is empty)
+                  {locked && (
+                    <span className="ml-2 text-xs text-amber-600">locked</span>
+                  )}
+                </Label>
+                <SuggestButton
+                  field="item_ai_prompt"
+                  busy={aiBusy === "item_ai_prompt"}
+                  onClick={() => runSuggest("item_ai_prompt")}
+                  disabled={canceled || locked}
+                />
+              </div>
+              <Textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={3}
+                disabled={canceled || locked}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tone</Label>
+                <Input
+                  value={aiTone}
+                  onChange={(e) => setAiTone(e.target.value)}
+                  placeholder="friendly, professional..."
+                  disabled={canceled}
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Hashtags (comma-separated)</Label>
+                  <SuggestButton
+                    field="item_hashtags"
+                    busy={aiBusy === "item_hashtags"}
+                    onClick={() => runSuggest("item_hashtags")}
+                    disabled={canceled}
+                  />
                 </div>
-              ))}
+                <Input
+                  value={hashtags}
+                  onChange={(e) => setHashtags(e.target.value)}
+                  placeholder="summer, sale, promo"
+                  disabled={canceled}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Platforms</Label>
+              <div className="flex flex-wrap gap-2">
+                {ALL_PLATFORMS.map((p) => (
+                  <Badge
+                    key={p}
+                    onClick={() => !canceled && togglePlatform(p)}
+                    className={`cursor-pointer capitalize ${
+                      platforms.includes(p)
+                        ? "bg-blue-600 text-white"
+                        : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    } ${canceled ? "cursor-not-allowed opacity-60" : ""}`}
+                  >
+                    {p}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Media mode
+                {locked && (
+                  <span className="ml-2 text-xs text-amber-600">locked</span>
+                )}
+              </Label>
+              <select
+                value={mediaMode}
+                onChange={(e) => setMediaMode(e.target.value)}
+                disabled={canceled || locked}
+                className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+              >
+                <option value="AI_AT_POST_TIME">AI generated at post time</option>
+                <option value="FOLDER">From a folder (round-robin)</option>
+                <option value="SPECIFIC_FILE">Specific file</option>
+                <option value="UPLOAD">Direct URL</option>
+                <option value="NONE">No media (text only)</option>
+              </select>
+              {mediaMode === "UPLOAD" && (
+                <Input
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  placeholder="https://..."
+                  disabled={canceled}
+                />
+              )}
+              {(mediaMode === "FOLDER" || mediaMode === "SPECIFIC_FILE") && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Open the Media library to pick a folder/file. Field-level pickers are coming next iteration.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>End date (optional)</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={canceled}
+              />
+            </div>
+
+            {error && (
+              <div className="text-sm text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={save} disabled={saving || canceled || !!aiBusy}>
+                {saving ? (
+                  <AISpinner className="w-4 h-4 mr-2" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
             </div>
           </CardContent>
         </Card>
-      )}
+
+        <div className="space-y-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-950/30 dark:to-violet-950/30 border-blue-200 dark:border-blue-900">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-semibold">AI assist</h3>
+              </div>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                Type a quick idea — AI fills topic, caption, hashtags, and prompt
+                using your brand context.
+              </p>
+              <Textarea
+                value={aiHint}
+                onChange={(e) => setAiHint(e.target.value)}
+                placeholder="e.g. Black Friday teaser — 50% off our top product, urgency angle"
+                rows={4}
+                className="bg-white dark:bg-zinc-950 border-blue-200 dark:border-blue-900"
+              />
+              <Button
+                type="button"
+                onClick={runFullFill}
+                disabled={canceled || locked || !!aiBusy}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {aiBusy === "full" ? (
+                  <AISpinner className="w-4 h-4 mr-2" />
+                ) : (
+                  <Sparkles className="w-4 h-4 mr-2" />
+                )}
+                {aiBusy === "full" ? "Filling..." : "Fill in the blanks"}
+              </Button>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Or use the small Suggest button beside any field to fill only
+                that one.
+              </p>
+            </CardContent>
+          </Card>
+
+          {a.logs && a.logs.length > 0 && (
+            <Card>
+              <CardContent className="p-5">
+                <h3 className="font-semibold mb-3 text-sm">Recent activity</h3>
+                <div className="space-y-2 text-xs">
+                  {a.logs.slice(0, 10).map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1"
+                    >
+                      <span className="flex items-center gap-2">
+                        {log.status === "TRIGGERED" && (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        )}
+                        {log.status === "SKIPPED" && (
+                          <ImageIcon className="w-3 h-3 text-amber-600" />
+                        )}
+                        {log.status === "FAILED" && (
+                          <XCircle className="w-3 h-3 text-rose-600" />
+                        )}
+                        {log.status}
+                        {log.reason && (
+                          <span className="text-zinc-500">— {log.reason}</span>
+                        )}
+                      </span>
+                      <span className="text-zinc-400">
+                        {new Date(log.triggeredAt).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
