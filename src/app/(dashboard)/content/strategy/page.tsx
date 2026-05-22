@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -923,8 +923,13 @@ export default function StrategyAutomationPage() {
   const searchParams = useSearchParams();
   // Automation lives in /content/campaigns now — Strategy only shows Plan & Sync.
   // If a legacy link arrives with ?view=automations, redirect to the new home.
+  // Ref guard prevents the effect from firing router.replace twice when
+  // useSearchParams returns a new ref on subsequent renders.
+  const legacyRedirectedRef = useRef(false);
   useEffect(() => {
+    if (legacyRedirectedRef.current) return;
     if (searchParams.get("view") === "automations") {
+      legacyRedirectedRef.current = true;
       router.replace("/content/campaigns");
     }
   }, [router, searchParams]);
