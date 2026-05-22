@@ -405,16 +405,36 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   // ONE short rule block, then raw data. No layout prescription. Same shape
   // for both OpenAI and xAI — let each engine design freely from the data.
-  // Contact items passed as character-exact strings so the model doesn't
-  // typo (e.g. "info@pflowsmartly.com" instead of "info@flowsmartly.com").
+  // Contact items passed as character-exact strings (so the model doesn't
+  // typo) paired with an ICON HINT per type — model renders icon + value,
+  // never a text label like "website:" / "email:".
+  const iconFor = (typeWord: string): string => {
+    const t = typeWord.toLowerCase();
+    if (t === "website") return "globe icon";
+    if (t === "email") return "envelope icon";
+    if (t === "phone") return "phone-receiver icon";
+    if (t === "instagram") return "Instagram camera glyph";
+    if (t === "facebook") return "Facebook f glyph";
+    if (t === "twitter" || t === "x") return "X glyph";
+    if (t === "linkedin") return "LinkedIn in glyph";
+    if (t === "tiktok") return "TikTok note glyph";
+    if (t === "youtube") return "YouTube play glyph";
+    if (t === "pinterest") return "Pinterest P glyph";
+    if (t === "threads") return "Threads @ glyph";
+    return `${typeWord} platform glyph`;
+  };
   const exactContacts = contactBits.length
     ? contactBits
-        .map((c) => `"${c.replace(/^(\w+)\s+/, "$1: ")}"`)
-        .join(", ")
+        .map((c) => {
+          const m = c.match(/^(\w+)\s+(.+)$/);
+          if (!m) return `"${c}"`;
+          return `${iconFor(m[1])} + "${m[2]}"`;
+        })
+        .join("; ")
     : "";
 
   const ruleBlock =
-    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) Render the headline and contact items below character-for-character exactly as given; do NOT fabricate slogans, phone numbers, emails, addresses, prices, statistics, or any year other than the one I specify. (3) Keep on-image text minimal — short headline plus small contact items only; no body paragraphs or marketing copy.";
+    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature; do NOT write the brand's name as typography anywhere on the image — the real brand logo is composited on top after generation. (2) Render the headline and contact items below character-for-character exactly as given; do NOT fabricate slogans, phone numbers, emails, addresses, prices, statistics, or any year other than the one I specify. (3) Style and lay out the contact items as part of the design — your choice (icon-and-value pills, chips, a tasteful footer band, scattered icon+value pairs along an edge, whatever fits the composition). Render each item as an ICON + value — NEVER prefix the value with a text label like \"website:\", \"email:\", \"phone:\", \"instagram:\". The icon replaces the label. (4) Keep on-image text minimal — short headline plus the icon+value contact items only; no body paragraphs or marketing copy.";
 
   const dataBlock = [
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
@@ -424,7 +444,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     brandColors.primary || brandColors.secondary || brandColors.accent
       ? `Brand colors to USE in the design (do NOT render the hex strings as text): primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
       : "",
-    exactContacts ? `Contact items (render exactly): ${exactContacts}.` : "",
+    exactContacts ? `Contact items — render each as icon + value pair, value character-for-character: ${exactContacts}.` : "",
     occurrenceYear ? `Year: ${occurrenceYear}. Today: ${todayIso}.` : `Today: ${todayIso}.`,
   ]
     .filter(Boolean)
