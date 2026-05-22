@@ -286,10 +286,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "";
 
   const ruleBlock =
-    "RULES: (1) The design must FILL THE ENTIRE CANVAS edge-to-edge — full bleed. Do NOT add an outer frame, mat, border, page background, decorative wrap, picture-on-cloth effect, or any matting around the design. The design IS the whole image, not a smaller design placed on top of a colored background. (2) Do NOT draw the brand's logo / icon / brand mark anywhere on the design — the real brand logo is composited on top after generation. (3) Copy each contact value below character-for-character; do not alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
+    "RULES: (1) Composition: the image extends edge-to-edge of the frame. There is NO printed-object scenario — this is not a poster, flyer, card, business card, postcard, leaflet, brochure, magazine page, sign, banner, screen, phone display, or any other object lying on cloth, wood, table, paper, or any surface. There is no outer frame, mat, border, drop shadow, page background, or decorative wrap. The visual content occupies the entire frame. (2) Do NOT draw the brand's logo / icon / brand mark anywhere in the image — the real brand logo is composited on top after generation. (3) Copy each contact value below character-for-character; do not alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
 
   const dataBlock = [
-    `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
+    `Aspect ratio: ${aspectLabel}. Style: ${style === "3d" ? "3D-rendered" : "photorealistic"}. Tone: ${automation.aiTone || "friendly"}.`,
     `Subject / event: ${subject}.`,
     brandKit?.description ? `Brand description: ${brandKit.description}.` : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     .filter(Boolean)
     .join(" ");
 
-  const prompt = `Design a branded social media post. ${ruleBlock} ${dataBlock}`;
+  const prompt = `A full-frame ${aspectLabel} image for the event below, filling the entire frame edge-to-edge. ${ruleBlock} ${dataBlock}`;
   const openaiPrompt = prompt;
   const ruledPrompt = prompt;
 
