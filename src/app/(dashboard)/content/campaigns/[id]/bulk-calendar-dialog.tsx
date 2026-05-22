@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarDays, Plus, Sparkles, Wand2, X } from "lucide-react";
+import { CalendarDays, Plus, Sparkles, Wand2, X, Check } from "lucide-react";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   US_HOLIDAYS,
@@ -184,6 +184,7 @@ export default function BulkCalendarDialog({
                 <div
                   key={h.id}
                   role="button"
+                  aria-pressed={checked}
                   tabIndex={0}
                   onClick={() => toggle(h.id)}
                   onKeyDown={(e) => {
@@ -198,12 +199,16 @@ export default function BulkCalendarDialog({
                       : "bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-700 dark:hover:bg-zinc-800"
                   }`}
                 >
-                  <Checkbox
-                    checked={checked}
-                    onClick={(e) => e.stopPropagation()}
-                    onCheckedChange={() => toggle(h.id)}
-                    tabIndex={-1}
-                  />
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                      checked
+                        ? "bg-blue-600 border-blue-600 text-white"
+                        : "border-zinc-300 dark:border-zinc-600"
+                    }`}
+                  >
+                    {checked && <Check className="h-3.5 w-3.5" />}
+                  </span>
                   <span className="text-lg leading-none">{h.icon}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
