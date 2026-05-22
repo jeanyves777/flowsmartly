@@ -46,6 +46,22 @@ const nextConfig: NextConfig = {
         destination: "/story-ad-movie",
         permanent: true,
       },
+      // Legacy: ?view=automations used to switch the Strategy page into its
+      // Automations sub-view. Content automation lives at /content/campaigns
+      // now — handle at the HTTP layer so no client useEffect/router.replace
+      // is involved (was causing an infinite render loop on some clients).
+      {
+        source: "/content/strategy",
+        has: [{ type: "query", key: "view", value: "automations" }],
+        destination: "/content/campaigns",
+        permanent: false,
+      },
+      {
+        source: "/strategy",
+        has: [{ type: "query", key: "view", value: "automations" }],
+        destination: "/content/campaigns",
+        permanent: false,
+      },
     ];
   },
 
