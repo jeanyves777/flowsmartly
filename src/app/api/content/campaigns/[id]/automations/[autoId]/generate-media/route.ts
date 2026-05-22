@@ -145,15 +145,33 @@ export async function POST(request: NextRequest, { params }: Params) {
     ? `Use these exact brand colors throughout the design as background tints, accent strips, ribbons, separators, decorative bars, and typography color — primary ${brandColors.primary || "(none)"}, secondary ${brandColors.secondary || "(none)"}, accent ${brandColors.accent || "(none)"}. Do NOT render the hex code strings as visible text in the image — apply the colors visually only.`
     : "";
 
+  // Load active social handles for this user — feed them into the prompt so
+  // the AI can render branded social pills (IG, FB, etc.) in the footer.
+  const socialAccounts = await prisma.socialAccount.findMany({
+    where: {
+      userId: session.userId,
+      isActive: true,
+      platformUsername: { not: null },
+    },
+    select: { platform: true, platformUsername: true },
+  });
+
   const contactBits: string[] = [];
   if (brandKit?.website)
     contactBits.push(
-      `Website: ${brandKit.website.replace(/^https?:\/\//, "").replace(/^www\./, "")}`,
+      `website ${brandKit.website.replace(/^https?:\/\//, "").replace(/^www\./, "")}`,
     );
-  if (brandKit?.email) contactBits.push(`Email: ${brandKit.email}`);
-  if (brandKit?.phone) contactBits.push(`Phone: ${brandKit.phone}`);
+  if (brandKit?.email) contactBits.push(`email ${brandKit.email}`);
+  if (brandKit?.phone) contactBits.push(`phone ${brandKit.phone}`);
+  for (const sa of socialAccounts) {
+    const handle = sa.platformUsername!.startsWith("@")
+      ? sa.platformUsername!
+      : `@${sa.platformUsername}`;
+    contactBits.push(`${sa.platform} ${handle}`);
+  }
+
   const contactLine = contactBits.length
-    ? `Render the following contact info legibly in a clean footer or pill area: ${contactBits.join(" · ")}.`
+    ? `Contact + social details to RENDER in a DESIGNED FOOTER (not as a plain text line) — each one as its own styled pill, icon-badge, or chip in brand color with a recognisable platform/contact icon next to it (globe icon for website, envelope for email, phone receiver for phone, camera-aperture for instagram, F for facebook, X for twitter, in for linkedin, TT for tiktok, play-button for youtube, P for pinterest, @ for threads). Items to include: ${contactBits.join("; ")}. The footer band should use brand-primary or brand-secondary color as background with the pills sitting on top in white or contrasting color. NEVER render this as a comma-separated text line — make it look like a proper social-media post footer with visual hierarchy and platform icons.`
     : "";
 
   const brandLine = brandKit
