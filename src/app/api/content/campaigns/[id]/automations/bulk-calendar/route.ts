@@ -21,12 +21,26 @@ const DEFAULT_PLATFORMS = ["instagram", "facebook"];
 
 const AI_FILL_CONCURRENCY = 3;
 
+function holidayDateContext(holidayId: string, year: number): string {
+  const isNyeLike = holidayId === "new-years-eve" || holidayId === "nye";
+  const isNewYears = holidayId === "new-years-day" || holidayId === "new-year";
+  if (isNyeLike) {
+    return `Today's date: ${new Date().toISOString().slice(0, 10)}. This New Year's Eve falls on Dec 31, ${year} — the celebration is ringing IN the year ${year + 1}. NEVER reference any other year.`;
+  }
+  if (isNewYears) {
+    return `Today's date: ${new Date().toISOString().slice(0, 10)}. This New Year's Day falls on Jan 1, ${year} — the year being celebrated is ${year}. NEVER reference any other year.`;
+  }
+  return `Today's date: ${new Date().toISOString().slice(0, 10)}. This holiday occurrence is in the year ${year}. NEVER reference any other year.`;
+}
+
 async function fillForHoliday(
   holiday: { id: string; name: string; promptHint: string },
   brand: { name: string; description: string; voice: string },
+  occurrenceYear: number,
 ): Promise<{ topic: string; copy: string; hashtags: string[] } | null> {
   try {
-    const baseCtx = `Brand: ${brand.name}${brand.description ? ` — ${brand.description}` : ""}. Tone: ${brand.voice}. Holiday: ${holiday.name}. Hint: ${holiday.promptHint}.`;
+    const dateCtx = holidayDateContext(holiday.id, occurrenceYear);
+    const baseCtx = `Brand: ${brand.name}${brand.description ? ` — ${brand.description}` : ""}. Tone: ${brand.voice}. Holiday: ${holiday.name}. ${dateCtx} Hint: ${holiday.promptHint}.`;
     const [topic, copy, hashtagsRaw] = await Promise.all([
       ai.generate(
         `Write a 2-sentence post brief for ${holiday.name}. ${baseCtx} What should the post communicate?`,
@@ -175,15 +189,27 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
   }
 
+  // Compute the next occurrence year per holiday so AI prompts know whether
+  // we're talking about this year's instance or next year's. If a holiday's
+  // date this year has already passed, the next occurrence is next year.
+  const nowMs = Date.now();
+  const occurrenceYears = holidays.map((h) => {
+    const thisYear = new Date().getFullYear();
+    const dt = getHolidayDate(h, thisYear);
+    const thisInstance = new Date(thisYear, dt.month - 1, dt.day).getTime();
+    return thisInstance >= nowMs ? thisYear : thisYear + 1;
+  });
+
   // Optionally AI-fill in parallel (pooled) BEFORE the DB inserts so failures don't poison the row.
   const fills = aiFill
     ? await runPool(
-        holidays,
-        (h) => fillForHoliday({ id: h.id, name: h.name, promptHint: h.promptHint }, {
-          name: brandName,
-          description: brandDescription,
-          voice: brandVoice,
-        }),
+        holidays.map((h, i) => ({ holiday: h, year: occurrenceYears[i] })),
+        ({ holiday, year }) =>
+          fillForHoliday(
+            { id: holiday.id, name: holiday.name, promptHint: holiday.promptHint },
+            { name: brandName, description: brandDescription, voice: brandVoice },
+            year,
+          ),
         AI_FILL_CONCURRENCY,
       )
     : holidays.map(() => null);

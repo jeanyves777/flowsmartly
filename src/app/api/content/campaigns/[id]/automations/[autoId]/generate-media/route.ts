@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { generateImageWithProvider } from "@/lib/ai/image-router";
 import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
-import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 
 interface Params {
   params: Promise<{ id: string; autoId: string }>;
@@ -87,6 +87,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       aiPrompt: true,
       aiTone: true,
       aiMediaConfig: true,
+      calendarSourceType: true,
+      calendarSourceId: true,
       calendarSourceLabel: true,
       firstPostCreatedAt: true,
     },
@@ -130,45 +132,51 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const style = aiConfig.style || "natural";
   const brandLine = brandKit
-    ? `Brand context for thematic reference only: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
+    ? `Brand context for thematic reference only (do NOT depict this brand name visually): ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}.`
     : "";
 
-  // CRITICAL: never let the AI fabricate a logo. The real BrandKit logo is
-  // composited on top of the generated image after the fact.
+  // Resolve occurrence year for CALENDAR_EVENT triggers so the AI knows the
+  // correct year (avoids hallucinating "Ring in 2025" when we're in 2026).
+  let occurrenceYear: number | null = null;
+  if (automation.calendarSourceType === "HOLIDAY" && automation.calendarSourceId) {
+    const h = getHolidayById(automation.calendarSourceId);
+    if (h) {
+      const thisYear = new Date().getFullYear();
+      const dt = getHolidayDate(h, thisYear);
+      const thisInstance = new Date(thisYear, dt.month - 1, dt.day).getTime();
+      occurrenceYear = thisInstance >= Date.now() ? thisYear : thisYear + 1;
+    }
+  }
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dateContext = occurrenceYear
+    ? `Today's date: ${todayIso}. This occurrence is in the year ${occurrenceYear}.`
+    : `Today's date: ${todayIso}.`;
+
+  // CRITICAL — natural image only. No text, no letters, no words, no logos.
+  // The image must be visually clean so any branding (if applied) happens
+  // later via a separate pipeline.
   const prompt = [
-    `High-quality social media image about: ${subject}.`,
+    `Photorealistic, high-quality social media image about: ${subject}.`,
+    dateContext,
     brandLine,
     `Style: ${style}. Tone: ${automation.aiTone || "friendly"}.`,
     "Composition: clean, scroll-stopping, suitable as a 1:1 social post.",
-    "Do NOT draw, render, or fabricate any logo, brand mark, watermark, text overlay, signature, badge, or storefront sign. The real brand logo will be composited on top of this image by a separate step — leave a neutral area in a corner where it can be placed without overlapping the subject.",
+    "ABSOLUTE PROHIBITION: do NOT draw, render, paint, write, or fabricate ANY text, letters, words, numbers, dates, captions, slogans, taglines, signage, signs, banners, billboards, logos, brand marks, watermarks, signatures, badges, stamps, certificates, screens-with-text, t-shirts-with-text, or printed material. The image must contain ZERO readable characters of any language. Leave the composition purely visual — natural objects, people, places, scenes only.",
   ]
     .filter(Boolean)
     .join(" ");
 
   try {
-    const { buffer: aiBuffer, provider } = await tryGenerate(
+    const { buffer: finalBuffer, provider } = await tryGenerate(
       prompt,
       1024,
       1024,
       tier,
     );
 
-    // Composite the real BrandKit logo on top (skipped silently if no logo set).
-    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
-    let finalBuffer = aiBuffer;
-    if (logoSource) {
-      try {
-        finalBuffer = await compositeBrandLogoOnImageBuffer({
-          imageBuffer: aiBuffer,
-          logoSource,
-        });
-      } catch (compositeErr) {
-        console.warn(
-          "[generate-media] Logo composite failed; using bare AI image:",
-          compositeErr instanceof Error ? compositeErr.message : compositeErr,
-        );
-      }
-    }
+    // No logo compositing at this stage — the image stays natural. Any
+    // branding (overlay logo, text, frame) belongs to a later publishing
+    // step, not the AI-generation step. Per user request 2026-05-22.
 
     const key = `campaigns/${session.userId}/${autoId}-${Date.now()}.png`;
     const url = await uploadToS3(key, finalBuffer, "image/png");
