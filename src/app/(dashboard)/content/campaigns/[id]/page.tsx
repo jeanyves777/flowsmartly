@@ -29,7 +29,7 @@ import { AILoaderOverlay } from "@/components/shared/ai-loader-overlay";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import AddItemDialog from "./add-item-dialog";
 import ImportStrategyDialog from "./import-strategy-dialog";
-import BulkCalendarDialog from "./bulk-calendar-dialog";
+import BulkUpdateDialog from "./bulk-update-dialog";
 
 interface Automation {
   id: string;
@@ -131,7 +131,7 @@ export default function CampaignDetailPage({
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
+  const [showBulkUpdate, setShowBulkUpdate] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [campaignBusy, setCampaignBusy] = useState<null | "cancel" | "delete">(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -374,10 +374,11 @@ export default function CampaignDetailPage({
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setShowBulk(true)}
+                onClick={() => setShowBulkUpdate(true)}
+                disabled={campaign.automations.length === 0}
               >
-                <CalendarDays className="w-4 h-4 mr-2" />
-                Bulk: calendar events
+                <Sparkles className="w-4 h-4 mr-2" />
+                Bulk update
               </Button>
               <Button onClick={() => setShowAdd(true)}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -468,10 +469,6 @@ export default function CampaignDetailPage({
             <div className="flex flex-wrap justify-center gap-2">
               <Button variant="outline" onClick={() => setShowImport(true)}>
                 Import from strategy
-              </Button>
-              <Button variant="outline" onClick={() => setShowBulk(true)}>
-                <CalendarDays className="w-4 h-4 mr-2" />
-                Bulk: calendar events
               </Button>
               <Button onClick={() => setShowAdd(true)}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -665,14 +662,18 @@ export default function CampaignDetailPage({
         />
       )}
 
-      {showBulk && (
-        <BulkCalendarDialog
+      {showBulkUpdate && (
+        <BulkUpdateDialog
           campaignId={id}
-          defaultPlatforms={parsePlatforms(campaign.defaultPlatforms)}
-          defaultTone={campaign.defaultTone}
-          onClose={() => setShowBulk(false)}
-          onCreated={() => {
-            setShowBulk(false);
+          items={campaign.automations.map((a) => ({
+            id: a.id,
+            name: a.name,
+            reviewStatus: a.reviewStatus,
+            status: a.status,
+          }))}
+          onClose={() => setShowBulkUpdate(false)}
+          onUpdated={() => {
+            setShowBulkUpdate(false);
             load();
           }}
         />

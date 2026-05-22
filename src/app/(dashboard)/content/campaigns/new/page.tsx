@@ -89,6 +89,9 @@ export default function NewCampaignPage() {
   ]);
   const [eventAiFill, setEventAiFill] = useState(true);
   const [eventMediaMode, setEventMediaMode] = useState("AI_AT_POST_TIME");
+  const [eventStyleStrategy, setEventStyleStrategy] = useState<"ai" | "variant" | "same">("ai");
+  const [eventSameTier, setEventSameTier] = useState<"standard" | "premium">("standard");
+  const [eventSameStyle, setEventSameStyle] = useState<"realistic" | "3d">("realistic");
 
   const sortedHolidays = useMemo(
     () =>
@@ -214,6 +217,9 @@ export default function NewCampaignPage() {
               mediaMode: eventMediaMode,
               tone: defaultTone,
               aiFill: eventAiFill,
+              styleStrategy: eventStyleStrategy,
+              sameTier: eventSameTier,
+              sameStyle: eventSameStyle,
             }),
           },
         );
@@ -516,6 +522,72 @@ export default function NewCampaignPage() {
                         {m.label}
                       </button>
                     ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Style strategy</Label>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Pick once for the whole batch — applied to all selected
+                      events so you don&apos;t need to set Quality / Style on
+                      each one individually.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      {(
+                        [
+                          { v: "ai", label: "AI picks best fit", hint: "Recommended — commercial → realistic, cultural → 3D" },
+                          { v: "variant", label: "Variety per event", hint: "Alternate realistic and 3D" },
+                          { v: "same", label: "Same for all", hint: "Pick one Quality + Style for every event" },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => setEventStyleStrategy(opt.v)}
+                          className={`text-left px-3 py-2 rounded-md border text-sm ${
+                            eventStyleStrategy === opt.v
+                              ? "bg-blue-50 border-blue-500 dark:bg-blue-900/20"
+                              : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-700"
+                          }`}
+                        >
+                          <div className="font-medium">{opt.label}</div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">{opt.hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {eventStyleStrategy === "same" && (
+                      <div className="space-y-2 rounded-md border bg-white dark:bg-zinc-950 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Label className="text-xs w-16">Quality:</Label>
+                          <div className="flex rounded-md border overflow-hidden">
+                            {(["standard", "premium"] as const).map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => setEventSameTier(t)}
+                                className={`px-3 py-1.5 text-xs font-medium ${t !== "standard" ? "border-l" : ""} ${eventSameTier === t ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
+                              >
+                                {t === "standard" ? "Standard" : "Premium"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Label className="text-xs w-16">Style:</Label>
+                          <div className="flex rounded-md border overflow-hidden">
+                            {(["realistic", "3d"] as const).map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => setEventSameStyle(s)}
+                                className={`px-3 py-1.5 text-xs font-medium ${s !== "realistic" ? "border-l" : ""} ${eventSameStyle === s ? "bg-blue-600 text-white" : "text-zinc-600 dark:text-zinc-300"}`}
+                              >
+                                {s === "realistic" ? "Realistic" : "3D"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <label className="flex items-start gap-3 cursor-pointer rounded-md border bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-950/30 dark:to-violet-950/30 border-blue-200 dark:border-blue-900 p-3">
