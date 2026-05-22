@@ -157,7 +157,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "";
 
   const brandLine = brandKit
-    ? `Brand: ${brandKit.name}${brandKit.description ? ` (${brandKit.description})` : ""}.`
+    ? `Brand: ${brandKit.name}${brandKit.description ? ` (${brandKit.description})` : ""}. This design is FOR and ON BEHALF OF ${brandKit.name} only. The voice / signature on the design is "${brandKit.name}", "${brandKit.name} team", or simply the brand name — NOT any third-party platform, software, tool, marketing app, SaaS, or service that may have generated this design. Do NOT mention "FlowSmartly", "AI", "ChatGPT", "OpenAI", "Grok", or any other platform / vendor / engine name in the text. Speak as ${brandKit.name} to ${brandKit.name}'s customers.`
     : "";
 
   const headline =
@@ -203,8 +203,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     contactLine,
     dateContext,
     `Tone: ${automation.aiTone || "friendly"}.`,
+    // Canvas rule — the image IS the post, no surrounding frame.
+    "Canvas rule: the image fills the entire 1024×1024 frame edge-to-edge. The design IS the social post itself. Do NOT add an outer page border, surrounding canvas color, margin, drop-shadow frame, or background-around-a-card effect. The composition extends to all four edges of the image.",
     "Render the headline / message as legible on-brand typography integrated into the design (header strap, callout, or hero text). Render the contact info in a clean footer band, pill, or strip using the brand colors. Use the brand colors purposefully as accents, ribbons, separators, or backgrounds — not just thrown in. The result should look like a piece of work from a brand designer, not a plain photo.",
-    "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, or any visual element that looks like the BRAND'S logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape that suggests where a logo would go. The real logo will be composited on top of this image by a separate step — do not anticipate it. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
+    // Safe corner for the post-generation logo composite. Phrased as a generic
+    // design constraint, not a "logo area" — saying "logo" makes the AI draw
+    // a placeholder square (verified failure mode).
+    "Design constraint: leave the TOP-LEFT corner of the image visually quiet — specifically a roughly 18% × 18% square in the corner. That corner should be either solid brand-color background, soft gradient, photo blur, or other low-detail surface. Absolutely no text, headline, graphic element, decoration, or important subject in that specific top-left corner. The rest of the design has full creative freedom and should fill the remaining 82% of the canvas richly.",
+    "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
   ]
     .filter(Boolean)
     .join(" ");
