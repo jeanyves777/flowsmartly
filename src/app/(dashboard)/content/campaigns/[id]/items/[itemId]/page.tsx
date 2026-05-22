@@ -269,9 +269,21 @@ export default function ItemEditorPage({
         },
       );
       const json = await res.json();
-      if (!json?.success) throw new Error(json?.error?.message ?? "Generation failed");
+      if (!json?.success) {
+        if (json?.error?.code === "INSUFFICIENT_CREDITS") {
+          throw new Error(
+            `Not enough credits — needs ${json.error.required}, you have ${json.error.balance}. Top up to generate.`,
+          );
+        }
+        throw new Error(json?.error?.message ?? "Generation failed");
+      }
       // Refresh from server so mediaUrl + mediaMode reflect the new state
       await load();
+      if (json.data?.creditsCharged) {
+        console.log(
+          `[generate-media] charged ${json.data.creditsCharged} credits, balance now ${json.data.balanceAfter}`,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Pre-generation failed");
     } finally {

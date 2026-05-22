@@ -6,6 +6,8 @@ import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 interface Params {
   params: Promise<{ id: string; autoId: string }>;
 }
@@ -111,6 +113,28 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
   }
 
+  // Credit gate — check before any AI call so we don't burn provider $$
+  // generating media the user can't pay for. Standard uses the generic
+  // visual-design cost; Premium uses the higher layout-image cost since
+  // it routes to gpt-image-1 high quality.
+  const costKey = tier === "premium" ? "AI_DESIGN_LAYOUT_IMAGE" : "AI_VISUAL_DESIGN";
+  const creditCost = await getDynamicCreditCost(costKey);
+  const balance = await creditService.getBalance(session.userId);
+  if (balance < creditCost) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INSUFFICIENT_CREDITS",
+          message: `Not enough credits — this generation needs ${creditCost} credits, you have ${balance}.`,
+          required: creditCost,
+          balance,
+        },
+      },
+      { status: 402 },
+    );
+  }
+
   const aiConfig = parseJsonSafe<{ type?: string; style?: string }>(
     automation.aiMediaConfig,
     {},
@@ -197,24 +221,84 @@ export async function POST(request: NextRequest, { params }: Params) {
       ? "Aesthetic: high-quality 3D-rendered scene — stylized CGI with rich materials, dramatic lighting, depth of field — wrapped in a clean modern social-media design layout."
       : "Aesthetic: photorealistic photograph as the hero subject — natural lighting, professional photography — wrapped in a clean modern social-media design layout.";
 
-  // Layout variants — pick one per generation so we get visual variety
-  // across items in a batch instead of the same blocky composition every
-  // time. Seeded by item id so the same item is stable across regenerations
-  // but different items differ.
-  const LAYOUT_VARIANTS = [
-    "Layout: editorial split — the bold serif headline sits on the LEFT half of the canvas over a brand-colored panel; a full-bleed hero photo fills the RIGHT half. A thin brand-accent vertical stripe separates them.",
-    "Layout: magazine cover — a single large hero photo fills most of the canvas. A wide brand-color band sits at the BOTTOM holding the headline in a heavy display sans-serif and the contact pills on a row below.",
-    "Layout: stacked card — hero photo fills the upper 55% of the canvas with a soft brand-color gradient overlay; lower 45% is a solid brand-color block holding the headline in big bold typography and the contact pills as styled chips.",
-    "Layout: diagonal accent — a large brand-color triangular wedge cuts diagonally across the upper-left of the canvas; the headline lives inside the wedge in white type; the rest of the canvas is the hero photo with the contact band at the bottom.",
-    "Layout: modern poster — a bold typographic headline dominates the canvas (huge display type filling 40% of the height) over a soft brand-color gradient. A smaller photo sits as a tasteful inset or corner accent. Contact pills as a clean strip at the bottom.",
-    "Layout: frame-in-frame — the hero photo is inset from the edges with a thick brand-color border around all four sides. The headline sits in the top border (white typography on brand-color); contact pills sit in the bottom border.",
-    "Layout: ribbon strap — a brand-color ribbon strap cuts horizontally across the upper-third holding the headline in bold script or serif typography; the hero photo fills the rest of the canvas with a clean footer band at the bottom for contact pills.",
-    "Layout: gradient overlay — a single dramatic photo fills the entire canvas with a brand-color radial or diagonal gradient overlay. The headline sits in white display typography in the lower-left (with the reserved top-left strip kept quiet). Contact pills as a translucent rounded card overlaid on the bottom-right.",
+  // Layout variants with SMART per-layout logo placement.
+  // - description: feeds the AI prompt
+  // - reservedDesc: tells AI exactly which corner to keep quiet for the logo
+  //   (the SAME corner where the compositor will land the logo)
+  // - placement: x/y are 0-1 fractions of image dims pointing to the
+  //   TOP-LEFT of the logo bounding box; sizePercent is logo width as % of
+  //   image width
+  // Seeded by item id so re-runs on the same item pick the same variant.
+  interface LayoutVariant {
+    description: string;
+    reservedDesc: string;
+    placement: { x: number; y: number; sizePercent: number };
+  }
+  const LAYOUT_VARIANTS: LayoutVariant[] = [
+    {
+      description:
+        "Layout: editorial split — the bold serif headline sits on the LEFT half of the canvas over a brand-colored panel; a full-bleed hero photo fills the RIGHT half. A thin brand-accent vertical stripe separates them.",
+      reservedDesc:
+        "Logo will be placed BOTTOM-LEFT (over the brand-colored left panel, below the headline). Leave a ~30% width × 18% height quiet area in the BOTTOM-LEFT of the left panel — no text, no decorative element there.",
+      placement: { x: 0.03, y: 0.78, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: magazine cover — a single large hero photo fills most of the canvas. A wide brand-color band sits at the BOTTOM holding the headline in a heavy display sans-serif and the contact pills on a row below.",
+      reservedDesc:
+        "Logo will be placed TOP-LEFT on the photo. Leave a ~30% width × 18% height quiet area in the TOP-LEFT — keep that part of the photo low-detail (sky, blur, soft surface). Photographic subject of interest should sit center or right.",
+      placement: { x: 0.03, y: 0.03, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: stacked card — hero photo fills the upper 55% of the canvas with a soft brand-color gradient overlay; lower 45% is a solid brand-color block holding the headline in big bold typography and the contact pills as styled chips.",
+      reservedDesc:
+        "Logo will be placed TOP-LEFT on the photo upper half. Leave a ~30% width × 18% height quiet area in the TOP-LEFT — low-detail photo background there. The headline in the lower brand block can use the full bottom.",
+      placement: { x: 0.03, y: 0.03, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: diagonal accent — a large brand-color triangular wedge cuts diagonally across the upper-left of the canvas; the headline lives inside the wedge in white type; the rest of the canvas is the hero photo with the contact band at the bottom.",
+      reservedDesc:
+        "Logo will be placed TOP-LEFT inside the brand-color wedge. Place the headline BELOW the logo area within the wedge. Leave the very top-left ~24% width × 14% height of the wedge clear of headline text for the logo.",
+      placement: { x: 0.03, y: 0.03, sizePercent: 20 },
+    },
+    {
+      description:
+        "Layout: modern poster — a bold typographic headline dominates the canvas (huge display type filling 40% of the height) over a soft brand-color gradient. A smaller photo sits as a tasteful inset or corner accent. Contact pills as a clean strip at the bottom.",
+      reservedDesc:
+        "Logo will be placed TOP-RIGHT. Leave a ~30% width × 18% height quiet area in the TOP-RIGHT corner. The huge headline can dominate the center / left but must NOT extend into the top-right.",
+      placement: { x: 0.67, y: 0.03, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: frame-in-frame — the hero photo is inset from the edges with a thick brand-color border around all four sides. The headline sits in the top border (white typography on brand-color); contact pills sit in the bottom border.",
+      reservedDesc:
+        "Logo will be placed in the LEFT side of the TOP border. Reserve ~28% width × 12% height on the LEFT END of the top border for the logo. The headline within the top border should be aligned RIGHT or centered after that left logo area.",
+      placement: { x: 0.03, y: 0.02, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: ribbon strap — a brand-color ribbon strap cuts horizontally across the upper-third holding the headline in bold script or serif typography; the hero photo fills the rest of the canvas with a clean footer band at the bottom for contact pills.",
+      reservedDesc:
+        "Logo will be placed at the LEFT END of the ribbon strap. Reserve ~28% width × 14% height on the LEFT END of the ribbon for the logo. The headline on the ribbon should be aligned RIGHT or centered after that left logo area.",
+      placement: { x: 0.03, y: 0.05, sizePercent: 22 },
+    },
+    {
+      description:
+        "Layout: gradient overlay — a single dramatic photo fills the entire canvas with a brand-color radial or diagonal gradient overlay. The headline sits in white display typography in the LOWER-LEFT. Contact pills as a translucent rounded card overlaid on the bottom-right.",
+      reservedDesc:
+        "Logo will be placed TOP-RIGHT. Reserve ~30% width × 18% height in the TOP-RIGHT corner — keep that part of the photo low-detail. The headline lives in the LOWER-LEFT, NOT the top.",
+      placement: { x: 0.67, y: 0.03, sizePercent: 22 },
+    },
   ];
-  // Stable seed from autoId so re-running on the same item picks the same
-  // variant (unless user regenerates by hand). Hashes the id to int.
-  const layoutSeed = autoId.split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 0);
-  const layoutLine = LAYOUT_VARIANTS[layoutSeed % LAYOUT_VARIANTS.length];
+  const layoutSeed = autoId.split("").reduce(
+    (acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0,
+    0,
+  );
+  const chosenLayout = LAYOUT_VARIANTS[layoutSeed % LAYOUT_VARIANTS.length];
+  const layoutLine = chosenLayout.description;
+  const reservedLine = chosenLayout.reservedDesc;
 
   // Premium tier earns a stronger styling push — gpt-image-1 can produce
   // editorial-magazine-grade type when nudged.
@@ -259,8 +343,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Copy length — keep it social-post-tight, not a blog post.
     "Copy length: this is a SOCIAL MEDIA post, NOT a blog post. Total visible text on the design must be SHORT and PRECISE — one headline (3-7 words max) PLUS at most one short sub-line (max 12 words). NO paragraphs. NO multi-sentence essays. NO body-copy blocks. If you write more than 2 short lines of text on the image, you have failed this brief.",
     "Render the headline as legible on-brand typography (a hero header). Render the contact pills in a footer band using brand colors. Use brand colors purposefully as accents, ribbons, separators, or backgrounds. The result should look like the work of a brand designer.",
-    // Safe corner for the logo composite — make it explicit and hard to ignore.
-    "Logo-overlay reservation (CRITICAL): a brand logo will be composited on top of this image at the TOP-LEFT corner, taking up roughly the top-left 30% of the width × 18% of the height. You MUST keep that specific top-left region visually quiet — solid brand color, soft gradient, photo blur, or low-detail surface. The HEADLINE and any other text MUST NOT extend into that top-left region. If your headline is left-aligned, start it at least 32% across from the left edge — never from the very left. Do NOT draw a placeholder rectangle / blank box / outlined card in that area — leave it as part of the natural design background.",
+    // Safe corner for the logo composite — driven by the chosen layout
+    // variant so the logo lands where text/subject ISN'T.
+    `Logo-overlay reservation (CRITICAL — read carefully): ${reservedLine} The HEADLINE and any other text MUST NOT extend into that reserved area. Do NOT draw a placeholder rectangle, blank box, outlined card, or any visible container in the reserved area — leave it as part of the natural design background.`,
     // Anti-fabrication rule for dates / years / facts.
     "Anti-fabrication: only render text I have explicitly given you (headline, brand name, contact items above, year context). Do NOT invent slogans that reference past years, future years, phone numbers, addresses, percentages, prices, statistics, customer counts, founding dates, or any factual claim about the brand that I did not provide. If you reference a year, use ONLY the occurrence year I specified — never any other year.",
     "STRICT PROHIBITION — do NOT draw, render, paint, write, or fabricate any LOGO, brand mark, monogram, company icon, app icon, swirl that resembles a logo, abstract emblem, watermark, signature, badge, or any visual element that looks like the brand's logo. Do NOT draw a placeholder rectangle / empty box / blank card / outlined shape / framed area in the reserved top-left corner — leave it as part of the natural background. Everything ELSE (typography, brand colors, contact info, headline, decorative shapes, photographic or 3D subject matter) is allowed and expected.",
@@ -289,10 +374,10 @@ export async function POST(request: NextRequest, { params }: Params) {
         finalBuffer = await compositeBrandLogoOnImageBuffer({
           imageBuffer: aiBuffer,
           logoSource,
-          // Bump default size so full wordmark logos read clearly. The
-          // underlying compositor clamps to 8–28% of image width and
-          // auto-shrinks the height to preserve aspect ratio.
-          placement: { sizePercent: 22 },
+          // Smart placement: the chosen layout variant dictates which corner
+          // is "safe" (no text / subject sits there). Compositor preserves
+          // aspect, so wordmarks and square icons both fit cleanly.
+          placement: chosenLayout.placement,
         });
       } catch (compositeErr) {
         console.warn(
@@ -325,6 +410,30 @@ export async function POST(request: NextRequest, { params }: Params) {
       appliesTo,
     };
 
+    // Now that the image is in S3 and stamped on the automation, deduct
+    // credits. Doing this AFTER success means a failed AI call or failed
+    // upload never costs the user anything. Also tracked on the automation
+    // row for usage analytics.
+    let balanceAfter: number | null = null;
+    try {
+      const deduction = await creditService.deductCredits({
+        userId: session.userId,
+        type: TRANSACTION_TYPES.USAGE,
+        amount: creditCost,
+        description: `Pre-generate media (${tier})`,
+        referenceType: "ContentAutomation",
+        referenceId: autoId,
+        metadata: { tier, style, appliesTo, provider, costKey },
+      });
+      balanceAfter = deduction.transaction?.balanceAfter ?? null;
+      await prisma.contentAutomation.update({
+        where: { id: autoId },
+        data: { totalCreditsSpent: { increment: creditCost } },
+      });
+    } catch (creditErr) {
+      console.error("[generate-media] credit deduction failed:", creditErr);
+    }
+
     const updated = await prisma.contentAutomation.update({
       where: { id: autoId },
       data: {
@@ -337,12 +446,18 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     // Log provider used server-side only — don't leak to client.
     console.log(
-      `[generate-media] tier=${tier} provider=${provider} appliesTo=${appliesTo}`,
+      `[generate-media] tier=${tier} provider=${provider} appliesTo=${appliesTo} cost=${creditCost} balanceAfter=${balanceAfter}`,
     );
 
     return NextResponse.json({
       success: true,
-      data: { automation: updated, url, tier },
+      data: {
+        automation: updated,
+        url,
+        tier,
+        creditsCharged: creditCost,
+        balanceAfter,
+      },
     });
   } catch (err) {
     return NextResponse.json(
