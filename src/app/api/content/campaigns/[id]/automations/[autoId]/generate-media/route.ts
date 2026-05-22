@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import sharp from "sharp";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { generateImageWithProvider } from "@/lib/ai/image-router";
@@ -287,7 +286,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     : "";
 
   const ruleBlock =
-    "RULES: (1) Do NOT draw any logo, brand mark, wordmark, monogram, app icon, emblem, watermark, or signature anywhere — the real brand logo is composited on top after generation. (2) If you include the contact items listed below, copy each value character-for-character; do NOT alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
+    "RULES: (1) The design must FILL THE ENTIRE CANVAS edge-to-edge — full bleed. Do NOT add an outer frame, mat, border, page background, decorative wrap, picture-on-cloth effect, or any matting around the design. The design IS the whole image, not a smaller design placed on top of a colored background. (2) Do NOT draw the brand's logo / icon / brand mark anywhere on the design — the real brand logo is composited on top after generation. (3) Copy each contact value below character-for-character; do not alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
 
   const dataBlock = [
     `Format: ${aspectLabel}. Aesthetic: ${style === "3d" ? "3D-rendered" : "photorealistic photograph"}. Tone: ${automation.aiTone || "friendly"}.`,
@@ -320,27 +319,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     // over the icon-only logo so the brand reads clearly; icon is only a
     // fallback when no full logo is set. Compositor auto-handles aspect and
     // scales the logo to a readable size that fits the reserved corner.
-    // Strip uniform-color borders ("mats") from the AI output before the
-    // logo composite. xAI in particular tends to wrap the design in a solid
-    // colored frame; trimming reveals the actual design so the logo lands
-    // on it instead of on the mat. No-op when the image has no uniform
-    // border (OpenAI / Gemini outputs).
-    let prepedBuffer = aiBuffer;
-    try {
-      prepedBuffer = await sharp(aiBuffer).trim({ threshold: 25 }).toBuffer();
-    } catch (trimErr) {
-      console.warn(
-        "[generate-media] Pre-composite trim failed; using untrimmed AI buffer:",
-        trimErr instanceof Error ? trimErr.message : trimErr,
-      );
-    }
-
-    let finalBuffer = prepedBuffer;
+    let finalBuffer = aiBuffer;
     const logoSource = brandKit?.logo || brandKit?.iconLogo || null;
     if (logoSource) {
       try {
         finalBuffer = await compositeBrandLogoOnImageBuffer({
-          imageBuffer: prepedBuffer,
+          imageBuffer: aiBuffer,
           logoSource,
           // Smart placement: the chosen layout variant dictates which corner
           // is "safe" (no text / subject sits there). Compositor preserves
