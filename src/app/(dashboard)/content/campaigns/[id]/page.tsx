@@ -27,6 +27,7 @@ import { PageLoader } from "@/components/shared/page-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import AddItemDialog from "./add-item-dialog";
 import ImportStrategyDialog from "./import-strategy-dialog";
+import BulkCalendarDialog from "./bulk-calendar-dialog";
 
 interface Automation {
   id: string;
@@ -128,6 +129,7 @@ export default function CampaignDetailPage({
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -291,6 +293,13 @@ export default function CampaignDetailPage({
                 <Sparkles className="w-4 h-4 mr-2" />
                 Import from strategy
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowBulk(true)}
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Bulk: calendar events
+              </Button>
               <Button onClick={() => setShowAdd(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add item
@@ -361,9 +370,13 @@ export default function CampaignDetailPage({
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               Add a content item or import tasks from a marketing strategy.
             </p>
-            <div className="flex justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <Button variant="outline" onClick={() => setShowImport(true)}>
                 Import from strategy
+              </Button>
+              <Button variant="outline" onClick={() => setShowBulk(true)}>
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Bulk: calendar events
               </Button>
               <Button onClick={() => setShowAdd(true)}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -532,6 +545,19 @@ export default function CampaignDetailPage({
           onClose={() => setShowImport(false)}
           onImported={() => {
             setShowImport(false);
+            load();
+          }}
+        />
+      )}
+
+      {showBulk && (
+        <BulkCalendarDialog
+          campaignId={id}
+          defaultPlatforms={parsePlatforms(campaign.defaultPlatforms)}
+          defaultTone={campaign.defaultTone}
+          onClose={() => setShowBulk(false)}
+          onCreated={() => {
+            setShowBulk(false);
             load();
           }}
         />
