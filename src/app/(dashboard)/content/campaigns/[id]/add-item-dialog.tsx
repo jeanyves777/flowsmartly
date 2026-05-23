@@ -176,12 +176,22 @@ export default function AddItemDialog({
       };
     }
     if (triggerType === "ONE_OFF" && oneOffStart) {
+      // <input type="datetime-local"> returns a naive "YYYY-MM-DDTHH:mm"
+      // string with NO timezone. If we forward that to the server, the
+      // server's `new Date(...)` interprets it as UTC — silently shifting
+      // the post 4-5 hours earlier (or later) than the user intended.
+      // Convert to an ISO string with the browser's TZ offset so the
+      // server stores exactly the wall-clock time the user picked.
+      const localPicked = new Date(oneOffStart);
+      const isoWithTz = isNaN(localPicked.getTime())
+        ? oneOffStart
+        : localPicked.toISOString();
       body.triggerConfig = {
         frequency: "ONCE",
         time: recurringTime,
-        firstRunDate: oneOffStart,
+        firstRunDate: isoWithTz,
       };
-      body.startDate = oneOffStart;
+      body.startDate = isoWithTz;
     }
     if (mediaMode === "UPLOAD" && mediaUrl) {
       body.mediaUrl = mediaUrl;
