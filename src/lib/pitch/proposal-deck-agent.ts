@@ -12,8 +12,10 @@ import type {
 } from "./proposal-deck-types";
 import type { ProposalLibraryAsset } from "./proposal-asset-library";
 import { listProposalVisualAssets } from "./proposal-asset-library";
-import { DEFAULT_PROPOSAL_BUILDER_TYPE, type ProposalBuilderType, type ServiceProposalContent, type ServiceProposalInput } from "./proposal-agent";
-import { clientProofBody, clientProofHeadline } from "./proposal-proof-copy";
+import { DEFAULT_PROPOSAL_BUILDER_TYPE, type ServiceProposalContent, type ServiceProposalInput } from "./proposal-agent";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { toTransparentPngCutout } from "./proposal-visuals";
 
 const SLIDE_ROLES: ProposalDeckSlideRole[] = [
   "cover",
@@ -67,7 +69,7 @@ function pickBySeed<T>(seed: string, values: T[]): T {
 function styleVariantFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckStyleVariant {
   const raw = String(value || "").toLowerCase();
   if (STYLE_VARIANTS.includes(raw as ProposalDeckStyleVariant)) return raw as ProposalDeckStyleVariant;
-  return pickBySeed(`${proposal.preparedBy}:${proposal.preparedFor}:${proposal.preset}`, STYLE_VARIANTS);
+  return pickBySeed(`${proposal.preparedBy}:${proposal.preparedFor}`, STYLE_VARIANTS);
 }
 
 function colorRoleFrom(value: unknown, proposal: ServiceProposalContent): ProposalDeckColorRole {
@@ -114,7 +116,6 @@ function assetSummary(asset: ProposalLibraryAsset) {
     title: asset.title,
     url: asset.url,
     kind: asset.kind,
-    preset: asset.preset,
     tags: asset.tags,
     source: asset.source,
     width: asset.width,
@@ -159,7 +160,7 @@ function filterAssetsForBrand(input: ProposalDeckAgentInput, assets: ProposalLib
   return assets.filter((asset) => !/\bred\b/i.test(`${asset.id} ${asset.title} ${asset.tags.join(" ")}`));
 }
 
-function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLibraryAsset[], preset: string): ProposalLibraryAsset[] {
+function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLibraryAsset[]): ProposalLibraryAsset[] {
   const kind = role === "cover" ? "cover" : role === "about" ? "about" : "impact";
   return [...assets]
     .sort((a, b) => {
@@ -167,8 +168,6 @@ function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLib
         let value = 0;
         if (asset.kind === kind) value += 40;
         if (asset.kind === "general") value += 10;
-        if (asset.preset === preset) value += 24;
-        if (asset.preset === "any") value += 12;
         if (asset.tags.includes("pregenerated")) value += 12;
         if (asset.source !== "default") value += 8;
         return value;
@@ -178,13 +177,68 @@ function preferredAssetsForRole(role: ProposalDeckSlideRole, assets: ProposalLib
     .slice(0, 1);
 }
 
-function proposalBuilderType(proposal: ServiceProposalContent): ProposalBuilderType {
-  return proposal.builderType || DEFAULT_PROPOSAL_BUILDER_TYPE;
+function genericHeadline(role: ProposalDeckSlideRole, proposal: ServiceProposalContent): string {
+  switch (role) {
+    case "cover":
+      return proposal.title || `${proposal.serviceTitle} Proposal`;
+    case "about":
+      return `About ${proposal.preparedBy || "us"}`;
+    case "commitments":
+      return "Our Commitments";
+    case "benefits":
+      return "Benefits";
+    case "proof":
+      return "Findings & Evidence";
+    case "terms":
+      return "Terms";
+    case "closing":
+      return "Next Steps";
+  }
+}
+
+function genericBody(role: ProposalDeckSlideRole, proposal: ServiceProposalContent): string {
+  switch (role) {
+    case "cover":
+      return proposal.subtitle || "";
+    case "about":
+      return proposal.aboutBrand || "";
+    case "commitments":
+      return proposal.clientNeed || "";
+    case "benefits":
+      return proposal.executiveSummary || "";
+    case "proof":
+      return "";
+    case "terms":
+      return proposal.pricing?.note || "";
+    case "closing":
+      return proposal.executiveSummary || "";
+  }
+}
+
+function genericBullets(role: ProposalDeckSlideRole, proposal: ServiceProposalContent): string[] {
+  switch (role) {
+    case "cover":
+      return [];
+    case "about":
+      return [proposal.clientNeed].filter(Boolean);
+    case "commitments":
+      return proposal.commitments || [];
+    case "benefits":
+      return (proposal.deliverables || []).map((item) => item.title || item.description).filter(Boolean);
+    case "proof":
+      return [
+        ...(proposal.clientProfile?.insights || []).map((item) => `${item.metric} ${item.label}`),
+        ...(proposal.proofPoints || []).map((item) => `${item.metric} ${item.label}`),
+      ];
+    case "terms":
+      return proposal.terms || [];
+    case "closing":
+      return proposal.nextSteps || [];
+  }
 }
 
 function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalContent, assets: ProposalLibraryAsset[]): ProposalDeckSlide {
-  const builderType = proposalBuilderType(proposal);
-  const selected = preferredAssetsForRole(role, assets, proposal.preset);
+  const selected = preferredAssetsForRole(role, assets);
   const visuals = selected.map((asset, index) => ({
     id: asset.id,
     title: asset.title,
@@ -193,116 +247,12 @@ function fallbackSlide(role: ProposalDeckSlideRole, proposal: ServiceProposalCon
     fit: asset.width && asset.height && asset.height > asset.width ? "portrait" as const : "contain" as const,
   }));
 
-  const visualDeck = {
-    bodyByRole: {
-      cover: proposal.subtitle,
-      about: proposal.aboutBrand,
-      commitments: proposal.clientNeed,
-      benefits: proposal.executiveSummary,
-      proof: clientProofBody(proposal),
-      terms: proposal.pricing?.note || "Clear expectations, simple next steps, and a practical launch path.",
-      closing: proposal.executiveSummary,
-    },
-    bulletsByRole: {
-      cover: [],
-      about: [proposal.clientNeed].filter(Boolean),
-      commitments: proposal.commitments,
-      benefits: proposal.deliverables.map((item) => item.title || item.description),
-      proof: [
-        ...(proposal.clientProfile?.insights || []).map((item) => `${item.metric} ${item.label}`),
-        ...proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
-      ],
-      terms: proposal.terms,
-      closing: proposal.nextSteps,
-    },
-    headlineByRole: {
-      cover: proposal.title || "Business Development Proposal",
-      about: "About Us",
-      commitments: "Our Commitments",
-      benefits: `Benefits of ${proposal.serviceTitle || "the Service"}`,
-      proof: clientProofHeadline(proposal),
-      terms: "Clear Expectations",
-      closing: "Ready to get found, trusted, and chosen?",
-    },
-  } satisfies {
-    bodyByRole: Record<ProposalDeckSlideRole, string>;
-    bulletsByRole: Record<ProposalDeckSlideRole, string[]>;
-    headlineByRole: Record<ProposalDeckSlideRole, string>;
-  };
-
-  const professionalServices = {
-    bodyByRole: {
-      cover: proposal.subtitle,
-      about: proposal.executiveSummary || proposal.aboutBrand,
-      commitments: proposal.clientNeed,
-      benefits: proposal.aboutBrand,
-      proof: "A clear timeline keeps review, approval, and delivery moving without surprises.",
-      terms: proposal.pricing?.note || "Fees, scope boundaries, and payment expectations are documented before work begins.",
-      closing: proposal.executiveSummary,
-    },
-    bulletsByRole: {
-      cover: [],
-      about: [proposal.aboutBrand, proposal.clientNeed].filter(Boolean),
-      commitments: [...proposal.deliverables.map((item) => item.title || item.description), ...proposal.commitments],
-      benefits: proposal.benefits,
-      proof: proposal.timeline.map((item) => `${item.label}: ${item.title}`),
-      terms: proposal.terms,
-      closing: proposal.nextSteps,
-    },
-    headlineByRole: {
-      cover: proposal.title || "Professional Services Proposal",
-      about: "Professional Overview",
-      commitments: "Scope of Work",
-      benefits: "Why Work With Us",
-      proof: "Proposed Timeline",
-      terms: "Fee Estimate and Terms",
-      closing: "Next Steps",
-    },
-  } satisfies typeof visualDeck;
-
-  const processFramework = {
-    bodyByRole: {
-      cover: proposal.subtitle,
-      about: proposal.executiveSummary,
-      commitments: proposal.clientNeed,
-      benefits: "The framework turns the engagement into clear phases, owners, deliverables, and measurable checkpoints.",
-      proof: "The plan addresses the gaps that typically slow execution before they become expensive delays.",
-      terms: proposal.pricing?.note || "We begin with practical quick wins, then move into the full operating framework.",
-      closing: proposal.executiveSummary,
-    },
-    bulletsByRole: {
-      cover: [],
-      about: [proposal.aboutBrand, proposal.clientNeed].filter(Boolean),
-      commitments: proposal.commitments,
-      benefits: proposal.timeline.map((item) => `${item.label}: ${item.title}`),
-      proof: proposal.proofPoints.map((item) => `${item.metric} ${item.label}`),
-      terms: [...proposal.terms, ...proposal.benefits].slice(0, 6),
-      closing: proposal.nextSteps,
-    },
-    headlineByRole: {
-      cover: proposal.title || "Implementation Framework Proposal",
-      about: "Executive Summary",
-      commitments: "Engagement Coverage",
-      benefits: "Implementation Framework",
-      proof: "Risks We Will Resolve",
-      terms: "Quick Wins and Working Terms",
-      closing: "Success Criteria and Next Steps",
-    },
-  } satisfies typeof visualDeck;
-
-  const copy =
-    builderType === "professional-services"
-      ? professionalServices
-      : builderType === "process-framework"
-        ? processFramework
-        : visualDeck;
-
   return {
     role,
-    headline: copy.headlineByRole[role],
+    headline: genericHeadline(role, proposal),
     subhead: role === "cover" ? proposal.serviceTitle : undefined,
-    body: cleanText(copy.bodyByRole[role], 420),
-    bullets: cleanList(copy.bulletsByRole[role], role === "terms" ? 4 : 6, 130),
+    body: cleanText(genericBody(role, proposal), 420),
+    bullets: cleanList(genericBullets(role, proposal), role === "terms" ? 4 : 6, 130),
     layout: ROLE_LAYOUT[role],
     visualIds: selected.map((asset) => asset.id),
     visuals,
@@ -340,7 +290,7 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
     const uniqueIds = Array.from(new Set(rawIds)).filter((id) => assetById.has(id)).slice(0, maxVisuals);
     const selectedAssets = uniqueIds.length
       ? uniqueIds.map((id) => assetById.get(id)).filter(Boolean) as ProposalLibraryAsset[]
-      : preferredAssetsForRole(role, assets, proposal.preset);
+      : preferredAssetsForRole(role, assets);
 
     return {
       role,
@@ -368,7 +318,7 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
     generatedBy: "claude-haiku-deck-agent",
     styleSummary:
       cleanText(rawObj.styleSummary, 320) ||
-      "Premium 16:9 sales deck with large transparent PNG visuals, compact copy, brand-color callouts, and generous whitespace.",
+      "Premium 16:9 sales deck with large visuals, compact copy, brand-color callouts, and generous whitespace.",
     styleVariant: styleVariantFrom(rawObj.styleVariant, proposal),
     calloutColor: colorRoleFrom(rawObj.calloutColor, proposal),
     backgroundStyle: backgroundStyleFrom(rawObj.backgroundStyle, proposal),
@@ -383,7 +333,7 @@ function normalizePlan(raw: unknown, proposal: ServiceProposalContent, assets: P
   };
 }
 
-function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[]): AgentTool[] {
+function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[], generated: ProposalLibraryAsset[], generationBudget: { remaining: number }): AgentTool[] {
   return [
     {
       name: "get_raw_proposal_context",
@@ -398,20 +348,85 @@ function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[
     },
     {
       name: "list_available_images",
-      description: "Return the reusable proposal image library. Choose images by id and url; do not ask for new image generation.",
+      description: "Return the reusable image library. Use these whenever they fit the brand and industry. If none fit, call generate_brand_visual to create a custom one (budget allows up to 2 generated images per deck).",
       input_schema: { type: "object", properties: {} },
-      handler: async () => assets.map(assetSummary),
+      handler: async () => [...generated, ...assets].map(assetSummary),
+    },
+    {
+      name: "generate_brand_visual",
+      description: "Generate one custom transparent-PNG cutout visual for this proposal when the library has nothing appropriate (e.g., niche industry, non-marketing service). Use sparingly — limited to 2 generations per deck. Returns the new image id, which you can then put in visualIds.",
+      input_schema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Detailed visual prompt. Must specify subject, mood, brand colors when relevant. NO text/logos/UI labels in the image." },
+          kind: { type: "string", description: "One of: cover, about, impact, general" },
+          aspect: { type: "string", description: "One of: square, landscape, portrait. Default landscape." },
+        },
+        required: ["prompt", "kind"],
+      },
+      handler: async (rawInput) => {
+        if (generationBudget.remaining <= 0) {
+          return { error: "Generation budget exhausted for this deck. Use a library image instead." };
+        }
+        const prompt = String(rawInput.prompt || "").trim().slice(0, 1400);
+        const kindRaw = String(rawInput.kind || "general").toLowerCase();
+        const kind = (kindRaw === "cover" || kindRaw === "about" || kindRaw === "impact") ? kindRaw : "general";
+        const aspectRaw = String(rawInput.aspect || "landscape").toLowerCase();
+        const dims = aspectRaw === "portrait"
+          ? { width: 1024, height: 1536 }
+          : aspectRaw === "square"
+            ? { width: 1024, height: 1024 }
+            : { width: 1536, height: 1024 };
+
+        if (!prompt) return { error: "prompt is required" };
+        const safetyGuard =
+          "Render as an isolated transparent PNG object cluster on a pure white/off-white background so the background can be removed. No text, no words, no letters, no numbers, no logos, no brand marks, no fake UI labels, no placeholder boxes, no dashed frames, no borders.";
+        const fullPrompt = `${prompt}. ${safetyGuard}`;
+
+        try {
+          const generation = await generateImageXaiFirst(fullPrompt, dims.width, dims.height, { quality: "high" });
+          if (!generation.base64) return { error: "Image provider returned no image" };
+          const png = await toTransparentPngCutout(generation.base64);
+          const id = `generated-${input.request.userId}-${Date.now()}`;
+          const key = `pitch-proposals/${input.request.userId}/${id}.png`;
+          await uploadToS3(key, png.buffer, "image/png");
+          generationBudget.remaining -= 1;
+          const asset: ProposalLibraryAsset = {
+            id,
+            title: prompt.slice(0, 80),
+            url: key,
+            kind,
+            preset: "any",
+            tags: ["generated", "brand-visual", kind],
+            source: "admin-generated",
+            prompt: fullPrompt,
+            width: png.width || dims.width,
+            height: png.height || dims.height,
+          };
+          generated.push(asset);
+          return {
+            id: asset.id,
+            url: asset.url,
+            kind: asset.kind,
+            width: asset.width,
+            height: asset.height,
+            note: "Use this id in slide visualIds. Refer to list_available_images for the full pool.",
+          };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : "Image generation failed" };
+        }
+      },
     },
     {
       name: "get_pdf_style_reference",
-      description: "Return the desired PDF style rules extracted from the user's preferred proposal examples.",
+      description: "Return the desired PDF style rules.",
       input_schema: { type: "object", properties: {} },
       handler: async () => ({
         format: "16:9 landscape PDF deck, 1440 by 810 design space",
         visualRules: [
           "Use big transparent PNG or cutout images directly on the page, not boxed screenshots.",
           "Some slides should use two images when it helps fill the visual area.",
-          "Use a second image only when it adds a different idea, such as client trust plus growth, not a repeated version of the same story.",
+          "Use a second image only when it adds a different idea, not a repeated version of the same story.",
           "Use concise bullets with strong hierarchy; avoid paragraphs that become noisy.",
           "Use brand-colored callout bars or tags for pricing and critical terms.",
           "Never use prompt text as a caption.",
@@ -445,22 +460,25 @@ export async function runServiceProposalDeckAgent(input: ProposalDeckAgentInput)
   usage: { inputTokens: number; outputTokens: number };
   toolsUsed: string[];
 }> {
-  const assets = filterAssetsForBrand(input, await listProposalVisualAssets({ presign: false }));
+  const libraryAssets = filterAssetsForBrand(input, await listProposalVisualAssets({ presign: false }));
+  const generated: ProposalLibraryAsset[] = [];
+  const generationBudget = { remaining: 2 };
   const run = await ai.runWithTools<ProposalDeckPlan>(
     `Plan the PDF deck for ${input.proposal.preparedFor}. Return only valid JSON.`,
-    buildTools(input, assets),
+    buildTools(input, libraryAssets, generated, generationBudget),
     {
       model: HAIKU_MODEL,
       maxTokens: 7000,
-      maxIterations: 5,
+      maxIterations: 8,
       thinkingBudget: false,
-      systemPrompt: `You are FlowSmartly's low-cost Claude Haiku proposal deck designer.
+      systemPrompt: `You are FlowSmartly's PDF deck designer.
 
 Required tool flow:
 1. Call get_raw_proposal_context.
 2. Call list_available_images.
 3. Call get_pdf_style_reference.
 4. Call get_design_system_options.
+5. (Optional) If none of the library images fit the brand or industry, call generate_brand_visual at most 2 times to create custom transparent-PNG visuals. Then re-evaluate list_available_images — generated assets appear at the top.
 
 Return ONLY valid JSON. Do not include markdown.
 
@@ -491,23 +509,15 @@ Return this exact shape:
 
 Rules:
 - Use all seven slide roles exactly once.
-- The proposal builder type from raw context controls the story:
-  - visual-sales-deck: sell the offer with a concise branded deck, visual proof, pricing, terms, and next steps.
-  - professional-services: structure the deck as professional overview, scope of work, proposed timeline, fee estimate, why work with us, and next steps.
-  - process-framework: structure the deck as executive summary, engagement coverage, phased framework, risks or failure points, quick wins, success criteria, and next steps.
-- Proposal types and service packages describe what is being sold; builder type describes how the proposal should be organized.
-- Choose image IDs from list_available_images only.
+- Read the raw proposal content and write client-facing slide copy that reflects THIS proposal. Do not invent generic copy.
+- Choose image IDs from list_available_images only (this includes any images you generated via generate_brand_visual).
+- Prefer the library when an image fits. Only generate a custom visual when the existing pool clearly doesn't match the brand industry, voice, or offering.
 - Favor reusable transparent PNG / 3D cutout assets.
 - Pick a different design treatment when the brand, industry, or offer calls for it. Do not default every proposal to the same accent template.
 - Use the actual brand colors from raw context. Only choose red-like callouts if the brand palette includes a red-like color.
 - Make the visual sections feel full. Use two-visuals for about or benefits only when the second selected image adds a clearly different idea.
 - Keep headlines and callout copy short enough to fit without cutting a sentence; avoid long unfinished clauses.
-- If client Google/local profile facts exist in the raw context, include them in the proof or about slide with exact rating, review count, category, or profile status.
-- For professional-services or process-framework proposals, do not force Google/local-growth language unless the request is actually about local presence.
-- Keep bullets concise enough for PDF layout.
-- Use client-facing language only. Do not show internal wording such as "public profile signals" or "raw context".
-- Speak directly to the client using "you" and "your". Do not write meta phrases such as "this section", "proof points", "slide", "proposal builder", or "the client can see".
-- For the proof slide, use a client-facing headline such as "Your Local Growth Opportunity" or "What Your Local Profile Shows", not "Your Proof Points".
+- Use client-facing language only. Speak directly to the client using "you" and "your".
 - Write complete short phrases. Do not end visible slide copy mid-sentence.
 - Do not put raw prompts, backend/provider details, or template instructions in any visible text.
 - Do not invent guaranteed results.`,
@@ -515,7 +525,7 @@ Rules:
   );
 
   return {
-    plan: normalizePlan(run.json, input.proposal, assets),
+    plan: normalizePlan(run.json, input.proposal, [...generated, ...libraryAssets]),
     usage: run.usage,
     toolsUsed: run.toolsUsed,
   };

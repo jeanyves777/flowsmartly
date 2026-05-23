@@ -38,11 +38,31 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditCosts } from "@/hooks/use-credit-costs";
 
 type TabKey = "proposal" | "pitch" | "leads";
 type ProposalBuilderType = "visual-sales-deck" | "professional-services" | "process-framework";
+
+const PROPOSAL_BUILDER_TYPES: Array<{ value: ProposalBuilderType; label: string; description: string }> = [
+  {
+    value: "visual-sales-deck",
+    label: "Visual sales deck",
+    description: "Short, branded, image-led proposal with proof, pricing, and next steps.",
+  },
+  {
+    value: "professional-services",
+    label: "Professional services",
+    description: "Overview, scope of work, timeline, fee estimate, credentials, and next steps.",
+  },
+  {
+    value: "process-framework",
+    label: "Process framework",
+    description: "Executive summary, phased framework, owners, mitigations, quick wins, and success criteria.",
+  },
+];
 
 interface Pitch {
   id: string;
@@ -97,8 +117,6 @@ interface LeadActionState {
 
 interface LeadOfferFormState {
   builderType: ProposalBuilderType;
-  preset: string;
-  proposalTypes: string[];
   selectedServices: string[];
   customAdditions: string[];
   serviceTitle: string;
@@ -116,78 +134,12 @@ interface LeadSearchResult {
   creditsUsed: number;
 }
 
-const PROPOSAL_PRESETS = [
-  { value: "google-business-profile", label: "Google Profile" },
-  { value: "website-redesign", label: "Website" },
-  { value: "local-seo", label: "Local SEO" },
-  { value: "custom", label: "Custom" },
-] as const;
-
-const PROPOSAL_BUILDER_TYPES: Array<{ value: ProposalBuilderType; label: string; description: string }> = [
-  {
-    value: "visual-sales-deck",
-    label: "Visual sales deck",
-    description: "Short, branded, image-led proposal with proof, pricing, and next steps.",
-  },
-  {
-    value: "professional-services",
-    label: "Professional services",
-    description: "Overview, scope of work, timeline, fee estimate, credentials, and next steps.",
-  },
-  {
-    value: "process-framework",
-    label: "Process framework",
-    description: "Executive summary, phased framework, owners, mitigations, quick wins, and success criteria.",
-  },
-];
-
-const PROPOSAL_EXAMPLES: Array<{
-  label: string;
-  builderType: ProposalBuilderType;
-  preset: string;
-  proposalTypes: string[];
-  brief: string;
-}> = [
-  {
-    label: "Local growth deck",
-    builderType: "visual-sales-deck",
-    preset: "google-business-profile",
-    proposalTypes: ["google-business-profile"],
-    brief:
-      "Create a polished $199/month Google Business Profile optimization proposal for ABC Dental Studio. Include weekly posts, review improvement, citations, local ranking, reporting, no long-term contract, and a $399 original promotional comparison.",
-  },
-  {
-    label: "Tax services",
-    builderType: "professional-services",
-    preset: "custom",
-    proposalTypes: ["custom"],
-    brief:
-      "Create a professional tax and accounting services proposal for a client needing personal and small business tax preparation for tax years 2024 and 2025. Include introduction, scope for personal returns, business returns and accounting support, proposed timeline, fee estimate, why work with us, and next steps.",
-  },
-  {
-    label: "Budget process",
-    builderType: "process-framework",
-    preset: "custom",
-    proposalTypes: ["custom"],
-    brief:
-      "Create an annual budget process design and implementation framework proposal. Include executive summary, commitment, what the engagement covers, a phased budget framework with timing and owner language, common failure points and mitigations, quick wins, success criteria, and next steps.",
-  },
-];
-
-const PITCH_EXAMPLES = [
-  "Research Miami Dental Studio and create a short outreach pitch showing where their online presence can improve. If you find their website, use it.",
-  "Create a pitch for a local gym that needs more memberships, better Google visibility, and stronger lead capture.",
-  "Research a restaurant prospect and write a pitch for website, reviews, and local SEO improvement.",
-];
-
 interface ProposalFormState {
   targetName: string;
   targetWebsite: string;
   recipientName: string;
   recipientEmail: string;
   builderType: ProposalBuilderType;
-  preset: string;
-  proposalTypes: string[];
   selectedServices: string[];
   customAdditions: string[];
   serviceTitle: string;
@@ -209,7 +161,7 @@ interface PitchFormState {
 function StatusBadge({ status }: { status: Pitch["status"] }) {
   const map = {
     PENDING: { label: "Queued", cls: "bg-muted text-muted-foreground", icon: <Clock className="h-3 w-3" /> },
-    RESEARCHING: { label: "Researching", cls: "bg-sky-500/10 text-sky-700 dark:text-sky-300", icon: <FlowActionSpinner size={13} /> },
+    RESEARCHING: { label: "Researching", cls: "bg-brand-500/10 text-brand-700 dark:text-brand-300", icon: <FlowActionSpinner size={13} /> },
     READY: { label: "Ready", cls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", icon: <CheckCircle2 className="h-3 w-3" /> },
     FAILED: { label: "Failed", cls: "bg-red-500/10 text-red-700 dark:text-red-300", icon: <AlertCircle className="h-3 w-3" /> },
     SENT: { label: "Sent", cls: "bg-violet-500/10 text-violet-700 dark:text-violet-300", icon: <Send className="h-3 w-3" /> },
@@ -235,37 +187,25 @@ function leadGoogleSummary(lead: BusinessLead): string {
 
 function defaultLeadOfferForm(lead: BusinessLead, brandKit: BrandKitSummary | null): LeadOfferFormState {
   const firstService = brandKit?.products?.find(Boolean) || "";
-  const serviceTitle = firstService || "Local Growth Proposal";
-  const brandDetail = [brandKit?.description, brandKit?.uniqueValue].filter(Boolean).join(" ");
+  const brandName = brandKit?.name || "your team";
   return {
     builderType: "visual-sales-deck",
-    preset: "google-business-profile",
-    proposalTypes: ["google-business-profile"],
     selectedServices: firstService ? [firstService] : [],
     customAdditions: [],
-    serviceTitle,
-    serviceDescription:
-      brandDetail ||
-      "Google Business Profile optimization, local SEO, review improvement, website conversion, tracking, and monthly reporting.",
-    goals: `Help ${lead.name} attract more local customers, improve trust signals, and convert more visitors into inquiries.`,
+    serviceTitle: firstService || "",
+    serviceDescription: "",
+    goals: `Help ${lead.name} get clear value from working with ${brandName}.`,
     price: "",
     originalPrice: "",
-    billingInterval: "month",
-    terms: "Month-to-month service. Setup begins after access and onboarding details are confirmed.",
+    billingInterval: "",
+    terms: "",
   };
 }
 
-function toggleArrayValue(values: string[], value: string, allowEmpty = true): string[] {
+function toggleArrayValue(values: string[], value: string): string[] {
   const exists = values.includes(value);
-  if (exists) {
-    const next = values.filter((item) => item !== value);
-    return !allowEmpty && next.length === 0 ? values : next;
-  }
+  if (exists) return values.filter((item) => item !== value);
   return [...values, value];
-}
-
-function firstProposalPreset(types: string[], fallback: string): string {
-  return types.find((type) => PROPOSAL_PRESETS.some((preset) => preset.value === type)) || fallback || "custom";
 }
 
 function proposalBuilderLabel(value: ProposalBuilderType | string | undefined): string {
@@ -291,7 +231,7 @@ function ProposalBuilderSelector({
           className={cn(
             "rounded-lg border p-3 text-left transition-colors",
             value === builder.value
-              ? "border-sky-400 bg-sky-50 text-sky-800 dark:bg-sky-500/10 dark:text-sky-200"
+              ? "border-brand-400 bg-brand-500/10 text-brand-800 dark:bg-brand-500/10 dark:text-brand-200"
               : "border-border bg-background text-muted-foreground hover:text-foreground",
           )}
         >
@@ -315,13 +255,11 @@ function combinedServiceDetails(
   base: string,
   selectedServices: string[],
   customAdditions: string[],
-  proposalTypes: string[],
 ): string {
   const lines = [
     base.trim(),
     selectedServices.length ? `Selected services: ${selectedServices.join(", ")}` : "",
     customAdditions.length ? `Custom additions: ${customAdditions.join("; ")}` : "",
-    proposalTypes.length ? `Proposal types to combine: ${proposalTypes.join(", ")}` : "",
   ].filter(Boolean);
   return lines.join("\n");
 }
@@ -341,15 +279,13 @@ export default function PitchBoardPage() {
   const [leadSearchCount, setLeadSearchCount] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [proposalBrief, setProposalBrief] = useState(PROPOSAL_EXAMPLES[0].brief);
+  const [proposalBrief, setProposalBrief] = useState("");
   const [proposalForm, setProposalForm] = useState<ProposalFormState>({
     targetName: "",
     targetWebsite: "",
     recipientName: "",
     recipientEmail: "",
     builderType: "visual-sales-deck",
-    preset: "google-business-profile",
-    proposalTypes: ["google-business-profile"],
     selectedServices: [],
     customAdditions: [],
     serviceTitle: "",
@@ -365,7 +301,7 @@ export default function PitchBoardPage() {
   const [proposalError, setProposalError] = useState("");
   const [proposalCustomAdditionDraft, setProposalCustomAdditionDraft] = useState("");
 
-  const [pitchBrief, setPitchBrief] = useState(PITCH_EXAMPLES[0]);
+  const [pitchBrief, setPitchBrief] = useState("");
   const [pitchForm, setPitchForm] = useState<PitchFormState>({
     businessName: "",
     businessUrl: "",
@@ -405,6 +341,10 @@ export default function PitchBoardPage() {
   const leadIsFreeRun = !isSubscriber && leadSearchCount === 0;
   const pitchCreditLabel = pitchIsFreeRun ? "Free first pitch" : isSubscriber ? "15 credits" : "500 credits";
   const leadCreditLabel = leadIsFreeRun ? "Free first search" : isSubscriber ? "5 credits" : "250 credits";
+  const { costs: proposalCosts } = useCreditCosts("AI_SERVICE_PROPOSAL");
+  const proposalCreditLabel = proposalCosts.AI_SERVICE_PROPOSAL
+    ? `${proposalCosts.AI_SERVICE_PROPOSAL} credits`
+    : "Credits";
 
   const loadPitches = useCallback(async () => {
     try {
@@ -474,7 +414,6 @@ export default function PitchBoardPage() {
         proposalForm.serviceDescription || proposalBrief,
         proposalForm.selectedServices,
         proposalForm.customAdditions,
-        proposalForm.proposalTypes,
       );
       const res = await fetch("/api/pitch/proposals", {
         method: "POST",
@@ -482,10 +421,8 @@ export default function PitchBoardPage() {
         body: JSON.stringify({
           brief: proposalBrief,
           ...proposalForm,
-          preset: firstProposalPreset(proposalForm.proposalTypes, proposalForm.preset),
           serviceTitle,
           serviceDescription,
-          proposalTypes: proposalForm.proposalTypes,
           servicePackages: proposalForm.selectedServices,
           customAdditions: proposalForm.customAdditions,
         }),
@@ -613,7 +550,6 @@ export default function PitchBoardPage() {
       leadOfferForm.serviceDescription,
       leadOfferForm.selectedServices,
       leadOfferForm.customAdditions,
-      leadOfferForm.proposalTypes,
     );
     if (!serviceTitle.trim() || !serviceDescription.trim()) {
       setLeadActionError("Confirm the service package and details before AI builds this.");
@@ -635,7 +571,6 @@ export default function PitchBoardPage() {
       };
       const confirmedOffer = [
         `Confirmed offer: ${serviceTitle}`,
-        leadOfferForm.proposalTypes.length ? `Proposal types to combine: ${leadOfferForm.proposalTypes.join(", ")}` : "",
         leadOfferForm.selectedServices.length ? `Selected services: ${leadOfferForm.selectedServices.join(", ")}` : "",
         leadOfferForm.customAdditions.length ? `Custom additions: ${leadOfferForm.customAdditions.join("; ")}` : "",
         `Service details: ${serviceDescription}`,
@@ -657,8 +592,6 @@ export default function PitchBoardPage() {
               targetName: lead.name,
               targetWebsite: lead.website || "",
               builderType: leadOfferForm.builderType,
-              preset: firstProposalPreset(leadOfferForm.proposalTypes, leadOfferForm.preset),
-              proposalTypes: leadOfferForm.proposalTypes,
               servicePackages: leadOfferForm.selectedServices,
               customAdditions: leadOfferForm.customAdditions,
               serviceTitle,
@@ -733,7 +666,7 @@ export default function PitchBoardPage() {
         <div className="flex flex-col gap-5">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight text-foreground">
-              <Briefcase className="h-7 w-7 text-sky-600" />
+              <Briefcase className="h-7 w-7 text-brand-600" />
               Pitch Board
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
@@ -785,12 +718,12 @@ export default function PitchBoardPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <Badge variant="secondary" className="mb-3 gap-1">
-                      <Sparkles className="h-3.5 w-3.5 text-sky-500" />
+                      <Sparkles className="h-3.5 w-3.5 text-brand-500" />
                       Proposal Agent
                     </Badge>
                     <h2 className="text-2xl font-black text-foreground">Tell AI what to sell</h2>
                   </div>
-                  <Badge variant="secondary">35 credits</Badge>
+                  <Badge variant="secondary">{proposalCreditLabel}</Badge>
                 </div>
               </div>
 
@@ -809,33 +742,58 @@ export default function PitchBoardPage() {
                       onChange={(builderType) => setProposalForm((f) => ({ ...f, builderType }))}
                     />
                   </div>
-                  <Textarea
-                    value={proposalBrief}
-                    onChange={(e) => setProposalBrief(e.target.value)}
-                    rows={7}
-                    className="min-h-56 resize-y rounded-xl text-base leading-7"
-                    placeholder="Example: Create a $199/month Google Business Profile proposal for ABC Dental Studio..."
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {PROPOSAL_EXAMPLES.map((example, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => {
-                          setProposalBrief(example.brief);
-                          setProposalForm((f) => ({
-                            ...f,
-                            builderType: example.builderType,
-                            preset: example.preset,
-                            proposalTypes: example.proposalTypes,
-                          }));
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold">Brief</Label>
+                      <AISuggestButton
+                        endpoint="/api/pitch/ai-suggest"
+                        payload={{
+                          field: "proposalBrief",
+                          context: {
+                            targetName: proposalForm.targetName,
+                            targetWebsite: proposalForm.targetWebsite,
+                            selectedServices: proposalForm.selectedServices,
+                            customAdditions: proposalForm.customAdditions,
+                            currentValue: proposalBrief,
+                            price: proposalForm.price,
+                            billingInterval: proposalForm.billingInterval,
+                          },
                         }}
-                        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-                      >
-                        {example.label}
-                      </button>
-                    ))}
+                        onResult={setProposalBrief}
+                        label="AI write a brief"
+                        size="sm"
+                        disabled={hasBrand === false}
+                      />
+                    </div>
+                    <Textarea
+                      value={proposalBrief}
+                      onChange={(e) => setProposalBrief(e.target.value)}
+                      rows={7}
+                      className="min-h-56 resize-y rounded-xl text-base leading-7"
+                      placeholder={brandKit?.name
+                        ? `Tell the AI who the proposal is for and what you're selling. Or click "AI write a brief" to start from a draft.`
+                        : "Tell the AI who the proposal is for and what you're selling. The agent will research the prospect and write a proposal using your brand."}
+                    />
                   </div>
+                  {brandServiceOptions.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-xs text-muted-foreground">Your services — click to add to the brief</p>
+                      <div className="flex flex-wrap gap-2">
+                        {brandServiceOptions.map((service) => (
+                          <button
+                            key={service}
+                            type="button"
+                            onClick={() => {
+                              setProposalBrief((prev) => prev ? `${prev}\nInclude: ${service}` : `Create a proposal for [client name] for: ${service}`);
+                            }}
+                            className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-brand-400 hover:text-foreground"
+                          >
+                            {service}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="submit" size="lg" disabled={isCreatingProposal || hasBrand === false} className="gap-2">
@@ -860,7 +818,7 @@ export default function PitchBoardPage() {
                     <div className="grid gap-3 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label>Client</Label>
-                        <Input value={proposalForm.targetName} onChange={(e) => setProposalForm((f) => ({ ...f, targetName: e.target.value }))} placeholder="ABC Dental Studio" />
+                        <Input value={proposalForm.targetName} onChange={(e) => setProposalForm((f) => ({ ...f, targetName: e.target.value }))} placeholder="Client or company name" />
                       </div>
                       <div className="space-y-1.5">
                         <Label>Website</Label>
@@ -875,37 +833,17 @@ export default function PitchBoardPage() {
                         <Input type="email" value={proposalForm.recipientEmail} onChange={(e) => setProposalForm((f) => ({ ...f, recipientEmail: e.target.value }))} placeholder="owner@client.com" />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <Label>Proposal builder</Label>
+                        <Label>Layout style (PDF only)</Label>
                         <ProposalBuilderSelector
                           value={proposalForm.builderType}
                           onChange={(builderType) => setProposalForm((f) => ({ ...f, builderType }))}
                           compact
                         />
-                      </div>
-                      <div className="space-y-1.5 md:col-span-2">
-                        <Label>Proposal types</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {PROPOSAL_PRESETS.map((preset) => (
-                            <button
-                              key={preset.value}
-                              type="button"
-                              onClick={() => setProposalForm((f) => {
-                                const proposalTypes = toggleArrayValue(f.proposalTypes, preset.value, false);
-                                return { ...f, proposalTypes, preset: firstProposalPreset(proposalTypes, f.preset) };
-                              })}
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                                proposalForm.proposalTypes.includes(preset.value) ? "border-sky-400 bg-sky-50 text-sky-700" : "border-border bg-background text-muted-foreground",
-                              )}
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
-                        </div>
+                        <p className="text-xs text-muted-foreground">The agent writes the proposal freely. This only controls the PDF layout.</p>
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <Label>Service package</Label>
-                        <Input value={proposalForm.serviceTitle} onChange={(e) => setProposalForm((f) => ({ ...f, serviceTitle: e.target.value }))} placeholder="Google Business Profile Optimization" />
+                        <Input value={proposalForm.serviceTitle} onChange={(e) => setProposalForm((f) => ({ ...f, serviceTitle: e.target.value }))} placeholder="What's the package called?" />
                         {brandServiceOptions.length > 0 && (
                           <div className="flex flex-wrap gap-2 pt-2">
                             {brandServiceOptions.map((service) => (
@@ -921,9 +859,9 @@ export default function PitchBoardPage() {
                                   };
                                 })}
                                 className={cn(
-                                  "rounded-full border px-3 py-1.5 text-xs font-semibold",
+                                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
                                   proposalForm.selectedServices.includes(service)
-                                    ? "border-sky-400 bg-sky-50 text-sky-700"
+                                    ? "border-brand-400 bg-brand-500/10 text-brand-700 dark:text-brand-300"
                                     : "border-border bg-background text-muted-foreground hover:text-foreground",
                                 )}
                               >
@@ -966,7 +904,7 @@ export default function PitchBoardPage() {
                                 key={addition}
                                 type="button"
                                 onClick={() => setProposalForm((f) => ({ ...f, customAdditions: f.customAdditions.filter((item) => item !== addition) }))}
-                                className="inline-flex items-center gap-1 rounded-full border border-sky-400 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                                className="inline-flex items-center gap-1 rounded-full border border-brand-400 bg-brand-500/10 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300"
                               >
                                 {addition}
                                 <X className="h-3 w-3" />
@@ -976,17 +914,75 @@ export default function PitchBoardPage() {
                         )}
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <Label>Service details</Label>
+                        <div className="flex items-center justify-between">
+                          <Label>Service details</Label>
+                          <AISuggestButton
+                            endpoint="/api/pitch/ai-suggest"
+                            payload={{
+                              field: "serviceDescription",
+                              context: {
+                                targetName: proposalForm.targetName,
+                                selectedServices: proposalForm.selectedServices,
+                                customAdditions: proposalForm.customAdditions,
+                                currentValue: proposalForm.serviceDescription,
+                              },
+                            }}
+                            onResult={(value) => setProposalForm((f) => ({ ...f, serviceDescription: value }))}
+                            disabled={hasBrand === false}
+                          />
+                        </div>
                         <Textarea rows={3} value={proposalForm.serviceDescription} onChange={(e) => setProposalForm((f) => ({ ...f, serviceDescription: e.target.value }))} placeholder="Only use this if you want to override the AI brief." />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>Goals</Label>
+                        <div className="flex items-end gap-2">
+                          <Textarea
+                            rows={2}
+                            value={proposalForm.goals}
+                            onChange={(e) => setProposalForm((f) => ({ ...f, goals: e.target.value }))}
+                            placeholder="What outcome should this engagement produce?"
+                          />
+                          <AISuggestButton
+                            endpoint="/api/pitch/ai-suggest"
+                            payload={{
+                              field: "goals",
+                              context: {
+                                targetName: proposalForm.targetName,
+                                selectedServices: proposalForm.selectedServices,
+                                currentValue: proposalForm.goals,
+                              },
+                            }}
+                            onResult={(value) => setProposalForm((f) => ({ ...f, goals: value }))}
+                            size="sm"
+                            disabled={hasBrand === false}
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3 md:col-span-2">
                         <Input type="number" value={proposalForm.price} onChange={(e) => setProposalForm((f) => ({ ...f, price: e.target.value }))} placeholder="Price" />
                         <Input type="number" value={proposalForm.originalPrice} onChange={(e) => setProposalForm((f) => ({ ...f, originalPrice: e.target.value }))} placeholder="Original" />
-                        <Input value={proposalForm.billingInterval} onChange={(e) => setProposalForm((f) => ({ ...f, billingInterval: e.target.value }))} placeholder="month" />
+                        <Input value={proposalForm.billingInterval} onChange={(e) => setProposalForm((f) => ({ ...f, billingInterval: e.target.value }))} placeholder="month / project / one-time" />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <Label>Terms</Label>
-                        <Textarea rows={2} value={proposalForm.terms} onChange={(e) => setProposalForm((f) => ({ ...f, terms: e.target.value }))} placeholder="No contract, activation timing, cancellation, billing..." />
+                        <div className="flex items-center justify-between">
+                          <Label>Terms</Label>
+                          <AISuggestButton
+                            endpoint="/api/pitch/ai-suggest"
+                            payload={{
+                              field: "terms",
+                              context: {
+                                targetName: proposalForm.targetName,
+                                selectedServices: proposalForm.selectedServices,
+                                price: proposalForm.price,
+                                billingInterval: proposalForm.billingInterval,
+                                currentValue: proposalForm.terms,
+                              },
+                            }}
+                            onResult={(value) => setProposalForm((f) => ({ ...f, terms: value }))}
+                            disabled={hasBrand === false}
+                          />
+                        </div>
+                        <Textarea rows={3} value={proposalForm.terms} onChange={(e) => setProposalForm((f) => ({ ...f, terms: e.target.value }))} placeholder="Activation timing, cancellation, payment, deliverables ownership..." />
                       </div>
                     </div>
                   )}
@@ -1025,24 +1021,34 @@ export default function PitchBoardPage() {
                 </div>
               </div>
               <div className="space-y-4 p-5">
-                <Textarea
-                  value={pitchBrief}
-                  onChange={(e) => setPitchBrief(e.target.value)}
-                  rows={7}
-                  className="min-h-44 resize-y rounded-xl text-base leading-7"
-                  placeholder="Example: Research Miami Dental Studio and create a short outreach pitch..."
-                />
-                <div className="flex flex-wrap gap-2">
-                  {PITCH_EXAMPLES.map((example, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setPitchBrief(example)}
-                      className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      Sample {index + 1}
-                    </button>
-                  ))}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Brief</Label>
+                    <AISuggestButton
+                      endpoint="/api/pitch/ai-suggest"
+                      payload={{
+                        field: "pitchBrief",
+                        context: {
+                          targetName: pitchForm.businessName,
+                          targetWebsite: pitchForm.businessUrl,
+                          currentValue: pitchBrief,
+                        },
+                      }}
+                      onResult={setPitchBrief}
+                      label="AI write a brief"
+                      size="sm"
+                      disabled={hasBrand === false}
+                    />
+                  </div>
+                  <Textarea
+                    value={pitchBrief}
+                    onChange={(e) => setPitchBrief(e.target.value)}
+                    rows={7}
+                    className="min-h-44 resize-y rounded-xl text-base leading-7"
+                    placeholder={brandKit?.name
+                      ? `Tell the AI which business to research and what angle to take. Or click "AI write a brief" to start from a draft.`
+                      : "Tell the AI which business to research. The agent will pull public signals and write a personalized outreach pitch."}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button type="submit" size="lg" disabled={isCreatingPitch || hasBrand === false} className="gap-2">
@@ -1203,7 +1209,7 @@ export default function PitchBoardPage() {
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-sky-600" />Save contacts</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-brand-600" />Save contacts</DialogTitle>
           </DialogHeader>
           <div className="mt-2 space-y-4">
             <p className="text-sm text-muted-foreground">{selectedLeads.size} lead{selectedLeads.size === 1 ? "" : "s"} will be saved.</p>
@@ -1236,7 +1242,7 @@ export default function PitchBoardPage() {
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {leadAction?.mode === "proposal" ? <FileText className="h-5 w-5 text-sky-600" /> : <Briefcase className="h-5 w-5 text-sky-600" />}
+              {leadAction?.mode === "proposal" ? <FileText className="h-5 w-5 text-brand-600" /> : <Briefcase className="h-5 w-5 text-brand-600" />}
               Confirm offer details
             </DialogTitle>
           </DialogHeader>
@@ -1281,7 +1287,7 @@ export default function PitchBoardPage() {
                           className={cn(
                             "rounded-full border px-3 py-1.5 text-xs font-semibold",
                             leadOfferForm.selectedServices.includes(service)
-                              ? "border-sky-400 bg-sky-50 text-sky-700"
+                              ? "border-brand-400 bg-brand-500/10 text-brand-700 dark:text-brand-300"
                               : "border-border bg-background text-muted-foreground hover:text-foreground",
                           )}
                         >
@@ -1294,39 +1300,14 @@ export default function PitchBoardPage() {
               )}
 
               {leadAction.mode === "proposal" && (
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label>Proposal builder</Label>
-                    <ProposalBuilderSelector
-                      value={leadOfferForm.builderType}
-                      onChange={(builderType) => setLeadOfferForm((form) => form ? { ...form, builderType } : form)}
-                      compact
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Proposal types</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {PROPOSAL_PRESETS.map((preset) => (
-                        <button
-                          key={preset.value}
-                          type="button"
-                          onClick={() => setLeadOfferForm((form) => {
-                            if (!form) return form;
-                            const proposalTypes = toggleArrayValue(form.proposalTypes, preset.value, false);
-                            return { ...form, proposalTypes, preset: firstProposalPreset(proposalTypes, form.preset) };
-                          })}
-                          className={cn(
-                            "rounded-full border px-3 py-1.5 text-xs font-semibold",
-                            leadOfferForm.proposalTypes.includes(preset.value)
-                              ? "border-sky-400 bg-sky-50 text-sky-700"
-                              : "border-border bg-background text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>Layout style (PDF only)</Label>
+                  <ProposalBuilderSelector
+                    value={leadOfferForm.builderType}
+                    onChange={(builderType) => setLeadOfferForm((form) => form ? { ...form, builderType } : form)}
+                    compact
+                  />
+                  <p className="text-xs text-muted-foreground">The agent writes the proposal freely. This only controls the PDF layout.</p>
                 </div>
               )}
 
@@ -1336,7 +1317,7 @@ export default function PitchBoardPage() {
                   <Input
                     value={leadOfferForm.serviceTitle}
                     onChange={(e) => setLeadOfferForm((form) => form ? { ...form, serviceTitle: e.target.value } : form)}
-                    placeholder="Google Business Profile Optimization"
+                    placeholder="What's the package called?"
                   />
                   {(leadOfferForm.selectedServices.length > 0 || leadOfferForm.customAdditions.length > 0) && (
                     <div className="flex flex-wrap gap-2 pt-2">
@@ -1351,7 +1332,7 @@ export default function PitchBoardPage() {
                                 customAdditions: form.customAdditions.filter((addition) => addition !== item),
                               }
                             : form)}
-                          className="inline-flex items-center gap-1 rounded-full border border-sky-400 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700"
+                          className="inline-flex items-center gap-1 rounded-full border border-brand-400 bg-brand-500/10 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300"
                         >
                           {item}
                           <X className="h-3 w-3" />
@@ -1392,7 +1373,24 @@ export default function PitchBoardPage() {
                   </div>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label>Service details</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Service details</Label>
+                    <AISuggestButton
+                      endpoint="/api/pitch/ai-suggest"
+                      payload={{
+                        field: "serviceDescription",
+                        context: {
+                          targetName: leadAction.lead.name,
+                          targetWebsite: leadAction.lead.website,
+                          selectedServices: leadOfferForm.selectedServices,
+                          customAdditions: leadOfferForm.customAdditions,
+                          currentValue: leadOfferForm.serviceDescription,
+                        },
+                      }}
+                      onResult={(value) => setLeadOfferForm((form) => form ? { ...form, serviceDescription: value } : form)}
+                      disabled={hasBrand === false}
+                    />
+                  </div>
                   <Textarea
                     rows={4}
                     value={leadOfferForm.serviceDescription}
@@ -1401,7 +1399,22 @@ export default function PitchBoardPage() {
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label>Client goals</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Client goals</Label>
+                    <AISuggestButton
+                      endpoint="/api/pitch/ai-suggest"
+                      payload={{
+                        field: "goals",
+                        context: {
+                          targetName: leadAction.lead.name,
+                          selectedServices: leadOfferForm.selectedServices,
+                          currentValue: leadOfferForm.goals,
+                        },
+                      }}
+                      onResult={(value) => setLeadOfferForm((form) => form ? { ...form, goals: value } : form)}
+                      disabled={hasBrand === false}
+                    />
+                  </div>
                   <Textarea
                     rows={2}
                     value={leadOfferForm.goals}
@@ -1426,13 +1439,34 @@ export default function PitchBoardPage() {
                     <Input
                       value={leadOfferForm.billingInterval}
                       onChange={(e) => setLeadOfferForm((form) => form ? { ...form, billingInterval: e.target.value } : form)}
-                      placeholder="month"
+                      placeholder="month / project / one-time"
                     />
-                    <Input
-                      value={leadOfferForm.terms}
-                      onChange={(e) => setLeadOfferForm((form) => form ? { ...form, terms: e.target.value } : form)}
-                      placeholder="Terms"
-                    />
+                    <div className="md:col-span-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label>Terms</Label>
+                        <AISuggestButton
+                          endpoint="/api/pitch/ai-suggest"
+                          payload={{
+                            field: "terms",
+                            context: {
+                              targetName: leadAction.lead.name,
+                              selectedServices: leadOfferForm.selectedServices,
+                              price: leadOfferForm.price,
+                              billingInterval: leadOfferForm.billingInterval,
+                              currentValue: leadOfferForm.terms,
+                            },
+                          }}
+                          onResult={(value) => setLeadOfferForm((form) => form ? { ...form, terms: value } : form)}
+                          disabled={hasBrand === false}
+                        />
+                      </div>
+                      <Textarea
+                        rows={3}
+                        value={leadOfferForm.terms}
+                        onChange={(e) => setLeadOfferForm((form) => form ? { ...form, terms: e.target.value } : form)}
+                        placeholder="Activation timing, payment, cancellation..."
+                      />
+                    </div>
                   </>
                 )}
               </div>

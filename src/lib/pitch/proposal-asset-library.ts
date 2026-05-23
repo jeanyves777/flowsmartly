@@ -22,7 +22,7 @@ export interface ProposalLibraryAsset {
 
 interface SelectProposalVisualInput {
   proposal: ServiceProposalContent;
-  preset: ProposalPreset;
+  preset?: ProposalPreset;
   serviceTitle: string;
   targetName: string;
   brandKit?: {
@@ -263,38 +263,19 @@ export function normalizeKind(value: unknown): ProposalVisualKind {
 }
 
 export function normalizePreset(value: unknown): ProposalPreset | "any" {
-  const raw = String(value || "").toLowerCase();
-  if (
-    raw === "google-business-profile" ||
-    raw === "website-redesign" ||
-    raw === "local-seo" ||
-    raw === "custom"
-  ) {
-    return raw;
-  }
-  return "any";
+  const raw = String(value || "").toLowerCase().trim();
+  return raw || "any";
 }
 
-function scoreAsset(asset: ProposalLibraryAsset, context: string, desiredKind: ProposalVisualAsset["kind"], preset: ProposalPreset) {
+function scoreAsset(asset: ProposalLibraryAsset, context: string, desiredKind: ProposalVisualAsset["kind"]) {
   let score = 0;
   if (asset.kind === desiredKind) score += 36;
   if (asset.kind === "general") score += 12;
-  if (asset.preset === preset) score += 32;
-  if (asset.preset === "any") score += 10;
   if (asset.source !== "default") score += 6;
   if (asset.tags.includes("pregenerated")) score += 18;
   if (asset.tags.includes("premium")) score += 6;
   for (const tag of asset.tags) {
-    if (tag && context.includes(tag)) score += 8;
-  }
-  if (desiredKind === "cover" && /google|business|profile|listing|map|seo|local/.test(context)) {
-    if (asset.tags.some((tag) => ["listing", "map", "google", "local", "seo"].includes(tag))) score += 12;
-  }
-  if (desiredKind === "about" && asset.tags.some((tag) => ["consultant", "strategy", "advisor", "growth"].includes(tag))) {
-    score += 10;
-  }
-  if (desiredKind === "impact" && asset.tags.some((tag) => ["analytics", "chart", "performance", "conversion"].includes(tag))) {
-    score += 10;
+    if (tag && context.includes(tag)) score += 10;
   }
   return score;
 }
@@ -323,7 +304,7 @@ export async function selectProposalVisualAssets(
   const used = new Set<string>();
   const selected = (["cover", "about", "impact"] as const).map((kind) => {
     const asset = [...assets]
-      .sort((a, b) => scoreAsset(b, context, kind, input.preset) - scoreAsset(a, context, kind, input.preset))
+      .sort((a, b) => scoreAsset(b, context, kind) - scoreAsset(a, context, kind))
       .find((candidate) => !used.has(candidate.id)) || assets[0];
     used.add(asset.id);
     return {

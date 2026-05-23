@@ -17,7 +17,7 @@ interface ProposalVisualBrandKit {
 
 interface GenerateProposalVisualAssetsInput {
   userId: string;
-  preset: ProposalPreset;
+  preset?: ProposalPreset;
   targetName: string;
   serviceTitle: string;
   proposal: ServiceProposalContent;
@@ -179,20 +179,14 @@ function buildVisualSpecs(input: GenerateProposalVisualAssetsInput): Array<{
 }> {
   const sectionPrompts = input.proposal.design?.sectionImagePrompts || [];
   const guard = visualStyleGuard(input);
-  const presetCue: Record<ProposalPreset, string> = {
-    "google-business-profile":
-      "local search growth, map pin geometry, review-star energy, ranking lift, small-business visibility, clean analytics cards",
-    "website-redesign":
-      "modern responsive website screens, conversion paths, elegant interface surfaces, performance and trust cues",
-    "local-seo":
-      "local SEO momentum, area pages, citations, review reputation, organic ranking lift, clean search-market geometry",
-    custom:
-      "business growth strategy, premium client service, outcome-focused visual metaphors, trustworthy modern consulting",
-  };
+  const industry = (input.brandKit?.industry || input.brandKit?.niche || "professional services").toLowerCase();
+  const audience = (input.brandKit?.targetAudience || "clients in this industry").toLowerCase();
+  const motifs = (input.proposal.design?.visualMotifs || []).slice(0, 4).join(", ");
 
-  const coverFallback = `Premium 3D business-growth hero scene with ${presetCue[input.preset]}, refined lighting, soft depth, crisp professional composition, generous empty space for proposal title.`;
-  const aboutFallback = `Elegant brand vision illustration for ${input.proposal.preparedBy}, strategic growth, client partnership, polished dashboard and abstract team collaboration elements.`;
-  const impactFallback = `Premium analytics impact visual with rising bars, circular metrics, momentum lines, client growth outcomes, clean brand-colored business dashboard.`;
+  const motifLine = motifs ? `Visual motifs to lean on: ${motifs}.` : "";
+  const coverFallback = `Premium 3D hero illustration cluster appropriate for ${industry} serving ${audience}. Refined lighting, soft depth, crisp professional composition, generous empty space for the proposal title. ${motifLine}`;
+  const aboutFallback = `Elegant illustration representing ${input.proposal.preparedBy}'s practice in ${industry} — competence, partnership, and clarity. Object-cluster composition, no scene background.`;
+  const impactFallback = `Premium impact visual showing the outcomes ${input.proposal.preparedBy} delivers in ${industry}. Use abstract geometric metaphors (rising forms, momentum, structure) rather than literal charts unless the offering is analytics-driven. Object cluster, no background.`;
 
   return [
     {

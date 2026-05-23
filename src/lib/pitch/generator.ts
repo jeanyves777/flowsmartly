@@ -1,17 +1,19 @@
-import { ClaudeAI, HAIKU_MODEL } from "@/lib/ai/client";
+import { HAIKU_MODEL, ai } from "@/lib/ai/client";
+import type { AgentTool } from "@/lib/ai/client";
+import { prisma } from "@/lib/db/client";
 import type { ResearchData } from "./researcher";
 
 export interface PitchContent {
   subject: string;
   headline: string;
   personalizedHook: string;
-  keyFindings: string[];       // 3 teaser findings (create curiosity, not all)
-  hiddenFindingsCount: number; // "We found X more issues we'd love to discuss"
+  keyFindings: string[];
+  hiddenFindingsCount: number;
   opportunityParagraph: string;
-  solutionBullets: string[];   // 2-3 brand service bullets matched to prospect's needs
+  solutionBullets: string[];
   impactParagraph: string;
   ctaText: string;
-  ctaSubtext: string;          // Below the CTA button
+  ctaSubtext: string;
   closingLine: string;
 }
 
@@ -20,132 +22,243 @@ export interface BrandContext {
   description?: string;
   industry?: string;
   niche?: string;
-  products?: string[];        // Services/products the brand offers
-  uniqueValue?: string;       // Unique value proposition
+  products?: string[];
+  uniqueValue?: string;
   targetAudience?: string;
   website?: string;
-  senderName?: string;        // Name of the person sending (from user profile)
+  senderName?: string;
 }
 
-/** Build a human-readable "what we offer" section from brand context */
-function buildBrandOffer(brand: BrandContext): string {
-  const products = brand.products?.filter(Boolean) || [];
-  const lines: string[] = [];
-
-  if (brand.description) lines.push(brand.description);
-  if (products.length) {
-    lines.push(`Services/Products offered:`);
-    products.forEach(p => lines.push(`- ${p}`));
+function safeJSON<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
   }
-  if (brand.uniqueValue) lines.push(`Unique value proposition: ${brand.uniqueValue}`);
-  if (brand.targetAudience) lines.push(`Target audience: ${brand.targetAudience}`);
+}
 
-  return lines.length
-    ? lines.join("\n")
-    : `${brand.name} is a ${brand.industry || "digital marketing"} company.`;
+function clean(value: unknown, max = 800): string {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function htmlToText(html: string, max = 6000): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function buildTools(ctx: { userId: string; research: ResearchData; brand: BrandContext }): AgentTool[] {
+  return [
+    {
+      name: "get_brand_identity",
+      description:
+        "Fetch the user's live brand identity. Use this as the source of truth for the SENDER: name, services/products they actually sell, voice, audience, unique value, contact details. Do not propose services not listed here.",
+      input_schema: { type: "object", properties: {} },
+      handler: async () => {
+        const kit = await prisma.brandKit.findFirst({
+          where: { userId: ctx.userId },
+          orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        });
+        if (!kit) return { configured: false, fallback: ctx.brand };
+        return {
+          configured: true,
+          name: kit.name,
+          tagline: kit.tagline,
+          description: kit.description,
+          industry: kit.industry,
+          niche: kit.niche,
+          targetAudience: kit.targetAudience,
+          voiceTone: kit.voiceTone,
+          personality: safeJSON<string[]>(kit.personality, []),
+          keywords: safeJSON<string[]>(kit.keywords, []),
+          avoidWords: safeJSON<string[]>(kit.avoidWords, []),
+          uniqueValue: kit.uniqueValue,
+          products: safeJSON<unknown[]>(kit.products, []),
+          website: kit.website,
+          email: kit.email,
+          phone: kit.phone,
+        };
+      },
+    },
+    {
+      name: "get_prospect_research",
+      description:
+        "Return the pre-computed research on the target prospect. Includes website tech signals (SSL, mobile, analytics, lead-capture, social, tech stack), Google Business Profile data when available (rating, review count, address, phone, recent reviews, categories), AI-inferred industry, services they offer, pain points, and growth opportunities. This is your source of truth for facts about the prospect.",
+      input_schema: { type: "object", properties: {} },
+      handler: async () => ctx.research,
+    },
+    {
+      name: "get_past_pitches",
+      description:
+        "Return up to 5 of the user's most recent past pitches as raw examples. Learn the user's voice, hook style, and how they typically structure findings. These are examples to LEARN FROM, not templates to copy.",
+      input_schema: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "How many examples to return (1-5). Default 3." },
+        },
+      },
+      handler: async (input) => {
+        const limit = Math.min(5, Math.max(1, Number(input.limit) || 3));
+        const rows = await prisma.pitch.findMany({
+          where: { userId: ctx.userId, status: { in: ["READY", "SENT"] } },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: { businessName: true, pitchContent: true, createdAt: true },
+        });
+        const pitches = rows
+          .map((row) => {
+            try {
+              const parsed = JSON.parse(row.pitchContent || "{}") as Partial<PitchContent> & { documentType?: string };
+              if (parsed.documentType === "service_proposal") return null;
+              return {
+                targetName: row.businessName,
+                createdAt: row.createdAt.toISOString(),
+                subject: parsed.subject,
+                headline: parsed.headline,
+                personalizedHook: parsed.personalizedHook,
+                keyFindings: parsed.keyFindings,
+                solutionBullets: parsed.solutionBullets,
+                ctaText: parsed.ctaText,
+              };
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+          .slice(0, limit);
+        return { count: pitches.length, pitches };
+      },
+    },
+    {
+      name: "fetch_url",
+      description:
+        "Fetch and return the plain text content of a URL (HTML stripped, first ~6000 chars). Use when you need to read a specific page on the prospect's site that wasn't in get_prospect_research (about, services, pricing, case studies). Do NOT use for arbitrary browsing.",
+      input_schema: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Full URL including protocol." },
+        },
+        required: ["url"],
+      },
+      handler: async (input) => {
+        const url = String(input.url || "").trim();
+        if (!/^https?:\/\//i.test(url)) return { error: "URL must start with http:// or https://" };
+        try {
+          const res = await fetch(url, {
+            signal: AbortSignal.timeout(8000),
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+          });
+          if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
+          const html = await res.text();
+          return { url: res.url, status: res.status, text: htmlToText(html) };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : "Fetch failed" };
+        }
+      },
+    },
+  ];
+}
+
+interface RunPitchAgentInput {
+  userId: string;
+  businessName: string;
+  research: ResearchData;
+  brand: BrandContext;
+  recipientName?: string;
 }
 
 export async function generatePitch(
   research: ResearchData,
   businessName: string,
-  brand: BrandContext
+  brand: BrandContext,
+  options: { userId?: string; recipientName?: string } = {},
 ): Promise<PitchContent> {
-  const ai = ClaudeAI.getInstance();
-  const senderName = brand.senderName || brand.name;
-
-  const hiddenCount = Math.max(0, research.painPoints.length - 3);
-  const teaserPainPoints = research.painPoints.slice(0, 3);
-
-  interface AIResult {
-    subject: string;
-    headline: string;
-    personalizedHook: string;
-    keyFindings: string[];
-    opportunityParagraph: string;
-    solutionBullets: string[];
-    impactParagraph: string;
-    ctaText: string;
-    ctaSubtext: string;
-    closingLine: string;
+  const userId = options.userId;
+  if (!userId) {
+    throw new Error("generatePitch requires options.userId to run the agent loop");
   }
+  return runPitchAgent({ userId, businessName, research, brand, recipientName: options.recipientName });
+}
 
-  // Build Google enrichment context
-  const gp = research.googlePlaces;
-  const googleContext = gp
-    ? `
-VERIFIED GOOGLE BUSINESS DATA (authoritative source):
-- Google Rating: ${gp.rating !== undefined ? `${gp.rating}/5 ⭐` : "No rating"} (${gp.reviewCount ?? 0} reviews)
-- Business Status: ${gp.businessStatus || "Unknown"}
-- Phone (verified): ${gp.phone || "N/A"}
-- Address (verified): ${gp.address || "N/A"}
-${gp.priceLevel !== undefined ? `- Price Level: ${"$".repeat(gp.priceLevel + 1)}` : ""}
-${gp.recentReviews?.length ? `
-REAL CUSTOMER REVIEWS from Google:
-${gp.recentReviews.map(rv => `  [${rv.rating}⭐ · ${rv.timeAgo}]: "${rv.text}`).join("\n")}` : "- No public reviews found"}
-`
-    : "- No Google Business listing found (significant gap in online presence)";
+async function runPitchAgent(input: RunPitchAgentInput): Promise<PitchContent> {
+  const { userId, businessName, research, brand, recipientName } = input;
+  const senderName = brand.senderName || brand.name;
+  const hiddenCount = Math.max(0, (research.painPoints?.length || 0) - 3);
 
-  const brandOffer = buildBrandOffer(brand);
+  const systemPrompt = `You are FlowSmartly's Outreach Pitch Agent.
 
-  const result = await ai.generateJSON<AIResult>(
-    `You are a world-class B2B sales strategist writing a highly personalized outreach pitch on behalf of ${brand.name}${brand.industry ? ` — a ${brand.industry} company` : ""}.
+Your job: write a highly personalized B2B outreach pitch on behalf of the SENDER (the user's brand) to the PROSPECT (the target business).
 
-You are writing to "${businessName}" to show them how ${brand.name} can specifically solve their pain points based on thorough research.
+How to think:
+1. Call get_brand_identity to confirm what the SENDER actually offers. Do not propose services the sender doesn't sell.
+2. Call get_prospect_research to read the verified facts about the prospect.
+3. Optionally call get_past_pitches to learn the user's voice and style.
+4. Optionally call fetch_url to read a specific page on the prospect's site.
+5. Then return the pitch as ONE JSON object.
 
-The pitch must:
-1. Be written as if it came PERSONALLY from ${senderName} at ${brand.name} — use first person ("we", "our team")
-2. Feel like you personally audited their business — reference SPECIFIC data (Google rating, review count, exact gaps found)
-3. Create CURIOSITY — tease findings without revealing everything. Mention you found ${hiddenCount + 3} total opportunities
-4. Be professional yet conversational — NOT corporate or generic
-5. Map ${brand.name}'s specific services to THIS business's exact pain points
-6. Focus on REVENUE GROWTH for the prospect — quantify the opportunity where possible
-7. Soft CTA — invite a conversation, not a hard sell
-8. If there are real customer reviews, subtly reference what customers are saying
+Voice & substance:
+- Write as if it came personally from ${senderName} at ${brand.name} — first person ("we", "our team").
+- Reference SPECIFIC findings from research (Google rating, review count, exact tech gaps, tools missing, what their site says).
+- Map the SENDER's actual services to the PROSPECT's actual pain points.
+- Create curiosity. Tease findings — mention you found more opportunities to discuss.
+- Soft CTA. Invite a conversation, not a hard sell.
+- Do NOT invent statistics. Do NOT use placeholder percentages. If you don't have a real basis for a number, omit it.
+${recipientName ? `- Address ${recipientName} by name where natural.\n` : ""}
 
-ABOUT ${brand.name.toUpperCase()} (the sender):
-${brandOffer}
-
-VERIFIED RESEARCH ON "${businessName}" (the prospect):
-Industry: ${research.industry}
-Summary: ${research.summary}
-Services they offer: ${research.services.join(", ")}
-Key Pain Points (first 3 of ${research.painPoints.length} found): ${teaserPainPoints.join("; ")}
-Growth Opportunities: ${research.opportunities.join("; ")}
-Has Analytics: ${research.hasAnalytics}
-Social Media Presence: ${research.socialLinks.length > 0 ? research.socialLinks.join(", ") : "None found"}
-Has Live Chat: ${research.hasChatWidget}
-Has Online Booking: ${research.hasBookingSystem}
-Has Email Capture: ${research.hasEmailCapture}
-Tech Stack: ${research.techStack.join(", ") || "Unknown"}
-${googleContext}
-
-Return a JSON object with these exact fields:
+Return ONLY valid JSON with this shape:
 {
-  "subject": "Email subject line (compelling, personalized, under 60 chars — from ${brand.name})",
-  "headline": "Big proposal headline (10-15 words, specific to their situation, written for ${businessName})",
-  "personalizedHook": "Opening 2-3 sentences from ${senderName} at ${brand.name} that show you've reviewed their business — reference something SPECIFIC. Make them say 'how did they know?'",
-  "keyFindings": ["Finding 1", "Finding 2", "Finding 3"] (3 specific pain points phrased as opportunities — not warnings),
-  "opportunityParagraph": "1 paragraph (3-4 sentences) from ${brand.name}'s perspective, painting the picture of what's possible if they fix these issues. Make it specific to their industry and their business.",
-  "solutionBullets": ["How ${brand.name} solves pain point 1", "How ${brand.name} solves pain point 2", "How ${brand.name} solves pain point 3"] (2-3 specific ${brand.name} capabilities matched to THIS prospect's pain points),
-  "impactParagraph": "1 paragraph about the impact ${brand.name} has delivered for similar businesses. Be bold but believable. Use specific percentages or numbers where appropriate.",
-  "ctaText": "Call to action text (5-8 words, action-oriented, e.g. 'Book a Free 20-Minute Call')",
-  "ctaSubtext": "1 sentence below CTA — what happens next (e.g. 'No commitment. Just a quick chat about your goals.')",
-  "closingLine": "Warm professional closing (1 sentence from ${senderName} at ${brand.name})"
-}`,
-    { model: HAIKU_MODEL, maxTokens: 2048 }
+  "subject": "Email subject line, under 60 chars, personalized",
+  "headline": "Proposal headline, 10-15 words, specific to their situation",
+  "personalizedHook": "Opening 2-3 sentences. Reference something specific.",
+  "keyFindings": ["3 specific pain points phrased as opportunities, not warnings"],
+  "opportunityParagraph": "1 paragraph (3-4 sentences) painting what's possible.",
+  "solutionBullets": ["2-3 specific ${brand.name} capabilities matched to THIS prospect's pain points"],
+  "impactParagraph": "1 paragraph on impact — bold but believable. Use specific numbers only when you can ground them in the research; otherwise speak qualitatively.",
+  "ctaText": "Call to action, 5-8 words, action-oriented",
+  "ctaSubtext": "1 sentence below CTA explaining what happens next",
+  "closingLine": "Warm professional closing, 1 sentence"
+}
+
+Hint: the research already found ${hiddenCount + 3} total pain points — tease that there are more to discuss when relevant.`;
+
+  const run = await ai.runWithTools<PitchContent>(
+    `Write the outreach pitch from ${brand.name} to ${businessName}. Use the tools first, then return only the requested JSON object.`,
+    buildTools({ userId, research, brand }),
+    {
+      systemPrompt,
+      model: HAIKU_MODEL,
+      maxTokens: 4000,
+      maxIterations: 6,
+      thinkingBudget: false,
+    },
   );
 
+  if (!run.json) {
+    throw new Error(`Pitch agent returned non-JSON output: ${run.text.slice(0, 180)}`);
+  }
+  const raw = run.json;
+
   return {
-    subject: result?.subject || `How ${brand.name} can help ${businessName} grow faster`,
-    headline: result?.headline || `A Growth Strategy Built Specifically for ${businessName}`,
-    personalizedHook: result?.personalizedHook || `We at ${brand.name} took a close look at ${businessName}'s digital presence and found several opportunities to accelerate your growth.`,
-    keyFindings: result?.keyFindings || teaserPainPoints,
+    subject: clean(raw.subject, 180) || `${brand.name} <> ${businessName}`,
+    headline: clean(raw.headline, 220) || `A growth conversation between ${brand.name} and ${businessName}`,
+    personalizedHook: clean(raw.personalizedHook, 800),
+    keyFindings: Array.isArray(raw.keyFindings) ? raw.keyFindings.map((f) => clean(f, 240)).filter(Boolean).slice(0, 4) : [],
     hiddenFindingsCount: hiddenCount,
-    opportunityParagraph: result?.opportunityParagraph || `${businessName} has significant untapped potential that the right support from ${brand.name} could unlock immediately.`,
-    solutionBullets: result?.solutionBullets || research.opportunities.slice(0, 3),
-    impactParagraph: result?.impactParagraph || `Businesses in the ${research.industry} industry that partner with ${brand.name} typically see a 30-50% increase in qualified leads within the first 90 days.`,
-    ctaText: result?.ctaText || "Let's Talk About Your Growth",
-    ctaSubtext: result?.ctaSubtext || "No commitment. Just a quick conversation about your business goals.",
-    closingLine: result?.closingLine || `Looking forward to connecting, ${senderName} at ${brand.name}`,
+    opportunityParagraph: clean(raw.opportunityParagraph, 900),
+    solutionBullets: Array.isArray(raw.solutionBullets) ? raw.solutionBullets.map((s) => clean(s, 240)).filter(Boolean).slice(0, 4) : [],
+    impactParagraph: clean(raw.impactParagraph, 900),
+    ctaText: clean(raw.ctaText, 80) || "Let's talk",
+    ctaSubtext: clean(raw.ctaSubtext, 200),
+    closingLine: clean(raw.closingLine, 200),
   };
 }

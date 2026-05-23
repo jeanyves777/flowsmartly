@@ -62,8 +62,12 @@ export async function processPitch(pitchId: string): Promise<void> {
           senderName: user?.name || "Our Team",
         };
 
-    // Step 4: Generate the pitch customized to the user's brand
-    const pitchContent = await generatePitch(research, pitch.businessName, brand);
+    // Step 4: Generate the pitch via the real agent loop (uses the user's live brand,
+    // pre-computed research, past pitches as examples, and fetch_url for deeper pages)
+    const pitchContent = await generatePitch(research, pitch.businessName, brand, {
+      userId: pitch.userId,
+      recipientName: pitch.recipientName || undefined,
+    });
 
     // Step 5: Save results
     await prisma.pitch.update({
