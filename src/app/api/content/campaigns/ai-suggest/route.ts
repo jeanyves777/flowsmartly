@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
 
 type Field =
   | "campaign_name"
@@ -17,7 +17,7 @@ type Field =
 // Per-field credit cost key. Every AI suggest button charges — short-label
 // fields cost less than paragraph fields. Resolved at request time via
 // getDynamicCreditCost so admin pricing changes are picked up.
-const COST_KEY_BY_FIELD: Record<Field, string> = {
+const COST_KEY_BY_FIELD: Record<Field, CreditCostKey> = {
   campaign_name: "AI_CAMPAIGN_NAME",        // 2
   campaign_description: "AI_CAPTION",        // 3
   item_name: "AI_CAMPAIGN_NAME",             // 2
