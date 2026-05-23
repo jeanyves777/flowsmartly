@@ -4,6 +4,7 @@ import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
 
@@ -92,13 +93,6 @@ function safeParse<T>(value: string | null | undefined, fallback: T): T {
     return fallback;
   }
 }
-
-const LAYOUT_VARIANTS: Array<{ x: number; y: number; sizePercent: number }> = [
-  { x: 0.03, y: 0.78, sizePercent: 22 },
-  { x: 0.03, y: 0.03, sizePercent: 22 },
-  { x: 0.67, y: 0.03, sizePercent: 22 },
-  { x: 0.03, y: 0.02, sizePercent: 22 },
-];
 
 /**
  * Generate a branded media image for a single ContentAutomation occurrence.
@@ -261,10 +255,17 @@ export async function generateAutomationMedia(
   );
 
   // Composite real brand logo on top (AI doesn't render logos faithfully).
+  // Vision-analyze the generated image to pick the SAFEST corner for the
+  // logo (one that doesn't overlap subject / faces / body text). Replaces
+  // the previous random LAYOUT_VARIANTS picker, which gambled and often
+  // landed the logo on top of headlines or paragraph copy.
   let finalBuffer = aiBuffer;
   const logoSource = brandKit?.logo || brandKit?.iconLogo || null;
   if (logoSource) {
-    const placement = LAYOUT_VARIANTS[Math.floor(Math.random() * LAYOUT_VARIANTS.length)];
+    const placement = await analyzeLogoPlacement(aiBuffer);
+    console.log(
+      `[automation-media] logo placement: corner=${placement.corner} source=${placement.source}${placement.reason ? ` reason="${placement.reason}"` : ""}`,
+    );
     try {
       finalBuffer = await compositeBrandLogoOnImageBuffer({
         imageBuffer: aiBuffer,
