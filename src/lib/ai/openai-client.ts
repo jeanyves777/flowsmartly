@@ -16,6 +16,19 @@ export const OPENAI_IMAGE_EDIT_MODEL =
   "gpt-image-2";
 
 /**
+ * Per the OpenAI SDK, `input_fidelity` is only supported on gpt-image-1 and
+ * gpt-image-1.5. Passing it to gpt-image-2 produces "unknown parameter"
+ * errors. Same goes for `background: "transparent"` — gpt-image-2 variants
+ * only accept "opaque" | "auto". Helper to feature-detect.
+ */
+function modelSupportsInputFidelity(model: string): boolean {
+  return /^gpt-image-1(\.5)?(-mini)?$/.test(model);
+}
+function modelSupportsTransparentBg(model: string): boolean {
+  return /^gpt-image-1(\.5)?(-mini)?$/.test(model);
+}
+
+/**
  * OpenAI Client for FlowSmartly
  * Used for image generation (gpt-image-1) to create photorealistic
  * backgrounds, objects, people, and design elements.
@@ -60,7 +73,11 @@ class OpenAIClient {
           n: 1,
           size,
           quality,
-          ...(transparent ? { background: "transparent" as const } : {}),
+          // background: "transparent" only works on gpt-image-1 / 1.5.
+          // For gpt-image-2 leave it off (defaults to opaque/auto).
+          ...(transparent && modelSupportsTransparentBg(OPENAI_IMAGE_GEN_MODEL)
+            ? { background: "transparent" as const }
+            : {}),
         });
 
         // gpt-image returns base64 by default
@@ -127,7 +144,9 @@ class OpenAIClient {
           n: safeN,
           size,
           quality,
-          ...(transparent ? { background: "transparent" as const } : {}),
+          ...(transparent && modelSupportsTransparentBg(OPENAI_IMAGE_GEN_MODEL)
+            ? { background: "transparent" as const }
+            : {}),
         });
 
         const datas = response.data || [];
@@ -186,15 +205,22 @@ class OpenAIClient {
           type: "image/png",
         });
 
-        const response = await this.client.images.edit({
+        // input_fidelity is gpt-image-1/1.5 only — silently dropped on
+        // gpt-image-2 to avoid "unknown parameter" errors.
+        const editParams: Record<string, unknown> = {
           model: OPENAI_IMAGE_EDIT_MODEL,
           image: imageFile,
           prompt,
           n: 1,
           size,
           quality,
-          input_fidelity: inputFidelity,
-        } as Parameters<typeof this.client.images.edit>[0]);
+        };
+        if (modelSupportsInputFidelity(OPENAI_IMAGE_EDIT_MODEL)) {
+          editParams.input_fidelity = inputFidelity;
+        }
+        const response = await this.client.images.edit(
+          editParams as unknown as Parameters<typeof this.client.images.edit>[0],
+        );
 
         const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData && imageData.b64_json) {
@@ -253,18 +279,24 @@ class OpenAIClient {
           images.map((img) => toFile(img.buffer, img.filename, { type: img.type })),
         );
 
-        const response = await this.client.images.edit({
+        // SDK accepts Uploadable | Uploadable[] — multi-image supported
+        // by gpt-image-1 since 2025-04 and by gpt-image-2 natively. First
+        // image is the primary reference (composition); rest are auxiliary.
+        // input_fidelity is gpt-image-1/1.5 only — dropped on gpt-image-2.
+        const editParams: Record<string, unknown> = {
           model: OPENAI_IMAGE_EDIT_MODEL,
-          // SDK accepts Uploadable | Uploadable[] — multi-image supported
-          // by gpt-image-1 since 2025-04 release. First image is treated
-          // as the primary reference (composition); rest are auxiliary.
           image: imageFiles,
           prompt,
           n: 1,
           size,
           quality,
-          input_fidelity: inputFidelity,
-        } as Parameters<typeof this.client.images.edit>[0]);
+        };
+        if (modelSupportsInputFidelity(OPENAI_IMAGE_EDIT_MODEL)) {
+          editParams.input_fidelity = inputFidelity;
+        }
+        const response = await this.client.images.edit(
+          editParams as unknown as Parameters<typeof this.client.images.edit>[0],
+        );
 
         const imageData = (response as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
         if (imageData?.b64_json) return imageData.b64_json;
