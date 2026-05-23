@@ -122,7 +122,7 @@ export async function publishDueScheduledPosts(now = new Date(), limit = 100): P
             email: post.user?.email ?? null,
             name: post.user?.name ?? null,
             postId: post.id,
-            caption: post.caption,
+            caption: post.caption ?? "",
             results: perPlatform,
             campaignName,
           }).catch((notifyErr) => {
