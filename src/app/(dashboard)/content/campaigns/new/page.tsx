@@ -85,8 +85,12 @@ export default function NewCampaignPage() {
 
   // Calendar events (optional bulk-add at creation time)
   const [eventIds, setEventIds] = useState<Set<string>>(new Set());
+  // Default to a SINGLE offset on the day-of (days: 0). Previously defaulted
+  // to [-1, 0] which produced an unwanted "day-before" post — and worse,
+  // copy that read "This Memorial Day, we honor..." fired 1-2 days early.
+  // For greeting-style holidays, day-of is the right default; users can
+  // add advance-warning offsets manually if they want them.
   const [eventOffsets, setEventOffsets] = useState([
-    { days: -1, time: "09:00" },
     { days: 0, time: "09:00" },
   ]);
   const [eventAiFill, setEventAiFill] = useState(true);

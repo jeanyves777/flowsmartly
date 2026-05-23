@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/client";
 import { addDays, startOfDay, addMinutes } from "date-fns";
 import { resolveCalendarSourceDate, type CalendarSourceType } from "@/lib/content/calendar-sources";
 import { pickNextFromFolder, resolveSpecificMedia } from "@/lib/content/media-rotation";
+import { generateAutomationMedia } from "@/lib/content/automation-media-generator";
 
 interface OffsetSpec {
   days: number;
@@ -82,6 +83,8 @@ interface MediaResolution {
 
 async function resolveMedia(
   automation: {
+    id: string;
+    userId: string;
     mediaMode: string;
     mediaUrl: string | null;
     mediaFileId: string | null;
@@ -192,15 +195,58 @@ async function resolveMedia(
       };
     }
     case "AI_AT_POST_TIME": {
-      // v1: leave mediaUrl null; mediaMeta records the AI config for downstream
-      // publisher / future enhancement to generate at publish time.
-      return {
-        mediaUrl: null,
-        mediaType: null,
-        mediaFileId: null,
-        nextFolderIndex: null,
-        skipReason: null,
-      };
+      // Generate a fresh AI-branded image right now using the same helper
+      // the manual "Pre-generate" flow uses. Reads tier/style/aspect from
+      // aiMediaConfig so the user's preferences propagate. Charges credits
+      // after success; falls through to no-media on failure (post still
+      // fires, just text-only) so we don't block the whole occurrence.
+      const cfg = parseJson<{
+        tier?: "premium" | "standard";
+        style?: "realistic" | "3d";
+        aspect?: "square" | "portrait" | "landscape";
+        appliesTo?: string;
+      }>(automation.aiMediaConfig ?? null, {});
+      try {
+        const gen = await generateAutomationMedia({
+          userId: automation.userId,
+          automationId: automation.id,
+          tier: cfg.tier,
+          style: cfg.style,
+          aspect: cfg.aspect,
+          appliesTo: cfg.appliesTo,
+          occurrenceYearOverride: occurrenceYear ?? null,
+          keyTag: "scheduled",
+        });
+        return {
+          mediaUrl: gen.url,
+          mediaType: "image",
+          mediaFileId: null,
+          nextFolderIndex: null,
+          skipReason: null,
+        };
+      } catch (err) {
+        const e = err as Error & { code?: string };
+        if (e.code === "INSUFFICIENT_CREDITS") {
+          return {
+            mediaUrl: null,
+            mediaType: null,
+            mediaFileId: null,
+            nextFolderIndex: null,
+            skipReason: "insufficient_credits",
+          };
+        }
+        console.warn(
+          "[scheduler] AI_AT_POST_TIME generation failed; firing text-only:",
+          e instanceof Error ? e.message : e,
+        );
+        return {
+          mediaUrl: null,
+          mediaType: null,
+          mediaFileId: null,
+          nextFolderIndex: null,
+          skipReason: null,
+        };
+      }
     }
     case "NONE":
     default:
