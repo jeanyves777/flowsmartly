@@ -1517,7 +1517,7 @@ export default function ContentSchedulePage() {
                     )}
                   </div>
 
-                  {selectedPost.itemType !== "strategy" && selectedPost.mediaUrls?.filter(Boolean).length > 0 && (
+                  {selectedPost.itemType !== "strategy" && Array.isArray(selectedPost.mediaUrls) && selectedPost.mediaUrls.filter(Boolean).length > 0 && (
                     <div className="mt-3 overflow-hidden rounded-xl border bg-background">
                       {isVideoUrl(selectedPost.mediaUrls[0]) ? (
                         <video src={selectedPost.mediaUrls[0]} controls preload="metadata" className="h-40 w-full object-cover" />
@@ -1601,7 +1601,7 @@ export default function ContentSchedulePage() {
                 <span className="truncate">{hoveredItem.item.category || "Calendar note"}</span>
               </div>
             )}
-            {hoveredItem.item.itemType !== "strategy" && hoveredItem.item.mediaUrls?.filter(Boolean).length > 0 && (
+            {hoveredItem.item.itemType !== "strategy" && Array.isArray(hoveredItem.item.mediaUrls) && hoveredItem.item.mediaUrls.filter(Boolean).length > 0 && (
               <div className="mt-3 overflow-hidden rounded-xl border bg-muted">
                 {isVideoUrl(hoveredItem.item.mediaUrls[0]) ? (
                   <video src={hoveredItem.item.mediaUrls[0]} muted playsInline preload="metadata" className="h-28 w-full object-cover" />

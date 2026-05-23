@@ -119,24 +119,41 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Guarantee mediaUrls and platforms are ARRAYS no matter what's in the
+    // DB. Malformed JSON or accidentally-stored objects in mediaMeta /
+    // platforms would crash the client at render (it calls .filter on
+    // these), so we Array.isArray-check before passing through.
+    const safeMediaUrls = (mediaMeta: string | null, mediaUrl: string | null): string[] => {
+      if (mediaMeta) {
+        try {
+          const parsed = JSON.parse(mediaMeta);
+          if (Array.isArray(parsed)) return parsed.filter(Boolean);
+        } catch {
+          // fall through to mediaUrl fallback
+        }
+      }
+      return mediaUrl ? [mediaUrl] : [];
+    };
+    const safePlatforms = (raw: string | null): string[] => {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+
     const formattedPosts = posts.map((post) => ({
       id: post.id,
       itemType: "post",
       caption: post.caption,
       mediaUrl: post.mediaUrl,
-      mediaUrls: post.mediaMeta
-        ? (() => { try { return JSON.parse(post.mediaMeta); } catch { return post.mediaUrl ? [post.mediaUrl] : []; } })()
-        : post.mediaUrl ? [post.mediaUrl] : [],
+      mediaUrls: safeMediaUrls(post.mediaMeta, post.mediaUrl),
       mediaThumbnails: post.thumbnailUrl ? [post.thumbnailUrl] : [],
       mediaType: post.mediaType,
       status: "scheduled",
-      platforms: (() => {
-        try {
-          return JSON.parse(post.platforms || "[]");
-        } catch {
-          return [];
-        }
-      })(),
+      platforms: safePlatforms(post.platforms),
       scheduledAt: post.scheduledAt?.toISOString() || null,
       user: {
         id: post.user.id,
