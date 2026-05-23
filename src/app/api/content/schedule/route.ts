@@ -60,11 +60,15 @@ export async function GET(request: NextRequest) {
       prisma.post.findMany({
         where: {
           userId: session.userId,
-          status: "SCHEDULED",
-          scheduledAt: {
-            gte: rangeStart,
-            lte: rangeEnd,
-          },
+          // Show both still-scheduled posts AND recently-published ones so
+          // the user can see per-platform success/failure on the calendar
+          // without having to dig into another screen. Published cap is
+          // the same rangeStart/rangeEnd as scheduled.
+          status: { in: ["SCHEDULED", "PUBLISHED"] },
+          OR: [
+            { scheduledAt: { gte: rangeStart, lte: rangeEnd } },
+            { publishedAt: { gte: rangeStart, lte: rangeEnd } },
+          ],
           deletedAt: null,
         },
         orderBy: { scheduledAt: "asc" },
@@ -144,6 +148,29 @@ export async function GET(request: NextRequest) {
       }
     };
 
+    // Parse the publishResults JSON into an array shape the client can
+    // safely render — { platform, success, error? }. Always returns an
+    // array; never raw object so the UI doesn't have to defend.
+    const parsePublishResults = (raw: string | null): Array<{ platform: string; success: boolean; error?: string }> => {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return [];
+        return Object.entries(parsed)
+          .filter(([k]) => k !== "_error" && k !== "feed")
+          .map(([platform, v]) => {
+            const r = v as { success?: boolean; error?: string };
+            return {
+              platform,
+              success: !!r?.success,
+              error: r?.success ? undefined : (r?.error || undefined),
+            };
+          });
+      } catch {
+        return [];
+      }
+    };
+
     const formattedPosts = posts.map((post) => ({
       id: post.id,
       itemType: "post",
@@ -152,8 +179,10 @@ export async function GET(request: NextRequest) {
       mediaUrls: safeMediaUrls(post.mediaMeta, post.mediaUrl),
       mediaThumbnails: post.thumbnailUrl ? [post.thumbnailUrl] : [],
       mediaType: post.mediaType,
-      status: "scheduled",
+      status: post.status === "PUBLISHED" ? "published" : "scheduled",
       platforms: safePlatforms(post.platforms),
+      publishResults: parsePublishResults(post.publishResults),
+      publishedAt: post.publishedAt?.toISOString() || null,
       scheduledAt: post.scheduledAt?.toISOString() || null,
       user: {
         id: post.user.id,

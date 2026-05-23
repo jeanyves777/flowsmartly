@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
+import { notifyPostPublishResult } from "@/lib/notifications";
 
 export interface ScheduledPostPublishResult {
   checked: number;
@@ -44,6 +45,9 @@ export async function publishDueScheduledPosts(now = new Date(), limit = 100): P
       id: true,
       userId: true,
       platforms: true,
+      caption: true,
+      contentAutomationId: true,
+      user: { select: { email: true, name: true } },
     },
   });
 
@@ -80,15 +84,50 @@ export async function publishDueScheduledPosts(now = new Date(), limit = 100): P
       result.externalAttempted += 1;
       try {
         const publishResults = await publishToSocialPlatforms(post.id, post.userId);
-        const failedPlatforms = Object.entries(publishResults).filter(([, platformResult]) => !platformResult.success);
+        // Reshape into the array form notifyPostPublishResult wants and
+        // skip the internal "_error" / "feed" keys.
+        const perPlatform = Object.entries(publishResults)
+          .filter(([k]) => k !== "_error" && k !== "feed")
+          .map(([platform, r]) => ({
+            platform,
+            success: !!r.success,
+            error: r.success ? undefined : (r.error || "Publish failed"),
+          }));
+        const failedPlatforms = perPlatform.filter((r) => !r.success);
         if (failedPlatforms.length > 0) {
           result.externalFailed += 1;
-          for (const [platform, platformResult] of failedPlatforms) {
+          for (const f of failedPlatforms) {
             result.errors.push({
               postId: post.id,
-              message: `${platform}: ${platformResult.error || "External publishing failed"}`,
+              message: `${f.platform}: ${f.error || "External publishing failed"}`,
             });
           }
+        }
+
+        // In-app notification + email on any failure. Look up campaign
+        // name when the post came from an automation so the user sees
+        // context. Fire-and-forget — never let notification failures
+        // block the publish loop.
+        if (perPlatform.length > 0) {
+          let campaignName: string | null = null;
+          if (post.contentAutomationId) {
+            const auto = await prisma.contentAutomation.findUnique({
+              where: { id: post.contentAutomationId },
+              select: { campaign: { select: { name: true } } },
+            });
+            campaignName = auto?.campaign?.name ?? null;
+          }
+          notifyPostPublishResult({
+            userId: post.userId,
+            email: post.user?.email ?? null,
+            name: post.user?.name ?? null,
+            postId: post.id,
+            caption: post.caption,
+            results: perPlatform,
+            campaignName,
+          }).catch((notifyErr) => {
+            console.error(`[ScheduledPosts] notify failed for ${post.id}:`, notifyErr);
+          });
         }
       } catch (error) {
         result.externalFailed += 1;

@@ -3,6 +3,7 @@ import { addDays, startOfDay, addMinutes } from "date-fns";
 import { resolveCalendarSourceDate, type CalendarSourceType } from "@/lib/content/calendar-sources";
 import { pickNextFromFolder, resolveSpecificMedia } from "@/lib/content/media-rotation";
 import { generateAutomationMedia } from "@/lib/content/automation-media-generator";
+import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
 
 interface OffsetSpec {
   days: number;
@@ -453,7 +454,21 @@ export async function processDueContentAutomations(
           }
 
           const platforms = a.platforms || "[]";
-          const caption = a.copy ?? a.topic ?? a.name;
+          // When user set explicit copy, use verbatim. Otherwise transform
+          // the topic / brief into real post copy via AI at fire time.
+          // generateAutomationCopy falls back to the brief on credit
+          // shortage or AI failure so the post still fires with SOMETHING.
+          let caption: string;
+          if (a.copy && a.copy.trim()) {
+            caption = a.copy;
+          } else {
+            const cg = await generateAutomationCopy({
+              userId: a.userId,
+              automationId: a.id,
+              occurrenceAt: occurrenceAt.toISOString(),
+            });
+            caption = cg.caption;
+          }
           const scheduledAt = occurrenceAt < now
             ? addMinutes(now, POST_LEAD_MINUTES)
             : occurrenceAt;
@@ -534,7 +549,17 @@ export async function processDueContentAutomations(
         }
 
         const platforms = a.platforms || "[]";
-        const caption = a.copy ?? a.topic ?? a.name;
+        let caption: string;
+        if (a.copy && a.copy.trim()) {
+          caption = a.copy;
+        } else {
+          const cg = await generateAutomationCopy({
+            userId: a.userId,
+            automationId: a.id,
+            occurrenceAt: occurrenceAt.toISOString(),
+          });
+          caption = cg.caption;
+        }
         const scheduledAt = addMinutes(now, POST_LEAD_MINUTES);
 
         const emit = await emitPost({

@@ -1795,3 +1795,59 @@ export async function sendDesignSharedEmail(params: {
     html: baseTemplate(content, `${params.sharerName} shared a design with you`),
   });
 }
+
+// ── Content Publishing — per-platform success / failure ──
+
+interface PostPublishResultBit {
+  platform: string;
+  success: boolean;
+  error?: string;
+}
+
+function publishResultsHtml(results: PostPublishResultBit[]): string {
+  return results
+    .map((r) => {
+      const tone = r.success ? "color: #10b981;" : "color: #ef4444;";
+      const label = r.success ? "Posted" : `Failed${r.error ? `: ${r.error}` : ""}`;
+      return `<div class="stats-row"><span style="text-transform: capitalize;">${r.platform}</span><strong style="${tone}">${label}</strong></div>`;
+    })
+    .join("");
+}
+
+export async function sendPostPublishFailedEmail(params: {
+  to: string;
+  name: string;
+  postId: string;
+  caption: string;
+  results: PostPublishResultBit[];
+  campaignName?: string;
+}) {
+  const failed = params.results.filter((r) => !r.success);
+  const total = params.results.length;
+  const captionPreview = params.caption.length > 160
+    ? `${params.caption.slice(0, 160)}…`
+    : params.caption;
+  const subjectFragment = failed.length === total
+    ? "failed to publish"
+    : `published with ${failed.length} failure${failed.length === 1 ? "" : "s"}`;
+
+  const content = `
+    <h2>${failed.length === total ? "Post Failed to Publish" : "Post Published with Failures"}</h2>
+    <p>Hi ${params.name},</p>
+    <p>Your post ${params.campaignName ? `in campaign <strong>${params.campaignName}</strong> ` : ""}${subjectFragment} on ${failed.length}/${total} platform${total === 1 ? "" : "s"}.</p>
+    <div class="stats-box">
+      ${publishResultsHtml(params.results)}
+    </div>
+    <p style="font-size: 13px; color: #666; margin-top: 16px;"><strong>Caption preview:</strong></p>
+    <blockquote style="border-left: 3px solid #e5e7eb; padding: 8px 12px; margin: 8px 0; color: #555; background: #f9fafb;">${captionPreview}</blockquote>
+    <p style="text-align: center;">
+      <a href="${APP_URL}/content/schedule" class="button">View in Schedule</a>
+    </p>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `${APP_NAME}: Post ${subjectFragment}`,
+    html: baseTemplate(content, "Your scheduled post had a publishing issue"),
+  });
+}

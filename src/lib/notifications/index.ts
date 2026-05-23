@@ -40,6 +40,7 @@ import {
   sendEcomTrialExpiredEmail,
   sendEcomTrialConvertedEmail,
   sendDesignInvitationEmail,
+  sendPostPublishFailedEmail,
 } from "@/lib/email";
 
 // ── Notification Types ──
@@ -103,6 +104,8 @@ export const NOTIFICATION_TYPES = {
   AI_GENERATION_COMPLETE: "AI_GENERATION_COMPLETE",
   POST_SCHEDULED: "POST_SCHEDULED",
   POST_PUBLISHED: "POST_PUBLISHED",
+  POST_PUBLISH_FAILED: "POST_PUBLISH_FAILED",
+  POST_PUBLISH_PARTIAL: "POST_PUBLISH_PARTIAL",
 
   // Engagement
   ENGAGEMENT_MILESTONE: "ENGAGEMENT_MILESTONE",
@@ -1865,4 +1868,69 @@ export async function notifyDesignEdited(params: {
     message: `${params.editorName} edited "${params.designName}".`,
     actionUrl: `/studio?id=${params.designId}`,
   });
+}
+
+/**
+ * Notify user when a scheduled post had publishing issues on one or more
+ * connected social platforms. Fires from the scheduled-post-publisher right
+ * after the per-platform push attempts return. Always creates an in-app
+ * notification; sends an email when at least one platform failed (success-
+ * only quiet — no inbox spam).
+ */
+export async function notifyPostPublishResult(params: {
+  userId: string;
+  email?: string | null;
+  name?: string | null;
+  postId: string;
+  caption: string;
+  results: Array<{ platform: string; success: boolean; error?: string }>;
+  campaignName?: string | null;
+}) {
+  const failed = params.results.filter((r) => !r.success);
+  const succeeded = params.results.filter((r) => r.success);
+  if (params.results.length === 0) return; // no external platforms attempted
+
+  const allFailed = failed.length === params.results.length;
+  const type = allFailed
+    ? NOTIFICATION_TYPES.POST_PUBLISH_FAILED
+    : failed.length > 0
+    ? NOTIFICATION_TYPES.POST_PUBLISH_PARTIAL
+    : NOTIFICATION_TYPES.POST_PUBLISHED;
+
+  const title = allFailed
+    ? "Post failed to publish"
+    : failed.length > 0
+    ? `Post published to ${succeeded.length}/${params.results.length} platforms`
+    : "Post published";
+
+  const platformSummary = params.results
+    .map((r) => `${r.platform}${r.success ? " ✓" : ` ✗${r.error ? `: ${r.error}` : ""}`}`)
+    .join(" · ");
+  const message = `${params.campaignName ? `${params.campaignName} — ` : ""}${platformSummary}`;
+
+  await createNotification({
+    userId: params.userId,
+    type,
+    title,
+    message,
+    data: { postId: params.postId, results: params.results },
+    actionUrl: "/content/schedule",
+  });
+
+  // Email only when at least one platform failed — successful all-platform
+  // posts don't warrant an inbox notification.
+  if (failed.length > 0 && params.email) {
+    try {
+      await sendPostPublishFailedEmail({
+        to: params.email,
+        name: params.name || "there",
+        postId: params.postId,
+        caption: params.caption,
+        results: params.results,
+        campaignName: params.campaignName || undefined,
+      });
+    } catch (err) {
+      console.error("[notifyPostPublishResult] email failed:", err);
+    }
+  }
 }
