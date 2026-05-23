@@ -89,6 +89,9 @@ interface ScheduledPost {
   reviewStatus?: string;
   triggerType?: string;
   mediaMode?: string;
+  /** Per-platform publish outcomes. Populated for itemType="post" rows once
+   *  the publisher has attempted external delivery. */
+  publishResults?: Array<{ platform: string; success: boolean; error?: string }>;
   caption: string;
   title?: string;
   description?: string | null;
@@ -1527,6 +1530,25 @@ export default function ContentSchedulePage() {
                     </div>
                   )}
 
+                  {Array.isArray(selectedPost.publishResults) && selectedPost.publishResults.length > 0 && (
+                    <div className="mt-3 space-y-1 border-t pt-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Publish results</div>
+                      {selectedPost.publishResults.map((r) => (
+                        <div key={r.platform} className="flex items-start justify-between gap-2 text-xs">
+                          <span className="capitalize text-zinc-700 dark:text-zinc-300">{r.platform}</span>
+                          {r.success ? (
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">Posted ✓</span>
+                          ) : (
+                            <span className="text-right font-medium text-rose-600 dark:text-rose-400">
+                              Failed
+                              {r.error ? <span className="block text-[10px] font-normal opacity-75">{r.error}</span> : null}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="mt-3 flex gap-2 border-t pt-3">
                     {selectedPost.itemType === "strategy" ? (
                       <Button size="sm" className="flex-1 bg-brand-500 text-white hover:bg-brand-600" onClick={() => openEditNotePanel(selectedPost)}>
@@ -1668,6 +1690,30 @@ export default function ContentSchedulePage() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Per-platform publish results */}
+                {Array.isArray(selectedPost.publishResults) && selectedPost.publishResults.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground font-medium">Publish results</Label>
+                    <div className="rounded-lg border border-border/40 bg-muted/30 divide-y divide-border/40">
+                      {selectedPost.publishResults.map((r) => (
+                        <div key={r.platform} className="flex items-start justify-between gap-3 px-3 py-2">
+                          <span className="text-sm font-medium capitalize text-foreground">{r.platform}</span>
+                          {r.success ? (
+                            <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Posted ✓</span>
+                          ) : (
+                            <div className="text-right">
+                              <div className="text-sm font-medium text-rose-600 dark:text-rose-400">Failed</div>
+                              {r.error && (
+                                <div className="text-xs text-rose-500/80 dark:text-rose-400/80 mt-0.5 max-w-[280px]">{r.error}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
