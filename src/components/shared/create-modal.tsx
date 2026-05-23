@@ -1552,9 +1552,9 @@ function FlowCreativeModal({
                     )}
                   </span>
                 </button>
+                {templatesExpanded ? (
                 <div
                   id="flowcreative-templates-grid"
-                  hidden={!templatesExpanded}
                   className="grid max-h-[360px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 md:grid-cols-3"
                 >
                   <button
@@ -1656,6 +1656,7 @@ function FlowCreativeModal({
                     );
                   })}
                 </div>
+                ) : null}
               </div>
 
               <div className="space-y-2">
