@@ -19,7 +19,11 @@ interface CalendarSource {
   meta?: { icon?: string; description?: string };
 }
 
-type TriggerType = "RECURRING" | "CALENDAR_EVENT" | "ONE_OFF" | "AI_GENERATED";
+// AI_GENERATED is intentionally NOT in the new UI — it conflated content
+// generation with schedule. Existing rows in the DB still keep that value;
+// new items pick a schedule (CALENDAR_EVENT / RECURRING / ONE_OFF) and a
+// separate content mode (AI / MANUAL) below.
+type TriggerType = "RECURRING" | "CALENDAR_EVENT" | "ONE_OFF";
 
 const ALL_PLATFORMS = [
   "instagram",
@@ -82,6 +86,14 @@ export default function AddItemDialog({
   // One-off state
   const [oneOffStart, setOneOffStart] = useState("");
 
+  // Content generation — independent of schedule. "AI" means the post copy
+  // is generated at post time from the topic/brief. "MANUAL" means the user
+  // types the exact copy below. Backend already supports the combination
+  // (aiPrompt vs copy fields); the old AI_GENERATED triggerType is no
+  // longer offered as a schedule.
+  const [contentMode, setContentMode] = useState<"AI" | "MANUAL">("AI");
+  const [manualCopy, setManualCopy] = useState("");
+
   // Picker UI — collapsed by default once a source is selected so the user
   // doesn't have to scroll past 12 months of entries every time. Opens
   // automatically while none is picked.
@@ -142,6 +154,12 @@ export default function AddItemDialog({
       platforms,
       mediaMode,
       aiTone: defaultTone,
+      // Content generation. AI mode passes the topic through as the
+      // generation prompt and leaves copy null so the scheduler generates
+      // fresh text at post time. Manual mode passes the exact copy and
+      // leaves aiPrompt null.
+      aiPrompt: contentMode === "AI" ? topic.trim() || null : null,
+      copy: contentMode === "MANUAL" ? manualCopy.trim() || null : null,
     };
 
     if (triggerType === "CALENDAR_EVENT" && selectedSource) {
@@ -248,14 +266,13 @@ export default function AddItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Trigger</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <Label>Schedule</Label>
+            <div className="grid grid-cols-3 gap-2">
               {(
                 [
                   { v: "CALENDAR_EVENT", label: "Calendar event", icon: CalendarDays },
                   { v: "RECURRING", label: "Recurring", icon: Repeat },
                   { v: "ONE_OFF", label: "One-off", icon: Zap },
-                  { v: "AI_GENERATED", label: "AI generated", icon: Sparkles },
                 ] as const
               ).map(({ v, label, icon: Icon }) => (
                 <button
@@ -461,6 +478,44 @@ export default function AddItemDialog({
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Content</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { v: "AI" as const, label: "AI generates each fire", icon: Sparkles, desc: "Uses the topic above to write fresh copy at post time" },
+                  { v: "MANUAL" as const, label: "I'll write the copy", icon: Plus, desc: "Type the exact post text below" },
+                ]
+              ).map(({ v, label, icon: Icon, desc }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setContentMode(v)}
+                  className={`text-left px-3 py-2 rounded-md border text-sm ${
+                    contentMode === v
+                      ? "bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                      : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</div>
+                </button>
+              ))}
+            </div>
+            {contentMode === "MANUAL" && (
+              <Textarea
+                value={manualCopy}
+                onChange={(e) => setManualCopy(e.target.value)}
+                placeholder="Type the exact caption to use for this post..."
+                rows={3}
+                className="mt-2"
+              />
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label>Platforms</Label>
