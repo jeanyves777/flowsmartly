@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         amount: creditCost,
         description: `AI suggest (${field})`,
         referenceType: "ContentCampaign",
-        referenceId: body.campaignId ?? body.itemId ?? null,
+        referenceId: body.campaignId ?? body.itemId ?? undefined,
         metadata: { field, costKey },
       });
       balanceAfter = deduction.transaction?.balanceAfter ?? null;
