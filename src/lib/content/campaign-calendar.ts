@@ -65,15 +65,28 @@ function applyTime(date: Date, time: string): Date {
  * Only includes automations whose parent campaign is ACTIVE and that are
  * APPROVED and enabled. Does NOT create Posts or write logs — pure preview.
  *
- * Handles CALENDAR_EVENT (resolves source date + applies offsets) and
- * ONE_OFF (startDate). RECURRING is skipped here for v1 — it expands into
- * many cells which deserves its own treatment.
+ * Handles CALENDAR_EVENT (resolves source date + applies offsets),
+ * ONE_OFF (startDate), and RECURRING (DAILY / WEEKLY / MONTHLY).
+ *
+ * Past occurrences (before today) are excluded — they've already fired
+ * (real Posts in the posts table) or were missed, so showing them as
+ * "upcoming" misleads the user. We clamp the effective floor to today.
  */
 export async function enumerateCampaignAutomationOccurrences(
   userId: string,
   rangeStart: Date,
   rangeEnd: Date,
 ): Promise<CampaignAutomationOccurrence[]> {
+  // Clamp the lower bound to today so past dates in the visible calendar
+  // grid don't get filled with virtual "scheduled" tiles for recurring
+  // automations that may have already fired or been skipped.
+  const now = new Date();
+  const todayFloor = startOfDay(now);
+  const effectiveStart = rangeStart > todayFloor ? rangeStart : todayFloor;
+  if (effectiveStart > rangeEnd) {
+    // Entire range is in the past — nothing to emit.
+    return [];
+  }
   const automations = await prisma.contentAutomation.findMany({
     where: {
       userId,
@@ -121,7 +134,7 @@ export async function enumerateCampaignAutomationOccurrences(
           addDays(src.date, off.days),
           off.time,
         );
-        if (occurrenceAt < rangeStart || occurrenceAt > rangeEnd) continue;
+        if (occurrenceAt < effectiveStart || occurrenceAt > rangeEnd) continue;
 
         const occurrenceKey = `${a.calendarSourceType}-${a.calendarSourceId}:offset-${off.days}`;
         out.push({
@@ -135,7 +148,7 @@ export async function enumerateCampaignAutomationOccurrences(
 
     if (a.triggerType === "ONE_OFF") {
       if (!a.startDate) continue;
-      if (a.startDate < rangeStart || a.startDate > rangeEnd) continue;
+      if (a.startDate < effectiveStart || a.startDate > rangeEnd) continue;
       out.push({
         ...base,
         id: `${a.id}:one-off`,
@@ -152,14 +165,14 @@ export async function enumerateCampaignAutomationOccurrences(
       const time = cfg.time ?? "09:00";
       const freq = cfg.frequency ?? "ONCE";
 
-      const startCursor = startOfDay(rangeStart);
+      const startCursor = startOfDay(effectiveStart);
       const endCursor = endOfDay(rangeEnd);
 
       if (freq === "ONCE") {
         const ref = cfg.firstRunDate ? new Date(cfg.firstRunDate) : null;
         if (ref) {
           const at = applyTime(ref, time);
-          if (at >= rangeStart && at <= rangeEnd) {
+          if (at >= effectiveStart && at <= rangeEnd) {
             out.push({
               ...base,
               id: `${a.id}:once-${at.toISOString().slice(0, 10)}`,
@@ -171,7 +184,7 @@ export async function enumerateCampaignAutomationOccurrences(
         // One occurrence per day in range at the configured time.
         for (let cur = new Date(startCursor); cur <= endCursor; cur = addDays(cur, 1)) {
           const at = applyTime(cur, time);
-          if (at < rangeStart || at > rangeEnd) continue;
+          if (at < effectiveStart || at > rangeEnd) continue;
           out.push({
             ...base,
             id: `${a.id}:daily-${at.toISOString().slice(0, 10)}`,
@@ -183,7 +196,7 @@ export async function enumerateCampaignAutomationOccurrences(
         for (let cur = new Date(startCursor); cur <= endCursor; cur = addDays(cur, 1)) {
           if (cur.getDay() !== targetDow) continue;
           const at = applyTime(cur, time);
-          if (at < rangeStart || at > rangeEnd) continue;
+          if (at < effectiveStart || at > rangeEnd) continue;
           out.push({
             ...base,
             id: `${a.id}:weekly-${at.toISOString().slice(0, 10)}`,
@@ -197,7 +210,7 @@ export async function enumerateCampaignAutomationOccurrences(
         while (cursor <= endCursor) {
           const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
           const at = applyTime(d, time);
-          if (at >= rangeStart && at <= rangeEnd) {
+          if (at >= effectiveStart && at <= rangeEnd) {
             out.push({
               ...base,
               id: `${a.id}:monthly-${at.toISOString().slice(0, 10)}`,
