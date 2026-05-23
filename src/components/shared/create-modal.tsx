@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useRouter } from "next/navigation";
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Download,
   ExternalLink,
@@ -20,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
@@ -31,19 +32,40 @@ import { useToast } from "@/hooks/use-toast";
 
 type FlowMediaMode = "image" | "video";
 type FlowMediaAspect = "1:1" | "9:16" | "16:9";
+type FlowMediaTier = "standard" | "premium";
 type FlowVideoDuration = 8 | 15 | 30;
-type FlowVideoSpeechMode =
-  | "talking_review"
-  | "site_walkthrough"
-  | "voiceover_presentation"
-  | "visual_only";
+
+const imageProviderForTier = (tier: FlowMediaTier) => (tier === "premium" ? "openai" : "xai");
+const videoProviderForTier = (tier: FlowMediaTier) => (tier === "premium" ? "veo3" : "grok");
+
+const FLOW_MEDIA_TIERS: Array<{
+  id: FlowMediaTier;
+  label: string;
+  helper: { image: string; video: string };
+}> = [
+  {
+    id: "standard",
+    label: "Standard",
+    helper: {
+      image: "Fast, brand-safe image generation. Best for everyday campaign visuals.",
+      video: "Fast short-form video generation, great for hooks and product moments.",
+    },
+  },
+  {
+    id: "premium",
+    label: "Premium",
+    helper: {
+      image: "Highest-fidelity image engine, slower but sharpest text and detail.",
+      video: "Best-in-class long-form video engine with stronger continuity.",
+    },
+  },
+];
 
 type FlowMediaTemplate = {
   id: string;
   title: string;
   mode: FlowMediaMode;
   aspect: FlowMediaAspect;
-  speechMode?: FlowVideoSpeechMode;
   duration?: FlowVideoDuration;
   prompt: string;
   badge: string;
@@ -168,38 +190,6 @@ const FLOW_VIDEO_DURATIONS: Array<{ seconds: FlowVideoDuration; label: string; h
   { seconds: 30, label: "30 sec", helper: "Full message with stronger continuity planning." },
 ];
 
-const FLOW_VIDEO_SPEECH_MODES: Array<{
-  id: FlowVideoSpeechMode;
-  label: string;
-  helper: string;
-  rule: string;
-}> = [
-  {
-    id: "talking_review",
-    label: "Talking review",
-    helper: "Realistic presenter talking with the product visible.",
-    rule: "Show a visible presenter speaking naturally to camera. Use native synchronized speech from the visible speaker only.",
-  },
-  {
-    id: "site_walkthrough",
-    label: "Site walkthrough",
-    helper: "Presenter or guided screen walkthrough.",
-    rule: "Show a website, landing page, product page, or offer walkthrough with clear screen highlights and a visible presenter when requested.",
-  },
-  {
-    id: "voiceover_presentation",
-    label: "Voiceover",
-    helper: "Presentation visuals with narration.",
-    rule: "Use clear product, website, feature, and benefit visuals designed for narration. Do not show a lip-sync presenter talking to camera.",
-  },
-  {
-    id: "visual_only",
-    label: "Visual only",
-    helper: "No speech, product-first visual storytelling.",
-    rule: "No spoken words, no presenter dialogue, no voiceover, and no subtitles unless requested.",
-  },
-];
-
 const getBrandName = (brandKit?: BrandKit | null) => brandKit?.name?.trim() || "your brand";
 
 const joinBrandList = (items?: string[] | null, fallback = "") => {
@@ -277,9 +267,6 @@ const buildFlowCreativeEditPrompt = (
 
 const getFlowMediaAspect = (aspect: FlowMediaAspect) =>
   FLOW_MEDIA_ASPECTS.find((option) => option.id === aspect) || FLOW_MEDIA_ASPECTS[0];
-
-const getFlowVideoSpeechMode = (mode: FlowVideoSpeechMode) =>
-  FLOW_VIDEO_SPEECH_MODES.find((option) => option.id === mode) || FLOW_VIDEO_SPEECH_MODES[0];
 
 const normalizeGeneratedMediaUrl = (url: unknown) =>
   typeof url === "string" && url.trim() ? url.trim() : "";
@@ -857,7 +844,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Promo video idea",
       mode: "video",
       aspect: "9:16",
-      speechMode: "visual_only",
       badge: "FlowCreative video",
       helper: "Short vertical reel for a product, offer, or service hook.",
       thumbnail: "/templates/flow-media/video-promo-reel.jpg",
@@ -868,7 +854,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Story walkthrough",
       mode: "video",
       aspect: "16:9",
-      speechMode: "voiceover_presentation",
       badge: "FlowCreative video",
       helper: "Wide story arc from customer problem to branded solution and CTA.",
       thumbnail: "/templates/flow-media/video-brand-story.jpg",
@@ -879,7 +864,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Talking review",
       mode: "video",
       aspect: "9:16",
-      speechMode: "talking_review",
       duration: 15,
       badge: "FlowCreative video",
       helper: "TikTok-style presenter review with the product visible in hand.",
@@ -891,7 +875,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Website walkthrough",
       mode: "video",
       aspect: "16:9",
-      speechMode: "site_walkthrough",
       badge: "FlowCreative video",
       helper: "Website or landing-page walkthrough with guided screen highlights.",
       thumbnail: "/templates/flow-media/video-website-walkthrough.jpg",
@@ -902,7 +885,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Voiceover presentation",
       mode: "video",
       aspect: "16:9",
-      speechMode: "voiceover_presentation",
       badge: "FlowCreative video",
       helper: "Clean narrated presentation with slides, proof points, and CTA.",
       thumbnail: "/templates/flow-media/video-voiceover-presentation.jpg",
@@ -913,7 +895,6 @@ const buildFlowMediaTemplates = (brandKit: BrandKit | null, channels: string): F
       title: "Visual showcase",
       mode: "video",
       aspect: "9:16",
-      speechMode: "visual_only",
       badge: "FlowCreative video",
       helper: "Visual-only product beauty shots with smooth premium transitions.",
       thumbnail: "/templates/flow-media/video-visual-showcase.jpg",
@@ -949,10 +930,10 @@ function FlowCreativeModal({
   const [flowMediaPrompt, setFlowMediaPrompt] = useState(initialFlowMediaPrompt);
   const [flowMediaAspect, setFlowMediaAspect] = useState<FlowMediaAspect>(isWhatsAppStatusTarget ? "9:16" : "1:1");
   const [flowMediaStyle, setFlowMediaStyle] = useState("modern");
+  const [flowMediaTier, setFlowMediaTier] = useState<FlowMediaTier>("standard");
   const [flowVideoDuration, setFlowVideoDuration] = useState<FlowVideoDuration>(8);
-  const [flowVideoSpeechMode, setFlowVideoSpeechMode] = useState<FlowVideoSpeechMode>("talking_review");
   const [flowMediaReferenceUrls, setFlowMediaReferenceUrls] = useState<string[]>([]);
-  const [flowMediaQualityCheckEnabled, setFlowMediaQualityCheckEnabled] = useState(false);
+  const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const [generatedFlowMedia, setGeneratedFlowMedia] = useState<GeneratedMedia | null>(null);
   const [flowMediaCreationMemory, setFlowMediaCreationMemory] = useState<FlowMediaCreationMemory | null>(null);
   const [flowMediaStatus, setFlowMediaStatus] = useState("");
@@ -1000,7 +981,6 @@ function FlowCreativeModal({
     if (!firstTemplate || visibleFlowMediaTemplates.some((template) => template.id === selectedFlowMediaTemplateId)) return;
     setSelectedFlowMediaTemplateId(firstTemplate.id);
     setFlowMediaAspect(isWhatsAppStatusTarget && firstTemplate.mode === "image" ? "9:16" : firstTemplate.aspect);
-    if (firstTemplate.speechMode) setFlowVideoSpeechMode(firstTemplate.speechMode);
     if (firstTemplate.duration) setFlowVideoDuration(firstTemplate.duration);
   }, [isWhatsAppStatusTarget, selectedFlowMediaTemplateId, visibleFlowMediaTemplates]);
 
@@ -1013,12 +993,13 @@ function FlowCreativeModal({
     setSelectedFlowMediaTemplateId(template.id);
     setFlowMediaMode(template.mode);
     setFlowMediaAspect(isWhatsAppStatusTarget && template.mode === "image" ? "9:16" : template.aspect);
-    if (template.speechMode) setFlowVideoSpeechMode(template.speechMode);
     if (template.duration) setFlowVideoDuration(template.duration);
+    setFlowMediaPrompt((current) => (current.trim() ? current : template.prompt));
     setGeneratedFlowMedia(null);
     setFlowMediaCreationMemory(null);
     setFlowMediaStatus("");
     setFlowMediaImprovePrompt("");
+    setTemplatesExpanded(false);
   };
 
   const usePromptOnlyFlowMedia = (mode: FlowMediaMode = flowMediaMode) => {
@@ -1029,6 +1010,7 @@ function FlowCreativeModal({
     setFlowMediaCreationMemory(null);
     setFlowMediaStatus("");
     setFlowMediaImprovePrompt("");
+    setTemplatesExpanded(false);
   };
 
   const handleDownload = async () => {
@@ -1162,7 +1144,7 @@ function FlowCreativeModal({
           category: "social_post",
           size: aspect.imageSize,
           style: flowMediaStyle,
-          provider: "xai",
+          provider: imageProviderForTier(flowMediaTier),
           promptMode: "edit",
           brandIdentity: buildRawBrandIdentity(brandKit),
           brandColors: brandKit?.colors || null,
@@ -1174,7 +1156,6 @@ function FlowCreativeModal({
           editReferenceMode: "exact",
           editReferenceImageUrls: flowMediaReferenceUrls,
           referenceImageUrls: flowMediaReferenceUrls,
-          qualityCheckEnabled: flowMediaQualityCheckEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1222,7 +1203,6 @@ function FlowCreativeModal({
       source: "flowcreative",
       hasReferenceImages: flowMediaReferenceUrls.length > 0,
       referenceCount: flowMediaReferenceUrls.length,
-      qualityCheckEnabled: flowMediaQualityCheckEnabled,
       brandName: brandKit?.name || null,
     });
 
@@ -1242,18 +1222,9 @@ function FlowCreativeModal({
 
     const aspect = getFlowMediaAspect(flowMediaAspect);
     const primaryReferenceImageUrl = flowMediaReferenceUrls[0] || null;
-    const templateImageUrl = selectedFlowMediaTemplate?.thumbnail || null;
-    const flowVideoReferenceUrls = [
-      ...flowMediaReferenceUrls,
-      templateImageUrl,
-    ].filter((url): url is string => typeof url === "string" && url.trim().length > 0).slice(0, 4);
-    const videoSpeechOption = getFlowVideoSpeechMode(flowVideoSpeechMode);
-    const videoCategoryBySpeechMode: Record<FlowVideoSpeechMode, string> = {
-      talking_review: "testimonial",
-      site_walkthrough: "explainer",
-      voiceover_presentation: "explainer",
-      visual_only: "product_ad",
-    };
+    const flowVideoReferenceUrls = flowMediaReferenceUrls
+      .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+      .slice(0, 4);
     const referenceImageNote = flowMediaReferenceUrls.length
       ? `Reference image${flowMediaReferenceUrls.length > 1 ? "s" : ""}: ${flowMediaReferenceUrls.join(", ")}`
       : null;
@@ -1265,13 +1236,19 @@ function FlowCreativeModal({
     const exactReferencePolicy = flowMediaReferenceUrls.length
       ? "Exact reference handling: use the uploaded reference as the real subject source. Do not synthesize a similar-looking face, group, product, or logo. Integrate the exact product, person, style, or scene naturally when the prompt asks for it."
       : null;
+    // From-scratch ⇒ NO template inspiration line. Selecting a template
+    // appends only a layout-hint, never copy/products/people from the template.
+    const templateInspiration = selectedFlowMediaTemplate
+      ? `Layout inspiration only: ${selectedFlowMediaTemplate.title} (${selectedFlowMediaTemplate.helper || "structured campaign layout"}). Use only the overall layout idea (hierarchy, spacing, CTA placement, photo placement) as inspiration. Do NOT pull in placeholder copy, sample products, people, brands, prices, dates, statistics, testimonials, or any other content from a template. Every visible element must come from the user's prompt, brand kit, or uploaded references.`
+      : null;
+    const antiInventionPolicy =
+      "Content rule: render ONLY the messaging, products, names, prices, dates, claims, and visuals that the user explicitly provided in the prompt, brand kit, or uploaded references. Do not invent extra products, customer names, addresses, statistics, reviews, badges, promo codes, dates, or any other content the user did not provide.";
     const imagePrompt = [
       prompt,
-      templateImageUrl
-        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. Use the attached template as a reference design for grid, alignment, hierarchy, spacing, CTA placement, and photo placement. Do not copy its placeholder text, fake logo area, sample product, sample people, or brand, and do not reproduce visible logo-space boxes or indicators.`
-        : null,
+      templateInspiration,
       exactReferencePolicy,
       logoPolicy,
+      antiInventionPolicy,
       "Quality: keep the final visual sharp, high-resolution, readable, and free of unnecessary repainting in unchanged areas.",
     ]
       .filter(Boolean)
@@ -1280,21 +1257,12 @@ function FlowCreativeModal({
       "Brand identity:",
       JSON.stringify(rawBrandIdentity, null, 2),
       `Target video length: ${flowVideoDuration} seconds.`,
-      `Video format: ${videoSpeechOption.label}. ${videoSpeechOption.rule}`,
-      templateImageUrl
-        ? `Selected visual template: ${selectedFlowMediaTemplate?.title || "FlowCreative template"}. The attached template image is the reference design for grid, alignment, hierarchy, timing, and CTA placement. Do not copy its placeholder text, fake logo area, product, people, brand, or visible logo-space indicators. Use the user's prompt, uploaded references, and real brand kit for the final media.`
+      selectedFlowMediaTemplate
+        ? `Layout inspiration only: ${selectedFlowMediaTemplate.title} (${selectedFlowMediaTemplate.helper || "structured short-form video"}). Use only the overall pacing and CTA placement idea as inspiration. Do NOT pull in placeholder copy, sample products, people, brands, prices, dates, or claims from any template. Every spoken or visible element must come from the user's prompt, brand kit, or uploaded references.`
         : null,
+      antiInventionPolicy,
       flowMediaReferenceUrls.length
         ? "Reference lock: use the provided reference media as the exact subject source. If a product image is provided, preserve that exact product, silhouette, color, material, labels, and details. If a person image is provided, preserve that exact person's appearance, age range, skin tone, hairstyle, clothing style, and face/body identity as much as the provider allows. Do not invent a different bag, product, presenter, model, or website when references are supplied."
-        : null,
-      flowVideoSpeechMode === "talking_review" && flowMediaReferenceUrls.length > 1
-        ? "Talking review reference roles: treat the first uploaded image as the presenter/face identity when it contains a person. Treat the second and later uploaded images as the exact product, bag, website, or supporting assets. Combine them without changing either identity. Do not turn the product into a different color, shape, brand, material, or item."
-        : null,
-      flowVideoSpeechMode === "talking_review"
-        ? "Talking review anatomy and scene rules: show exactly one presenter, one head, one torso, two arms, two hands, natural fingers, and a normal pose. Do not add extra arms, duplicate hands, duplicate products, floating limbs, overhead holding poses, or product placement that covers the face. If the hand pose is uncertain, place the product beside the presenter, on a table, or as a clean product insert."
-        : null,
-      flowVideoSpeechMode === "talking_review"
-        ? "Review presentation: improve the background into a clean creator-review or lifestyle setting while preserving the presenter's face and the exact product. Add tasteful TikTok/Reels-style review cues such as a short Honest review hook, star rating, comment card, progress bar, or LIVE-style engagement indicators. Keep text readable and do not cover the face or product."
         : null,
       logoPolicy,
       "Continuity requirements: keep the same person, product, bag, brand colors, lighting, and visual identity from the first second to the final frame. The story must feel seamless with no reset, no visible gap, no sudden identity change, and no disconnected scenes.",
@@ -1324,7 +1292,7 @@ function FlowCreativeModal({
             category: "social_post",
             size: aspect.imageSize,
             style: flowMediaStyle,
-            provider: "xai",
+            provider: imageProviderForTier(flowMediaTier),
             strictProvider: true,
             promptMode: "raw_brand",
             brandIdentity: rawBrandIdentity,
@@ -1338,12 +1306,11 @@ function FlowCreativeModal({
             showSocialIcons: true,
             socialHandles: brandKit?.handles || null,
             referenceImageUrl: primaryReferenceImageUrl,
-            templateImageUrl,
+            templateImageUrl: null,
             referenceImageUrls: flowMediaReferenceUrls,
             compositeReferenceSubject: false,
             logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
             ctaText: null,
-            qualityCheckEnabled: flowMediaQualityCheckEnabled,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -1376,19 +1343,21 @@ function FlowCreativeModal({
         return;
       }
 
+      // No speechMode / voiceOver / category — we let the underlying AI
+      // decide the best fit based on the user's prompt rather than imposing
+      // our own format rules. `voiceOver: false` keeps the server from
+      // adding narration by default (it otherwise defaults to "nova").
       const res = await fetch("/api/ai/video-studio/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: rawVideoPrompt,
-          category: videoCategoryBySpeechMode[flowVideoSpeechMode],
           aspectRatio: flowMediaAspect,
           duration: flowVideoDuration,
           style: flowMediaStyle,
           resolution: "720p",
-          provider: "auto",
-          speechMode: flowVideoSpeechMode,
-          voiceOver: flowVideoSpeechMode === "voiceover_presentation" ? "nova" : false,
+          provider: videoProviderForTier(flowMediaTier),
+          voiceOver: false,
           brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
           brandName: brandKit?.name || null,
           referenceImageUrl: primaryReferenceImageUrl,
@@ -1554,11 +1523,40 @@ function FlowCreativeModal({
           ) : (
             <>
               <div className="space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
-                  {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
-                </div>
-                <div className="grid max-h-[360px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setTemplatesExpanded((prev) => !prev)}
+                  aria-expanded={templatesExpanded}
+                  aria-controls="flowcreative-templates-grid"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border bg-background/70 px-3 py-2 text-left transition hover:border-amber-500/50"
+                >
+                  <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                    {flowMediaMode === "image" ? "Image templates" : "Video story templates"}
+                    {selectedFlowMediaTemplate ? (
+                      <span className="ml-2 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-brand-700 dark:text-brand-300">
+                        {selectedFlowMediaTemplate.title}
+                      </span>
+                    ) : (
+                      <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-muted-foreground">
+                        From scratch
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                    {templatesExpanded ? "Hide" : "Browse"}
+                    {templatesExpanded ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                </button>
+                <div
+                  id="flowcreative-templates-grid"
+                  hidden={!templatesExpanded}
+                  className="grid max-h-[360px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 md:grid-cols-3"
+                >
                   <button
                     type="button"
                     onClick={() => usePromptOnlyFlowMedia(flowMediaMode)}
@@ -1673,9 +1671,7 @@ function FlowCreativeModal({
               {flowMediaMode === "video" ? (
                 <VideoControls
                   flowVideoDuration={flowVideoDuration}
-                  flowVideoSpeechMode={flowVideoSpeechMode}
                   onDurationChange={setFlowVideoDuration}
-                  onSpeechModeChange={setFlowVideoSpeechMode}
                 />
               ) : null}
 
@@ -1699,23 +1695,9 @@ function FlowCreativeModal({
                   libraryTitle="Choose reference image"
                 />
                 <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                  Add the exact product, person, style, or scene references. The first image is treated as the real subject source for image designs; for talking reviews, upload the presenter first and product second.
+                  Add the exact product, person, style, or scene references. The first image is treated as the real subject source for image designs.
                 </p>
               </div>
-
-              {flowMediaMode === "image" ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl border bg-background/70 p-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold">Quality check</p>
-                    <p className="line-clamp-1 text-[11px] text-muted-foreground">Review and retry before delivery. Uses 3x credits.</p>
-                  </div>
-                  <Switch
-                    checked={flowMediaQualityCheckEnabled}
-                    onCheckedChange={setFlowMediaQualityCheckEnabled}
-                    aria-label="Enable FlowCreative media quality check"
-                  />
-                </div>
-              ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -1753,6 +1735,37 @@ function FlowCreativeModal({
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Engine tier</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {FLOW_MEDIA_TIERS.map((tier) => {
+                    const isActive = flowMediaTier === tier.id;
+                    return (
+                      <button
+                        key={tier.id}
+                        type="button"
+                        onClick={() => setFlowMediaTier(tier.id)}
+                        className={`rounded-xl border p-2.5 text-left transition ${
+                          isActive ? "border-cyan-500 bg-cyan-500/10 shadow-sm" : "bg-background hover:border-cyan-500/40"
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold">{tier.label}</span>
+                          {isActive ? (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-white">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                          {flowMediaMode === "image" ? tier.helper.image : tier.helper.video}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </>
@@ -1827,14 +1840,10 @@ function FlowCreativeModal({
 
 function VideoControls({
   flowVideoDuration,
-  flowVideoSpeechMode,
   onDurationChange,
-  onSpeechModeChange,
 }: {
   flowVideoDuration: FlowVideoDuration;
-  flowVideoSpeechMode: FlowVideoSpeechMode;
   onDurationChange: (duration: FlowVideoDuration) => void;
-  onSpeechModeChange: (mode: FlowVideoSpeechMode) => void;
 }) {
   return (
     <div className="space-y-3 rounded-2xl border bg-background/70 p-3">
@@ -1845,7 +1854,7 @@ function VideoControls({
             Video length
           </div>
           <p className="text-xs text-muted-foreground">
-            Short clips can use xAI/Grok when available. Longer clips use FlowCreative continuity planning and provider fallback.
+            FlowCreative picks the best format, pacing, and audio for your prompt — no extra rules to choose from.
           </p>
         </div>
         <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
@@ -1875,30 +1884,6 @@ function VideoControls({
           30-second videos are planned as one message with continuity instructions so the subject, product, and brand identity stay consistent from start to finish.
         </p>
       ) : null}
-      <div className="space-y-2 border-t pt-3">
-        <div className="flex items-center gap-2 text-sm font-bold">
-          <Video className="h-4 w-4 text-cyan-600" />
-          Audio and story format
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {FLOW_VIDEO_SPEECH_MODES.map((option) => {
-            const isActive = flowVideoSpeechMode === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => onSpeechModeChange(option.id)}
-                className={`rounded-xl border p-3 text-left transition ${
-                  isActive ? "border-cyan-500 bg-cyan-500/10" : "bg-background hover:border-cyan-500/40"
-                }`}
-              >
-                <span className="block text-sm font-bold">{option.label}</span>
-                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{option.helper}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
