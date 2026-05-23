@@ -99,6 +99,19 @@ export async function POST(request: NextRequest, { params }: Params) {
         console.error("[bulk-update] action failed for", it.id, err);
       }
     }
+    // Auto-arm: a DRAFT campaign flips to ACTIVE the moment any item is
+    // approved (mirrors the per-item review endpoint).
+    if (body.action === "approve" && succeeded > 0) {
+      await prisma.contentCampaign
+        .updateMany({
+          where: { id: campaignId, userId: session.userId, status: "DRAFT" },
+          data: { status: "ACTIVE" },
+        })
+        .catch((err) =>
+          console.warn("[bulk-update] auto-activate campaign failed:", err),
+        );
+    }
+
     return NextResponse.json({
       success: true,
       data: { action: body.action, affected: succeeded, total: items.length },

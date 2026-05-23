@@ -19,6 +19,8 @@ import {
   Eye,
   EyeOff,
   RefreshCcw,
+  Play,
+  Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,6 +107,8 @@ const REVIEW_STYLES: Record<string, string> = {
 
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+  ACTIVE: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  PAUSED: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
   SCHEDULED: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
   RUNNING: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   CANCELED: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
@@ -133,7 +137,9 @@ export default function CampaignDetailPage({
   const [showImport, setShowImport] = useState(false);
   const [showBulkUpdate, setShowBulkUpdate] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [campaignBusy, setCampaignBusy] = useState<null | "cancel" | "delete">(null);
+  const [campaignBusy, setCampaignBusy] = useState<
+    null | "cancel" | "delete" | "activate" | "pause" | "resume"
+  >(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -253,6 +259,30 @@ export default function CampaignDetailPage({
     }
   };
 
+  const setCampaignStatus = async (
+    targetStatus: "ACTIVE" | "PAUSED" | "DRAFT",
+    busyKey: "activate" | "pause" | "resume",
+  ) => {
+    if (campaignBusy) return;
+    setCampaignBusy(busyKey);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/content/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: targetStatus }),
+      });
+      const json = await res.json();
+      if (!json?.success) {
+        setActionError(json?.error?.message ?? "Status change failed");
+        return;
+      }
+      await load();
+    } finally {
+      setCampaignBusy(null);
+    }
+  };
+
   const deleteCampaign = async () => {
     const ok = await confirmDialog({
       title: "Delete this draft campaign?",
@@ -293,6 +323,9 @@ export default function CampaignDetailPage({
 
   const campaignCanceled = campaign.status === "CANCELED";
   const campaignDraft = campaign.status === "DRAFT";
+  const campaignActive = campaign.status === "ACTIVE";
+  const campaignPaused = campaign.status === "PAUSED";
+  const hasApprovedItems = approvedCount > 0;
 
   return (
     <div className="space-y-6">
@@ -305,6 +338,21 @@ export default function CampaignDetailPage({
         open={campaignBusy === "delete"}
         currentStep="Deleting draft campaign..."
         subtitle="Cleaning up"
+      />
+      <AILoaderOverlay
+        open={campaignBusy === "activate"}
+        currentStep="Activating campaign..."
+        subtitle="Approved items will start firing on schedule"
+      />
+      <AILoaderOverlay
+        open={campaignBusy === "pause"}
+        currentStep="Pausing campaign..."
+        subtitle="Items stop firing until you resume"
+      />
+      <AILoaderOverlay
+        open={campaignBusy === "resume"}
+        currentStep="Resuming campaign..."
+        subtitle="Approved items will fire on schedule again"
       />
       <div className="flex items-center gap-2">
         <Link
@@ -385,6 +433,46 @@ export default function CampaignDetailPage({
                 Add item
               </Button>
             </>
+          )}
+          {campaignDraft && hasApprovedItems && (
+            <Button
+              onClick={() => setCampaignStatus("ACTIVE", "activate")}
+              disabled={!!campaignBusy}
+            >
+              {campaignBusy === "activate" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Play className="w-4 h-4 mr-2" />
+              )}
+              Activate campaign
+            </Button>
+          )}
+          {campaignActive && (
+            <Button
+              variant="outline"
+              onClick={() => setCampaignStatus("PAUSED", "pause")}
+              disabled={!!campaignBusy}
+            >
+              {campaignBusy === "pause" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Pause className="w-4 h-4 mr-2" />
+              )}
+              Pause campaign
+            </Button>
+          )}
+          {campaignPaused && (
+            <Button
+              onClick={() => setCampaignStatus("ACTIVE", "resume")}
+              disabled={!!campaignBusy}
+            >
+              {campaignBusy === "resume" ? (
+                <AISpinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Play className="w-4 h-4 mr-2" />
+              )}
+              Resume campaign
+            </Button>
           )}
           {campaignDraft && (
             <Button

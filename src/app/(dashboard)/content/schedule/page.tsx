@@ -80,7 +80,15 @@ type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface ScheduledPost {
   id: string;
-  itemType?: "post" | "strategy";
+  itemType?: "post" | "strategy" | "automation";
+  // Set when itemType === "automation" — preview of an upcoming
+  // ContentAutomation occurrence (not yet a real scheduled Post).
+  automationId?: string;
+  campaignId?: string;
+  campaignName?: string;
+  reviewStatus?: string;
+  triggerType?: string;
+  mediaMode?: string;
   caption: string;
   title?: string;
   description?: string | null;
@@ -622,6 +630,13 @@ export default function ContentSchedulePage() {
       openEditNotePanel(post, occurrenceDay);
       return;
     }
+    if (post.itemType === "automation" && post.campaignId && post.automationId) {
+      // Automations live on the campaign item page — the schedule view shows
+      // them as a read-only preview of when they'll fire. Take the user to
+      // the item to edit / unapprove / change media etc.
+      router.push(`/content/campaigns/${post.campaignId}/items/${post.automationId}`);
+      return;
+    }
     setSelectedPost(post);
     setShowPostDetail(true);
   };
@@ -1154,8 +1169,11 @@ export default function ContentSchedulePage() {
                             return (
                               <button
                                 key={post.id}
-                                draggable
-                                onDragStart={(event) => handleDragStart(event, post)}
+                                draggable={post.itemType !== "automation"}
+                                onDragStart={(event) => {
+                                  if (post.itemType === "automation") return;
+                                  handleDragStart(event, post);
+                                }}
                                 onDragEnd={() => {
                                   setDraggingItem(null);
                                   setResizingNote(null);

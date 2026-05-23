@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
+import { enumerateCampaignAutomationOccurrences } from "@/lib/content/campaign-calendar";
 
 type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }>;
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [posts, strategyTasks] = await Promise.all([
+    const [posts, automationOccurrences, strategyTasks] = await Promise.all([
       prisma.post.findMany({
         where: {
           userId: session.userId,
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
+      enumerateCampaignAutomationOccurrences(session.userId, rangeStart, rangeEnd),
       prisma.strategyTask.findMany({
         where: {
           OR: [
@@ -170,12 +172,40 @@ export async function GET(request: NextRequest) {
       progress: task.progress,
     }));
 
+    const formattedAutomationItems = automationOccurrences.map((occ) => ({
+      id: occ.id,
+      itemType: "automation" as const,
+      caption: occ.itemName,
+      title: occ.itemName,
+      description: occ.topic,
+      mediaUrl: null,
+      mediaUrls: [],
+      mediaThumbnails: [],
+      mediaType: null,
+      status: "scheduled",
+      platforms: occ.platforms,
+      scheduledAt: occ.scheduledAt,
+      publishedAt: null,
+      createdAt: occ.scheduledAt,
+      automationId: occ.automationId,
+      campaignId: occ.campaignId,
+      campaignName: occ.campaignName,
+      reviewStatus: occ.reviewStatus,
+      triggerType: occ.triggerType,
+      mediaMode: occ.mediaMode,
+    }));
+
     return NextResponse.json({
       success: true,
       data: await presignAllUrls({
         posts: formattedPosts,
         strategyItems: formattedStrategyItems,
-        items: [...formattedPosts, ...formattedStrategyItems].sort((a, b) => {
+        automationItems: formattedAutomationItems,
+        items: [
+          ...formattedPosts,
+          ...formattedStrategyItems,
+          ...formattedAutomationItems,
+        ].sort((a, b) => {
           const aTime = new Date(a.scheduledAt || a.createdAt).getTime();
           const bTime = new Date(b.scheduledAt || b.createdAt).getTime();
           return aTime - bTime;
@@ -187,6 +217,7 @@ export async function GET(request: NextRequest) {
         },
         totalScheduled: formattedPosts.length,
         totalStrategyItems: formattedStrategyItems.length,
+        totalAutomationItems: formattedAutomationItems.length,
       }),
     });
   } catch (error) {

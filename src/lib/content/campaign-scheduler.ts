@@ -340,6 +340,9 @@ export async function processDueContentAutomations(
       enabled: true,
       reviewStatus: "APPROVED",
       status: { notIn: ["CANCELED", "COMPLETED", "FAILED"] },
+      // Parent campaign must be ACTIVE — DRAFT / PAUSED / CANCELED /
+      // COMPLETED campaigns don't emit. PAUSED is the user's manual brake.
+      campaign: { status: "ACTIVE" },
       OR: [{ startDate: null }, { startDate: { lte: now } }],
       AND: [{ OR: [{ endDate: null }, { endDate: { gte: now } }] }],
     },

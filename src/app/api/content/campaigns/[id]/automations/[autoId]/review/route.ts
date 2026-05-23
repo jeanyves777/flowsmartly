@@ -53,5 +53,19 @@ export async function POST(request: NextRequest, { params }: Params) {
     },
   });
 
+  // Auto-arm: a DRAFT campaign flips to ACTIVE the moment any item is
+  // approved. Mirrors "approving content arms the campaign" UX from
+  // email tools. Once ACTIVE the user toggles Pause / Resume manually.
+  if (action === "approve") {
+    await prisma.contentCampaign
+      .updateMany({
+        where: { id, userId: session.userId, status: "DRAFT" },
+        data: { status: "ACTIVE" },
+      })
+      .catch((err) =>
+        console.warn("[review] auto-activate campaign failed:", err),
+      );
+  }
+
   return NextResponse.json({ success: true, data: { automation } });
 }
