@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { addDays } from "date-fns";
+import { addDays, startOfDay, endOfDay } from "date-fns";
 import {
   resolveCalendarSourceDate,
   type CalendarSourceType,
@@ -8,6 +8,23 @@ import {
 interface OffsetSpec {
   days: number;
   time: string;
+}
+
+interface RecurringConfig {
+  frequency?: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY";
+  dayOfWeek?: number; // 0-6 for WEEKLY, 1-31 for MONTHLY
+  time?: string;     // "HH:mm"
+  firstRunDate?: string | null;
+}
+
+function safePlatforms(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface CampaignAutomationOccurrence {
@@ -73,7 +90,7 @@ export async function enumerateCampaignAutomationOccurrences(
   const out: CampaignAutomationOccurrence[] = [];
 
   for (const a of automations) {
-    const platforms = parseJson<string[]>(a.platforms, []);
+    const platforms = safePlatforms(a.platforms);
     const base = {
       automationId: a.id,
       campaignId: a.campaign.id,
@@ -127,7 +144,71 @@ export async function enumerateCampaignAutomationOccurrences(
       continue;
     }
 
-    // RECURRING / AI_GENERATED — not enumerated here for v1.
+    if (a.triggerType === "RECURRING" || a.triggerType === "AI_GENERATED") {
+      // AI_GENERATED is legacy — historically used as a recurring "AI picks
+      // when" placeholder. Treat it the same as RECURRING here so the user
+      // sees something on the calendar instead of nothing.
+      const cfg = parseJson<RecurringConfig>(a.triggerConfig, {});
+      const time = cfg.time ?? "09:00";
+      const freq = cfg.frequency ?? "ONCE";
+
+      const startCursor = startOfDay(rangeStart);
+      const endCursor = endOfDay(rangeEnd);
+
+      if (freq === "ONCE") {
+        const ref = cfg.firstRunDate ? new Date(cfg.firstRunDate) : null;
+        if (ref) {
+          const at = applyTime(ref, time);
+          if (at >= rangeStart && at <= rangeEnd) {
+            out.push({
+              ...base,
+              id: `${a.id}:once-${at.toISOString().slice(0, 10)}`,
+              scheduledAt: at.toISOString(),
+            });
+          }
+        }
+      } else if (freq === "DAILY") {
+        // One occurrence per day in range at the configured time.
+        for (let cur = new Date(startCursor); cur <= endCursor; cur = addDays(cur, 1)) {
+          const at = applyTime(cur, time);
+          if (at < rangeStart || at > rangeEnd) continue;
+          out.push({
+            ...base,
+            id: `${a.id}:daily-${at.toISOString().slice(0, 10)}`,
+            scheduledAt: at.toISOString(),
+          });
+        }
+      } else if (freq === "WEEKLY") {
+        const targetDow = cfg.dayOfWeek ?? 1;
+        for (let cur = new Date(startCursor); cur <= endCursor; cur = addDays(cur, 1)) {
+          if (cur.getDay() !== targetDow) continue;
+          const at = applyTime(cur, time);
+          if (at < rangeStart || at > rangeEnd) continue;
+          out.push({
+            ...base,
+            id: `${a.id}:weekly-${at.toISOString().slice(0, 10)}`,
+            scheduledAt: at.toISOString(),
+          });
+        }
+      } else if (freq === "MONTHLY") {
+        const targetDay = cfg.dayOfWeek ?? 1; // dayOfWeek is repurposed as day-of-month
+        // Iterate months covered by the range — usually 1 or 2.
+        const cursor = new Date(startCursor);
+        while (cursor <= endCursor) {
+          const d = new Date(cursor.getFullYear(), cursor.getMonth(), targetDay);
+          const at = applyTime(d, time);
+          if (at >= rangeStart && at <= rangeEnd) {
+            out.push({
+              ...base,
+              id: `${a.id}:monthly-${at.toISOString().slice(0, 10)}`,
+              scheduledAt: at.toISOString(),
+            });
+          }
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+      }
+      continue;
+    }
   }
 
   out.sort((x, y) => x.scheduledAt.localeCompare(y.scheduledAt));
