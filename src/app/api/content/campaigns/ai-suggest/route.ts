@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { ai } from "@/lib/ai/client";
+import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 type Field =
   | "campaign_name"
@@ -11,6 +13,19 @@ type Field =
   | "item_copy"
   | "item_hashtags"
   | "item_ai_prompt";
+
+// Per-field credit cost key. Every AI suggest button charges — short-label
+// fields cost less than paragraph fields. Resolved at request time via
+// getDynamicCreditCost so admin pricing changes are picked up.
+const COST_KEY_BY_FIELD: Record<Field, string> = {
+  campaign_name: "AI_CAMPAIGN_NAME",        // 2
+  campaign_description: "AI_CAPTION",        // 3
+  item_name: "AI_CAMPAIGN_NAME",             // 2
+  item_topic: "AI_CAPTION",                  // 3
+  item_copy: "AI_CAPTION",                   // 3
+  item_hashtags: "AI_HASHTAGS",              // 2
+  item_ai_prompt: "AI_CAPTION",              // 3
+};
 
 const SYSTEM_PROMPT =
   "You are FlowSmartly's marketing copywriter. Write concise, on-brand suggestions in the user's tone. Output only the requested text — no preamble, no quotes, no markdown headings.";
@@ -101,6 +116,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Credit gate BEFORE the AI call — every AI suggest button charges per
+  // the hard rule. Deduction happens AFTER success so a failed call costs
+  // nothing.
+  const costKey = COST_KEY_BY_FIELD[field];
+  const creditCost = await getDynamicCreditCost(costKey);
+  const balance = await creditService.getBalance(session.userId);
+  if (balance < creditCost) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INSUFFICIENT_CREDITS",
+          message: `Not enough credits — this suggestion needs ${creditCost} credits, you have ${balance}.`,
+          required: creditCost,
+          balance,
+        },
+      },
+      { status: 402 },
+    );
+  }
+
   // Load brand identity (defaults to first/default brand kit)
   let brandKit = await prisma.brandKit.findFirst({
     where: { userId: session.userId, isDefault: true },
@@ -165,7 +201,28 @@ export async function POST(request: NextRequest) {
       .replace(/^["'`\s]+|["'`\s]+$/g, "")
       .replace(/^[#*\->\s]+/gm, "")
       .trim();
-    return NextResponse.json({ success: true, data: { value: cleaned, field } });
+
+    // Charge AFTER success.
+    let balanceAfter: number | null = null;
+    try {
+      const deduction = await creditService.deductCredits({
+        userId: session.userId,
+        type: TRANSACTION_TYPES.USAGE,
+        amount: creditCost,
+        description: `AI suggest (${field})`,
+        referenceType: "ContentCampaign",
+        referenceId: body.campaignId ?? body.itemId ?? null,
+        metadata: { field, costKey },
+      });
+      balanceAfter = deduction.transaction?.balanceAfter ?? null;
+    } catch (creditErr) {
+      console.error("[campaign ai-suggest] credit deduction failed:", creditErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { value: cleaned, field, creditsSpent: creditCost, balanceAfter },
+    });
   } catch (err) {
     return NextResponse.json(
       {

@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
-import { CalendarDays, Repeat, Zap, Sparkles, Plus, X, ListPlus } from "lucide-react";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
+import { CalendarDays, Repeat, Zap, Sparkles, Plus, X, ListPlus, ChevronDown, ChevronUp } from "lucide-react";
 
 interface CalendarSource {
   type: "EVENT" | "SCHEDULED_POST" | "HOLIDAY";
@@ -80,6 +81,14 @@ export default function AddItemDialog({
 
   // One-off state
   const [oneOffStart, setOneOffStart] = useState("");
+
+  // Picker UI — collapsed by default once a source is selected so the user
+  // doesn't have to scroll past 12 months of entries every time. Opens
+  // automatically while none is picked.
+  const [pickerOpen, setPickerOpen] = useState(true);
+  useEffect(() => {
+    if (selectedSource) setPickerOpen(false);
+  }, [selectedSource]);
 
   useEffect(() => {
     if (triggerType !== "CALENDAR_EVENT") return;
@@ -189,7 +198,21 @@ export default function AddItemDialog({
     >
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Item name</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="name">Item name</Label>
+              <AISuggestButton
+                endpoint="/api/content/campaigns/ai-suggest"
+                payload={{
+                  field: "item_name",
+                  campaignId,
+                  hint: selectedSource?.label || topic || undefined,
+                  overrides: { itemTopic: topic || undefined },
+                }}
+                onResult={(v) => setName(v)}
+                label="AI fill"
+                size="sm"
+              />
+            </div>
             <Input
               id="name"
               value={name}
@@ -200,7 +223,21 @@ export default function AddItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="topic">Topic / brief (optional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="topic">Topic / brief (optional)</Label>
+              <AISuggestButton
+                endpoint="/api/content/campaigns/ai-suggest"
+                payload={{
+                  field: "item_topic",
+                  campaignId,
+                  hint: selectedSource?.label || name || undefined,
+                  overrides: { itemName: name || undefined },
+                }}
+                onResult={(v) => setTopic(v)}
+                label="AI fill"
+                size="sm"
+              />
+            </div>
             <Textarea
               id="topic"
               value={topic}
@@ -240,8 +277,31 @@ export default function AddItemDialog({
 
           {triggerType === "CALENDAR_EVENT" && (
             <div className="space-y-3 border rounded-md p-3 bg-zinc-50 dark:bg-zinc-900/40">
-              <div className="flex items-center justify-between">
-                <Label>Pick a calendar entry</Label>
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Label className="cursor-pointer">Pick a calendar entry</Label>
+                  {selectedSource && (
+                    <span className="text-xs text-zinc-600 dark:text-zinc-300 flex items-center gap-1 truncate max-w-[280px]">
+                      {selectedSource.meta?.icon && <span>{selectedSource.meta.icon}</span>}
+                      <span className="truncate">{selectedSource.label}</span>
+                      <span className="text-zinc-400">·</span>
+                      <span>{new Date(selectedSource.date).toLocaleDateString()}</span>
+                    </span>
+                  )}
+                </div>
+                {pickerOpen ? (
+                  <ChevronUp className="w-4 h-4 text-zinc-500" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-zinc-500" />
+                )}
+              </button>
+              {pickerOpen && (
+                <>
+              <div className="flex items-center justify-end">
                 <select
                   value={sourceTypeFilter}
                   onChange={(e) => setSourceTypeFilter(e.target.value)}
@@ -286,6 +346,8 @@ export default function AddItemDialog({
                   ))
                 )}
               </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label className="text-xs">Offsets</Label>

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Save,
   Sparkles,
   Wand2,
@@ -92,6 +94,10 @@ export default function NewCampaignPage() {
   const [eventStyleStrategy, setEventStyleStrategy] = useState<"ai" | "variant" | "same">("ai");
   const [eventSameTier, setEventSameTier] = useState<"standard" | "premium">("standard");
   const [eventSameStyle, setEventSameStyle] = useState<"realistic" | "3d">("realistic");
+  // Collapse state for the holiday picker grid — open by default so the
+  // user sees options, can collapse once they've made a selection (or
+  // skipped) to free up screen space.
+  const [eventsOpen, setEventsOpen] = useState(true);
 
   const sortedHolidays = useMemo(
     () =>
@@ -393,26 +399,43 @@ export default function NewCampaignPage() {
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
+                <button
+                  type="button"
+                  onClick={() => setEventsOpen((v) => !v)}
+                  className="text-left flex-1"
+                >
                   <h3 className="font-semibold flex items-center gap-2">
                     <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     Calendar events (optional)
+                    {eventIds.size > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {eventIds.size} selected
+                      </Badge>
+                    )}
+                    {eventsOpen ? (
+                      <ChevronUp className="w-4 h-4 text-zinc-500 ml-auto sm:ml-1" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-zinc-500 ml-auto sm:ml-1" />
+                    )}
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                     Bulk-create one automation per selected event. Skip this if
                     you want to add items manually later.
                   </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={selectAllEvents}>
-                    Select all
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={clearAllEvents}>
-                    Clear
-                  </Button>
-                </div>
+                </button>
+                {eventsOpen && (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={selectAllEvents}>
+                      Select all
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearAllEvents}>
+                      Clear
+                    </Button>
+                  </div>
+                )}
               </div>
 
+              {eventsOpen && (
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-h-[340px] overflow-y-auto pr-1">
                 {sortedHolidays.map((h) => {
                   const checked = eventIds.has(h.id);
@@ -458,6 +481,7 @@ export default function NewCampaignPage() {
                   );
                 })}
               </div>
+              )}
 
               {eventIds.size > 0 && (
                 <div className="space-y-3 rounded-lg border bg-zinc-50 dark:bg-zinc-900/40 p-4">
