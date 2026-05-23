@@ -8,7 +8,13 @@ import { checkAndAwardMilestones } from "@/lib/strategy/scoring";
 
 // ── Types ──
 
-type ActivityType = "post" | "campaign" | "automation" | "postAutomation" | "adCampaign";
+type ActivityType =
+  | "post"
+  | "campaign"
+  | "automation"
+  | "postAutomation"
+  | "contentAutomation"
+  | "adCampaign";
 type Confidence = "low" | "medium" | "high";
 
 interface MatchedActivity {
@@ -75,6 +81,20 @@ interface FetchedActivities {
     lastTriggered: Date | null;
     topic: string | null;
     strategyTaskId: string | null;
+  }>;
+  contentAutomations: Array<{
+    id: string;
+    name: string;
+    triggerType: string;
+    enabled: boolean;
+    reviewStatus: string;
+    status: string;
+    totalGenerated: number;
+    lastTriggered: Date | null;
+    topic: string | null;
+    sourceStrategyTaskId: string | null;
+    campaignId: string;
+    campaignName: string;
   }>;
   adCampaigns: Array<{
     id: string;
@@ -164,7 +184,7 @@ async function fetchActivities(
   periodStart: Date,
   periodEnd: Date
 ): Promise<FetchedActivities> {
-  const [posts, campaigns, automations, postAutomations, adCampaigns, scoreCount] =
+  const [posts, campaigns, automations, postAutomations, contentAutomationsRaw, adCampaigns, scoreCount] =
     await Promise.all([
       prisma.post.findMany({
         where: {
@@ -236,6 +256,34 @@ async function fetchActivities(
           strategyTaskId: true,
         },
       }),
+      // ContentAutomation rows count as planning work — even before they
+      // fire, an APPROVED row in an ACTIVE campaign represents a piece of
+      // content the user committed to. Include any row created in or
+      // touched during the period.
+      prisma.contentAutomation.findMany({
+        where: {
+          userId,
+          OR: [
+            { createdAt: { gte: periodStart, lte: periodEnd } },
+            { lastTriggered: { gte: periodStart, lte: periodEnd } },
+            { updatedAt: { gte: periodStart, lte: periodEnd } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          triggerType: true,
+          enabled: true,
+          reviewStatus: true,
+          status: true,
+          totalGenerated: true,
+          lastTriggered: true,
+          topic: true,
+          sourceStrategyTaskId: true,
+          campaignId: true,
+          campaign: { select: { name: true } },
+        },
+      }),
       prisma.adCampaign.findMany({
         where: {
           userId,
@@ -253,11 +301,27 @@ async function fetchActivities(
       prisma.strategyScore.count({ where: { userId } }),
     ]);
 
+  const contentAutomations = contentAutomationsRaw.map((c) => ({
+    id: c.id,
+    name: c.name,
+    triggerType: c.triggerType,
+    enabled: c.enabled,
+    reviewStatus: c.reviewStatus,
+    status: c.status,
+    totalGenerated: c.totalGenerated,
+    lastTriggered: c.lastTriggered,
+    topic: c.topic,
+    sourceStrategyTaskId: c.sourceStrategyTaskId,
+    campaignId: c.campaignId,
+    campaignName: c.campaign?.name ?? "Campaign",
+  }));
+
   return {
     posts,
     campaigns,
     automations,
     postAutomations,
+    contentAutomations,
     adCampaigns,
     hasStrategyScores: scoreCount > 0,
   };
@@ -283,6 +347,52 @@ function matchTaskToActivities(
 ): TaskUpdate | null {
   const category = task.category?.toLowerCase();
   if (!category) return null;
+
+  // Direct-link matching: a NEW ContentAutomation row created from this
+  // task (via the import-strategy flow) is a guaranteed match — the user
+  // explicitly turned this task into a content automation. APPROVED rows
+  // count even before they've fired since the work is committed.
+  const directLinkedContent = activities.contentAutomations.find(
+    (ca) =>
+      ca.sourceStrategyTaskId === task.id &&
+      (ca.reviewStatus === "APPROVED" || ca.totalGenerated > 0),
+  );
+  if (directLinkedContent) {
+    let existingContentMatches: MatchedActivity[] = [];
+    try { existingContentMatches = JSON.parse(task.matchedActivities || "[]"); } catch { /* ignore */ }
+    const alreadyMatched = existingContentMatches.some((m) => m.activityId === directLinkedContent.id);
+    if (!alreadyMatched) {
+      return {
+        taskId: task.id,
+        newStatus: directLinkedContent.totalGenerated > 0 ? "DONE" : "IN_PROGRESS",
+        newProgress: directLinkedContent.totalGenerated > 0 ? 100 : Math.max(task.progress, 75),
+        autoCompleted: directLinkedContent.totalGenerated > 0,
+        activities: [
+          {
+            activityType: "contentAutomation",
+            activityId: directLinkedContent.id,
+            activityName: `${directLinkedContent.campaignName} — ${directLinkedContent.name}`,
+            activityUrl: `/content/campaigns/${directLinkedContent.campaignId}/items/${directLinkedContent.id}`,
+            matchedAt: new Date().toISOString(),
+            confidence: "high",
+            matchReason:
+              directLinkedContent.totalGenerated > 0
+                ? `Content automation generated ${directLinkedContent.totalGenerated} posts from this task`
+                : `Content automation armed and scheduled from this task`,
+          },
+        ],
+      };
+    }
+    if (alreadyMatched && directLinkedContent.totalGenerated > 0 && task.progress < 100) {
+      return {
+        taskId: task.id,
+        newStatus: "DONE",
+        newProgress: 100,
+        autoCompleted: true,
+        activities: [],
+      };
+    }
+  }
 
   // Direct-link matching: if a PostAutomation was created FROM this task, guaranteed match
   const directLinked = activities.postAutomations.find(
@@ -448,6 +558,22 @@ function matchTaskToActivities(
         });
       }
     }
+    for (const ca of activities.contentAutomations) {
+      if (existingIds.has(ca.id)) continue;
+      if (ca.reviewStatus !== "APPROVED" && ca.totalGenerated === 0) continue;
+      candidates.push({
+        id: ca.id,
+        type: "contentAutomation",
+        name: `${ca.campaignName} — ${ca.name}`,
+        url: `/content/campaigns/${ca.campaignId}/items/${ca.id}`,
+        text: getActivityText({ caption: ca.topic, hashtags: "[]" }),
+        date: ca.lastTriggered ?? null,
+        reason:
+          ca.totalGenerated > 0
+            ? `Content automation generated ${ca.totalGenerated} posts`
+            : `Content automation armed in "${ca.campaignName}"`,
+      });
+    }
   } else if (category === "content") {
     for (const p of activities.posts) {
       if (!existingIds.has(p.id)) {
@@ -475,6 +601,22 @@ function matchTaskToActivities(
           reason: `Post automation "${pa.name}" generated ${pa.totalGenerated} posts`,
         });
       }
+    }
+    for (const ca of activities.contentAutomations) {
+      if (existingIds.has(ca.id)) continue;
+      if (ca.reviewStatus !== "APPROVED" && ca.totalGenerated === 0) continue;
+      candidates.push({
+        id: ca.id,
+        type: "contentAutomation",
+        name: `${ca.campaignName} — ${ca.name}`,
+        url: `/content/campaigns/${ca.campaignId}/items/${ca.id}`,
+        text: getActivityText({ caption: ca.topic, hashtags: "[]" }),
+        date: ca.lastTriggered ?? null,
+        reason:
+          ca.totalGenerated > 0
+            ? `Content automation generated ${ca.totalGenerated} posts`
+            : `Content automation armed in "${ca.campaignName}"`,
+      });
     }
   } else if (category === "ads") {
     for (const p of activities.posts) {
