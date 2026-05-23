@@ -213,32 +213,65 @@ function buildFallbackPreparedPost(params: {
   const brandName = extractBrandName(params.brandBrief);
   const promptText = (params.userPrompt || "").trim();
   const quotedTopic = promptText.match(/["']([^"']{4,90})["']/)?.[1]?.trim();
+  // Keep the brief as close to the original as possible — meta-cleanup
+  // only (strip schedule/destination directives) — do NOT strip topical
+  // words like "weekly" / "social media" since they may be the actual
+  // subject (e.g. "Tips for weekly social media planning").
   const cleanPrompt = (quotedTopic || promptText)
     .replace(/\s+/g, " ")
     .replace(/^user prompt:\s*/i, "")
     .replace(/\b(?:destination|audience|angle|cta|platforms?)\s*:[^.;\n]+[.;]?/gi, "")
-    .replace(/\b(?:schedule|create|write|generate|draft|publish|repurpose|mirror(?:ed)?)\b/gi, "")
-    .replace(/\b(?:weekly|daily|monthly|instagram|facebook|linkedin|twitter|social media|posts?|captions?|content calendar)\b/gi, "")
     .replace(/^[\s:;,.|-]+|[\s:;,.|-]+$/g, "")
-    .slice(0, 260);
-  const mediaLabel = params.mediaType === "video" ? "video" : "visual";
-  const topic = cleanPrompt || `a new ${mediaLabel} from ${brandName}`;
-  const hashtags = extractHashtagTerms(`${brandName} ${topic}`).slice(0, 8);
-  const finalHashtags = hashtags.length ? hashtags : ["#Marketing", "#SmallBusiness", "#BrandStory"];
+    .slice(0, 600);
 
-  const caption = [
-    `${brandName} has a fresh ${mediaLabel} to share.`,
-    `Here is a quick look at ${topic}.`,
-    "Take a look, save it for later, and reach out when you are ready to learn more.",
-    finalHashtags.join(" "),
-  ].join("\n\n");
+  // Hashtag extractor used to split topic words like "wishing", "everyone",
+  // "safe" into #Wishing #everyone #safe — useless. Pick only multi-word
+  // brand/proper-noun-style phrases instead, fall back to generic tags.
+  const properTagCandidates = extractProperNounHashtags(`${brandName}. ${cleanPrompt}`, 6);
+  const finalHashtags = properTagCandidates.length
+    ? properTagCandidates
+    : ["#Marketing", "#SmallBusiness", "#BrandStory"];
+
+  // CAPTION: prefer the user's brief verbatim when it reads like real copy
+  // (has punctuation, multiple sentences, or is long enough to stand on
+  // its own). Only wrap with the legacy "fresh visual" template when the
+  // brief is too thin to use as-is — and even then phrase it as a real
+  // statement, not "Take a look, save it for later" meta-commentary.
+  const briefReadsAsCopy =
+    !!cleanPrompt &&
+    cleanPrompt.length >= 30 &&
+    /[.!?]/.test(cleanPrompt);
+
+  const caption = briefReadsAsCopy
+    ? `${cleanPrompt}\n\n${finalHashtags.join(" ")}`.slice(0, 2000)
+    : `${cleanPrompt || `An update from ${brandName}.`}\n\n${finalHashtags.join(" ")}`.slice(0, 2000);
 
   return {
-    mediaDescription: `FlowCreative ${mediaLabel} prepared from the generated media and brand context.`,
-    caption: caption.slice(0, 2000),
+    mediaDescription: `${params.mediaType === "video" ? "Video" : "Image"} from ${brandName}.`,
+    caption,
     hashtags: finalHashtags,
-    seoKeywords: normalizeKeywords([], `${brandName}. ${topic}`, 10),
+    seoKeywords: normalizeKeywords([], `${brandName}. ${cleanPrompt}`, 10),
   };
+}
+
+// Pull multi-word capitalized phrases (e.g. "Memorial Day", "Pittsfield MA",
+// "Integrity Tax Service") and emit them as PascalCase hashtags. Skips
+// single common words that the old extractor splatted into garbage tags.
+function extractProperNounHashtags(text: string, limit = 6): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  // Match runs of 2+ capitalized words OR a single capitalized word that's
+  // 6+ letters (heuristic for non-trivial proper nouns).
+  const matches = text.match(/\b(?:[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{1,})+|[A-Z][a-z]{5,})\b/g) ?? [];
+  for (const m of matches) {
+    const tag = `#${m.replace(/\s+/g, "")}`;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 function normalizePreparedPost(raw: unknown): PreparedPost | null {
