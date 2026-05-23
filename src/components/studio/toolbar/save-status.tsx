@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Check, AlertCircle } from "lucide-react";
+import { Check, AlertCircle } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useCanvasStore } from "../hooks/use-canvas-store";
 
 /**
@@ -39,7 +40,7 @@ export function SaveStatus() {
         role="status"
         aria-live="polite"
       >
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <AISpinner className="h-3 w-3" />
         <span>Saving…</span>
       </div>
     );

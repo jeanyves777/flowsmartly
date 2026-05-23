@@ -20,7 +20,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
-import { buildEditIntentPlan, type EditIntentPlan } from "@/lib/ai/edit-intent";
+import { buildEditIntentPlan, type EditIntentBrandKit, type EditIntentPlan } from "@/lib/ai/edit-intent";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { useToast } from "@/hooks/use-toast";
@@ -55,15 +55,16 @@ export function AiPanel() {
   const [visualCreditCost, setVisualCreditCost] = useState(15);
   const [qualityCheckEnabled, setQualityCheckEnabled] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [pendingEditPlan, setPendingEditPlan] = useState<EditIntentPlan | null>(null);
   const [referenceUrls, setReferenceUrls] = useState<string[]>([]);
+  const [brandKit, setBrandKit] = useState<EditIntentBrandKit>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [studioRes, costsRes] = await Promise.all([
+        const [studioRes, costsRes, brandRes] = await Promise.all([
           fetch("/api/ai/studio"),
           fetch("/api/credits/costs?keys=AI_VISUAL_DESIGN"),
+          fetch("/api/brand"),
         ]);
         const studioData = await studioRes.json();
         const costsData = await costsRes.json();
@@ -71,8 +72,12 @@ export function AiPanel() {
         if (costsData.success && costsData.data?.costs?.AI_VISUAL_DESIGN) {
           setVisualCreditCost(costsData.data.costs.AI_VISUAL_DESIGN);
         }
+        const brandData = await brandRes.json().catch(() => null);
+        if (brandData?.success && brandData.data?.brandKit) {
+          setBrandKit(brandData.data.brandKit as EditIntentBrandKit);
+        }
       } catch {
-        // Credit count is helpful but should never block the editor.
+        // Credit count and brand kit are helpful but should never block the editor.
       }
     })();
   }, []);
@@ -123,6 +128,20 @@ export function AiPanel() {
       const uploadData = await uploadRes.json();
       if (!uploadData.success) throw new Error("Upload failed");
 
+      // When the user asked for their logo, hand the real logo to the model as
+      // an extra reference image so it composites the actual file instead of
+      // redrawing one. Logo lock mode prevents face-locking from kicking in.
+      const brandLogoUrl = brandKit?.logo || brandKit?.iconLogo || null;
+      const includeBrandLogoRef = plan.brandAssetsUsed.logo && !!brandLogoUrl;
+      const combinedReferenceUrls = includeBrandLogoRef && brandLogoUrl
+        ? [...referenceUrls, brandLogoUrl].slice(0, 4)
+        : referenceUrls;
+      const editReferenceMode = includeBrandLogoRef
+        ? "exact"
+        : referenceUrls.length > 0
+          ? "keep_face"
+          : "adapt";
+
       const res = await fetch("/api/ai/visual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,9 +156,27 @@ export function AiPanel() {
           editImageUrl: uploadData.data.file.url,
           editRegion: effectiveRegion,
           editIntent: "auto",
-          editReferenceMode: referenceUrls.length > 0 ? "keep_face" : "adapt",
-          editReferenceImageUrls: referenceUrls,
+          editReferenceMode,
+          editReferenceImageUrls: combinedReferenceUrls,
           qualityCheckEnabled,
+          // Brand context — surfaces the user's verified BrandKit values to the
+          // visual pipeline so logo/colors/contact get used literally.
+          brandLogo: brandKit?.logo || brandKit?.iconLogo || null,
+          brandName: brandKit?.name || null,
+          brandColors: brandKit?.colors || null,
+          contactInfo: brandKit
+            ? {
+                email: brandKit.email || null,
+                phone: brandKit.phone || null,
+                website: brandKit.website || null,
+                address: brandKit.address || null,
+                city: brandKit.city || null,
+                state: brandKit.state || null,
+                zip: brandKit.zip || null,
+                country: brandKit.country || null,
+              }
+            : null,
+          socialHandles: brandKit?.handles || null,
         }),
       });
 
@@ -160,7 +197,6 @@ export function AiPanel() {
       }
 
       setInstruction("");
-      setPendingEditPlan(null);
       setAiSelectedRegion(null);
       toast({ title: "Edit applied" });
     } catch (error) {
@@ -187,19 +223,11 @@ export function AiPanel() {
       referenceCount: referenceUrls.length,
       hasRegion: !!effectiveRegion,
       qualityCheckEnabled,
+      brandName: brandKit?.name || null,
+      brandKit,
     });
 
-    if (plan.needsConfirmation) {
-      setPendingEditPlan(plan);
-      return;
-    }
-
     void executeEdit(plan);
-  };
-
-  const handleConfirmEdit = () => {
-    if (!pendingEditPlan) return;
-    void executeEdit(pendingEditPlan);
   };
 
   return (
@@ -216,10 +244,7 @@ export function AiPanel() {
         <div className="space-y-3">
           <textarea
             value={instruction}
-            onChange={(event) => {
-              setInstruction(event.target.value);
-              setPendingEditPlan(null);
-            }}
+            onChange={(event) => setInstruction(event.target.value)}
             placeholder="Tell FlowAI what to change, remove, improve, replace, or match..."
             className="min-h-[150px] w-full resize-none rounded-md border bg-background p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
@@ -238,10 +263,7 @@ export function AiPanel() {
               <AccordionContent className="pb-3">
                 <MediaUploader
                   value={referenceUrls}
-                  onChange={(urls) => {
-                    setReferenceUrls(urls);
-                    setPendingEditPlan(null);
-                  }}
+                  onChange={setReferenceUrls}
                   multiple
                   maxFiles={4}
                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -274,10 +296,7 @@ export function AiPanel() {
                   </div>
                   <Switch
                     checked={qualityCheckEnabled}
-                    onCheckedChange={(value) => {
-                      setQualityCheckEnabled(value);
-                      setPendingEditPlan(null);
-                    }}
+                    onCheckedChange={setQualityCheckEnabled}
                     aria-label="Enable quality check"
                   />
                 </div>
@@ -381,35 +400,16 @@ export function AiPanel() {
             </AccordionItem>
           </Accordion>
 
-          {pendingEditPlan ? (
-            <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed">
-              <div className="mb-1 font-semibold text-amber-900 dark:text-amber-100">Confirm edit before spending credits</div>
-              <p className="text-amber-900/90 dark:text-amber-100/90">{pendingEditPlan.confirmReason}</p>
-              <ul className="mt-2 space-y-1 text-amber-900/90 dark:text-amber-100/90">
-                {pendingEditPlan.bullets.slice(0, 4).map((item) => (
-                  <li key={item}>- {item}</li>
-                ))}
-              </ul>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Button type="button" size="sm" onClick={handleConfirmEdit} disabled={isImproving}>
-                  Continue edit
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setPendingEditPlan(null)} disabled={isImproving}>
-                  Revise prompt
-                </Button>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
 
       <div className="shrink-0 border-t bg-background/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
         <Button
           onClick={handleApplyEdit}
-          disabled={isImproving || !!pendingEditPlan || !instruction.trim()}
+          disabled={isImproving || !instruction.trim()}
           className="h-11 w-full gap-2"
         >
-          {isImproving ? <AISpinner className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+          {isImproving ? <AISpinner className="h-4 w-4" /> : <Wand2 className="h-4 w-4" />}
           {isImproving ? "Applying edit..." : "Apply AI edit"}
         </Button>
       </div>

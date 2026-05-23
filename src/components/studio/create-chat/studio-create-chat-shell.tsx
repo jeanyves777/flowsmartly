@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
+import { Sparkles, Send, Paperclip, X, Plus, MessageSquare, ChevronLeft, Image as ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { ChatCard } from "./chat-card";
 import type { CardSpec } from "@/lib/ai/studio-chat-agent";
 
@@ -314,7 +314,7 @@ export function StudioCreateChatShell({
                 disabled={creatingNew}
                 className="flex-1 flex items-center justify-center gap-2 h-9 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
               >
-                {creatingNew ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {creatingNew ? <AISpinner className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 New chat
               </button>
               <button
@@ -423,7 +423,7 @@ export function StudioCreateChatShell({
           <div className="max-w-3xl mx-auto space-y-4">
             {loading ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <AISpinner className="h-4 w-4 mr-2" />
                 Loading…
               </div>
             ) : turns.length === 0 ? (
@@ -466,7 +466,7 @@ export function StudioCreateChatShell({
                   <div key={att.url} className="relative w-16 h-16 rounded-md overflow-hidden border border-border bg-muted">
                     {att.uploading ? (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <AISpinner className="h-4 w-4 text-muted-foreground" />
                       </div>
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -616,7 +616,7 @@ function TurnView({
                 "bg-muted/60 text-muted-foreground",
               )}
             >
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <AISpinner className="h-3.5 w-3.5" />
               FlowAI is thinking…
             </div>
           )
@@ -716,7 +716,7 @@ function ChatInput({
         className="h-9 w-9 rounded-md bg-brand-500 hover:bg-brand-600 text-white transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
         aria-label="Send"
       >
-        {disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        {disabled ? <AISpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
       </button>
     </div>
   );
