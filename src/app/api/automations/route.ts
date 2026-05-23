@@ -260,7 +260,17 @@ export async function POST(request: NextRequest) {
       imageUrl,
       imageSource,
       imageOverlayText,
+      emails,
     } = body;
+
+    const perEventEmails = Array.isArray(emails)
+      ? (emails as Array<{
+          holidayId?: string;
+          subject?: string;
+          content?: string;
+          contentHtml?: string;
+        }>).filter((entry) => entry && typeof entry === "object")
+      : [];
 
     // Validate required fields
     if (!name?.trim()) {
@@ -370,9 +380,24 @@ export async function POST(request: NextRequest) {
     }
 
     const baseName = name.trim();
+    const emailOverridesByHolidayId = new Map<string, { subject?: string; content?: string; contentHtml?: string }>();
+    let fallbackEmailOverride: { subject?: string; content?: string; contentHtml?: string } | null = null;
+    for (const entry of perEventEmails) {
+      if (typeof entry.holidayId === "string" && entry.holidayId.trim()) {
+        emailOverridesByHolidayId.set(entry.holidayId, entry);
+      } else if (!fallbackEmailOverride) {
+        fallbackEmailOverride = entry;
+      }
+    }
+
     const createInputs = normalizedTriggers.map((normalizedTrigger) => {
       const holidayId = typeof normalizedTrigger.holidayId === "string" ? normalizedTrigger.holidayId : null;
       const holiday = holidayId ? getHolidayById(holidayId) : null;
+      const override =
+        (holidayId && emailOverridesByHolidayId.get(holidayId)) || fallbackEmailOverride || {};
+      const finalSubject = (override.subject ?? subject) || null;
+      const finalContent = override.content ?? content ?? "";
+      const finalContentHtml = override.contentHtml ?? contentHtml ?? null;
       return {
         userId: session.userId,
         name: normalizedTriggers.length > 1 && holiday ? `${baseName} - ${holiday.name}` : baseName,
@@ -380,9 +405,9 @@ export async function POST(request: NextRequest) {
         trigger: JSON.stringify(normalizedTrigger),
         campaignType: campaignType.toUpperCase(),
         templateId: validatedTemplateId,
-        subject: subject || null,
-        content: content || "",
-        contentHtml: contentHtml || null,
+        subject: finalSubject,
+        content: finalContent,
+        contentHtml: finalContentHtml,
         sendTime: sendTime || "09:00",
         daysOffset: normalizedDaysOffset,
         timezone: timezone || "UTC",

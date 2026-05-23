@@ -13,13 +13,14 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Eye,
   Gift,
   ImageIcon,
-  Loader2,
   Mail,
   Sparkles,
   Star,
   Upload,
+  UserCircle2,
   Users,
   UserPlus,
   Wand2,
@@ -47,8 +48,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TemplateStep } from "@/components/email-marketing/steps/template-step";
 import { EditorStep } from "@/components/email-marketing/steps/editor-step";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import type { OptimizationData } from "@/components/email-marketing/builder/optimization-panel";
 import { useCampaignForm } from "@/hooks/use-campaign-form";
 import { useToast } from "@/hooks/use-toast";
@@ -62,9 +63,10 @@ import { getHolidayDate, US_HOLIDAYS } from "@/lib/marketing/holidays";
 import { cn } from "@/lib/utils/cn";
 
 type AutomationType = "BIRTHDAY" | "HOLIDAY" | "WELCOME" | "CUSTOM";
-type WizardStep = "plan" | "design" | "activate";
-type DesignMode = "templates" | "builder";
+type WizardStep = "event" | "content" | "preview" | "activate";
 type LogoSize = "normal" | "large" | "big";
+type Tone = "professional" | "warm" | "playful" | "bold";
+type ImageStrategy = "none" | "ai_per_event" | "contact_photo" | "ai_per_contact";
 
 interface ContactList {
   id: string;
@@ -95,9 +97,28 @@ interface BirthdayContactPreview {
   imageUrl: string | null;
 }
 
+interface EventEmail {
+  /** stable key — holidayId for HOLIDAY, otherwise the constant SINGLE_KEY */
+  key: string;
+  label: string;
+  /** date label for badge rendering on HOLIDAY tabs */
+  dateLabel?: string;
+  subject: string;
+  preheader: string;
+  sections: EmailSection[];
+  contentHtml: string;
+  isGenerated: boolean;
+  isGenerating: boolean;
+  /** when this event was last generated, for cache busting */
+  generatedAt?: number;
+}
+
+const SINGLE_KEY = "single";
+
 const STEPS: Array<{ id: WizardStep; label: string; icon: typeof Zap }> = [
-  { id: "plan", label: "Automation Plan", icon: Zap },
-  { id: "design", label: "Template & AI", icon: Sparkles },
+  { id: "event", label: "Select Event", icon: Zap },
+  { id: "content", label: "Content Setup", icon: Sparkles },
+  { id: "preview", label: "Preview Samples", icon: Eye },
   { id: "activate", label: "Audience & Activate", icon: Users },
 ];
 
@@ -110,13 +131,13 @@ const AUTOMATION_TYPES: Array<{
   {
     type: "BIRTHDAY",
     label: "Birthday",
-    description: "Automate birthday emails for a selected contact list.",
+    description: "Send a personalised email on each contact's birthday.",
     icon: Cake,
   },
   {
     type: "HOLIDAY",
-    label: "Calendar Events",
-    description: "Select one or all calendar events and create automations.",
+    label: "Calendar Event",
+    description: "Pick one or many calendar events — each gets its own unique email.",
     icon: CalendarDays,
   },
   {
@@ -131,6 +152,13 @@ const AUTOMATION_TYPES: Array<{
     description: "Build a recurring or one-time email automation.",
     icon: Star,
   },
+];
+
+const TONE_OPTIONS: Array<{ value: Tone; label: string; description: string }> = [
+  { value: "professional", label: "Professional", description: "Clear, polished, brand-friendly." },
+  { value: "warm", label: "Warm", description: "Personal and friendly. Best for birthdays & welcome." },
+  { value: "playful", label: "Playful", description: "Fun, energetic, on-brand for casual audiences." },
+  { value: "bold", label: "Bold", description: "Confident and direct with a strong CTA." },
 ];
 
 const TIMEZONES = [
@@ -273,16 +301,46 @@ function categoryForType(type: AutomationType) {
   return "custom";
 }
 
+/**
+ * Replace merge tags with a sample contact's values, for preview rendering.
+ * Keeps unknown tags as plain text so we never leak `{{tag}}` to the user.
+ */
+function previewMergeReplace(
+  html: string,
+  contact: BirthdayContactPreview | null,
+  fallbackName: string,
+  extra?: Record<string, string>
+) {
+  const name = contact?.name || fallbackName;
+  const [firstName, ...rest] = name.split(" ");
+  const lastName = rest.join(" ");
+  const replacements: Record<string, string> = {
+    firstName: firstName || name,
+    lastName: lastName || "",
+    fullName: name,
+    name,
+    email: contact?.email || "friend@example.com",
+    birthday: contact?.birthday ? formatBirthday(contact.birthday) : "",
+    ...(extra || {}),
+  };
+  return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
+    return replacements[key] ?? "";
+  });
+}
+
 export default function CreateEmailAutomationPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { state, dispatch, canProceedToSend } = useCampaignForm();
+  const { state, dispatch } = useCampaignForm();
 
-  const [step, setStep] = useState<WizardStep>("plan");
-  const [designMode, setDesignMode] = useState<DesignMode>("templates");
+  const [step, setStep] = useState<WizardStep>("event");
   const [automationType, setAutomationType] = useState<AutomationType>("BIRTHDAY");
   const [automationName, setAutomationName] = useState(defaultAutomationName("BIRTHDAY"));
   const [aiBrief, setAiBrief] = useState("");
+  const [tone, setTone] = useState<Tone>("warm");
+  const [imageStrategy, setImageStrategy] = useState<ImageStrategy>("ai_per_event");
+  const [ctaText, setCtaText] = useState("");
+  const [ctaUrl, setCtaUrl] = useState("");
   const [creditCost, setCreditCost] = useState<number | null>(null);
   const [optimizationData, setOptimizationData] = useState<OptimizationData | null>(null);
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
@@ -294,11 +352,12 @@ export default function CreateEmailAutomationPage() {
   const [updatingBirthdayContactIds, setUpdatingBirthdayContactIds] = useState<Record<string, string>>({});
   const [loadingBirthdayData, setLoadingBirthdayData] = useState(false);
   const [birthdayConfirmed, setBirthdayConfirmed] = useState(false);
-  const [includeContactPhoto, setIncludeContactPhoto] = useState(false);
   const [calendarConfirmed, setCalendarConfirmed] = useState(false);
-  const [selectedHolidayIds, setSelectedHolidayIds] = useState<string[]>(
-    US_HOLIDAYS.map((holiday) => holiday.id)
-  );
+  const [selectedHolidayIds, setSelectedHolidayIds] = useState<string[]>([]);
+  const [sampleContactId, setSampleContactId] = useState<string>("");
+  const [eventEmails, setEventEmails] = useState<Record<string, EventEmail>>({});
+  const [activeEventKey, setActiveEventKey] = useState<string>(SINGLE_KEY);
+  const [editingEventKey, setEditingEventKey] = useState<string | null>(null);
   const [sendTime, setSendTime] = useState("09:00");
   const [daysOffset, setDaysOffset] = useState(0);
   const [timezone, setTimezone] = useState("America/New_York");
@@ -331,7 +390,42 @@ export default function CreateEmailAutomationPage() {
     [birthdayContacts]
   );
 
-  const canProceedFromPlan = useMemo(() => {
+  // Tabs that drive the per-event preview & generation in step 3.
+  const eventTabs = useMemo(() => {
+    if (automationType === "HOLIDAY") {
+      return selectedHolidays.map((holiday) => ({
+        key: holiday.id,
+        label: holiday.name,
+        icon: holiday.icon,
+        dateLabel: holidayDateLabel(holiday.id),
+      }));
+    }
+    return [
+      {
+        key: SINGLE_KEY,
+        label:
+          automationType === "BIRTHDAY"
+            ? "Birthday Email"
+            : automationType === "WELCOME"
+              ? "Welcome Email"
+              : "Custom Email",
+        icon: "",
+        dateLabel: undefined as string | undefined,
+      },
+    ];
+  }, [automationType, selectedHolidays]);
+
+  const allEventsGenerated = useMemo(
+    () => eventTabs.length > 0 && eventTabs.every((tab) => eventEmails[tab.key]?.isGenerated),
+    [eventEmails, eventTabs]
+  );
+
+  const anyEventGenerating = useMemo(
+    () => Object.values(eventEmails).some((entry) => entry.isGenerating),
+    [eventEmails]
+  );
+
+  const canProceedFromEvent = useMemo(() => {
     if (!automationName.trim()) return false;
     if (!state.selectedContactListId) return false;
     if (automationType === "HOLIDAY") {
@@ -351,7 +445,9 @@ export default function CreateEmailAutomationPage() {
     state.selectedContactListId,
   ]);
 
-  const canActivate = canProceedToSend && automationName.trim().length > 0 && canProceedFromPlan;
+  const canProceedFromContent = canProceedFromEvent;
+  const canProceedFromPreview = canProceedFromEvent && allEventsGenerated;
+  const canActivate = canProceedFromPreview && automationName.trim().length > 0;
 
   useEffect(() => {
     fetch("/api/brand")
@@ -436,7 +532,7 @@ export default function CreateEmailAutomationPage() {
 
         if (contactsJson.success) {
           const contacts = contactsJson.data?.contacts || [];
-          const formattedContacts = contacts
+          const formattedContacts: BirthdayContactPreview[] = contacts
             .map((contact: {
                 id: string;
                 name?: string | null;
@@ -466,6 +562,16 @@ export default function CreateEmailAutomationPage() {
             }
             return next;
           });
+          // Seed sample contact for preview if none chosen yet.
+          setSampleContactId((current) => {
+            if (current && formattedContacts.some((contact: BirthdayContactPreview) => contact.id === current)) {
+              return current;
+            }
+            const firstEligible = formattedContacts.find(
+              (contact: BirthdayContactPreview) => !!contact.birthday && hasUsableEmail(contact)
+            );
+            return firstEligible?.id || formattedContacts[0]?.id || "";
+          });
         }
       } catch {
         if (!cancelled) {
@@ -487,11 +593,44 @@ export default function CreateEmailAutomationPage() {
     setBirthdayConfirmed(false);
   }, [state.selectedContactListId]);
 
+  // When type or selected events change, invalidate any previously generated
+  // emails so the preview step always regenerates from current context.
   useEffect(() => {
-    if (birthdayContactsWithImage === 0) {
-      setIncludeContactPhoto(false);
+    setEventEmails({});
+    setEditingEventKey(null);
+    if (automationType === "HOLIDAY") {
+      const first = selectedHolidayIds[0];
+      setActiveEventKey(first || SINGLE_KEY);
+    } else {
+      setActiveEventKey(SINGLE_KEY);
     }
-  }, [birthdayContactsWithImage]);
+  }, [automationType, selectedHolidayIds]);
+
+  // Birthday photo strategy only makes sense when the list has photos.
+  useEffect(() => {
+    if (automationType !== "BIRTHDAY") return;
+    if (
+      birthdayContactsWithImage === 0 &&
+      (imageStrategy === "contact_photo" || imageStrategy === "ai_per_contact")
+    ) {
+      setImageStrategy("ai_per_event");
+    }
+  }, [automationType, birthdayContactsWithImage, imageStrategy]);
+
+  // Default sensible image strategy per type.
+  useEffect(() => {
+    if (automationType === "BIRTHDAY") {
+      setImageStrategy((current) =>
+        current === "contact_photo" || current === "ai_per_contact" || current === "ai_per_event" || current === "none"
+          ? current
+          : "ai_per_event"
+      );
+    } else {
+      setImageStrategy((current) =>
+        current === "contact_photo" || current === "ai_per_contact" ? "ai_per_event" : current
+      );
+    }
+  }, [automationType]);
 
   const setContactUpdating = (contactId: string, action: string | null) => {
     setUpdatingBirthdayContactIds((current) => {
@@ -689,10 +828,11 @@ export default function CreateEmailAutomationPage() {
     setAutomationType(type);
     setBirthdayConfirmed(false);
     setCalendarConfirmed(false);
+    setSelectedHolidayIds([]);
     setDaysOffset(type === "HOLIDAY" ? -7 : 0);
-    if (type === "HOLIDAY" && selectedHolidayIds.length === 0) {
-      setSelectedHolidayIds(US_HOLIDAYS.map((holiday) => holiday.id));
-    }
+    if (type === "BIRTHDAY" || type === "WELCOME") setTone("warm");
+    if (type === "HOLIDAY") setTone("warm");
+    if (type === "CUSTOM") setTone("professional");
     if (
       !automationName.trim() ||
       AUTOMATION_TYPES.some((item) => defaultAutomationName(item.type) === automationName)
@@ -711,83 +851,124 @@ export default function CreateEmailAutomationPage() {
     );
   };
 
-  const handleSelectTemplate = (
-    templateId: string,
-    name: string,
-    sections: EmailSection[],
-    subject?: string,
-    preheader?: string
-  ) => {
-    dispatch({ type: "LOAD_TEMPLATE", templateId, templateName: name, sections, subject, preheader });
-    if (!automationName.trim()) setAutomationName(defaultAutomationName(automationType));
-    dispatch({ type: "SET_CAMPAIGN_NAME", value: automationName || defaultAutomationName(automationType) });
-    setDesignMode("builder");
-  };
-
-  const buildAiPrompt = useCallback(
-    (prompt: string) => {
+  /**
+   * Build the AI prompt for a single event. For HOLIDAY this embeds the
+   * holiday's specific name, date, and category so the agent generates a
+   * uniquely tailored email instead of a generic template.
+   */
+  const buildAiPromptForEvent = useCallback(
+    (eventKey: string) => {
       const listContext = selectedList
         ? `${selectedList.name} (${selectedList.activeCount || selectedList.totalCount} active contacts)`
         : "no contact list selected";
-      const selectedHolidayNames = selectedHolidays.map((holiday) => holiday.name).join(", ");
-
-      const contextLines = [
+      const lines: string[] = [
         `Create a professional email automation for FlowSmartly's automation builder.`,
         `Automation type: ${automationType}.`,
         `Automation name: ${automationName || defaultAutomationName(automationType)}.`,
         `Audience: ${listContext}.`,
-        `Use merge tags naturally, especially {{firstName}}.`,
+        `Desired tone: ${tone}.`,
+        `Use merge tags naturally — at minimum {{firstName}}.`,
       ];
 
       if (automationType === "BIRTHDAY") {
-        contextLines.push(
-          `Birthday email contacts available: ${eligibleBirthdayCount}.`,
+        lines.push(
+          `This email celebrates the contact's birthday.`,
+          `Eligible birthday contacts in the list: ${eligibleBirthdayCount}.`,
           `Contacts with saved photos: ${birthdayContactsWithImage}.`,
-          "The email should feel personal, warm, and automated without sounding generic. Include {{birthday}} only if it reads naturally."
+          imageStrategy === "contact_photo"
+            ? "An image of the contact will be embedded automatically — write copy that complements a personal photo."
+            : imageStrategy === "ai_per_contact"
+              ? "An AI-personalised birthday image of the contact will be embedded — write copy that flows around a personal photo."
+              : imageStrategy === "ai_per_event"
+                ? "A celebratory AI-generated birthday image will be embedded — write copy that flows around it."
+                : "No image will be embedded. Make the copy itself feel warm and celebratory.",
+          "Include {{birthday}} only if it reads naturally; never invent ages."
         );
       }
 
       if (automationType === "HOLIDAY") {
-        contextLines.push(
-          `Calendar events selected: ${selectedHolidayNames || "selected US calendar events"}.`,
-          "Make the email reusable across selected calendar events. Include {{holidayName}} and {{holidayDate}} where useful."
-        );
+        const holiday = US_HOLIDAYS.find((item) => item.id === eventKey);
+        if (holiday) {
+          const date = holidayDateLabel(holiday.id);
+          lines.push(
+            `This automation is for the calendar event "${holiday.name}" (${holiday.category}, ${date}).`,
+            `Hint: ${holiday.promptHint}`,
+            `Default suggested subject line: ${holiday.defaultSubject}.`,
+            "Write copy specifically for THIS event — do not produce a generic 'happy holidays' template that could be reused for any other event."
+          );
+        }
       }
 
       if (automationType === "WELCOME") {
-        contextLines.push("The email welcomes new contacts and introduces the brand clearly.");
+        lines.push(
+          "This email welcomes brand-new contacts and introduces the brand clearly.",
+          "Suggest one helpful next step (a product page, a guide, or a reply) as the primary CTA."
+        );
       }
 
       if (automationType === "CUSTOM") {
-        contextLines.push(`Custom schedule: ${customFrequency.toLowerCase()}.`);
+        lines.push(`Custom schedule: ${customFrequency.toLowerCase()}.`);
       }
 
-      if (prompt.trim()) contextLines.push(`User direction: ${prompt.trim()}`);
-      return contextLines.join("\n");
+      if (ctaText.trim()) {
+        lines.push(`Primary CTA text: "${ctaText.trim()}".`);
+      }
+      if (ctaUrl.trim()) {
+        lines.push(`Primary CTA link target: ${ctaUrl.trim()}.`);
+      }
+
+      if (aiBrief.trim()) lines.push(`User direction: ${aiBrief.trim()}`);
+      return lines.join("\n");
     },
     [
+      aiBrief,
       automationName,
       automationType,
       birthdayContactsWithImage,
+      ctaText,
+      ctaUrl,
       customFrequency,
       eligibleBirthdayCount,
-      selectedHolidays,
+      imageStrategy,
       selectedList,
+      tone,
     ]
   );
 
-  const handleGenerateAI = useCallback(
-    async (prompt: string, mode: "content" | "template") => {
-      dispatch({ type: "SET_GENERATING", value: true });
+  const handleGenerateEventEmail = useCallback(
+    async (eventKey: string) => {
+      const tab = eventTabs.find((item) => item.key === eventKey);
+      if (!tab) return;
+
+      setEventEmails((current) => ({
+        ...current,
+        [eventKey]: {
+          ...(current[eventKey] || {
+            key: eventKey,
+            label: tab.label,
+            dateLabel: tab.dateLabel,
+            subject: "",
+            preheader: "",
+            sections: [],
+            contentHtml: "",
+            isGenerated: false,
+            isGenerating: false,
+          }),
+          isGenerating: true,
+          label: tab.label,
+          dateLabel: tab.dateLabel,
+        },
+      }));
+
       try {
         const response = await fetch("/api/email-templates/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt: buildAiPrompt(prompt),
-            mode,
+            prompt: buildAiPromptForEvent(eventKey),
+            mode: "template",
             category: categoryForType(automationType),
-            tone: "professional",
+            tone,
           }),
         });
         const data = await response.json();
@@ -795,35 +976,140 @@ export default function CreateEmailAutomationPage() {
           throw new Error(apiErrorMessage(data, "Generation failed"));
         }
 
-        dispatch({
-          type: "LOAD_TEMPLATE",
-          templateId: data.data.template.id,
-          templateName: data.data.template.name,
-          sections: data.data.sections,
-          subject: data.data.subject,
-          preheader: data.data.preheader,
-        });
-        dispatch({
-          type: "SET_CAMPAIGN_NAME",
-          value: automationName || defaultAutomationName(automationType),
-        });
-        setDesignMode("builder");
-        setStep("design");
+        const sections: EmailSection[] = data.data.sections || [];
+        const contentHtml: string =
+          data.data.contentHtml ||
+          renderEmailHtml(sections, state.brandKit || undefined, {
+            showLogo: state.showLogo,
+            showBrandName: state.showBrandName,
+            logoSize: state.logoSize,
+          });
+
+        setEventEmails((current) => ({
+          ...current,
+          [eventKey]: {
+            key: eventKey,
+            label: tab.label,
+            dateLabel: tab.dateLabel,
+            subject: data.data.subject || "",
+            preheader: data.data.preheader || "",
+            sections,
+            contentHtml,
+            isGenerated: true,
+            isGenerating: false,
+            generatedAt: Date.now(),
+          },
+        }));
+
         toast({
-          title: "Automation email generated",
+          title:
+            automationType === "HOLIDAY"
+              ? `Generated email for ${tab.label}`
+              : "Automation email generated",
           description: data.data.creditsUsed ? `Used ${data.data.creditsUsed} credits` : undefined,
         });
       } catch (error) {
+        setEventEmails((current) => ({
+          ...current,
+          [eventKey]: {
+            ...(current[eventKey] || {
+              key: eventKey,
+              label: tab.label,
+              dateLabel: tab.dateLabel,
+              subject: "",
+              preheader: "",
+              sections: [],
+              contentHtml: "",
+              isGenerated: false,
+              isGenerating: false,
+            }),
+            isGenerating: false,
+          },
+        }));
         toast({
           title: error instanceof Error ? error.message : "Generation failed",
           variant: "destructive",
         });
-      } finally {
-        dispatch({ type: "SET_GENERATING", value: false });
       }
     },
-    [automationName, automationType, buildAiPrompt, dispatch, toast]
+    [
+      automationType,
+      buildAiPromptForEvent,
+      eventTabs,
+      state.brandKit,
+      state.logoSize,
+      state.showBrandName,
+      state.showLogo,
+      toast,
+      tone,
+    ]
   );
+
+  const handleGenerateAllPending = useCallback(async () => {
+    for (const tab of eventTabs) {
+      const existing = eventEmails[tab.key];
+      if (!existing || !existing.isGenerated) {
+        await handleGenerateEventEmail(tab.key);
+      }
+    }
+  }, [eventEmails, eventTabs, handleGenerateEventEmail]);
+
+  // Sync the active event's draft into the campaign-form state so the
+  // existing EditorStep can act on it. Triggered when the user opens the
+  // builder for a specific event.
+  const openEditorForEvent = useCallback(
+    (eventKey: string) => {
+      const entry = eventEmails[eventKey];
+      if (!entry) return;
+      dispatch({
+        type: "LOAD_TEMPLATE",
+        templateId: "",
+        templateName: entry.label,
+        sections: entry.sections,
+        subject: entry.subject,
+        preheader: entry.preheader,
+      });
+      dispatch({ type: "SET_CAMPAIGN_NAME", value: automationName || defaultAutomationName(automationType) });
+      setEditingEventKey(eventKey);
+    },
+    [automationName, automationType, dispatch, eventEmails]
+  );
+
+  // Persist the edited content back into the per-event record and close
+  // the editor.
+  const closeEditor = useCallback(() => {
+    if (!editingEventKey) return;
+    const contentHtml = renderEmailHtml(state.sections, state.brandKit || undefined, {
+      showLogo: state.showLogo,
+      showBrandName: state.showBrandName,
+      logoSize: state.logoSize,
+    });
+    setEventEmails((current) => {
+      const existing = current[editingEventKey];
+      if (!existing) return current;
+      return {
+        ...current,
+        [editingEventKey]: {
+          ...existing,
+          sections: state.sections,
+          subject: state.subject,
+          preheader: state.preheader,
+          contentHtml,
+          isGenerated: true,
+        },
+      };
+    });
+    setEditingEventKey(null);
+  }, [
+    editingEventKey,
+    state.brandKit,
+    state.logoSize,
+    state.preheader,
+    state.sections,
+    state.showBrandName,
+    state.showLogo,
+    state.subject,
+  ]);
 
   const handleOptimize = useCallback(async () => {
     dispatch({ type: "SET_GENERATING", value: true });
@@ -908,65 +1194,54 @@ export default function CreateEmailAutomationPage() {
     }
   }, [state.preheader, state.sections, state.selectedTemplateId, state.subject, toast]);
 
-  const buildTrigger = () => {
+  const buildTriggerBase = () => {
     const base: Record<string, unknown> = {
       source: "automation_builder",
       aiAssisted: true,
-      emailSections: state.sections,
-      emailBrandOptions: {
-        showLogo: state.showLogo,
-        showBrandName: state.showBrandName,
-        logoSize: state.logoSize,
+      contentSetup: {
+        tone,
+        imageStrategy,
+        ctaText: ctaText.trim() || undefined,
+        ctaUrl: ctaUrl.trim() || undefined,
       },
-      preheader: state.preheader,
       audienceName: selectedList?.name || "No contact list selected",
     };
 
     if (automationType === "BIRTHDAY") {
-      return {
-        ...base,
-        birthdayListConfirmed: birthdayConfirmed,
-        birthdayStats,
-        eligibleBirthdayContacts: eligibleBirthdayCount,
-        includeContactPhoto,
-        contactPhotoEligibleCount: birthdayContactsWithImage,
-        birthdayPreview: eligibleBirthdayContacts.slice(0, 20),
-      };
+      base.birthdayListConfirmed = birthdayConfirmed;
+      base.birthdayStats = birthdayStats;
+      base.eligibleBirthdayContacts = eligibleBirthdayCount;
+      base.includeContactPhoto = imageStrategy === "contact_photo" || imageStrategy === "ai_per_contact";
+      base.contactPhotoEligibleCount = birthdayContactsWithImage;
+      base.birthdayPreview = eligibleBirthdayContacts.slice(0, 20);
+    } else if (automationType === "HOLIDAY") {
+      base.calendarScope = isEveryHolidaySelected ? "all_us_calendar" : "selected_calendar_events";
+      base.holidayIds = selectedHolidayIds;
+      base.selectedHolidayIds = selectedHolidayIds;
+    } else if (automationType === "WELCOME") {
+      base.event = "new_contact";
+      base.lookbackDays = 30;
+    } else {
+      base.frequency = customFrequency;
+      if (customFrequency === "ONCE" && customScheduledDate) {
+        base.scheduledAt = new Date(`${customScheduledDate}T${sendTime || "09:00"}`).toISOString();
+      }
+      if (customFrequency === "WEEKLY") {
+        base.dayOfWeek = Number(customDayOfWeek);
+      }
+      if (customFrequency === "MONTHLY") {
+        base.dayOfMonth = Number(customDayOfMonth);
+      }
     }
 
-    if (automationType === "HOLIDAY") {
-      return {
-        ...base,
-        calendarScope: isEveryHolidaySelected ? "all_us_calendar" : "selected_calendar_events",
-        holidayIds: selectedHolidayIds,
-        selectedHolidayIds,
-      };
-    }
-
-    if (automationType === "WELCOME") {
-      return {
-        ...base,
-        event: "new_contact",
-        lookbackDays: 30,
-      };
-    }
-
-    return {
-      ...base,
-      frequency: customFrequency,
-      ...(customFrequency === "ONCE" && customScheduledDate
-        ? { scheduledAt: new Date(`${customScheduledDate}T${sendTime || "09:00"}`).toISOString() }
-        : {}),
-      ...(customFrequency === "WEEKLY" ? { dayOfWeek: Number(customDayOfWeek) } : {}),
-      ...(customFrequency === "MONTHLY" ? { dayOfMonth: Number(customDayOfMonth) } : {}),
-    };
+    return base;
   };
 
   const handleCreateAutomation = async () => {
     if (!canActivate) {
       toast({
         title: "Finish the automation setup",
-        description: "Confirm the trigger, design the email, and add a subject before activating.",
+        description: "Generate a unique email for every selected event before activating.",
         variant: "destructive",
       });
       return;
@@ -977,32 +1252,57 @@ export default function CreateEmailAutomationPage() {
       if (!state.selectedContactListId) {
         throw new Error("Select a contact list before creating this automation");
       }
-      const contentHtml = renderEmailHtml(state.sections, state.brandKit || undefined, {
-        showLogo: state.showLogo,
-        showBrandName: state.showBrandName,
-        logoSize: state.logoSize,
-      });
-      const plainContent = sectionsToPlainText(state.sections).trim() || state.subject || automationName;
+
+      // Use the first generated email as the top-level fallback the backend
+      // assigns to any automation without its own override.
+      const firstKey = eventTabs[0]?.key;
+      const fallback = firstKey ? eventEmails[firstKey] : undefined;
+      if (!fallback || !fallback.isGenerated) {
+        throw new Error("Generate every event email before activating.");
+      }
+
+      const emails = eventTabs
+        .map((tab) => {
+          const entry = eventEmails[tab.key];
+          if (!entry) return null;
+          const content = sectionsToPlainText(entry.sections).trim() || entry.subject || automationName;
+          return {
+            holidayId: automationType === "HOLIDAY" ? tab.key : undefined,
+            subject: entry.subject,
+            content,
+            contentHtml: entry.contentHtml,
+          };
+        })
+        .filter((entry): entry is { holidayId: string | undefined; subject: string; content: string; contentHtml: string } => !!entry);
+
+      const fallbackContent =
+        sectionsToPlainText(fallback.sections).trim() || fallback.subject || automationName;
+
+      const trigger = buildTriggerBase();
+
       const response = await fetch("/api/automations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: automationName.trim(),
           type: automationType,
-          trigger: buildTrigger(),
+          trigger,
           campaignType: "EMAIL",
-          templateId: state.selectedTemplateId || null,
-          subject: state.subject,
-          content: plainContent,
-          contentHtml,
+          templateId: null,
+          subject: fallback.subject,
+          content: fallbackContent,
+          contentHtml: fallback.contentHtml,
           sendTime,
           daysOffset,
           timezone,
           contactListId: state.selectedContactListId || null,
-          imageSource: automationType === "BIRTHDAY" && includeContactPhoto ? "contact_photo" : null,
+          imageSource: automationType === "BIRTHDAY" && (imageStrategy === "contact_photo" || imageStrategy === "ai_per_contact")
+            ? "contact_photo"
+            : null,
           imageUrl: null,
           imageOverlayText: null,
           enabled,
+          emails,
         }),
       });
       const data = await response.json();
@@ -1013,7 +1313,7 @@ export default function CreateEmailAutomationPage() {
         title: createdCount > 1 ? "Calendar automations created" : "Automation created",
         description:
           createdCount > 1
-            ? `${createdCount} calendar event automations are ready.`
+            ? `${createdCount} calendar event automations are ready — each with its own email.`
             : enabled
               ? "Your automation is enabled and ready."
               : "Your automation was saved as disabled.",
@@ -1027,6 +1327,32 @@ export default function CreateEmailAutomationPage() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const sampleContact = useMemo(
+    () => birthdayContacts.find((contact) => contact.id === sampleContactId) || null,
+    [birthdayContacts, sampleContactId]
+  );
+
+  const activeEventEmail = eventEmails[activeEventKey];
+
+  const renderPreviewHtml = (entry: EventEmail | undefined) => {
+    if (!entry || !entry.contentHtml) return "";
+    if (automationType === "BIRTHDAY") {
+      return previewMergeReplace(entry.contentHtml, sampleContact, "Friend");
+    }
+    if (automationType === "HOLIDAY") {
+      const holiday = US_HOLIDAYS.find((item) => item.id === entry.key);
+      const extra: Record<string, string> = {};
+      if (holiday) {
+        extra.holidayName = holiday.name;
+        extra.eventName = holiday.name;
+        extra.holidayDate = holidayDateLabel(holiday.id);
+        extra.eventDate = holidayDateLabel(holiday.id);
+      }
+      return previewMergeReplace(entry.contentHtml, null, "Friend", extra);
+    }
+    return previewMergeReplace(entry.contentHtml, null, "Friend");
   };
 
   return (
@@ -1052,7 +1378,7 @@ export default function CreateEmailAutomationPage() {
               </div>
               <h1 className="mt-2 text-2xl font-bold">Create Email Automation</h1>
               <p className="text-sm text-muted-foreground">
-                Plan the trigger, design with the same professional email builder, then confirm the audience before activation.
+                Pick the event, choose how the content should look, then preview a unique email per event before activating.
               </p>
             </div>
           </div>
@@ -1073,14 +1399,17 @@ export default function CreateEmailAutomationPage() {
             const Icon = item.icon;
             const isActive = item.id === step;
             const isComplete = index < currentStepIndex;
+            const canJump =
+              item.id === "event" ||
+              (item.id === "content" && canProceedFromEvent) ||
+              (item.id === "preview" && canProceedFromContent) ||
+              (item.id === "activate" && canProceedFromPreview);
             return (
               <div key={item.id} className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (item.id === "plan") setStep("plan");
-                    if (item.id === "design" && canProceedFromPlan) setStep("design");
-                    if (item.id === "activate" && canProceedFromPlan && canProceedToSend) setStep("activate");
+                    if (canJump) setStep(item.id);
                   }}
                   className={cn(
                     "flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-colors",
@@ -1101,20 +1430,51 @@ export default function CreateEmailAutomationPage() {
         </div>
       </div>
 
-      {step === "plan" && (
+      {step === "event" && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-brand-500" />
-                  AI Automation Planner
-                </CardTitle>
+                <CardTitle>Step 1 — Select the event</CardTitle>
                 <CardDescription>
-                  Describe the outcome. FlowSmartly will use this context when generating the email.
+                  Choose what triggers the email. For calendar events you can pick several — each one will get its own
+                  uniquely generated email in step 3.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {AUTOMATION_TYPES.map((item) => {
+                    const Icon = item.icon;
+                    const selected = automationType === item.type;
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => handleSelectType(item.type)}
+                        className={cn(
+                          "flex min-h-[150px] flex-col items-start rounded-lg border p-4 text-left transition-colors",
+                          selected
+                            ? "border-brand-500 bg-brand-50 text-brand-950 shadow-sm"
+                            : "bg-card hover:border-brand-300 hover:bg-muted/50"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mb-3 flex h-10 w-10 items-center justify-center rounded-lg",
+                            selected ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="font-semibold">{item.label}</span>
+                        <span className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {item.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="space-y-2">
                     <Label htmlFor="automation-name">Automation Name *</Label>
@@ -1159,81 +1519,6 @@ export default function CreateEmailAutomationPage() {
                     </p>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="ai-brief">AI Direction</Label>
-                  <Textarea
-                    id="ai-brief"
-                    value={aiBrief}
-                    onChange={(event) => setAiBrief(event.target.value)}
-                    rows={4}
-                    placeholder="Example: create a warm birthday automation with a clean offer, friendly tone, and one clear call to action."
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    onClick={() => handleGenerateAI(aiBrief, "template")}
-                    disabled={state.isGenerating || !canProceedFromPlan}
-                    className="bg-brand-500 hover:bg-brand-600"
-                  >
-                    {state.isGenerating ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Wand2 className="mr-2 h-4 w-4" />
-                    )}
-                    Generate Automation Email
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setStep("design")}
-                    disabled={!canProceedFromPlan}
-                  >
-                    Choose Template Manually
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Automation Trigger</CardTitle>
-                <CardDescription>
-                  Choose the event that starts this automation.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {AUTOMATION_TYPES.map((item) => {
-                  const Icon = item.icon;
-                  const selected = automationType === item.type;
-                  return (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => handleSelectType(item.type)}
-                      className={cn(
-                        "flex min-h-[150px] flex-col items-start rounded-lg border p-4 text-left transition-colors",
-                        selected
-                          ? "border-brand-500 bg-brand-50 text-brand-950 shadow-sm"
-                          : "bg-card hover:border-brand-300 hover:bg-muted/50"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "mb-3 flex h-10 w-10 items-center justify-center rounded-lg",
-                          selected ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <span className="font-semibold">{item.label}</span>
-                      <span className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {item.description}
-                      </span>
-                    </button>
-                  );
-                })}
               </CardContent>
             </Card>
 
@@ -1244,10 +1529,10 @@ export default function CreateEmailAutomationPage() {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <CalendarDays className="h-5 w-5 text-brand-500" />
-                        Calendar Event Selection
+                        Pick the calendar events
                       </CardTitle>
                       <CardDescription>
-                        Create one automation for every selected calendar event.
+                        Each event gets its own automation AND its own uniquely generated email.
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1314,7 +1599,7 @@ export default function CreateEmailAutomationPage() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {isEveryHolidaySelected
-                          ? "FlowSmartly will create an automation for the full calendar."
+                          ? "FlowSmartly will create an automation per event for the full calendar."
                           : "Only the selected calendar events will be automated."}
                       </p>
                     </div>
@@ -1336,10 +1621,10 @@ export default function CreateEmailAutomationPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Cake className="h-5 w-5 text-pink-500" />
-                    Birthday Audience Confirmation
+                    Birthday audience readiness
                   </CardTitle>
                   <CardDescription>
-                    Confirm the contact group before enabling birthday automation.
+                    Birthday automations send one personalised email per contact on their birthday.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1373,32 +1658,13 @@ export default function CreateEmailAutomationPage() {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-4 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-600">
-                        <ImageIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">Include contact image when available</p>
-                        <p className="text-xs leading-5 text-muted-foreground">
-                          {birthdayContactsWithImage} eligible birthday contact{birthdayContactsWithImage === 1 ? "" : "s"} have a saved image.
-                          Contacts without an image still receive the email without the photo block.
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={includeContactPhoto}
-                      onCheckedChange={setIncludeContactPhoto}
-                      disabled={birthdayContactsWithImage === 0}
-                    />
-                  </div>
-
                   <div className="rounded-lg border">
                     <div className="flex items-center justify-between border-b px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold">Birthday Contact Readiness</p>
+                        <p className="text-sm font-semibold">Birthday contact readiness</p>
                         <p className="text-xs text-muted-foreground">
-                          Contacts in this list can be completed here before activation.
+                          Add missing birthdays and contact photos before activation. AI image generation per contact
+                          happens here so each contact gets a personalised image.
                         </p>
                       </div>
                       <Badge variant="outline">{selectedList?.name || "Select a list"}</Badge>
@@ -1477,7 +1743,7 @@ export default function CreateEmailAutomationPage() {
                                 className="h-9 w-9 shrink-0"
                               >
                                 {updatingBirthdayContactIds[contact.id] === "birthday" ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <AISpinner size={16} />
                                 ) : (
                                   <Check className="h-4 w-4" />
                                 )}
@@ -1504,7 +1770,7 @@ export default function CreateEmailAutomationPage() {
                                 disabled={!!updatingBirthdayContactIds[contact.id]}
                               >
                                 {updatingBirthdayContactIds[contact.id] === "image" ? (
-                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                  <AISpinner size={14} className="mr-2" />
                                 ) : (
                                   <Upload className="mr-2 h-3.5 w-3.5" />
                                 )}
@@ -1518,7 +1784,7 @@ export default function CreateEmailAutomationPage() {
                                 disabled={!contact.imageUrl || !!updatingBirthdayContactIds[contact.id]}
                               >
                                 {updatingBirthdayContactIds[contact.id] === "ai" ? (
-                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                  <AISpinner size={14} className="mr-2" />
                                 ) : (
                                   <Gift className="mr-2 h-3.5 w-3.5" />
                                 )}
@@ -1571,7 +1837,7 @@ export default function CreateEmailAutomationPage() {
             {automationType === "CUSTOM" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Custom Schedule</CardTitle>
+                  <CardTitle>Custom schedule</CardTitle>
                   <CardDescription>Choose when the custom automation should run.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
@@ -1634,7 +1900,7 @@ export default function CreateEmailAutomationPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Plan Readiness</CardTitle>
+                <CardTitle className="text-base">Step 1 readiness</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
@@ -1658,9 +1924,9 @@ export default function CreateEmailAutomationPage() {
                   </div>
                 )}
                 <div className="rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-                  {canProceedFromPlan
-                    ? "The trigger is confirmed. Continue to template selection or generate the email with AI."
-                    : "Confirm the required trigger details to continue."}
+                  {canProceedFromEvent
+                    ? "Event confirmed. Continue to content setup."
+                    : "Confirm the required event details to continue."}
                 </div>
               </CardContent>
             </Card>
@@ -1668,67 +1934,406 @@ export default function CreateEmailAutomationPage() {
         </div>
       )}
 
-      {step === "design" && (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">
-                {designMode === "templates" ? "Choose Template or Generate with AI" : "Design Automation Email"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                HTML is rendered from reusable content blocks, matching the Create Campaign workflow.
-              </p>
-            </div>
-            {designMode === "builder" && (
-              <Button variant="outline" onClick={() => setDesignMode("templates")}>
-                Change Template
-              </Button>
-            )}
+      {step === "content" && (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Step 2 — Content setup</CardTitle>
+                <CardDescription>
+                  Choose how the AI should write and illustrate the email. These settings apply to every event email
+                  generated in the next step.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Tone</Label>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {TONE_OPTIONS.map((option) => {
+                      const selected = tone === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setTone(option.value)}
+                          className={cn(
+                            "rounded-lg border p-3 text-left transition-colors",
+                            selected ? "border-brand-500 bg-brand-50" : "hover:bg-muted/50"
+                          )}
+                        >
+                          <p className="text-sm font-semibold">{option.label}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Image strategy</Label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setImageStrategy("none")}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors",
+                        imageStrategy === "none" ? "border-brand-500 bg-brand-50" : "hover:bg-muted/50"
+                      )}
+                    >
+                      <p className="text-sm font-semibold">No image</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Text-only email. Fastest to send.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageStrategy("ai_per_event")}
+                      className={cn(
+                        "rounded-lg border p-3 text-left transition-colors",
+                        imageStrategy === "ai_per_event" ? "border-brand-500 bg-brand-50" : "hover:bg-muted/50"
+                      )}
+                    >
+                      <p className="text-sm font-semibold">AI image per event</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Each event gets its own AI-generated header image, themed to the occasion.
+                      </p>
+                    </button>
+                    {automationType === "BIRTHDAY" && (
+                      <button
+                        type="button"
+                        onClick={() => setImageStrategy("contact_photo")}
+                        disabled={birthdayContactsWithImage === 0}
+                        className={cn(
+                          "rounded-lg border p-3 text-left transition-colors",
+                          imageStrategy === "contact_photo" ? "border-brand-500 bg-brand-50" : "hover:bg-muted/50",
+                          birthdayContactsWithImage === 0 ? "cursor-not-allowed opacity-60" : ""
+                        )}
+                      >
+                        <p className="flex items-center gap-2 text-sm font-semibold">
+                          <UserCircle2 className="h-4 w-4" />
+                          Use contact's photo
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {birthdayContactsWithImage > 0
+                            ? `Embeds the contact's own image (${birthdayContactsWithImage} ready).`
+                            : "Add contact photos first in Step 1 to enable this."}
+                        </p>
+                      </button>
+                    )}
+                    {automationType === "BIRTHDAY" && (
+                      <button
+                        type="button"
+                        onClick={() => setImageStrategy("ai_per_contact")}
+                        disabled={birthdayContactsWithImage === 0}
+                        className={cn(
+                          "rounded-lg border p-3 text-left transition-colors",
+                          imageStrategy === "ai_per_contact" ? "border-brand-500 bg-brand-50" : "hover:bg-muted/50",
+                          birthdayContactsWithImage === 0 ? "cursor-not-allowed opacity-60" : ""
+                        )}
+                      >
+                        <p className="flex items-center gap-2 text-sm font-semibold">
+                          <Sparkles className="h-4 w-4" />
+                          AI birthday image per contact
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          Generate or refresh per-contact AI birthday images from Step 1 — used here automatically.
+                        </p>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="cta-text">CTA text (optional)</Label>
+                    <Input
+                      id="cta-text"
+                      value={ctaText}
+                      onChange={(event) => setCtaText(event.target.value)}
+                      placeholder="e.g., Claim your birthday gift"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cta-url">CTA link (optional)</Label>
+                    <Input
+                      id="cta-url"
+                      value={ctaUrl}
+                      onChange={(event) => setCtaUrl(event.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ai-brief">AI direction (optional)</Label>
+                  <Textarea
+                    id="ai-brief"
+                    value={aiBrief}
+                    onChange={(event) => setAiBrief(event.target.value)}
+                    rows={4}
+                    placeholder="Example: keep it concise, mention our loyalty program, and include a soft offer."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used as extra direction when generating each event's email. Holiday-specific context is added
+                    automatically per event so each email stays unique.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {designMode === "templates" ? (
-            <TemplateStep
-              isGenerating={state.isGenerating}
-              creditCost={creditCost}
-              onSelectTemplate={handleSelectTemplate}
-              onCreateBlank={(sections) => handleSelectTemplate("", "Blank Automation Email", sections)}
-              onGenerateAI={handleGenerateAI}
-            />
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">What gets generated next</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Events to generate</span>
+                  <Badge variant="outline">{eventTabs.length}</Badge>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Tone</span>
+                  <Badge variant="secondary">{tone}</Badge>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Image strategy</span>
+                  <Badge variant="secondary">{imageStrategy.replace(/_/g, " ")}</Badge>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+                  In step 3 you'll see a uniquely generated email per event — preview, regenerate, or edit any one in
+                  the builder.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {step === "preview" && (
+        <div className="space-y-6">
+          {editingEventKey ? (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    Editing email — {eventEmails[editingEventKey]?.label}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Changes here apply to this event only. Click "Done editing" to save and return to the preview.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={closeEditor}>
+                  Done editing
+                </Button>
+              </div>
+              <EditorStep
+                sections={state.sections}
+                subject={state.subject}
+                preheader={state.preheader}
+                brand={state.brandKit}
+                showLogo={state.showLogo}
+                showBrandName={state.showBrandName}
+                logoSize={state.logoSize as LogoSize}
+                campaignName={state.campaignName || automationName}
+                isGenerating={state.isGenerating}
+                optimizationData={optimizationData}
+                selectedTemplateId={state.selectedTemplateId || null}
+                selectedTemplateName={state.templateName || undefined}
+                onSubjectChange={(value) => dispatch({ type: "SET_SUBJECT", value })}
+                onPreheaderChange={(value) => dispatch({ type: "SET_PREHEADER", value })}
+                onCampaignNameChange={(value) => {
+                  dispatch({ type: "SET_CAMPAIGN_NAME", value });
+                  setAutomationName(value);
+                }}
+                onAddSection={(section) => dispatch({ type: "ADD_SECTION", section })}
+                onUpdateSection={(id, updates) => dispatch({ type: "UPDATE_SECTION", id, updates })}
+                onDeleteSection={(id) => dispatch({ type: "DELETE_SECTION", id })}
+                onDuplicateSection={(id) => dispatch({ type: "DUPLICATE_SECTION", id })}
+                onReorderSections={(activeId, overId) =>
+                  dispatch({ type: "REORDER_SECTIONS", activeId, overId })
+                }
+                onToggleLogo={(value) => dispatch({ type: "SET_BRAND_OPTIONS", showLogo: value })}
+                onToggleBrandName={(value) => dispatch({ type: "SET_BRAND_OPTIONS", showBrandName: value })}
+                onLogoSize={(value) => dispatch({ type: "SET_BRAND_OPTIONS", logoSize: value })}
+                onOptimize={handleOptimize}
+                onClearOptimization={() => setOptimizationData(null)}
+                onSaveAsTemplate={handleSaveAsTemplate}
+                onOverwriteTemplate={handleOverwriteTemplate}
+              />
+            </div>
           ) : (
-            <EditorStep
-              sections={state.sections}
-              subject={state.subject}
-              preheader={state.preheader}
-              brand={state.brandKit}
-              showLogo={state.showLogo}
-              showBrandName={state.showBrandName}
-              logoSize={state.logoSize as LogoSize}
-              campaignName={state.campaignName || automationName}
-              isGenerating={state.isGenerating}
-              optimizationData={optimizationData}
-              selectedTemplateId={state.selectedTemplateId || null}
-              selectedTemplateName={state.templateName || undefined}
-              onSubjectChange={(value) => dispatch({ type: "SET_SUBJECT", value })}
-              onPreheaderChange={(value) => dispatch({ type: "SET_PREHEADER", value })}
-              onCampaignNameChange={(value) => {
-                dispatch({ type: "SET_CAMPAIGN_NAME", value });
-                setAutomationName(value);
-              }}
-              onAddSection={(section) => dispatch({ type: "ADD_SECTION", section })}
-              onUpdateSection={(id, updates) => dispatch({ type: "UPDATE_SECTION", id, updates })}
-              onDeleteSection={(id) => dispatch({ type: "DELETE_SECTION", id })}
-              onDuplicateSection={(id) => dispatch({ type: "DUPLICATE_SECTION", id })}
-              onReorderSections={(activeId, overId) =>
-                dispatch({ type: "REORDER_SECTIONS", activeId, overId })
-              }
-              onToggleLogo={(value) => dispatch({ type: "SET_BRAND_OPTIONS", showLogo: value })}
-              onToggleBrandName={(value) => dispatch({ type: "SET_BRAND_OPTIONS", showBrandName: value })}
-              onLogoSize={(value) => dispatch({ type: "SET_BRAND_OPTIONS", logoSize: value })}
-              onOptimize={handleOptimize}
-              onClearOptimization={() => setOptimizationData(null)}
-              onSaveAsTemplate={handleSaveAsTemplate}
-              onOverwriteTemplate={handleOverwriteTemplate}
-            />
+            <>
+              <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Step 3 — Preview samples</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Each event below is generated independently using the holiday/event context — never a shared
+                    template with swapped titles.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {automationType === "BIRTHDAY" && birthdayContacts.length > 0 && (
+                    <Select value={sampleContactId} onValueChange={setSampleContactId}>
+                      <SelectTrigger className="w-[260px]">
+                        <SelectValue placeholder="Preview as contact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {birthdayContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name}
+                            {contact.birthday ? ` • ${formatBirthday(contact.birthday)}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={handleGenerateAllPending}
+                    disabled={anyEventGenerating || allEventsGenerated}
+                  >
+                    {anyEventGenerating ? (
+                      <AISpinner size={16} className="mr-2" />
+                    ) : (
+                      <Wand2 className="mr-2 h-4 w-4" />
+                    )}
+                    {allEventsGenerated ? "All generated" : "Generate all pending"}
+                  </Button>
+                </div>
+              </div>
+
+              {eventTabs.length > 1 && (
+                <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/40 p-2">
+                  {eventTabs.map((tab) => {
+                    const entry = eventEmails[tab.key];
+                    const isActive = tab.key === activeEventKey;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveEventKey(tab.key)}
+                        className={cn(
+                          "flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                          isActive
+                            ? "bg-brand-500 text-white"
+                            : entry?.isGenerated
+                              ? "bg-green-100 text-green-700"
+                              : "bg-card text-muted-foreground hover:bg-muted/60"
+                        )}
+                      >
+                        {tab.icon ? <span className="text-base">{tab.icon}</span> : null}
+                        <span>{tab.label}</span>
+                        {tab.dateLabel ? <span className="opacity-70">· {tab.dateLabel}</span> : null}
+                        {entry?.isGenerating ? <AISpinner size={12} /> : null}
+                        {entry?.isGenerated ? <Check className="h-3 w-3" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Eye className="h-5 w-5 text-brand-500" />
+                        {eventTabs.find((tab) => tab.key === activeEventKey)?.label || "Preview"}
+                      </CardTitle>
+                      <CardDescription>
+                        {automationType === "BIRTHDAY"
+                          ? sampleContact
+                            ? `Showing how this email will render for ${sampleContact.name}${
+                                sampleContact.birthday ? ` (birthday ${formatBirthday(sampleContact.birthday)})` : ""
+                              }. Each contact gets a personalised version on their birthday.`
+                            : "Pick a sample contact above to preview personalised content."
+                          : automationType === "HOLIDAY"
+                            ? "This preview is generated specifically for this event — not a shared template."
+                            : "Preview rendered with sample placeholders for missing merge tags."}
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleGenerateEventEmail(activeEventKey)}
+                        disabled={activeEventEmail?.isGenerating || anyEventGenerating}
+                      >
+                        {activeEventEmail?.isGenerating ? (
+                          <AISpinner size={16} className="mr-2" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        {activeEventEmail?.isGenerated ? "Regenerate" : "Generate"}
+                      </Button>
+                      {activeEventEmail?.isGenerated && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditorForEvent(activeEventKey)}
+                        >
+                          Edit in builder
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {!activeEventEmail || !activeEventEmail.isGenerated ? (
+                    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/40 px-6 py-16 text-center">
+                      <Sparkles className="h-8 w-8 text-brand-500" />
+                      <div>
+                        <p className="text-sm font-semibold">No preview yet</p>
+                        <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+                          {automationType === "HOLIDAY"
+                            ? "Generate a unique email specifically for this event. The AI will use the event name, date, and category as context."
+                            : "Generate the email to see a personalised preview."}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleGenerateEventEmail(activeEventKey)}
+                        disabled={activeEventEmail?.isGenerating}
+                        className="bg-brand-500 hover:bg-brand-600"
+                      >
+                        {activeEventEmail?.isGenerating ? (
+                          <AISpinner size={16} className="mr-2" />
+                        ) : (
+                          <Wand2 className="mr-2 h-4 w-4" />
+                        )}
+                        Generate this email
+                        {creditCost ? ` (${creditCost} credits)` : ""}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold">Subject</p>
+                          <Badge variant="outline">{automationType}</Badge>
+                        </div>
+                        <p className="mt-1">{previewMergeReplace(activeEventEmail.subject, sampleContact, "Friend")}</p>
+                        {activeEventEmail.preheader && (
+                          <>
+                            <p className="mt-3 font-semibold">Preheader</p>
+                            <p className="mt-1 text-muted-foreground">
+                              {previewMergeReplace(activeEventEmail.preheader, sampleContact, "Friend")}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <div className="overflow-hidden rounded-lg border">
+                        <iframe
+                          title="Email preview"
+                          srcDoc={renderPreviewHtml(activeEventEmail)}
+                          className="h-[640px] w-full bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       )}
@@ -1740,7 +2345,7 @@ export default function CreateEmailAutomationPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-brand-500" />
-                  Send Timing
+                  Send timing
                 </CardTitle>
                 <CardDescription>
                   Configure when FlowSmartly sends the automated email.
@@ -1748,7 +2353,7 @@ export default function CreateEmailAutomationPage() {
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Days Offset</Label>
+                  <Label>Days offset</Label>
                   <Select value={String(daysOffset)} onValueChange={(value) => setDaysOffset(Number(value))}>
                     <SelectTrigger>
                       <SelectValue />
@@ -1763,7 +2368,7 @@ export default function CreateEmailAutomationPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Send Time</Label>
+                  <Label>Send time</Label>
                   <Input type="time" value={sendTime} onChange={(event) => setSendTime(event.target.value)} />
                 </div>
                 <div className="space-y-2">
@@ -1786,7 +2391,7 @@ export default function CreateEmailAutomationPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Audience Confirmation</CardTitle>
+                <CardTitle>Audience confirmation</CardTitle>
                 <CardDescription>
                   Review the audience and trigger before enabling the automation.
                 </CardDescription>
@@ -1799,7 +2404,7 @@ export default function CreateEmailAutomationPage() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {selectedList
                         ? `${selectedList.activeCount || selectedList.totalCount} active contacts`
-                        : "Choose a contact list in the planner before activating."}
+                        : "Choose a contact list in Step 1 before activating."}
                     </p>
                   </div>
                   <div className="rounded-lg border p-4">
@@ -1812,12 +2417,11 @@ export default function CreateEmailAutomationPage() {
                           : AUTOMATION_TYPES.find((item) => item.type === automationType)?.label}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {automationType === "BIRTHDAY" && includeContactPhoto
-                        ? `Contact photos enabled for ${birthdayContactsWithImage} contacts with images.`
-                        : ""}
                       {automationType === "HOLIDAY" && selectedHolidays.slice(0, 3).map((holiday) => holiday.name).join(", ")}
                       {automationType === "HOLIDAY" && selectedHolidays.length > 3 ? `, +${selectedHolidays.length - 3} more` : ""}
-                      {automationType !== "HOLIDAY" && !(automationType === "BIRTHDAY" && includeContactPhoto) ? "Confirmed from the planner step." : ""}
+                      {automationType === "BIRTHDAY" && (imageStrategy === "contact_photo" || imageStrategy === "ai_per_contact")
+                        ? `Contact photos enabled for ${birthdayContactsWithImage} contacts with images.`
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -1839,7 +2443,7 @@ export default function CreateEmailAutomationPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
-                Activation Summary
+                Activation summary
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
@@ -1849,8 +2453,10 @@ export default function CreateEmailAutomationPage() {
                   <span className="text-right font-medium">{automationName}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Subject</span>
-                  <span className="max-w-[220px] truncate text-right font-medium">{state.subject}</span>
+                  <span className="text-muted-foreground">Events generated</span>
+                  <span className="font-medium">
+                    {eventTabs.filter((tab) => eventEmails[tab.key]?.isGenerated).length} / {eventTabs.length}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Send time</span>
@@ -1863,18 +2469,18 @@ export default function CreateEmailAutomationPage() {
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
                 {automationType === "HOLIDAY"
-                  ? "FlowSmartly will create separate automations for the selected calendar events so each event can trigger reliably."
-                  : "FlowSmartly will render the email from builder sections and send it when the trigger matches."}
+                  ? "FlowSmartly will create one automation per event, each with its own unique generated email."
+                  : "FlowSmartly will personalise this email per contact at send time using merge tags."}
               </div>
               <Button
                 onClick={handleCreateAutomation}
                 disabled={isCreating || !canActivate}
                 className="w-full bg-brand-500 hover:bg-brand-600"
               >
-                {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                {isCreating ? <AISpinner size={16} className="mr-2" /> : <Zap className="mr-2 h-4 w-4" />}
                 {automationType === "HOLIDAY" && selectedHolidayIds.length > 1
-                  ? `Create ${selectedHolidayIds.length} Automations`
-                  : "Create Automation"}
+                  ? `Create ${selectedHolidayIds.length} automations`
+                  : "Create automation"}
               </Button>
             </CardContent>
           </Card>
@@ -1885,21 +2491,33 @@ export default function CreateEmailAutomationPage() {
         <Button
           variant="ghost"
           onClick={() => {
-            if (step === "plan") router.push("/email-marketing/automations");
-            if (step === "design") setStep("plan");
-            if (step === "activate") setStep("design");
+            if (step === "event") router.push("/email-marketing/automations");
+            if (step === "content") setStep("event");
+            if (step === "preview") {
+              if (editingEventKey) {
+                closeEditor();
+              } else {
+                setStep("content");
+              }
+            }
+            if (step === "activate") setStep("preview");
           }}
         >
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        {step !== "activate" && (
+        {step !== "activate" && !editingEventKey && (
           <Button
             onClick={() => {
-              if (step === "plan") setStep("design");
-              if (step === "design") setStep("activate");
+              if (step === "event") setStep("content");
+              if (step === "content") setStep("preview");
+              if (step === "preview") setStep("activate");
             }}
-            disabled={(step === "plan" && !canProceedFromPlan) || (step === "design" && !canProceedToSend)}
+            disabled={
+              (step === "event" && !canProceedFromEvent) ||
+              (step === "content" && !canProceedFromContent) ||
+              (step === "preview" && !canProceedFromPreview)
+            }
             className="bg-brand-500 hover:bg-brand-600"
           >
             Continue

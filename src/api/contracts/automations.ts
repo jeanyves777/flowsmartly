@@ -80,6 +80,19 @@ export interface AutomationListQuery {
   search?: string;
 }
 
+/**
+ * Per-event email override. For HOLIDAY automations the wizard can send one
+ * entry per selected holiday so each automation gets a uniquely-generated email
+ * instead of sharing the same template. Entries without a `holidayId` act as
+ * the fallback for any automation that does not have its own override.
+ */
+export interface AutomationEmailOverride {
+  holidayId?: string;
+  subject?: string;
+  content?: string;
+  contentHtml?: string;
+}
+
 /** Request body for POST /api/automations */
 export interface CreateAutomationRequest {
   name: string;
@@ -98,6 +111,8 @@ export interface CreateAutomationRequest {
   imageUrl?: string;
   imageSource?: string;
   imageOverlayText?: string;
+  /** Optional per-event overrides for the generated email body. */
+  emails?: AutomationEmailOverride[];
 }
 
 /** Response body for POST /api/automations */
