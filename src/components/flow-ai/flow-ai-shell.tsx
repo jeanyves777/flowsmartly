@@ -17,6 +17,8 @@ import {
   Crown,
   Zap,
   Download,
+  Paperclip,
+  Link as LinkIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +98,12 @@ export function FlowAIShell() {
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Media analysis (upload an image OR paste a URL → Claude Haiku vision)
+  const [analyzing, setAnalyzing] = useState(false);
+  const [urlInputOpen, setUrlInputOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
 
   // Load conversations + (if any) the active conversation history.
   useEffect(() => {
@@ -180,6 +188,138 @@ export function FlowAIShell() {
       /* non-critical */
     }
   }, []);
+
+  // Convert a File to base64 (without the data: prefix) for the analyze endpoint.
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const comma = result.indexOf(",");
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  // Run media analysis (upload OR URL) → append assistant message with the
+  // structured result + a row of action buttons. Doesn't open a separate
+  // panel — it lives inline in chat like any other AI turn.
+  const analyzeMedia = useCallback(
+    async (payload: { mediaUrl?: string; base64?: string; previewUrl?: string; userNote?: string }) => {
+      if (analyzing) return;
+      setAnalyzing(true);
+      const userMsg: Message = {
+        id: `u-${Date.now()}`,
+        role: "user",
+        content: payload.userNote
+          ? `Analyze this image — ${payload.userNote}`
+          : "Analyze this image",
+        mediaType: "image",
+        mediaUrl: payload.previewUrl || payload.mediaUrl || null,
+      };
+      const pendingMsg: Message = {
+        id: `p-${Date.now()}`,
+        role: "assistant",
+        content: "Analyzing image with vision model…",
+      };
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+
+      try {
+        const res = await fetch("/api/flow-ai/analyze-media", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mediaUrl: payload.mediaUrl,
+            base64: payload.base64,
+            userNote: payload.userNote,
+          }),
+        });
+        const json = await res.json();
+        if (!json?.success) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pendingMsg.id
+                ? { ...m, content: `Analysis failed: ${json?.error?.message || "unknown error"}` }
+                : m,
+            ),
+          );
+          return;
+        }
+        const a = json.data.analysis as {
+          description: string;
+          subject: string;
+          mood: string;
+          dominantColors: string[];
+          textVisible: string | null;
+          brandFitNotes: string | null;
+          suggestedUses: string[];
+        };
+        const lines = [
+          `**${a.subject}** — ${a.mood}`,
+          a.description,
+          a.brandFitNotes ? `Brand fit: ${a.brandFitNotes}` : "",
+          a.textVisible ? `Visible text: "${a.textVisible}"` : "",
+          a.dominantColors?.length ? `Colors: ${a.dominantColors.join(", ")}` : "",
+          a.suggestedUses?.length
+            ? `\nSuggested uses:\n${a.suggestedUses.map((s) => `• ${s}`).join("\n")}`
+            : "",
+          `\nWhat would you like to do with this image?`,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingMsg.id
+              ? { ...m, content: lines, mediaType: "image", mediaUrl: payload.previewUrl || payload.mediaUrl || null }
+              : m,
+          ),
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Analysis failed";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingMsg.id ? { ...m, content: `Analysis failed: ${message}` } : m,
+          ),
+        );
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    [analyzing],
+  );
+
+  const handleFilePick = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        toast({ variant: "destructive", title: "Image required", description: "Only image files supported." });
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        toast({ variant: "destructive", title: "File too large", description: "Max 8 MB." });
+        return;
+      }
+      const base64 = await fileToBase64(file);
+      const previewUrl = `data:${file.type};base64,${base64}`;
+      analyzeMedia({ base64, previewUrl, userNote: input.trim() || undefined });
+      setInput("");
+    },
+    [analyzeMedia, input, toast],
+  );
+
+  const handleUrlSubmit = useCallback(() => {
+    const url = urlInput.trim();
+    if (!url) return;
+    if (!/^https?:\/\//.test(url) && !url.startsWith("data:")) {
+      toast({ variant: "destructive", title: "Invalid URL", description: "Must be http(s) or data:" });
+      return;
+    }
+    analyzeMedia({ mediaUrl: url, previewUrl: url, userNote: input.trim() || undefined });
+    setUrlInput("");
+    setUrlInputOpen(false);
+    setInput("");
+  }, [analyzeMedia, input, urlInput, toast]);
 
   const send = useCallback(
     async (text: string) => {
@@ -515,7 +655,83 @@ export function FlowAIShell() {
               disabled={sending}
             />
 
+            {urlInputOpen && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-blue-50/40 dark:bg-blue-950/20 px-2 py-1.5">
+                <LinkIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 ml-1" />
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleUrlSubmit();
+                    } else if (e.key === "Escape") {
+                      setUrlInputOpen(false);
+                      setUrlInput("");
+                    }
+                  }}
+                  placeholder="Paste an image URL — https://..."
+                  className="flex-1 bg-transparent border-0 outline-none focus:ring-0 text-sm py-1"
+                  autoFocus
+                  disabled={analyzing}
+                />
+                <button
+                  type="button"
+                  onClick={handleUrlSubmit}
+                  disabled={analyzing || !urlInput.trim()}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40 px-1"
+                >
+                  Analyze
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUrlInputOpen(false); setUrlInput(""); }}
+                  className="text-xs text-muted-foreground hover:text-foreground px-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                handleFilePick(file);
+                if (e.target) e.target.value = "";
+              }}
+            />
+
             <div className="mt-2 flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-blue-500 focus-within:shadow-md transition-all px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || analyzing}
+                className="h-9 w-9 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Upload image"
+                title="Upload an image to analyze"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrlInputOpen((v) => !v)}
+                disabled={sending || analyzing}
+                className={cn(
+                  "h-9 w-9 rounded-md transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                  urlInputOpen
+                    ? "text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+                    : "text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30",
+                )}
+                aria-label="Analyze image from URL"
+                title="Paste an image URL to analyze"
+              >
+                <LinkIcon className="h-4 w-4" />
+              </button>
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -527,18 +743,24 @@ export function FlowAIShell() {
                   }
                 }}
                 rows={1}
-                placeholder={MODE_PLACEHOLDER[mode]}
+                placeholder={
+                  analyzing
+                    ? "Analyzing image…"
+                    : urlInputOpen
+                    ? "Optional context for the image above…"
+                    : MODE_PLACEHOLDER[mode]
+                }
                 className="flex-1 bg-transparent border-0 outline-none focus:ring-0 resize-none py-2 px-2 text-sm leading-relaxed max-h-40"
-                disabled={sending}
+                disabled={sending || analyzing}
               />
               <button
                 type="button"
                 onClick={() => send(input)}
-                disabled={sending || !input.trim()}
+                disabled={sending || analyzing || !input.trim()}
                 className="h-9 w-9 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-blue-500/20"
                 aria-label="Send"
               >
-                {sending ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
+                {sending || analyzing ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
               </button>
             </div>
 
