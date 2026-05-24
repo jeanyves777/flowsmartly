@@ -245,17 +245,21 @@ export async function generateAutomationMedia(
     .filter(Boolean)
     .join(" ");
 
-  // Composition-leading opening — the no-mat AND no-humans instructions
-  // go in the OPENING (where models weight strongest) rather than buried
-  // mid-list in a rule block. Same noun-rewrite the user previously
-  // approved: don't say "design / post / poster" (object-priors).
-  // Describe it as the scene itself filling the frame.
-  //
-  // No-humans reason: scheduled posts fire without manual review, so
-  // AI-rendered faces / people that look "too AI" would publish without
-  // a chance to catch them. Keep the scene to objects / environment /
-  // typography / abstract / illustration / icons.
-  const prompt = `Render a single ${aspectLabel} image filling the entire frame edge-to-edge. The full image canvas IS the visual content — there is no outer mat, frame, border, page background, or surface the image sits on. The scene contains NO people, NO faces, NO humans, NO portraits, NO body parts — keep it to objects, environment, typography, abstract elements, illustrations, or icons only. ${ruleBlock} ${dataBlock}`;
+  // SUBJECT-FIRST opening. Image models weight the first few tokens
+  // strongest AND respond better to POSITIVE framing (what TO depict)
+  // than to negative framing (what NOT to depict). xAI in particular
+  // tends to ignore "no people" instructions when they come after the
+  // brand/event context — it pattern-matches "Labor Day / small
+  // business" and adds people anyway. Lead with the allowed subject
+  // list, repeat the human exclusion as both positive and negative,
+  // then composition guarantees (no mat / no outer frame), then rules.
+  const prompt = `An UNPOPULATED ${aspectLabel} image. The subject is exclusively: objects, environment / landscape, typography, abstract shapes, illustrations, icons, or symbolic imagery. The scene is empty of any humans — zero people, zero faces, zero portraits, zero figures, zero body parts visible anywhere. If you would normally include a person to convey the subject, replace them with their tools, products, workspace, environment, or a symbolic stand-in.
+
+The image fills the entire frame edge-to-edge — no outer mat, no frame, no border, no page background, no surface the image sits on. The full canvas IS the visual content.
+
+${ruleBlock}
+
+${dataBlock}`;
 
   const { buffer: aiBuffer, provider } = await tryGenerate(
     prompt,
