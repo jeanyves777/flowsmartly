@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, List, X, Sparkles, Coins, Maximize2 } from "lucide-react";
+import { ArrowUp, List, X, Sparkles, Coins, Maximize2, Paperclip, Link as LinkIcon } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { MessageBubble } from "./message-bubble";
 import { TypingIndicator } from "./typing-indicator";
@@ -47,6 +48,12 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Media analysis (upload an image OR paste a URL → Claude Haiku vision)
+  const [analyzing, setAnalyzing] = useState(false);
+  const [urlInputOpen, setUrlInputOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -113,6 +120,117 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     } catch {
       // Silently fail
     }
+  };
+
+  // Convert a File to base64 (without the data: prefix) for the analyze endpoint.
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const comma = result.indexOf(",");
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  // Analyze an image (upload OR URL) — appends user + assistant messages
+  // with the Claude Haiku vision result. Doesn't open a side panel.
+  const analyzeMedia = async (payload: {
+    mediaUrl?: string;
+    base64?: string;
+    previewUrl?: string;
+    userNote?: string;
+  }) => {
+    if (analyzing) return;
+    setAnalyzing(true);
+    const userMsg: Message = {
+      id: `temp-user-${Date.now()}`,
+      role: "user",
+      content: payload.userNote ? `Analyze this image — ${payload.userNote}` : "Analyze this image",
+      createdAt: new Date().toISOString(),
+    };
+    const pendingId = `temp-assistant-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { id: pendingId, role: "assistant", content: "Analyzing image with vision model…" },
+    ]);
+    try {
+      const res = await fetch("/api/flow-ai/analyze-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaUrl: payload.mediaUrl,
+          base64: payload.base64,
+          userNote: payload.userNote,
+        }),
+      });
+      const json = await res.json();
+      if (!json?.success) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: `Analysis failed: ${json?.error?.message || "unknown error"}` }
+              : m,
+          ),
+        );
+        return;
+      }
+      const a = json.data.analysis as {
+        description: string;
+        subject: string;
+        mood: string;
+        dominantColors: string[];
+        textVisible: string | null;
+        brandFitNotes: string | null;
+        suggestedUses: string[];
+      };
+      const lines = [
+        `**${a.subject}** — ${a.mood}`,
+        a.description,
+        a.brandFitNotes ? `Brand fit: ${a.brandFitNotes}` : "",
+        a.textVisible ? `Visible text: "${a.textVisible}"` : "",
+        a.dominantColors?.length ? `Colors: ${a.dominantColors.join(", ")}` : "",
+        a.suggestedUses?.length
+          ? `\nSuggested uses:\n${a.suggestedUses.map((s) => `• ${s}`).join("\n")}`
+          : "",
+        `\nWhat would you like to do with this image?`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      setMessages((prev) =>
+        prev.map((m) => (m.id === pendingId ? { ...m, content: lines } : m)),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Analysis failed";
+      setMessages((prev) =>
+        prev.map((m) => (m.id === pendingId ? { ...m, content: `Analysis failed: ${message}` } : m)),
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleFilePick = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 8 * 1024 * 1024) return;
+    const base64 = await fileToBase64(file);
+    const previewUrl = `data:${file.type};base64,${base64}`;
+    analyzeMedia({ base64, previewUrl, userNote: input.trim() || undefined });
+    setInput("");
+  };
+
+  const handleUrlSubmit = () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    if (!/^https?:\/\//.test(url) && !url.startsWith("data:")) return;
+    analyzeMedia({ mediaUrl: url, previewUrl: url, userNote: input.trim() || undefined });
+    setUrlInput("");
+    setUrlInputOpen(false);
+    setInput("");
   };
 
   // Send message
@@ -369,23 +487,104 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                 </span>
               </div>
             )}
+            {urlInputOpen && (
+              <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-blue-50/40 dark:bg-blue-950/20 px-2 py-1.5">
+                <LinkIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 ml-1" />
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleUrlSubmit();
+                    } else if (e.key === "Escape") {
+                      setUrlInputOpen(false);
+                      setUrlInput("");
+                    }
+                  }}
+                  placeholder="Paste an image URL — https://..."
+                  className="flex-1 bg-transparent border-0 outline-none focus:ring-0 text-sm py-1"
+                  autoFocus
+                  disabled={analyzing}
+                />
+                <button
+                  type="button"
+                  onClick={handleUrlSubmit}
+                  disabled={analyzing || !urlInput.trim()}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40 px-1"
+                >
+                  Analyze
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUrlInputOpen(false); setUrlInput(""); }}
+                  className="text-xs text-muted-foreground hover:text-foreground px-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                handleFilePick(file);
+                if (e.target) e.target.value = "";
+              }}
+            />
+
             <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isStreaming || analyzing}
+                className="shrink-0 w-10 h-10 rounded-xl border border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                title="Upload an image to analyze"
+                aria-label="Upload image"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrlInputOpen((v) => !v)}
+                disabled={isStreaming || analyzing}
+                className={`shrink-0 w-10 h-10 rounded-xl border transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                  urlInputOpen
+                    ? "border-blue-500/40 text-blue-600 bg-blue-50/50 dark:bg-blue-950/30"
+                    : "border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30"
+                }`}
+                title="Paste an image URL to analyze"
+                aria-label="Analyze image from URL"
+              >
+                <LinkIcon className="w-4 h-4" />
+              </button>
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask FlowAI anything..."
+                placeholder={
+                  analyzing
+                    ? "Analyzing image…"
+                    : urlInputOpen
+                    ? "Optional context for the image above…"
+                    : "Ask FlowAI anything..."
+                }
                 rows={1}
                 className="flex-1 resize-none rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500/50 max-h-[120px]"
-                disabled={isStreaming}
+                disabled={isStreaming || analyzing}
               />
               <button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isStreaming}
+                disabled={!input.trim() || isStreaming || analyzing}
                 className="shrink-0 w-10 h-10 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
               >
-                <ArrowUp className="w-5 h-5" />
+                {analyzing ? <AISpinner size={16} /> : <ArrowUp className="w-5 h-5" />}
               </button>
             </div>
           </div>
