@@ -237,7 +237,7 @@ export async function generateAutomationMedia(
     `Subject / event: ${subject}.`,
     brandKit?.description ? `Brand description: ${brandKit.description}.` : "",
     brandColors.primary || brandColors.secondary || brandColors.accent
-      ? `Brand palette: primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}.`
+      ? `Use these brand colors visually throughout the design — backgrounds, accents, typography color — primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}. (Apply as styling only; the hex values are color inputs, not text to render on the image.)`
       : "",
     exactContacts ? `Contact items: ${exactContacts}.` : "",
     occurrenceYear ? `Year: ${occurrenceYear}. Today: ${todayIso}.` : `Today: ${todayIso}.`,
@@ -245,12 +245,17 @@ export async function generateAutomationMedia(
     .filter(Boolean)
     .join(" ");
 
-  // Composition-leading opening — the no-mat instruction goes in the
-  // OPENING (where models weight strongest) rather than buried mid-list
-  // in a rule block. Same noun-rewrite the user previously approved:
-  // don't say "design / post / poster" (object-priors). Describe it as
-  // the scene itself filling the frame.
-  const prompt = `Render a single ${aspectLabel} image filling the entire frame edge-to-edge. The full image canvas IS the visual content — there is no outer mat, frame, border, page background, or surface the image sits on. ${ruleBlock} ${dataBlock}`;
+  // Composition-leading opening — the no-mat AND no-humans instructions
+  // go in the OPENING (where models weight strongest) rather than buried
+  // mid-list in a rule block. Same noun-rewrite the user previously
+  // approved: don't say "design / post / poster" (object-priors).
+  // Describe it as the scene itself filling the frame.
+  //
+  // No-humans reason: scheduled posts fire without manual review, so
+  // AI-rendered faces / people that look "too AI" would publish without
+  // a chance to catch them. Keep the scene to objects / environment /
+  // typography / abstract / illustration / icons.
+  const prompt = `Render a single ${aspectLabel} image filling the entire frame edge-to-edge. The full image canvas IS the visual content — there is no outer mat, frame, border, page background, or surface the image sits on. The scene contains NO people, NO faces, NO humans, NO portraits, NO body parts — keep it to objects, environment, typography, abstract elements, illustrations, or icons only. ${ruleBlock} ${dataBlock}`;
 
   const { buffer: aiBuffer, provider } = await tryGenerate(
     prompt,
