@@ -87,7 +87,6 @@ interface CampaignState {
   style: Style | null;
   brief: string;
   goal: string;
-  destinationUrl: string;
   aspectRatio: Aspect;
   durationSeconds: Duration;
   clipLength: ClipLen;
@@ -197,10 +196,13 @@ function StoryAdCampaignPage() {
 
 export default StoryAdCampaignPage;
 
+const DRAFT_STORAGE_KEY = "story-ad-campaign:draft-v1";
+
 function PageBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
+  const isCreating = searchParams.get("create") === "1";
   const { toast } = useToast();
 
   const [credits, setCredits] = useState<number | null>(null);
@@ -209,18 +211,38 @@ function PageBody() {
   const [loading, setLoading] = useState(false);
   const [stageLoading, setStageLoading] = useState<null | "characters" | "scenes" | "batch">(null);
 
-  // Stage 0 inputs (only used pre-creation)
-  const [draft, setDraft] = useState({
-    style: null as Style | null,
-    brief: "",
-    goal: "Build desire, trust, and a clear reason to act.",
-    destinationUrl: "",
-    aspectRatio: "9:16" as Aspect,
-    durationSeconds: 120 as Duration,
-    clipLength: 10 as ClipLen,
-    platforms: ["instagram", "tiktok"],
-    provider: "veo3" as Provider,
+  // Stage 0 inputs (only used pre-creation; persisted to localStorage)
+  const [draft, setDraft] = useState(() => {
+    const base = {
+      style: null as Style | null,
+      brief: "",
+      goal: "Build desire, trust, and a clear reason to act.",
+      aspectRatio: "9:16" as Aspect,
+      durationSeconds: 120 as Duration,
+      clipLength: 10 as ClipLen,
+      platforms: ["instagram", "tiktok"],
+      provider: "veo3" as Provider,
+    };
+    if (typeof window === "undefined") return base;
+    try {
+      const stored = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!stored) return base;
+      const parsed = JSON.parse(stored);
+      return { ...base, ...parsed };
+    } catch {
+      return base;
+    }
   });
+
+  // Persist draft on every change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // ignore quota/serialize failures
+    }
+  }, [draft]);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -299,6 +321,8 @@ function PageBody() {
         throw new Error(data.error?.message || "Failed to create campaign");
       }
       const id = data.data.campaignId as string;
+      // wipe the saved draft now that a real campaign exists
+      try { window.localStorage.removeItem(DRAFT_STORAGE_KEY); } catch {}
       router.push(`/story-ad-movie?id=${id}`);
       await fetchCampaign(id);
       fetchHistory();
@@ -324,6 +348,46 @@ function PageBody() {
       setCampaign((prev) => (prev ? { ...prev, state: data.data.state } : prev));
     }
   }
+
+  // Debounced PATCH for high-frequency edits (per-keystroke field changes).
+  // Updates local state immediately so input stays responsive; flushes to server after 600ms idle.
+  const pendingPatchRef = useRef<{ patch: Partial<CampaignState>; rebuildPrompts: boolean } | null>(null);
+  const flushTimerRef = useRef<number | null>(null);
+
+  function flushPatch() {
+    if (!pendingPatchRef.current || !campaign) return;
+    const { patch, rebuildPrompts } = pendingPatchRef.current;
+    pendingPatchRef.current = null;
+    fetch(`/api/ai/story-ad-campaign/${campaign.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: patch, rebuildPrompts }),
+    }).catch(() => {
+      // network noise — final save on stage advance will catch any drift
+    });
+  }
+
+  function localPatch(patch: Partial<CampaignState>, opts?: { rebuildPrompts?: boolean }) {
+    if (!campaign) return;
+    // optimistic local update
+    setCampaign((prev) => (prev ? { ...prev, state: { ...prev.state, ...patch } } : prev));
+    // merge into pending patch
+    pendingPatchRef.current = {
+      patch: { ...(pendingPatchRef.current?.patch || {}), ...patch },
+      rebuildPrompts: opts?.rebuildPrompts || pendingPatchRef.current?.rebuildPrompts || false,
+    };
+    if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = window.setTimeout(flushPatch, 600);
+  }
+
+  // Flush any pending patch before unload or campaign switch
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+      flushPatch();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign?.id]);
 
   async function runCharacterStage() {
     if (!campaign) return;
@@ -419,171 +483,182 @@ function PageBody() {
     fetchHistory();
   }
 
+  function canReach(target: Phase, state: CampaignState): boolean {
+    if (target === "STYLE" || target === "CHARACTERS") return true;
+    if (target === "SCENES") {
+      return state.characters.length > 0 && state.characters.every((c) => c.approved);
+    }
+    return state.clips.length > 0;
+  }
+
   function goToPhase(target: Phase) {
     if (!campaign) return;
-    // only allow visiting phases that already have data
-    const allowed: Phase[] = ["STYLE"];
-    if (campaign.state.characters.length) allowed.push("CHARACTERS");
-    if (campaign.state.clips.length) allowed.push("SCENES", "PROMPTS", "VOICE", "BATCH");
-    if (!allowed.includes(target)) return;
+    if (!canReach(target, campaign.state)) return;
     patchState({ phase: target });
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-6 px-3 py-5 sm:px-5 lg:px-8">
-      <PageHeader
+    <div className="flex w-full min-w-0 flex-col gap-3 px-3 py-3 sm:px-4 lg:px-6">
+      <TopBar
         credits={credits}
         campaign={campaign}
-        onNew={() => {
+        history={history}
+        onBack={() => {
           router.push("/story-ad-movie");
+          setCampaign(null);
+        }}
+        onNew={() => {
+          router.push("/story-ad-movie?create=1");
           setCampaign(null);
         }}
         onDelete={campaign ? () => deleteCampaign(campaign.id) : undefined}
       />
 
-      <Stepper
-        phaseIndex={phaseIndex}
-        canVisit={(phase) => {
-          if (!campaign) return phase === "STYLE";
-          if (phase === "STYLE") return true;
-          if (phase === "CHARACTERS") return true;
-          if (phase === "SCENES") return campaign.state.characters.length > 0;
-          return campaign.state.clips.length > 0;
-        }}
-        onJump={(phase) => goToPhase(phase)}
-      />
+      {(campaign || isCreating) && (
+        <Stepper
+          phaseIndex={phaseIndex}
+          canVisit={(phase) => {
+            if (!campaign) return phase === "STYLE";
+            return canReach(phase, campaign.state);
+          }}
+          onJump={(phase) => goToPhase(phase)}
+        />
+      )}
 
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <main className="min-w-0">
-          {!campaign && (
-            <StyleStage
-              draft={draft}
-              setDraft={setDraft}
-              onCreate={createCampaign}
-              loading={loading}
-            />
-          )}
-          {campaign && activePhase === "STYLE" && (
-            <ReadOnlySummary state={campaign.state} onAdvance={() => goToPhase("CHARACTERS")} />
-          )}
-          {campaign && activePhase === "CHARACTERS" && (
-            <CharactersStage
-              campaignId={campaign.id}
-              state={campaign.state}
-              loading={stageLoading === "characters"}
-              onGenerate={runCharacterStage}
-              onEditCharacter={(updated) => {
-                const next = campaign.state.characters.map((c) => (c.id === updated.id ? updated : c));
-                patchState({ characters: next });
-              }}
-              onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
-              onAdvance={() => goToPhase("SCENES")}
-            />
-          )}
-          {campaign && activePhase === "SCENES" && (
-            <ScenesStage
-              state={campaign.state}
-              loading={stageLoading === "scenes"}
-              onPlan={runScenesStage}
-              onAdvance={() => goToPhase("PROMPTS")}
-            />
-          )}
-          {campaign && activePhase === "PROMPTS" && (
-            <PromptsStage
-              campaignId={campaign.id}
-              state={campaign.state}
-              onClipChange={(updated) => {
-                const next = campaign.state.clips.map((c) => (c.id === updated.id ? updated : c));
-                patchState({ clips: next }, { rebuildPrompts: true });
-              }}
-              onAdvance={() => goToPhase("VOICE")}
-            />
-          )}
-          {campaign && activePhase === "VOICE" && (
-            <VoiceStage
-              campaignId={campaign.id}
-              state={campaign.state}
-              onAdvance={() => goToPhase("BATCH")}
-            />
-          )}
-          {campaign && (activePhase === "BATCH" || activePhase === "DONE" || activePhase === "FAILED") && (
-            <BatchStage
-              campaign={campaign}
-              loading={stageLoading === "batch"}
-              onSend={runBatch}
-              onProviderChange={(provider) => patchState({ provider })}
-            />
-          )}
-        </main>
-
-        <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
-          <CampaignSummaryCard campaign={campaign} draft={!campaign ? draft : null} />
-          <CampaignHistoryCard
+      <main className="min-w-0">
+        {!campaign && !isCreating && (
+          <CampaignsList
             history={history}
-            selectedId={campaign?.id || null}
             onOpen={(id) => router.push(`/story-ad-movie?id=${id}`)}
+            onCreate={() => router.push("/story-ad-movie?create=1")}
             onDelete={deleteCampaign}
           />
-        </aside>
-      </div>
+        )}
+        {!campaign && isCreating && (
+          <StyleStage
+            draft={draft}
+            setDraft={setDraft}
+            onCreate={createCampaign}
+            loading={loading}
+          />
+        )}
+        {campaign && activePhase === "STYLE" && (
+          <ReadOnlySummary state={campaign.state} onAdvance={() => goToPhase("CHARACTERS")} />
+        )}
+        {campaign && activePhase === "CHARACTERS" && (
+          <CharactersStage
+            campaignId={campaign.id}
+            state={campaign.state}
+            loading={stageLoading === "characters"}
+            onGenerate={runCharacterStage}
+            onEditCharacter={(updated) => {
+              const next = campaign.state.characters.map((c) => (c.id === updated.id ? updated : c));
+              localPatch({ characters: next });
+            }}
+            onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
+            onAdvance={() => goToPhase("SCENES")}
+          />
+        )}
+        {campaign && activePhase === "SCENES" && (
+          <ScenesStage
+            state={campaign.state}
+            loading={stageLoading === "scenes"}
+            onPlan={runScenesStage}
+            onAdvance={() => goToPhase("PROMPTS")}
+          />
+        )}
+        {campaign && activePhase === "PROMPTS" && (
+          <PromptsStage
+            campaignId={campaign.id}
+            state={campaign.state}
+            onClipChange={(updated) => {
+              const next = campaign.state.clips.map((c) => (c.id === updated.id ? updated : c));
+              localPatch({ clips: next }, { rebuildPrompts: true });
+            }}
+            onAdvance={() => goToPhase("VOICE")}
+          />
+        )}
+        {campaign && activePhase === "VOICE" && (
+          <VoiceStage
+            campaignId={campaign.id}
+            state={campaign.state}
+            onAdvance={() => goToPhase("BATCH")}
+          />
+        )}
+        {campaign && (activePhase === "BATCH" || activePhase === "DONE" || activePhase === "FAILED") && (
+          <BatchStage
+            campaign={campaign}
+            loading={stageLoading === "batch"}
+            onSend={runBatch}
+            onProviderChange={(provider) => patchState({ provider })}
+          />
+        )}
+      </main>
     </div>
   );
 }
 
 // ============================================================================
-// HEADER
+// TOP BAR — compact chip-style header
 // ============================================================================
 
-function PageHeader({
+function TopBar({
   credits,
   campaign,
+  history,
   onNew,
+  onBack,
   onDelete,
 }: {
   credits: number | null;
   campaign: CampaignRow | null;
+  history: CampaignListItem[];
   onNew: () => void;
+  onBack: () => void;
   onDelete?: () => void;
 }) {
   return (
-    <header className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-      <div className="min-w-0">
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-semibold">
-          <Sparkles className="h-4 w-4 text-brand-500" />
-          Story Ad Campaign Pipeline
-        </div>
-        <h1 className="flex items-center gap-3 text-3xl font-bold tracking-normal sm:text-4xl">
-          <Clapperboard className="h-8 w-8 shrink-0 text-brand-500" />
-          {campaign?.state.brief ? campaign.state.brief.slice(0, 80) : "Story Ad Campaign"}
-        </h1>
-        <p className="mt-2 max-w-4xl text-base text-muted-foreground sm:text-lg">
-          A campaign-style pipeline: lock the style, build a character catalog, lay out the full story arc, then batch
-          render every clip. No text overlays — pure cinematic visuals.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {credits !== null && (
-          <Badge variant="secondary" className="h-10 px-4 text-sm">
-            <Sparkles className="mr-2 h-4 w-4 text-brand-500" />
-            {credits} credits
-          </Badge>
-        )}
-        {campaign && (
-          <>
-            <Button variant="outline" onClick={onNew}>
-              <Plus className="h-4 w-4" />
-              New campaign
+    <div className="rounded-xl border bg-background p-2 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {campaign && (
+            <Button variant="ghost" size="sm" onClick={onBack} className="h-8">
+              <ArrowLeft className="h-4 w-4" />
+              All campaigns
             </Button>
-            {onDelete && (
-              <Button variant="outline" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            )}
-          </>
-        )}
+          )}
+          <span className="inline-flex h-8 items-center gap-2 rounded-lg border bg-muted/30 px-3 text-sm font-semibold">
+            <Clapperboard className="h-4 w-4 text-brand-500" />
+            {campaign?.state.brief
+              ? campaign.state.brief.slice(0, 60) + (campaign.state.brief.length > 60 ? "…" : "")
+              : "Story Ad Campaign"}
+          </span>
+          {history.length > 0 && !campaign && (
+            <span className="text-xs text-muted-foreground">
+              {history.length} saved
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {credits !== null && (
+            <Badge variant="secondary" className="h-8 px-3 text-xs">
+              <Sparkles className="mr-1.5 h-3 w-3 text-brand-500" />
+              {credits} credits
+            </Badge>
+          )}
+          {campaign && onDelete && (
+            <Button variant="ghost" size="sm" onClick={onDelete} className="h-8 text-muted-foreground">
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          )}
+          <Button size="sm" onClick={onNew} className="h-8">
+            <Plus className="h-4 w-4" />
+            New campaign
+          </Button>
+        </div>
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -601,8 +676,8 @@ function Stepper({
   onJump: (phase: Phase) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border bg-background p-3 shadow-sm">
-      <div className="flex min-w-[680px] items-stretch gap-2">
+    <div className="overflow-x-auto rounded-xl border bg-background p-1.5 shadow-sm">
+      <div className="flex min-w-[560px] items-stretch gap-1">
         {STAGES.map((stage, index) => {
           const isActive = index === phaseIndex;
           const isDone = phaseIndex > index;
@@ -615,34 +690,28 @@ function Stepper({
               disabled={!visitable}
               onClick={() => onJump(stage.id)}
               className={cn(
-                "group flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
+                "group flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-left transition-colors",
                 isActive
-                  ? "border-brand-500 bg-brand-500/5"
+                  ? "bg-brand-500/10 text-brand-700 dark:text-brand-200"
                   : isDone
-                    ? "border-emerald-500/30 bg-emerald-500/5"
-                    : "border-border bg-muted/30",
-                visitable ? "cursor-pointer hover:border-brand-500" : "cursor-not-allowed opacity-50",
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
+                    : "bg-muted/30 text-muted-foreground",
+                visitable ? "cursor-pointer hover:bg-muted" : "cursor-not-allowed opacity-50",
               )}
             >
               <div
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold",
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                   isActive
-                    ? "border-brand-500 bg-brand-500 text-white"
+                    ? "bg-brand-500 text-white"
                     : isDone
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-border bg-background",
+                      ? "bg-emerald-500 text-white"
+                      : "border bg-background",
                 )}
               >
-                {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                {isDone ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="text-xs text-muted-foreground">Stage {index}</span>
-                  <span>{stage.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{stage.subtitle}</p>
-              </div>
+              <span className="truncate text-sm font-medium">{stage.label}</span>
             </button>
           );
         })}
@@ -665,7 +734,6 @@ function StyleStage({
     style: Style | null;
     brief: string;
     goal: string;
-    destinationUrl: string;
     aspectRatio: Aspect;
     durationSeconds: Duration;
     clipLength: ClipLen;
@@ -686,8 +754,8 @@ function StyleStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="1. Lock the campaign style"
-        description="This visual language is inherited by every character, scene, and clip. You can't mix styles inside one campaign."
+        title="Style"
+        description="Locked for the whole campaign — every clip inherits it."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <StyleCard
@@ -709,7 +777,7 @@ function StyleStage({
         </div>
       </SectionCard>
 
-      <SectionCard title="2. The campaign brief" description="The offer, the story you want told, the transformation.">
+      <SectionCard title="Brief">
         <Textarea
           value={draft.brief}
           onChange={(event) => setDraft((prev) => ({ ...prev, brief: event.target.value }))}
@@ -717,28 +785,17 @@ function StyleStage({
           placeholder="A premium consulting firm transforms struggling local businesses into top-ranked players in 90 days..."
           className="resize-y"
         />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="text-xs font-semibold uppercase text-muted-foreground">Goal</label>
-            <Input
-              value={draft.goal}
-              onChange={(event) => setDraft((prev) => ({ ...prev, goal: event.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-muted-foreground">CTA link / website</label>
-            <Input
-              value={draft.destinationUrl}
-              onChange={(event) => setDraft((prev) => ({ ...prev, destinationUrl: event.target.value }))}
-              placeholder="https://"
-            />
-          </div>
-        </div>
+        <FieldGroup label="Goal">
+          <Input
+            value={draft.goal}
+            onChange={(event) => setDraft((prev) => ({ ...prev, goal: event.target.value }))}
+          />
+        </FieldGroup>
       </SectionCard>
 
       <SectionCard
-        title="3. Pacing & format"
-        description={`This campaign will be cut into ${clipCount} clips of ${draft.clipLength}s each.`}
+        title="Format"
+        description={`${clipCount} clips of ${draft.clipLength}s each.`}
       >
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <FieldGroup label="Total duration">
@@ -906,8 +963,8 @@ function CharactersStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Character catalog"
-        description="AI designs each character in the locked style based on your story. Generate a preview image, edit any field with AI assist, then approve to unlock the scene grid."
+        title="Characters"
+        description="Generate previews, edit with AI assist, approve to continue."
         action={
           <Button onClick={onGenerate} disabled={loading} variant={state.characters.length ? "outline" : "default"}>
             {loading ? <AISpinner size={16} /> : <Wand2 className="h-4 w-4" />}
@@ -1224,8 +1281,8 @@ function ScenesStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Scene grid"
-        description={`Full ${clipCount}-clip arc — hook, problem, discovery, transform, resolution, CTA. Validate visually before any generation fires.`}
+        title="Scenes"
+        description={`${clipCount}-clip arc · hook → problem → discovery → transform → resolution → CTA.`}
         action={
           <Button onClick={onPlan} disabled={loading} variant={state.clips.length ? "outline" : "default"}>
             {loading ? <AISpinner size={16} /> : <Wand2 className="h-4 w-4" />}
@@ -1312,8 +1369,8 @@ function PromptsStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Prompt builder per clip"
-        description="Each prompt is auto-assembled from style, character, shot, action, mood, voiceover. Edit any field — the final prompt updates automatically. Use the AI suggest icon to fill any line."
+        title="Prompts"
+        description="Edit any field — prompt rebuilds automatically. Click the sparkles icon for AI fill."
       >
         <div className="space-y-4">
           {state.clips.map((clip) => (
@@ -1496,8 +1553,8 @@ function VoiceStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Voice preview"
-        description="Test each clip's voiceover with the character's voice criteria. Used to catch timing problems before spending render credits. No production cost."
+        title="Voice"
+        description="Catch timing issues before render. No credit cost."
       >
         <div className="space-y-3">
           {state.clips.map((clip) => (
@@ -1633,8 +1690,8 @@ function BatchStage({
   return (
     <div className="space-y-6">
       <SectionCard
-        title="Batch send to renderer"
-        description="All validated clips are sent in parallel. Each prompt is locked with the no-text negative instruction baked in."
+        title="Render"
+        description="All clips sent in parallel. No-text negative prompt baked in."
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
@@ -1683,8 +1740,8 @@ function BatchStage({
 
       {done && state.finalVideoUrl && (
         <SectionCard
-          title="Final campaign reel"
-          description="All clips stitched into one MP4 — ready to post or download."
+          title="Final reel"
+          description="Stitched MP4 — ready to post or download."
         >
           <div
             className={cn(
@@ -1712,7 +1769,7 @@ function BatchStage({
         </SectionCard>
       )}
 
-      <SectionCard title="Clip render grid">
+      <SectionCard title="Clips">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {state.clips.map((clip) => (
             <ClipRenderCard key={clip.id} clip={clip} state={state} />
@@ -1779,8 +1836,8 @@ function ClipRenderCard({ clip, state }: { clip: ClipSlot; state: CampaignState 
 function ReadOnlySummary({ state, onAdvance }: { state: CampaignState; onAdvance: () => void }) {
   return (
     <SectionCard
-      title="Campaign setup"
-      description="The style and brief are locked once a campaign is started. Create a new campaign to change them."
+      title="Setup"
+      description="Locked once the campaign starts. Create a new campaign to change."
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <SummaryRow label="Style">{state.style === "3d" ? "3D Animation" : "Cinematic Live-Action"}</SummaryRow>
@@ -1812,113 +1869,116 @@ function SummaryRow({ label, children }: { label: string; children: React.ReactN
 }
 
 // ============================================================================
-// SIDEBAR
+// CAMPAIGNS LIST — landing view shown when no campaign is selected
 // ============================================================================
 
-function CampaignSummaryCard({
-  campaign,
-  draft,
+function CampaignsList({
+  history,
+  onOpen,
+  onCreate,
+  onDelete,
 }: {
-  campaign: CampaignRow | null;
-  draft: {
-    style: Style | null;
-    brief: string;
-    durationSeconds: Duration;
-    clipLength: ClipLen;
-    provider: Provider;
-  } | null;
+  history: CampaignListItem[];
+  onOpen: (id: string) => void;
+  onCreate: () => void;
+  onDelete: (id: string) => void;
 }) {
-  const state = campaign?.state;
+  if (!history.length) {
+    return (
+      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-background p-10 text-center shadow-sm">
+        <Clapperboard className="h-10 w-10 text-brand-500" />
+        <p className="text-base font-semibold">No campaigns yet</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Start a story ad campaign — lock a style, build characters, plan scenes, then batch render.
+        </p>
+        <Button onClick={onCreate} className="mt-2">
+          <Plus className="h-4 w-4" />
+          Create campaign
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border bg-background p-4 shadow-sm">
-      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
-        <Sparkles className="h-3 w-3" />
-        Campaign snapshot
-      </p>
-      <ul className="space-y-2 text-sm">
-        <li className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Style</span>
-          <span className="font-semibold">
-            {state?.style === "3d" || draft?.style === "3d"
-              ? "3D"
-              : state?.style === "cinematic" || draft?.style === "cinematic"
-                ? "Cinematic"
-                : "—"}
-          </span>
-        </li>
-        <li className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Duration</span>
-          <span className="font-semibold">{state?.durationSeconds || draft?.durationSeconds || 0}s</span>
-        </li>
-        <li className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Clips</span>
-          <span className="font-semibold">
-            {state ? state.clips.length : draft ? Math.round(draft.durationSeconds / draft.clipLength) : 0}
-          </span>
-        </li>
-        <li className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Provider</span>
-          <span className="font-semibold">{(state?.provider || draft?.provider) === "veo3" ? "Veo 3" : "xAI"}</span>
-        </li>
-        <li className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground">Phase</span>
-          <span className="font-semibold">{state?.phase || "STYLE"}</span>
-        </li>
-      </ul>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Your campaigns ({history.length})
+        </p>
+        <Button onClick={onCreate} size="sm">
+          <Plus className="h-4 w-4" />
+          Create campaign
+        </Button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {history.map((c) => (
+          <CampaignListCard key={c.id} item={c} onOpen={onOpen} onDelete={onDelete} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function CampaignHistoryCard({
-  history,
-  selectedId,
+function CampaignListCard({
+  item,
   onOpen,
   onDelete,
 }: {
-  history: CampaignListItem[];
-  selectedId: string | null;
+  item: CampaignListItem;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const phaseLabel: Record<Phase, string> = {
+    STYLE: "Setup",
+    CHARACTERS: "Characters",
+    SCENES: "Scenes",
+    PROMPTS: "Prompts",
+    VOICE: "Voice",
+    BATCH: "Rendering",
+    DONE: "Done",
+    FAILED: "Failed",
+  };
+  const phaseTone: Record<Phase, string> = {
+    STYLE: "bg-muted text-muted-foreground",
+    CHARACTERS: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    SCENES: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
+    PROMPTS: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
+    VOICE: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    BATCH: "bg-brand-500/10 text-brand-600 dark:text-brand-300",
+    DONE: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+    FAILED: "bg-destructive/10 text-destructive",
+  };
+
   return (
-    <div className="rounded-xl border bg-background p-4 shadow-sm">
-      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
-        <Film className="h-3 w-3" />
-        Recent campaigns
-      </p>
-      {!history.length && (
-        <p className="text-sm text-muted-foreground">No campaigns yet. Your first will appear here.</p>
-      )}
-      <ul className="space-y-2">
-        {history.map((c) => (
-          <li
-            key={c.id}
-            className={cn(
-              "group flex items-start justify-between gap-2 rounded-lg border p-2 transition-colors",
-              c.id === selectedId ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500",
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => onOpen(c.id)}
-              className="min-w-0 flex-1 text-left"
-            >
-              <p className="truncate text-sm font-medium">{c.title || "Untitled campaign"}</p>
-              <p className="text-xs text-muted-foreground">
-                {c.phase} · {c.clipCount} clip{c.clipCount === 1 ? "" : "s"}
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(c.id)}
-              className="opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Delete"
-            >
-              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div className="group relative flex flex-col gap-2 rounded-xl border bg-background p-3 shadow-sm transition-colors hover:border-brand-500">
+      <button
+        type="button"
+        onClick={() => onOpen(item.id)}
+        className="flex flex-1 flex-col gap-2 text-left"
+      >
+        <div className="flex items-center justify-between">
+          <Badge variant="outline" className={cn("h-5 px-1.5 text-xs", phaseTone[item.phase])}>
+            {phaseLabel[item.phase]}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {item.clipCount} clip{item.clipCount === 1 ? "" : "s"}
+          </span>
+        </div>
+        <p className="line-clamp-3 text-sm font-medium leading-snug">
+          {item.title || "Untitled campaign"}
+        </p>
+        {item.currentStep && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{item.currentStep}</p>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete(item.id)}
+        className="absolute right-2 top-2 rounded-md border bg-background p-1 opacity-0 transition-opacity hover:border-destructive hover:text-destructive group-hover:opacity-100"
+        aria-label="Delete campaign"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -1939,15 +1999,15 @@ function SectionCard({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border bg-background p-5 shadow-sm">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="rounded-xl border bg-background p-3 shadow-sm sm:p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-bold sm:text-xl">{title}</h2>
-          {description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {description && <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">{description}</p>}
         </div>
         {action}
       </div>
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-3">{children}</div>
     </section>
   );
 }
