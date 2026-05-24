@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useToast } from "@/hooks/use-toast";
 import {
   FIELD_TYPES,
@@ -964,7 +965,7 @@ export default function NewEventPage() {
                 disabled={saving}
                 className="flex-1 sm:flex-none"
               >
-                <Save className="h-4 w-4 mr-2" />
+                {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 {saving ? "Saving..." : "Save as Draft"}
               </Button>
               <Button
@@ -972,7 +973,7 @@ export default function NewEventPage() {
                 disabled={saving}
                 className="flex-1 sm:flex-none"
               >
-                <Send className="h-4 w-4 mr-2" />
+                {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                 {saving ? "Publishing..." : "Publish"}
               </Button>
             </div>

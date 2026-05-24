@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { SURVEY_STATUS_CONFIG, type SurveyData, type SurveyStatus, type SurveyResponseData } from "@/types/survey";
 import { QUESTION_TYPES, type SurveyQuestion } from "@/types/follow-up";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
@@ -362,7 +363,7 @@ export default function SurveyDetailPage() {
         </div>
         {activeTab === "builder" && (
           <Button onClick={handleSave} disabled={saving || !title.trim()}>
-            <Save className="h-4 w-4 mr-1" />
+            {saving ? <AISpinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />}
             {saving ? "Saving..." : "Save"}
           </Button>
         )}
@@ -1044,7 +1045,7 @@ export default function SurveyDetailPage() {
                   className="w-full"
                 >
                   {isSending ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    <AISpinner className="h-4 w-4 mr-2" />
                   ) : (
                     <Send className="h-4 w-4 mr-2" />
                   )}

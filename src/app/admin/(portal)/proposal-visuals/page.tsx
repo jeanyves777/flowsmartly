@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ImagePlus, Images, Loader2, Search, Sparkles, Upload } from "lucide-react";
+import { ImagePlus, Images, Search, Sparkles, Upload } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,7 +243,7 @@ export default function AdminProposalVisualsPage() {
               onChange={(event) => setUploadForm((prev) => ({ ...prev, file: event.target.files?.[0] || null }))}
             />
             <Button onClick={uploadAsset} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+              {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <ImagePlus className="mr-2 h-4 w-4" />}
               Add to Library
             </Button>
           </CardContent>
@@ -293,7 +294,7 @@ export default function AdminProposalVisualsPage() {
               className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
             <Button onClick={generateAsset} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Generate with xAI
             </Button>
           </CardContent>

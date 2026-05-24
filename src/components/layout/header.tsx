@@ -56,6 +56,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { openCreateModal } from "@/components/shared/create-modal";
 import { FeedbackReportModal } from "@/components/feedback/feedback-report-modal";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   isExternalNotificationActionUrl,
   normalizeNotificationActionUrl,
@@ -670,7 +671,7 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
                 <div className="flex-1 overflow-y-auto">
                   {loadingNotifications ? (
                     <div className="p-8 text-center text-muted-foreground">
-                      <div className="animate-spin h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-2" />
+                      <AISpinner className="h-6 w-6 mx-auto mb-2" />
                       Loading...
                     </div>
                   ) : notifications.length === 0 ? (

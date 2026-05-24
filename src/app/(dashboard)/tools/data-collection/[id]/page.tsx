@@ -399,7 +399,7 @@ export default function DataFormDetailPage() {
         </div>
         {activeTab === "builder" && (
           <Button onClick={handleSave} disabled={saving || !title.trim()}>
-            <Save className="h-4 w-4 mr-1" />
+            {saving ? <AISpinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />}
             {saving ? "Saving..." : "Save"}
           </Button>
         )}
@@ -1054,7 +1054,7 @@ export default function DataFormDetailPage() {
               disabled={isSending || !sendListId || form.status !== "ACTIVE" || (sendChannel === "email" && !emailReady) || (sendChannel === "sms" && !smsReady)}
               className="w-full"
             >
-              <Send className="h-4 w-4 mr-2" />
+              {isSending ? <AISpinner className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
               {isSending ? "Sending..." : `Send Form via ${sendChannel === "email" ? "Email" : "SMS"}`}
             </Button>
           </div>

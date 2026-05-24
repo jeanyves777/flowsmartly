@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Music, Upload, Volume2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { useVideoStore } from "../hooks/use-video-store";
 
 export function AudioPanel() {
@@ -65,7 +66,11 @@ export function AudioPanel() {
     <div className="space-y-4">
       {/* Upload */}
       <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl cursor-pointer hover:border-brand-500/50 hover:bg-brand-500/5 transition-colors">
-        <Music className="h-8 w-8 text-muted-foreground" />
+        {isUploading ? (
+          <AISpinner className="h-8 w-8" />
+        ) : (
+          <Music className="h-8 w-8 text-muted-foreground" />
+        )}
         <span className="text-sm font-medium">
           {isUploading ? "Uploading..." : "Upload Audio"}
         </span>

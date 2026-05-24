@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ORDER_STATUSES } from "@/lib/constants/ecommerce";
 import { formatPrice } from "@/lib/store/currency";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface OrderItem {
   productId?: string;
@@ -819,7 +820,14 @@ export default function OrderDetailPage() {
                 disabled={refunding}
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
               >
-                {refunding ? "Processing..." : "Confirm Refund"}
+                {refunding ? (
+                  <span className="inline-flex items-center gap-2">
+                    <AISpinner className="h-4 w-4" />
+                    Processing...
+                  </span>
+                ) : (
+                  "Confirm Refund"
+                )}
               </button>
             </div>
           </div>
@@ -834,7 +842,7 @@ export default function OrderDetailPage() {
             <p className="text-sm text-muted-foreground mb-4">Select a driver to handle this delivery.</p>
             {loadingDrivers ? (
               <div className="py-8 text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
+                <AISpinner className="h-6 w-6 mx-auto" />
                 <p className="mt-2 text-sm text-muted-foreground">Loading drivers...</p>
               </div>
             ) : drivers.length === 0 ? (

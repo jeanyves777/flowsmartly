@@ -13,6 +13,7 @@ import {
   Package,
   AlertTriangle,
 } from "lucide-react";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { DELIVERY_STATUSES, isValidDeliveryTransition } from "@/lib/constants/ecommerce";
 
 interface DeliveryAssignment {
@@ -256,7 +257,7 @@ export default function DeliveryPage() {
 
         {loading ? (
           <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+            <AISpinner className="h-8 w-8 mx-auto" />
             <p className="mt-3 text-sm text-gray-500">Loading deliveries...</p>
           </div>
         ) : assignments.length === 0 ? (

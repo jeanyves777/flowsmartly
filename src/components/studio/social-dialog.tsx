@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   Dialog,
   DialogContent,
@@ -93,10 +94,7 @@ export function SocialDialog({ open, onOpenChange }: SocialDialogProps) {
           </div>
         ) : isUploadingMedia ? (
           <div className="flex flex-col items-center justify-center gap-3 py-12">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full border-4 border-brand-500/20 border-t-brand-500 animate-spin" />
-              <Share2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-5 w-5 text-brand-500" />
-            </div>
+            <AISpinner className="h-12 w-12" />
             <p className="text-sm font-medium">Preparing your design...</p>
           </div>
         ) : mediaError ? (

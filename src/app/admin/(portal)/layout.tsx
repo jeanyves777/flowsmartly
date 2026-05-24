@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PageLoader } from "@/components/shared/page-loader";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -243,11 +244,7 @@ export default function AdminPortalLayout({
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent" />
-      </div>
-    );
+    return <PageLoader className="min-h-screen" tips={["Loading admin portal..."]} />;
   }
 
   const renderNavItems = (items: NavItem[], onItemClick?: () => void, collapsed?: boolean) => {

@@ -21,7 +21,6 @@ import {
   PenTool,
   Search,
   Send,
-  Loader2,
   Sparkles,
   Share2,
   StickyNote,
@@ -72,7 +71,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AIGenerationLoader, AISpinner } from "@/components/shared/ai-generation-loader";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 
 type CalendarOverrides = Record<string, { startTime?: string; endTime?: string }>;
@@ -2006,7 +2005,7 @@ export default function ContentSchedulePage() {
                 disabled={isSavingNote}
               >
                 {isSavingNote ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <AISpinner className="mr-2 h-4 w-4" />
                 ) : (
                   <StickyNote className="mr-2 h-4 w-4" />
                 )}
