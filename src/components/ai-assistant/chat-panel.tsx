@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, List, X, Sparkles, Coins, Maximize2, Paperclip, Link as LinkIcon } from "lucide-react";
+import Image from "next/image";
+import { ArrowUp, List, X, Coins, Maximize2, Paperclip, Link as LinkIcon, FolderOpen } from "lucide-react";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { MessageBubble } from "./message-bubble";
-import { TypingIndicator } from "./typing-indicator";
 import { ConversationList } from "./conversation-list";
 
 interface Message {
@@ -50,10 +51,25 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Media analysis (upload an image OR paste a URL → Claude Haiku vision)
+  // Media attachment + analysis flow.
+  // Picking a file / library item / URL ATTACHES the media — it does NOT
+  // immediately analyze. The user then types their intent in the textarea
+  // ("use this as a reference", "what colors are these", "give me a
+  // version for Christmas") and clicks Send. On Send with an attachment
+  // present, we route through /api/flow-ai/analyze-media with the user's
+  // prompt as userNote so the vision model treats it as instruction, not
+  // just generic analysis.
   const [analyzing, setAnalyzing] = useState(false);
   const [urlInputOpen, setUrlInputOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [attachment, setAttachment] = useState<{
+    previewUrl: string;
+    mediaUrl?: string;
+    base64?: string;
+    label: string;
+    source: "upload" | "library" | "url";
+  } | null>(null);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -219,23 +235,62 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
     if (file.size > 8 * 1024 * 1024) return;
     const base64 = await fileToBase64(file);
     const previewUrl = `data:${file.type};base64,${base64}`;
-    analyzeMedia({ base64, previewUrl, userNote: input.trim() || undefined });
-    setInput("");
+    setAttachment({
+      previewUrl,
+      base64,
+      label: file.name,
+      source: "upload",
+    });
   };
 
   const handleUrlSubmit = () => {
     const url = urlInput.trim();
     if (!url) return;
     if (!/^https?:\/\//.test(url) && !url.startsWith("data:")) return;
-    analyzeMedia({ mediaUrl: url, previewUrl: url, userNote: input.trim() || undefined });
+    setAttachment({
+      previewUrl: url,
+      mediaUrl: url,
+      label: url.replace(/^https?:\/\//, "").slice(0, 40),
+      source: "url",
+    });
     setUrlInput("");
     setUrlInputOpen(false);
-    setInput("");
+  };
+
+  const handleLibraryPick = (url: string) => {
+    setLibraryOpen(false);
+    setAttachment({
+      previewUrl: url,
+      mediaUrl: url,
+      label: url.split("/").pop() || "library item",
+      source: "library",
+    });
   };
 
   // Send message
   const sendMessage = async (text?: string) => {
     const messageText = (text || input).trim();
+
+    // If a media attachment is present, route through the vision endpoint
+    // with the prompt as userNote. The prompt becomes the instruction:
+    // "use this as a reference for a Christmas variation", "what colors
+    // dominate", "is this on-brand", etc. — analysis intent is implicit.
+    if (attachment) {
+      const note = messageText || "Analyze this image";
+      const payload = {
+        mediaUrl: attachment.mediaUrl,
+        base64: attachment.base64,
+        previewUrl: attachment.previewUrl,
+        userNote: note,
+      };
+      // Clear input + attachment immediately so the UI feels responsive.
+      setInput("");
+      setAttachment(null);
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      await analyzeMedia(payload);
+      return;
+    }
+
     if (!messageText || isStreaming) return;
 
     setInput("");
@@ -362,8 +417,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-gradient-to-r from-brand-500/5 to-purple-500/5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-white/10 flex items-center justify-center overflow-hidden">
+            <Image src="/icon.png" alt="FlowSmartly" width={24} height={24} className="rounded-md" priority unoptimized />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground leading-none">
@@ -423,8 +478,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           <div className="flex-1 overflow-y-auto py-3">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500/20 to-purple-500/20 flex items-center justify-center mb-4">
-                  <Sparkles className="w-7 h-7 text-brand-500" />
+                <div className="w-14 h-14 rounded-2xl bg-white dark:bg-white/10 border border-border flex items-center justify-center mb-4 overflow-hidden">
+                  <Image src="/icon.png" alt="FlowSmartly" width={40} height={40} className="rounded-lg" priority unoptimized />
                 </div>
                 <h4 className="font-semibold text-foreground mb-1">
                   Hi! I&apos;m FlowAI
@@ -470,7 +525,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                 })}
                 {isStreaming &&
                   messages[messages.length - 1]?.content === "" && (
-                    <TypingIndicator />
+                    <div className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
+                      <AISpinner size={16} />
+                      <span>Thinking…</span>
+                    </div>
                   )}
                 <div ref={messagesEndRef} />
               </div>
@@ -487,6 +545,37 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                 </span>
               </div>
             )}
+            {attachment && (
+              <div className="mb-2 flex items-center gap-3 rounded-xl border border-blue-500/40 bg-blue-50/40 dark:bg-blue-950/20 p-2">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={attachment.previewUrl} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                    {attachment.source === "library"
+                      ? "From media library"
+                      : attachment.source === "url"
+                      ? "From URL"
+                      : "Uploaded"}
+                  </div>
+                  <div className="text-xs text-foreground truncate">{attachment.label}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    Type a prompt and press send — "analyze", "use as reference", "describe colors"…
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAttachment(null)}
+                  className="shrink-0 w-6 h-6 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition-colors"
+                  aria-label="Remove attachment"
+                  title="Remove attachment"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {urlInputOpen && (
               <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-blue-50/40 dark:bg-blue-950/20 px-2 py-1.5">
                 <LinkIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 ml-1" />
@@ -551,6 +640,16 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
               </button>
               <button
                 type="button"
+                onClick={() => setLibraryOpen(true)}
+                disabled={isStreaming || analyzing}
+                className="shrink-0 w-10 h-10 rounded-xl border border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                title="Pick from your media library"
+                aria-label="Pick from media library"
+              >
+                <FolderOpen className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setUrlInputOpen((v) => !v)}
                 disabled={isStreaming || analyzing}
                 className={`shrink-0 w-10 h-10 rounded-xl border transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
@@ -571,6 +670,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                 placeholder={
                   analyzing
                     ? "Analyzing image…"
+                    : attachment
+                    ? "What should I do with this image? (analyze, use as reference, etc.)"
                     : urlInputOpen
                     ? "Optional context for the image above…"
                     : "Ask FlowAI anything..."
@@ -581,7 +682,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
               />
               <button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isStreaming || analyzing}
+                disabled={(!input.trim() && !attachment) || isStreaming || analyzing}
                 className="shrink-0 w-10 h-10 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
               >
                 {analyzing ? <AISpinner size={16} /> : <ArrowUp className="w-5 h-5" />}
@@ -590,6 +691,14 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
           </div>
         </>
       )}
+
+      <MediaLibraryPicker
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={(url) => handleLibraryPick(url)}
+        filterTypes={["image"]}
+        title="Pick an image"
+      />
     </div>
   );
 }
