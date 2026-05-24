@@ -1,1104 +1,2066 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   ArrowRight,
-  Briefcase,
+  Box,
+  Check,
   CheckCircle2,
   Clapperboard,
-  ExternalLink,
+  Clock,
+  Edit3,
   Film,
-  Hash,
-  Image as ImageIcon,
-  Lightbulb,
-  Megaphone,
-  MessageCircle,
-  Music2,
+  Mic,
+  Pause,
   Play,
   Plus,
   RefreshCw,
   Send,
-  Smartphone,
   Sparkles,
-  Square,
   Trash2,
+  TriangleAlert,
   Users,
+  Volume2,
   Wand2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { MediaUploader } from "@/components/shared/media-uploader";
-import { AIGenerationLoader, FlowActionSpinner } from "@/components/shared/ai-generation-loader";
+import { Input } from "@/components/ui/input";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
-type AspectRatio = "9:16" | "1:1" | "16:9";
-type Duration = 10 | 20 | 30 | 40;
-type SocialPlatform = "instagram" | "facebook" | "tiktok" | "youtube" | "linkedin" | "x" | "whatsapp";
-type AssistMode = "ideas" | "story" | "script" | "character";
+type Phase = "STYLE" | "CHARACTERS" | "SCENES" | "PROMPTS" | "VOICE" | "BATCH" | "DONE" | "FAILED";
+type Style = "3d" | "cinematic";
+type ClipLen = 8 | 10;
+type Duration = 60 | 90 | 120 | 150 | 180;
+type Aspect = "9:16" | "1:1" | "16:9";
+type Provider = "veo3" | "xai";
 
-interface StoryScene {
-  sceneNumber: number;
-  narration: string;
-  caption?: string;
-  visualDescription?: string;
-  imagePrompt?: string;
+type Act = "HOOK" | "PROBLEM" | "DISCOVERY" | "TRANSFORM" | "RESOLUTION" | "CTA";
+type Shot = "WIDE" | "CLOSE_UP" | "POV" | "DRONE" | "MACRO" | "OVER_SHOULDER" | "MEDIUM";
+type Camera = "PUSH_IN" | "PULL_BACK" | "PAN" | "STATIC" | "ORBIT" | "HANDHELD" | "TRACK";
+
+interface Character {
+  id: string;
+  name: string;
+  role: string;
+  visualDescription: string;
+  voiceCriteria: {
+    age: string;
+    tone: string;
+    pace: string;
+    texture: string;
+    delivery: string;
+  };
+  referenceImageUrl?: string | null;
+  previewStatus?: "idle" | "generating" | "ready" | "failed";
+  previewError?: string | null;
+  approved?: boolean;
 }
 
-interface SceneImage {
-  sceneNumber: number;
-  imageUrl: string;
+interface ClipSlot {
+  id: string;
+  index: number;
+  act: Act;
+  shotType: Shot;
+  cameraMovement: Camera;
+  sceneAction: string;
+  moodLighting: string;
+  characterId?: string | null;
+  voiceoverLine: string;
+  prompt: string;
+  status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
+  videoUrl?: string | null;
+  error?: string | null;
 }
 
-interface StoryAdJob {
+interface CampaignState {
+  phase: Phase;
+  style: Style | null;
+  brief: string;
+  goal: string;
+  destinationUrl: string;
+  aspectRatio: Aspect;
+  durationSeconds: Duration;
+  clipLength: ClipLen;
+  platforms: string[];
+  provider: Provider;
+  characters: Character[];
+  clips: ClipSlot[];
+  storyOutline?: string;
+  finalVideoUrl?: string | null;
+  finalVideoThumbnailUrl?: string | null;
+}
+
+interface CampaignRow {
   id: string;
   status: string;
   progress: number;
   currentStep?: string | null;
-  storyPrompt: string;
-  style: string;
-  duration?: number;
-  videoUrl?: string | null;
-  thumbnailUrl?: string | null;
-  errorMessage?: string | null;
-  createdAt: string;
-  completedAt?: string | null;
-  title?: string;
-  campaignCaption?: string;
-  ctaText?: string;
-  hashtags?: string[];
-  metadata?: {
-    aspectRatio?: AspectRatio;
-    duration?: number;
-    platforms?: string[];
-  };
-  scenes?: StoryScene[];
-  sceneImages?: SceneImage[];
+  state: CampaignState;
 }
 
-interface BrandKit {
-  name: string;
-  tagline?: string | null;
-  industry?: string | null;
-  targetAudience?: string | null;
-  website?: string | null;
-  logo?: string | null;
-  iconLogo?: string | null;
-  voiceTone?: string | null;
-}
-
-interface ReferenceMedia {
-  url: string;
-  scene: string;
-  note: string;
-  type: "image" | "video" | "media";
-}
-
-interface IdeaOption {
+interface CampaignListItem {
+  id: string;
   title: string;
-  brief: string;
-  hook?: string;
+  status: string;
+  progress: number;
+  currentStep?: string | null;
+  phase: Phase;
+  clipCount: number;
+  createdAt: string;
 }
 
-interface SceneScript {
-  scene: string;
-  script: string;
-}
-
-const STYLE_OPTIONS = [
-  { id: "cinematic", label: "Cinematic", description: "premium film" },
-  { id: "local_trust", label: "Local Trust", description: "warm service" },
-  { id: "premium", label: "Premium", description: "high-end" },
-  { id: "social_bold", label: "Social Bold", description: "fast hook" },
-  { id: "product_showcase", label: "Showcase", description: "offer-led" },
+const STAGES: { id: Phase; label: string; subtitle: string; icon: typeof Sparkles }[] = [
+  { id: "STYLE", label: "Style", subtitle: "3D or Cinematic", icon: Sparkles },
+  { id: "CHARACTERS", label: "Characters", subtitle: "Catalog & voices", icon: Users },
+  { id: "SCENES", label: "Scenes", subtitle: "Story arc grid", icon: Film },
+  { id: "PROMPTS", label: "Prompts", subtitle: "Per-clip prompt", icon: Edit3 },
+  { id: "VOICE", label: "Voice", subtitle: "Timing preview", icon: Mic },
+  { id: "BATCH", label: "Render", subtitle: "Batch send", icon: Send },
 ];
 
-const PLATFORM_OPTIONS: Array<{ id: SocialPlatform; label: string; icon: typeof Smartphone; aspect: AspectRatio }> = [
-  { id: "instagram", label: "Instagram", icon: Smartphone, aspect: "9:16" },
-  { id: "facebook", label: "Facebook", icon: Users, aspect: "1:1" },
-  { id: "tiktok", label: "TikTok", icon: Music2, aspect: "9:16" },
-  { id: "youtube", label: "YouTube", icon: Play, aspect: "9:16" },
-  { id: "linkedin", label: "LinkedIn", icon: Briefcase, aspect: "1:1" },
-  { id: "x", label: "X", icon: Hash, aspect: "16:9" },
-  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, aspect: "9:16" },
+const ACT_BADGE: Record<Act, string> = {
+  HOOK: "bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/30",
+  PROBLEM: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30",
+  DISCOVERY: "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/30",
+  TRANSFORM: "bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/30",
+  RESOLUTION: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+  CTA: "bg-brand-500/15 text-brand-600 dark:text-brand-300 border-brand-500/40",
+};
+
+const ACT_LABEL: Record<Act, string> = {
+  HOOK: "Hook",
+  PROBLEM: "Problem",
+  DISCOVERY: "Discovery",
+  TRANSFORM: "Transform",
+  RESOLUTION: "Resolution",
+  CTA: "CTA",
+};
+
+const SHOT_OPTIONS: Shot[] = ["WIDE", "MEDIUM", "CLOSE_UP", "POV", "DRONE", "MACRO", "OVER_SHOULDER"];
+const CAMERA_OPTIONS: Camera[] = ["PUSH_IN", "PULL_BACK", "PAN", "STATIC", "ORBIT", "HANDHELD", "TRACK"];
+const ACT_OPTIONS: Act[] = ["HOOK", "PROBLEM", "DISCOVERY", "TRANSFORM", "RESOLUTION", "CTA"];
+
+const DURATION_OPTIONS: { value: Duration; label: string }[] = [
+  { value: 60, label: "1 min" },
+  { value: 90, label: "1m 30s" },
+  { value: 120, label: "2 min" },
+  { value: 150, label: "2m 30s" },
+  { value: 180, label: "3 min" },
 ];
 
-const SAMPLES = [
-  "Create a polished $199/month Google Business Profile optimization video for ABC Dental Studio. Show a local business struggling to get found, then becoming visible, trusted, and booked with weekly posts, reviews, citations, local ranking, reporting, and no long-term contract.",
-  "Make a short story ad for a family tax office helping busy parents file with confidence before the deadline. The offer is friendly tax preparation, bookkeeping support, and a free consultation.",
-  "Build a product story for a handmade skincare brand. Show dry skin frustration, a calming routine, natural ingredients, visible confidence, and a soft call to order online today.",
+const PLATFORM_OPTIONS = [
+  { id: "instagram", label: "Instagram" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "youtube", label: "YouTube" },
+  { id: "facebook", label: "Facebook" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "x", label: "X" },
 ];
 
-function statusLabel(status?: string) {
-  if (!status) return "Ready";
-  if (status === "COMPLETED") return "Ready";
-  if (status === "FAILED") return "Failed";
-  if (status === "COMPOSITING") return "Generating video";
-  if (status === "PENDING") return "Queued";
-  return "Working";
+function statusToBadge(status: ClipSlot["status"]): { label: string; cls: string; icon: typeof Sparkles } {
+  switch (status) {
+    case "READY":
+      return { label: "Ready", cls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30", icon: CheckCircle2 };
+    case "RENDERING":
+      return { label: "Rendering", cls: "bg-sky-500/10 text-sky-600 border-sky-500/30", icon: Clock };
+    case "QUEUED":
+      return { label: "Queued", cls: "bg-muted text-muted-foreground border-muted-foreground/20", icon: Clock };
+    case "FAILED":
+      return { label: "Failed", cls: "bg-destructive/10 text-destructive border-destructive/30", icon: TriangleAlert };
+    default:
+      return { label: "Pending", cls: "bg-muted text-muted-foreground border-muted-foreground/20", icon: Clock };
+  }
 }
 
-function isWorking(job: StoryAdJob | null) {
-  return !!job && !["COMPLETED", "FAILED"].includes(job.status);
+function estimateVoiceSeconds(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.round((words / 150) * 60 * 10) / 10;
 }
 
-function aspectClass(aspectRatio: AspectRatio) {
-  if (aspectRatio === "9:16") return "aspect-[9/16] max-h-[720px]";
-  if (aspectRatio === "1:1") return "aspect-square max-h-[650px]";
-  return "aspect-video";
+function StoryAdCampaignPage() {
+  return (
+    <Suspense fallback={<AIGenerationLoader progress={5} currentStep="Loading Story Ad Campaign..." />}>
+      <PageBody />
+    </Suspense>
+  );
 }
 
-function inferMediaType(url: string): ReferenceMedia["type"] {
-  const clean = url.split("?")[0].toLowerCase();
-  if (/\.(mp4|mov|m4v|webm)$/.test(clean)) return "video";
-  if (/\.(png|jpe?g|webp|gif)$/.test(clean)) return "image";
-  return "media";
-}
+export default StoryAdCampaignPage;
 
-function StoryAdMovieContent() {
+function PageBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
   const { toast } = useToast();
 
-  const [brief, setBrief] = useState(SAMPLES[0]);
-  const [goal, setGoal] = useState("Get attention, build trust, and drive action.");
-  const [ctaUrl, setCtaUrl] = useState("");
-  const [style, setStyle] = useState("cinematic");
-  const [duration, setDuration] = useState<Duration>(10);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
-  const [platforms, setPlatforms] = useState<SocialPlatform[]>(["instagram", "facebook"]);
-  const [characterBrief, setCharacterBrief] = useState("");
-  const [referenceMedia, setReferenceMedia] = useState<ReferenceMedia[]>([]);
-  const [ideas, setIdeas] = useState<IdeaOption[]>([]);
-  const [sceneScripts, setSceneScripts] = useState<SceneScript[]>([]);
-  const [assistLoading, setAssistLoading] = useState<AssistMode | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
-  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
-  const [currentJob, setCurrentJob] = useState<StoryAdJob | null>(null);
-  const [history, setHistory] = useState<StoryAdJob[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isPosting, setIsPosting] = useState<"feed" | "ads" | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [inputsExpanded, setInputsExpanded] = useState(false);
+  const [history, setHistory] = useState<CampaignListItem[]>([]);
+  const [campaign, setCampaign] = useState<CampaignRow | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [stageLoading, setStageLoading] = useState<null | "characters" | "scenes" | "batch">(null);
 
-  const selectedStyle = STYLE_OPTIONS.find((item) => item.id === style) || STYLE_OPTIONS[0];
-  const activeAspectRatio = currentJob?.metadata?.aspectRatio || aspectRatio;
-  const activeDuration = currentJob?.duration || currentJob?.metadata?.duration || duration;
-  const buttonDisabled = isGenerating || brief.trim().length < 12 || platforms.length === 0;
-  const mediaUrls = referenceMedia.map((item) => item.url);
-  const hasReadyVideo = currentJob?.status === "COMPLETED" && !!currentJob.videoUrl;
-  const previewFocused = isGenerating || isWorking(currentJob) || !!hasReadyVideo;
-  const inputsCollapsed = previewFocused && !inputsExpanded;
-  const brandLogo = brandKit?.iconLogo || brandKit?.logo || null;
-  const durationCreditCost = Math.ceil(duration / 10) * 100;
-  const activeCreditCost = Math.ceil(Number(activeDuration || duration) / 10) * 100;
+  // Stage 0 inputs (only used pre-creation)
+  const [draft, setDraft] = useState({
+    style: null as Style | null,
+    brief: "",
+    goal: "Build desire, trust, and a clear reason to act.",
+    destinationUrl: "",
+    aspectRatio: "9:16" as Aspect,
+    durationSeconds: 120 as Duration,
+    clipLength: 10 as ClipLen,
+    platforms: ["instagram", "tiktok"],
+    provider: "veo3" as Provider,
+  });
 
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await fetch("/api/ai/story-ad-movie?limit=12");
-      const data = await response.json();
-      if (data.success) {
-        setHistory(data.data.videos || []);
-      }
+      const res = await fetch("/api/ai/story-ad-campaign");
+      const data = await res.json();
+      if (data.success) setHistory(data.data.campaigns || []);
     } catch {
-      // Non-blocking.
+      // silent
     }
   }, []);
 
-  const fetchJob = useCallback(async (id: string) => {
-    const response = await fetch(`/api/ai/story-ad-movie/${id}`);
-    const data = await response.json();
-    if (data.success) {
-      setCurrentJob(data.data);
-      return data.data as StoryAdJob;
+  const fetchCredits = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/credits");
+      const data = await res.json();
+      if (data.success) setCredits(data.data.credits);
+    } catch {
+      // silent
     }
-    return null;
+  }, []);
+
+  const fetchCampaign = useCallback(async (id: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${id}`);
+      const data = await res.json();
+      if (data.success) setCampaign(data.data);
+      return data.data as CampaignRow | null;
+    } catch {
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    async function loadBasics() {
-      try {
-        const [creditsRes, brandRes] = await Promise.all([
-          fetch("/api/user/credits"),
-          fetch("/api/brand"),
-        ]);
-        const creditsData = await creditsRes.json();
-        if (creditsData.success) setCredits(creditsData.data.credits);
+    fetchCredits();
+    fetchHistory();
+  }, [fetchCredits, fetchHistory]);
 
-        const brandData = await brandRes.json();
-        const kit = brandData?.data?.brandKit || null;
-        setBrandKit(kit);
-        if (kit?.website) setCtaUrl(kit.website);
-      } catch {
-        // Non-blocking.
-      }
-      fetchHistory();
+  useEffect(() => {
+    if (selectedId) {
+      fetchCampaign(selectedId);
+    } else {
+      setCampaign(null);
     }
-    loadBasics();
-  }, [fetchHistory]);
+  }, [selectedId, fetchCampaign]);
 
+  // Poll while rendering
   useEffect(() => {
-    if (!selectedId) return;
-    fetchJob(selectedId);
-  }, [selectedId, fetchJob]);
-
-  useEffect(() => {
-    if (!currentJob || !isWorking(currentJob)) return;
-    const timer = window.setInterval(async () => {
-      const next = await fetchJob(currentJob.id);
-      if (next && ["COMPLETED", "FAILED"].includes(next.status)) {
-        setIsGenerating(false);
-        fetchHistory();
-      }
+    if (!campaign) return;
+    const isRendering = campaign.state.phase === "BATCH" || campaign.status === "COMPOSITING";
+    if (!isRendering) return;
+    const t = window.setInterval(() => {
+      fetchCampaign(campaign.id);
     }, 3500);
-    return () => window.clearInterval(timer);
-  }, [currentJob, fetchJob, fetchHistory]);
+    return () => window.clearInterval(t);
+  }, [campaign, fetchCampaign]);
 
-  const steps = useMemo(() => {
-    if (!currentJob?.scenes?.length) {
-      return ["Extract offer", "Shape story", "Lock references", "Generate xAI video", "Prepare campaign"];
-    }
-    return currentJob.scenes.map((scene) => scene.caption || `Scene ${scene.sceneNumber}`);
-  }, [currentJob]);
+  const activePhase: Phase = campaign?.state.phase || (draft.style ? "CHARACTERS" : "STYLE");
 
-  function togglePlatform(platform: SocialPlatform, suggestedAspect: AspectRatio) {
-    setPlatforms((prev) => {
-      if (prev.includes(platform)) {
-        return prev.length === 1 ? prev : prev.filter((item) => item !== platform);
-      }
-      return [...prev, platform];
-    });
-    setAspectRatio(suggestedAspect);
-  }
+  const phaseIndex = STAGES.findIndex((s) => s.id === activePhase);
 
-  function handleMediaChange(urls: string[]) {
-    setReferenceMedia((prev) => {
-      const byUrl = new Map(prev.map((item) => [item.url, item]));
-      return urls.map((url) => byUrl.get(url) || {
-        url,
-        scene: "",
-        note: "",
-        type: inferMediaType(url),
-      });
-    });
-  }
-
-  function updateReference(index: number, patch: Partial<ReferenceMedia>) {
-    setReferenceMedia((prev) => prev.map((item, itemIndex) => (
-      itemIndex === index ? { ...item, ...patch } : item
-    )));
-  }
-
-  async function runAssist(mode: AssistMode) {
-    setAssistLoading(mode);
+  async function createCampaign() {
+    if (!draft.style || draft.brief.trim().length < 12) return;
+    setLoading(true);
     try {
-      const response = await fetch("/api/ai/story-ad-movie/assist", {
+      const res = await fetch("/api/ai/story-ad-campaign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          brief,
-          goal,
-          platforms,
-          characterBrief,
-          referenceMedia,
-        }),
+        body: JSON.stringify(draft),
       });
-
-      const data = await response.json();
+      const data = await res.json();
       if (!data.success) {
-        if (handleCreditError(data.error || {}, "story ad movie assistant")) return;
-        throw new Error(data.error?.message || "AI assistant failed");
+        if (handleCreditError(data.error || {}, "campaign")) return;
+        throw new Error(data.error?.message || "Failed to create campaign");
       }
-
-      if (typeof data.data.creditsRemaining === "number") {
-        setCredits(data.data.creditsRemaining);
-        emitCreditsUpdate(data.data.creditsRemaining);
-      }
-
-      if (Array.isArray(data.data.ideas)) setIdeas(data.data.ideas);
-      if (typeof data.data.brief === "string" && data.data.brief.trim()) setBrief(data.data.brief.trim());
-      if (typeof data.data.characterBrief === "string" && data.data.characterBrief.trim()) {
-        setCharacterBrief(data.data.characterBrief.trim());
-      }
-      if (Array.isArray(data.data.sceneScripts)) setSceneScripts(data.data.sceneScripts);
-
-      toast({ title: mode === "ideas" ? "Ideas ready." : "AI updated the brief." });
+      const id = data.data.campaignId as string;
+      router.push(`/story-ad-movie?id=${id}`);
+      await fetchCampaign(id);
+      fetchHistory();
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "AI assistant failed",
+        title: error instanceof Error ? error.message : "Failed to create campaign",
         variant: "destructive",
       });
     } finally {
-      setAssistLoading(null);
+      setLoading(false);
     }
   }
 
-  async function handleGenerate() {
-    if (buttonDisabled) return;
-    setIsGenerating(true);
-    setInputsExpanded(false);
-
-    try {
-      const response = await fetch("/api/ai/story-ad-movie", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          brief: brief.trim(),
-          goal: goal.trim(),
-          destinationUrl: ctaUrl.trim(),
-          style,
-          duration,
-          aspectRatio,
-          platforms,
-          characterBrief: characterBrief.trim(),
-          referenceMedia,
-          referenceMediaUrls: mediaUrls,
-        }),
-      });
-
-      const data = await response.json();
-      if (!data.success) {
-        if (handleCreditError(data.error || {}, "story ad movie")) {
-          setIsGenerating(false);
-          return;
-        }
-        throw new Error(data.error?.message || "Failed to start story ad movie");
-      }
-
-      if (typeof data.data.creditsRemaining === "number") {
-        setCredits(data.data.creditsRemaining);
-        emitCreditsUpdate(data.data.creditsRemaining);
-      }
-
-      const job = await fetchJob(data.data.jobId);
-      if (job) router.push(`/story-ad-movie?id=${job.id}`);
-      toast({ title: "xAI is generating your story ad movie." });
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to start story ad movie",
-        variant: "destructive",
-      });
-      setIsGenerating(false);
-    }
-  }
-
-  async function createFeedPost() {
-    if (!currentJob?.videoUrl) return null;
-    const contentParts = [
-      currentJob.campaignCaption || currentJob.storyPrompt,
-      ...(currentJob.hashtags || []),
-    ].filter(Boolean);
-
-    const response = await fetch("/api/posts", {
-      method: "POST",
+  async function patchState(patch: Partial<CampaignState>, opts?: { rebuildPrompts?: boolean }) {
+    if (!campaign) return;
+    const res = await fetch(`/api/ai/story-ad-campaign/${campaign.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: contentParts.join(" "),
-        mediaType: "video",
-        mediaUrl: currentJob.videoUrl,
-      }),
+      body: JSON.stringify({ state: patch, rebuildPrompts: opts?.rebuildPrompts }),
     });
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error?.message || "Failed to create post");
+    const data = await res.json();
+    if (data.success) {
+      setCampaign((prev) => (prev ? { ...prev, state: data.data.state } : prev));
     }
-    return data.data.post as { id: string };
   }
 
-  async function handlePost(destination: "feed" | "ads") {
-    if (!currentJob?.videoUrl) return;
-    setIsPosting(destination);
+  async function runCharacterStage() {
+    if (!campaign) return;
+    setStageLoading("characters");
     try {
-      const post = await createFeedPost();
-      if (!post) throw new Error("Video is not ready yet");
-      toast({ title: destination === "feed" ? "Posted to feed." : "Post ready for ads." });
-      router.push(destination === "feed" ? "/feed" : `/ads/create?type=POST&postId=${post.id}`);
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaign.id}/characters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: 3 }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to plan characters");
+      setCampaign((prev) => (prev ? { ...prev, state: data.data.state } : prev));
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Failed to post video",
+        title: error instanceof Error ? error.message : "Failed to plan characters",
         variant: "destructive",
       });
     } finally {
-      setIsPosting(null);
+      setStageLoading(null);
     }
   }
 
-  async function handleDelete() {
-    if (!currentJob) return;
+  async function runScenesStage() {
+    if (!campaign) return;
+    setStageLoading("scenes");
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaign.id}/scenes`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed to plan scene grid");
+      setCampaign((prev) => (prev ? { ...prev, state: data.data.state } : prev));
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to plan scene grid",
+        variant: "destructive",
+      });
+    } finally {
+      setStageLoading(null);
+    }
+  }
+
+  async function runBatch() {
+    if (!campaign) return;
     const ok = await confirmDialog({
-      title: "Delete story ad movie?",
-      description: "This removes it from this workspace.",
+      title: "Send all clips to the renderer?",
+      description:
+        "This deducts the credit budget and starts rendering every clip in parallel through the chosen provider.",
+      confirmText: "Send batch",
+    });
+    if (!ok) return;
+    setStageLoading("batch");
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaign.id}/batch-send`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "story ad campaign")) return;
+        throw new Error(data.error?.message || "Batch send failed");
+      }
+      if (typeof data.data.creditsUsed === "number") {
+        const remaining = Math.max(0, (credits || 0) - data.data.creditsUsed);
+        setCredits(remaining);
+        emitCreditsUpdate(remaining);
+      }
+      await fetchCampaign(campaign.id);
+      toast({ title: "Batch sent. Clips are rendering in parallel." });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Batch send failed",
+        variant: "destructive",
+      });
+    } finally {
+      setStageLoading(null);
+    }
+  }
+
+  async function deleteCampaign(id: string) {
+    const ok = await confirmDialog({
+      title: "Delete this campaign?",
+      description: "All clips, characters, and the story arc will be removed.",
       confirmText: "Delete",
       variant: "destructive",
     });
     if (!ok) return;
-
-    setIsDeleting(true);
-    try {
-      const response = await fetch(`/api/ai/story-ad-movie/${currentJob.id}`, { method: "DELETE" });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed to delete");
-      setCurrentJob(null);
+    await fetch(`/api/ai/story-ad-campaign/${id}`, { method: "DELETE" });
+    if (campaign?.id === id) {
       router.push("/story-ad-movie");
-      fetchHistory();
-      toast({ title: "Story ad movie deleted." });
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to delete",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
+      setCampaign(null);
     }
+    fetchHistory();
   }
 
-  function startFresh() {
-    setCurrentJob(null);
-    setBrief(SAMPLES[0]);
-    setGoal("Get attention, build trust, and drive action.");
-    setStyle("cinematic");
-    setDuration(10);
-    setAspectRatio("9:16");
-    setPlatforms(["instagram", "facebook"]);
-    setReferenceMedia([]);
-    setCharacterBrief("");
-    setIdeas([]);
-    setSceneScripts([]);
-    setInputsExpanded(false);
-    router.push("/story-ad-movie");
+  function goToPhase(target: Phase) {
+    if (!campaign) return;
+    // only allow visiting phases that already have data
+    const allowed: Phase[] = ["STYLE"];
+    if (campaign.state.characters.length) allowed.push("CHARACTERS");
+    if (campaign.state.clips.length) allowed.push("SCENES", "PROMPTS", "VOICE", "BATCH");
+    if (!allowed.includes(target)) return;
+    patchState({ phase: target });
   }
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6 px-3 py-5 sm:px-5 lg:px-8">
-      <header className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-semibold">
-            <Sparkles className="h-4 w-4 text-brand-500" />
-            AI story ad agent
-          </div>
-          <h1 className="flex items-center gap-3 text-3xl font-bold tracking-normal sm:text-4xl">
-            <Clapperboard className="h-8 w-8 shrink-0 text-brand-500" />
-            Story Ad Movie
-          </h1>
-          <p className="mt-2 max-w-4xl text-base text-muted-foreground sm:text-lg">
-            Write the offer, choose the social destinations, attach references, and let AI generate the video.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {credits !== null && (
-            <Badge variant="secondary" className="h-10 px-4 text-sm">
-              <Sparkles className="mr-2 h-4 w-4 text-brand-500" />
-              {credits} credits
-            </Badge>
+      <PageHeader
+        credits={credits}
+        campaign={campaign}
+        onNew={() => {
+          router.push("/story-ad-movie");
+          setCampaign(null);
+        }}
+        onDelete={campaign ? () => deleteCampaign(campaign.id) : undefined}
+      />
+
+      <Stepper
+        phaseIndex={phaseIndex}
+        canVisit={(phase) => {
+          if (!campaign) return phase === "STYLE";
+          if (phase === "STYLE") return true;
+          if (phase === "CHARACTERS") return true;
+          if (phase === "SCENES") return campaign.state.characters.length > 0;
+          return campaign.state.clips.length > 0;
+        }}
+        onJump={(phase) => goToPhase(phase)}
+      />
+
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <main className="min-w-0">
+          {!campaign && (
+            <StyleStage
+              draft={draft}
+              setDraft={setDraft}
+              onCreate={createCampaign}
+              loading={loading}
+            />
           )}
-          {currentJob && (
-            <Button variant="outline" onClick={startFresh}>
+          {campaign && activePhase === "STYLE" && (
+            <ReadOnlySummary state={campaign.state} onAdvance={() => goToPhase("CHARACTERS")} />
+          )}
+          {campaign && activePhase === "CHARACTERS" && (
+            <CharactersStage
+              campaignId={campaign.id}
+              state={campaign.state}
+              loading={stageLoading === "characters"}
+              onGenerate={runCharacterStage}
+              onEditCharacter={(updated) => {
+                const next = campaign.state.characters.map((c) => (c.id === updated.id ? updated : c));
+                patchState({ characters: next });
+              }}
+              onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
+              onAdvance={() => goToPhase("SCENES")}
+            />
+          )}
+          {campaign && activePhase === "SCENES" && (
+            <ScenesStage
+              state={campaign.state}
+              loading={stageLoading === "scenes"}
+              onPlan={runScenesStage}
+              onAdvance={() => goToPhase("PROMPTS")}
+            />
+          )}
+          {campaign && activePhase === "PROMPTS" && (
+            <PromptsStage
+              campaignId={campaign.id}
+              state={campaign.state}
+              onClipChange={(updated) => {
+                const next = campaign.state.clips.map((c) => (c.id === updated.id ? updated : c));
+                patchState({ clips: next }, { rebuildPrompts: true });
+              }}
+              onAdvance={() => goToPhase("VOICE")}
+            />
+          )}
+          {campaign && activePhase === "VOICE" && (
+            <VoiceStage
+              campaignId={campaign.id}
+              state={campaign.state}
+              onAdvance={() => goToPhase("BATCH")}
+            />
+          )}
+          {campaign && (activePhase === "BATCH" || activePhase === "DONE" || activePhase === "FAILED") && (
+            <BatchStage
+              campaign={campaign}
+              loading={stageLoading === "batch"}
+              onSend={runBatch}
+              onProviderChange={(provider) => patchState({ provider })}
+            />
+          )}
+        </main>
+
+        <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
+          <CampaignSummaryCard campaign={campaign} draft={!campaign ? draft : null} />
+          <CampaignHistoryCard
+            history={history}
+            selectedId={campaign?.id || null}
+            onOpen={(id) => router.push(`/story-ad-movie?id=${id}`)}
+            onDelete={deleteCampaign}
+          />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// HEADER
+// ============================================================================
+
+function PageHeader({
+  credits,
+  campaign,
+  onNew,
+  onDelete,
+}: {
+  credits: number | null;
+  campaign: CampaignRow | null;
+  onNew: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <header className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="min-w-0">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm font-semibold">
+          <Sparkles className="h-4 w-4 text-brand-500" />
+          Story Ad Campaign Pipeline
+        </div>
+        <h1 className="flex items-center gap-3 text-3xl font-bold tracking-normal sm:text-4xl">
+          <Clapperboard className="h-8 w-8 shrink-0 text-brand-500" />
+          {campaign?.state.brief ? campaign.state.brief.slice(0, 80) : "Story Ad Campaign"}
+        </h1>
+        <p className="mt-2 max-w-4xl text-base text-muted-foreground sm:text-lg">
+          A campaign-style pipeline: lock the style, build a character catalog, lay out the full story arc, then batch
+          render every clip. No text overlays — pure cinematic visuals.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {credits !== null && (
+          <Badge variant="secondary" className="h-10 px-4 text-sm">
+            <Sparkles className="mr-2 h-4 w-4 text-brand-500" />
+            {credits} credits
+          </Badge>
+        )}
+        {campaign && (
+          <>
+            <Button variant="outline" onClick={onNew}>
               <Plus className="h-4 w-4" />
-              New
+              New campaign
             </Button>
-          )}
-        </div>
-      </header>
-
-      <main
-        className={cn(
-          "grid min-w-0 gap-6",
-          previewFocused
-            ? "xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]"
-            : "xl:grid-cols-[minmax(0,1fr)_minmax(440px,0.72fr)] 2xl:grid-cols-[minmax(0,1.2fr)_minmax(520px,0.8fr)]",
-        )}
-      >
-        {inputsCollapsed ? (
-          <section className="min-w-0 space-y-3 xl:sticky xl:top-5 xl:self-start">
-            <div className="rounded-xl border bg-background p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-                  {brandLogo ? (
-                    <img src={brandLogo} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Clapperboard className="h-5 w-5 text-brand-500" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{brandKit?.name || "Brand identity"}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {[brandKit?.industry, brandKit?.voiceTone, activeAspectRatio].filter(Boolean).join(" / ") || "Used by AI"}
-                  </p>
-                </div>
-              </div>
-              <p className="line-clamp-5 text-sm leading-6 text-muted-foreground">{brief}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {platforms.map((platform) => (
-                  <Badge key={platform} variant="secondary" className="capitalize">{platform}</Badge>
-                ))}
-                <Badge variant="outline">{referenceMedia.length} refs</Badge>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4 w-full"
-                onClick={() => setInputsExpanded(true)}
-                disabled={isGenerating || isWorking(currentJob)}
-              >
-                <Wand2 className="h-4 w-4" />
-                Edit Inputs
+            {onDelete && (
+              <Button variant="outline" onClick={onDelete}>
+                <Trash2 className="h-4 w-4" />
+                Delete
               </Button>
-            </div>
-          </section>
-        ) : (
-        <section className="min-w-0 space-y-5">
-          <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-                  {brandLogo ? (
-                    <img src={brandLogo} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Sparkles className="h-5 w-5 text-brand-500" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h2 className="truncate text-xl font-bold">{brandKit?.name || "Brand identity"}</h2>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {brandKit
-                      ? [brandKit.tagline, brandKit.industry, brandKit.targetAudience].filter(Boolean).join(" / ")
-                      : "Set a brand so AI can match your voice, offer, and audience."}
-                  </p>
-                </div>
-              </div>
-              {brandKit ? (
-                <Badge variant="secondary" className="w-fit">
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Used by AI
-                </Badge>
-              ) : (
-                <Button asChild variant="outline">
-                  <a href="/brand">Add Brand</a>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-xl font-bold">Ad story brief</h2>
-                {brandKit?.name && (
-                  <p className="text-sm text-muted-foreground">
-                    Brand loaded: <span className="font-medium text-foreground">{brandKit.name}</span>
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { mode: "ideas" as const, label: "Ideas", icon: Lightbulb },
-                  { mode: "story" as const, label: "Write Story", icon: Wand2 },
-                  { mode: "script" as const, label: "Script", icon: Film },
-                  { mode: "character" as const, label: "Character", icon: Users },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Button
-                      key={item.mode}
-                      type="button"
-                      variant="outline"
-                      onClick={() => runAssist(item.mode)}
-                      disabled={!!assistLoading || isGenerating}
-                    >
-                      {assistLoading === item.mode ? (
-                        <FlowActionSpinner size={16} />
-                      ) : (
-                        <Icon className="h-4 w-4" />
-                      )}
-                      {item.label}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <Textarea
-              value={brief}
-              onChange={(event) => setBrief(event.target.value)}
-              disabled={isGenerating}
-              rows={9}
-              className="min-h-[245px] resize-y text-base leading-relaxed"
-              placeholder="Tell AI what to sell, who it is for, the offer, and the feeling the video should create..."
-            />
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {SAMPLES.map((sample, index) => (
-                <Button
-                  key={sample}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBrief(sample)}
-                  disabled={isGenerating}
-                >
-                  Sample {index + 1}
-                </Button>
-              ))}
-            </div>
-
-            {ideas.length > 0 && (
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {ideas.map((idea) => (
-                  <button
-                    key={`${idea.title}-${idea.brief.slice(0, 30)}`}
-                    type="button"
-                    onClick={() => setBrief(idea.brief)}
-                    className="rounded-lg border p-3 text-left transition hover:border-brand-500/60 hover:bg-brand-500/5"
-                  >
-                    <span className="block font-semibold">{idea.title}</span>
-                    {idea.hook && <span className="mt-1 block text-sm text-muted-foreground">{idea.hook}</span>}
-                  </button>
-                ))}
-              </div>
             )}
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-            <div className="space-y-5">
-              <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-                <h2 className="text-xl font-bold">Social destinations</h2>
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
-                  {PLATFORM_OPTIONS.map((item) => {
-                    const Icon = item.icon;
-                    const selected = platforms.includes(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => togglePlatform(item.id, item.aspect)}
-                        disabled={isGenerating}
-                        className={cn(
-                          "flex h-12 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition",
-                          selected
-                            ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                            : "hover:border-brand-500/50",
-                        )}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                        {selected && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-                <h2 className="text-xl font-bold">Format</h2>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  {[
-                    { id: "9:16" as AspectRatio, label: "Vertical", icon: Smartphone },
-                    { id: "1:1" as AspectRatio, label: "Square", icon: Square },
-                    { id: "16:9" as AspectRatio, label: "Wide", icon: Film },
-                  ].map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setAspectRatio(item.id)}
-                        disabled={isGenerating}
-                        className={cn(
-                          "flex h-12 items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
-                          aspectRatio === item.id
-                            ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                            : "hover:border-brand-500/50",
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-[0.85fr_1.15fr]">
-                  <div className="space-y-2">
-                    <span className="text-sm font-semibold">Length</span>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {[10, 20, 30, 40].map((seconds) => (
-                        <button
-                          key={seconds}
-                          type="button"
-                          onClick={() => setDuration(seconds as Duration)}
-                          disabled={isGenerating}
-                          className={cn(
-                            "min-h-12 rounded-lg border px-2 py-2 text-sm font-semibold transition",
-                            duration === seconds
-                              ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300"
-                              : "hover:border-brand-500/50",
-                          )}
-                        >
-                          <span className="block">{seconds}s</span>
-                          <span className="block text-[11px] font-medium text-muted-foreground">
-                            {Math.ceil(seconds / 10) * 100} credits
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-sm font-semibold">Style</span>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {STYLE_OPTIONS.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setStyle(item.id)}
-                          disabled={isGenerating}
-                          className={cn(
-                            "rounded-lg border px-3 py-2 text-left transition",
-                            style === item.id
-                              ? "border-brand-500 bg-brand-500/10"
-                              : "hover:border-brand-500/50",
-                          )}
-                        >
-                          <span className="block text-sm font-semibold">{item.label}</span>
-                          <span className="block text-xs text-muted-foreground">{item.description}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-xl font-bold">Characters / talent</h2>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => runAssist("character")}
-                    disabled={!!assistLoading || isGenerating}
-                  >
-                    {assistLoading === "character" ? (
-                      <FlowActionSpinner size={16} />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Create
-                  </Button>
-                </div>
-                <Textarea
-                  value={characterBrief}
-                  onChange={(event) => setCharacterBrief(event.target.value)}
-                  disabled={isGenerating}
-                  rows={4}
-                  className="resize-y"
-                  placeholder="Founder, customer, spokesperson, product hero, scene mood, clothing, movement..."
-                />
-              </div>
-
-              <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="text-xl font-bold">Reference media</h2>
-                  <Badge variant="outline" className="w-fit">
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    Image or video
-                  </Badge>
-                </div>
-                <MediaUploader
-                  value={mediaUrls}
-                  onChange={handleMediaChange}
-                  multiple
-                  maxFiles={12}
-                  accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
-                  maxSize={250 * 1024 * 1024}
-                  filterTypes={["image", "video"]}
-                  label=""
-                  description=""
-                  placeholder="Add reference"
-                  variant="gallery"
-                  libraryTitle="Choose reference media"
-                  disabled={isGenerating}
-                />
-
-                {referenceMedia.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {referenceMedia.map((item, index) => (
-                      <div key={item.url} className="rounded-lg border p-3">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <Badge variant="secondary">{item.type}</Badge>
-                          <span className="truncate text-xs text-muted-foreground">Reference {index + 1}</span>
-                        </div>
-                        <div className="grid gap-2 lg:grid-cols-[0.45fr_0.55fr]">
-                          {sceneScripts.length > 0 ? (
-                            <select
-                              value={item.scene}
-                              onChange={(event) => updateReference(index, { scene: event.target.value })}
-                              disabled={isGenerating}
-                              className="h-11 rounded-lg border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
-                            >
-                              <option value="">Scene / script</option>
-                              {sceneScripts.map((scene) => (
-                                <option key={scene.scene} value={`${scene.scene}: ${scene.script}`}>
-                                  {scene.scene}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              value={item.scene}
-                              onChange={(event) => updateReference(index, { scene: event.target.value })}
-                              disabled={isGenerating}
-                              className="h-11 rounded-lg border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
-                              placeholder="Scene / script"
-                            />
-                          )}
-                          <input
-                            value={item.note}
-                            onChange={(event) => updateReference(index, { note: event.target.value })}
-                            disabled={isGenerating}
-                            className="h-11 rounded-lg border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
-                            placeholder="Use this for product, person, place, style..."
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold">Goal</span>
-                <input
-                  value={goal}
-                  onChange={(event) => setGoal(event.target.value)}
-                  disabled={isGenerating}
-                  className="h-12 w-full rounded-lg border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-semibold">CTA link</span>
-                <input
-                  value={ctaUrl}
-                  onChange={(event) => setCtaUrl(event.target.value)}
-                  disabled={isGenerating}
-                  className="h-12 w-full rounded-lg border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
-                  placeholder="https://..."
-                />
-              </label>
-              <Badge variant="outline" className="h-12 justify-center px-4">
-                {durationCreditCost} credits
-              </Badge>
-            </div>
-
-            <Button
-              onClick={handleGenerate}
-              disabled={buttonDisabled}
-              className="mt-5 h-14 w-full text-base font-bold"
-              size="lg"
-            >
-              {isGenerating ? (
-                <>
-                  <FlowActionSpinner size={20} />
-                  Generating with xAI
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-5 w-5" />
-                  Generate Story Ad Movie
-                  <ArrowRight className="h-5 w-5" />
-                </>
-              )}
-            </Button>
-          </div>
-        </section>
+          </>
         )}
+      </div>
+    </header>
+  );
+}
 
-        <section
-          className={cn(
-            "min-w-0 rounded-xl border bg-background p-4 shadow-sm sm:p-5 xl:sticky xl:top-5 xl:self-start",
-            previewFocused && "min-h-[calc(100vh-9rem)]",
-          )}
-        >
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold">Preview</h2>
-              <p className="text-sm text-muted-foreground">
-                {selectedStyle.label} / {activeDuration}s / {activeAspectRatio} / {activeCreditCost} credits
-              </p>
-            </div>
-            <Badge variant={currentJob?.status === "FAILED" ? "destructive" : "secondary"}>
-              {statusLabel(currentJob?.status)}
-            </Badge>
-          </div>
+// ============================================================================
+// STEPPER
+// ============================================================================
 
-          {currentJob && isWorking(currentJob) ? (
-            <AIGenerationLoader
-              currentStep={currentJob.currentStep || "Generating your story ad movie..."}
-              progress={currentJob.progress}
-              subtitle="xAI is rendering the final video."
-              className="min-h-[460px]"
-            />
-          ) : currentJob?.status === "COMPLETED" && currentJob.videoUrl ? (
-            <div className="space-y-5">
-              <div className={cn("mx-auto overflow-hidden rounded-xl border bg-black", aspectClass(activeAspectRatio))}>
-                <video
-                  src={currentJob.videoUrl}
-                  poster={currentJob.thumbnailUrl || undefined}
-                  controls
-                  playsInline
-                  className="h-full w-full object-contain"
-                />
-              </div>
-
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <h3 className="font-bold">{currentJob.title || "Story ad movie ready"}</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {currentJob.campaignCaption || currentJob.storyPrompt}
-                </p>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
-                <Button onClick={() => handlePost("feed")} disabled={!!isPosting}>
-                  {isPosting === "feed" ? <FlowActionSpinner size={16} /> : <Send className="h-4 w-4" />}
-                  Post
-                </Button>
-                <Button onClick={() => handlePost("ads")} disabled={!!isPosting} variant="outline">
-                  {isPosting === "ads" ? <FlowActionSpinner size={16} /> : <Megaphone className="h-4 w-4" />}
-                  Promote
-                </Button>
-                <Button asChild variant="outline">
-                  <a href={currentJob.videoUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                    Open
-                  </a>
-                </Button>
-              </div>
-            </div>
-          ) : currentJob?.status === "FAILED" ? (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center">
-              <div className="mb-4 rounded-full bg-destructive/10 p-4 text-destructive">
-                <Trash2 className="h-8 w-8" />
-              </div>
-              <h3 className="text-xl font-bold">Movie was not created</h3>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                {currentJob.errorMessage || "The generation failed. Any charged credits were refunded automatically."}
-              </p>
-              <div className="mt-5 flex gap-2">
-                <Button onClick={startFresh}>Try Again</Button>
-                <Button variant="outline" onClick={handleDelete} disabled={isDeleting}>
-                  {isDeleting ? <FlowActionSpinner size={16} /> : <Trash2 className="h-4 w-4" />}
-                  Remove
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center">
-              <div className="mb-4 rounded-full bg-brand-500/10 p-4 text-brand-600">
-                <Play className="h-9 w-9" />
-              </div>
-              <h3 className="text-xl font-bold">Your video will appear here</h3>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Start from a brief, AI ideas, or uploaded references.
-              </p>
-            </div>
-          )}
-
-          {sceneScripts.length > 0 && (
-            <div className="mt-6 space-y-2">
-              <h3 className="text-sm font-bold">Script scenes</h3>
-              {sceneScripts.map((scene) => (
-                <details key={scene.scene} className="rounded-lg border bg-background px-3 py-2">
-                  <summary className="cursor-pointer text-sm font-semibold">{scene.scene}</summary>
-                  <p className="mt-2 text-sm text-muted-foreground">{scene.script}</p>
-                </details>
-              ))}
-            </div>
-          )}
-
-          {currentJob?.scenes?.length ? (
-            <div className="mt-6 space-y-2">
-              <h3 className="text-sm font-bold">Generated story</h3>
-              {currentJob.scenes.map((scene, index) => (
-                <details key={`${scene.sceneNumber}-${index}`} className="rounded-lg border bg-background px-3 py-2">
-                  <summary className="cursor-pointer text-sm font-semibold">
-                    {scene.caption || `Scene ${scene.sceneNumber}`}
-                  </summary>
-                  <p className="mt-2 text-sm text-muted-foreground">{scene.narration}</p>
-                </details>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      </main>
-
-      {history.length > 0 && (
-        <section className="rounded-xl border bg-background p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold">Recent ad movies</h2>
-            <Button variant="ghost" size="sm" onClick={fetchHistory}>
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
-            {history.map((job) => (
-              <button
-                key={job.id}
-                type="button"
-                onClick={() => router.push(`/story-ad-movie?id=${job.id}`)}
-                className="overflow-hidden rounded-xl border text-left transition hover:border-brand-500/60"
+function Stepper({
+  phaseIndex,
+  canVisit,
+  onJump,
+}: {
+  phaseIndex: number;
+  canVisit: (phase: Phase) => boolean;
+  onJump: (phase: Phase) => void;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-background p-3 shadow-sm">
+      <div className="flex min-w-[680px] items-stretch gap-2">
+        {STAGES.map((stage, index) => {
+          const isActive = index === phaseIndex;
+          const isDone = phaseIndex > index;
+          const visitable = canVisit(stage.id);
+          const Icon = isDone ? Check : stage.icon;
+          return (
+            <button
+              key={stage.id}
+              type="button"
+              disabled={!visitable}
+              onClick={() => onJump(stage.id)}
+              className={cn(
+                "group flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
+                isActive
+                  ? "border-brand-500 bg-brand-500/5"
+                  : isDone
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : "border-border bg-muted/30",
+                visitable ? "cursor-pointer hover:border-brand-500" : "cursor-not-allowed opacity-50",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold",
+                  isActive
+                    ? "border-brand-500 bg-brand-500 text-white"
+                    : isDone
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-border bg-background",
+                )}
               >
-                <div className="aspect-video bg-muted">
-                  {job.thumbnailUrl ? (
-                    <img src={job.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Film className="h-7 w-7" />
-                    </div>
-                  )}
+                {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-xs text-muted-foreground">Stage {index}</span>
+                  <span>{stage.label}</span>
                 </div>
-                <div className="space-y-1 p-3">
-                  <p className="line-clamp-1 font-semibold">{job.title || job.storyPrompt}</p>
-                  <p className="text-xs text-muted-foreground">{statusLabel(job.status)}</p>
-                </div>
+                <p className="text-xs text-muted-foreground">{stage.subtitle}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// STAGE 0 — STYLE + BRIEF
+// ============================================================================
+
+function StyleStage({
+  draft,
+  setDraft,
+  onCreate,
+  loading,
+}: {
+  draft: {
+    style: Style | null;
+    brief: string;
+    goal: string;
+    destinationUrl: string;
+    aspectRatio: Aspect;
+    durationSeconds: Duration;
+    clipLength: ClipLen;
+    platforms: string[];
+    provider: Provider;
+  };
+  setDraft: (
+    fn:
+      | typeof draft
+      | ((prev: typeof draft) => typeof draft)
+  ) => void;
+  onCreate: () => void;
+  loading: boolean;
+}) {
+  const clipCount = Math.round(draft.durationSeconds / draft.clipLength);
+  const canCreate = !!draft.style && draft.brief.trim().length >= 12;
+
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="1. Lock the campaign style"
+        description="This visual language is inherited by every character, scene, and clip. You can't mix styles inside one campaign."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <StyleCard
+            active={draft.style === "3d"}
+            onSelect={() => setDraft((prev) => ({ ...prev, style: "3d" }))}
+            title="3D Animation"
+            tagline="Pixar-grade rigs · stylized · brand-safe"
+            icon={Box}
+            description="Premium 3D animation with soft global illumination, expressive characters, polished cinematic rendering."
+          />
+          <StyleCard
+            active={draft.style === "cinematic"}
+            onSelect={() => setDraft((prev) => ({ ...prev, style: "cinematic" }))}
+            title="Cinematic Live-Action"
+            tagline="ARRI look · anamorphic · photoreal"
+            icon={Film}
+            description="Live-action cinematic — anamorphic lenses, shallow depth of field, photoreal skin, real production design."
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="2. The campaign brief" description="The offer, the story you want told, the transformation.">
+        <Textarea
+          value={draft.brief}
+          onChange={(event) => setDraft((prev) => ({ ...prev, brief: event.target.value }))}
+          rows={6}
+          placeholder="A premium consulting firm transforms struggling local businesses into top-ranked players in 90 days..."
+          className="resize-y"
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-semibold uppercase text-muted-foreground">Goal</label>
+            <Input
+              value={draft.goal}
+              onChange={(event) => setDraft((prev) => ({ ...prev, goal: event.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-muted-foreground">CTA link / website</label>
+            <Input
+              value={draft.destinationUrl}
+              onChange={(event) => setDraft((prev) => ({ ...prev, destinationUrl: event.target.value }))}
+              placeholder="https://"
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="3. Pacing & format"
+        description={`This campaign will be cut into ${clipCount} clips of ${draft.clipLength}s each.`}
+      >
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <FieldGroup label="Total duration">
+            <SegmentedControl
+              value={String(draft.durationSeconds)}
+              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              onChange={(value) =>
+                setDraft((prev) => ({ ...prev, durationSeconds: Number(value) as Duration }))
+              }
+            />
+          </FieldGroup>
+          <FieldGroup label="Clip length">
+            <SegmentedControl
+              value={String(draft.clipLength)}
+              options={[
+                { value: "8", label: "8s" },
+                { value: "10", label: "10s" },
+              ]}
+              onChange={(value) => setDraft((prev) => ({ ...prev, clipLength: Number(value) as ClipLen }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Aspect ratio">
+            <SegmentedControl
+              value={draft.aspectRatio}
+              options={[
+                { value: "9:16", label: "9:16" },
+                { value: "1:1", label: "1:1" },
+                { value: "16:9", label: "16:9" },
+              ]}
+              onChange={(value) => setDraft((prev) => ({ ...prev, aspectRatio: value as Aspect }))}
+            />
+          </FieldGroup>
+          <FieldGroup label="Render provider">
+            <SegmentedControl
+              value={draft.provider}
+              options={[
+                { value: "veo3", label: "Veo 3" },
+                { value: "xai", label: "xAI" },
+              ]}
+              onChange={(value) => setDraft((prev) => ({ ...prev, provider: value as Provider }))}
+            />
+          </FieldGroup>
+        </div>
+        <FieldGroup label="Distribution platforms">
+          <div className="flex flex-wrap gap-2">
+            {PLATFORM_OPTIONS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    platforms: prev.platforms.includes(p.id)
+                      ? prev.platforms.filter((x) => x !== p.id)
+                      : [...prev.platforms, p.id],
+                  }))
+                }
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  draft.platforms.includes(p.id)
+                    ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                    : "border-border bg-muted/40 text-muted-foreground hover:border-brand-500",
+                )}
+              >
+                {p.label}
               </button>
             ))}
           </div>
-        </section>
-      )}
+        </FieldGroup>
+      </SectionCard>
 
-      {steps.length > 0 && isGenerating && !currentJob && (
-        <div className="sr-only">{steps.join(", ")}</div>
+      <div className="flex flex-col gap-3 rounded-xl border bg-background p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Ready to start the campaign?</p>
+          <p className="text-xs text-muted-foreground">
+            Stage 1 will plan a character catalog locked to <strong>{draft.style ? (draft.style === "3d" ? "3D" : "Cinematic") : "your style"}</strong>.
+          </p>
+        </div>
+        <Button onClick={onCreate} disabled={!canCreate || loading} className="h-11 px-6 text-base">
+          {loading ? <AISpinner size={16} /> : <ArrowRight className="h-4 w-4" />}
+          Start campaign
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function StyleCard({
+  active,
+  onSelect,
+  title,
+  tagline,
+  description,
+  icon: Icon,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  title: string;
+  tagline: string;
+  description: string;
+  icon: typeof Sparkles;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "group flex flex-col gap-3 rounded-xl border p-5 text-left shadow-sm transition-colors",
+        active ? "border-brand-500 bg-brand-500/5" : "border-border bg-background hover:border-brand-500",
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <div
+          className={cn(
+            "flex h-12 w-12 items-center justify-center rounded-lg border",
+            active ? "border-brand-500 bg-brand-500 text-white" : "border-border bg-muted",
+          )}
+        >
+          <Icon className="h-6 w-6" />
+        </div>
+        {active && <Badge className="bg-brand-500 text-white">Selected</Badge>}
+      </div>
+      <div>
+        <h3 className="text-lg font-bold">{title}</h3>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{tagline}</p>
+      </div>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </button>
+  );
+}
+
+// ============================================================================
+// STAGE 1 — CHARACTERS
+// ============================================================================
+
+function CharactersStage({
+  campaignId,
+  state,
+  loading,
+  onGenerate,
+  onEditCharacter,
+  onApplyState,
+  onAdvance,
+}: {
+  campaignId: string;
+  state: CampaignState;
+  loading: boolean;
+  onGenerate: () => void;
+  onEditCharacter: (character: Character) => void;
+  onApplyState: (state: CampaignState) => void;
+  onAdvance: () => void;
+}) {
+  const approvedCount = state.characters.filter((c) => c.approved).length;
+  const allApproved = state.characters.length > 0 && approvedCount === state.characters.length;
+
+  async function regeneratePreview(characterId: string) {
+    const res = await fetch(
+      `/api/ai/story-ad-campaign/${campaignId}/characters/${characterId}/preview`,
+      { method: "POST" },
+    );
+    const data = await res.json();
+    if (data.success) onApplyState(data.data.state);
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="Character catalog"
+        description="AI designs each character in the locked style based on your story. Generate a preview image, edit any field with AI assist, then approve to unlock the scene grid."
+        action={
+          <Button onClick={onGenerate} disabled={loading} variant={state.characters.length ? "outline" : "default"}>
+            {loading ? <AISpinner size={16} /> : <Wand2 className="h-4 w-4" />}
+            {state.characters.length ? "Regenerate catalog" : "Generate catalog"}
+          </Button>
+        }
+      >
+        {!state.characters.length && !loading && (
+          <EmptyState
+            icon={Users}
+            title="No characters yet"
+            description="AI will write the story outline and a 3-character catalog tuned to your brief. You'll preview, edit, and approve each one."
+          />
+        )}
+        {loading && (
+          <AIGenerationLoader compact progress={45} currentStep="Writing the story outline and designing characters..." />
+        )}
+
+        {state.storyOutline && (
+          <div className="rounded-lg border border-brand-500/40 bg-brand-500/5 p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-brand-500" />
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
+                Story outline
+              </p>
+            </div>
+            <p className="text-sm leading-6">{state.storyOutline}</p>
+          </div>
+        )}
+
+        {state.characters.length > 0 && (
+          <>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+              <span>
+                <strong>{approvedCount}</strong> of <strong>{state.characters.length}</strong> approved
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Approve every character to continue to scenes.
+              </span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {state.characters.map((character) => (
+                <CharacterCard
+                  key={character.id}
+                  character={character}
+                  campaignId={campaignId}
+                  onChange={onEditCharacter}
+                  onGeneratePreview={() => regeneratePreview(character.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </SectionCard>
+
+      {state.characters.length > 0 && (
+        <ContinueBar
+          label="Continue to the scene grid"
+          hint={
+            allApproved
+              ? `All ${state.characters.length} characters approved`
+              : `Approve all characters first (${approvedCount}/${state.characters.length})`
+          }
+          onContinue={onAdvance}
+          disabled={!allApproved}
+        />
       )}
     </div>
   );
 }
 
-export default function StoryAdMoviePage() {
+function CharacterCard({
+  character,
+  campaignId,
+  onChange,
+  onGeneratePreview,
+}: {
+  character: Character;
+  campaignId: string;
+  onChange: (updated: Character) => void;
+  onGeneratePreview: () => Promise<void>;
+}) {
+  const [generating, setGenerating] = useState(false);
+  const previewBusy = generating || character.previewStatus === "generating";
+  const hasPreview = !!character.referenceImageUrl && character.previewStatus === "ready";
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      await onGeneratePreview();
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function patch(updated: Partial<Character>) {
+    onChange({ ...character, ...updated, approved: false });
+  }
+
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-96 items-center justify-center">
-          <FlowActionSpinner size={36} />
-        </div>
-      }
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border bg-background p-4 shadow-sm transition-colors",
+        character.approved && "border-emerald-500/60 ring-1 ring-emerald-500/30",
+      )}
     >
-      <StoryAdMovieContent />
-    </Suspense>
+      <div className="relative w-full overflow-hidden rounded-lg border bg-muted aspect-[4/5]">
+        {hasPreview ? (
+          <img src={character.referenceImageUrl as string} alt={character.name} className="h-full w-full object-cover" />
+        ) : previewBusy ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+            <AISpinner size={24} />
+            Generating preview...
+          </div>
+        ) : character.previewStatus === "failed" ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-destructive">
+            <TriangleAlert className="h-5 w-5" />
+            <span>{character.previewError?.slice(0, 80) || "Preview failed"}</span>
+          </div>
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Users className="h-8 w-8" />
+            <span>No preview yet</span>
+          </div>
+        )}
+        {hasPreview && (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={previewBusy}
+            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border bg-background/90 px-2 py-1 text-xs font-medium shadow-sm hover:border-brand-500"
+          >
+            {previewBusy ? <AISpinner size={12} /> : <RefreshCw className="h-3 w-3" />}
+            Regenerate
+          </button>
+        )}
+        {!hasPreview && !previewBusy && (
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2"
+          >
+            <Wand2 className="h-3 w-3" />
+            Generate preview
+          </Button>
+        )}
+      </div>
+
+      <SuggestField
+        campaignId={campaignId}
+        field="character.name"
+        characterId={character.id}
+        onApply={(value) => patch({ name: value })}
+      >
+        <Input
+          value={character.name}
+          onChange={(event) => patch({ name: event.target.value })}
+          className="h-9 text-base font-semibold"
+        />
+      </SuggestField>
+      <SuggestField
+        campaignId={campaignId}
+        field="character.role"
+        characterId={character.id}
+        onApply={(value) => patch({ role: value })}
+      >
+        <Input
+          value={character.role}
+          onChange={(event) => patch({ role: event.target.value })}
+          placeholder="Role in the story"
+        />
+      </SuggestField>
+      <SuggestField
+        campaignId={campaignId}
+        field="character.visualDescription"
+        characterId={character.id}
+        onApply={(value) => patch({ visualDescription: value })}
+      >
+        <Textarea
+          value={character.visualDescription}
+          onChange={(event) => patch({ visualDescription: event.target.value })}
+          rows={4}
+          placeholder="Visual description"
+          className="resize-y text-sm"
+        />
+      </SuggestField>
+
+      <div className="rounded-lg border bg-muted/30 p-3">
+        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Voice criteria</p>
+        <div className="grid grid-cols-2 gap-2">
+          {(["age", "tone", "pace", "texture", "delivery"] as const).map((key) => (
+            <SuggestField
+              key={key}
+              campaignId={campaignId}
+              field={`character.voice.${key}`}
+              characterId={character.id}
+              onApply={(value) =>
+                onChange({
+                  ...character,
+                  voiceCriteria: { ...character.voiceCriteria, [key]: value },
+                  approved: false,
+                })
+              }
+              compact
+            >
+              <Input
+                value={character.voiceCriteria[key]}
+                onChange={(event) =>
+                  onChange({
+                    ...character,
+                    voiceCriteria: { ...character.voiceCriteria, [key]: event.target.value },
+                    approved: false,
+                  })
+                }
+                placeholder={key}
+                className="h-8 text-xs"
+              />
+            </SuggestField>
+          ))}
+        </div>
+      </div>
+
+      <Button
+        size="sm"
+        variant={character.approved ? "outline" : "default"}
+        onClick={() => onChange({ ...character, approved: !character.approved })}
+        disabled={!hasPreview}
+        className={cn(character.approved && "border-emerald-500/60 text-emerald-600 dark:text-emerald-300")}
+      >
+        {character.approved ? (
+          <>
+            <CheckCircle2 className="h-4 w-4" />
+            Approved — click to revoke
+          </>
+        ) : (
+          <>
+            <Check className="h-4 w-4" />
+            {hasPreview ? "Approve character" : "Generate a preview first"}
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+// AI Suggest helper — wraps any input/textarea with a Sparkles icon button
+function SuggestField({
+  campaignId,
+  field,
+  characterId,
+  clipId,
+  onApply,
+  children,
+  compact,
+}: {
+  campaignId: string;
+  field: string;
+  characterId?: string;
+  clipId?: string;
+  onApply: (value: string) => void;
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  const [loading, setLoading] = useState(false);
+  async function suggest() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, characterId, clipId }),
+      });
+      const data = await res.json();
+      if (data.success && data.data.value) onApply(data.data.value);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div className={cn("relative", compact ? "" : "")}>
+      {children}
+      <button
+        type="button"
+        onClick={suggest}
+        disabled={loading}
+        title="AI suggest"
+        className={cn(
+          "absolute flex items-center justify-center rounded-md border bg-background/95 text-brand-500 shadow-sm transition-colors hover:border-brand-500",
+          compact ? "right-1 top-1 h-5 w-5" : "right-1.5 top-1.5 h-6 w-6",
+        )}
+      >
+        {loading ? <AISpinner size={compact ? 10 : 12} /> : <Sparkles className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// STAGE 2 — SCENES
+// ============================================================================
+
+function ScenesStage({
+  state,
+  loading,
+  onPlan,
+  onAdvance,
+}: {
+  state: CampaignState;
+  loading: boolean;
+  onPlan: () => void;
+  onAdvance: () => void;
+}) {
+  const clipCount = Math.round(state.durationSeconds / state.clipLength);
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="Scene grid"
+        description={`Full ${clipCount}-clip arc — hook, problem, discovery, transform, resolution, CTA. Validate visually before any generation fires.`}
+        action={
+          <Button onClick={onPlan} disabled={loading} variant={state.clips.length ? "outline" : "default"}>
+            {loading ? <AISpinner size={16} /> : <Wand2 className="h-4 w-4" />}
+            {state.clips.length ? "Replan arc" : "Plan story arc"}
+          </Button>
+        }
+      >
+        {loading && <AIGenerationLoader compact progress={60} currentStep="Laying out the full story arc..." />}
+        {!state.clips.length && !loading && (
+          <EmptyState
+            icon={Film}
+            title="No story arc yet"
+            description={`Plan ${clipCount} clip slots — each with act, shot, camera, character, and voiceover.`}
+          />
+        )}
+        {state.clips.length > 0 && (
+          <div className="space-y-3">
+            {state.clips.map((clip) => (
+              <ClipRow key={clip.id} clip={clip} state={state} />
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
+      {state.clips.length > 0 && (
+        <ContinueBar
+          label="Continue to prompts"
+          hint={`${state.clips.length} clips planned`}
+          onContinue={onAdvance}
+        />
+      )}
+    </div>
+  );
+}
+
+function ClipRow({ clip, state }: { clip: ClipSlot; state: CampaignState }) {
+  const character = state.characters.find((c) => c.id === clip.characterId);
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-start">
+      <div className="flex shrink-0 items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background text-sm font-bold">
+          {String(clip.index).padStart(2, "0")}
+        </div>
+        <Badge variant="outline" className={cn("h-7 px-3", ACT_BADGE[clip.act])}>
+          {ACT_LABEL[clip.act]}
+        </Badge>
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span className="rounded-full border px-2 py-0.5">{clip.shotType.replace(/_/g, " ").toLowerCase()}</span>
+          <span className="rounded-full border px-2 py-0.5">{clip.cameraMovement.replace(/_/g, " ").toLowerCase()}</span>
+          {character && (
+            <span className="rounded-full border px-2 py-0.5 capitalize">{character.name}</span>
+          )}
+        </div>
+        <p className="text-sm font-medium">{clip.sceneAction}</p>
+        <p className="text-xs text-muted-foreground">{clip.moodLighting}</p>
+        {clip.voiceoverLine && (
+          <p className="text-xs italic text-muted-foreground">
+            <Volume2 className="mr-1 inline h-3 w-3" />
+            &ldquo;{clip.voiceoverLine}&rdquo;
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// STAGE 3 — PROMPTS
+// ============================================================================
+
+function PromptsStage({
+  campaignId,
+  state,
+  onClipChange,
+  onAdvance,
+}: {
+  campaignId: string;
+  state: CampaignState;
+  onClipChange: (clip: ClipSlot) => void;
+  onAdvance: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="Prompt builder per clip"
+        description="Each prompt is auto-assembled from style, character, shot, action, mood, voiceover. Edit any field — the final prompt updates automatically. Use the AI suggest icon to fill any line."
+      >
+        <div className="space-y-4">
+          {state.clips.map((clip) => (
+            <ClipPromptCard
+              key={clip.id}
+              clip={clip}
+              state={state}
+              campaignId={campaignId}
+              onChange={onClipChange}
+            />
+          ))}
+        </div>
+      </SectionCard>
+
+      <ContinueBar label="Continue to voice preview" hint="Validate timing before render" onContinue={onAdvance} />
+    </div>
+  );
+}
+
+function ClipPromptCard({
+  clip,
+  state,
+  campaignId,
+  onChange,
+}: {
+  clip: ClipSlot;
+  state: CampaignState;
+  campaignId: string;
+  onChange: (clip: ClipSlot) => void;
+}) {
+  const [showPrompt, setShowPrompt] = useState(false);
+  return (
+    <div className="rounded-xl border bg-background p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-muted text-sm font-bold">
+            {String(clip.index).padStart(2, "0")}
+          </div>
+          <SegmentedControl
+            value={clip.act}
+            small
+            options={ACT_OPTIONS.map((a) => ({ value: a, label: ACT_LABEL[a] }))}
+            onChange={(value) => onChange({ ...clip, act: value as Act })}
+          />
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setShowPrompt((v) => !v)}>
+          {showPrompt ? "Hide prompt" : "Show prompt"}
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <FieldGroup label="Shot type">
+          <select
+            value={clip.shotType}
+            onChange={(event) => onChange({ ...clip, shotType: event.target.value as Shot })}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+          >
+            {SHOT_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, " ").toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </FieldGroup>
+        <FieldGroup label="Camera">
+          <select
+            value={clip.cameraMovement}
+            onChange={(event) => onChange({ ...clip, cameraMovement: event.target.value as Camera })}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+          >
+            {CAMERA_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c.replace(/_/g, " ").toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </FieldGroup>
+        <FieldGroup label="Character on camera">
+          <select
+            value={clip.characterId || ""}
+            onChange={(event) => onChange({ ...clip, characterId: event.target.value || null })}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+          >
+            <option value="">No character (product / env)</option>
+            {state.characters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </FieldGroup>
+      </div>
+
+      <FieldGroup label="Scene action">
+        <SuggestField
+          campaignId={campaignId}
+          field="clip.sceneAction"
+          clipId={clip.id}
+          onApply={(value) => onChange({ ...clip, sceneAction: value })}
+        >
+          <Textarea
+            value={clip.sceneAction}
+            onChange={(event) => onChange({ ...clip, sceneAction: event.target.value })}
+            rows={2}
+            className="resize-y text-sm"
+          />
+        </SuggestField>
+      </FieldGroup>
+      <FieldGroup label="Mood + lighting">
+        <SuggestField
+          campaignId={campaignId}
+          field="clip.moodLighting"
+          clipId={clip.id}
+          onApply={(value) => onChange({ ...clip, moodLighting: value })}
+        >
+          <Input
+            value={clip.moodLighting}
+            onChange={(event) => onChange({ ...clip, moodLighting: event.target.value })}
+          />
+        </SuggestField>
+      </FieldGroup>
+      <FieldGroup label="Voiceover line">
+        <SuggestField
+          campaignId={campaignId}
+          field="clip.voiceoverLine"
+          clipId={clip.id}
+          onApply={(value) => onChange({ ...clip, voiceoverLine: value })}
+        >
+          <Textarea
+            value={clip.voiceoverLine}
+            onChange={(event) => onChange({ ...clip, voiceoverLine: event.target.value })}
+            rows={2}
+            className="resize-y text-sm"
+          />
+        </SuggestField>
+        <VoiceTimingHint text={clip.voiceoverLine} clipLength={state.clipLength} />
+      </FieldGroup>
+
+      {showPrompt && (
+        <div className="mt-3 rounded-lg border border-dashed bg-muted/30 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Assembled prompt</p>
+          <pre className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{clip.prompt}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VoiceTimingHint({ text, clipLength }: { text: string; clipLength: ClipLen }) {
+  const seconds = estimateVoiceSeconds(text);
+  if (!text.trim()) return null;
+  const overflow = seconds > clipLength;
+  return (
+    <p className={cn("mt-1 text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+      {overflow ? (
+        <>
+          <TriangleAlert className="mr-1 inline h-3 w-3" />
+          About {seconds.toFixed(1)}s at natural pace — too long for a {clipLength}s clip. Trim it.
+        </>
+      ) : (
+        <>About {seconds.toFixed(1)}s at natural pace — fits the {clipLength}s window.</>
+      )}
+    </p>
+  );
+}
+
+// ============================================================================
+// STAGE 4 — VOICE PREVIEW
+// ============================================================================
+
+function VoiceStage({
+  campaignId,
+  state,
+  onAdvance,
+}: {
+  campaignId: string;
+  state: CampaignState;
+  onAdvance: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="Voice preview"
+        description="Test each clip's voiceover with the character's voice criteria. Used to catch timing problems before spending render credits. No production cost."
+      >
+        <div className="space-y-3">
+          {state.clips.map((clip) => (
+            <VoicePreviewRow key={clip.id} clip={clip} state={state} campaignId={campaignId} />
+          ))}
+        </div>
+      </SectionCard>
+
+      <ContinueBar label="Continue to batch render" hint="Last stop before clips ship to provider" onContinue={onAdvance} />
+    </div>
+  );
+}
+
+function VoicePreviewRow({
+  clip,
+  state,
+  campaignId,
+}: {
+  clip: ClipSlot;
+  state: CampaignState;
+  campaignId: string;
+}) {
+  const character = state.characters.find((c) => c.id === clip.characterId);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const seconds = estimateVoiceSeconds(clip.voiceoverLine);
+  const overflow = seconds > state.clipLength;
+
+  async function generate() {
+    if (!clip.voiceoverLine.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clipId: clip.id, text: clip.voiceoverLine }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed");
+      const src = `data:${data.data.mimeType};base64,${data.data.audioBase64}`;
+      setAudioSrc(src);
+      setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
+    } catch {
+      setAudioSrc(null);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-background p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-bold">
+          {String(clip.index).padStart(2, "0")}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className={cn("h-6 px-2 text-xs", ACT_BADGE[clip.act])}>
+              {ACT_LABEL[clip.act]}
+            </Badge>
+            {character && <span className="text-xs text-muted-foreground">{character.name}</span>}
+            <span className={cn("text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+              ~{seconds.toFixed(1)}s / {state.clipLength}s
+            </span>
+          </div>
+          <p className="text-sm italic text-foreground">&ldquo;{clip.voiceoverLine || "No voiceover line"}&rdquo;</p>
+          {audioSrc && (
+            <audio
+              ref={audioRef}
+              src={audioSrc}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+              className="mt-2 w-full"
+              controls
+            />
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant={audioSrc ? "outline" : "default"}
+          onClick={() => {
+            if (audioSrc) {
+              if (playing) audioRef.current?.pause();
+              else audioRef.current?.play().catch(() => {});
+            } else {
+              generate();
+            }
+          }}
+          disabled={generating || !clip.voiceoverLine.trim()}
+        >
+          {generating ? (
+            <AISpinner size={14} />
+          ) : audioSrc ? (
+            playing ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+          {audioSrc ? (playing ? "Pause" : "Replay") : "Preview"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// STAGE 5 — BATCH RENDER
+// ============================================================================
+
+function BatchStage({
+  campaign,
+  loading,
+  onSend,
+  onProviderChange,
+}: {
+  campaign: CampaignRow;
+  loading: boolean;
+  onSend: () => void;
+  onProviderChange: (provider: Provider) => void;
+}) {
+  const { state } = campaign;
+  const readyCount = state.clips.filter((c) => c.status === "READY").length;
+  const failedCount = state.clips.filter((c) => c.status === "FAILED").length;
+  const isRendering = campaign.status === "COMPOSITING" || state.clips.some((c) => c.status === "RENDERING");
+  const done = state.phase === "DONE" || (state.clips.length > 0 && readyCount === state.clips.length);
+
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="Batch send to renderer"
+        description="All validated clips are sent in parallel. Each prompt is locked with the no-text negative instruction baked in."
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <Stat label="Clips" value={state.clips.length} />
+              <Stat label="Ready" value={readyCount} highlight="emerald" />
+              <Stat label="Failed" value={failedCount} highlight={failedCount > 0 ? "rose" : undefined} />
+            </div>
+            <FieldGroup label="Provider">
+              <SegmentedControl
+                value={state.provider}
+                options={[
+                  { value: "veo3", label: "Veo 3" },
+                  { value: "xai", label: "xAI" },
+                ]}
+                onChange={(value) => onProviderChange(value as Provider)}
+              />
+            </FieldGroup>
+          </div>
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed bg-background p-4">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Render</p>
+            {done ? (
+              <Badge className="w-fit bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
+              </Badge>
+            ) : isRendering ? (
+              <div className="space-y-2">
+                <AISpinner size={20} />
+                <p className="text-sm">{campaign.currentStep || "Rendering clips..."}</p>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-brand-500 transition-all"
+                    style={{ width: `${campaign.progress}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <Button onClick={onSend} disabled={loading || !state.clips.length} size="lg">
+                {loading ? <AISpinner size={16} /> : <Zap className="h-4 w-4" />}
+                Send {state.clips.filter((c) => c.status !== "READY").length} clip(s) to {state.provider === "veo3" ? "Veo 3" : "xAI"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+
+      {done && state.finalVideoUrl && (
+        <SectionCard
+          title="Final campaign reel"
+          description="All clips stitched into one MP4 — ready to post or download."
+        >
+          <div
+            className={cn(
+              "w-full overflow-hidden rounded-xl border bg-black",
+              state.aspectRatio === "9:16" && "aspect-[9/16] max-h-[720px] mx-auto max-w-md",
+              state.aspectRatio === "1:1" && "aspect-square max-h-[650px] mx-auto max-w-xl",
+              state.aspectRatio === "16:9" && "aspect-video",
+            )}
+          >
+            <video src={state.finalVideoUrl} controls className="h-full w-full" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <a href={state.finalVideoUrl} download>
+                <ArrowLeft className="h-4 w-4 rotate-90" />
+                Download reel
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={state.finalVideoUrl} target="_blank" rel="noopener noreferrer">
+                Open in new tab
+              </a>
+            </Button>
+          </div>
+        </SectionCard>
+      )}
+
+      <SectionCard title="Clip render grid">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {state.clips.map((clip) => (
+            <ClipRenderCard key={clip.id} clip={clip} state={state} />
+          ))}
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+function ClipRenderCard({ clip, state }: { clip: ClipSlot; state: CampaignState }) {
+  const status = statusToBadge(clip.status);
+  const Icon = status.icon;
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border bg-muted text-xs font-bold">
+            {String(clip.index).padStart(2, "0")}
+          </span>
+          <Badge variant="outline" className={cn("h-5 px-1.5 text-xs", ACT_BADGE[clip.act])}>
+            {ACT_LABEL[clip.act]}
+          </Badge>
+        </div>
+        <Badge variant="outline" className={cn("h-5 px-1.5 text-xs", status.cls)}>
+          <Icon className="mr-1 h-3 w-3" />
+          {status.label}
+        </Badge>
+      </div>
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-md border bg-muted",
+          state.aspectRatio === "9:16" && "aspect-[9/16]",
+          state.aspectRatio === "1:1" && "aspect-square",
+          state.aspectRatio === "16:9" && "aspect-video",
+        )}
+      >
+        {clip.videoUrl ? (
+          <video src={clip.videoUrl} controls className="h-full w-full object-cover" />
+        ) : clip.status === "RENDERING" ? (
+          <div className="flex h-full w-full items-center justify-center">
+            <AISpinner size={24} />
+          </div>
+        ) : clip.status === "FAILED" ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center text-xs text-destructive">
+            <TriangleAlert className="h-5 w-5" />
+            <span>{clip.error?.slice(0, 80) || "Failed"}</span>
+          </div>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+            <Clapperboard className="h-6 w-6" />
+          </div>
+        )}
+      </div>
+      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{clip.sceneAction}</p>
+    </div>
+  );
+}
+
+// ============================================================================
+// READ-ONLY SUMMARY (when revisiting Stage 0 of existing campaign)
+// ============================================================================
+
+function ReadOnlySummary({ state, onAdvance }: { state: CampaignState; onAdvance: () => void }) {
+  return (
+    <SectionCard
+      title="Campaign setup"
+      description="The style and brief are locked once a campaign is started. Create a new campaign to change them."
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SummaryRow label="Style">{state.style === "3d" ? "3D Animation" : "Cinematic Live-Action"}</SummaryRow>
+        <SummaryRow label="Duration">
+          {state.durationSeconds}s ({Math.round(state.durationSeconds / state.clipLength)} clips × {state.clipLength}s)
+        </SummaryRow>
+        <SummaryRow label="Aspect">{state.aspectRatio}</SummaryRow>
+        <SummaryRow label="Provider">{state.provider === "veo3" ? "Veo 3" : "xAI"}</SummaryRow>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Brief</p>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{state.brief}</p>
+      </div>
+      <Button onClick={onAdvance} className="mt-4">
+        <ArrowRight className="h-4 w-4" />
+        Continue to characters
+      </Button>
+    </SectionCard>
+  );
+}
+
+function SummaryRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="text-sm">{children}</p>
+    </div>
+  );
+}
+
+// ============================================================================
+// SIDEBAR
+// ============================================================================
+
+function CampaignSummaryCard({
+  campaign,
+  draft,
+}: {
+  campaign: CampaignRow | null;
+  draft: {
+    style: Style | null;
+    brief: string;
+    durationSeconds: Duration;
+    clipLength: ClipLen;
+    provider: Provider;
+  } | null;
+}) {
+  const state = campaign?.state;
+  return (
+    <div className="rounded-xl border bg-background p-4 shadow-sm">
+      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
+        <Sparkles className="h-3 w-3" />
+        Campaign snapshot
+      </p>
+      <ul className="space-y-2 text-sm">
+        <li className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Style</span>
+          <span className="font-semibold">
+            {state?.style === "3d" || draft?.style === "3d"
+              ? "3D"
+              : state?.style === "cinematic" || draft?.style === "cinematic"
+                ? "Cinematic"
+                : "—"}
+          </span>
+        </li>
+        <li className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Duration</span>
+          <span className="font-semibold">{state?.durationSeconds || draft?.durationSeconds || 0}s</span>
+        </li>
+        <li className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Clips</span>
+          <span className="font-semibold">
+            {state ? state.clips.length : draft ? Math.round(draft.durationSeconds / draft.clipLength) : 0}
+          </span>
+        </li>
+        <li className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Provider</span>
+          <span className="font-semibold">{(state?.provider || draft?.provider) === "veo3" ? "Veo 3" : "xAI"}</span>
+        </li>
+        <li className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Phase</span>
+          <span className="font-semibold">{state?.phase || "STYLE"}</span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function CampaignHistoryCard({
+  history,
+  selectedId,
+  onOpen,
+  onDelete,
+}: {
+  history: CampaignListItem[];
+  selectedId: string | null;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-4 shadow-sm">
+      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
+        <Film className="h-3 w-3" />
+        Recent campaigns
+      </p>
+      {!history.length && (
+        <p className="text-sm text-muted-foreground">No campaigns yet. Your first will appear here.</p>
+      )}
+      <ul className="space-y-2">
+        {history.map((c) => (
+          <li
+            key={c.id}
+            className={cn(
+              "group flex items-start justify-between gap-2 rounded-lg border p-2 transition-colors",
+              c.id === selectedId ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => onOpen(c.id)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <p className="truncate text-sm font-medium">{c.title || "Untitled campaign"}</p>
+              <p className="text-xs text-muted-foreground">
+                {c.phase} · {c.clipCount} clip{c.clipCount === 1 ? "" : "s"}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(c.id)}
+              className="opacity-0 transition-opacity group-hover:opacity-100"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ============================================================================
+// UI HELPERS
+// ============================================================================
+
+function SectionCard({
+  title,
+  description,
+  children,
+  action,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border bg-background p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold sm:text-xl">{title}</h2>
+          {description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}
+        </div>
+        {action}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</label>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function SegmentedControl({
+  value,
+  options,
+  onChange,
+  small,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  small?: boolean;
+}) {
+  return (
+    <div className={cn("inline-flex flex-wrap gap-1 rounded-md border bg-muted p-1", small && "p-0.5")}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded px-3 py-1 text-sm font-medium transition-colors",
+              small ? "px-2 py-0.5 text-xs" : "",
+              active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Sparkles;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/20 p-8 text-center">
+      <Icon className="h-10 w-10 text-muted-foreground" />
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: "emerald" | "rose";
+}) {
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <p className="text-xs uppercase text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "text-2xl font-bold",
+          highlight === "emerald" && "text-emerald-600 dark:text-emerald-400",
+          highlight === "rose" && "text-rose-600 dark:text-rose-400",
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ContinueBar({
+  label,
+  hint,
+  onContinue,
+  disabled,
+}: {
+  label: string;
+  hint?: string;
+  onContinue: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border bg-background p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold">{label}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      <Button onClick={onContinue} size="lg" disabled={disabled}>
+        <ArrowRight className="h-4 w-4" />
+        Continue
+      </Button>
+    </div>
   );
 }
