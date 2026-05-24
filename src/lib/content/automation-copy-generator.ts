@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/client";
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { recordAiMemory } from "@/lib/ai-memory";
 
 export interface GenerateCopyOptions {
   userId: string;
@@ -270,5 +271,16 @@ Write the actual post: hook, value, light CTA. Keep the body under 220 character
 
   // Apply universal hashtag enforcer (AI-driven, brand-aware, no regex).
   const finalCaption = await enforceHashtags(caption);
+
+  // Record into searchable AI memory (fire-and-forget).
+  recordAiMemory({
+    userId: opts.userId,
+    kind: "caption-generation",
+    summary: caption.slice(0, 160),
+    content: { brief, caption: finalCaption, briefLength: brief.length, platforms },
+    referenceType: "ContentAutomation",
+    referenceId: opts.automationId,
+  });
+
   return { caption: finalCaption, creditsSpent: creditCost, balanceAfter };
 }

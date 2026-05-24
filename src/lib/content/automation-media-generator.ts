@@ -7,6 +7,7 @@ import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-composit
 import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
+import { recordAiMemory } from "@/lib/ai-memory";
 
 export interface GenerateMediaOptions {
   userId: string;
@@ -322,6 +323,18 @@ ${dataBlock}`;
   console.log(
     `[automation-media] tier=${tier} provider=${provider} appliesTo=${appliesTo} keyTag=${keyTag} cost=${creditCost} balanceAfter=${balanceAfter}`,
   );
+
+  // Record into searchable AI memory (fire-and-forget).
+  recordAiMemory({
+    userId: opts.userId,
+    kind: "media-generation",
+    summary: `Image for "${subject.slice(0, 80)}" (${tier} ${style} ${aspect}, ${provider})`,
+    content: { subject, tier, style, aspect, appliesTo, provider, creditCost, prompt },
+    mediaUrl: url,
+    mediaType: "image",
+    referenceType: "ContentAutomation",
+    referenceId: opts.automationId,
+  });
 
   return {
     url,

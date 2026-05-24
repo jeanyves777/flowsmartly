@@ -109,6 +109,7 @@ model User {
   coupons               Coupon[]
   referrals             Referral[]
   aiConversations       AIConversation[]
+  aiMemories            UserAiMemory[]
   postAutomations       PostAutomation[]
   contentCampaigns      ContentCampaign[]
   contentAutomations    ContentAutomation[]
@@ -2740,6 +2741,49 @@ model AIMessage {
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+// ============================================
+// USER AI MEMORY — unified searchable memory of every AI use + creation
+// ============================================
+// Captures EVERY AI generation, edit, analysis, and chat highlight across
+// the platform so FlowAI / context lookups can recall past work, and so
+// downstream generations stay coherent with the user's brand + decisions.
+// Distinct from AIUsage (billing audit) and AIMessage (raw chat log) —
+// this is the curated, semantic memory layer.
+//
+// kind values (string union, not enum to allow future growth):
+//   "brand-snapshot"      — brand kit / colors / voice tone at a point in time
+//   "media-generation"    — image/video generated for a post or design
+//   "caption-generation"  — post caption + hashtags generated
+//   "media-analysis"      — vision analysis of an uploaded / linked image
+//   "chat-highlight"      — key exchange from FlowAI worth remembering
+//   "user-preference"     — explicit user preference / decision
+//   "post-publish"        — published post (caption + media + platforms)
+model UserAiMemory {
+  id     String @id @default(cuid())
+  userId String
+
+  kind          String
+  summary       String  // short, searchable one-liner ("Memorial Day post caption", "Brand colors confirmed: #0ea5e9 + #e8cf97")
+  content       String  @default("{}") // JSON blob with the full payload
+  mediaUrl      String? // S3 url when applicable
+  mediaType     String? // "image" | "video" | null
+  referenceType String? // "ContentAutomation" | "Post" | "Campaign" | "Design" | etc.
+  referenceId   String? // FK into the referenced record (not enforced — soft link)
+
+  // Soft-pinned memories are surfaced first by loadUserContext; brand
+  // snapshots are auto-pinned so brand identity always leads.
+  pinned Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, kind])
+  @@index([userId, pinned])
+  @@index([referenceType, referenceId])
 }
 
 // ── Email Marketing Automations ──
