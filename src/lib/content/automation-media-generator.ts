@@ -230,7 +230,7 @@ export async function generateAutomationMedia(
       : "square (1:1)";
 
   const ruleBlock =
-    "RULES: (1) Composition: the image extends edge-to-edge of the frame. There is NO printed-object scenario — this is not a poster, flyer, card, business card, postcard, leaflet, brochure, magazine page, sign, banner, screen, phone display, or any other object lying on cloth, wood, table, paper, or any surface. There is no outer frame, mat, border, drop shadow, page background, or decorative wrap. The visual content occupies the entire frame. (2) Do NOT draw the brand's logo / icon / brand mark anywhere in the image — the real brand logo is composited on top after generation. (3) Copy each contact value below character-for-character; do not alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
+    "RULES: (1) Do NOT draw the brand's logo / icon / brand mark anywhere in the image — the real brand logo is composited on top after generation. (2) Copy each contact value below character-for-character; do not alter, abbreviate, or fabricate phone numbers, emails, URLs, addresses, or social handles.";
 
   const dataBlock = [
     `Aspect ratio: ${aspectLabel}. Style: ${style === "3d" ? "3D-rendered" : "photorealistic"}. Tone: ${automation.aiTone || "friendly"}.`,
@@ -245,7 +245,12 @@ export async function generateAutomationMedia(
     .filter(Boolean)
     .join(" ");
 
-  const prompt = `A full-frame ${aspectLabel} image for the event below, filling the entire frame edge-to-edge. ${ruleBlock} ${dataBlock}`;
+  // Composition-leading opening — the no-mat instruction goes in the
+  // OPENING (where models weight strongest) rather than buried mid-list
+  // in a rule block. Same noun-rewrite the user previously approved:
+  // don't say "design / post / poster" (object-priors). Describe it as
+  // the scene itself filling the frame.
+  const prompt = `Render a single ${aspectLabel} image filling the entire frame edge-to-edge. The full image canvas IS the visual content — there is no outer mat, frame, border, page background, or surface the image sits on. ${ruleBlock} ${dataBlock}`;
 
   const { buffer: aiBuffer, provider } = await tryGenerate(
     prompt,

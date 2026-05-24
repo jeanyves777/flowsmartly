@@ -11,7 +11,11 @@ const backupAnthropic = process.env.ANTHROPIC_BACKUP_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_BACKUP_API_KEY })
   : null;
 
-export type LogoCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+// Bottom corners are intentionally excluded — user feedback: logo always
+// at top. Bottom areas usually carry the contact pills / hashtags /
+// caption-style text strip the AI renders, so putting the logo down
+// there fights for space and often overlaps.
+export type LogoCorner = "top-left" | "top-right";
 
 export interface LogoPlacement {
   corner: LogoCorner;
@@ -28,8 +32,6 @@ export interface LogoPlacement {
 const CORNER_TO_PLACEMENT: Record<LogoCorner, { x: number; y: number; sizePercent: number }> = {
   "top-left": { x: 0.03, y: 0.03, sizePercent: 22 },
   "top-right": { x: 0.65, y: 0.03, sizePercent: 22 },
-  "bottom-left": { x: 0.03, y: 0.82, sizePercent: 22 },
-  "bottom-right": { x: 0.65, y: 0.82, sizePercent: 22 },
 };
 
 async function shrinkForVision(buffer: Buffer): Promise<{ base64: string; mediaType: "image/jpeg" }> {
@@ -83,11 +85,13 @@ export async function analyzeLogoPlacement(
     return FALLBACK;
   }
 
-  const prompt = `Find the SAFEST corner of this image to drop a small brand logo (about 22% of the image width, top-left of logo positioned 3-12% from the chosen edges). The logo MUST NOT overlap with: faces, primary subject, headline text, body paragraph text, contact info, or any decorative element with strong detail.
+  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a small brand logo (about 22% of the image width, top-left of logo positioned 3-12% from the chosen edges). The logo MUST NOT overlap with: faces, primary subject, headline text, body paragraph text, or any decorative element with strong detail in that corner area.
 
-Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right" | "bottom-left" | "bottom-right", "reason": "short one-line explanation"}.
+Choose ONLY between top-left and top-right — bottom corners are reserved for other elements and are not options.
 
-Pick the corner with the LOWEST visual detail / blank space / soft gradient / sky / shadow. If multiple corners are equally safe, prefer top-right.`;
+Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right", "reason": "short one-line explanation"}.
+
+Pick the top corner with the LOWEST visual detail / blank space / soft gradient / sky / shadow. If both are equally safe, prefer top-right.`;
 
   for (const client of clients) {
     try {
