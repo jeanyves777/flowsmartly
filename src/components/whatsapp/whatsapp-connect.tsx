@@ -172,7 +172,7 @@ export function WhatsAppConnect({
       disabled={loading}
     >
       {loading ? (
-        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+        <AISpinner className="w-4 h-4 mr-2" />
       ) : (
         <IconComponent className="w-4 h-4 mr-2" />
       )}

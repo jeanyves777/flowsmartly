@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   Phone,
   CheckCircle2,
@@ -280,7 +281,7 @@ export default function SmsNumbersMonitoringPage() {
           disabled={isLoading}
           className="gap-2"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+          {isLoading ? <AISpinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
           Refresh
         </Button>
       </div>

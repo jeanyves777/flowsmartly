@@ -51,6 +51,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { NumberStatusBanner } from "@/components/sms/number-status-banner";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Campaign {
   id: string;
@@ -648,6 +649,7 @@ export default function SmsMarketingPage() {
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
+              {isDeleting && <AISpinner className="h-4 w-4 mr-2" />}
               {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>

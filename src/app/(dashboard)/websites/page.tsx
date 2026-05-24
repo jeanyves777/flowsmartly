@@ -239,7 +239,7 @@ function ActionButton({ icon: Icon, label, primary, onClick, spin }: { icon: any
           : "bg-card border-border hover:border-primary/50 hover:bg-primary/5"
       }`}
     >
-      <Icon className={`w-5 h-5 ${spin ? "animate-spin" : ""}`} />
+      <Icon className="w-5 h-5" />
       <span className="text-xs font-medium">{label}</span>
     </button>
   );

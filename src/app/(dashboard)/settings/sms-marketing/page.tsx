@@ -668,7 +668,7 @@ export default function SmsMarketingSettingsPage() {
                   {/* Refresh while pending */}
                   {regPending && (
                     <Button variant="outline" size="sm" onClick={handleRefreshA2p} disabled={refreshingA2p}>
-                      <RefreshCw className={`w-4 h-4 ${refreshingA2p ? "animate-spin" : ""}`} />
+                      {refreshingA2p ? <AISpinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
                     </Button>
                   )}
                 </div>

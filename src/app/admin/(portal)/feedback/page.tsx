@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 type FeedbackUser = {
   id: string;
@@ -217,7 +218,7 @@ export default function AdminFeedbackPage() {
           </p>
         </div>
         <Button variant="outline" onClick={() => fetchData(true)} disabled={isRefreshing}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          {isRefreshing ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Refresh
         </Button>
       </div>

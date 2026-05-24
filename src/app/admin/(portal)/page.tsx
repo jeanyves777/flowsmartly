@@ -197,7 +197,7 @@ export default function AdminDashboardPage() {
             onClick={() => fetchData(true)}
             disabled={isRefreshing}
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? <AISpinner className="w-4 h-4 mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Refresh
           </Button>
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">

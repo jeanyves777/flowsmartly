@@ -1106,7 +1106,7 @@ export default function CreateLandingPage() {
                 disabled={isPublishing}
               >
                 {isPublishing ? (
-                  <AISpinner className="h-3.5 w-3.5 animate-spin" />
+                  <AISpinner className="h-3.5 w-3.5" />
                 ) : (
                   <Globe className="h-3.5 w-3.5" />
                 )}

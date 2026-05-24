@@ -277,7 +277,7 @@ export default function EmailCampaignDetailPage() {
                 className="bg-gradient-to-r from-brand-500 to-purple-500 hover:from-brand-600 hover:to-purple-600"
               >
                 {isSending ? (
-                  <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                  <AISpinner className="w-4 h-4 mr-2" />
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
@@ -292,7 +292,7 @@ export default function EmailCampaignDetailPage() {
             disabled={isDeleting}
             className="text-destructive hover:text-destructive"
           >
-            {isDeleting ? <AISpinner className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {isDeleting ? <AISpinner className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
           </Button>
         </div>
       </div>
@@ -690,7 +690,7 @@ export default function EmailCampaignDetailPage() {
                   disabled={isSending || !campaign.subject || !campaign.content}
                 >
                   {isSending ? (
-                    <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                    <AISpinner className="w-4 h-4 mr-2" />
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}

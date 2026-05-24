@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, Sparkles, FileText, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { cn } from "@/lib/utils/cn";
 import {
   Dialog,
@@ -220,6 +221,7 @@ export function TemplateGallery({ onSelect, onCreateBlank, onGenerateAI }: Templ
               Cancel
             </Button>
             <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting && <AISpinner className="h-4 w-4 mr-2" />}
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

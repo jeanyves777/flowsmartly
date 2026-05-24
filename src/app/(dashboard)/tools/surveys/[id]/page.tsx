@@ -628,7 +628,7 @@ export default function SurveyDetailPage() {
             {/* Response Cards */}
             {resLoading ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <AISpinner className="h-8 w-8 mx-auto text-muted-foreground" />
               </div>
             ) : responses.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">

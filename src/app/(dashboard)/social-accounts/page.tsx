@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -425,7 +426,7 @@ export default function SocialAccountsPage() {
               Google Listing
             </Button>
             <Button variant="ghost" onClick={handleRefresh} disabled={isRefreshing} className="h-9">
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? <AISpinner className="mr-2 h-4 w-4" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Refresh
             </Button>
           </div>
@@ -645,7 +646,7 @@ export default function SocialAccountsPage() {
                 </Button>
               ) : (
                 <Button onClick={handleUnlockConnectionSlot} disabled={isUnlocking}>
-                  {isUnlocking && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                  {isUnlocking && <AISpinner className="mr-2 h-4 w-4" />}
                   Confirm unlock
                 </Button>
               )}
@@ -682,7 +683,7 @@ export default function SocialAccountsPage() {
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDisconnectTarget(null)} disabled={isDisconnecting}>Cancel</Button>
             <Button variant="destructive" onClick={handleDisconnect} disabled={isDisconnecting}>
-              {isDisconnecting && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+              {isDisconnecting && <AISpinner className="mr-2 h-4 w-4" />}
               Disconnect
             </Button>
           </div>

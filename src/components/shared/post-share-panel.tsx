@@ -272,7 +272,7 @@ export function PostSharePanel({ mediaUrl, mediaUrls: initialMediaUrls, mediaTyp
                     {canAddMore && (
                       <label className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-muted/50 transition-colors">
                         {isUploadingMore ? (
-                          <AISpinner className="w-5 h-5 animate-spin text-muted-foreground" />
+                          <AISpinner className="w-5 h-5 text-muted-foreground" />
                         ) : (
                           <>
                             <Plus className="w-4 h-4 text-muted-foreground" />

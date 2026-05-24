@@ -714,7 +714,7 @@ export default function SettingsPage() {
                   onClick={fetchGoogleAdsStatus}
                   disabled={googleAdsLoading}
                 >
-                  <RefreshCw className={`w-3 h-3 mr-1.5 ${googleAdsLoading ? "animate-spin" : ""}`} />
+                  {googleAdsLoading ? <AISpinner className="w-3 h-3 mr-1.5" /> : <RefreshCw className="w-3 h-3 mr-1.5" />}
                   Refresh Status
                 </Button>
               </div>

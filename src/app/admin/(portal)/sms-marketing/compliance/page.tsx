@@ -335,7 +335,7 @@ export default function ComplianceReviewPage() {
           disabled={isLoading}
           className="gap-2"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+          {isLoading ? <AISpinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
           Refresh
         </Button>
       </div>

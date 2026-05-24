@@ -327,7 +327,7 @@ export default function SystemSettingsPage() {
             className="bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50"
           >
             {isSaving ? (
-              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              <AISpinner className="w-4 h-4 mr-2" />
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   EVENT_STATUS_CONFIG,
   REGISTRATION_STATUS_CONFIG,
@@ -695,7 +696,7 @@ export default function EventDetailPage() {
             {/* Registrations Table */}
             {regLoading ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <AISpinner className="h-8 w-8 mx-auto text-muted-foreground" />
               </div>
             ) : registrations.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
@@ -843,7 +844,7 @@ export default function EventDetailPage() {
           <div className="space-y-6">
             {salesLoading && !salesData ? (
               <div className="text-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <AISpinner className="h-8 w-8 mx-auto text-muted-foreground" />
               </div>
             ) : salesData ? (
               <>
@@ -960,7 +961,7 @@ export default function EventDetailPage() {
                                       className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                                     >
                                       {refundingId === order.id ? (
-                                        <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" />
+                                        <AISpinner className="h-3.5 w-3.5 mr-1" />
                                       ) : (
                                         <RefreshCw className="h-3.5 w-3.5 mr-1" />
                                       )}
@@ -1103,7 +1104,7 @@ export default function EventDetailPage() {
                     className="gap-2"
                   >
                     {creatingLP ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <AISpinner className="h-4 w-4" />
                     ) : (
                       <QrCode className="h-4 w-4" />
                     )}
@@ -1240,7 +1241,7 @@ export default function EventDetailPage() {
               className="w-full"
             >
               {isSending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                <AISpinner className="h-4 w-4 mr-2" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}

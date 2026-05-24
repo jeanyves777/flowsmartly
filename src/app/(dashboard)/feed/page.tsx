@@ -2055,7 +2055,11 @@ export default function FeedPage() {
                                   onClick={() => handleDeletePost(post.id)}
                                   disabled={deletingPostId === post.id}
                                 >
-                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  {deletingPostId === post.id ? (
+                                    <AISpinner className="w-4 h-4 mr-2" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                  )}
                                   {deletingPostId === post.id ? "Deleting..." : "Delete post"}
                                 </DropdownMenuItem>
                               </>
@@ -3200,8 +3204,9 @@ export default function FeedPage() {
                     setReportDescription("");
                   }
                 }}
-                className="px-4 py-2 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                className="px-4 py-2 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 inline-flex items-center justify-center"
               >
+                {isReporting && <AISpinner className="h-4 w-4 mr-2" />}
                 {isReporting ? "Submitting..." : "Submit Report"}
               </button>
             </div>

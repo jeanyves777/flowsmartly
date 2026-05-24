@@ -484,7 +484,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                 >
                   {posting ? (
                     <>
-                      <AISpinner className="h-4 w-4 animate-spin" />
+                      <AISpinner className="h-4 w-4" />
                       {publishMode === "schedule" ? "Scheduling..." : "Posting..."}
                     </>
                   ) : publishMode === "schedule" ? (
@@ -513,7 +513,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                   <Label className="font-semibold">Event autopilot</Label>
                 </div>
                 <Button type="button" variant="ghost" size="icon" onClick={refreshContext} disabled={loadingContext}>
-                  <RefreshCw className={`h-4 w-4 ${loadingContext ? "animate-spin" : ""}`} />
+                  {loadingContext ? <AISpinner className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
                 </Button>
               </div>
 
@@ -552,7 +552,7 @@ export function WhatsAppStatus({ account }: WhatsAppStatusProps) {
                             disabled={savingAutomationId === event.id}
                           >
                             {savingAutomationId === event.id ? (
-                              <AISpinner className="h-3.5 w-3.5 animate-spin" />
+                              <AISpinner className="h-3.5 w-3.5" />
                             ) : (
                               <Sparkles className="h-3.5 w-3.5" />
                             )}

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { TemplateGallery, type TemplateItem } from "../template-gallery/template-gallery";
 import { createBlankSections } from "@/lib/marketing/email-renderer";
 import type { EmailSection } from "@/lib/marketing/email-renderer";
@@ -63,7 +64,9 @@ export function TemplateStep({ isGenerating, creditCost, onSelectTemplate, onCre
                 disabled={isGenerating || !aiPrompt.trim()}
                 className="bg-gradient-to-r from-brand-500 to-purple-500 hover:from-brand-600 hover:to-purple-600"
               >
-                {isGenerating ? "Generating..." : (
+                {isGenerating ? (
+                  <><AISpinner className="w-4 h-4 mr-1" /> Generating...</>
+                ) : (
                   <><Sparkles className="w-4 h-4 mr-1" /> Generate Content</>
                 )}
               </Button>
@@ -72,7 +75,9 @@ export function TemplateStep({ isGenerating, creditCost, onSelectTemplate, onCre
                 onClick={() => onGenerateAI(aiPrompt, "template")}
                 disabled={isGenerating || !aiPrompt.trim()}
               >
-                {isGenerating ? "Designing..." : (
+                {isGenerating ? (
+                  <><AISpinner className="w-4 h-4 mr-1" /> Designing...</>
+                ) : (
                   <><Sparkles className="w-4 h-4 mr-1" /> Design Template</>
                 )}
               </Button>

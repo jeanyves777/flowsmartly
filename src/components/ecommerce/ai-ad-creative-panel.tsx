@@ -90,7 +90,7 @@ export function AIAdCreativePanel({ productId, onSelect }: AIAdCreativePanelProp
           className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-sm font-medium text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-colors disabled:opacity-50"
         >
           {loading ? (
-            <AISpinner className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4" />
           ) : (
             <Sparkles className="h-4 w-4" />
           )}
@@ -107,7 +107,7 @@ export function AIAdCreativePanel({ productId, onSelect }: AIAdCreativePanelProp
               disabled={loading}
               className="text-xs text-purple-600 hover:underline disabled:opacity-50 inline-flex items-center gap-1"
             >
-              {loading ? <AISpinner className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              {loading ? <AISpinner className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
               Regenerate
             </button>
           </div>

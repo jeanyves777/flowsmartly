@@ -145,7 +145,7 @@ export default function AdminFeaturesPage() {
           </p>
         </div>
         <Button onClick={handleSync} disabled={isSyncing} variant="outline">
-          <RefreshCw className={cn("w-4 h-4 mr-2", isSyncing && "animate-spin")} />
+          {isSyncing ? <AISpinner className="w-4 h-4 mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
           Sync from Catalog
         </Button>
       </div>

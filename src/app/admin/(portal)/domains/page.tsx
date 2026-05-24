@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface DomainItem {
   id: string;
@@ -194,7 +195,7 @@ export default function AdminDomainsPage() {
                                 disabled={domainAction !== null}
                                 onClick={() => runRegistrantVerificationAction(d.id, "check")}
                               >
-                                {domainAction === `check:${d.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                {domainAction === `check:${d.id}` ? <AISpinner className="w-3 h-3" /> : <RefreshCw className="w-3 h-3" />}
                               </Button>
                               <Button
                                 variant="outline"
@@ -203,7 +204,7 @@ export default function AdminDomainsPage() {
                                 disabled={domainAction !== null}
                                 onClick={() => runRegistrantVerificationAction(d.id, "resend")}
                               >
-                                {domainAction === `resend:${d.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                {domainAction === `resend:${d.id}` ? <AISpinner className="w-3 h-3" /> : <Send className="w-3 h-3" />}
                               </Button>
                             </div>
                           )}

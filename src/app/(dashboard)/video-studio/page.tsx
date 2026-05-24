@@ -1040,7 +1040,7 @@ export default function VideoStudioPage() {
                       onClick={handleGenerate}
                       disabled={isGenerating}
                     >
-                      <RefreshCw className={`w-4 h-4 mr-1 ${isGenerating ? "animate-spin" : ""}`} />
+                      {isGenerating ? <AISpinner className="w-4 h-4 mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
                       Regenerate
                     </Button>
                     <a href={generatedVideo.url} download={`video-${generatedVideo.designId}.mp4`}>

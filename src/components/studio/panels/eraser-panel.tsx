@@ -605,7 +605,7 @@ export function EraserPanel() {
           size="sm"
         >
           {isProcessingAI ? (
-            <AISpinner className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4" />
           ) : (
             <Sparkles className="h-4 w-4" />
           )}

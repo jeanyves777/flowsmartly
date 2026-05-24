@@ -420,7 +420,7 @@ export function ImageProperties() {
         disabled={removingBg}
       >
         {removingBg ? (
-          <AISpinner className="h-4 w-4 animate-spin" />
+          <AISpinner className="h-4 w-4" />
         ) : (
           <Eraser className="h-4 w-4" />
         )}
@@ -467,7 +467,7 @@ export function ImageProperties() {
           disabled={extracting}
         >
           {extracting ? (
-            <AISpinner className="h-4 w-4 animate-spin" />
+            <AISpinner className="h-4 w-4" />
           ) : (
             <Palette className="h-4 w-4" />
           )}

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -424,7 +425,7 @@ function WhatsAppAgentControl({ account }: { account: WhatsAppAccount }) {
             </div>
           </div>
           <Button onClick={saveSettings} disabled={saving} className="bg-green-600 hover:bg-green-700">
-            {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Settings className="mr-2 h-4 w-4" />}
+            {saving ? <AISpinner className="mr-2 h-4 w-4" /> : <Settings className="mr-2 h-4 w-4" />}
             Save Agent
           </Button>
         </div>

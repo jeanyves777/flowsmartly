@@ -372,7 +372,7 @@ export default function AnalyticsPage() {
             onClick={() => fetchAnalytics(true)}
             disabled={isRefreshing}
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? <AISpinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
           </Button>
         </div>
       </div>
