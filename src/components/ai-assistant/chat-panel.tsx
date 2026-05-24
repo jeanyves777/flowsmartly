@@ -627,41 +627,47 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
               }}
             />
 
-            <div className="flex items-end gap-2">
+            <div className="mb-2 flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isStreaming || analyzing}
-                className="shrink-0 w-10 h-10 rounded-xl border border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                title="Upload an image to analyze"
+                className="shrink-0 h-7 px-2 rounded-md text-[11px] font-medium text-muted-foreground hover:text-blue-600 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition-colors"
+                title="Upload an image"
                 aria-label="Upload image"
               >
-                <Paperclip className="w-4 h-4" />
+                <Paperclip className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Upload</span>
               </button>
               <button
                 type="button"
                 onClick={() => setLibraryOpen(true)}
                 disabled={isStreaming || analyzing}
-                className="shrink-0 w-10 h-10 rounded-xl border border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                className="shrink-0 h-7 px-2 rounded-md text-[11px] font-medium text-muted-foreground hover:text-blue-600 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition-colors"
                 title="Pick from your media library"
                 aria-label="Pick from media library"
               >
-                <FolderOpen className="w-4 h-4" />
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Library</span>
               </button>
               <button
                 type="button"
                 onClick={() => setUrlInputOpen((v) => !v)}
                 disabled={isStreaming || analyzing}
-                className={`shrink-0 w-10 h-10 rounded-xl border transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`shrink-0 h-7 px-2 rounded-md text-[11px] font-medium transition-colors inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
                   urlInputOpen
-                    ? "border-blue-500/40 text-blue-600 bg-blue-50/50 dark:bg-blue-950/30"
-                    : "border-border text-muted-foreground hover:text-blue-600 hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-950/30"
+                    ? "text-blue-600 bg-blue-50/60 dark:bg-blue-950/30"
+                    : "text-muted-foreground hover:text-blue-600 hover:bg-blue-50/60 dark:hover:bg-blue-950/30"
                 }`}
-                title="Paste an image URL to analyze"
+                title="Paste an image URL"
                 aria-label="Analyze image from URL"
               >
-                <LinkIcon className="w-4 h-4" />
+                <LinkIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">URL</span>
               </button>
+            </div>
+
+            <div className="flex items-end gap-2">
               <textarea
                 ref={textareaRef}
                 value={input}
