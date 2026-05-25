@@ -19,28 +19,33 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     clipId?: string;
     text?: string;
+    characterId?: string;
   };
-  const clip = current.state.clips.find((c) => c.id === body.clipId);
-  const text = (body.text || clip?.voiceoverLine || "").trim();
-  if (!text) {
+
+  const clip = body.clipId ? current.state.clips.find((c) => c.id === body.clipId) : null;
+  const singleCharacter = body.characterId
+    ? current.state.characters.find((c) => c.id === body.characterId) || null
+    : null;
+
+  if (!clip && !body.text) {
     return NextResponse.json(
-      { success: false, error: { message: "No voiceover line to preview." } },
+      { success: false, error: { message: "Nothing to preview." } },
       { status: 400 },
     );
   }
 
-  const character = clip
-    ? current.state.characters.find((c) => c.id === clip.characterId) || null
-    : null;
-
   try {
-    const result = await generateClipVoicePreview({ text, character });
+    const result = await generateClipVoicePreview({
+      clip: clip || undefined,
+      characters: current.state.characters,
+      text: body.text,
+      character: singleCharacter,
+    });
     return NextResponse.json({
       success: true,
       data: {
-        audioBase64: result.audioBase64,
-        mimeType: result.mimeType,
-        estimatedDurationMs: result.estimatedDurationMs,
+        lines: result.lines,
+        totalDurationMs: result.totalDurationMs,
       },
     });
   } catch (error) {

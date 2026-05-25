@@ -27,6 +27,7 @@ import {
   type CampaignCharacter,
   type CampaignClipLength,
   type CampaignClipSlot,
+  type ClipDialogueLine,
   type CampaignDurationSeconds,
   type CampaignProvider,
   type CampaignState,
@@ -390,9 +391,10 @@ export async function suggestField(input: {
     "character.voice.pace": "Pace descriptor, e.g. 'medium, deliberate'.",
     "character.voice.texture": "Voice texture, e.g. 'smooth with slight grain'.",
     "character.voice.delivery": "Delivery style, e.g. 'intimate, conversational'.",
-    "clip.sceneAction": "One sentence on what physically happens in this clip.",
+    "clip.sceneAction": "One sentence on what physically happens in this clip (acting, blocking).",
     "clip.moodLighting": "Mood + lighting + color grade in a single line.",
-    "clip.voiceoverLine": `A VO line for this clip (max ~${input.state.clipLength === 8 ? 18 : 22} words).`,
+    "clip.dialogue": `Suggest the full dialogue exchange for this clip — characters speaking ON CAMERA to each other (NOT voiceover). Output a JSON array of lines in the value field, formatted like: [{"characterId":"...","line":"...","emotion":"..."}]. Total ~${input.state.clipLength === 8 ? 22 : 28} words.`,
+    "clip.dialogueLine": "A single replacement line for one speaker in this clip — naturalistic, in-character dialogue.",
   };
 
   const target = targetDescriptor[input.field] || "A short text suggestion.";
@@ -427,14 +429,24 @@ Return strict JSON only:
 // Stage 2 — Scene grid (act assignment, shot, camera, voiceover)
 // =============================================================
 
+interface PlannedDialogueLine {
+  characterId: string;
+  line: string;
+  emotion?: string;
+}
+
 interface PlannedClip {
   act: ActPosition;
   shotType: ShotType;
   cameraMovement: CameraMovement;
   sceneAction: string;
   moodLighting: string;
+  characterIds?: string[];
+  dialogue?: PlannedDialogueLine[];
+  /** @deprecated tolerated for legacy outputs */
   characterId?: string | null;
-  voiceoverLine: string;
+  /** @deprecated tolerated for legacy outputs */
+  voiceoverLine?: string;
 }
 
 function normalizeAct(value: unknown): ActPosition {
@@ -466,38 +478,44 @@ export async function planSceneGrid(
     .map((c) => `- ${c.id} | ${c.name} (${c.role})`)
     .join("\n");
 
-  const wordsPerClip = state.clipLength === 8 ? 18 : 22;
+  const wordsPerClip = state.clipLength === 8 ? 22 : 28;
 
-  const prompt = `You are storyboarding a ${styleLabel} ad campaign as ${clipCount} sequential ${state.clipLength}-second clips.
+  const prompt = `You are writing a ${styleLabel} short film — ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as one narrative.
 
-BRAND: ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
-BRIEF: ${state.brief}
-GOAL: ${state.goal}
-PLATFORMS: ${state.platforms.join(", ") || "social"}
+THIS IS NOT AN ADVERTISEMENT. It looks and feels like a real-life short film. Characters speak to each other ON CAMERA in natural dialogue — there is NO narrator, NO voiceover, NO ad copy. The brand only appears organically through the story (a character uses it, talks about it, recommends it to another character) and ONLY in the final 2–3 clips.
 
-CHARACTER ROSTER (use the id verbatim when assigning):
+BRAND (organic mention only, late in the story): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
+${brand.industry ? `INDUSTRY: ${brand.industry}` : ""}
+${brand.uniqueValue ? `WHAT IT SOLVES: ${brand.uniqueValue}` : ""}
+${state.storyOutline ? `STORY OUTLINE (from Stage 1, follow this):\n${state.storyOutline}` : ""}
+BRIEF (the real-life problem to dramatize): ${state.brief}
+DESIRED FEELING: ${state.goal}
+
+CHARACTER ROSTER (use the id verbatim when referencing speakers):
 ${charactersBlock}
 
-Lay out a complete story arc:
-1. Clips 1–2: HOOK — establish world, emotional anchor
-2. Clips 3–5: PROBLEM — pain point, stakes raised, breaking point
-3. Clips 6–7: DISCOVERY — shift moment, first contact with solution
-4. Clips 8–10: TRANSFORM — using it, progress visible, emotional payoff
-5. Last 2 clips: RESOLUTION + CTA — new world contrast, strong brand moment
+STORY ARC across ${clipCount} clips:
+- Clips 1–2 (HOOK): Open on a moment of normal life. Establish a character with a relatable, real-life problem. NO mention of the brand yet.
+- Middle clips (PROBLEM → DISCOVERY → TRANSFORM): The problem deepens, then a character authentically encounters the brand/product (a friend mentions it, they discover it, they try it). The brand fits the story — it is not announced.
+- Final 1–2 clips (RESOLUTION + CTA): A natural ending — the problem is resolved through the brand. Last clip can show the brand visually (product close-up, signage, the character recommending it to someone) but still as part of the story, not as an ad slate.
 
 For each clip output:
-- act: one of HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
-- shotType: one of WIDE | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER | MEDIUM
-- cameraMovement: one of PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
-- sceneAction: one sentence on what physically happens
-- moodLighting: lighting + color grade + mood in a single line
-- characterId: id of the character on camera (or null for product/environment-only shots)
-- voiceoverLine: VO only, max ${wordsPerClip} words, natural pace, no on-screen text
+- act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
+- shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
+- cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
+- sceneAction: one sentence describing what physically happens on screen (acting, blocking, environment)
+- moodLighting: lighting + color grade + emotional tone, single line
+- characterIds: array of ALL character ids visible on camera in this clip (1 to 3). Use [] only for pure product/environment shots.
+- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera. NOT a voiceover. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Total reading time must fit the ${state.clipLength}-second clip — keep dialogue tight (~${wordsPerClip} words total per clip).
+  - "emotion" is an acting note like "concerned", "skeptical", "excited", "warm".
+  - For a pure visual moment with no dialogue, use dialogue: [].
 
 HARD RULES:
-- Never put any text in the video — visuals only.
-- Final CTA clip: strong brand moment, character to camera or product close-up. NO text overlay in the video. CTA copy is added in post.
-- Voiceover total reading time per clip must fit ${state.clipLength} seconds.
+- This is a narrative short film. NEVER write voiceover/narration. All speech is in-scene dialogue between visible characters.
+- NEVER write ad copy ("Buy now", "Get yours today", "Limited time"). The brand fits the conversation, it is not pitched.
+- Brand may only be named or shown in roughly the last third of the story.
+- Never put any text overlays in the video — visuals only. CTA text is added in post.
+- Dialogue must sound like real people in a real conversation, not actors reading lines.
 
 Return strict JSON with exactly ${clipCount} clips:
 {
@@ -508,17 +526,19 @@ Return strict JSON with exactly ${clipCount} clips:
       "cameraMovement": "PUSH_IN",
       "sceneAction": "...",
       "moodLighting": "...",
-      "characterId": "${state.characters[0]?.id || "null"}",
-      "voiceoverLine": "..."
+      "characterIds": ["${state.characters[0]?.id || ""}"${state.characters[1] ? `, "${state.characters[1].id}"` : ""}],
+      "dialogue": [
+        { "characterId": "${state.characters[0]?.id || ""}", "line": "...", "emotion": "..." }
+      ]
     }
   ]
 }`;
 
   const result = await ai.generateJSON<{ clips: PlannedClip[] }>(prompt, {
-    maxTokens: 3200,
-    temperature: 0.72,
+    maxTokens: 4500,
+    temperature: 0.78,
     systemPrompt:
-      "You are a senior storyboard artist. Produce complete clip-by-clip story arcs. Return valid JSON only.",
+      "You are a screenwriter who writes cinematic short films with naturalistic dialogue. The product placement is organic — it fits the story. Return valid JSON only.",
   });
 
   const characterIds = new Set(state.characters.map((c) => c.id));
@@ -526,7 +546,6 @@ Return strict JSON with exactly ${clipCount} clips:
   const trimmed = raw.slice(0, clipCount);
 
   const clips: CampaignClipSlot[] = trimmed.map((c, index) => {
-    const characterId = c.characterId && characterIds.has(String(c.characterId)) ? String(c.characterId) : null;
     const slot: CampaignClipSlot = {
       id: nanoid(8),
       index: index + 1,
@@ -535,8 +554,8 @@ Return strict JSON with exactly ${clipCount} clips:
       cameraMovement: normalizeCamera(c.cameraMovement),
       sceneAction: String(c.sceneAction || "").trim().slice(0, 360),
       moodLighting: String(c.moodLighting || "").trim().slice(0, 200),
-      characterId,
-      voiceoverLine: String(c.voiceoverLine || "").trim().slice(0, 280),
+      characterIds: normalizeCharacterIds(c, characterIds),
+      dialogue: normalizeDialogue(c, characterIds),
       prompt: "",
       status: "PENDING",
       videoUrl: null,
@@ -557,8 +576,8 @@ Return strict JSON with exactly ${clipCount} clips:
       cameraMovement: "STATIC",
       sceneAction: "Continue the story.",
       moodLighting: "Natural cinematic lighting.",
-      characterId: state.characters[0]?.id || null,
-      voiceoverLine: "",
+      characterIds: state.characters[0] ? [state.characters[0].id] : [],
+      dialogue: [],
       prompt: "",
       status: "PENDING",
       videoUrl: null,
@@ -569,6 +588,45 @@ Return strict JSON with exactly ${clipCount} clips:
   }
 
   return clips;
+}
+
+function normalizeCharacterIds(c: PlannedClip, valid: Set<string>): string[] {
+  const fromArray = Array.isArray(c.characterIds)
+    ? c.characterIds.filter((id): id is string => typeof id === "string" && valid.has(id))
+    : [];
+  if (fromArray.length) return [...new Set(fromArray)].slice(0, 4);
+  if (typeof c.characterId === "string" && valid.has(c.characterId)) return [c.characterId];
+  // fall back to inferring from dialogue speakers
+  const fromDialogue = Array.isArray(c.dialogue)
+    ? c.dialogue
+        .map((d) => (typeof d?.characterId === "string" ? d.characterId : null))
+        .filter((id): id is string => !!id && valid.has(id))
+    : [];
+  return [...new Set(fromDialogue)].slice(0, 4);
+}
+
+function normalizeDialogue(c: PlannedClip, valid: Set<string>): ClipDialogueLine[] {
+  if (Array.isArray(c.dialogue) && c.dialogue.length) {
+    return c.dialogue
+      .filter((d) => d && typeof d.line === "string" && d.line.trim())
+      .filter((d) => typeof d.characterId === "string" && valid.has(d.characterId))
+      .slice(0, 6)
+      .map((d) => ({
+        id: nanoid(6),
+        characterId: d.characterId,
+        line: d.line.trim().slice(0, 260),
+        emotion: typeof d.emotion === "string" ? d.emotion.trim().slice(0, 60) : undefined,
+      }));
+  }
+  // Legacy migration: single voiceoverLine + characterId → one dialogue line
+  if (c.voiceoverLine && c.characterId && valid.has(c.characterId)) {
+    return [{
+      id: nanoid(6),
+      characterId: c.characterId,
+      line: c.voiceoverLine.trim().slice(0, 260),
+    }];
+  }
+  return [];
 }
 
 // =============================================================
@@ -583,26 +641,40 @@ export function buildClipPrompt(
   if (!state.style) return clip.sceneAction;
   const styleLabel = STYLE_LABELS[state.style];
   const visualLanguage = STYLE_VISUAL_LANGUAGE[state.style];
-  const character = state.characters.find((c) => c.id === clip.characterId);
-  const characterBlock = character
-    ? `CHARACTER ON CAMERA: ${character.name} — ${character.visualDescription} Maintain exact visual continuity with previous clips.`
-    : "No on-camera character — focus on product, environment, or brand moment.";
-  const voiceBlock = character
-    ? `If voice is generated: ${character.voiceCriteria.age}, ${character.voiceCriteria.tone} tone, ${character.voiceCriteria.pace} pace, ${character.voiceCriteria.texture} texture, ${character.voiceCriteria.delivery} delivery.`
-    : "";
+
+  const onCamera = clip.characterIds
+    .map((id) => state.characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  const characterBlock = onCamera.length
+    ? `CHARACTERS ON CAMERA (preserve exact visual continuity with their reference portraits from earlier clips):\n${onCamera
+        .map((c) => `- ${c.name}: ${c.visualDescription}`)
+        .join("\n")}`
+    : "No on-camera character — focus on environment or product.";
+
+  const dialogueBlock = clip.dialogue.length
+    ? `IN-SCENE DIALOGUE (characters speak ON CAMERA to each other — naturalistic acting, lip-synced, NOT voiceover):\n${clip.dialogue
+        .map((d) => {
+          const speaker = state.characters.find((c) => c.id === d.characterId);
+          const name = speaker?.name || "Character";
+          const emotion = d.emotion ? ` (${d.emotion})` : "";
+          return `${name}${emotion}: "${d.line}"`;
+        })
+        .join("\n")}`
+    : "No dialogue in this clip — pure visual storytelling.";
 
   return [
-    `${styleLabel} ad clip ${clip.index} — Act: ${ACT_LABELS[clip.act]}.`,
+    `${styleLabel} narrative short film — clip ${clip.index} of ${state.clips.length || "the campaign"}. Act: ${ACT_LABELS[clip.act]}.`,
+    `This is a real-life dramatic scene, NOT an advertisement. No narrator, no voiceover, no on-screen text.`,
     `Visual language: ${visualLanguage}.`,
     `Shot: ${SHOT_LABELS[clip.shotType]}, camera ${CAMERA_LABELS[clip.cameraMovement]}.`,
     `Scene action: ${clip.sceneAction}`,
     `Mood + lighting: ${clip.moodLighting}`,
     characterBlock,
-    clip.voiceoverLine ? `Voiceover: "${clip.voiceoverLine}"` : "",
-    voiceBlock,
-    `Brand: ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}.`,
+    dialogueBlock,
+    `Context (do not advertise — story-only): brand ${brand.name}${brand.tagline ? ` (${brand.tagline})` : ""} may appear organically if the dialogue mentions it.`,
     `Duration: ${state.clipLength}s. Aspect: ${state.aspectRatio}.`,
-    `Hard negative: ${NEGATIVE_TEXT_PROMPT}.`,
+    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -640,31 +712,63 @@ function detectStyle(tone: string, delivery: string): "professional" | "warm" | 
   return "professional";
 }
 
-export async function generateClipVoicePreview(options: {
-  text: string;
-  character: CampaignCharacter | null;
-}): Promise<{ audioBase64: string; mimeType: string; estimatedDurationMs: number }> {
-  const gender = options.character
-    ? detectGender(options.character.voiceCriteria.tone, options.character.voiceCriteria.delivery)
+export interface VoicePreviewLineResult {
+  characterId: string | null;
+  characterName: string | null;
+  line: string;
+  audioBase64: string;
+  mimeType: string;
+  estimatedDurationMs: number;
+}
+
+async function generateOneVoiceLine(text: string, character: CampaignCharacter | null): Promise<VoicePreviewLineResult> {
+  const gender = character
+    ? detectGender(character.voiceCriteria.tone, character.voiceCriteria.delivery)
     : "female";
   const accent = detectAccent();
-  const style = options.character
-    ? detectStyle(options.character.voiceCriteria.tone, options.character.voiceCriteria.delivery)
+  const style = character
+    ? detectStyle(character.voiceCriteria.tone, character.voiceCriteria.delivery)
     : "professional";
 
-  const result = await generateVoice({
-    text: options.text,
-    gender,
-    accent,
-    style,
-    speed: 1.0,
-  });
-
+  const result = await generateVoice({ text, gender, accent, style, speed: 1.0 });
   return {
+    characterId: character?.id || null,
+    characterName: character?.name || null,
+    line: text,
     audioBase64: result.audioBuffer.toString("base64"),
     mimeType: "audio/mpeg",
     estimatedDurationMs: result.estimatedDurationMs,
   };
+}
+
+export async function generateClipVoicePreview(options: {
+  clip?: CampaignClipSlot;
+  characters: CampaignCharacter[];
+  /** Single-line fallback (used when previewing a manually-typed line) */
+  text?: string;
+  character?: CampaignCharacter | null;
+}): Promise<{ lines: VoicePreviewLineResult[]; totalDurationMs: number }> {
+  // Mode 1: dialogue from clip
+  if (options.clip && options.clip.dialogue.length) {
+    const lines: VoicePreviewLineResult[] = [];
+    for (const d of options.clip.dialogue) {
+      if (!d.line.trim()) continue;
+      const character = options.characters.find((c) => c.id === d.characterId) || null;
+      const text = d.emotion ? `${d.line}` : d.line;
+      // simple sequential — speakers must come back in order so the listener hears the exchange
+      const result = await generateOneVoiceLine(text, character);
+      lines.push(result);
+    }
+    return { lines, totalDurationMs: lines.reduce((s, l) => s + l.estimatedDurationMs, 0) };
+  }
+
+  // Mode 2: single text line (per-field preview)
+  if (options.text) {
+    const result = await generateOneVoiceLine(options.text, options.character || null);
+    return { lines: [result], totalDurationMs: result.estimatedDurationMs };
+  }
+
+  return { lines: [], totalDurationMs: 0 };
 }
 
 // =============================================================

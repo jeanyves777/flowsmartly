@@ -62,6 +62,14 @@ export interface CampaignCharacter {
   approved?: boolean;
 }
 
+export interface ClipDialogueLine {
+  id: string;
+  characterId: string;
+  line: string;
+  /** Optional acting note: "concerned", "skeptical", "warm" — shapes TTS delivery + Veo performance */
+  emotion?: string;
+}
+
 export interface CampaignClipSlot {
   id: string;
   index: number;
@@ -70,12 +78,18 @@ export interface CampaignClipSlot {
   cameraMovement: CameraMovement;
   sceneAction: string;
   moodLighting: string;
-  characterId?: string | null;
-  voiceoverLine: string;
+  /** All characters visible on-camera in this clip */
+  characterIds: string[];
+  /** In-scene dialogue between characters (NOT voiceover). Lines play in order. */
+  dialogue: ClipDialogueLine[];
   prompt: string;
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** @deprecated legacy single-character field; migrated to characterIds */
+  characterId?: string | null;
+  /** @deprecated legacy single VO line; migrated to dialogue */
+  voiceoverLine?: string;
 }
 
 export interface CampaignState {
@@ -113,7 +127,8 @@ export type SuggestField =
   | "character.voice.delivery"
   | "clip.sceneAction"
   | "clip.moodLighting"
-  | "clip.voiceoverLine";
+  | "clip.dialogue"
+  | "clip.dialogueLine";
 
 export const NEGATIVE_TEXT_PROMPT =
   "no text overlays, no subtitles, no on-screen typography, no title cards, no captions, no watermark, no lower thirds, no fake logos, pure cinematic visuals only";

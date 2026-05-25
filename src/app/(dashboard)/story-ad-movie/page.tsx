@@ -66,6 +66,13 @@ interface Character {
   approved?: boolean;
 }
 
+interface DialogueLine {
+  id: string;
+  characterId: string;
+  line: string;
+  emotion?: string;
+}
+
 interface ClipSlot {
   id: string;
   index: number;
@@ -74,12 +81,14 @@ interface ClipSlot {
   cameraMovement: Camera;
   sceneAction: string;
   moodLighting: string;
-  characterId?: string | null;
-  voiceoverLine: string;
+  characterIds: string[];
+  dialogue: DialogueLine[];
   prompt: string;
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** @deprecated */ characterId?: string | null;
+  /** @deprecated */ voiceoverLine?: string;
 }
 
 interface CampaignState {
@@ -1319,32 +1328,47 @@ function ScenesStage({
 }
 
 function ClipRow({ clip, state }: { clip: ClipSlot; state: CampaignState }) {
-  const character = state.characters.find((c) => c.id === clip.characterId);
+  const onCamera = clip.characterIds
+    .map((id) => state.characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-start">
-      <div className="flex shrink-0 items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background text-sm font-bold">
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-start">
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-background text-sm font-bold">
           {String(clip.index).padStart(2, "0")}
         </div>
-        <Badge variant="outline" className={cn("h-7 px-3", ACT_BADGE[clip.act])}>
+        <Badge variant="outline" className={cn("h-6 px-2 text-xs", ACT_BADGE[clip.act])}>
           {ACT_LABEL[clip.act]}
         </Badge>
       </div>
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
           <span className="rounded-full border px-2 py-0.5">{clip.shotType.replace(/_/g, " ").toLowerCase()}</span>
           <span className="rounded-full border px-2 py-0.5">{clip.cameraMovement.replace(/_/g, " ").toLowerCase()}</span>
-          {character && (
-            <span className="rounded-full border px-2 py-0.5 capitalize">{character.name}</span>
-          )}
+          {onCamera.map((c) => (
+            <span key={c.id} className="rounded-full border bg-background px-2 py-0.5">
+              {c.name}
+            </span>
+          ))}
         </div>
         <p className="text-sm font-medium">{clip.sceneAction}</p>
         <p className="text-xs text-muted-foreground">{clip.moodLighting}</p>
-        {clip.voiceoverLine && (
-          <p className="text-xs italic text-muted-foreground">
-            <Volume2 className="mr-1 inline h-3 w-3" />
-            &ldquo;{clip.voiceoverLine}&rdquo;
-          </p>
+        {clip.dialogue.length > 0 && (
+          <div className="mt-1 space-y-0.5 rounded border-l-2 border-brand-500/40 bg-background/60 px-2 py-1">
+            {clip.dialogue.map((d) => {
+              const speaker = state.characters.find((c) => c.id === d.characterId);
+              return (
+                <p key={d.id} className="text-xs">
+                  <span className="font-semibold text-brand-600 dark:text-brand-300">
+                    {speaker?.name || "?"}
+                    {d.emotion ? ` (${d.emotion})` : ""}:
+                  </span>{" "}
+                  <span className="italic text-muted-foreground">&ldquo;{d.line}&rdquo;</span>
+                </p>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -1421,7 +1445,7 @@ function ClipPromptCard({
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <FieldGroup label="Shot type">
           <select
             value={clip.shotType}
@@ -1448,21 +1472,15 @@ function ClipPromptCard({
             ))}
           </select>
         </FieldGroup>
-        <FieldGroup label="Character on camera">
-          <select
-            value={clip.characterId || ""}
-            onChange={(event) => onChange({ ...clip, characterId: event.target.value || null })}
-            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-          >
-            <option value="">No character (product / env)</option>
-            {state.characters.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </FieldGroup>
       </div>
+
+      <FieldGroup label="Characters on camera">
+        <CharacterMultiSelect
+          allCharacters={state.characters}
+          selectedIds={clip.characterIds}
+          onChange={(ids) => onChange({ ...clip, characterIds: ids })}
+        />
+      </FieldGroup>
 
       <FieldGroup label="Scene action">
         <SuggestField
@@ -1492,22 +1510,14 @@ function ClipPromptCard({
           />
         </SuggestField>
       </FieldGroup>
-      <FieldGroup label="Voiceover line">
-        <SuggestField
-          campaignId={campaignId}
-          field="clip.voiceoverLine"
-          clipId={clip.id}
-          onApply={(value) => onChange({ ...clip, voiceoverLine: value })}
-        >
-          <Textarea
-            value={clip.voiceoverLine}
-            onChange={(event) => onChange({ ...clip, voiceoverLine: event.target.value })}
-            rows={2}
-            className="resize-y text-sm"
-          />
-        </SuggestField>
-        <VoiceTimingHint text={clip.voiceoverLine} clipLength={state.clipLength} />
-      </FieldGroup>
+
+      <DialogueEditor
+        clip={clip}
+        characters={state.characters}
+        campaignId={campaignId}
+        clipLength={state.clipLength}
+        onChange={(dialogue) => onChange({ ...clip, dialogue })}
+      />
 
       {showPrompt && (
         <div className="mt-3 rounded-lg border border-dashed bg-muted/30 p-3">
@@ -1528,13 +1538,160 @@ function VoiceTimingHint({ text, clipLength }: { text: string; clipLength: ClipL
       {overflow ? (
         <>
           <TriangleAlert className="mr-1 inline h-3 w-3" />
-          About {seconds.toFixed(1)}s at natural pace — too long for a {clipLength}s clip. Trim it.
+          About {seconds.toFixed(1)}s — too long for a {clipLength}s clip. Trim it.
         </>
       ) : (
-        <>About {seconds.toFixed(1)}s at natural pace — fits the {clipLength}s window.</>
+        <>About {seconds.toFixed(1)}s — fits the {clipLength}s window.</>
       )}
     </p>
   );
+}
+
+function CharacterMultiSelect({
+  allCharacters,
+  selectedIds,
+  onChange,
+}: {
+  allCharacters: Character[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  function toggle(id: string) {
+    if (selectedIds.includes(id)) onChange(selectedIds.filter((x) => x !== id));
+    else onChange([...selectedIds, id]);
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {allCharacters.map((c) => {
+        const active = selectedIds.includes(c.id);
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => toggle(c.id)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              active
+                ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                : "border-border bg-background text-muted-foreground hover:border-brand-500",
+            )}
+          >
+            {c.referenceImageUrl && active && (
+              <img src={c.referenceImageUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+            )}
+            {c.name}
+          </button>
+        );
+      })}
+      {!allCharacters.length && (
+        <span className="text-xs text-muted-foreground">No characters yet.</span>
+      )}
+    </div>
+  );
+}
+
+function DialogueEditor({
+  clip,
+  characters,
+  campaignId,
+  clipLength,
+  onChange,
+}: {
+  clip: ClipSlot;
+  characters: Character[];
+  campaignId: string;
+  clipLength: ClipLen;
+  onChange: (dialogue: DialogueLine[]) => void;
+}) {
+  function update(idx: number, patch: Partial<DialogueLine>) {
+    onChange(clip.dialogue.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
+  }
+  function remove(idx: number) {
+    onChange(clip.dialogue.filter((_, i) => i !== idx));
+  }
+  function add() {
+    const fallback = characters[0]?.id;
+    if (!fallback) return;
+    onChange([
+      ...clip.dialogue,
+      { id: nanoLocalId(), characterId: fallback, line: "", emotion: "" },
+    ]);
+  }
+  const totalText = clip.dialogue.map((d) => d.line).join(" ");
+  const totalSeconds = estimateVoiceSeconds(totalText);
+  const overflow = totalSeconds > clipLength;
+  return (
+    <FieldGroup label="Dialogue (in-scene, NOT voiceover)">
+      <div className="space-y-2">
+        {clip.dialogue.length === 0 && (
+          <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            No dialogue. This clip is pure visual storytelling — add a line below if characters should speak.
+          </p>
+        )}
+        {clip.dialogue.map((line, idx) => (
+          <div key={line.id} className="flex flex-col gap-1.5 rounded-md border bg-muted/20 p-2 sm:flex-row sm:items-start">
+            <select
+              value={line.characterId}
+              onChange={(event) => update(idx, { characterId: event.target.value })}
+              className="h-8 rounded-md border bg-background px-2 text-xs font-semibold sm:w-32"
+            >
+              {characters.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex-1 space-y-1">
+              <SuggestField
+                campaignId={campaignId}
+                field="clip.dialogueLine"
+                clipId={clip.id}
+                onApply={(value) => update(idx, { line: value })}
+                compact
+              >
+                <Textarea
+                  value={line.line}
+                  onChange={(event) => update(idx, { line: event.target.value })}
+                  rows={2}
+                  placeholder="What does this character say?"
+                  className="resize-y text-sm"
+                />
+              </SuggestField>
+              <Input
+                value={line.emotion || ""}
+                onChange={(event) => update(idx, { emotion: event.target.value })}
+                placeholder="Acting note (e.g. concerned, warm, frustrated)"
+                className="h-7 text-xs"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => remove(idx)}
+              className="self-start rounded-md border p-1.5 text-muted-foreground hover:border-destructive hover:text-destructive"
+              aria-label="Remove line"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={add}>
+            <Plus className="h-3.5 w-3.5" />
+            Add line
+          </Button>
+          {clip.dialogue.length > 0 && (
+            <p className={cn("text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+              ~{totalSeconds.toFixed(1)}s / {clipLength}s {overflow ? "— trim a line" : "— fits"}
+            </p>
+          )}
+        </div>
+      </div>
+    </FieldGroup>
+  );
+}
+
+function nanoLocalId(): string {
+  return Math.random().toString(36).slice(2, 10);
 }
 
 // ============================================================================
@@ -1568,6 +1725,14 @@ function VoiceStage({
   );
 }
 
+interface PreviewLine {
+  characterId: string | null;
+  characterName: string | null;
+  line: string;
+  audioSrc: string;
+  estimatedDurationMs: number;
+}
+
 function VoicePreviewRow({
   clip,
   state,
@@ -1577,89 +1742,145 @@ function VoicePreviewRow({
   state: CampaignState;
   campaignId: string;
 }) {
-  const character = state.characters.find((c) => c.id === clip.characterId);
-  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [lines, setLines] = useState<PreviewLine[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const seconds = estimateVoiceSeconds(clip.voiceoverLine);
-  const overflow = seconds > state.clipLength;
 
-  async function generate() {
-    if (!clip.voiceoverLine.trim()) return;
+  const totalDialogueText = clip.dialogue.map((d) => d.line).join(" ");
+  const totalSeconds = estimateVoiceSeconds(totalDialogueText);
+  const overflow = totalSeconds > state.clipLength;
+  const onCamera = clip.characterIds
+    .map((id) => state.characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  async function generateAll() {
+    if (!clip.dialogue.length) return;
     setGenerating(true);
     try {
       const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clipId: clip.id, text: clip.voiceoverLine }),
+        body: JSON.stringify({ clipId: clip.id }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Failed");
-      const src = `data:${data.data.mimeType};base64,${data.data.audioBase64}`;
-      setAudioSrc(src);
-      setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
+      const out: PreviewLine[] = (data.data.lines || []).map(
+        (l: {
+          characterId: string | null;
+          characterName: string | null;
+          line: string;
+          mimeType: string;
+          audioBase64: string;
+          estimatedDurationMs: number;
+        }) => ({
+          characterId: l.characterId,
+          characterName: l.characterName,
+          line: l.line,
+          audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
+          estimatedDurationMs: l.estimatedDurationMs,
+        }),
+      );
+      setLines(out);
+      setTimeout(() => playFrom(0, out), 80);
     } catch {
-      setAudioSrc(null);
+      setLines([]);
     } finally {
       setGenerating(false);
     }
   }
 
+  function playFrom(index: number, list: PreviewLine[]) {
+    if (index >= list.length) {
+      setPlayingIdx(null);
+      return;
+    }
+    setPlayingIdx(index);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = list[index].audioSrc;
+    audio.onended = () => playFrom(index + 1, list);
+    audio.play().catch(() => setPlayingIdx(null));
+  }
+
+  function stop() {
+    audioRef.current?.pause();
+    setPlayingIdx(null);
+  }
+
   return (
-    <div className="rounded-lg border bg-background p-4 shadow-sm">
+    <div className="rounded-lg border bg-background p-3 shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-bold">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-bold">
           {String(clip.index).padStart(2, "0")}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className={cn("h-6 px-2 text-xs", ACT_BADGE[clip.act])}>
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className={cn("h-5 px-2 text-xs", ACT_BADGE[clip.act])}>
               {ACT_LABEL[clip.act]}
             </Badge>
-            {character && <span className="text-xs text-muted-foreground">{character.name}</span>}
-            <span className={cn("text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-              ~{seconds.toFixed(1)}s / {state.clipLength}s
-            </span>
+            {onCamera.map((c) => (
+              <span key={c.id} className="rounded-full border bg-muted/30 px-2 py-0.5 text-xs">
+                {c.name}
+              </span>
+            ))}
+            {clip.dialogue.length > 0 && (
+              <span className={cn("text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                ~{totalSeconds.toFixed(1)}s / {state.clipLength}s
+              </span>
+            )}
           </div>
-          <p className="text-sm italic text-foreground">&ldquo;{clip.voiceoverLine || "No voiceover line"}&rdquo;</p>
-          {audioSrc && (
-            <audio
-              ref={audioRef}
-              src={audioSrc}
-              onPlay={() => setPlaying(true)}
-              onPause={() => setPlaying(false)}
-              onEnded={() => setPlaying(false)}
-              className="mt-2 w-full"
-              controls
-            />
+          {clip.dialogue.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No dialogue in this clip.</p>
+          ) : (
+            <div className="space-y-1">
+              {clip.dialogue.map((d, idx) => {
+                const speaker = state.characters.find((c) => c.id === d.characterId);
+                const isPlayingThis = playingIdx === idx;
+                return (
+                  <p
+                    key={d.id}
+                    className={cn(
+                      "rounded px-2 py-1 text-xs leading-relaxed transition-colors",
+                      isPlayingThis ? "bg-brand-500/10" : "",
+                    )}
+                  >
+                    <span className="font-semibold text-brand-600 dark:text-brand-300">
+                      {speaker?.name || "?"}
+                      {d.emotion ? ` (${d.emotion})` : ""}:
+                    </span>{" "}
+                    <span className="italic text-foreground">&ldquo;{d.line}&rdquo;</span>
+                  </p>
+                );
+              })}
+            </div>
           )}
+          <audio ref={audioRef} className="hidden" />
         </div>
         <Button
           size="sm"
-          variant={audioSrc ? "outline" : "default"}
+          variant={lines.length ? "outline" : "default"}
           onClick={() => {
-            if (audioSrc) {
-              if (playing) audioRef.current?.pause();
-              else audioRef.current?.play().catch(() => {});
+            if (playingIdx !== null) {
+              stop();
+            } else if (lines.length) {
+              playFrom(0, lines);
             } else {
-              generate();
+              generateAll();
             }
           }}
-          disabled={generating || !clip.voiceoverLine.trim()}
+          disabled={generating || !clip.dialogue.length}
         >
           {generating ? (
             <AISpinner size={14} />
-          ) : audioSrc ? (
-            playing ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )
+          ) : playingIdx !== null ? (
+            <Pause className="h-4 w-4" />
+          ) : lines.length ? (
+            <Play className="h-4 w-4" />
           ) : (
             <Mic className="h-4 w-4" />
           )}
-          {audioSrc ? (playing ? "Pause" : "Replay") : "Preview"}
+          {playingIdx !== null ? "Stop" : lines.length ? "Replay" : "Preview"}
         </Button>
       </div>
     </div>
