@@ -478,10 +478,16 @@ export async function planSceneGrid(
     .map((c) => `- ${c.id} | ${c.name} (${c.role})`)
     .join("\n");
 
-  const wordsPerClip = state.clipLength === 8 ? 22 : 28;
-
   const totalSeconds = clipCount * state.clipLength;
-  const totalWords = Math.round(totalSeconds * (state.clipLength === 8 ? 2.7 : 2.8));
+  // Natural English at conversational pace is ~2.5 words/second. Aim for ~75% speech coverage per clip
+  // to leave room for breath, reactions, and silence. Anything below 60% feels sparse and ad-like.
+  const wordsPerSecond = 2.5;
+  const targetCoverage = 0.75;
+  const minCoverage = 0.6;
+  const targetWordsPerClip = Math.round(state.clipLength * wordsPerSecond * targetCoverage);
+  const minWordsPerClip = Math.round(state.clipLength * wordsPerSecond * minCoverage);
+  const targetSecondsPerClip = Math.round(state.clipLength * targetCoverage);
+  const totalWords = Math.round(totalSeconds * wordsPerSecond * targetCoverage);
 
   const prompt = `You are a screenwriter writing ONE continuous ${totalSeconds}-second short film. It will be SHOT in ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as a single movie. The clips are camera cuts inside ONE scene flow — not separate vignettes.
 
@@ -525,7 +531,13 @@ For each clip output:
 - sceneAction: ONE sentence on what physically happens IN THE FLOW of the previous clip's action. Reference the previous moment.
 - moodLighting: lighting + color grade, single line.
 - characterIds: array of all character ids visible on-camera (1 to 3). Use [] for pure product/environment shots.
-- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera (NOT voiceover). Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Lines should connect to the previous clip's dialogue. Total ~${wordsPerClip} words to fit the ${state.clipLength}-second clip. For a pure visual moment use dialogue: [].
+- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera (NOT voiceover). Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Lines should connect to the previous clip's dialogue. For a pure visual moment use dialogue: [].
+
+DURATION-FILL RULE (HARD — failing this produces sparse, ad-like clips):
+- Every ${state.clipLength}-second clip with dialogue must contain AT LEAST ${minWordsPerClip} words of speech (≈${Math.round(state.clipLength * minCoverage)}s) and target ~${targetWordsPerClip} words (≈${targetSecondsPerClip}s).
+- If one character speaks a short line, ADD a reply or a follow-up line from another character to fill the time. Real conversations have back-and-forth.
+- Do NOT write a single 5-word line in a 10-second clip and leave the rest empty. That feels like an ad slate, not a movie.
+- The ONLY clips allowed to use dialogue: [] are intentional silent "breathing room" beats — limit to no more than 2 such clips in the entire ${clipCount}-clip film, and never adjacent.
 
 HARD RULES:
 - One continuous screenplay. NEVER write isolated vignettes.
