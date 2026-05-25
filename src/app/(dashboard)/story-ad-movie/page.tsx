@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
@@ -106,6 +107,8 @@ interface CampaignState {
   storyOutline?: string;
   finalVideoUrl?: string | null;
   finalVideoThumbnailUrl?: string | null;
+  campaignCaption?: string;
+  hashtags?: string[];
 }
 
 interface CampaignRow {
@@ -166,14 +169,8 @@ const DURATION_OPTIONS: { value: Duration; label: string }[] = [
   { value: 180, label: "3 min" },
 ];
 
-const PLATFORM_OPTIONS = [
-  { id: "instagram", label: "Instagram" },
-  { id: "tiktok", label: "TikTok" },
-  { id: "youtube", label: "YouTube" },
-  { id: "facebook", label: "Facebook" },
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "x", label: "X" },
-];
+// Campaign uses the canonical platform list from /content/posts so icons stay consistent.
+const PLATFORM_KEYS = ["instagram", "tiktok", "youtube", "facebook", "linkedin", "twitter"] as const;
 
 function statusToBadge(status: ClipSlot["status"]): { label: string; cls: string; icon: typeof Sparkles } {
   switch (status) {
@@ -849,30 +846,10 @@ function StyleStage({
           </FieldGroup>
         </div>
         <FieldGroup label="Distribution platforms">
-          <div className="flex flex-wrap gap-2">
-            {PLATFORM_OPTIONS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    platforms: prev.platforms.includes(p.id)
-                      ? prev.platforms.filter((x) => x !== p.id)
-                      : [...prev.platforms, p.id],
-                  }))
-                }
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                  draft.platforms.includes(p.id)
-                    ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300"
-                    : "border-border bg-muted/40 text-muted-foreground hover:border-brand-500",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <PlatformPicker
+            value={draft.platforms}
+            onChange={(next) => setDraft((prev) => ({ ...prev, platforms: next }))}
+          />
         </FieldGroup>
       </SectionCard>
 
@@ -2075,34 +2052,7 @@ function BatchStage({
       </SectionCard>
 
       {done && state.finalVideoUrl && (
-        <SectionCard
-          title="Final reel"
-          description="Stitched MP4 — ready to post or download."
-        >
-          <div
-            className={cn(
-              "w-full overflow-hidden rounded-xl border bg-black",
-              state.aspectRatio === "9:16" && "aspect-[9/16] max-h-[720px] mx-auto max-w-md",
-              state.aspectRatio === "1:1" && "aspect-square max-h-[650px] mx-auto max-w-xl",
-              state.aspectRatio === "16:9" && "aspect-video",
-            )}
-          >
-            <video src={state.finalVideoUrl} controls className="h-full w-full" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <a href={state.finalVideoUrl} download>
-                <ArrowLeft className="h-4 w-4 rotate-90" />
-                Download reel
-              </a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href={state.finalVideoUrl} target="_blank" rel="noopener noreferrer">
-                Open in new tab
-              </a>
-            </Button>
-          </div>
-        </SectionCard>
+        <DeliverSection campaignId={campaign.id} state={state} />
       )}
 
       <SectionCard title="Clips">
@@ -2113,6 +2063,183 @@ function BatchStage({
         </div>
       </SectionCard>
     </div>
+  );
+}
+
+function DeliverSection({ campaignId, state }: { campaignId: string; state: CampaignState }) {
+  const { toast } = useToast();
+  const [caption, setCaption] = useState(state.campaignCaption || "");
+  const [hashtags, setHashtags] = useState<string[]>(state.hashtags || []);
+  const [hashtagInput, setHashtagInput] = useState("");
+  const [platforms, setPlatforms] = useState<string[]>(state.platforms?.length ? state.platforms : ["feed"]);
+  const [publishing, setPublishing] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+
+  // Keep state in sync if backend wrote new values
+  useEffect(() => {
+    if (state.campaignCaption && !caption) setCaption(state.campaignCaption);
+    if (state.hashtags?.length && !hashtags.length) setHashtags(state.hashtags);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.campaignCaption, state.hashtags]);
+
+  function addHashtag(raw: string) {
+    const trimmed = raw.trim().replace(/^#?/, "#");
+    if (!trimmed || trimmed === "#") return;
+    if (hashtags.includes(trimmed)) return;
+    setHashtags([...hashtags, trimmed]);
+    setHashtagInput("");
+  }
+
+  async function suggestCaption() {
+    setSuggesting(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "brief", hint: "Write a social caption introducing this short-film ad. Conversational, 2-3 sentences, soft CTA, no emojis, no 'Buy now'." }),
+      });
+      const data = await res.json();
+      if (data.success && data.data.value) setCaption(data.data.value);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  async function publish() {
+    if (!caption.trim() && hashtags.length === 0) {
+      toast({ title: "Add a caption first", variant: "destructive" });
+      return;
+    }
+    if (!platforms.length) {
+      toast({ title: "Pick at least one platform", variant: "destructive" });
+      return;
+    }
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption, hashtags, platforms }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Publish failed");
+      toast({ title: "Posted!", description: "The campaign reel is live on the selected platforms." });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Publish failed",
+        variant: "destructive",
+      });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  if (!state.finalVideoUrl) return null;
+
+  return (
+    <SectionCard
+      title="Deliver"
+      description="Logo composited, caption written, ready to post."
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* Video preview */}
+        <div className="space-y-2">
+          <div
+            className={cn(
+              "w-full overflow-hidden rounded-xl border bg-black",
+              state.aspectRatio === "9:16" && "aspect-[9/16] max-h-[640px] mx-auto max-w-sm",
+              state.aspectRatio === "1:1" && "aspect-square max-h-[560px] mx-auto max-w-md",
+              state.aspectRatio === "16:9" && "aspect-video",
+            )}
+          >
+            <video src={state.finalVideoUrl} controls className="h-full w-full" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <a href={state.finalVideoUrl} download>
+                <ArrowLeft className="h-4 w-4 rotate-90" />
+                Download
+              </a>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <a href={state.finalVideoUrl} target="_blank" rel="noopener noreferrer">
+                Open in new tab
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        {/* Post composer */}
+        <div className="space-y-3">
+          <FieldGroup label="Caption">
+            <div className="relative">
+              <Textarea
+                value={caption}
+                onChange={(event) => setCaption(event.target.value)}
+                rows={5}
+                placeholder="Write a caption…"
+                className="resize-y text-sm"
+              />
+              <button
+                type="button"
+                onClick={suggestCaption}
+                disabled={suggesting}
+                title="AI write a caption"
+                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md border bg-background/95 text-brand-500 shadow-sm hover:border-brand-500"
+              >
+                {suggesting ? <AISpinner size={12} /> : <Sparkles className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </FieldGroup>
+
+          <FieldGroup label="Hashtags">
+            <div className="flex flex-wrap gap-1.5">
+              {hashtags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setHashtags(hashtags.filter((t) => t !== tag))}
+                  className="inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-xs text-brand-600 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 dark:text-brand-300"
+                >
+                  {tag}
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              ))}
+              <Input
+                value={hashtagInput}
+                onChange={(event) => setHashtagInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    addHashtag(hashtagInput);
+                  }
+                }}
+                placeholder="#newtag"
+                className="h-7 w-32 text-xs"
+              />
+            </div>
+          </FieldGroup>
+
+          <FieldGroup label="Post to">
+            <PlatformPicker
+              value={platforms.filter((p) => p !== "feed")}
+              onChange={(next) => {
+                // always include feed as a destination
+                setPlatforms(["feed", ...next.filter((p) => p !== "feed")]);
+              }}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Always saved to your FlowSmartly feed. Add channels to cross-post.
+            </p>
+          </FieldGroup>
+
+          <Button onClick={publish} disabled={publishing} size="lg" className="w-full">
+            {publishing ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
+            Post to {platforms.length === 1 ? "feed" : `${platforms.length} destinations`}
+          </Button>
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -2237,15 +2364,9 @@ function CampaignsList({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Your campaigns ({history.length})
-        </p>
-        <Button onClick={onCreate} size="sm">
-          <Plus className="h-4 w-4" />
-          Create campaign
-        </Button>
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Your campaigns ({history.length})
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {history.map((c) => (
           <CampaignListCard key={c.id} item={c} onOpen={onOpen} onDelete={onDelete} />
@@ -2407,6 +2528,45 @@ function EmptyState({
         <p className="text-sm font-semibold">{title}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
+    </div>
+  );
+}
+
+function PlatformPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  function toggle(id: string) {
+    if (value.includes(id)) onChange(value.filter((x) => x !== id));
+    else onChange([...value, id]);
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {PLATFORM_KEYS.map((key) => {
+        const meta = PLATFORM_META[key];
+        if (!meta) return null;
+        const Icon = meta.icon;
+        const active = value.includes(key);
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+              active
+                ? "border-brand-500 bg-brand-500/10 text-foreground"
+                : "border-border bg-muted/30 text-muted-foreground hover:border-brand-500 hover:text-foreground",
+            )}
+          >
+            <Icon className="h-4 w-4" style={{ color: active ? meta.color : undefined }} />
+            {meta.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

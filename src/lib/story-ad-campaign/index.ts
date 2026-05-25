@@ -1018,15 +1018,52 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   const allOk = clips.every((c) => c.status === "READY");
 
   let finalVideoUrl: string | null = null;
+  let publishCaption: string | undefined;
+  let publishHashtags: string[] | undefined;
   if (allOk) {
     try {
       await prisma.cartoonVideo.update({
         where: { id: row.id },
-        data: { progress: 96, currentStep: "Stitching final reel..." },
+        data: { progress: 94, currentStep: "Stitching final reel..." },
       });
-      finalVideoUrl = await concatClipsIntoReel(input.campaignId, clips);
+      const stitchedUrl = await concatClipsIntoReel(input.campaignId, clips);
+
+      // Brand logo overlay (if BrandKit has a logo)
+      const brand = await getBrandSnapshot(row.userId);
+      const logoSource = brand.logo;
+      if (logoSource) {
+        try {
+          await prisma.cartoonVideo.update({
+            where: { id: row.id },
+            data: { progress: 96, currentStep: "Adding brand logo..." },
+          });
+          finalVideoUrl = await overlayBrandLogo({
+            campaignId: input.campaignId,
+            videoUrl: stitchedUrl,
+            logoUrl: logoSource,
+          });
+        } catch (e) {
+          console.warn("[StoryAdCampaign] logo overlay failed, using un-stamped reel:", e);
+          finalVideoUrl = stitchedUrl;
+        }
+      } else {
+        finalVideoUrl = stitchedUrl;
+      }
+
+      // Generate caption + hashtags for posting
+      try {
+        await prisma.cartoonVideo.update({
+          where: { id: row.id },
+          data: { progress: 98, currentStep: "Writing social caption..." },
+        });
+        const caption = await generateCampaignCaption(state, brand);
+        publishCaption = caption.caption;
+        publishHashtags = caption.hashtags;
+      } catch (e) {
+        console.warn("[StoryAdCampaign] caption generation failed:", e);
+      }
     } catch (error) {
-      console.error("[StoryAdCampaign] final concat failed:", error);
+      console.error("[StoryAdCampaign] final assembly failed:", error);
     }
   }
 
@@ -1036,6 +1073,8 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
     phase: allOk ? "DONE" : "FAILED",
     finalVideoUrl,
     finalVideoThumbnailUrl: clips.find((c) => c.videoUrl)?.videoUrl || null,
+    ...(publishCaption ? { campaignCaption: publishCaption } : {}),
+    ...(publishHashtags ? { hashtags: publishHashtags } : {}),
   };
   await prisma.cartoonVideo.update({
     where: { id: row.id },
@@ -1146,6 +1185,113 @@ async function concatClipsIntoReel(
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+// =============================================================
+// Brand logo overlay on the final reel
+// =============================================================
+
+async function overlayBrandLogo(input: {
+  campaignId: string;
+  videoUrl: string;
+  logoUrl: string;
+}): Promise<string> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "story-ad-logo-"));
+  const inputVideoPath = path.join(tempDir, "input.mp4");
+  const logoPath = path.join(tempDir, "logo.png");
+  const outputPath = path.join(tempDir, "stamped.mp4");
+
+  try {
+    const [videoBuf, logoBuf] = await Promise.all([
+      downloadToBuffer(input.videoUrl),
+      downloadToBuffer(input.logoUrl),
+    ]);
+    await writeFile(inputVideoPath, videoBuf);
+    await writeFile(logoPath, logoBuf);
+
+    // Overlay logo in top-right with 24px margin, scaled to ~12% of video width, semi-transparent.
+    // Filter chain: scale logo → set alpha → overlay.
+    const filter =
+      "[1:v]scale=iw*0.5:-1,format=rgba,colorchannelmixer=aa=0.85[lg];" +
+      "[0:v][lg]overlay=W-w-24:24:format=auto";
+
+    await runFFmpeg([
+      "-i", inputVideoPath,
+      "-i", logoPath,
+      "-filter_complex", filter,
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-crf", "20",
+      "-c:a", "copy",
+      "-movflags", "+faststart",
+      "-y", outputPath,
+    ]);
+
+    const finalBuffer = await readFile(outputPath);
+    const key = `story-ad-campaigns/${input.campaignId}/final-branded-${nanoid(8)}.mp4`;
+    return await uploadToS3(key, finalBuffer, "video/mp4");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+// =============================================================
+// Campaign caption + hashtags for social posting
+// =============================================================
+
+async function generateCampaignCaption(
+  state: CampaignState,
+  brand: BrandSnapshot,
+): Promise<{ caption: string; hashtags: string[] }> {
+  const dialogueSummary = state.clips
+    .slice(0, 3)
+    .map((c) =>
+      c.dialogue
+        .map((d) => {
+          const speaker = state.characters.find((ch) => ch.id === d.characterId);
+          return `${speaker?.name || "?"}: "${d.line}"`;
+        })
+        .join(" / "),
+    )
+    .filter(Boolean)
+    .join(" — ");
+
+  const prompt = `Write a social caption for this short-film ad campaign.
+
+BRAND: ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
+${brand.industry ? `INDUSTRY: ${brand.industry}` : ""}
+${brand.targetAudience ? `AUDIENCE: ${brand.targetAudience}` : ""}
+${brand.voiceTone ? `VOICE: ${brand.voiceTone}` : ""}
+
+CAMPAIGN BRIEF: ${state.brief}
+GOAL: ${state.goal}
+${state.storyOutline ? `STORY OUTLINE: ${state.storyOutline}` : ""}
+${dialogueSummary ? `OPENING DIALOGUE: ${dialogueSummary}` : ""}
+
+Write a social post caption that introduces the video to the audience. Conversational, NOT salesy. 2–3 short sentences max. End with a soft CTA (e.g. "Watch the story →" or "See how it plays out."). NO emojis. NO "Buy now". Sound like a person sharing a short film, not a brand pushing an ad.
+
+Also propose 4–6 clean, business-appropriate hashtags (no spammy/generic tags).
+
+Return strict JSON only:
+{ "caption": "...", "hashtags": ["#example"] }`;
+
+  const result = await ai.generateJSON<{ caption: string; hashtags: string[] }>(prompt, {
+    maxTokens: 500,
+    temperature: 0.75,
+    systemPrompt:
+      "You write social captions that feel human, not like ads. Return valid JSON only.",
+  });
+
+  return {
+    caption: String(result?.caption || "").trim().slice(0, 700),
+    hashtags: Array.isArray(result?.hashtags)
+      ? result.hashtags
+          .map((t) => String(t).trim())
+          .filter(Boolean)
+          .map((t) => (t.startsWith("#") ? t : `#${t}`))
+          .slice(0, 8)
+      : [],
+  };
 }
 
 async function persistClipsProgress(
