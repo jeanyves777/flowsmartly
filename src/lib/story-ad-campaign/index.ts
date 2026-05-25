@@ -1159,50 +1159,15 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   let publishCaption: string | undefined;
   let publishHashtags: string[] | undefined;
   if (allOk) {
-    try {
-      await prisma.cartoonVideo.update({
-        where: { id: row.id },
-        data: { progress: 94, currentStep: "Stitching final reel..." },
-      });
-      const stitchedUrl = await concatClipsIntoReel(input.campaignId, clips);
-
-      // Brand logo overlay (if BrandKit has a logo)
-      const brand = await getBrandSnapshot(row.userId);
-      const logoSource = brand.logo;
-      if (logoSource) {
-        try {
-          await prisma.cartoonVideo.update({
-            where: { id: row.id },
-            data: { progress: 96, currentStep: "Adding brand logo..." },
-          });
-          finalVideoUrl = await overlayBrandLogo({
-            campaignId: input.campaignId,
-            videoUrl: stitchedUrl,
-            logoUrl: logoSource,
-          });
-        } catch (e) {
-          console.warn("[StoryAdCampaign] logo overlay failed, using un-stamped reel:", e);
-          finalVideoUrl = stitchedUrl;
-        }
-      } else {
-        finalVideoUrl = stitchedUrl;
-      }
-
-      // Generate caption + hashtags for posting
-      try {
-        await prisma.cartoonVideo.update({
-          where: { id: row.id },
-          data: { progress: 98, currentStep: "Writing social caption..." },
-        });
-        const caption = await generateCampaignCaption(state, brand);
-        publishCaption = caption.caption;
-        publishHashtags = caption.hashtags;
-      } catch (e) {
-        console.warn("[StoryAdCampaign] caption generation failed:", e);
-      }
-    } catch (error) {
-      console.error("[StoryAdCampaign] final assembly failed:", error);
-    }
+    const finalized = await runFinalAssembly({
+      campaignId: input.campaignId,
+      userId: row.userId,
+      state,
+      clips,
+    });
+    finalVideoUrl = finalized.finalVideoUrl;
+    publishCaption = finalized.caption;
+    publishHashtags = finalized.hashtags;
   }
 
   const finalState: CampaignState = {
@@ -1265,6 +1230,116 @@ async function downloadToBuffer(url: string): Promise<Buffer> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Download failed (${response.status}) for ${url}`);
   return Buffer.from(await response.arrayBuffer());
+}
+
+/**
+ * Shared "final assembly" step: stitch ready clips, overlay brand logo, generate caption.
+ * Called automatically at the end of batchRenderCampaign AND on demand by /finalize.
+ */
+async function runFinalAssembly(input: {
+  campaignId: string;
+  userId: string;
+  state: CampaignState;
+  clips: CampaignClipSlot[];
+}): Promise<{ finalVideoUrl: string | null; caption?: string; hashtags?: string[] }> {
+  let finalVideoUrl: string | null = null;
+  let caption: string | undefined;
+  let hashtags: string[] | undefined;
+
+  try {
+    await prisma.cartoonVideo.update({
+      where: { id: input.campaignId },
+      data: { progress: 94, currentStep: "Stitching final reel..." },
+    });
+    const stitchedUrl = await concatClipsIntoReel(input.campaignId, input.clips);
+
+    const brand = await getBrandSnapshot(input.userId);
+    if (brand.logo) {
+      try {
+        await prisma.cartoonVideo.update({
+          where: { id: input.campaignId },
+          data: { progress: 96, currentStep: "Adding brand logo..." },
+        });
+        finalVideoUrl = await overlayBrandLogo({
+          campaignId: input.campaignId,
+          videoUrl: stitchedUrl,
+          logoUrl: brand.logo,
+        });
+      } catch (e) {
+        console.warn("[StoryAdCampaign] logo overlay failed, using un-stamped reel:", e);
+        finalVideoUrl = stitchedUrl;
+      }
+    } else {
+      finalVideoUrl = stitchedUrl;
+    }
+
+    try {
+      await prisma.cartoonVideo.update({
+        where: { id: input.campaignId },
+        data: { progress: 98, currentStep: "Writing social caption..." },
+      });
+      const c = await generateCampaignCaption(input.state, brand);
+      caption = c.caption;
+      hashtags = c.hashtags;
+    } catch (e) {
+      console.warn("[StoryAdCampaign] caption generation failed:", e);
+    }
+  } catch (error) {
+    console.error("[StoryAdCampaign] final assembly failed:", error);
+  }
+
+  return { finalVideoUrl, caption, hashtags };
+}
+
+/**
+ * On-demand finalize: stitch the current READY clips into a fresh reel.
+ * Used when a user retried failed clips after the initial batch render, or
+ * when they want to regenerate the composite manually.
+ */
+export async function finalizeCampaign(input: {
+  campaignId: string;
+  userId: string;
+}): Promise<{ finalVideoUrl: string | null }> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+
+  const readyClips = current.state.clips.filter((c) => c.status === "READY" && c.videoUrl);
+  if (!readyClips.length) {
+    throw new Error("No rendered clips yet — render before stitching.");
+  }
+
+  const result = await runFinalAssembly({
+    campaignId: input.campaignId,
+    userId: input.userId,
+    state: current.state,
+    clips: current.state.clips, // pass full clips so order/index is preserved
+  });
+
+  const merged: CampaignState = {
+    ...current.state,
+    phase: "DONE",
+    finalVideoUrl: result.finalVideoUrl ?? current.state.finalVideoUrl ?? null,
+    finalVideoThumbnailUrl:
+      current.state.clips.find((c) => c.videoUrl)?.videoUrl ||
+      current.state.finalVideoThumbnailUrl ||
+      null,
+    ...(result.caption ? { campaignCaption: result.caption } : {}),
+    ...(result.hashtags ? { hashtags: result.hashtags } : {}),
+  };
+
+  await prisma.cartoonVideo.update({
+    where: { id: input.campaignId },
+    data: {
+      metadata: writeCampaign(merged),
+      status: "COMPLETED",
+      progress: 100,
+      currentStep: "Campaign reel ready",
+      videoUrl: merged.finalVideoUrl,
+      completedAt: new Date(),
+    },
+  });
+
+  return { finalVideoUrl: merged.finalVideoUrl ?? null };
 }
 
 async function concatClipsIntoReel(

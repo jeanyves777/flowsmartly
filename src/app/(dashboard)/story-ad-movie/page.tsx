@@ -2095,6 +2095,9 @@ function BatchStage({
           onContinue={onAdvance}
         />
       )}
+      {done && !state.finalVideoUrl && (
+        <StitchReelBar campaignId={campaign.id} onDone={onClipUpdated} />
+      )}
     </div>
   );
 }
@@ -2333,6 +2336,7 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
                 Open in new tab
               </a>
             </Button>
+            <ReStitchButton campaignId={campaignId} />
           </div>
         </div>
 
@@ -3001,6 +3005,94 @@ function Stat({
       >
         {value}
       </p>
+    </div>
+  );
+}
+
+function ReStitchButton({ campaignId }: { campaignId: string }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    const ok = await confirmDialog({
+      title: "Re-stitch the reel?",
+      description:
+        "Re-runs the concat + brand-logo overlay + caption from your current clips. Useful after retrying failed ones. Charges 5 credits for the caption regen.",
+      confirmText: "Re-stitch",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/finalize`, { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "stitch reel")) return;
+        throw new Error(data.error?.message || "Stitch failed");
+      }
+      toast({ title: "Reel updated." });
+      // Force a fresh fetch by reloading; the page poller will pick up the new finalVideoUrl
+      window.location.reload();
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Stitch failed",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Button onClick={run} disabled={busy} variant="ghost" size="sm">
+      {busy ? <AISpinner size={12} /> : <RefreshCw className="h-3.5 w-3.5" />}
+      Re-stitch
+    </Button>
+  );
+}
+
+function StitchReelBar({
+  campaignId,
+  onDone,
+  label = "All clips ready — stitch into final reel",
+  hint = "Run the concat, brand-logo overlay, and caption generation. Used after retrying failed clips.",
+  buttonLabel = "Stitch reel",
+}: {
+  campaignId: string;
+  onDone: () => void;
+  label?: string;
+  hint?: string;
+  buttonLabel?: string;
+}) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/finalize`, { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "stitch reel")) return;
+        throw new Error(data.error?.message || "Stitch failed");
+      }
+      toast({ title: "Reel stitched.", description: "Brand logo composited, caption regenerated." });
+      onDone();
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Stitch failed",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border bg-background p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Button onClick={run} disabled={busy}>
+        {busy ? <AISpinner size={14} /> : <RefreshCw className="h-4 w-4" />}
+        {buttonLabel}
+      </Button>
     </div>
   );
 }
