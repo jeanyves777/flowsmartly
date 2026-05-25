@@ -136,7 +136,8 @@ const STAGES: { id: Phase; label: string; subtitle: string; icon: typeof Sparkle
   { id: "SCENES", label: "Scenes", subtitle: "Story arc grid", icon: Film },
   { id: "PROMPTS", label: "Prompts", subtitle: "Per-clip prompt", icon: Edit3 },
   { id: "VOICE", label: "Voice", subtitle: "Timing preview", icon: Mic },
-  { id: "BATCH", label: "Render", subtitle: "Batch send", icon: Send },
+  { id: "BATCH", label: "Render", subtitle: "Generate clips", icon: Zap },
+  { id: "DONE", label: "Deliver", subtitle: "Post & download", icon: Send },
 ];
 
 const ACT_BADGE: Record<Act, string> = {
@@ -310,7 +311,10 @@ function PageBody() {
 
   const activePhase: Phase = campaign?.state.phase || (draft.style ? "CHARACTERS" : "STYLE");
 
-  const phaseIndex = STAGES.findIndex((s) => s.id === activePhase);
+  // FAILED is shown on the Render step; otherwise look up the active phase in the stage list
+  const phaseIndex = activePhase === "FAILED"
+    ? STAGES.findIndex((s) => s.id === "BATCH")
+    : STAGES.findIndex((s) => s.id === activePhase);
 
   async function createCampaign() {
     if (!draft.style || draft.brief.trim().length < 12) return;
@@ -494,6 +498,10 @@ function PageBody() {
     if (target === "SCENES") {
       return state.characters.length > 0 && state.characters.every((c) => c.approved);
     }
+    if (target === "DONE") {
+      return !!state.finalVideoUrl;
+    }
+    if (target === "FAILED") return true;
     return state.clips.length > 0;
   }
 
@@ -591,13 +599,18 @@ function PageBody() {
             onAdvance={() => goToPhase("BATCH")}
           />
         )}
-        {campaign && (activePhase === "BATCH" || activePhase === "DONE" || activePhase === "FAILED") && (
+        {campaign && (activePhase === "BATCH" || activePhase === "FAILED") && (
           <BatchStage
             campaign={campaign}
             loading={stageLoading === "batch"}
             onSend={runBatch}
             onProviderChange={(provider) => patchState({ provider })}
+            onAdvance={() => goToPhase("DONE")}
+            onClipUpdated={() => fetchCampaign(campaign.id)}
           />
+        )}
+        {campaign && activePhase === "DONE" && (
+          <DeliverStage campaign={campaign} onClipUpdated={() => fetchCampaign(campaign.id)} />
         )}
       </main>
     </div>
@@ -1991,11 +2004,15 @@ function BatchStage({
   loading,
   onSend,
   onProviderChange,
+  onClipUpdated,
+  onAdvance,
 }: {
   campaign: CampaignRow;
   loading: boolean;
   onSend: () => void;
   onProviderChange: (provider: Provider) => void;
+  onClipUpdated: () => void;
+  onAdvance?: () => void;
 }) {
   const { state } = campaign;
   const readyCount = state.clips.filter((c) => c.status === "READY").length;
@@ -2042,8 +2059,8 @@ function BatchStage({
                 subtitle={`${readyCount}/${state.clips.length} ready`}
               />
             ) : (
-              <Button onClick={onSend} disabled={loading || !state.clips.length} size="lg" className="h-full">
-                {loading ? <AISpinner size={16} /> : <Zap className="h-4 w-4" />}
+              <Button onClick={onSend} disabled={loading || !state.clips.length}>
+                {loading ? <AISpinner size={14} /> : <Zap className="h-4 w-4" />}
                 Send {state.clips.filter((c) => c.status !== "READY").length} clip(s) to {state.provider === "veo3" ? "Veo 3" : "xAI"}
               </Button>
             )}
@@ -2058,9 +2075,54 @@ function BatchStage({
       <SectionCard title="Clips">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {state.clips.map((clip) => (
-            <ClipRenderCard key={clip.id} clip={clip} state={state} />
+            <ClipRenderCard
+              key={clip.id}
+              clip={clip}
+              state={state}
+              campaignId={campaign.id}
+              onUpdated={onClipUpdated}
+            />
           ))}
         </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+function DeliverStage({
+  campaign,
+  onClipUpdated,
+}: {
+  campaign: CampaignRow;
+  onClipUpdated: () => void;
+}) {
+  const [showClips, setShowClips] = useState(false);
+  const failedCount = campaign.state.clips.filter((c) => c.status === "FAILED").length;
+  return (
+    <div className="space-y-4">
+      <DeliverSection campaignId={campaign.id} state={campaign.state} />
+      <SectionCard
+        title="Clips"
+        description={`${campaign.state.clips.length} rendered${failedCount ? ` · ${failedCount} failed` : ""}`}
+        action={
+          <Button size="sm" variant="ghost" onClick={() => setShowClips((v) => !v)}>
+            {showClips ? "Hide" : "Show"}
+          </Button>
+        }
+      >
+        {showClips && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {campaign.state.clips.map((clip) => (
+              <ClipRenderCard
+                key={clip.id}
+                clip={clip}
+                state={campaign.state}
+                campaignId={campaign.id}
+                onUpdated={onClipUpdated}
+              />
+            ))}
+          </div>
+        )}
       </SectionCard>
     </div>
   );
@@ -2243,9 +2305,54 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
   );
 }
 
-function ClipRenderCard({ clip, state }: { clip: ClipSlot; state: CampaignState }) {
+function ClipRenderCard({
+  clip,
+  state,
+  campaignId,
+  onUpdated,
+}: {
+  clip: ClipSlot;
+  state: CampaignState;
+  campaignId: string;
+  onUpdated: () => void;
+}) {
   const status = statusToBadge(clip.status);
   const Icon = status.icon;
+  const { toast } = useToast();
+  const [retrying, setRetrying] = useState(false);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/clips/${clip.id}/retry`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "clip retry")) return;
+        throw new Error(data.error?.message || "Retry failed");
+      }
+      onUpdated();
+      const result = data.data?.result;
+      if (result?.status === "READY") {
+        toast({ title: `Clip ${clip.index} re-rendered.` });
+      } else {
+        toast({
+          title: `Clip ${clip.index} still failing`,
+          description: result?.error || "Try again or switch provider.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Retry failed",
+        variant: "destructive",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border bg-background p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -2272,14 +2379,18 @@ function ClipRenderCard({ clip, state }: { clip: ClipSlot; state: CampaignState 
       >
         {clip.videoUrl ? (
           <video src={clip.videoUrl} controls className="h-full w-full object-cover" />
-        ) : clip.status === "RENDERING" ? (
+        ) : clip.status === "RENDERING" || retrying ? (
           <div className="flex h-full w-full items-center justify-center p-2">
             <AIGenerationLoader compact currentStep="Rendering clip" subtitle="Provider working" />
           </div>
         ) : clip.status === "FAILED" ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center text-xs text-destructive">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-destructive">
             <TriangleAlert className="h-5 w-5" />
-            <span>{clip.error?.slice(0, 80) || "Failed"}</span>
+            <span className="line-clamp-3">{clip.error?.slice(0, 120) || "Failed"}</span>
+            <Button size="sm" variant="outline" onClick={retry} disabled={retrying} className="mt-1">
+              {retrying ? <AISpinner size={12} /> : <RefreshCw className="h-3 w-3" />}
+              Retry
+            </Button>
           </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">

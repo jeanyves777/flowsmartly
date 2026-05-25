@@ -927,6 +927,51 @@ async function renderClipViaXai(
   return url;
 }
 
+/**
+ * Re-render a single clip in place. Used for the "Retry" button on failed clip cards.
+ * Skips the final concat/logo/caption steps — those re-run from the next full batch send.
+ */
+export async function retrySingleClip(input: {
+  campaignId: string;
+  userId: string;
+  clipId: string;
+}): Promise<{ status: "READY" | "FAILED"; videoUrl?: string; error?: string }> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const { row, state } = current;
+
+  const idx = state.clips.findIndex((c) => c.id === input.clipId);
+  if (idx === -1) throw new Error("Clip not found");
+
+  if (state.provider === "veo3" && !veoClient.isAvailable()) {
+    throw new Error("Veo 3 is not configured. Switch provider.");
+  }
+  if (state.provider === "xai" && !grokVideoClient.isAvailable()) {
+    throw new Error("xAI video is not configured. Switch provider.");
+  }
+
+  const clips = [...state.clips];
+  clips[idx] = { ...clips[idx], status: "RENDERING", error: null };
+  await updateCampaignState(input.campaignId, input.userId, { clips });
+
+  const renderOne = state.provider === "veo3" ? renderClipViaVeo : renderClipViaXai;
+
+  try {
+    const url = await renderOne(clips[idx], state);
+    clips[idx] = { ...clips[idx], status: "READY", videoUrl: url, error: null };
+    await updateCampaignState(input.campaignId, input.userId, { clips });
+    return { status: "READY", videoUrl: url };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Render failed";
+    clips[idx] = { ...clips[idx], status: "FAILED", error: message };
+    await updateCampaignState(input.campaignId, input.userId, { clips });
+    return { status: "FAILED", error: message };
+  } finally {
+    // Don't change overall campaign status — that's owned by batch render
+    void row;
+  }
+}
+
 export async function batchRenderCampaign(input: { campaignId: string; userId: string }): Promise<void> {
   const current = await getCampaign(input.campaignId, input.userId);
   if (!current) throw new Error("Campaign not found");
@@ -999,6 +1044,11 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
     while (cursor < clips.length) {
       const myIndex = cursor++;
       const clip = clips[myIndex];
+      // SKIP already-rendered clips so resending after a partial failure doesn't wipe their videos.
+      if (clip.status === "READY" && clip.videoUrl) {
+        completed++;
+        continue;
+      }
       clips[myIndex] = { ...clip, status: "RENDERING", error: null };
       await persistClipsProgress(row.id, clips, completed, total);
       try {
