@@ -823,7 +823,11 @@ function StyleStage({
 
       <SectionCard
         title="Format"
-        description={`${clipCount} clips of ${draft.clipLength}s each via ${draft.provider === "veo3" ? "Veo 3 (max 8s/call)" : "xAI (max 15s/call)"}.`}
+        description={
+          draft.provider === "xai"
+            ? `${clipCount} beats · first 15s, each next ~10s, chained as ONE seamless reel via xAI extension (no hard cuts).`
+            : `${clipCount} clips of ${draft.clipLength}s each on Veo 3, then stitched into one reel.`
+        }
       >
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <FieldGroup label="Total duration">
@@ -2033,7 +2037,11 @@ function BatchStage({
     <div className="space-y-4">
       <SectionCard
         title="Render"
-        description={`${state.clips.length} clips of ${state.clipLength}s each on ${state.provider === "veo3" ? "Veo 3 (8s cap)" : "xAI (15s cap)"} — rendered in parallel, then stitched into one reel.`}
+        description={
+          state.provider === "xai"
+            ? `Seamless reel mode: clip 1 renders fresh, each next extends from the previous frame — one continuous video, zero hard cuts.`
+            : `${state.clips.length} clips on Veo 3 (8s cap) rendered in parallel, then stitched into one reel.`
+        }
       >
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
           <div className="flex items-center gap-4 text-sm">

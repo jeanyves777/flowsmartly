@@ -12,6 +12,7 @@
  */
 
 const XAI_VIDEO_URL = "https://api.x.ai/v1/videos/generations";
+const XAI_VIDEO_EDITS_URL = "https://api.x.ai/v1/videos/edits";
 const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
 const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
@@ -186,6 +187,64 @@ class GrokVideoClient {
     }
 
     throw new Error(`xAI video generation timed out for job ${requestId} after ${timeoutMs / 1000}s`);
+  }
+
+  /**
+   * Extend an existing video by appending generated content from the last frame.
+   * Returns the COMBINED video (original + extension), not just the new segment.
+   *
+   * Per xAI docs:
+   * - Input video: .mp4, 2–15s
+   * - Extension duration: 2–10s (default 6) — controls length of appended portion
+   * - aspect_ratio and resolution not configurable; matches input, capped at 720p
+   */
+  async extendVideo(
+    sourceVideoUrl: string,
+    prompt: string,
+    options: {
+      duration?: number;
+      timeoutMs?: number;
+      onStatus?: (message: string) => void;
+    } = {},
+  ): Promise<GrokVideoResult> {
+    if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+
+    const { duration = 6, onStatus, timeoutMs } = options;
+    const extDur = Math.min(10, Math.max(2, Math.round(duration)));
+    const safePrompt = clampVideoPrompt(prompt);
+
+    console.log(`[GrokVideo] Extending video by ${extDur}s from: ${sourceVideoUrl.substring(0, 80)}...`);
+
+    const response = await fetch(XAI_VIDEO_EDITS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-imagine-video",
+        mode: "extend-video",
+        video_url: sourceVideoUrl,
+        prompt: safePrompt,
+        duration: extDur,
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`xAI video edit API error (${response.status}): ${errBody}`);
+    }
+
+    const data = await response.json();
+    const requestId = data.request_id;
+    if (!requestId) throw new Error("xAI video edit API did not return a request_id");
+
+    console.log(`[GrokVideo] Extension job created: ${requestId}`);
+    onStatus?.("Extension started — generating seamless continuation...");
+
+    const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
+    const videoBuffer = await this.downloadVideo(result.url);
+    return { requestId, videoBuffer, duration: result.duration };
   }
 
   /**

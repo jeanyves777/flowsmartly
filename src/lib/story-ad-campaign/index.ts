@@ -1020,6 +1020,143 @@ async function renderClipViaXai(
 }
 
 /**
+ * Seamless xAI render: render clip 1 fresh, then chain extend() calls so every
+ * subsequent clip continues directly from the last frame. The output is ONE
+ * continuous video with zero hard cuts — no ffmpeg concat needed.
+ *
+ * Each clip's status updates incrementally so the UI shows progress per clip.
+ * Each clip's videoUrl is set to the CUMULATIVE reel up to that point — so the
+ * UI player on the most-recent READY clip is always the latest preview of the reel.
+ */
+async function renderXaiSeamless(input: {
+  campaignId: string;
+  userId: string;
+  state: CampaignState;
+}): Promise<void> {
+  const { campaignId, userId, state } = input;
+  const clips = [...state.clips];
+  const total = clips.length;
+
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: {
+      status: "COMPOSITING",
+      progress: 5,
+      currentStep: "Starting seamless reel (xAI extension mode)...",
+    },
+  });
+
+  // Find the first non-READY clip so a re-send picks up where it left off.
+  let startIndex = clips.findIndex((c) => c.status !== "READY" || !c.videoUrl);
+  if (startIndex === -1) startIndex = clips.length; // nothing to do
+
+  // The seed URL is the most recent READY clip's reel URL (or null if none).
+  let reelUrl: string | null = startIndex > 0 ? clips[startIndex - 1].videoUrl || null : null;
+
+  for (let i = startIndex; i < clips.length; i++) {
+    const clip = clips[i];
+    clips[i] = { ...clip, status: "RENDERING", error: null };
+    await persistClipsProgress(campaignId, clips, i, total);
+
+    try {
+      if (i === 0 || !reelUrl) {
+        // First clip: fresh generation at clipLength seconds (capped at 15s).
+        const fresh = await renderClipViaXai(clip, state);
+        reelUrl = fresh;
+      } else {
+        // Subsequent clips: extend the cumulative reel.
+        // xAI extension max is 10s, so cap accordingly.
+        const extDuration = Math.min(10, state.clipLength);
+        const result = await grokVideoClient.extendVideo(reelUrl, clip.prompt, {
+          duration: extDuration,
+          timeoutMs: 900000,
+        });
+        // The COMBINED reel — upload and keep as new reelUrl
+        reelUrl = await uploadToS3(
+          `story-ad-campaigns/reel/${campaignId}/seg-${String(i + 1).padStart(2, "0")}-${nanoid(6)}.mp4`,
+          result.videoBuffer,
+          "video/mp4",
+        );
+      }
+      clips[i] = { ...clips[i], status: "READY", videoUrl: reelUrl, error: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Render failed";
+      clips[i] = { ...clips[i], status: "FAILED", error: message };
+      // Stop on first failure — the chain is broken without a base reel
+      await persistClipsProgress(campaignId, clips, i + 1, total);
+      break;
+    }
+    await persistClipsProgress(campaignId, clips, i + 1, total);
+  }
+
+  const allOk = clips.every((c) => c.status === "READY");
+
+  let finalVideoUrl: string | null = reelUrl;
+  let publishCaption: string | undefined;
+  let publishHashtags: string[] | undefined;
+
+  if (allOk && reelUrl) {
+    try {
+      await prisma.cartoonVideo.update({
+        where: { id: campaignId },
+        data: { progress: 92, currentStep: "Adding brand logo..." },
+      });
+      const brand = await getBrandSnapshot(userId);
+      if (brand.logo) {
+        try {
+          finalVideoUrl = await overlayBrandLogo({
+            campaignId,
+            videoUrl: reelUrl,
+            logoUrl: brand.logo,
+          });
+        } catch (e) {
+          console.warn("[StoryAdCampaign] seamless logo overlay failed:", e);
+        }
+      }
+      try {
+        await prisma.cartoonVideo.update({
+          where: { id: campaignId },
+          data: { progress: 97, currentStep: "Writing social caption..." },
+        });
+        const caption = await generateCampaignCaption(state, brand);
+        publishCaption = caption.caption;
+        publishHashtags = caption.hashtags;
+      } catch (e) {
+        console.warn("[StoryAdCampaign] seamless caption failed:", e);
+      }
+    } catch (error) {
+      console.error("[StoryAdCampaign] seamless post-assembly failed:", error);
+    }
+  }
+
+  const finalState: CampaignState = {
+    ...state,
+    clips,
+    phase: allOk ? "DONE" : "FAILED",
+    finalVideoUrl,
+    finalVideoThumbnailUrl: clips.find((c) => c.videoUrl)?.videoUrl || null,
+    ...(publishCaption ? { campaignCaption: publishCaption } : {}),
+    ...(publishHashtags ? { hashtags: publishHashtags } : {}),
+  };
+
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: {
+      status: allOk ? "COMPLETED" : "FAILED",
+      progress: 100,
+      currentStep: allOk ? "Seamless reel ready" : "Chain broken — review and re-run from failed clip",
+      metadata: writeCampaign(finalState),
+      videoUrl: finalVideoUrl,
+      completedAt: allOk ? new Date() : null,
+    },
+  });
+
+  if (!allOk) {
+    await refundFailedClips(campaignId, userId, clips, creditsPerClip(state.clipLength));
+  }
+}
+
+/**
  * Re-render a single clip in place. Used for the "Retry" button on failed clip cards.
  * Skips the final concat/logo/caption steps — those re-run from the next full batch send.
  */
@@ -1078,13 +1215,20 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
     throw new Error("xAI video is not configured. Switch to Veo 3.");
   }
 
+  // xAI supports video extension → chain extensions for one seamless reel with no cuts.
+  // Veo's extension is only ~7s per call which would need too many calls, so it stays parallel.
+  if (state.provider === "xai") {
+    await renderXaiSeamless({ campaignId: row.id, userId: row.userId, state });
+    return;
+  }
+
   await prisma.cartoonVideo.update({
     where: { id: row.id },
     data: { status: "COMPOSITING", progress: 5, currentStep: "Sending clips to provider..." },
   });
 
   const clips = [...state.clips];
-  const renderOne = state.provider === "veo3" ? renderClipViaVeo : renderClipViaXai;
+  const renderOne = renderClipViaVeo;
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
