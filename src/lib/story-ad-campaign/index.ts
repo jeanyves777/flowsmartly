@@ -210,6 +210,44 @@ interface PlannedCharacter {
   voiceCriteria: CampaignCharacter["voiceCriteria"];
 }
 
+const FORBIDDEN_NAME_PATTERNS: RegExp[] = [
+  /^the\s+\w+/i, // "The System", "The Algorithm", "The Voice"
+  /^\w+\s+ai$/i, // "Acme AI"
+  /\bbot\b|\bagent\b|\bplatform\b|\bapp\b|\bsystem\b|\balgorithm\b|\binterface\b/i,
+  /\bhologram\b|\borb\b|\bmascot\b|\bavatar\b/i,
+];
+
+const FORBIDDEN_DESCRIPTION_PATTERNS: RegExp[] = [
+  /\bglowing\b|\bgeometric\b|\babstract\b|\bnon-?humanoid\b/i,
+  /\bembodiment\b|\bpersonification\b|\binterface\b/i,
+  /\bsoftware\s+(character|figure|entity)\b/i,
+];
+
+function isRealHumanCharacter(c: PlannedCharacter, brand: BrandSnapshot): boolean {
+  const name = String(c?.name || "").trim();
+  if (!name) return false;
+
+  const brandWords = brand.name
+    .split(/\s+/)
+    .filter((w) => w.length >= 3)
+    .map((w) => w.toLowerCase());
+  const lowerName = name.toLowerCase();
+  if (brandWords.some((w) => lowerName === w || lowerName.includes(w))) {
+    return false; // character named after the brand
+  }
+
+  for (const pattern of FORBIDDEN_NAME_PATTERNS) {
+    if (pattern.test(name)) return false;
+  }
+
+  const description = String(c?.visualDescription || "");
+  for (const pattern of FORBIDDEN_DESCRIPTION_PATTERNS) {
+    if (pattern.test(description)) return false;
+  }
+
+  return true;
+}
+
 export interface CharacterCatalogPlan {
   storyOutline: string;
   characters: CampaignCharacter[];
@@ -225,9 +263,9 @@ export async function planCharacterCatalog(
   const styleLabel = STYLE_LABELS[state.style];
   const visualLanguage = STYLE_VISUAL_LANGUAGE[state.style];
 
-  const prompt = `You are a senior creative director for a ${styleLabel} ad campaign.
+  const prompt = `You are a screenwriter casting a ${styleLabel} short film. You design REAL HUMAN CHARACTERS — the people whose lives are dramatized in the story.
 
-BRAND
+BRAND CONTEXT (for the story they're in — NOT a character)
 - Name: ${brand.name}
 ${brand.tagline ? `- Tagline: ${brand.tagline}` : ""}
 ${brand.industry ? `- Industry: ${brand.industry}` : ""}
@@ -244,29 +282,33 @@ ${state.goal}
 CAMPAIGN STYLE (locked for whole campaign)
 ${styleLabel} — ${visualLanguage}
 
-First, write a 3–5 sentence STORY OUTLINE summarizing what the campaign will dramatize from hook to call-to-action. Then design ${count} core characters that fit that story. Each character must be visually consistent across all clips and have explicit voice criteria so we can prompt TTS.
+ABSOLUTE RULE — WHAT A CHARACTER IS:
+- A character is a REAL HUMAN BEING (or, for the "${styleLabel === "3D Animation" ? "3D Animation" : "live-action"}" style, a human portrayed accordingly).
+- Every character has a first name (and optionally a last name), a real age, a profession, and a real human appearance.
+- NEVER create:
+  · personifications of the product (no "The System", "The Algorithm", "The App", "The Platform", "The AI", "The Brand").
+  · brand mascots, holograms, glowing orbs, voices-of-god, narrators, robots-that-represent-the-software, abstract embodiments, or interfaces with personalities.
+  · any character whose name starts with "The " followed by a noun.
+- The brand is a TOOL that human characters use inside the story. It is NEVER a character. If the brand is software, the characters are the humans WHO USE the software, never the software itself.
+
+First, write a 3–5 sentence STORY OUTLINE about HUMAN people dealing with a real-life situation that the brand happens to solve.
+Then design exactly ${count} HUMAN characters who appear in that story.
 
 For each character output:
-- name: short, memorable
-- role: their function in the story (e.g. "Hero buyer", "Trusted advisor", "Skeptical friend")
-- visualDescription: 2–3 sentences describing exact appearance — age, build, hair, clothing, palette, identifying features. Tuned for ${styleLabel}.
-- voiceCriteria: age (e.g. "early 30s"), tone (warm/authoritative/playful), pace (slow/medium/fast), texture (smooth/raspy/clear), delivery (conversational/dramatic/intimate)
+- name: a real human first (or first + last) name. Examples: "Mara Chen", "Daniel", "Aisha Patel". Never "The X", never a product name.
+- role: their function in the story (e.g. "Veteran hire trying to keep up", "Trusted coworker who helps", "Skeptical client").
+- visualDescription: 2–3 sentences describing the HUMAN's appearance — age, build, hair, clothing, palette, identifying features. Real human anatomy. Tuned for ${styleLabel}.
+- voiceCriteria: age (e.g. "early 30s"), tone (warm/authoritative/playful), pace, texture, delivery — a real human's speaking voice.
 
 Return strict JSON only:
 {
-  "storyOutline": "3-5 sentence synopsis",
+  "storyOutline": "3-5 sentence synopsis of the HUMAN characters and their situation",
   "characters": [
     {
-      "name": "...",
+      "name": "Real Human Name",
       "role": "...",
       "visualDescription": "...",
-      "voiceCriteria": {
-        "age": "...",
-        "tone": "...",
-        "pace": "...",
-        "texture": "...",
-        "delivery": "..."
-      }
+      "voiceCriteria": { "age": "...", "tone": "...", "pace": "...", "texture": "...", "delivery": "..." }
     }
   ]
 }`;
@@ -275,11 +317,17 @@ Return strict JSON only:
     maxTokens: 2000,
     temperature: 0.7,
     systemPrompt:
-      "You design ad campaign characters with a locked visual style. Return valid JSON only.",
+      "You are a screenwriter who casts REAL HUMAN characters for short films. Brands are never characters — only the humans who use them are. Return valid JSON only.",
   });
 
   const raw = Array.isArray(result?.characters) ? result.characters : [];
-  const characters: CampaignCharacter[] = raw.slice(0, count).map((c) => ({
+  const filtered = raw.filter((c) => isRealHumanCharacter(c, brand));
+  if (!filtered.length && raw.length) {
+    throw new Error(
+      "AI returned only non-human personifications (e.g. 'The System'). Regenerate the catalog — characters must be real humans.",
+    );
+  }
+  const characters: CampaignCharacter[] = filtered.slice(0, count).map((c) => ({
     id: nanoid(8),
     name: String(c.name || "").trim().slice(0, 60) || "Character",
     role: String(c.role || "").trim().slice(0, 120) || "Story character",
