@@ -2030,7 +2030,7 @@ function BatchStage({
     <div className="space-y-6">
       <SectionCard
         title="Render"
-        description="All clips sent in parallel. No-text negative prompt baked in."
+        description={`Each clip is generated separately because providers cap at ${state.clipLength === 8 ? "8s" : "10s"} per call. We render in parallel, retry transient failures, then stitch them into one continuous reel automatically.`}
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
@@ -2050,25 +2050,22 @@ function BatchStage({
               />
             </FieldGroup>
           </div>
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed bg-background p-4">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Render</p>
+          <div className="flex flex-col gap-2">
             {done ? (
-              <Badge className="w-fit bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
-              </Badge>
-            ) : isRendering ? (
-              <div className="space-y-2">
-                <AISpinner size={20} />
-                <p className="text-sm">{campaign.currentStep || "Rendering clips..."}</p>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full bg-brand-500 transition-all"
-                    style={{ width: `${campaign.progress}%` }}
-                  />
-                </div>
+              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background p-4">
+                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                  <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
+                </Badge>
               </div>
+            ) : isRendering ? (
+              <AIGenerationLoader
+                compact
+                progress={campaign.progress}
+                currentStep={campaign.currentStep || "Rendering clips..."}
+                subtitle={`${readyCount}/${state.clips.length} ready`}
+              />
             ) : (
-              <Button onClick={onSend} disabled={loading || !state.clips.length} size="lg">
+              <Button onClick={onSend} disabled={loading || !state.clips.length} size="lg" className="h-full">
                 {loading ? <AISpinner size={16} /> : <Zap className="h-4 w-4" />}
                 Send {state.clips.filter((c) => c.status !== "READY").length} clip(s) to {state.provider === "veo3" ? "Veo 3" : "xAI"}
               </Button>
@@ -2149,8 +2146,8 @@ function ClipRenderCard({ clip, state }: { clip: ClipSlot; state: CampaignState 
         {clip.videoUrl ? (
           <video src={clip.videoUrl} controls className="h-full w-full object-cover" />
         ) : clip.status === "RENDERING" ? (
-          <div className="flex h-full w-full items-center justify-center">
-            <AISpinner size={24} />
+          <div className="flex h-full w-full items-center justify-center p-2">
+            <AIGenerationLoader compact currentStep="Rendering clip" subtitle="Provider working" />
           </div>
         ) : clip.status === "FAILED" ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center text-xs text-destructive">

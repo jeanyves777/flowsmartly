@@ -951,9 +951,49 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
+  const MAX_ATTEMPTS = 3; // initial + 2 retries on transient failures
   let cursor = 0;
   let completed = 0;
   const total = clips.length;
+
+  // Some provider errors are worth retrying — empty response (safety filter blip),
+  // quota throttles, timeouts, transient network issues.
+  function isRetryable(message: string): boolean {
+    const m = message.toLowerCase();
+    return (
+      m.includes("no videos returned") ||
+      m.includes("no video") ||
+      m.includes("timed out") ||
+      m.includes("timeout") ||
+      m.includes("rate limit") ||
+      m.includes("429") ||
+      m.includes("503") ||
+      m.includes("502") ||
+      m.includes("network") ||
+      m.includes("etimedout") ||
+      m.includes("econnreset")
+    );
+  }
+
+  async function renderWithRetry(clip: CampaignClipSlot): Promise<string> {
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await renderOne(clip, state);
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        const canRetry = attempt < MAX_ATTEMPTS && isRetryable(message);
+        console.warn(
+          `[StoryAdCampaign] clip ${clip.index} attempt ${attempt}/${MAX_ATTEMPTS} failed${canRetry ? " — retrying" : ""}:`,
+          message,
+        );
+        if (!canRetry) break;
+        await new Promise((r) => setTimeout(r, attempt * 4000)); // 4s, 8s backoff
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Render failed");
+  }
 
   async function worker() {
     while (cursor < clips.length) {
@@ -962,7 +1002,7 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
       clips[myIndex] = { ...clip, status: "RENDERING", error: null };
       await persistClipsProgress(row.id, clips, completed, total);
       try {
-        const url = await renderOne(clip, state);
+        const url = await renderWithRetry(clip);
         clips[myIndex] = { ...clips[myIndex], status: "READY", videoUrl: url, error: null };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Render failed";
