@@ -1393,26 +1393,107 @@ function PromptsStage({
   onClipChange: (clip: ClipSlot) => void;
   onAdvance: () => void;
 }) {
+  const [view, setView] = useState<"clips" | "screenplay">("clips");
   return (
     <div className="space-y-6">
       <SectionCard
         title="Prompts"
-        description="Edit any field — prompt rebuilds automatically. Click the sparkles icon for AI fill."
+        description={
+          view === "clips"
+            ? "Per-clip editor — edit any field, prompt rebuilds automatically."
+            : "Screenplay view — read every clip's dialogue back-to-back as one continuous script."
+        }
+        action={
+          <SegmentedControl
+            value={view}
+            options={[
+              { value: "clips", label: "Clip editor" },
+              { value: "screenplay", label: "Screenplay" },
+            ]}
+            onChange={(v) => setView(v as "clips" | "screenplay")}
+          />
+        }
       >
-        <div className="space-y-4">
-          {state.clips.map((clip) => (
-            <ClipPromptCard
-              key={clip.id}
-              clip={clip}
-              state={state}
-              campaignId={campaignId}
-              onChange={onClipChange}
-            />
-          ))}
-        </div>
+        {view === "clips" ? (
+          <div className="space-y-4">
+            {state.clips.map((clip) => (
+              <ClipPromptCard
+                key={clip.id}
+                clip={clip}
+                state={state}
+                campaignId={campaignId}
+                onChange={onClipChange}
+              />
+            ))}
+          </div>
+        ) : (
+          <ScreenplayView state={state} />
+        )}
       </SectionCard>
 
       <ContinueBar label="Continue to voice preview" hint="Validate timing before render" onContinue={onAdvance} />
+    </div>
+  );
+}
+
+function ScreenplayView({ state }: { state: CampaignState }) {
+  const totalLines = state.clips.reduce((s, c) => s + c.dialogue.length, 0);
+  const totalSeconds = state.clips.reduce(
+    (s, c) => s + estimateVoiceSeconds(c.dialogue.map((d) => d.line).join(" ")),
+    0,
+  );
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+        <span>{totalLines} lines · ~{totalSeconds.toFixed(1)}s of speech</span>
+        <span>Read top-to-bottom as one continuous scene</span>
+      </div>
+      <div className="space-y-4 font-mono">
+        {state.clips.map((clip) => {
+          const onCamera = clip.characterIds
+            .map((id) => state.characters.find((c) => c.id === id))
+            .filter((c): c is NonNullable<typeof c> => !!c);
+          return (
+            <div key={clip.id} className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+                <span className="font-bold">Clip {String(clip.index).padStart(2, "0")}</span>
+                <Badge variant="outline" className={cn("h-5 px-2 text-[10px]", ACT_BADGE[clip.act])}>
+                  {ACT_LABEL[clip.act]}
+                </Badge>
+                <span>·</span>
+                <span>{clip.shotType.replace(/_/g, " ").toLowerCase()}, {clip.cameraMovement.replace(/_/g, " ").toLowerCase()}</span>
+                {onCamera.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{onCamera.map((c) => c.name).join(", ")}</span>
+                  </>
+                )}
+              </div>
+              {clip.sceneAction && (
+                <p className="pl-4 text-xs italic text-muted-foreground">[{clip.sceneAction}]</p>
+              )}
+              {clip.dialogue.length === 0 ? (
+                <p className="pl-4 text-xs italic text-muted-foreground">— silent —</p>
+              ) : (
+                clip.dialogue.map((d) => {
+                  const speaker = state.characters.find((c) => c.id === d.characterId);
+                  return (
+                    <div key={d.id} className="pl-4">
+                      <p className="text-xs font-bold uppercase tracking-wider">
+                        {speaker?.name || "?"}
+                        {d.emotion && (
+                          <span className="ml-2 font-normal italic normal-case text-muted-foreground">({d.emotion})</span>
+                        )}
+                      </p>
+                      <p className="pl-2 text-sm leading-relaxed">{d.line}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1701,6 +1782,17 @@ function nanoLocalId(): string {
 // STAGE 4 — VOICE PREVIEW
 // ============================================================================
 
+interface ScreenplayLine {
+  clipIndex?: number;
+  clipAct?: Act;
+  characterId: string | null;
+  characterName: string | null;
+  line: string;
+  emotion?: string;
+  audioSrc: string;
+  estimatedDurationMs: number;
+}
+
 function VoiceStage({
   campaignId,
   state,
@@ -1710,318 +1802,205 @@ function VoiceStage({
   state: CampaignState;
   onAdvance: () => void;
 }) {
-  const [reelLoading, setReelLoading] = useState(false);
-  const [reelStatus, setReelStatus] = useState<string | null>(null);
-  const [reelPlaying, setReelPlaying] = useState(false);
-  const [reelCurrentClip, setReelCurrentClip] = useState<number | null>(null);
-  const reelAudioRef = useRef<HTMLAudioElement | null>(null);
-  const reelQueueRef = useRef<{ clipIndex: number; lines: PreviewLine[] }[] | null>(null);
-  const reelStopRef = useRef(false);
+  const [loading, setLoading] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [currentLineIdx, setCurrentLineIdx] = useState<number | null>(null);
+  const linesRef = useRef<ScreenplayLine[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopRef = useRef(false);
 
-  const dialogueClipCount = state.clips.filter((c) => c.dialogue.length).length;
+  const totalDialogueLines = state.clips.reduce((sum, c) => sum + c.dialogue.length, 0);
+  const expectedSeconds = state.clips.reduce(
+    (sum, c) => sum + estimateVoiceSeconds(c.dialogue.map((d) => d.line).join(" ")),
+    0,
+  );
 
-  async function fetchAllPreviews() {
-    setReelLoading(true);
-    setReelStatus("Voicing every line...");
+  async function fetchScreenplay(): Promise<ScreenplayLine[]> {
+    setLoading(true);
     try {
-      const dialogueClips = state.clips.filter((c) => c.dialogue.length);
-      const results: { clipIndex: number; lines: PreviewLine[] }[] = [];
-      for (const clip of dialogueClips) {
-        setReelStatus(`Voicing clip ${clip.index} of ${state.clips.length}...`);
-        const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clipId: clip.id }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          const lines: PreviewLine[] = (data.data.lines || []).map(
-            (l: {
-              characterId: string | null;
-              characterName: string | null;
-              line: string;
-              mimeType: string;
-              audioBase64: string;
-              estimatedDurationMs: number;
-            }) => ({
-              characterId: l.characterId,
-              characterName: l.characterName,
-              line: l.line,
-              audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
-              estimatedDurationMs: l.estimatedDurationMs,
-            }),
-          );
-          results.push({ clipIndex: clip.index, lines });
-        }
-      }
-      reelQueueRef.current = results;
-      setReelStatus(null);
-      playReel(0, 0);
-    } catch {
-      setReelStatus("Voice preview failed.");
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "screenplay" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Voicing failed");
+      const out: ScreenplayLine[] = (data.data.lines || []).map(
+        (l: {
+          clipIndex?: number;
+          clipAct?: Act;
+          characterId: string | null;
+          characterName: string | null;
+          line: string;
+          emotion?: string;
+          mimeType: string;
+          audioBase64: string;
+          estimatedDurationMs: number;
+        }) => ({
+          clipIndex: l.clipIndex,
+          clipAct: l.clipAct,
+          characterId: l.characterId,
+          characterName: l.characterName,
+          line: l.line,
+          emotion: l.emotion,
+          audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
+          estimatedDurationMs: l.estimatedDurationMs,
+        }),
+      );
+      linesRef.current = out;
+      return out;
     } finally {
-      setReelLoading(false);
+      setLoading(false);
     }
   }
 
-  function playReel(clipIdx: number, lineIdx: number) {
-    if (reelStopRef.current) return;
-    const queue = reelQueueRef.current;
-    if (!queue) return;
-    if (clipIdx >= queue.length) {
-      setReelPlaying(false);
-      setReelCurrentClip(null);
+  function playFrom(idx: number, list: ScreenplayLine[]) {
+    if (stopRef.current) return;
+    if (idx >= list.length) {
+      setPlaying(false);
+      setCurrentLineIdx(null);
       return;
     }
-    const entry = queue[clipIdx];
-    if (lineIdx >= entry.lines.length) {
-      playReel(clipIdx + 1, 0);
-      return;
-    }
-    setReelPlaying(true);
-    setReelCurrentClip(entry.clipIndex);
-    const audio = reelAudioRef.current;
+    setPlaying(true);
+    setCurrentLineIdx(idx);
+    const audio = audioRef.current;
     if (!audio) return;
-    audio.src = entry.lines[lineIdx].audioSrc;
-    audio.onended = () => playReel(clipIdx, lineIdx + 1);
+    audio.src = list[idx].audioSrc;
+    audio.onended = () => playFrom(idx + 1, list);
     audio.play().catch(() => {
-      setReelPlaying(false);
-      setReelCurrentClip(null);
+      setPlaying(false);
+      setCurrentLineIdx(null);
     });
   }
 
-  function startReel() {
-    reelStopRef.current = false;
-    if (reelQueueRef.current && reelQueueRef.current.length) {
-      playReel(0, 0);
+  async function startPlay() {
+    stopRef.current = false;
+    if (linesRef.current.length) {
+      playFrom(0, linesRef.current);
     } else {
-      fetchAllPreviews();
+      const out = await fetchScreenplay();
+      if (out.length) playFrom(0, out);
     }
   }
 
-  function stopReel() {
-    reelStopRef.current = true;
-    reelAudioRef.current?.pause();
-    setReelPlaying(false);
-    setReelCurrentClip(null);
+  function stopPlay() {
+    stopRef.current = true;
+    audioRef.current?.pause();
+    setPlaying(false);
+    setCurrentLineIdx(null);
+  }
+
+  function findLineGlobalIndex(clipIdx: number, lineIdxInClip: number): number {
+    let pos = 0;
+    for (let i = 0; i < state.clips.length; i++) {
+      const c = state.clips[i];
+      if (c.index === clipIdx) return pos + lineIdxInClip;
+      pos += c.dialogue.length;
+    }
+    return -1;
   }
 
   return (
     <div className="space-y-4">
       <SectionCard
         title="Voice"
-        description="Catch timing before render. Play the full reel to hear the movie end-to-end."
+        description={
+          totalDialogueLines
+            ? `${totalDialogueLines} dialogue lines · ~${expectedSeconds.toFixed(1)}s of speech · plays as one continuous screenplay.`
+            : "Plan scenes with dialogue first."
+        }
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            {reelStatus && <span className="text-xs text-muted-foreground">{reelStatus}</span>}
-            <Button
-              size="sm"
-              onClick={() => (reelPlaying ? stopReel() : startReel())}
-              disabled={reelLoading || dialogueClipCount === 0}
-            >
-              {reelLoading ? (
-                <AISpinner size={14} />
-              ) : reelPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {reelPlaying ? "Stop reel" : "Play full reel"}
-            </Button>
-          </div>
+          <Button
+            size="lg"
+            onClick={() => (playing ? stopPlay() : startPlay())}
+            disabled={loading || !totalDialogueLines}
+            className="h-10"
+          >
+            {loading ? (
+              <AISpinner size={16} />
+            ) : playing ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {playing ? "Stop" : linesRef.current.length ? "Replay screenplay" : "Play full screenplay"}
+          </Button>
         }
       >
-        <audio ref={reelAudioRef} className="hidden" />
-        {reelLoading && (
+        <audio ref={audioRef} className="hidden" />
+        {loading && (
           <AIGenerationLoader
             compact
-            currentStep={reelStatus || "Voicing the full reel..."}
-            subtitle="Generating audio for every clip"
+            currentStep="Voicing the full screenplay..."
+            subtitle="Generating each character's lines in order"
           />
         )}
+        {!totalDialogueLines && !loading && (
+          <p className="rounded-md border border-dashed bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
+            No dialogue in any clip. Go back to Scenes and add dialogue lines.
+          </p>
+        )}
         <div className="space-y-2">
-          {state.clips.map((clip) => (
-            <VoicePreviewRow
-              key={clip.id}
-              clip={clip}
-              state={state}
-              campaignId={campaignId}
-              highlight={reelCurrentClip === clip.index}
-            />
-          ))}
+          {state.clips.map((clip) => {
+            const onCamera = clip.characterIds
+              .map((id) => state.characters.find((c) => c.id === id))
+              .filter((c): c is NonNullable<typeof c> => !!c);
+            return (
+              <div
+                key={clip.id}
+                className={cn(
+                  "rounded-lg border bg-background p-3 shadow-sm transition-colors",
+                  currentLineIdx !== null &&
+                    linesRef.current[currentLineIdx]?.clipIndex === clip.index &&
+                    "border-brand-500 ring-2 ring-brand-500/30",
+                )}
+              >
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full border bg-muted text-xs font-bold">
+                    {String(clip.index).padStart(2, "0")}
+                  </span>
+                  <Badge variant="outline" className={cn("h-5 px-2 text-xs", ACT_BADGE[clip.act])}>
+                    {ACT_LABEL[clip.act]}
+                  </Badge>
+                  {onCamera.map((c) => (
+                    <span key={c.id} className="rounded-full border bg-muted/30 px-2 py-0.5 text-xs">
+                      {c.name}
+                    </span>
+                  ))}
+                </div>
+                {clip.dialogue.length === 0 ? (
+                  <p className="text-xs italic text-muted-foreground">— silent beat —</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {clip.dialogue.map((d, idx) => {
+                      const speaker = state.characters.find((c) => c.id === d.characterId);
+                      const globalIdx = findLineGlobalIndex(clip.index, idx);
+                      const isPlayingThis = currentLineIdx === globalIdx;
+                      return (
+                        <p
+                          key={d.id}
+                          className={cn(
+                            "rounded px-2 py-1 text-sm leading-relaxed transition-colors",
+                            isPlayingThis ? "bg-brand-500/15" : "",
+                          )}
+                        >
+                          <span className="font-semibold text-brand-600 dark:text-brand-300">
+                            {speaker?.name || "?"}
+                            {d.emotion ? ` (${d.emotion})` : ""}:
+                          </span>{" "}
+                          <span className="italic text-foreground">&ldquo;{d.line}&rdquo;</span>
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </SectionCard>
 
       <ContinueBar label="Continue to batch render" hint="Last stop before clips ship to provider" onContinue={onAdvance} />
-    </div>
-  );
-}
-
-interface PreviewLine {
-  characterId: string | null;
-  characterName: string | null;
-  line: string;
-  audioSrc: string;
-  estimatedDurationMs: number;
-}
-
-function VoicePreviewRow({
-  clip,
-  state,
-  campaignId,
-  highlight,
-}: {
-  clip: ClipSlot;
-  state: CampaignState;
-  campaignId: string;
-  highlight?: boolean;
-}) {
-  const [lines, setLines] = useState<PreviewLine[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const totalDialogueText = clip.dialogue.map((d) => d.line).join(" ");
-  const totalSeconds = estimateVoiceSeconds(totalDialogueText);
-  const overflow = totalSeconds > state.clipLength;
-  const onCamera = clip.characterIds
-    .map((id) => state.characters.find((c) => c.id === id))
-    .filter((c): c is NonNullable<typeof c> => !!c);
-
-  async function generateAll() {
-    if (!clip.dialogue.length) return;
-    setGenerating(true);
-    try {
-      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clipId: clip.id }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || "Failed");
-      const out: PreviewLine[] = (data.data.lines || []).map(
-        (l: {
-          characterId: string | null;
-          characterName: string | null;
-          line: string;
-          mimeType: string;
-          audioBase64: string;
-          estimatedDurationMs: number;
-        }) => ({
-          characterId: l.characterId,
-          characterName: l.characterName,
-          line: l.line,
-          audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
-          estimatedDurationMs: l.estimatedDurationMs,
-        }),
-      );
-      setLines(out);
-      setTimeout(() => playFrom(0, out), 80);
-    } catch {
-      setLines([]);
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  function playFrom(index: number, list: PreviewLine[]) {
-    if (index >= list.length) {
-      setPlayingIdx(null);
-      return;
-    }
-    setPlayingIdx(index);
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.src = list[index].audioSrc;
-    audio.onended = () => playFrom(index + 1, list);
-    audio.play().catch(() => setPlayingIdx(null));
-  }
-
-  function stop() {
-    audioRef.current?.pause();
-    setPlayingIdx(null);
-  }
-
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-background p-3 shadow-sm transition-colors",
-        highlight && "border-brand-500 ring-2 ring-brand-500/30",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-bold">
-          {String(clip.index).padStart(2, "0")}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className={cn("h-5 px-2 text-xs", ACT_BADGE[clip.act])}>
-              {ACT_LABEL[clip.act]}
-            </Badge>
-            {onCamera.map((c) => (
-              <span key={c.id} className="rounded-full border bg-muted/30 px-2 py-0.5 text-xs">
-                {c.name}
-              </span>
-            ))}
-            {clip.dialogue.length > 0 && (
-              <span className={cn("text-xs", overflow ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                ~{totalSeconds.toFixed(1)}s / {state.clipLength}s
-              </span>
-            )}
-          </div>
-          {clip.dialogue.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No dialogue in this clip.</p>
-          ) : (
-            <div className="space-y-1">
-              {clip.dialogue.map((d, idx) => {
-                const speaker = state.characters.find((c) => c.id === d.characterId);
-                const isPlayingThis = playingIdx === idx;
-                return (
-                  <p
-                    key={d.id}
-                    className={cn(
-                      "rounded px-2 py-1 text-xs leading-relaxed transition-colors",
-                      isPlayingThis ? "bg-brand-500/10" : "",
-                    )}
-                  >
-                    <span className="font-semibold text-brand-600 dark:text-brand-300">
-                      {speaker?.name || "?"}
-                      {d.emotion ? ` (${d.emotion})` : ""}:
-                    </span>{" "}
-                    <span className="italic text-foreground">&ldquo;{d.line}&rdquo;</span>
-                  </p>
-                );
-              })}
-            </div>
-          )}
-          <audio ref={audioRef} className="hidden" />
-        </div>
-        <Button
-          size="sm"
-          variant={lines.length ? "outline" : "default"}
-          onClick={() => {
-            if (playingIdx !== null) {
-              stop();
-            } else if (lines.length) {
-              playFrom(0, lines);
-            } else {
-              generateAll();
-            }
-          }}
-          disabled={generating || !clip.dialogue.length}
-        >
-          {generating ? (
-            <AISpinner size={14} />
-          ) : playingIdx !== null ? (
-            <Pause className="h-4 w-4" />
-          ) : lines.length ? (
-            <Play className="h-4 w-4" />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-          {playingIdx !== null ? "Stop" : lines.length ? "Replay" : "Preview"}
-        </Button>
-      </div>
     </div>
   );
 }

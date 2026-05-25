@@ -749,6 +749,12 @@ export interface VoicePreviewLineResult {
   audioBase64: string;
   mimeType: string;
   estimatedDurationMs: number;
+  /** Set when this line came from the full-screenplay pass */
+  clipIndex?: number;
+  /** Set when this line came from the full-screenplay pass */
+  clipAct?: ActPosition;
+  /** Optional emotion note (for UI display) */
+  emotion?: string;
 }
 
 async function generateOneVoiceLine(text: string, character: CampaignCharacter | null): Promise<VoicePreviewLineResult> {
@@ -778,27 +784,50 @@ export async function generateClipVoicePreview(options: {
   text?: string;
   character?: CampaignCharacter | null;
 }): Promise<{ lines: VoicePreviewLineResult[]; totalDurationMs: number }> {
-  // Mode 1: dialogue from clip
   if (options.clip && options.clip.dialogue.length) {
     const lines: VoicePreviewLineResult[] = [];
     for (const d of options.clip.dialogue) {
       if (!d.line.trim()) continue;
       const character = options.characters.find((c) => c.id === d.characterId) || null;
-      const text = d.emotion ? `${d.line}` : d.line;
-      // simple sequential — speakers must come back in order so the listener hears the exchange
-      const result = await generateOneVoiceLine(text, character);
-      lines.push(result);
+      const result = await generateOneVoiceLine(d.line, character);
+      lines.push({ ...result, emotion: d.emotion });
     }
     return { lines, totalDurationMs: lines.reduce((s, l) => s + l.estimatedDurationMs, 0) };
   }
 
-  // Mode 2: single text line (per-field preview)
   if (options.text) {
     const result = await generateOneVoiceLine(options.text, options.character || null);
     return { lines: [result], totalDurationMs: result.estimatedDurationMs };
   }
 
   return { lines: [], totalDurationMs: 0 };
+}
+
+/**
+ * Voice the entire campaign as ONE continuous screenplay. Generates a flat array
+ * of dialogue lines across every clip in order, each tagged with its clipIndex
+ * and clipAct so the UI can play the whole movie back-to-back with no gaps.
+ */
+export async function generateFullScreenplayPreview(options: {
+  clips: CampaignClipSlot[];
+  characters: CampaignCharacter[];
+}): Promise<{ lines: VoicePreviewLineResult[]; totalDurationMs: number }> {
+  const lines: VoicePreviewLineResult[] = [];
+  for (const clip of options.clips) {
+    if (!clip.dialogue.length) continue;
+    for (const d of clip.dialogue) {
+      if (!d.line.trim()) continue;
+      const character = options.characters.find((c) => c.id === d.characterId) || null;
+      const result = await generateOneVoiceLine(d.line, character);
+      lines.push({
+        ...result,
+        clipIndex: clip.index,
+        clipAct: clip.act,
+        emotion: d.emotion,
+      });
+    }
+  }
+  return { lines, totalDurationMs: lines.reduce((s, l) => s + l.estimatedDurationMs, 0) };
 }
 
 // =============================================================
