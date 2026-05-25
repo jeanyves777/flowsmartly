@@ -10,7 +10,20 @@ export type CampaignPhase =
   | "DONE"
   | "FAILED";
 
-export type CampaignClipLength = 8 | 10;
+export type CampaignClipLength = 8 | 10 | 12 | 15;
+
+/** Per-provider hard caps (provider docs). */
+export const PROVIDER_CLIP_LENGTH_CAPS: Record<CampaignProvider, number> = {
+  veo3: 8,   // Veo 3.1 generate-preview tops out at 8s per call
+  xai: 15,   // Grok Imagine Video: 1–15s per generation
+};
+
+/** UI options gated by the provider cap. */
+export function clipLengthOptionsForProvider(provider: CampaignProvider): CampaignClipLength[] {
+  const cap = PROVIDER_CLIP_LENGTH_CAPS[provider];
+  const all: CampaignClipLength[] = [8, 10, 12, 15];
+  return all.filter((v) => v <= cap);
+}
 
 export type CampaignDurationSeconds = 60 | 90 | 120 | 150 | 180;
 

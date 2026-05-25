@@ -42,7 +42,13 @@ import { useToast } from "@/hooks/use-toast";
 
 type Phase = "STYLE" | "CHARACTERS" | "SCENES" | "PROMPTS" | "VOICE" | "BATCH" | "DONE" | "FAILED";
 type Style = "3d" | "cinematic";
-type ClipLen = 8 | 10;
+type ClipLen = 8 | 10 | 12 | 15;
+
+const PROVIDER_MAX_CLIP_LEN: Record<Provider, number> = { veo3: 8, xai: 15 };
+function clipLengthOptionsFor(provider: Provider): ClipLen[] {
+  const cap = PROVIDER_MAX_CLIP_LEN[provider];
+  return ([8, 10, 12, 15] as ClipLen[]).filter((v) => v <= cap);
+}
 type Duration = 60 | 90 | 120 | 150 | 180;
 type Aspect = "9:16" | "1:1" | "16:9";
 type Provider = "veo3" | "xai";
@@ -228,9 +234,10 @@ function PageBody() {
       goal: "Build desire, trust, and a clear reason to act.",
       aspectRatio: "9:16" as Aspect,
       durationSeconds: 120 as Duration,
-      clipLength: 10 as ClipLen,
+      // Default to xAI for fewer, longer clips (15s vs Veo's 8s cap)
+      provider: "xai" as Provider,
+      clipLength: 15 as ClipLen,
       platforms: ["instagram", "tiktok"],
-      provider: "veo3" as Provider,
     };
     if (typeof window === "undefined") return base;
     try {
@@ -816,7 +823,7 @@ function StyleStage({
 
       <SectionCard
         title="Format"
-        description={`${clipCount} clips of ${draft.clipLength}s each.`}
+        description={`${clipCount} clips of ${draft.clipLength}s each via ${draft.provider === "veo3" ? "Veo 3 (max 8s/call)" : "xAI (max 15s/call)"}.`}
       >
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <FieldGroup label="Total duration">
@@ -826,16 +833,6 @@ function StyleStage({
               onChange={(value) =>
                 setDraft((prev) => ({ ...prev, durationSeconds: Number(value) as Duration }))
               }
-            />
-          </FieldGroup>
-          <FieldGroup label="Clip length">
-            <SegmentedControl
-              value={String(draft.clipLength)}
-              options={[
-                { value: "8", label: "8s" },
-                { value: "10", label: "10s" },
-              ]}
-              onChange={(value) => setDraft((prev) => ({ ...prev, clipLength: Number(value) as ClipLen }))}
             />
           </FieldGroup>
           <FieldGroup label="Aspect ratio">
@@ -856,7 +853,17 @@ function StyleStage({
                 { value: "veo3", label: "Veo 3" },
                 { value: "xai", label: "xAI" },
               ]}
-              onChange={(value) => setDraft((prev) => ({ ...prev, provider: value as Provider }))}
+              onChange={(value) =>
+                setDraft((prev) => {
+                  const nextProvider = value as Provider;
+                  // Auto-lock clip length to the provider's max so we use the longest call possible.
+                  return {
+                    ...prev,
+                    provider: nextProvider,
+                    clipLength: PROVIDER_MAX_CLIP_LEN[nextProvider] as ClipLen,
+                  };
+                })
+              }
             />
           </FieldGroup>
         </div>
@@ -2026,7 +2033,7 @@ function BatchStage({
     <div className="space-y-4">
       <SectionCard
         title="Render"
-        description={`Each clip generated separately (${state.clipLength === 8 ? "8s" : "10s"} provider cap), then stitched into one reel.`}
+        description={`${state.clips.length} clips of ${state.clipLength}s each on ${state.provider === "veo3" ? "Veo 3 (8s cap)" : "xAI (15s cap)"} — rendered in parallel, then stitched into one reel.`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
           <div className="flex items-center gap-4 text-sm">

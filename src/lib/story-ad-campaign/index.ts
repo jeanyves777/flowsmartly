@@ -982,7 +982,9 @@ async function renderClipViaVeo(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
-  const duration = state.clipLength === 8 ? "8" : "8"; // Veo3 supports up to 8s per generation
+  // Veo 3.1 generate-preview supports 4/6/8s. Cap requested length at 8.
+  const capped = Math.min(8, state.clipLength);
+  const duration = (capped === 4 ? "4" : capped === 6 ? "6" : "8") as "4" | "6" | "8";
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
@@ -1001,8 +1003,10 @@ async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
+  // Grok Imagine Video supports 1–15s. Pass through, clamping just in case.
+  const duration = Math.min(15, Math.max(1, state.clipLength));
   const result = await grokVideoClient.generateVideo(clip.prompt, {
-    duration: state.clipLength,
+    duration,
     aspectRatio: normalizeXaiAspect(state.aspectRatio),
     resolution: "720p",
     timeoutMs: 900000,
@@ -1531,7 +1535,8 @@ async function persistClipsProgress(
 }
 
 export function creditsPerClip(clipLength: CampaignClipLength): number {
-  return clipLength === 8 ? 80 : 100;
+  // Linear: 10 credits/second. 8s=80, 10s=100, 12s=120, 15s=150.
+  return clipLength * 10;
 }
 
 export function totalCreditsForCampaign(durationSeconds: CampaignDurationSeconds, clipLength: CampaignClipLength): number {
