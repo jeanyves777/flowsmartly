@@ -2214,7 +2214,7 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
               state.aspectRatio === "16:9" && "aspect-video",
             )}
           >
-            <video src={state.finalVideoUrl} controls className="h-full w-full" />
+            <StableVideo src={state.finalVideoUrl} className="h-full w-full" />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
@@ -2378,7 +2378,7 @@ function ClipRenderCard({
         )}
       >
         {clip.videoUrl ? (
-          <video src={clip.videoUrl} controls className="h-full w-full object-cover" />
+          <StableVideo src={clip.videoUrl} className="h-full w-full object-cover" />
         ) : clip.status === "RENDERING" || retrying ? (
           <div className="flex h-full w-full items-center justify-center p-2">
             <AIGenerationLoader compact currentStep="Rendering clip" subtitle="Provider working" />
@@ -2641,6 +2641,32 @@ function EmptyState({
       </div>
     </div>
   );
+}
+
+/**
+ * Wraps a <video> so the src is only updated when the underlying S3 path changes.
+ * Prevents reload-flicker when the campaign poller keeps re-signing the same URL
+ * with a fresh query string every few seconds.
+ */
+function StableVideo({
+  src,
+  className,
+  controls = true,
+}: {
+  src: string;
+  className?: string;
+  controls?: boolean;
+}) {
+  const path = src.split("?")[0];
+  const [locked, setLocked] = useState(src);
+  const pathRef = useRef(path);
+  useEffect(() => {
+    if (pathRef.current !== path) {
+      pathRef.current = path;
+      setLocked(src);
+    }
+  }, [path, src]);
+  return <video src={locked} controls={controls} className={className} />;
 }
 
 function PlatformPicker({
