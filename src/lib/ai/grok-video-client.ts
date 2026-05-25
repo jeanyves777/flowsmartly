@@ -173,7 +173,18 @@ class GrokVideoClient {
       }
 
       if (status === "expired" || status === "failed" || status === "error") {
-        const errorMsg = data.error || data.message || `Generation ${status}`;
+        // xAI sometimes returns { error: { message, code, ... } } as an object —
+        // make sure we serialise it readably instead of getting "[object Object]".
+        const rawErr = data.error ?? data.message ?? `Generation ${status}`;
+        let errorMsg: string;
+        if (typeof rawErr === "string") {
+          errorMsg = rawErr;
+        } else if (rawErr && typeof rawErr === "object") {
+          errorMsg = rawErr.message || rawErr.code || JSON.stringify(rawErr).slice(0, 500);
+        } else {
+          errorMsg = String(rawErr);
+        }
+        console.error(`[GrokVideo] Job ${requestId} ${status}. Full response:`, JSON.stringify(data).slice(0, 1500));
         throw new Error(`xAI video generation ${status} for job ${requestId}: ${errorMsg}`);
       }
 
