@@ -2021,56 +2021,56 @@ function BatchStage({
   const done = state.phase === "DONE" || (state.clips.length > 0 && readyCount === state.clips.length);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <SectionCard
         title="Render"
-        description={`Each clip is generated separately because providers cap at ${state.clipLength === 8 ? "8s" : "10s"} per call. We render in parallel, retry transient failures, then stitch them into one continuous reel automatically.`}
+        description={`Each clip generated separately (${state.clipLength === 8 ? "8s" : "10s"} provider cap), then stitched into one reel.`}
       >
-        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-          <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <Stat label="Clips" value={state.clips.length} />
-              <Stat label="Ready" value={readyCount} highlight="emerald" />
-              <Stat label="Failed" value={failedCount} highlight={failedCount > 0 ? "rose" : undefined} />
-            </div>
-            <FieldGroup label="Provider">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+          <div className="flex items-center gap-4 text-sm">
+            <CompactStat label="Clips" value={state.clips.length} />
+            <CompactStat label="Ready" value={readyCount} highlight="emerald" />
+            <CompactStat label="Failed" value={failedCount} highlight={failedCount > 0 ? "rose" : undefined} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Provider</span>
               <SegmentedControl
                 value={state.provider}
+                small
                 options={[
                   { value: "veo3", label: "Veo 3" },
                   { value: "xai", label: "xAI" },
                 ]}
                 onChange={(value) => onProviderChange(value as Provider)}
               />
-            </FieldGroup>
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
+          <div>
             {done ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background p-4">
-                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
-                </Badge>
-              </div>
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
+              </Badge>
             ) : isRendering ? (
-              <AIGenerationLoader
-                compact
-                progress={campaign.progress}
-                currentStep={campaign.currentStep || "Rendering clips..."}
-                subtitle={`${readyCount}/${state.clips.length} ready`}
-              />
+              <div className="flex items-center gap-2 text-sm">
+                <AISpinner size={14} />
+                <span>{campaign.currentStep || `Rendering ${readyCount}/${state.clips.length}...`}</span>
+              </div>
             ) : (
-              <Button onClick={onSend} disabled={loading || !state.clips.length}>
+              <Button onClick={onSend} disabled={loading || !state.clips.length} size="sm">
                 {loading ? <AISpinner size={14} /> : <Zap className="h-4 w-4" />}
                 Send {state.clips.filter((c) => c.status !== "READY").length} clip(s) to {state.provider === "veo3" ? "Veo 3" : "xAI"}
               </Button>
             )}
           </div>
         </div>
+        {isRendering && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-brand-500 transition-all"
+              style={{ width: `${campaign.progress}%` }}
+            />
+          </div>
+        )}
       </SectionCard>
-
-      {done && state.finalVideoUrl && (
-        <DeliverSection campaignId={campaign.id} state={state} />
-      )}
 
       <SectionCard title="Clips">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2085,6 +2085,39 @@ function BatchStage({
           ))}
         </div>
       </SectionCard>
+
+      {done && state.finalVideoUrl && onAdvance && (
+        <ContinueBar
+          label="Reel ready — continue to Deliver"
+          hint="Add a caption, pick platforms, post."
+          onContinue={onAdvance}
+        />
+      )}
+    </div>
+  );
+}
+
+function CompactStat({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: "emerald" | "rose";
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span
+        className={cn(
+          "text-xl font-bold tabular-nums",
+          highlight === "emerald" && "text-emerald-600 dark:text-emerald-400",
+          highlight === "rose" && "text-rose-600 dark:text-rose-400",
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
     </div>
   );
 }
