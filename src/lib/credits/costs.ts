@@ -236,6 +236,11 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_TEMPLATE_GENERATE: "AI template discovery (8 prototype thumbnails)",
   AI_TEMPLATE_HTML_DESIGN: "AI premium template design (Claude HTML+CSS, pixel-perfect typography)",
   AI_TEMPLATE_REMIX: "AI template remix (personalize with your text + photos, flat output)",
+  AI_STORY_CAMPAIGN_CATALOG: "Story Ad Campaign: character catalog + outline",
+  AI_STORY_CAMPAIGN_SCENES: "Story Ad Campaign: scene grid screenplay",
+  AI_STORY_CAMPAIGN_SUGGEST: "Story Ad Campaign: AI field suggestion",
+  AI_STORY_CAMPAIGN_CAPTION: "Story Ad Campaign: social caption + hashtags",
+  AI_STORY_CAMPAIGN_VOICE_LINE: "Story Ad Campaign: voice preview per line",
 };
 
 /**
