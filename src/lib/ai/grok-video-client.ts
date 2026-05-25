@@ -215,6 +215,9 @@ class GrokVideoClient {
 
     console.log(`[GrokVideo] Extending video by ${extDur}s from: ${sourceVideoUrl.substring(0, 80)}...`);
 
+    // xAI REST: extension body uses a `video` object like image-to-video does for `image`.
+    // The Python SDK shim exposes a flat `video_url=` arg but the underlying REST wants:
+    //   { video: { type: "video_url", url: <URL> } }
     const response = await fetch(XAI_VIDEO_EDITS_URL, {
       method: "POST",
       headers: {
@@ -224,7 +227,7 @@ class GrokVideoClient {
       body: JSON.stringify({
         model: "grok-imagine-video",
         mode: "extend-video",
-        video_url: sourceVideoUrl,
+        video: { type: "video_url", url: sourceVideoUrl },
         prompt: safePrompt,
         duration: extDur,
       }),
