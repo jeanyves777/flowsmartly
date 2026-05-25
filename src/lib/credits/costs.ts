@@ -97,6 +97,13 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_VIDEO_STUDIO: 60,    // Veo 3 per 8s clip (~$0.35 Google cost)
   AI_VIDEO_SLIDESHOW: 100, // Story Ad Movie: xAI ad video generation, billed per 10 seconds
 
+  // --- Story Ad Campaign (cinematic short film pipeline) ---
+  AI_STORY_CAMPAIGN_CATALOG: 8,        // Story outline + 3 characters (structured AI text)
+  AI_STORY_CAMPAIGN_SCENES: 15,        // Full dialogue screenplay across N clips (large structured AI text)
+  AI_STORY_CAMPAIGN_SUGGEST: 3,        // Per-field AI fill in Story Ad Campaign editor
+  AI_STORY_CAMPAIGN_CAPTION: 5,        // Social caption + hashtags from screenplay
+  AI_STORY_CAMPAIGN_VOICE_LINE: 5,     // TTS per dialogue line in the screenplay preview
+
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
 

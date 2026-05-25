@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import {
+  chargeStoryAdCampaignUsage,
   generateClipVoicePreview,
   generateFullScreenplayPreview,
   getCampaign,
+  refundStoryAdCampaignUsage,
 } from "@/lib/story-ad-campaign";
+import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 
 export async function POST(
   request: NextRequest,
@@ -27,37 +30,72 @@ export async function POST(
     characterId?: string;
   };
 
+  // Count lines we're about to generate so we charge accurately.
+  let lineCount = 0;
+  if (body.mode === "screenplay") {
+    lineCount = current.state.clips.reduce((s, c) => s + c.dialogue.filter((d) => d.line.trim()).length, 0);
+  } else if (body.clipId) {
+    const clip = current.state.clips.find((c) => c.id === body.clipId);
+    lineCount = clip ? clip.dialogue.filter((d) => d.line.trim()).length : 0;
+  } else if (body.text) {
+    lineCount = 1;
+  }
+
+  if (lineCount === 0) {
+    return NextResponse.json(
+      { success: false, error: { message: "Nothing to preview." } },
+      { status: 400 },
+    );
+  }
+
+  const isAdmin = !!session.adminId;
+  const charge = await chargeStoryAdCampaignUsage({
+    userId: session.userId,
+    isAdmin,
+    costKey: "AI_STORY_CAMPAIGN_VOICE_LINE",
+    multiplier: lineCount,
+    campaignId: id,
+    description:
+      body.mode === "screenplay"
+        ? `Story Ad Campaign: voice the full screenplay (${lineCount} lines)`
+        : `Story Ad Campaign: voice preview (${lineCount} line${lineCount === 1 ? "" : "s"})`,
+  });
+  if (!charge.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INSUFFICIENT_CREDITS",
+          message: `Voicing ${lineCount} line${lineCount === 1 ? "" : "s"} costs ${charge.required} credits. You have ${charge.available} remaining.`,
+          required: charge.required,
+          available: charge.available,
+        },
+      },
+      { status: 402 },
+    );
+  }
+
   try {
-    // Full continuous screenplay — every clip, every line, in order
     if (body.mode === "screenplay") {
-      if (!current.state.clips.length) {
-        return NextResponse.json(
-          { success: false, error: { message: "No clips planned yet." } },
-          { status: 400 },
-        );
-      }
       const result = await generateFullScreenplayPreview({
         clips: current.state.clips,
         characters: current.state.characters,
       });
       return NextResponse.json({
         success: true,
-        data: { lines: result.lines, totalDurationMs: result.totalDurationMs, mode: "screenplay" },
+        data: {
+          lines: result.lines,
+          totalDurationMs: result.totalDurationMs,
+          mode: "screenplay",
+          creditsRemaining: charge.remaining,
+        },
       });
     }
 
-    // Per-clip dialogue voicing, or single line
     const clip = body.clipId ? current.state.clips.find((c) => c.id === body.clipId) : null;
     const singleCharacter = body.characterId
       ? current.state.characters.find((c) => c.id === body.characterId) || null
       : null;
-
-    if (!clip && !body.text) {
-      return NextResponse.json(
-        { success: false, error: { message: "Nothing to preview." } },
-        { status: 400 },
-      );
-    }
 
     const result = await generateClipVoicePreview({
       clip: clip || undefined,
@@ -67,9 +105,22 @@ export async function POST(
     });
     return NextResponse.json({
       success: true,
-      data: { lines: result.lines, totalDurationMs: result.totalDurationMs, mode: clip ? "clip" : "line" },
+      data: {
+        lines: result.lines,
+        totalDurationMs: result.totalDurationMs,
+        mode: clip ? "clip" : "line",
+        creditsRemaining: charge.remaining,
+      },
     });
   } catch (error) {
+    if (!isAdmin) {
+      await refundStoryAdCampaignUsage({
+        userId: session.userId,
+        amount: DEFAULT_CREDIT_COSTS.AI_STORY_CAMPAIGN_VOICE_LINE * lineCount,
+        campaignId: id,
+        reason: "Refund: voice preview failed",
+      });
+    }
     const message = error instanceof Error ? error.message : "Voice preview failed";
     return NextResponse.json({ success: false, error: { message } }, { status: 500 });
   }

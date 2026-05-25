@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getBrandSnapshot, getCampaign, suggestField } from "@/lib/story-ad-campaign";
+import {
+  chargeStoryAdCampaignUsage,
+  getBrandSnapshot,
+  getCampaign,
+  refundStoryAdCampaignUsage,
+  suggestField,
+} from "@/lib/story-ad-campaign";
+import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 
 export async function POST(
   request: NextRequest,
@@ -30,6 +37,29 @@ export async function POST(
     );
   }
 
+  const isAdmin = !!session.adminId;
+  const charge = await chargeStoryAdCampaignUsage({
+    userId: session.userId,
+    isAdmin,
+    costKey: "AI_STORY_CAMPAIGN_SUGGEST",
+    campaignId: id,
+    description: `Story Ad Campaign suggest: ${body.field}`,
+  });
+  if (!charge.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INSUFFICIENT_CREDITS",
+          message: `This requires ${charge.required} credits. You have ${charge.available} remaining.`,
+          required: charge.required,
+          available: charge.available,
+        },
+      },
+      { status: 402 },
+    );
+  }
+
   try {
     const brand = await getBrandSnapshot(session.userId);
     const value = await suggestField({
@@ -40,8 +70,16 @@ export async function POST(
       clipId: body.clipId || null,
       hint: body.hint || null,
     });
-    return NextResponse.json({ success: true, data: { value } });
+    return NextResponse.json({ success: true, data: { value, creditsRemaining: charge.remaining } });
   } catch (error) {
+    if (!isAdmin) {
+      await refundStoryAdCampaignUsage({
+        userId: session.userId,
+        amount: DEFAULT_CREDIT_COSTS.AI_STORY_CAMPAIGN_SUGGEST,
+        campaignId: id,
+        reason: "Refund: AI suggest failed",
+      });
+    }
     const message = error instanceof Error ? error.message : "Suggestion failed";
     return NextResponse.json({ success: false, error: { message } }, { status: 500 });
   }

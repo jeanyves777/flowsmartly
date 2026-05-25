@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import {
+  chargeStoryAdCampaignUsage,
   generateCharacterPreviewImage,
   getBrandSnapshot,
   getCampaign,
+  refundStoryAdCampaignUsage,
   updateCampaignState,
 } from "@/lib/story-ad-campaign";
+import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 
 export async function POST(
   _request: NextRequest,
@@ -23,6 +26,29 @@ export async function POST(
   const character = current.state.characters.find((c) => c.id === characterId);
   if (!character) {
     return NextResponse.json({ success: false, error: { message: "Character not found" } }, { status: 404 });
+  }
+
+  const isAdmin = !!session.adminId;
+  const charge = await chargeStoryAdCampaignUsage({
+    userId: session.userId,
+    isAdmin,
+    costKey: "AI_CARTOON_CHARACTER_REGEN",
+    campaignId: id,
+    description: `Story Ad Campaign: character preview (${character.name})`,
+  });
+  if (!charge.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INSUFFICIENT_CREDITS",
+          message: `This requires ${charge.required} credits. You have ${charge.available} remaining.`,
+          required: charge.required,
+          available: charge.available,
+        },
+      },
+      { status: 402 },
+    );
   }
 
   // Mark generating
@@ -48,13 +74,21 @@ export async function POST(
         : c,
     );
     const merged = await updateCampaignState(id, session.userId, { characters: next });
-    return NextResponse.json({ success: true, data: { state: merged } });
+    return NextResponse.json({ success: true, data: { state: merged, creditsRemaining: charge.remaining } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Preview generation failed";
     const failed = generatingChars.map((c) =>
       c.id === characterId ? { ...c, previewStatus: "failed" as const, previewError: message } : c,
     );
     await updateCampaignState(id, session.userId, { characters: failed });
+    if (!isAdmin) {
+      await refundStoryAdCampaignUsage({
+        userId: session.userId,
+        amount: DEFAULT_CREDIT_COSTS.AI_CARTOON_CHARACTER_REGEN,
+        campaignId: id,
+        reason: "Refund: character preview generation failed",
+      });
+    }
     return NextResponse.json({ success: false, error: { message } }, { status: 500 });
   }
 }

@@ -5,7 +5,8 @@ import { spawn } from "child_process";
 import { nanoid } from "nanoid";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
-import { TRANSACTION_TYPES } from "@/lib/credits";
+import { TRANSACTION_TYPES, creditService } from "@/lib/credits";
+import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
@@ -61,6 +62,93 @@ function parseArray(value: string | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+// =============================================================
+// Credit deduction for every AI call in this pipeline
+// =============================================================
+
+export interface ChargeResult {
+  ok: boolean;
+  /** Credits the user has after this charge. */
+  remaining: number;
+  /** When ok=false: how many were required vs available. */
+  required?: number;
+  available?: number;
+}
+
+/**
+ * Centralised credit charge for every Story Ad Campaign AI call.
+ * Returns { ok: false } when the user can't afford it — callers should
+ * surface a 402 with INSUFFICIENT_CREDITS. Admins are exempt.
+ */
+export async function chargeStoryAdCampaignUsage(input: {
+  userId: string;
+  isAdmin: boolean;
+  costKey: CreditCostKey;
+  multiplier?: number; // e.g. number of dialogue lines voiced
+  campaignId: string;
+  description: string;
+}): Promise<ChargeResult> {
+  const unit = DEFAULT_CREDIT_COSTS[input.costKey] || 0;
+  const amount = Math.max(0, Math.round(unit * (input.multiplier ?? 1)));
+
+  if (input.isAdmin || amount === 0) {
+    return { ok: true, remaining: 0 };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { aiCredits: true },
+  });
+  const available = user?.aiCredits ?? 0;
+  if (available < amount) {
+    return { ok: false, remaining: available, required: amount, available };
+  }
+
+  const charge = await creditService.deductCredits({
+    userId: input.userId,
+    type: TRANSACTION_TYPES.USAGE,
+    amount,
+    referenceType: "story_ad_campaign",
+    referenceId: input.campaignId,
+    description: input.description,
+    metadata: { feature: input.costKey },
+  });
+  if (!charge.success) {
+    return { ok: false, remaining: available, required: amount, available };
+  }
+  return { ok: true, remaining: charge.transaction?.balanceAfter ?? available - amount };
+}
+
+export async function refundStoryAdCampaignUsage(input: {
+  userId: string;
+  amount: number;
+  campaignId: string;
+  reason: string;
+}): Promise<void> {
+  if (input.amount <= 0) return;
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { aiCredits: true },
+  });
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: input.userId },
+      data: { aiCredits: { increment: input.amount } },
+    });
+    await tx.creditTransaction.create({
+      data: {
+        userId: input.userId,
+        type: TRANSACTION_TYPES.REFUND,
+        amount: input.amount,
+        balanceAfter: (user?.aiCredits || 0) + input.amount,
+        referenceType: "story_ad_campaign",
+        referenceId: input.campaignId,
+        description: input.reason,
+      },
+    });
+  });
 }
 
 export async function getBrandSnapshot(userId: string): Promise<BrandSnapshot> {
