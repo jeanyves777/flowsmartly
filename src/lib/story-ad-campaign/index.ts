@@ -480,44 +480,62 @@ export async function planSceneGrid(
 
   const wordsPerClip = state.clipLength === 8 ? 22 : 28;
 
-  const prompt = `You are writing a ${styleLabel} short film — ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as one narrative.
+  const totalSeconds = clipCount * state.clipLength;
+  const totalWords = Math.round(totalSeconds * (state.clipLength === 8 ? 2.7 : 2.8));
 
-THIS IS NOT AN ADVERTISEMENT. It looks and feels like a real-life short film. Characters speak to each other ON CAMERA in natural dialogue — there is NO narrator, NO voiceover, NO ad copy. The brand only appears organically through the story (a character uses it, talks about it, recommends it to another character) and ONLY in the final 2–3 clips.
+  const prompt = `You are a screenwriter writing ONE continuous ${totalSeconds}-second short film. It will be SHOT in ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as a single movie. The clips are camera cuts inside ONE scene flow — not separate vignettes.
 
-BRAND (organic mention only, late in the story): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
+THIS IS NOT AN ADVERTISEMENT. It is a real-life dramatic short film. Characters speak to EACH OTHER on camera. There is NO narrator, NO voiceover, NO ad copy.
+
+THE STORY (write the entire thing as one connected narrative, then split into clips):
+- Pre-write the full ${totalWords}-word screenplay in your head as one continuous conversation/scene.
+- Then break it into ${clipCount} clips. The clip boundaries are camera cuts — the dialogue MUST flow across them as if no cut happened.
+- A character who speaks in clip N may finish their thought in clip N+1. A reaction shot in clip N+1 is a response to what was said in clip N.
+- Lines must reference, react to, or build on what was said in earlier clips. Characters REMEMBER prior conversation.
+
+BRAND (organic mention only, in the FINAL THIRD of the film): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
 ${brand.industry ? `INDUSTRY: ${brand.industry}` : ""}
 ${brand.uniqueValue ? `WHAT IT SOLVES: ${brand.uniqueValue}` : ""}
-${state.storyOutline ? `STORY OUTLINE (from Stage 1, follow this):\n${state.storyOutline}` : ""}
+${state.storyOutline ? `STORY OUTLINE (follow this):\n${state.storyOutline}` : ""}
 BRIEF (the real-life problem to dramatize): ${state.brief}
 DESIRED FEELING: ${state.goal}
 
-CHARACTER ROSTER (use the id verbatim when referencing speakers):
+CHARACTER ROSTER (use the id verbatim when referencing speakers — DO NOT invent new character ids):
 ${charactersBlock}
 
 STORY ARC across ${clipCount} clips:
-- Clips 1–2 (HOOK): Open on a moment of normal life. Establish a character with a relatable, real-life problem. NO mention of the brand yet.
-- Middle clips (PROBLEM → DISCOVERY → TRANSFORM): The problem deepens, then a character authentically encounters the brand/product (a friend mentions it, they discover it, they try it). The brand fits the story — it is not announced.
-- Final 1–2 clips (RESOLUTION + CTA): A natural ending — the problem is resolved through the brand. Last clip can show the brand visually (product close-up, signage, the character recommending it to someone) but still as part of the story, not as an ad slate.
+- Clips 1–2 (HOOK): Open on the protagonist in their normal world. Establish the relatable, real-life problem WITHOUT naming the brand. The protagonist may be alone (internal moment) or with another character.
+- Middle ~50% (PROBLEM): The problem deepens. Characters react. Tension builds. STILL no brand.
+- Around ~60–70% (DISCOVERY): Another character introduces the protagonist to the brand/product naturally inside the conversation ("Have you tried…?"). First mention.
+- ~75–90% (TRANSFORM): The protagonist uses it. Show change through dialogue and action.
+- Final 1–2 clips (RESOLUTION + CTA): Emotional payoff. A line of dialogue can reference the brand once more, naturally — never as a slogan.
+
+CONTINUITY RULES (CRITICAL — failing these makes the film feel like disconnected ads):
+1. Treat the whole film as ONE scene flow. Do NOT reset context per clip.
+2. If clip N ends mid-conversation, clip N+1 PICKS UP that conversation. No jump cuts to unrelated moments unless absolutely necessary.
+3. Re-use the same locations and characters across consecutive clips when the conversation continues.
+4. Each character has a consistent voice + arc. They don't suddenly know things they haven't learned yet.
+5. No "new topic" without a transition — the topic of the brand only enters when a character logically brings it up.
+6. When a character is speaking, the NEXT clip's dialogue is typically the OTHER character's reply, not a tangent.
 
 For each clip output:
 - act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
 - shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
 - cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
-- sceneAction: one sentence describing what physically happens on screen (acting, blocking, environment)
-- moodLighting: lighting + color grade + emotional tone, single line
-- characterIds: array of ALL character ids visible on camera in this clip (1 to 3). Use [] only for pure product/environment shots.
-- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera. NOT a voiceover. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Total reading time must fit the ${state.clipLength}-second clip — keep dialogue tight (~${wordsPerClip} words total per clip).
-  - "emotion" is an acting note like "concerned", "skeptical", "excited", "warm".
-  - For a pure visual moment with no dialogue, use dialogue: [].
+- sceneAction: ONE sentence on what physically happens IN THE FLOW of the previous clip's action. Reference the previous moment.
+- moodLighting: lighting + color grade, single line.
+- characterIds: array of all character ids visible on-camera (1 to 3). Use [] for pure product/environment shots.
+- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera (NOT voiceover). Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Lines should connect to the previous clip's dialogue. Total ~${wordsPerClip} words to fit the ${state.clipLength}-second clip. For a pure visual moment use dialogue: [].
 
 HARD RULES:
-- This is a narrative short film. NEVER write voiceover/narration. All speech is in-scene dialogue between visible characters.
-- NEVER write ad copy ("Buy now", "Get yours today", "Limited time"). The brand fits the conversation, it is not pitched.
-- Brand may only be named or shown in roughly the last third of the story.
-- Never put any text overlays in the video — visuals only. CTA text is added in post.
-- Dialogue must sound like real people in a real conversation, not actors reading lines.
+- One continuous screenplay. NEVER write isolated vignettes.
+- NEVER write narrator/voiceover. All speech is in-scene dialogue between visible characters.
+- NEVER write ad copy ("Buy now", "Limited time", "Get yours today"). Brand fits the conversation, never pitched.
+- Brand named only in roughly the last third.
+- No on-screen text overlays — visuals only. CTA text is added in post.
+- Dialogue must sound like real people, not actors performing.
 
-Return strict JSON with exactly ${clipCount} clips:
+Return strict JSON with exactly ${clipCount} clips. Imagine reading every clip's dialogue field back-to-back — it MUST sound like one continuous screenplay:
 {
   "clips": [
     {
@@ -535,10 +553,10 @@ Return strict JSON with exactly ${clipCount} clips:
 }`;
 
   const result = await ai.generateJSON<{ clips: PlannedClip[] }>(prompt, {
-    maxTokens: 4500,
-    temperature: 0.78,
+    maxTokens: 5500,
+    temperature: 0.75,
     systemPrompt:
-      "You are a screenwriter who writes cinematic short films with naturalistic dialogue. The product placement is organic — it fits the story. Return valid JSON only.",
+      "You are a screenwriter writing ONE continuous short film. The clips are camera cuts INSIDE ONE scene flow — dialogue must run continuously across clip boundaries. Characters remember and respond to prior lines. Product placement is organic and only in the final third. Return valid JSON only.",
   });
 
   const characterIds = new Set(state.characters.map((c) => c.id));

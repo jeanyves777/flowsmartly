@@ -1084,9 +1084,12 @@ function CharacterCard({
         {hasPreview ? (
           <img src={character.referenceImageUrl as string} alt={character.name} className="h-full w-full object-cover" />
         ) : previewBusy ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-            <AISpinner size={24} />
-            Generating preview...
+          <div className="flex h-full w-full items-center justify-center p-2">
+            <AIGenerationLoader
+              compact
+              currentStep="Designing portrait"
+              subtitle="Locking style + character"
+            />
           </div>
         ) : character.previewStatus === "failed" ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-destructive">
@@ -1707,15 +1710,144 @@ function VoiceStage({
   state: CampaignState;
   onAdvance: () => void;
 }) {
+  const [reelLoading, setReelLoading] = useState(false);
+  const [reelStatus, setReelStatus] = useState<string | null>(null);
+  const [reelPlaying, setReelPlaying] = useState(false);
+  const [reelCurrentClip, setReelCurrentClip] = useState<number | null>(null);
+  const reelAudioRef = useRef<HTMLAudioElement | null>(null);
+  const reelQueueRef = useRef<{ clipIndex: number; lines: PreviewLine[] }[] | null>(null);
+  const reelStopRef = useRef(false);
+
+  const dialogueClipCount = state.clips.filter((c) => c.dialogue.length).length;
+
+  async function fetchAllPreviews() {
+    setReelLoading(true);
+    setReelStatus("Voicing every line...");
+    try {
+      const dialogueClips = state.clips.filter((c) => c.dialogue.length);
+      const results: { clipIndex: number; lines: PreviewLine[] }[] = [];
+      for (const clip of dialogueClips) {
+        setReelStatus(`Voicing clip ${clip.index} of ${state.clips.length}...`);
+        const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clipId: clip.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const lines: PreviewLine[] = (data.data.lines || []).map(
+            (l: {
+              characterId: string | null;
+              characterName: string | null;
+              line: string;
+              mimeType: string;
+              audioBase64: string;
+              estimatedDurationMs: number;
+            }) => ({
+              characterId: l.characterId,
+              characterName: l.characterName,
+              line: l.line,
+              audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
+              estimatedDurationMs: l.estimatedDurationMs,
+            }),
+          );
+          results.push({ clipIndex: clip.index, lines });
+        }
+      }
+      reelQueueRef.current = results;
+      setReelStatus(null);
+      playReel(0, 0);
+    } catch {
+      setReelStatus("Voice preview failed.");
+    } finally {
+      setReelLoading(false);
+    }
+  }
+
+  function playReel(clipIdx: number, lineIdx: number) {
+    if (reelStopRef.current) return;
+    const queue = reelQueueRef.current;
+    if (!queue) return;
+    if (clipIdx >= queue.length) {
+      setReelPlaying(false);
+      setReelCurrentClip(null);
+      return;
+    }
+    const entry = queue[clipIdx];
+    if (lineIdx >= entry.lines.length) {
+      playReel(clipIdx + 1, 0);
+      return;
+    }
+    setReelPlaying(true);
+    setReelCurrentClip(entry.clipIndex);
+    const audio = reelAudioRef.current;
+    if (!audio) return;
+    audio.src = entry.lines[lineIdx].audioSrc;
+    audio.onended = () => playReel(clipIdx, lineIdx + 1);
+    audio.play().catch(() => {
+      setReelPlaying(false);
+      setReelCurrentClip(null);
+    });
+  }
+
+  function startReel() {
+    reelStopRef.current = false;
+    if (reelQueueRef.current && reelQueueRef.current.length) {
+      playReel(0, 0);
+    } else {
+      fetchAllPreviews();
+    }
+  }
+
+  function stopReel() {
+    reelStopRef.current = true;
+    reelAudioRef.current?.pause();
+    setReelPlaying(false);
+    setReelCurrentClip(null);
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <SectionCard
         title="Voice"
-        description="Catch timing issues before render. No credit cost."
+        description="Catch timing before render. Play the full reel to hear the movie end-to-end."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {reelStatus && <span className="text-xs text-muted-foreground">{reelStatus}</span>}
+            <Button
+              size="sm"
+              onClick={() => (reelPlaying ? stopReel() : startReel())}
+              disabled={reelLoading || dialogueClipCount === 0}
+            >
+              {reelLoading ? (
+                <AISpinner size={14} />
+              ) : reelPlaying ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {reelPlaying ? "Stop reel" : "Play full reel"}
+            </Button>
+          </div>
+        }
       >
-        <div className="space-y-3">
+        <audio ref={reelAudioRef} className="hidden" />
+        {reelLoading && (
+          <AIGenerationLoader
+            compact
+            currentStep={reelStatus || "Voicing the full reel..."}
+            subtitle="Generating audio for every clip"
+          />
+        )}
+        <div className="space-y-2">
           {state.clips.map((clip) => (
-            <VoicePreviewRow key={clip.id} clip={clip} state={state} campaignId={campaignId} />
+            <VoicePreviewRow
+              key={clip.id}
+              clip={clip}
+              state={state}
+              campaignId={campaignId}
+              highlight={reelCurrentClip === clip.index}
+            />
           ))}
         </div>
       </SectionCard>
@@ -1737,10 +1869,12 @@ function VoicePreviewRow({
   clip,
   state,
   campaignId,
+  highlight,
 }: {
   clip: ClipSlot;
   state: CampaignState;
   campaignId: string;
+  highlight?: boolean;
 }) {
   const [lines, setLines] = useState<PreviewLine[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -1809,7 +1943,12 @@ function VoicePreviewRow({
   }
 
   return (
-    <div className="rounded-lg border bg-background p-3 shadow-sm">
+    <div
+      className={cn(
+        "rounded-lg border bg-background p-3 shadow-sm transition-colors",
+        highlight && "border-brand-500 ring-2 ring-brand-500/30",
+      )}
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-bold">
           {String(clip.index).padStart(2, "0")}
