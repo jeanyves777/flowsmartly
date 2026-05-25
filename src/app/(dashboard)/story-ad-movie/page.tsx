@@ -32,6 +32,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { useSocialPlatforms } from "@/hooks/use-social-platforms";
+import { socialAccountDestinationId } from "@/lib/social/destinations";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { handleCreditError } from "@/components/payments/credit-purchase-modal";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
@@ -2161,47 +2163,117 @@ function DeliverStage({
   );
 }
 
+const MAX_CAPTION_CHARS = 2000;
+type CaptionAiMode = "draft" | "rewrite" | "shorten" | "hashtags" | "seo";
+
 function DeliverSection({ campaignId, state }: { campaignId: string; state: CampaignState }) {
   const { toast } = useToast();
-  const [caption, setCaption] = useState(state.campaignCaption || "");
-  const [hashtags, setHashtags] = useState<string[]>(state.hashtags || []);
-  const [hashtagInput, setHashtagInput] = useState("");
-  const [platforms, setPlatforms] = useState<string[]>(state.platforms?.length ? state.platforms : ["feed"]);
-  const [publishing, setPublishing] = useState(false);
-  const [suggesting, setSuggesting] = useState(false);
 
-  // Keep state in sync if backend wrote new values
-  useEffect(() => {
-    if (state.campaignCaption && !caption) setCaption(state.campaignCaption);
-    if (state.hashtags?.length && !hashtags.length) setHashtags(state.hashtags);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Seed the caption with AI-generated copy + hashtags merged inline.
+  const initialCaption = useMemo(() => {
+    const parts: string[] = [];
+    if (state.campaignCaption) parts.push(state.campaignCaption);
+    if (state.hashtags?.length) parts.push(state.hashtags.join(" "));
+    return parts.join("\n\n");
   }, [state.campaignCaption, state.hashtags]);
 
-  function addHashtag(raw: string) {
-    const trimmed = raw.trim().replace(/^#?/, "#");
-    if (!trimmed || trimmed === "#") return;
-    if (hashtags.includes(trimmed)) return;
-    setHashtags([...hashtags, trimmed]);
-    setHashtagInput("");
-  }
+  const [caption, setCaption] = useState(initialCaption);
+  const [platforms, setPlatforms] = useState<string[]>(state.platforms?.length ? state.platforms : ["feed"]);
+  const [publishing, setPublishing] = useState(false);
+  const [aiBusy, setAiBusy] = useState<CaptionAiMode | null>(null);
 
-  async function suggestCaption() {
-    setSuggesting(true);
+  useEffect(() => {
+    if (initialCaption && !caption) setCaption(initialCaption);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCaption]);
+
+  const topic = useMemo(() => {
+    return [state.storyOutline, state.brief, state.goal].filter(Boolean).join("\n\n").slice(0, 1200);
+  }, [state.storyOutline, state.brief, state.goal]);
+
+  async function runAi(mode: CaptionAiMode) {
+    setAiBusy(mode);
     try {
-      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/suggest`, {
+      if (mode === "hashtags") {
+        const res = await fetch("/api/ai/generate/hashtags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platforms,
+            topic: (caption.trim() || topic).slice(0, 500),
+            count: 10,
+            categories: ["trending", "niche", "branded"],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error?.message || "Hashtag generation failed");
+        const tags = Array.isArray(data.data?.hashtags)
+          ? data.data.hashtags
+              .map((tag: unknown) => String(tag).trim().replace(/^#?/, "#"))
+              .filter((tag: string) => tag.length > 1)
+          : [];
+        if (!tags.length) throw new Error("No usable hashtags returned.");
+        setCaption((cur) => `${cur}${cur.trim() ? "\n\n" : ""}${tags.join(" ")}`.slice(0, MAX_CAPTION_CHARS));
+        toast({ title: "Hashtags added" });
+        return;
+      }
+
+      if (mode === "seo") {
+        if (caption.trim().length < 10) throw new Error("Add a caption first.");
+        const res = await fetch("/api/ai/generate/seo-keywords", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platforms,
+            caption: caption.slice(0, 2000),
+            count: 8,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error?.message || "SEO keys failed");
+        const keys = Array.isArray(data.data?.keywords)
+          ? data.data.keywords.map((k: unknown) => String(k).trim()).filter(Boolean).slice(0, 8)
+          : [];
+        if (!keys.length) throw new Error("No SEO keys returned.");
+        const line = `SEO: ${keys.join(", ")}`;
+        setCaption((cur) => `${cur}${cur.trim() ? "\n\n" : ""}${line}`.slice(0, MAX_CAPTION_CHARS));
+        toast({ title: "SEO keys added" });
+        return;
+      }
+
+      // draft / rewrite / shorten
+      const seed = caption.trim() || topic;
+      const res = await fetch("/api/ai/generate/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field: "brief", hint: "Write a social caption introducing this short-film ad. Conversational, 2-3 sentences, soft CTA, no emojis, no 'Buy now'." }),
+        body: JSON.stringify({
+          platforms,
+          topic: seed.slice(0, 500),
+          tone: "professional",
+          length: mode === "shorten" ? "short" : "medium",
+          includeHashtags: false,
+          includeEmojis: false,
+          includeCTA: mode !== "shorten",
+        }),
       });
       const data = await res.json();
-      if (data.success && data.data.value) setCaption(data.data.value);
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "Generation failed");
+      const content = String(data.data?.content || "").trim();
+      if (!content) throw new Error("AI returned empty content.");
+      setCaption(content.slice(0, MAX_CAPTION_CHARS));
+      toast({ title: mode === "draft" ? "Draft ready" : mode === "rewrite" ? "Rewritten" : "Shortened" });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "AI failed",
+        variant: "destructive",
+      });
     } finally {
-      setSuggesting(false);
+      setAiBusy(null);
     }
   }
 
   async function publish() {
-    if (!caption.trim() && hashtags.length === 0) {
+    if (!caption.trim()) {
       toast({ title: "Add a caption first", variant: "destructive" });
       return;
     }
@@ -2214,7 +2286,7 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
       const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption, hashtags, platforms }),
+        body: JSON.stringify({ caption, platforms }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error?.message || "Publish failed");
@@ -2266,66 +2338,33 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
 
         {/* Post composer */}
         <div className="space-y-3">
-          <FieldGroup label="Caption">
-            <div className="relative">
-              <Textarea
-                value={caption}
-                onChange={(event) => setCaption(event.target.value)}
-                rows={5}
-                placeholder="Write a caption…"
-                className="resize-y text-sm"
-              />
-              <button
-                type="button"
-                onClick={suggestCaption}
-                disabled={suggesting}
-                title="AI write a caption"
-                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md border bg-background/95 text-brand-500 shadow-sm hover:border-brand-500"
-              >
-                {suggesting ? <AISpinner size={12} /> : <Sparkles className="h-3.5 w-3.5" />}
-              </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Caption
+            </label>
+            <div className="flex flex-wrap gap-1">
+              <CaptionAction label="Draft" icon={Sparkles} onClick={() => runAi("draft")} busy={aiBusy === "draft"} />
+              <CaptionAction label="Rewrite" icon={Wand2} onClick={() => runAi("rewrite")} busy={aiBusy === "rewrite"} />
+              <CaptionAction label="Shorten" icon={Edit3} onClick={() => runAi("shorten")} busy={aiBusy === "shorten"} />
+              <CaptionAction label="Hashtags" icon={Sparkles} onClick={() => runAi("hashtags")} busy={aiBusy === "hashtags"} />
+              <CaptionAction label="SEO keys" icon={Sparkles} onClick={() => runAi("seo")} busy={aiBusy === "seo"} />
             </div>
-          </FieldGroup>
-
-          <FieldGroup label="Hashtags">
-            <div className="flex flex-wrap gap-1.5">
-              {hashtags.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => setHashtags(hashtags.filter((t) => t !== tag))}
-                  className="inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-xs text-brand-600 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 dark:text-brand-300"
-                >
-                  {tag}
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              ))}
-              <Input
-                value={hashtagInput}
-                onChange={(event) => setHashtagInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault();
-                    addHashtag(hashtagInput);
-                  }
-                }}
-                placeholder="#newtag"
-                className="h-7 w-32 text-xs"
-              />
-            </div>
-          </FieldGroup>
+          </div>
+          <div className="relative">
+            <Textarea
+              value={caption}
+              onChange={(event) => setCaption(event.target.value.slice(0, MAX_CAPTION_CHARS))}
+              rows={8}
+              placeholder="Write your post content here…"
+              className="resize-y text-sm"
+            />
+            <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-muted-foreground">
+              {caption.length}/{MAX_CAPTION_CHARS}
+            </span>
+          </div>
 
           <FieldGroup label="Post to">
-            <PlatformPicker
-              value={platforms.filter((p) => p !== "feed")}
-              onChange={(next) => {
-                // always include feed as a destination
-                setPlatforms(["feed", ...next.filter((p) => p !== "feed")]);
-              }}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Always saved to your FlowSmartly feed. Add channels to cross-post.
-            </p>
+            <ConnectedDestinationsPicker value={platforms} onChange={setPlatforms} />
           </FieldGroup>
 
           <Button onClick={publish} disabled={publishing} size="lg" className="w-full">
@@ -2335,6 +2374,34 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
         </div>
       </div>
     </SectionCard>
+  );
+}
+
+function CaptionAction({
+  label,
+  icon: Icon,
+  onClick,
+  busy,
+}: {
+  label: string;
+  icon: typeof Sparkles;
+  onClick: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+        "border-border bg-background hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-300",
+        "disabled:opacity-60",
+      )}
+    >
+      {busy ? <AISpinner size={10} /> : <Icon className="h-3 w-3" />}
+      {label}
+    </button>
   );
 }
 
@@ -2700,6 +2767,178 @@ function StableVideo({
     }
   }, [path, src]);
   return <video src={locked} controls={controls} className={className} />;
+}
+
+/**
+ * Same look + feel as the Accounts panel in /content/posts:
+ * - Feed is always available as an internal destination
+ * - Only connected social accounts appear as targets (expanded per-account if multiple)
+ * - Disconnected platforms get a faint "Connect in settings" row with a link
+ * - Uses PLATFORM_META icon + color so identity is consistent
+ */
+function ConnectedDestinationsPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { platforms: connectedPlatforms, isLoading } = useSocialPlatforms();
+
+  type Destination = {
+    id: string;
+    platformId: string;
+    label: string;
+    description: string;
+    avatarUrl: string | null;
+    enabled: boolean;
+  };
+
+  const destinations: Destination[] = useMemo(() => {
+    const platformMap = new Map(connectedPlatforms.map((p) => [p.platform, p]));
+    const list: Destination[] = [
+      {
+        id: "feed",
+        platformId: "feed",
+        label: "FlowSmartly Feed",
+        description: "Internal feed",
+        avatarUrl: null,
+        enabled: true,
+      },
+    ];
+    for (const platformId of Object.keys(PLATFORM_META)) {
+      if (platformId === "feed") continue;
+      const accounts = platformMap.get(platformId)?.accounts || [];
+      if (accounts.length === 0) continue;
+      for (const acc of accounts) {
+        list.push({
+          id: socialAccountDestinationId(acc.id),
+          platformId,
+          label: acc.displayName || acc.username || PLATFORM_META[platformId].label,
+          description: acc.username
+            ? `${PLATFORM_META[platformId].label} · ${acc.username}`
+            : PLATFORM_META[platformId].label,
+          avatarUrl: acc.avatarUrl || null,
+          enabled: !acc.needsReconnect,
+        });
+      }
+    }
+    return list;
+  }, [connectedPlatforms]);
+
+  const disconnected = useMemo(() => {
+    const connected = new Set(connectedPlatforms.filter((p) => p.connected).map((p) => p.platform));
+    return Object.keys(PLATFORM_META).filter((id) => id !== "feed" && !connected.has(id));
+  }, [connectedPlatforms]);
+
+  function toggle(id: string) {
+    if (value.includes(id)) onChange(value.filter((x) => x !== id));
+    else onChange([...value, id]);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+        <AISpinner size={12} />
+        Loading your accounts...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {destinations.map((d) => {
+          const meta = PLATFORM_META[d.platformId];
+          const Icon = meta?.icon || Sparkles;
+          const active = value.includes(d.id);
+          return (
+            <button
+              key={d.id}
+              type="button"
+              disabled={!d.enabled}
+              onClick={() => toggle(d.id)}
+              className={cn(
+                "group flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors",
+                active
+                  ? "border-brand-500 bg-brand-500/5"
+                  : "border-border bg-background hover:border-brand-500",
+                !d.enabled && "cursor-not-allowed opacity-60",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                  active ? "border-brand-500 bg-brand-500 text-white" : "border-muted-foreground/30 bg-background",
+                )}
+              >
+                {active && <Check className="h-3 w-3" />}
+              </div>
+              {d.avatarUrl ? (
+                <img src={d.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+              ) : (
+                <div
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+                    meta?.bgClass,
+                    meta?.borderClass,
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" style={{ color: meta?.color }} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{d.label}</p>
+                <p className="truncate text-xs text-muted-foreground">{d.description}</p>
+              </div>
+              {meta && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                    meta.bgClass,
+                    meta.borderClass,
+                  )}
+                  style={{ color: meta.color }}
+                >
+                  {meta.label}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {disconnected.length > 0 && (
+        <div className="rounded-lg border border-dashed bg-muted/20 p-2.5 text-xs">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-muted-foreground">Not connected yet</span>
+            <a href="/settings/accounts" className="font-medium text-brand-500 hover:underline">
+              Connect more →
+            </a>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {disconnected.map((id) => {
+              const meta = PLATFORM_META[id];
+              if (!meta) return null;
+              const Icon = meta.icon;
+              return (
+                <span
+                  key={id}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-muted-foreground opacity-60",
+                    meta.borderClass,
+                  )}
+                >
+                  <Icon className="h-3 w-3" style={{ color: meta.color }} />
+                  {meta.label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PlatformPicker({
