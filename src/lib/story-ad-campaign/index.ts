@@ -29,6 +29,7 @@ import {
   type CampaignClipLength,
   type CampaignClipSlot,
   type ClipDialogueLine,
+  type ClipMediaType,
   type CampaignDurationSeconds,
   type NarratorVoice,
   type CampaignProvider,
@@ -677,6 +678,12 @@ export async function planSceneGrid(
   if (!state.style) throw new Error("Campaign style must be selected first");
   if (!state.characters.length) throw new Error("Generate the character catalog first");
 
+  // Narrated style uses a different planner — many image scenes + a few video highlights,
+  // narrator-driven with optional character dialogue moments.
+  if (state.style === "narrated") {
+    return planNarratedScenes(state, brand);
+  }
+
   const clipCount = clipsForDuration(state.durationSeconds, state.clipLength);
   const styleLabel = STYLE_LABELS[state.style];
   const charactersBlock = state.characters
@@ -873,6 +880,157 @@ function normalizeDialogue(c: PlannedClip, valid: Set<string>): ClipDialogueLine
 // =============================================================
 // Stage 3 — Per-clip prompt assembly
 // =============================================================
+
+/**
+ * Narrated-story planner. Generates ~N scenes (mostly stills with narrator,
+ * 15–25% animated as 8-second xAI video clips), each with narratorLine + optional
+ * character dialogue moments.
+ */
+async function planNarratedScenes(
+  state: CampaignState,
+  brand: BrandSnapshot,
+): Promise<CampaignClipSlot[]> {
+  // Target ~10 seconds per scene; user picks duration up to 600s.
+  const targetSecondsPerScene = 10;
+  const sceneCount = Math.max(6, Math.min(60, Math.round(state.durationSeconds / targetSecondsPerScene)));
+  // ~20% of scenes are animated (video clips). Capped at 12 to keep cost reasonable.
+  const videoSceneCount = Math.max(1, Math.min(12, Math.round(sceneCount * 0.2)));
+  const styleLabel = STYLE_LABELS[state.style as "narrated"];
+  const charactersBlock = state.characters
+    .map((c) => `- ${c.id} | ${c.name} (${c.role})`)
+    .join("\n");
+
+  const prompt = `You are writing a ${state.durationSeconds}-second narrated short film. It plays as a sequence of still illustrations with a NARRATOR voicing the story, plus a handful of moments that come alive as 8-second video clips.
+
+🚨 ABSOLUTE TOP PRIORITY — DRAMATIZE THE USER'S BRIEF LITERALLY 🚨
+
+USER'S BRIEF (this is THE story; everything else serves it):
+"""
+${state.brief}
+"""
+
+The brief is the LAW. Follow the user's described scenes in their EXACT order. If the brief opens with combat, open with combat. Do NOT skip ahead to the brand. The first ~80% of scenes is the human story; the brand only fits in at the very end if at all.
+
+${state.storyOutline ? `STORY OUTLINE (reference): ${state.storyOutline}` : ""}
+GOAL (tone): ${state.goal}
+${brand.name ? `BRAND CONTEXT (background, last scene at most): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}` : ""}
+
+CHARACTERS (use ids verbatim — do NOT invent new ones):
+${charactersBlock}
+
+Plan exactly ${sceneCount} scenes. About ${videoSceneCount} of them should be VIDEO scenes (mediaType: "video", 8 seconds each — used for the most kinetic, visceral, or emotional moments). The rest are still IMAGE scenes (mediaType: "image", ~${targetSecondsPerScene}s each).
+
+For each scene:
+- act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
+- shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
+- cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK (for image scenes this hints at composition; for video scenes it's a real camera move)
+- sceneAction: ONE sentence describing what we see. Include scene-specific wardrobe / props / environment if different from the character's default (e.g. "Marcus in dusty combat fatigues crouches behind a Humvee as tracers streak overhead").
+- moodLighting: lighting + color grade, single line.
+- mediaType: "image" or "video". Reserve video for the ~${videoSceneCount} most impactful moments — combat, emotional reveals, key transitions.
+- characterIds: array of character ids on camera (0–3). Use [] for pure environment / object shots.
+- narratorLine: ONE 1–3 sentence narrator line (~15–25 words) that voices the story over this scene. The narrator is detached, documentary-style. NEVER describe what we see literally ("Marcus is sad"); instead, advance the story emotionally ("Two years gone. The world hadn't waited for him.").
+- dialogue: array of in-scene character lines (optional, mostly EMPTY). Only include dialogue when a character physically speaks on camera — for ~10–20% of scenes max. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Most scenes are narrator-only; let the narrator carry the story.
+
+NARRATIVE FLOW:
+- The narrator's voice runs continuously across scenes. Each narratorLine should connect to the previous one — same voice, same arc.
+- When a character speaks on-camera (dialogue), the narrator goes quiet for that beat. Then resumes.
+- Open with a strong narrator hook. Close with a quiet, emotionally landed line — never a sales pitch.
+
+HARD RULES:
+- Follow the BRIEF's scene order literally.
+- Brand named only in the FINAL scene at most. Never before.
+- No on-screen text overlays.
+- Narrator is the dominant voice; dialogue is rare and earned.
+- ${state.characters.length} characters total — don't invent new people unless the brief demands it.
+
+Return strict JSON with exactly ${sceneCount} scenes:
+{
+  "clips": [
+    {
+      "act": "HOOK",
+      "shotType": "WIDE",
+      "cameraMovement": "STATIC",
+      "sceneAction": "...",
+      "moodLighting": "...",
+      "mediaType": "image",
+      "characterIds": ["${state.characters[0]?.id || ""}"],
+      "narratorLine": "...",
+      "dialogue": []
+    }
+  ]
+}`;
+
+  const result = await ai.generateJSON<{ clips: PlannedNarratedClip[] }>(prompt, {
+    maxTokens: 8000,
+    temperature: 0.72,
+    systemPrompt:
+      "You are a screenwriter for narrated documentary-style short films. The narrator carries the story; the user's brief is the law. Return valid JSON only.",
+  });
+
+  const characterIds = new Set(state.characters.map((c) => c.id));
+  const raw = Array.isArray(result?.clips) ? result.clips : [];
+  const trimmed = raw.slice(0, sceneCount);
+
+  const clips: CampaignClipSlot[] = trimmed.map((c, index) => {
+    const mediaType: ClipMediaType =
+      typeof c.mediaType === "string" && c.mediaType.toLowerCase() === "video" ? "video" : "image";
+    const slot: CampaignClipSlot = {
+      id: nanoid(8),
+      index: index + 1,
+      act: normalizeAct(c.act),
+      shotType: normalizeShot(c.shotType),
+      cameraMovement: normalizeCamera(c.cameraMovement),
+      sceneAction: String(c.sceneAction || "").trim().slice(0, 400),
+      moodLighting: String(c.moodLighting || "").trim().slice(0, 200),
+      characterIds: normalizeCharacterIds(c, characterIds),
+      dialogue: normalizeDialogue(c, characterIds),
+      narratorLine: String(c.narratorLine || "").trim().slice(0, 360),
+      mediaType,
+      imageUrl: null,
+      audioUrl: null,
+      segmentDuration: mediaType === "video" ? 8 : targetSecondsPerScene,
+      prompt: "",
+      status: "PENDING",
+      videoUrl: null,
+      error: null,
+    };
+    slot.prompt = buildClipPrompt(slot, state, brand);
+    return slot;
+  });
+
+  while (clips.length < sceneCount) {
+    const index = clips.length + 1;
+    const slot: CampaignClipSlot = {
+      id: nanoid(8),
+      index,
+      act: "TRANSFORM",
+      shotType: "WIDE",
+      cameraMovement: "STATIC",
+      sceneAction: "Continue the story.",
+      moodLighting: "Natural cinematic lighting.",
+      characterIds: state.characters[0] ? [state.characters[0].id] : [],
+      dialogue: [],
+      narratorLine: "",
+      mediaType: "image",
+      imageUrl: null,
+      audioUrl: null,
+      segmentDuration: targetSecondsPerScene,
+      prompt: "",
+      status: "PENDING",
+      videoUrl: null,
+      error: null,
+    };
+    slot.prompt = buildClipPrompt(slot, state, brand);
+    clips.push(slot);
+  }
+
+  return clips;
+}
+
+interface PlannedNarratedClip extends PlannedClip {
+  mediaType?: string;
+  narratorLine?: string;
+}
 
 export function buildClipPrompt(
   clip: CampaignClipSlot,
@@ -1119,6 +1277,339 @@ async function renderClipViaXai(
  * Each clip's videoUrl is set to the CUMULATIVE reel up to that point — so the
  * UI player on the most-recent READY clip is always the latest preview of the reel.
  */
+/**
+ * Narrated story render: parallel image gen for image scenes + 8s xAI video for video scenes,
+ * parallel narrator TTS per scene, ffmpeg image+audio compose per segment, concat all into final reel.
+ * Brand logo overlay + caption + media-library save reuse runFinalAssembly logic at the end.
+ */
+async function renderNarratedStory(input: {
+  campaignId: string;
+  userId: string;
+  state: CampaignState;
+}): Promise<void> {
+  const { campaignId, userId, state } = input;
+  const clips = [...state.clips];
+  const total = clips.length;
+
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: {
+      status: "COMPOSITING",
+      progress: 5,
+      currentStep: "Starting narrated render (images + narrator)...",
+    },
+  });
+
+  const brand = await getBrandSnapshot(userId);
+
+  // Stage A — render media for each scene (parallel-ish, capped concurrency)
+  const MEDIA_CONCURRENCY = 4;
+  let cursor = 0;
+  let completed = 0;
+
+  async function mediaWorker() {
+    while (cursor < clips.length) {
+      const i = cursor++;
+      const clip = clips[i];
+      if (clip.status === "READY" && (clip.imageUrl || clip.videoUrl)) {
+        completed++;
+        continue;
+      }
+      clips[i] = { ...clip, status: "RENDERING", error: null };
+      await persistClipsProgress(campaignId, clips, completed, total);
+      try {
+        if (clip.mediaType === "video") {
+          const url = await renderClipViaXai(clip, { ...state, clipLength: 8 });
+          clips[i] = { ...clips[i], status: "READY", videoUrl: url, error: null };
+        } else {
+          const url = await generateNarratedSceneImage(clip, state, brand);
+          clips[i] = { ...clips[i], status: "READY", imageUrl: url, error: null };
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Render failed";
+        clips[i] = { ...clips[i], status: "FAILED", error: message };
+      }
+      completed++;
+      await persistClipsProgress(campaignId, clips, completed, total);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(MEDIA_CONCURRENCY, clips.length) }, () => mediaWorker()));
+
+  // Stage B — narrator TTS per scene (sequential to preserve voice consistency)
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: { progress: 70, currentStep: "Generating narrator audio..." },
+  });
+  for (let i = 0; i < clips.length; i++) {
+    const clip = clips[i];
+    if (clip.status !== "READY") continue;
+    if (clip.audioUrl) continue;
+    const text = (clip.narratorLine || "").trim();
+    if (!text) continue;
+    try {
+      const audioBuf = await synthesizeNarratorAudio(text, state.narratorVoice);
+      const audioUrl = await uploadToS3(
+        `story-ad-campaigns/${campaignId}/audio/seg-${String(i + 1).padStart(2, "0")}-${nanoid(6)}.mp3`,
+        audioBuf,
+        "audio/mpeg",
+      );
+      clips[i] = { ...clips[i], audioUrl };
+    } catch (error) {
+      console.warn(`[StoryAdCampaign] narrator audio failed for scene ${i + 1}:`, error);
+    }
+  }
+
+  // Stage C — ffmpeg compose: image+audio per segment, then concat all
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: { progress: 85, currentStep: "Composing the final reel..." },
+  });
+  let finalVideoUrl: string | null = null;
+  try {
+    finalVideoUrl = await composeNarratedReel(campaignId, clips, state);
+  } catch (error) {
+    console.error("[StoryAdCampaign] narrated compose failed:", error);
+  }
+
+  // Stage D — brand logo overlay + caption + media library (reuse helpers)
+  let publishCaption: string | undefined;
+  let publishHashtags: string[] | undefined;
+  if (finalVideoUrl) {
+    if (brand.logo) {
+      try {
+        await prisma.cartoonVideo.update({
+          where: { id: campaignId },
+          data: { progress: 94, currentStep: "Adding brand logo..." },
+        });
+        finalVideoUrl = await overlayBrandLogo({ campaignId, videoUrl: finalVideoUrl, logoUrl: brand.logo });
+      } catch (e) {
+        console.warn("[StoryAdCampaign] narrated logo overlay failed:", e);
+      }
+    }
+    try {
+      await prisma.cartoonVideo.update({
+        where: { id: campaignId },
+        data: { progress: 97, currentStep: "Writing social caption..." },
+      });
+      const c = await generateCampaignCaption(state, brand);
+      publishCaption = c.caption;
+      publishHashtags = c.hashtags;
+    } catch (e) {
+      console.warn("[StoryAdCampaign] narrated caption failed:", e);
+    }
+    try {
+      await saveCampaignReelToLibrary({
+        userId,
+        campaignId,
+        title: state.brief?.slice(0, 80) || "Narrated Story",
+        videoUrl: finalVideoUrl,
+        thumbnailUrl: clips.find((c) => c.imageUrl)?.imageUrl || clips.find((c) => c.videoUrl)?.videoUrl || null,
+      });
+    } catch (e) {
+      console.warn("[StoryAdCampaign] narrated media library save failed:", e);
+    }
+  }
+
+  const allOk = clips.every((c) => c.status === "READY") && !!finalVideoUrl;
+  const finalState: CampaignState = {
+    ...state,
+    clips,
+    phase: allOk ? "DONE" : "FAILED",
+    finalVideoUrl,
+    finalVideoThumbnailUrl: clips.find((c) => c.imageUrl)?.imageUrl || clips.find((c) => c.videoUrl)?.videoUrl || null,
+    ...(publishCaption ? { campaignCaption: publishCaption } : {}),
+    ...(publishHashtags ? { hashtags: publishHashtags } : {}),
+  };
+  await prisma.cartoonVideo.update({
+    where: { id: campaignId },
+    data: {
+      status: allOk ? "COMPLETED" : "FAILED",
+      progress: 100,
+      currentStep: allOk ? "Narrated reel ready" : "Some scenes failed — review and re-run",
+      metadata: writeCampaign(finalState),
+      videoUrl: finalVideoUrl,
+      completedAt: allOk ? new Date() : null,
+    },
+  });
+}
+
+/** Generate a still illustration for an image scene using the same image router as character previews. */
+async function generateNarratedSceneImage(
+  clip: CampaignClipSlot,
+  state: CampaignState,
+  brand: BrandSnapshot,
+): Promise<string> {
+  const onCamera = clip.characterIds
+    .map((id) => state.characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+  const characterBlock = onCamera.length
+    ? onCamera.map((c) => `${c.name} (${c.visualDescription})`).join(". ")
+    : "";
+
+  const aspect = state.aspectRatio;
+  const [w, h] = aspect === "9:16" ? [768, 1344] : aspect === "1:1" ? [1024, 1024] : [1344, 768];
+
+  const prompt = `Cinematic narrated-story illustration. ${clip.sceneAction}
+Mood + lighting: ${clip.moodLighting}.
+${characterBlock ? `Characters in frame: ${characterBlock}.` : ""}
+Painterly storyboard composition, film-still quality, atmospheric. No text overlays. No watermarks. No logos.
+Brand context (do NOT draw the logo): ${brand.name}.
+Aspect ratio: ${aspect}.`;
+
+  const result = await generateImageXaiFirst(prompt, w, h, { quality: "high", transparent: false });
+  if (!result.base64) throw new Error("Image provider returned no image");
+  const buf = Buffer.from(result.base64, "base64");
+  const ext = result.format === "jpeg" ? "jpg" : result.format;
+  const contentType = result.format === "jpeg" ? "image/jpeg" : `image/${result.format}`;
+  const key = `story-ad-campaigns/${nanoid(6)}/scene-${String(clip.index).padStart(2, "0")}.${ext}`;
+  return uploadToS3(key, buf, contentType);
+}
+
+/** Synthesize narrator audio for one line using the campaign's narrator voice. */
+async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoice): Promise<Buffer> {
+  const gender = narratorVoice?.gender || "male";
+  const toneText = (narratorVoice?.tone || "").toLowerCase();
+  const style: "professional" | "warm" | "dramatic" | "energetic" =
+    /dramatic|epic|cinematic|intense/.test(toneText)
+      ? "dramatic"
+      : /warm|gentle|intimate|documentary/.test(toneText)
+        ? "warm"
+        : /energetic|excited|punchy/.test(toneText)
+          ? "energetic"
+          : "professional";
+  const result = await generateVoice({
+    text,
+    gender,
+    accent: "american",
+    style,
+    speed: 0.95,
+  });
+  return result.audioBuffer;
+}
+
+/**
+ * Compose the narrated reel: per scene make a video segment (image+audio for image scenes,
+ * original video+audio overlay for video scenes), then ffmpeg-concat all segments.
+ */
+async function composeNarratedReel(
+  campaignId: string,
+  clips: CampaignClipSlot[],
+  state: CampaignState,
+): Promise<string> {
+  const ready = clips.filter((c) => c.status === "READY" && (c.imageUrl || c.videoUrl));
+  if (!ready.length) throw new Error("No ready scenes to compose");
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "narrated-reel-"));
+  const outputPath = path.join(tempDir, "reel.mp4");
+  const listPath = path.join(tempDir, "list.txt");
+  const aspect = state.aspectRatio;
+  const targetSize = aspect === "9:16" ? "768x1344" : aspect === "1:1" ? "1024x1024" : "1344x768";
+
+  try {
+    const segmentPaths: string[] = [];
+
+    for (let i = 0; i < ready.length; i++) {
+      const clip = ready[i];
+      const segPath = path.join(tempDir, `seg-${String(i + 1).padStart(2, "0")}.mp4`);
+
+      // Download audio if present
+      let audioPath: string | null = null;
+      if (clip.audioUrl) {
+        const audioBuf = await downloadToBuffer(clip.audioUrl);
+        audioPath = path.join(tempDir, `audio-${i + 1}.mp3`);
+        await writeFile(audioPath, audioBuf);
+      }
+
+      if (clip.mediaType === "video" && clip.videoUrl) {
+        // Video scene: download video, optionally mix narrator audio over original
+        const videoBuf = await downloadToBuffer(clip.videoUrl);
+        const inPath = path.join(tempDir, `in-${i + 1}.mp4`);
+        await writeFile(inPath, videoBuf);
+        if (audioPath) {
+          // Replace original audio with narrator (ducked to original at -10dB if mixing would be nicer; for now we overlay)
+          await runFFmpeg([
+            "-i", inPath,
+            "-i", audioPath,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+            "-y", segPath,
+          ]);
+        } else {
+          await runFFmpeg(["-i", inPath, "-c", "copy", "-y", segPath]);
+        }
+      } else {
+        // Image scene: hold image for narrator duration (or default 6s)
+        const imagePath = path.join(tempDir, `img-${i + 1}.png`);
+        const imageBuf = await downloadToBuffer(clip.imageUrl as string);
+        await writeFile(imagePath, imageBuf);
+        const duration = audioPath ? "" : `${clip.segmentDuration || 6}`;
+        if (audioPath) {
+          // Image + audio: hold image for audio duration with a slow Ken Burns push-in
+          await runFFmpeg([
+            "-loop", "1",
+            "-i", imagePath,
+            "-i", audioPath,
+            "-filter_complex",
+            `[0:v]scale=${targetSize}:force_original_aspect_ratio=increase,crop=${targetSize},format=yuv420p,zoompan=z='min(zoom+0.0008,1.15)':d=1:s=${targetSize}:fps=30[v]`,
+            "-map", "[v]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-tune", "stillimage",
+            "-preset", "veryfast",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+            "-pix_fmt", "yuv420p",
+            "-y", segPath,
+          ]);
+        } else {
+          await runFFmpeg([
+            "-loop", "1",
+            "-i", imagePath,
+            "-t", duration,
+            "-vf", `scale=${targetSize}:force_original_aspect_ratio=increase,crop=${targetSize},format=yuv420p`,
+            "-c:v", "libx264",
+            "-tune", "stillimage",
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-y", segPath,
+          ]);
+        }
+      }
+      segmentPaths.push(segPath);
+    }
+
+    const list = segmentPaths
+      .map((p) => `file '${p.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`)
+      .join("\n");
+    await writeFile(listPath, list);
+
+    // Re-encode on concat since segments may have differing audio params from per-segment encodes
+    await runFFmpeg([
+      "-f", "concat",
+      "-safe", "0",
+      "-i", listPath,
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-crf", "20",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-movflags", "+faststart",
+      "-y", outputPath,
+    ]);
+
+    const finalBuf = await readFile(outputPath);
+    const key = `story-ad-campaigns/${campaignId}/narrated-${nanoid(8)}.mp4`;
+    return uploadToS3(key, finalBuf, "video/mp4");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function renderXaiSeamless(input: {
   campaignId: string;
   userId: string;
@@ -1357,6 +1848,12 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
 
   // xAI supports video extension → chain extensions for one seamless reel with no cuts.
   // Veo's extension is only ~7s per call which would need too many calls, so it stays parallel.
+  // Narrated style has its own pipeline: image gen + narrator TTS + ffmpeg compose.
+  if (state.style === "narrated") {
+    await renderNarratedStory({ campaignId: row.id, userId: row.userId, state });
+    return;
+  }
+
   if (state.provider === "xai") {
     await renderXaiSeamless({ campaignId: row.id, userId: row.userId, state });
     return;
