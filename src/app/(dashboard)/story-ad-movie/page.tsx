@@ -84,6 +84,19 @@ interface DialogueLine {
   emotion?: string;
 }
 
+interface SpotCue {
+  id: string;
+  description: string;
+  atSec: number;
+  durationSec?: number;
+  gainDb?: number;
+  audioUrl?: string;
+}
+interface SceneSoundscape {
+  ambient?: { description: string; audioUrl?: string; gainDb?: number };
+  spot?: SpotCue[];
+}
+
 interface ClipSlot {
   id: string;
   index: number;
@@ -104,6 +117,8 @@ interface ClipSlot {
   audioUrl?: string | null;
   narratorLine?: string;
   segmentDuration?: number;
+  soundscape?: SceneSoundscape;
+  mixedAudioUrl?: string;
   /** @deprecated */ characterId?: string | null;
   /** @deprecated */ voiceoverLine?: string;
 }
@@ -2116,12 +2131,127 @@ function ClipPromptCard({
         onChange={(dialogue) => onChange({ ...clip, dialogue })}
       />
 
+      {state.style === "narrated" && (
+        <NarrationAndSoundscapeBlock
+          clip={clip}
+          onChange={onChange}
+        />
+      )}
+
       {showPrompt && (
         <div className="mt-3 rounded-lg border border-dashed bg-muted/30 p-3">
           <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Assembled prompt</p>
           <pre className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{clip.prompt}</pre>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Narrated style: narrator line editor + cinematic soundscape (ambient bed + spot SFX cues).
+ *
+ * The narrator plays continuously across the reel; ambient SFX sits under everything at low
+ * volume; spot cues fire at planned times. All three are mixed into a single mp3 per scene
+ * server-side (see buildSceneMixedAudio in src/lib/story-ad-campaign/index.ts).
+ */
+function NarrationAndSoundscapeBlock({
+  clip,
+  onChange,
+}: {
+  clip: ClipSlot;
+  onChange: (clip: ClipSlot) => void;
+}) {
+  const ambient = clip.soundscape?.ambient?.description || "";
+  const spot = clip.soundscape?.spot || [];
+
+  function setAmbient(value: string) {
+    const trimmed = value.trim();
+    onChange({
+      ...clip,
+      soundscape: {
+        ...clip.soundscape,
+        ambient: trimmed ? { description: trimmed, gainDb: clip.soundscape?.ambient?.gainDb ?? -20 } : undefined,
+      },
+    });
+  }
+  function updateSpot(idx: number, patch: Partial<SpotCue>) {
+    const next = spot.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    onChange({ ...clip, soundscape: { ...clip.soundscape, spot: next } });
+  }
+  function removeSpot(idx: number) {
+    const next = spot.filter((_, i) => i !== idx);
+    onChange({
+      ...clip,
+      soundscape: { ...clip.soundscape, spot: next.length ? next : undefined },
+    });
+  }
+  function addSpot() {
+    const newCue: SpotCue = { id: nanoLocalId(), description: "", atSec: 1, gainDb: -10 };
+    onChange({ ...clip, soundscape: { ...clip.soundscape, spot: [...spot, newCue] } });
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-brand-200/60 bg-brand-50/40 p-3 dark:border-brand-900/40 dark:bg-brand-950/20">
+      <p className="text-xs font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">
+        Narration + sound design
+      </p>
+
+      <FieldGroup label="Narrator line (plays over this scene)">
+        <Textarea
+          value={clip.narratorLine || ""}
+          onChange={(event) => onChange({ ...clip, narratorLine: event.target.value })}
+          rows={2}
+          className="resize-y text-sm"
+          placeholder="One or two sentences the narrator speaks while we watch this image..."
+        />
+      </FieldGroup>
+
+      <FieldGroup label="Ambient sound (plays under the whole scene)">
+        <Input
+          value={ambient}
+          onChange={(event) => setAmbient(event.target.value)}
+          placeholder="e.g. distant city traffic with light rain on pavement"
+        />
+      </FieldGroup>
+
+      <FieldGroup label="Spot SFX cues (timed sounds during the scene)">
+        <div className="space-y-2">
+          {!spot.length && (
+            <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              No spot cues. Add one to drop a sound at a specific moment (door creak, footsteps, glass shatter, swell, etc.).
+            </p>
+          )}
+          {spot.map((cue, idx) => (
+            <div key={cue.id} className="flex flex-col gap-1.5 rounded-md border bg-background p-2 sm:flex-row sm:items-center">
+              <Input
+                value={cue.description}
+                onChange={(event) => updateSpot(idx, { description: event.target.value })}
+                placeholder="wooden door creaking open"
+                className="flex-1"
+              />
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground">At</label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  value={cue.atSec}
+                  onChange={(event) => updateSpot(idx, { atSec: Math.max(0, Number(event.target.value) || 0) })}
+                  className="w-20"
+                />
+                <span className="text-xs text-muted-foreground">s</span>
+                <Button size="sm" variant="ghost" onClick={() => removeSpot(idx)} aria-label="Remove cue">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          <Button size="sm" variant="outline" onClick={addSpot} className="text-xs">
+            <Plus className="mr-1 h-3 w-3" /> Add spot SFX
+          </Button>
+        </div>
+      </FieldGroup>
     </div>
   );
 }
