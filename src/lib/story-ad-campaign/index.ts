@@ -682,7 +682,7 @@ For each clip output:
 - act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA — labels the emotional function; the SCENE itself comes from the brief.
 - shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
 - cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
-- sceneAction: ONE sentence describing what physically happens. Must be one of the user's described scenes (or a connecting beat between them). Reference the previous clip's moment so flow is continuous.
+- sceneAction: ONE sentence describing what physically happens. Must be one of the user's described scenes (or a connecting beat between them). Reference the previous clip's moment so flow is continuous. CRITICAL: include scene-specific wardrobe + props + environment if they differ from the character's reference look. Example: 'Marcus (in dusty combat fatigues, helmet, M4 rifle slung) crouches behind a Humvee while tracer rounds streak overhead.' NOT just 'Marcus crouches behind cover.'
 - moodLighting: lighting + color grade, single line. Tailored to the specific scene from the brief.
 - characterIds: array of character ids visible on-camera (1 to 3). [] for pure environment/product shots.
 - dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. For a silent visual moment use dialogue: [].
@@ -831,9 +831,10 @@ export function buildClipPrompt(
     .filter((c): c is NonNullable<typeof c> => !!c);
 
   const characterBlock = onCamera.length
-    ? `CHARACTERS ON CAMERA (preserve exact visual continuity with their reference portraits from earlier clips):\n${onCamera
-        .map((c) => `- ${c.name}: ${c.visualDescription}`)
-        .join("\n")}`
+    ? `CHARACTERS ON CAMERA (face + body continuity matches their reference portraits — see below):
+${onCamera.map((c) => `- ${c.name}: ${c.visualDescription}`).join("\n")}
+
+WARDROBE + STATE OVERRIDE: The reference portraits show each character's baseline look. For THIS clip, follow what the SCENE ACTION says — if the scene calls for combat fatigues, scrubs, formal wear, post-rain wet clothes, exhausted dirty face, etc., wear THAT for this clip. Keep the FACE/HAIR/BUILD identical to the portrait, but treat wardrobe and physical state as scene-specific. Example: portrait shows a man in t-shirt and jeans, but scene action says "in combat fatigues" → render him in fatigues, same face.`
     : "No on-camera character — focus on environment or product.";
 
   // Build a precise dialogue script with a clearly marked speaker per line so the
@@ -1102,7 +1103,10 @@ async function renderXaiSeamless(input: {
         attempted++;
         try {
           if (i === 0 || !reelUrl) {
-            const fresh = await renderClipViaXai(clip, state);
+            // xAI's extension API caps the INPUT video at ~8.7s ("Video is too long. Maximum duration is 8.7 sec"),
+            // even though fresh generation allows 15s. Render the seed clip at 8s so every subsequent extension call succeeds.
+            const seedState: CampaignState = { ...state, clipLength: 8 };
+            const fresh = await renderClipViaXai(clip, seedState);
             reelUrl = fresh;
           } else {
             const extDuration = Math.min(10, state.clipLength);
