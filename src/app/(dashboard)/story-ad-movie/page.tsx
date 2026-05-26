@@ -40,7 +40,7 @@ import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
-type Phase = "STYLE" | "CHARACTERS" | "SCENES" | "PROMPTS" | "VOICE" | "BATCH" | "DONE" | "FAILED";
+type Phase = "STYLE" | "CHARACTERS" | "NARRATION" | "SCENES" | "PROMPTS" | "VOICE" | "BATCH" | "DONE" | "FAILED";
 type Style = "3d" | "cinematic" | "narrated";
 type ClipLen = 8 | 10 | 12 | 15;
 
@@ -116,6 +116,7 @@ interface CampaignState {
   clips: ClipSlot[];
   storyOutline?: string;
   narratorVoice?: { gender: "male" | "female"; tone: string; pace: string };
+  narratedSubStyle?: "3d" | "cinematic";
   finalVideoUrl?: string | null;
   finalVideoThumbnailUrl?: string | null;
   campaignCaption?: string;
@@ -141,13 +142,30 @@ interface CampaignListItem {
   createdAt: string;
 }
 
-const STAGES: { id: Phase; label: string; subtitle: string; icon: typeof Sparkles }[] = [
-  { id: "STYLE", label: "Style", subtitle: "3D or Cinematic", icon: Sparkles },
+type StageDef = { id: Phase; label: string; subtitle: string; icon: typeof Sparkles };
+
+const STAGES_BASE: StageDef[] = [
+  { id: "STYLE", label: "Style", subtitle: "Pick delivery + look", icon: Sparkles },
   { id: "CHARACTERS", label: "Characters", subtitle: "Catalog & voices", icon: Users },
   { id: "SCENES", label: "Scenes", subtitle: "Story arc grid", icon: Film },
   { id: "PROMPTS", label: "Script", subtitle: "Prompts + voice preview", icon: Edit3 },
   { id: "BATCH", label: "Produce", subtitle: "Render + deliver", icon: Zap },
 ];
+
+const NARRATION_STAGE: StageDef = {
+  id: "NARRATION",
+  label: "Narration",
+  subtitle: "Narrator voice",
+  icon: Mic,
+};
+
+function stagesForStyle(style: Style | null | undefined): StageDef[] {
+  if (style === "narrated") {
+    // Insert Narration step right after Characters
+    return [STAGES_BASE[0], STAGES_BASE[1], NARRATION_STAGE, ...STAGES_BASE.slice(2)];
+  }
+  return STAGES_BASE;
+}
 
 const ACT_BADGE: Record<Act, string> = {
   HOOK: "bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/30",
@@ -250,6 +268,8 @@ function PageBody() {
       provider: "xai" as Provider,
       clipLength: 15 as ClipLen,
       platforms: ["instagram", "tiktok"],
+      // Narrated sub-style (only used when style="narrated") — visual look of the stills
+      narratedSubStyle: "cinematic" as "3d" | "cinematic",
     };
     if (typeof window === "undefined") return base;
     try {
@@ -332,13 +352,16 @@ function PageBody() {
 
   const activePhase: Phase = campaign?.state.phase || (draft.style ? "CHARACTERS" : "STYLE");
 
+  // Stage list depends on style — Narrated injects a Narration step
+  const stages = stagesForStyle(campaign?.state.style || draft.style);
+
   // Map collapsed phases to the visible stepper steps:
   // - VOICE was merged into PROMPTS (Script step)
   // - DONE/FAILED stay on the BATCH (Produce step)
   const phaseIndex = (() => {
-    if (activePhase === "VOICE") return STAGES.findIndex((s) => s.id === "PROMPTS");
-    if (activePhase === "DONE" || activePhase === "FAILED") return STAGES.findIndex((s) => s.id === "BATCH");
-    return STAGES.findIndex((s) => s.id === activePhase);
+    if (activePhase === "VOICE") return stages.findIndex((s) => s.id === "PROMPTS");
+    if (activePhase === "DONE" || activePhase === "FAILED") return stages.findIndex((s) => s.id === "BATCH");
+    return stages.findIndex((s) => s.id === activePhase);
   })();
 
   async function createCampaign() {
@@ -520,6 +543,9 @@ function PageBody() {
 
   function canReach(target: Phase, state: CampaignState): boolean {
     if (target === "STYLE" || target === "CHARACTERS") return true;
+    if (target === "NARRATION") {
+      return state.style === "narrated" && state.characters.length > 0 && state.characters.every((c) => c.approved);
+    }
     if (target === "SCENES") {
       return state.characters.length > 0 && state.characters.every((c) => c.approved);
     }
@@ -555,6 +581,7 @@ function PageBody() {
 
       {(campaign || isCreating) && (
         <Stepper
+          stages={stages}
           phaseIndex={phaseIndex}
           canVisit={(phase) => {
             if (!campaign) return phase === "STYLE";
@@ -595,6 +622,15 @@ function PageBody() {
               localPatch({ characters: next });
             }}
             onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
+            onAdvance={() =>
+              goToPhase(campaign.state.style === "narrated" ? "NARRATION" : "SCENES")
+            }
+          />
+        )}
+        {campaign && activePhase === "NARRATION" && (
+          <NarrationStage
+            campaignId={campaign.id}
+            state={campaign.state}
             onAdvance={() => goToPhase("SCENES")}
           />
         )}
@@ -699,10 +735,12 @@ function TopBar({
 // ============================================================================
 
 function Stepper({
+  stages,
   phaseIndex,
   canVisit,
   onJump,
 }: {
+  stages: StageDef[];
   phaseIndex: number;
   canVisit: (phase: Phase) => boolean;
   onJump: (phase: Phase) => void;
@@ -710,7 +748,7 @@ function Stepper({
   return (
     <div className="overflow-x-auto rounded-xl border bg-background p-1.5 shadow-sm">
       <div className="flex min-w-[560px] items-stretch gap-1">
-        {STAGES.map((stage, index) => {
+        {stages.map((stage, index) => {
           const isActive = index === phaseIndex;
           const isDone = phaseIndex > index;
           const visitable = canVisit(stage.id);
@@ -771,6 +809,7 @@ function StyleStage({
     clipLength: ClipLen;
     platforms: string[];
     provider: Provider;
+    narratedSubStyle: "3d" | "cinematic";
   };
   setDraft: (
     fn:
@@ -815,6 +854,30 @@ function StyleStage({
             description="A documentary-style narrated film: AI-generated stills with a narrator over them, plus a few animated 8s moments for visual highlights. Far cheaper to produce; perfect for long-form ads."
           />
         </div>
+        {/* Narrated sub-style picker: the visual look of the stills */}
+        {draft.style === "narrated" && (
+          <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
+              Visual sub-style for the stills
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <SubStyleCard
+                active={draft.narratedSubStyle === "cinematic"}
+                onSelect={() => setDraft((prev) => ({ ...prev, narratedSubStyle: "cinematic" }))}
+                title="Cinematic Stills"
+                tagline="Photoreal · ARRI look"
+                icon={Film}
+              />
+              <SubStyleCard
+                active={draft.narratedSubStyle === "3d"}
+                onSelect={() => setDraft((prev) => ({ ...prev, narratedSubStyle: "3d" }))}
+                title="3D Illustrations"
+                tagline="Pixar-style stills"
+                icon={Box}
+              />
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Brief">
@@ -904,6 +967,44 @@ function StyleStage({
         </Button>
       </div>
     </div>
+  );
+}
+
+function SubStyleCard({
+  active,
+  onSelect,
+  title,
+  tagline,
+  icon: Icon,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  title: string;
+  tagline: string;
+  icon: typeof Sparkles;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+        active ? "border-brand-500 bg-brand-500/10" : "border-border bg-background hover:border-brand-500",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded border",
+          active ? "border-brand-500 bg-brand-500 text-white" : "border-border bg-muted",
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="text-xs text-muted-foreground">{tagline}</p>
+      </div>
+    </button>
   );
 }
 
@@ -1019,9 +1120,7 @@ function CharactersStage({
           </div>
         )}
 
-        {state.style === "narrated" && state.narratorVoice && (
-          <NarratorCard campaignId={campaignId} narrator={state.narratorVoice} />
-        )}
+{/* Narrator selection has moved to its own NARRATION step for narrated style */}
 
         {state.characters.length > 0 && (
           <>
@@ -1060,6 +1159,52 @@ function CharactersStage({
           disabled={!allApproved}
         />
       )}
+    </div>
+  );
+}
+
+function NarrationStage({
+  campaignId,
+  state,
+  onAdvance,
+}: {
+  campaignId: string;
+  state: CampaignState;
+  onAdvance: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Narration"
+        description="The narrator voices the story over your scenes. AI recommends a voice based on the story tone — preview it, then continue."
+      >
+        {state.narratorVoice ? (
+          <NarratorCard campaignId={campaignId} narrator={state.narratorVoice} />
+        ) : (
+          <EmptyState
+            icon={Mic}
+            title="No narrator yet"
+            description="Generate the character catalog first — the narrator is recommended alongside characters."
+          />
+        )}
+
+        {/* Show the visual sub-style we'll use for the still illustrations */}
+        {state.narratedSubStyle && (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Visual sub-style for stills</p>
+            <p className="mt-1">
+              <strong>{state.narratedSubStyle === "3d" ? "3D Illustrations" : "Cinematic Stills"}</strong> · selected at Style step. Every image in this story will use this look.
+            </p>
+          </div>
+        )}
+      </SectionCard>
+
+      <ContinueBar
+        label="Continue to Scenes"
+        hint={state.narratorVoice ? `Narrator: ${state.narratorVoice.gender}, ${state.narratorVoice.tone}` : "Narrator pending"}
+        onContinue={onAdvance}
+        disabled={!state.narratorVoice}
+      />
     </div>
   );
 }
@@ -2890,6 +3035,7 @@ function CampaignListCard({
   const phaseLabel: Record<Phase, string> = {
     STYLE: "Setup",
     CHARACTERS: "Characters",
+    NARRATION: "Narration",
     SCENES: "Scenes",
     PROMPTS: "Prompts",
     VOICE: "Voice",
@@ -2900,6 +3046,7 @@ function CampaignListCard({
   const phaseTone: Record<Phase, string> = {
     STYLE: "bg-muted text-muted-foreground",
     CHARACTERS: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    NARRATION: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
     SCENES: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
     PROMPTS: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
     VOICE: "bg-amber-500/10 text-amber-600 dark:text-amber-300",

@@ -1449,10 +1449,17 @@ async function generateNarratedSceneImage(
   const aspect = state.aspectRatio;
   const [w, h] = aspect === "9:16" ? [768, 1344] : aspect === "1:1" ? [1024, 1024] : [1344, 768];
 
-  const prompt = `Cinematic narrated-story illustration. ${clip.sceneAction}
+  // The narrated sub-style determines visual treatment: photoreal cinematic stills vs 3D illustrations.
+  const subStyle = state.narratedSubStyle || "cinematic";
+  const visualLanguage =
+    subStyle === "3d"
+      ? "Pixar/Disney-grade 3D illustration, soft global illumination, expressive stylized characters, polished CGI render, painterly storyboard frame"
+      : "photoreal cinematic still, ARRI Alexa look, anamorphic composition, naturalistic lighting, real production design, atmospheric film grain";
+
+  const prompt = `Narrated-story scene illustration. ${clip.sceneAction}
 Mood + lighting: ${clip.moodLighting}.
 ${characterBlock ? `Characters in frame: ${characterBlock}.` : ""}
-Painterly storyboard composition, film-still quality, atmospheric. No text overlays. No watermarks. No logos.
+Visual style: ${visualLanguage}. Film-still quality. No text overlays. No watermarks. No logos.
 Brand context (do NOT draw the logo): ${brand.name}.
 Aspect ratio: ${aspect}.`;
 

@@ -5,6 +5,7 @@ export type ClipMediaType = "video" | "image";
 export type CampaignPhase =
   | "STYLE"
   | "CHARACTERS"
+  | "NARRATION"
   | "SCENES"
   | "PROMPTS"
   | "VOICE"
@@ -146,6 +147,8 @@ export interface CampaignState {
   clips: CampaignClipSlot[];
   /** Narrated style: voice used for narrator lines */
   narratorVoice?: NarratorVoice;
+  /** Narrated style: visual sub-style for the still illustrations (3d animation vs cinematic photoreal). */
+  narratedSubStyle?: "3d" | "cinematic";
   storyOutline?: string;
   campaignCaption?: string;
   ctaText?: string;
