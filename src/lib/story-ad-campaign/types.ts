@@ -1,4 +1,6 @@
-export type CampaignStyle = "3d" | "cinematic";
+export type CampaignStyle = "3d" | "cinematic" | "narrated";
+
+export type ClipMediaType = "video" | "image";
 
 export type CampaignPhase =
   | "STYLE"
@@ -25,7 +27,14 @@ export function clipLengthOptionsForProvider(provider: CampaignProvider): Campai
   return all.filter((v) => v <= cap);
 }
 
-export type CampaignDurationSeconds = 60 | 90 | 120 | 150 | 180;
+// Extended for narrated style (up to 10 min). Video styles are capped at 180s in the UI.
+export type CampaignDurationSeconds = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
+
+export const STYLE_DURATION_CAP: Record<"3d" | "cinematic" | "narrated", CampaignDurationSeconds> = {
+  "3d": 180,
+  cinematic: 180,
+  narrated: 600, // up to 10 min for narrated-story style
+};
 
 export type CampaignAspectRatio = "9:16" | "1:1" | "16:9";
 
@@ -99,10 +108,27 @@ export interface CampaignClipSlot {
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** Narrated style: what the narrator says over this scene */
+  narratorLine?: string;
+  /** Narrated style: video vs still image. Image is the cheap default. */
+  mediaType?: ClipMediaType;
+  /** Narrated style: URL of the generated still (when mediaType="image") */
+  imageUrl?: string | null;
+  /** Narrated style: rendered narrator audio for this segment (mp3 url) */
+  audioUrl?: string | null;
+  /** Narrated style: duration this segment will play in the final reel (seconds) */
+  segmentDuration?: number;
   /** @deprecated legacy single-character field; migrated to characterIds */
   characterId?: string | null;
   /** @deprecated legacy single VO line; migrated to dialogue */
   voiceoverLine?: string;
+}
+
+export interface NarratorVoice {
+  gender: "male" | "female";
+  /** Free-form tone descriptor, e.g. "documentary, calm" or "epic, cinematic" */
+  tone: string;
+  pace: string;
 }
 
 export interface CampaignState {
@@ -118,6 +144,8 @@ export interface CampaignState {
   provider: CampaignProvider;
   characters: CampaignCharacter[];
   clips: CampaignClipSlot[];
+  /** Narrated style: voice used for narrator lines */
+  narratorVoice?: NarratorVoice;
   storyOutline?: string;
   campaignCaption?: string;
   ctaText?: string;
@@ -149,6 +177,7 @@ export const NEGATIVE_TEXT_PROMPT =
 export const STYLE_LABELS: Record<CampaignStyle, string> = {
   "3d": "3D Animation",
   cinematic: "Cinematic Live-Action",
+  narrated: "Narrated Story",
 };
 
 export const STYLE_VISUAL_LANGUAGE: Record<CampaignStyle, string> = {
@@ -156,6 +185,8 @@ export const STYLE_VISUAL_LANGUAGE: Record<CampaignStyle, string> = {
     "premium Pixar/Disney-grade 3D animation, soft global illumination, expressive stylized character rigs, polished cinematic 3D rendering, depth of field",
   cinematic:
     "cinematic live-action, ARRI Alexa look, anamorphic lenses, naturalistic lighting, shallow depth of field, photoreal skin texture, real production design",
+  narrated:
+    "documentary-style narrated short film. Cinematic still illustrations with painterly lighting, shot composition rivalling a feature-film storyboard. A handful of moments come alive as 8-second video clips. The narrator's voice carries the story across all scenes.",
 };
 
 export const ACT_LABELS: Record<ActPosition, string> = {

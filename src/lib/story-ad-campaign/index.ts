@@ -30,6 +30,7 @@ import {
   type CampaignClipSlot,
   type ClipDialogueLine,
   type CampaignDurationSeconds,
+  type NarratorVoice,
   type CampaignProvider,
   type CampaignState,
   type CampaignStyle,
@@ -339,6 +340,8 @@ function isRealHumanCharacter(c: PlannedCharacter, brand: BrandSnapshot): boolea
 export interface CharacterCatalogPlan {
   storyOutline: string;
   characters: CampaignCharacter[];
+  /** Set when style="narrated": AI-recommended narrator voice for the documentary-style narration */
+  narratorVoice?: NarratorVoice;
 }
 
 export async function planCharacterCatalog(
@@ -445,9 +448,63 @@ Return strict JSON only:
     approved: false,
   }));
 
-  return {
+  const plan: CharacterCatalogPlan = {
     storyOutline: String(result?.storyOutline || "").trim().slice(0, 900),
     characters,
+  };
+
+  // Narrated style: AI also picks a narrator voice for the documentary-style narration.
+  if (state.style === "narrated") {
+    try {
+      plan.narratorVoice = await recommendNarratorVoice(state, brand, plan.storyOutline);
+    } catch (err) {
+      console.warn("[StoryAdCampaign] narrator recommendation failed, using default:", err);
+      plan.narratorVoice = {
+        gender: "male",
+        tone: "warm documentary, grounded",
+        pace: "measured, deliberate",
+      };
+    }
+  }
+
+  return plan;
+}
+
+/**
+ * Recommend a narrator voice for the narrated style. AI picks gender + tone + pace
+ * matched to the story's emotional weight, brand voice, and outline.
+ */
+async function recommendNarratorVoice(
+  state: CampaignState,
+  brand: BrandSnapshot,
+  storyOutline: string,
+): Promise<NarratorVoice> {
+  const prompt = `Pick the right narrator voice for this short film.
+
+STORY OUTLINE: ${storyOutline}
+BRIEF: ${state.brief}
+BRAND TONE: ${brand.voiceTone || "professional"}
+
+The narrator is the voice that carries this documentary-style narrated film over still images and a few animated moments. Match their voice to the emotional weight of the story.
+
+Return strict JSON only:
+{
+  "gender": "male" or "female",
+  "tone": "2-4 words like 'warm documentary, intimate' or 'epic cinematic, urgent'",
+  "pace": "2-3 words like 'measured, deliberate' or 'energetic, building'"
+}`;
+
+  const result = await ai.generateJSON<{ gender: string; tone: string; pace: string }>(prompt, {
+    maxTokens: 200,
+    temperature: 0.6,
+    systemPrompt: "You cast narrator voices for short films. Return valid JSON only.",
+  });
+
+  const gender = result?.gender === "female" ? "female" : "male";
+  return {
+    gender,
+    tone: String(result?.tone || "warm documentary").trim().slice(0, 80),
+    pace: String(result?.pace || "measured").trim().slice(0, 60),
   };
 }
 

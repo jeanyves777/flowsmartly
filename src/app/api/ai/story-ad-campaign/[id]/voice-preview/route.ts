@@ -24,15 +24,19 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => ({}))) as {
-    mode?: "screenplay" | "clip" | "line";
+    mode?: "screenplay" | "clip" | "line" | "narrator";
     clipId?: string;
     text?: string;
     characterId?: string;
+    /** narrator preview — overrides voice with state.narratorVoice */
+    narratorSample?: string;
   };
 
   // Count lines we're about to generate so we charge accurately.
   let lineCount = 0;
-  if (body.mode === "screenplay") {
+  if (body.mode === "narrator") {
+    lineCount = 1; // single narrator sample
+  } else if (body.mode === "screenplay") {
     lineCount = current.state.clips.reduce((s, c) => s + c.dialogue.filter((d) => d.line.trim()).length, 0);
   } else if (body.clipId) {
     const clip = current.state.clips.find((c) => c.id === body.clipId);
@@ -76,6 +80,44 @@ export async function POST(
   }
 
   try {
+    if (body.mode === "narrator") {
+      const sample =
+        (body.narratorSample || body.text || "").trim() ||
+        // sensible default sample if the client didn't pass one
+        `${current.state.storyOutline?.slice(0, 200) || current.state.brief.slice(0, 200) || "A story about people, told one moment at a time."}`;
+      const narratorVoice = current.state.narratorVoice;
+      // Synthesize a temporary "character" that carries the narrator's voice criteria
+      const tempCharacter = narratorVoice
+        ? {
+            id: "narrator",
+            name: "Narrator",
+            role: "narrator",
+            visualDescription: "",
+            voiceCriteria: {
+              age: "adult",
+              tone: narratorVoice.tone,
+              pace: narratorVoice.pace,
+              texture: narratorVoice.gender === "female" ? "feminine, smooth" : "masculine, smooth",
+              delivery: "documentary, intimate",
+            },
+          }
+        : null;
+      const result = await generateClipVoicePreview({
+        characters: tempCharacter ? [tempCharacter] : current.state.characters,
+        text: sample,
+        character: tempCharacter,
+      });
+      return NextResponse.json({
+        success: true,
+        data: {
+          lines: result.lines,
+          totalDurationMs: result.totalDurationMs,
+          mode: "narrator",
+          creditsRemaining: charge.remaining,
+        },
+      });
+    }
+
     if (body.mode === "screenplay") {
       const result = await generateFullScreenplayPreview({
         clips: current.state.clips,

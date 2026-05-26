@@ -41,15 +41,17 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 
 type Phase = "STYLE" | "CHARACTERS" | "SCENES" | "PROMPTS" | "VOICE" | "BATCH" | "DONE" | "FAILED";
-type Style = "3d" | "cinematic";
+type Style = "3d" | "cinematic" | "narrated";
 type ClipLen = 8 | 10 | 12 | 15;
 
 const PROVIDER_MAX_CLIP_LEN: Record<Provider, number> = { veo3: 8, xai: 15 };
+
+const STYLE_DURATION_CAP: Record<Style, number> = { "3d": 180, cinematic: 180, narrated: 600 };
 function clipLengthOptionsFor(provider: Provider): ClipLen[] {
   const cap = PROVIDER_MAX_CLIP_LEN[provider];
   return ([8, 10, 12, 15] as ClipLen[]).filter((v) => v <= cap);
 }
-type Duration = 60 | 90 | 120 | 150 | 180;
+type Duration = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
 type Aspect = "9:16" | "1:1" | "16:9";
 type Provider = "veo3" | "xai";
 
@@ -113,6 +115,7 @@ interface CampaignState {
   characters: Character[];
   clips: ClipSlot[];
   storyOutline?: string;
+  narratorVoice?: { gender: "male" | "female"; tone: string; pace: string };
   finalVideoUrl?: string | null;
   finalVideoThumbnailUrl?: string | null;
   campaignCaption?: string;
@@ -168,13 +171,24 @@ const SHOT_OPTIONS: Shot[] = ["WIDE", "MEDIUM", "CLOSE_UP", "POV", "DRONE", "MAC
 const CAMERA_OPTIONS: Camera[] = ["PUSH_IN", "PULL_BACK", "PAN", "STATIC", "ORBIT", "HANDHELD", "TRACK"];
 const ACT_OPTIONS: Act[] = ["HOOK", "PROBLEM", "DISCOVERY", "TRANSFORM", "RESOLUTION", "CTA"];
 
+// Duration values include up to 10 min for narrated style (video styles capped at 180s in the cards below)
 const DURATION_OPTIONS: { value: Duration; label: string }[] = [
   { value: 60, label: "1 min" },
   { value: 90, label: "1m 30s" },
   { value: 120, label: "2 min" },
   { value: 150, label: "2m 30s" },
   { value: 180, label: "3 min" },
+  { value: 240, label: "4 min" },
+  { value: 300, label: "5 min" },
+  { value: 420, label: "7 min" },
+  { value: 600, label: "10 min" },
 ];
+
+function durationOptionsForStyle(style: Style | null): { value: Duration; label: string }[] {
+  if (!style) return DURATION_OPTIONS.filter((o) => o.value <= 180);
+  const cap = STYLE_DURATION_CAP[style];
+  return DURATION_OPTIONS.filter((o) => o.value <= cap);
+}
 
 // Campaign uses the canonical platform list from /content/posts so icons stay consistent.
 const PLATFORM_KEYS = ["instagram", "tiktok", "youtube", "facebook", "linkedin", "twitter"] as const;
@@ -775,22 +789,30 @@ function StyleStage({
         title="Style"
         description="Locked for the whole campaign — every clip inherits it."
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <StyleCard
             active={draft.style === "3d"}
-            onSelect={() => setDraft((prev) => ({ ...prev, style: "3d" }))}
+            onSelect={() => setDraft((prev) => ({ ...prev, style: "3d", durationSeconds: Math.min(prev.durationSeconds, STYLE_DURATION_CAP["3d"]) as Duration }))}
             title="3D Animation"
-            tagline="Pixar-grade rigs · stylized · brand-safe"
+            tagline="Pixar-grade · up to 3 min"
             icon={Box}
             description="Premium 3D animation with soft global illumination, expressive characters, polished cinematic rendering."
           />
           <StyleCard
             active={draft.style === "cinematic"}
-            onSelect={() => setDraft((prev) => ({ ...prev, style: "cinematic" }))}
+            onSelect={() => setDraft((prev) => ({ ...prev, style: "cinematic", durationSeconds: Math.min(prev.durationSeconds, STYLE_DURATION_CAP.cinematic) as Duration }))}
             title="Cinematic Live-Action"
-            tagline="ARRI look · anamorphic · photoreal"
+            tagline="ARRI look · up to 3 min"
             icon={Film}
             description="Live-action cinematic — anamorphic lenses, shallow depth of field, photoreal skin, real production design."
+          />
+          <StyleCard
+            active={draft.style === "narrated"}
+            onSelect={() => setDraft((prev) => ({ ...prev, style: "narrated" }))}
+            title="Narrated Story"
+            tagline="Stills + narrator · up to 10 min"
+            icon={Mic}
+            description="A documentary-style narrated film: AI-generated stills with a narrator over them, plus a few animated 8s moments for visual highlights. Far cheaper to produce; perfect for long-form ads."
           />
         </div>
       </SectionCard>
@@ -823,7 +845,7 @@ function StyleStage({
           <FieldGroup label="Total duration">
             <SegmentedControl
               value={String(draft.durationSeconds)}
-              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              options={durationOptionsForStyle(draft.style).map((o) => ({ value: String(o.value), label: o.label }))}
               onChange={(value) =>
                 setDraft((prev) => ({ ...prev, durationSeconds: Number(value) as Duration }))
               }
@@ -997,6 +1019,10 @@ function CharactersStage({
           </div>
         )}
 
+        {state.style === "narrated" && state.narratorVoice && (
+          <NarratorCard campaignId={campaignId} narrator={state.narratorVoice} />
+        )}
+
         {state.characters.length > 0 && (
           <>
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-2 text-sm">
@@ -1034,6 +1060,81 @@ function CharactersStage({
           disabled={!allApproved}
         />
       )}
+    </div>
+  );
+}
+
+function NarratorCard({
+  campaignId,
+  narrator,
+}: {
+  campaignId: string;
+  narrator: { gender: "male" | "female"; tone: string; pace: string };
+}) {
+  const [loading, setLoading] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  async function generate() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "narrator" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Failed");
+      const line = data.data.lines?.[0];
+      if (!line) throw new Error("No audio returned");
+      const src = `data:${line.mimeType};base64,${line.audioBase64}`;
+      setAudioSrc(src);
+      setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
+    } catch {
+      setAudioSrc(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300">
+        <Mic className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Narrator (AI-recommended)</p>
+        <p className="text-sm">
+          <span className="font-semibold capitalize">{narrator.gender}</span> · {narrator.tone} · {narrator.pace}
+        </p>
+      </div>
+      {audioSrc && (
+        <audio
+          ref={audioRef}
+          src={audioSrc}
+          className="hidden"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => setPlaying(false)}
+        />
+      )}
+      <Button
+        size="sm"
+        variant={audioSrc ? "outline" : "default"}
+        onClick={() => {
+          if (audioSrc) {
+            if (playing) audioRef.current?.pause();
+            else audioRef.current?.play().catch(() => {});
+          } else {
+            generate();
+          }
+        }}
+        disabled={loading}
+      >
+        {loading ? <AISpinner size={14} /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        {audioSrc ? (playing ? "Pause" : "Replay") : "Preview"}
+      </Button>
     </div>
   );
 }

@@ -62,6 +62,7 @@ export async function POST(
     const merged = await updateCampaignState(id, session.userId, {
       characters: plan.characters,
       storyOutline: plan.storyOutline,
+      ...(plan.narratorVoice ? { narratorVoice: plan.narratorVoice } : {}),
       phase: "CHARACTERS",
     });
     return NextResponse.json({ success: true, data: { state: merged, creditsRemaining: charge.remaining } });
