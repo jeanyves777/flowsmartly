@@ -85,13 +85,19 @@ export async function analyzeLogoPlacement(
     return FALLBACK;
   }
 
-  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a small brand logo (about 22% of the image width, top-left of logo positioned 3-12% from the chosen edges). The logo MUST NOT overlap with: faces, primary subject, headline text, body paragraph text, or any decorative element with strong detail in that corner area.
+  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a small brand logo (about 22% of the image width, top-left of logo positioned 3-12% from the chosen edges).
+
+The logo MUST NOT overlap with ANY of the following in the chosen corner area:
+- ANY text, anywhere, of any kind (headline, body copy, captions, contact info, brand names, wordmarks, decorative typography, callouts, labels, numbers, dates, hex codes, watermarks)
+- Faces, eyes, or any human / character feature
+- The primary visual subject of the scene
+- High-detail decorative elements (intricate patterns, complex icons)
 
 Choose ONLY between top-left and top-right — bottom corners are reserved for other elements and are not options.
 
-Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right", "reason": "short one-line explanation"}.
+Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right", "reason": "short one-line explanation describing what's in that corner"}.
 
-Pick the top corner with the LOWEST visual detail / blank space / soft gradient / sky / shadow. If both are equally safe, prefer top-right.`;
+Pick the corner with the LOWEST visual detail — blank space, soft gradient, sky, plain wall, shadow. If both top corners contain text or subjects, pick the one with LESS text overlap. If both are equally safe, prefer top-right.`;
 
   for (const client of clients) {
     try {

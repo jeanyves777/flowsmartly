@@ -5,6 +5,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
+import { nameBrandColors } from "@/lib/media/color-names";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
 import { recordAiMemory } from "@/lib/ai-memory";
@@ -179,6 +180,16 @@ export async function generateAutomationMedia(
   type BrandColors = { primary?: string; secondary?: string; accent?: string };
   const brandColors = safeParse<BrandColors>(brandKit?.colors, {});
 
+  // Translate hex codes to natural color names so the prompt describes
+  // the palette without exposing raw hex strings (which xAI tends to
+  // render literally as visible text in the design). AI-driven naming
+  // (Claude Haiku), cached per hex value across requests.
+  const colorNames = await nameBrandColors({
+    primary: brandColors.primary,
+    secondary: brandColors.secondary,
+    accent: brandColors.accent,
+  });
+
   // Contact items (cap at 3, character-exact).
   const allBits: string[] = [];
   if (brandKit?.website)
@@ -237,8 +248,8 @@ export async function generateAutomationMedia(
     `Aspect ratio: ${aspectLabel}. Style: ${style === "3d" ? "3D-rendered" : "photorealistic"}. Tone: ${automation.aiTone || "friendly"}.`,
     `Subject / event: ${subject}.`,
     brandKit?.description ? `Brand description: ${brandKit.description}.` : "",
-    brandColors.primary || brandColors.secondary || brandColors.accent
-      ? `Use these brand colors visually throughout the design — backgrounds, accents, typography color — primary ${brandColors.primary || "n/a"}, secondary ${brandColors.secondary || "n/a"}, accent ${brandColors.accent || "n/a"}. (Apply as styling only; the hex values are color inputs, not text to render on the image.)`
+    colorNames.primary || colorNames.secondary || colorNames.accent
+      ? `Use these brand colors visually throughout the design as backgrounds, accents, and typography color: primary ${colorNames.primary || "neutral"}, secondary ${colorNames.secondary || "neutral"}, accent ${colorNames.accent || "neutral"}.`
       : "",
     exactContacts ? `Contact items: ${exactContacts}.` : "",
     occurrenceYear ? `Year: ${occurrenceYear}. Today: ${todayIso}.` : `Today: ${todayIso}.`,
