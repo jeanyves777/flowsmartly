@@ -353,22 +353,35 @@ export async function planCharacterCatalog(
 
   const prompt = `You are a screenwriter casting a ${styleLabel} short film. You design REAL HUMAN CHARACTERS — the people whose lives are dramatized in the story.
 
-BRAND CONTEXT (for the story they're in — NOT a character)
+🚨 TOP PRIORITY — DRAMATIZE THE USER'S BRIEF LITERALLY 🚨
+
+USER'S BRIEF (this is THE story; everything else serves it):
+"""
+${state.brief}
+"""
+
+The brief is the LAW. Your story outline must follow the EXACT sequence of scenes the user described — in the order they described them. If the brief opens with combat, your outline opens with combat. If the brief says "first show X, then Y, then Z", you show X, then Y, then Z. Do NOT skip ahead to the brand. Do NOT invent a generic problem the brand happens to solve when the user has already told you the story.
+
+EXAMPLES OF WHAT NOT TO DO:
+- Brief: "veteran at war, returns home to family, then catches up with business" → BAD outline: "Marcus returns home and his business has stalled..." (skipped the war + the homecoming entirely). GOOD outline: "Marcus is a soldier under fire overseas. After his tour ends, he returns to a tearful family welcome. Days later he begins reopening his stalled business..."
+- Brief: "single mom with crying baby, two jobs" → BAD: "Maya looks at her phone and feels overwhelmed." GOOD: open ON the crying baby, the two-job chaos — show the world the user described.
+
+THE STORY OUTLINE you write must:
+- Open on the FIRST scene from the brief (whatever the user wrote first).
+- Honor every scene/transition the user described, in order.
+- Save any brand mention for the FINAL beat of the outline — never in the opening sentence.
+- Read like a film synopsis, not a product pitch. The brand at most appears as "later, [character] discovers [brand]" near the end.
+
+BRAND (background context only — appears at most ONCE near the very end of the outline):
 - Name: ${brand.name}
 ${brand.tagline ? `- Tagline: ${brand.tagline}` : ""}
 ${brand.industry ? `- Industry: ${brand.industry}` : ""}
 ${brand.targetAudience ? `- Audience: ${brand.targetAudience}` : ""}
-${brand.voiceTone ? `- Voice: ${brand.voiceTone}` : ""}
 ${brand.uniqueValue ? `- Unique value: ${brand.uniqueValue}` : ""}
 
-CAMPAIGN BRIEF
-${state.brief}
+DESIRED FEELING (tone): ${state.goal}
 
-GOAL
-${state.goal}
-
-CAMPAIGN STYLE (locked for whole campaign)
-${styleLabel} — ${visualLanguage}
+CAMPAIGN STYLE (locked for whole campaign): ${styleLabel} — ${visualLanguage}
 
 ABSOLUTE RULE — WHAT A CHARACTER IS:
 - A character is a REAL HUMAN BEING (or, for the "${styleLabel === "3D Animation" ? "3D Animation" : "live-action"}" style, a human portrayed accordingly).
@@ -377,20 +390,19 @@ ABSOLUTE RULE — WHAT A CHARACTER IS:
   · personifications of the product (no "The System", "The Algorithm", "The App", "The Platform", "The AI", "The Brand").
   · brand mascots, holograms, glowing orbs, voices-of-god, narrators, robots-that-represent-the-software, abstract embodiments, or interfaces with personalities.
   · any character whose name starts with "The " followed by a noun.
-- The brand is a TOOL that human characters use inside the story. It is NEVER a character. If the brand is software, the characters are the humans WHO USE the software, never the software itself.
+- The brand is a TOOL that human characters use inside the story. It is NEVER a character.
 
-First, write a 3–5 sentence STORY OUTLINE about HUMAN people dealing with a real-life situation that the brand happens to solve.
-Then design exactly ${count} HUMAN characters who appear in that story.
+Cast exactly ${count} HUMAN characters. The protagonist is the person at the center of the brief; the rest are people they encounter in the brief's described scenes (family, enemies, friends, colleagues, etc. — whoever the user mentioned or whoever logically belongs there).
 
 For each character output:
-- name: a real human first (or first + last) name. Examples: "Mara Chen", "Daniel", "Aisha Patel". Never "The X", never a product name.
-- role: their function in the story (e.g. "Veteran hire trying to keep up", "Trusted coworker who helps", "Skeptical client").
-- visualDescription: 2–3 sentences describing the HUMAN's appearance — age, build, hair, clothing, palette, identifying features. Real human anatomy. Tuned for ${styleLabel}.
-- voiceCriteria: age (e.g. "early 30s"), tone (warm/authoritative/playful), pace, texture, delivery — a real human's speaking voice.
+- name: a real human first (or first + last) name. Examples: "Marcus Reyes", "Elena", "Aisha Patel". Never "The X", never a product name.
+- role: their function in the story (e.g. "Returning veteran", "His wife waiting at home", "Old army buddy").
+- visualDescription: 2–3 sentences describing the HUMAN's appearance — age, build, hair, clothing, palette, identifying features. Real human anatomy. Tuned for ${styleLabel}. If the brief implies a setting (e.g. combat), reflect it in the wardrobe.
+- voiceCriteria: age (e.g. "early 30s"), tone (warm/authoritative/weary/playful), pace, texture, delivery — a real human's speaking voice.
 
 Return strict JSON only:
 {
-  "storyOutline": "3-5 sentence synopsis of the HUMAN characters and their situation",
+  "storyOutline": "3–5 sentence synopsis that opens with the FIRST scene from the brief and honors the user's described sequence. Brand only in the final sentence at most.",
   "characters": [
     {
       "name": "Real Human Name",
@@ -405,7 +417,7 @@ Return strict JSON only:
     maxTokens: 2000,
     temperature: 0.7,
     systemPrompt:
-      "You are a screenwriter who casts REAL HUMAN characters for short films. Brands are never characters — only the humans who use them are. Return valid JSON only.",
+      "You are a screenwriter who DRAMATIZES THE USER'S BRIEF LITERALLY. The story outline must open on the first scene described in the brief and follow the user's sequence in order — you do not invent generic alternatives or skip ahead to the brand. Characters are REAL HUMANS — brands are never characters. Return valid JSON only.",
   });
 
   const raw = Array.isArray(result?.characters) ? result.characters : [];
