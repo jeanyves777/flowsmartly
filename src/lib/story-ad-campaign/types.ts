@@ -91,6 +91,41 @@ export interface ClipDialogueLine {
   line: string;
   /** Optional acting note: "concerned", "skeptical", "warm" — shapes TTS delivery + Veo performance */
   emotion?: string;
+  /** Narrated style: rendered TTS audio for this line (mp3 url) */
+  audioUrl?: string;
+  /** Narrated style: time (within the scene) this line begins playing, in milliseconds */
+  startMs?: number;
+  /** Narrated style: measured duration of the rendered audio, in milliseconds */
+  durationMs?: number;
+}
+
+/**
+ * A cinematic-quality audio bed for a single narrated scene.
+ * - `ambient` plays at low volume under everything else (room tone, weather, traffic, etc.)
+ * - `spot` are short cues fired at specific moments (door slam, glass break, dog bark, swell)
+ *
+ * Why this exists: customers building YouTube storytelling channels expect movie-grade
+ * sound design, not a slideshow. Layering ambient + spot SFX under narrator + dialogue is
+ * what makes a story FEEL like a film.
+ */
+export interface SceneSoundscape {
+  ambient?: {
+    description: string;
+    audioUrl?: string;
+    /** Mix gain in dB. Default -20 (well under voice). */
+    gainDb?: number;
+  };
+  spot?: Array<{
+    id: string;
+    description: string;
+    audioUrl?: string;
+    /** Time within the scene (seconds) when this cue starts. */
+    atSec: number;
+    /** Optional rendered duration in seconds. */
+    durationSec?: number;
+    /** Mix gain in dB. Default -8 (clearly audible but not louder than voice). */
+    gainDb?: number;
+  }>;
 }
 
 export interface CampaignClipSlot {
@@ -119,6 +154,17 @@ export interface CampaignClipSlot {
   audioUrl?: string | null;
   /** Narrated style: duration this segment will play in the final reel (seconds) */
   segmentDuration?: number;
+  /**
+   * Narrated style: cinematic SFX bed for this scene (ambient + spot cues).
+   * Mixed under narrator + dialogue to give the reel the feel of a real film.
+   */
+  soundscape?: SceneSoundscape;
+  /**
+   * Narrated style: final mixed audio for this scene (narrator + dialogue + SFX),
+   * encoded as a single mp3 the renderer drops onto the image with Ken Burns motion.
+   * When present, takes priority over the legacy single-track `audioUrl`.
+   */
+  mixedAudioUrl?: string;
   /** @deprecated legacy single-character field; migrated to characterIds */
   characterId?: string | null;
   /** @deprecated legacy single VO line; migrated to dialogue */

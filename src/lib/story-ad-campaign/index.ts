@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import { spawn } from "child_process";
+import { execFile, spawn } from "child_process";
+import { promisify } from "util";
 import { nanoid } from "nanoid";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
@@ -13,6 +14,9 @@ import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
+import { generateSoundEffect, isElevenLabsEnabled } from "@/lib/voice/elevenlabs-client";
+
+const execFileAsync = promisify(execFile);
 import {
   ACT_LABELS,
   CAMERA_LABELS,
@@ -36,6 +40,7 @@ import {
   type CampaignProvider,
   type CampaignState,
   type CampaignStyle,
+  type SceneSoundscape,
   type ShotType,
 } from "./types";
 
@@ -905,14 +910,13 @@ async function planNarratedScenes(
   // Target ~10 seconds per scene; user picks duration up to 600s.
   const targetSecondsPerScene = 10;
   const sceneCount = Math.max(6, Math.min(60, Math.round(state.durationSeconds / targetSecondsPerScene)));
-  // ~20% of scenes are animated (video clips). Capped at 12 to keep cost reasonable.
-  const videoSceneCount = Math.max(1, Math.min(12, Math.round(sceneCount * 0.2)));
-  const styleLabel = STYLE_LABELS[state.style as "narrated"];
+  // Narrated style = exactly ONE 8-second video clip as the opening hook, then still images.
+  // Cheaper than the prior ~20% video budget, and animated images carry the rest.
   const charactersBlock = state.characters
     .map((c) => `- ${c.id} | ${c.name} (${c.role})`)
     .join("\n");
 
-  const prompt = `You are writing a ${state.durationSeconds}-second narrated short film. It plays as a sequence of still illustrations with a NARRATOR voicing the story, plus a handful of moments that come alive as 8-second video clips.
+  const prompt = `You are writing a ${state.durationSeconds}-second narrated short film. It plays as a sequence of cinematic illustrations with a NARRATOR voicing the story, plus IN-SCENE CHARACTER DIALOGUE on top of those stills, plus a layered SOUND DESIGN (ambient bed + spot SFX). Exactly ONE moment (the very first scene) is a real 8-second video clip — the hook that grabs the viewer. Everything after is a still image animated programmatically.
 
 🚨 ABSOLUTE TOP PRIORITY — DRAMATIZE THE USER'S BRIEF LITERALLY 🚨
 
@@ -930,29 +934,33 @@ ${brand.name ? `BRAND CONTEXT (background, last scene at most): ${brand.name}${b
 CHARACTERS (use ids verbatim — do NOT invent new ones):
 ${charactersBlock}
 
-Plan exactly ${sceneCount} scenes. About ${videoSceneCount} of them should be VIDEO scenes (mediaType: "video", 8 seconds each — used for the most kinetic, visceral, or emotional moments). The rest are still IMAGE scenes (mediaType: "image", ~${targetSecondsPerScene}s each).
+Plan exactly ${sceneCount} scenes. Scene 1 is the HOOK and MUST be mediaType: "video" (8 seconds, the most kinetic / visceral moment of the story). Scenes 2..${sceneCount} are ALL mediaType: "image".
 
 For each scene:
 - act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
 - shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
-- cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK (for image scenes this hints at composition; for video scenes it's a real camera move)
-- sceneAction: ONE sentence describing what we see. Include scene-specific wardrobe / props / environment if different from the character's default (e.g. "Marcus in dusty combat fatigues crouches behind a Humvee as tracers streak overhead").
+- cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
+- sceneAction: ONE sentence describing what we see. Include scene-specific wardrobe / props / environment if different from the character's default.
 - moodLighting: lighting + color grade, single line.
-- mediaType: "image" or "video". Reserve video for the ~${videoSceneCount} most impactful moments — combat, emotional reveals, key transitions.
+- mediaType: "video" ONLY for scene 1. "image" for every other scene.
 - characterIds: array of character ids on camera (0–3). Use [] for pure environment / object shots.
-- narratorLine: ONE 1–3 sentence narrator line (~15–25 words) that voices the story over this scene. The narrator is detached, documentary-style. NEVER describe what we see literally ("Marcus is sad"); instead, advance the story emotionally ("Two years gone. The world hadn't waited for him.").
-- dialogue: array of in-scene character lines (optional, mostly EMPTY). Only include dialogue when a character physically speaks on camera — for ~10–20% of scenes max. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Most scenes are narrator-only; let the narrator carry the story.
+- narratorLine: 1–3 sentences (~15–35 words) — the narrator's voice over this scene. Detached, documentary-style; advances the story emotionally instead of describing what we see.
+- dialogue: 0–3 short in-scene character lines (~5–15 words each). Characters can speak ON the still image — we'll hear their voice while we look at them. Roughly 40–60% of scenes SHOULD have at least one line of dialogue; the rest are narrator-only. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. The narrator and dialogue work together — they don't overlap; the narrator pauses while a character speaks, then resumes.
+- soundscape: cinematic sound design for this scene. Provide:
+    - ambient: { description: "...natural environment sound description, e.g. 'distant city traffic with light rain on pavement'..." } — plays at low volume under everything for the full scene.
+    - spot: an array of 0–3 short cues, each { description, atSec } — e.g. { description: "wooden door creaking open", atSec: 1.5 }. These give the scene physicality. Pick the obvious diegetic sounds the scene action calls for (footsteps, glass, wind, car engine, gunfire, applause, etc.).
+  Keep it diegetic — what the characters in the scene would actually hear. Avoid music cues; music is handled separately. Avoid clichés that don't fit. If a scene is silent by design, omit the spot array.
 
 NARRATIVE FLOW:
-- The narrator's voice runs continuously across scenes. Each narratorLine should connect to the previous one — same voice, same arc.
-- When a character speaks on-camera (dialogue), the narrator goes quiet for that beat. Then resumes.
-- Open with a strong narrator hook. Close with a quiet, emotionally landed line — never a sales pitch.
+- The narrator's voice runs continuously across scenes. Each narratorLine connects to the previous — same voice, same arc.
+- Dialogue happens IN the scene; the narrator goes quiet for that beat, then resumes.
+- Open scene 1 (the hook video) with a strong narrator opening line that pulls the viewer in. Close the final scene with a quiet, emotionally landed line — never a sales pitch.
 
 HARD RULES:
 - Follow the BRIEF's scene order literally.
+- ONLY scene 1 is mediaType "video". Every other scene MUST be mediaType "image".
 - Brand named only in the FINAL scene at most. Never before.
 - No on-screen text overlays.
-- Narrator is the dominant voice; dialogue is rare and earned.
 - ${state.characters.length} characters total — don't invent new people unless the brief demands it.
 
 Return strict JSON with exactly ${sceneCount} scenes:
@@ -961,22 +969,23 @@ Return strict JSON with exactly ${sceneCount} scenes:
     {
       "act": "HOOK",
       "shotType": "WIDE",
-      "cameraMovement": "STATIC",
+      "cameraMovement": "HANDHELD",
       "sceneAction": "...",
       "moodLighting": "...",
-      "mediaType": "image",
+      "mediaType": "video",
       "characterIds": ["${state.characters[0]?.id || ""}"],
       "narratorLine": "...",
-      "dialogue": []
+      "dialogue": [],
+      "soundscape": { "ambient": { "description": "..." }, "spot": [ { "description": "...", "atSec": 0.5 } ] }
     }
   ]
 }`;
 
   const result = await ai.generateJSON<{ clips: PlannedNarratedClip[] }>(prompt, {
-    maxTokens: 8000,
+    maxTokens: 10000,
     temperature: 0.72,
     systemPrompt:
-      "You are a screenwriter for narrated documentary-style short films. The narrator carries the story; the user's brief is the law. Return valid JSON only.",
+      "You are a screenwriter + sound designer for narrated documentary-style short films. The narrator carries the story; the user's brief is the law. Return valid JSON only.",
   });
 
   const characterIds = new Set(state.characters.map((c) => c.id));
@@ -984,8 +993,9 @@ Return strict JSON with exactly ${sceneCount} scenes:
   const trimmed = raw.slice(0, sceneCount);
 
   const clips: CampaignClipSlot[] = trimmed.map((c, index) => {
-    const mediaType: ClipMediaType =
-      typeof c.mediaType === "string" && c.mediaType.toLowerCase() === "video" ? "video" : "image";
+    // Hard constraint: scene 0 is the video hook; all others are images. Ignore the planner if it
+    // tries to put video anywhere else — too expensive and breaks the cost model.
+    const mediaType: ClipMediaType = index === 0 ? "video" : "image";
     const slot: CampaignClipSlot = {
       id: nanoid(8),
       index: index + 1,
@@ -996,10 +1006,12 @@ Return strict JSON with exactly ${sceneCount} scenes:
       moodLighting: String(c.moodLighting || "").trim().slice(0, 200),
       characterIds: normalizeCharacterIds(c, characterIds),
       dialogue: normalizeDialogue(c, characterIds),
-      narratorLine: String(c.narratorLine || "").trim().slice(0, 360),
+      narratorLine: String(c.narratorLine || "").trim().slice(0, 480),
+      soundscape: normalizeSoundscape(c),
       mediaType,
       imageUrl: null,
       audioUrl: null,
+      mixedAudioUrl: undefined,
       segmentDuration: mediaType === "video" ? 8 : targetSecondsPerScene,
       prompt: "",
       status: "PENDING",
@@ -1012,6 +1024,7 @@ Return strict JSON with exactly ${sceneCount} scenes:
 
   while (clips.length < sceneCount) {
     const index = clips.length + 1;
+    const mediaType: ClipMediaType = index === 1 ? "video" : "image";
     const slot: CampaignClipSlot = {
       id: nanoid(8),
       index,
@@ -1023,10 +1036,12 @@ Return strict JSON with exactly ${sceneCount} scenes:
       characterIds: state.characters[0] ? [state.characters[0].id] : [],
       dialogue: [],
       narratorLine: "",
-      mediaType: "image",
+      soundscape: undefined,
+      mediaType,
       imageUrl: null,
       audioUrl: null,
-      segmentDuration: targetSecondsPerScene,
+      mixedAudioUrl: undefined,
+      segmentDuration: mediaType === "video" ? 8 : targetSecondsPerScene,
       prompt: "",
       status: "PENDING",
       videoUrl: null,
@@ -1037,6 +1052,47 @@ Return strict JSON with exactly ${sceneCount} scenes:
   }
 
   return clips;
+}
+
+interface PlannedSoundscapeSpot {
+  description?: string;
+  atSec?: number;
+  at_sec?: number;
+}
+interface PlannedSoundscape {
+  ambient?: { description?: string } | string;
+  spot?: PlannedSoundscapeSpot[];
+}
+
+type SpotCue = NonNullable<SceneSoundscape["spot"]>[number];
+
+function normalizeSoundscape(c: PlannedNarratedClip): SceneSoundscape | undefined {
+  const raw = (c as unknown as { soundscape?: PlannedSoundscape }).soundscape;
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: SceneSoundscape = {};
+  if (raw.ambient) {
+    const ambientDesc = typeof raw.ambient === "string" ? raw.ambient : raw.ambient.description;
+    const desc = String(ambientDesc || "").trim().slice(0, 220);
+    if (desc) out.ambient = { description: desc, gainDb: -20 };
+  }
+  if (Array.isArray(raw.spot) && raw.spot.length) {
+    const spots: SpotCue[] = raw.spot
+      .slice(0, 4)
+      .map((s, idx) => {
+        const desc = String(s?.description || "").trim().slice(0, 160);
+        const atRaw = typeof s?.atSec === "number" ? s.atSec : (typeof s?.at_sec === "number" ? s.at_sec : NaN);
+        const cue: SpotCue = {
+          id: nanoid(6),
+          description: desc,
+          atSec: Number.isFinite(atRaw) ? Math.max(0, atRaw) : idx * 1.5,
+          gainDb: -8,
+        };
+        return cue;
+      })
+      .filter((s) => !!s.description);
+    if (spots.length) out.spot = spots;
+  }
+  return out.ambient || out.spot?.length ? out : undefined;
 }
 
 interface PlannedNarratedClip extends PlannedClip {
@@ -1347,28 +1403,54 @@ async function renderNarratedStory(input: {
   }
   await Promise.all(Array.from({ length: Math.min(MEDIA_CONCURRENCY, clips.length) }, () => mediaWorker()));
 
-  // Stage B — narrator TTS per scene (sequential to preserve voice consistency)
+  // Stage B — per-scene LAYERED audio:
+  //   narrator + in-scene character dialogue + ambient SFX bed + spot SFX
+  // built into a single mixed mp3 per scene. This is what turns the reel from
+  // "slideshow with voiceover" into a cinematic short film.
   await prisma.cartoonVideo.update({
     where: { id: campaignId },
-    data: { progress: 70, currentStep: "Generating narrator audio..." },
+    data: { progress: 65, currentStep: "Building cinematic audio mix (narrator + dialogue + SFX)..." },
   });
-  for (let i = 0; i < clips.length; i++) {
-    const clip = clips[i];
-    if (clip.status !== "READY") continue;
-    if (clip.audioUrl) continue;
-    const text = (clip.narratorLine || "").trim();
-    if (!text) continue;
-    try {
-      const audioBuf = await synthesizeNarratorAudio(text, state.narratorVoice);
-      const audioUrl = await uploadToS3(
-        `story-ad-campaigns/${campaignId}/audio/seg-${String(i + 1).padStart(2, "0")}-${nanoid(6)}.mp3`,
-        audioBuf,
-        "audio/mpeg",
-      );
-      clips[i] = { ...clips[i], audioUrl };
-    } catch (error) {
-      console.warn(`[StoryAdCampaign] narrator audio failed for scene ${i + 1}:`, error);
+
+  const characterMap = new Map<string, CampaignCharacter>(state.characters.map((c) => [c.id, c]));
+  const audioTempDir = await mkdtemp(path.join(os.tmpdir(), "narrated-audio-"));
+  try {
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      if (clip.status !== "READY") continue;
+      if (clip.mixedAudioUrl) continue;
+
+      try {
+        const mix = await buildSceneMixedAudio({
+          clip,
+          characterMap,
+          narratorVoice: state.narratorVoice,
+          tempDir: audioTempDir,
+          index: i + 1,
+        });
+        if (!mix) continue;
+
+        const mixBuf = await readFile(mix.audioPath);
+        const mixedAudioUrl = await uploadToS3(
+          `story-ad-campaigns/${campaignId}/audio/seg-${String(i + 1).padStart(2, "0")}-mix-${nanoid(6)}.mp3`,
+          mixBuf,
+          "audio/mpeg",
+        );
+        clips[i] = {
+          ...clips[i],
+          mixedAudioUrl,
+          // Persist the actual audio length so the segment composer matches it exactly.
+          segmentDuration: Math.max(4, Math.round(mix.durationMs / 1000)),
+        };
+        // Persist progress incrementally so the user sees the build advance per scene
+        // and the work isn't lost if the worker is killed mid-stage.
+        await persistClipsProgress(campaignId, clips, i + 1, total);
+      } catch (error) {
+        console.warn(`[StoryAdCampaign] scene ${i + 1} audio mix failed:`, error);
+      }
     }
+  } finally {
+    await rm(audioTempDir, { recursive: true, force: true });
   }
 
   // Stage C — ffmpeg compose: image+audio per segment, then concat all
@@ -1507,6 +1589,286 @@ async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoi
 }
 
 /**
+ * Synthesize a single character's dialogue line using their voice criteria.
+ * The character's gender + tone keywords map onto our voice-engine style buckets.
+ * `emotion` (from the planner — "concerned", "skeptical", "warm") nudges style + speed.
+ */
+async function synthesizeCharacterDialogueAudio(
+  line: ClipDialogueLine,
+  character: CampaignCharacter,
+): Promise<{ buffer: Buffer; estimatedDurationMs: number }> {
+  const text = (line.line || "").trim();
+  if (!text) throw new Error("Empty dialogue line");
+
+  const tone = (character.voiceCriteria?.tone || "").toLowerCase();
+  const texture = (character.voiceCriteria?.texture || "").toLowerCase();
+  const emotion = (line.emotion || "").toLowerCase();
+  const combined = `${tone} ${texture} ${emotion}`;
+
+  // Gender heuristic: voiceCriteria.age sometimes encodes gender ("young woman"). Fall back to neutral male.
+  const age = (character.voiceCriteria?.age || "").toLowerCase();
+  const gender: "male" | "female" =
+    /\b(woman|female|girl|she|her)\b/.test(age) || /\b(woman|female|girl)\b/.test(tone) ? "female" : "male";
+
+  // Style bucket — emotion takes priority over base tone so an angry line still sounds angry
+  // even if the character's baseline voice is "warm".
+  const style: "professional" | "warm" | "dramatic" | "energetic" =
+    /(angry|furious|intense|dramatic|fierce|desperate|urgent|epic|harsh)/.test(combined)
+      ? "dramatic"
+      : /(warm|gentle|tender|soft|loving|kind|caring|intimate)/.test(combined)
+        ? "warm"
+        : /(excited|energetic|cheerful|upbeat|enthusiastic|bright)/.test(combined)
+          ? "energetic"
+          : "professional";
+
+  // Pace from voiceCriteria — slow=0.88, fast=1.08, default 0.98 (slightly slower than realtime
+  // so lines read clear on top of a still image).
+  const paceText = `${(character.voiceCriteria?.pace || "").toLowerCase()} ${combined}`;
+  const speed = /(slow|measured|deliberate|relaxed|calm)/.test(paceText)
+    ? 0.9
+    : /(fast|quick|rapid|punchy|urgent)/.test(paceText)
+      ? 1.06
+      : 0.98;
+
+  const result = await generateVoice({
+    text,
+    gender,
+    accent: "american",
+    style,
+    speed,
+  });
+
+  return { buffer: result.audioBuffer, estimatedDurationMs: result.estimatedDurationMs };
+}
+
+/**
+ * Run ffprobe to read the exact duration (ms) of an audio file.
+ * Falls back to a word-count estimate when ffprobe is unavailable.
+ */
+async function probeAudioDurationMs(filePath: string, fallbackMs: number): Promise<number> {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      filePath,
+    ]);
+    const sec = Number.parseFloat(String(stdout).trim());
+    if (Number.isFinite(sec) && sec > 0) return Math.round(sec * 1000);
+  } catch (e) {
+    // ffprobe missing or failed — fall back
+  }
+  return fallbackMs;
+}
+
+/**
+ * Build a movie-grade audio mix for one narrated scene:
+ *   narrator line  -->  gap  -->  character dialogue line 1  -->  gap  -->  ...
+ *   underneath:  ambient bed (low volume) + spot SFX at specified times
+ *
+ * Returns the local path to the mixed mp3 + measured duration, or null if there's
+ * nothing to mix (no narrator, no dialogue, no soundscape).
+ *
+ * Why this exists: the prior pipeline only played the narrator. Customers building
+ * storytelling YouTube channels need narrator + in-scene character voices + cinematic
+ * sound design all layered on top of a still image to feel like a real short film.
+ */
+async function buildSceneMixedAudio(params: {
+  clip: CampaignClipSlot;
+  characterMap: Map<string, CampaignCharacter>;
+  narratorVoice?: NarratorVoice;
+  tempDir: string;
+  index: number;
+}): Promise<{ audioPath: string; durationMs: number } | null> {
+  const { clip, characterMap, narratorVoice, tempDir, index } = params;
+  const narratorText = (clip.narratorLine || "").trim();
+  const dialogueLines = (clip.dialogue || []).filter((l) => (l.line || "").trim());
+  const hasSoundscape = !!(clip.soundscape && (clip.soundscape.ambient || (clip.soundscape.spot && clip.soundscape.spot.length)));
+  if (!narratorText && !dialogueLines.length && !hasSoundscape) return null;
+
+  // ---------------------------------------------------------------------------
+  // 1) Synthesize narrator + character dialogue (parallel where safe)
+  // ---------------------------------------------------------------------------
+  const voiceFiles: { path: string; durationMs: number }[] = [];
+
+  if (narratorText) {
+    try {
+      const buf = await synthesizeNarratorAudio(narratorText, narratorVoice);
+      const p = path.join(tempDir, `narr-${index}-${nanoid(4)}.mp3`);
+      await writeFile(p, buf);
+      const wordCount = narratorText.split(/\s+/).filter(Boolean).length;
+      const fallbackMs = Math.round((wordCount / 150) * 60 * 1000);
+      const dur = await probeAudioDurationMs(p, fallbackMs);
+      voiceFiles.push({ path: p, durationMs: dur });
+    } catch (e) {
+      console.warn(`[StoryAdCampaign] narrator TTS failed scene ${index}:`, e);
+    }
+  }
+
+  for (const line of dialogueLines) {
+    const character = characterMap.get(line.characterId);
+    if (!character) continue;
+    try {
+      const r = await synthesizeCharacterDialogueAudio(line, character);
+      const p = path.join(tempDir, `dlg-${index}-${nanoid(4)}.mp3`);
+      await writeFile(p, r.buffer);
+      const dur = await probeAudioDurationMs(p, r.estimatedDurationMs);
+      voiceFiles.push({ path: p, durationMs: dur });
+    } catch (e) {
+      console.warn(`[StoryAdCampaign] dialogue TTS failed scene ${index} (${character.name}):`, e);
+    }
+  }
+
+  if (!voiceFiles.length && !hasSoundscape) return null;
+
+  // ---------------------------------------------------------------------------
+  // 2) Build the voice chain: 0.4s lead-in | voice1 | 0.3s gap | voice2 | ... | 0.6s tail
+  //    Use the concat demuxer for clean joins.
+  // ---------------------------------------------------------------------------
+  const leadInMs = 400;
+  const gapMs = 300;
+  const tailMs = 600;
+
+  let voicePath: string | null = null;
+  let voiceDurationMs = 0;
+
+  if (voiceFiles.length) {
+    const silenceLead = path.join(tempDir, `sil-lead-${index}.mp3`);
+    const silenceGap = path.join(tempDir, `sil-gap-${index}.mp3`);
+    const silenceTail = path.join(tempDir, `sil-tail-${index}.mp3`);
+    await runFFmpeg([
+      "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+      "-t", `${leadInMs / 1000}`, "-q:a", "9", "-y", silenceLead,
+    ]);
+    await runFFmpeg([
+      "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+      "-t", `${gapMs / 1000}`, "-q:a", "9", "-y", silenceGap,
+    ]);
+    await runFFmpeg([
+      "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+      "-t", `${tailMs / 1000}`, "-q:a", "9", "-y", silenceTail,
+    ]);
+
+    const items: string[] = [silenceLead];
+    voiceFiles.forEach((vf, i) => {
+      items.push(vf.path);
+      if (i < voiceFiles.length - 1) items.push(silenceGap);
+    });
+    items.push(silenceTail);
+
+    voiceDurationMs = leadInMs + tailMs;
+    voiceFiles.forEach((vf, i) => {
+      voiceDurationMs += vf.durationMs;
+      if (i < voiceFiles.length - 1) voiceDurationMs += gapMs;
+    });
+
+    const listPath = path.join(tempDir, `vlist-${index}.txt`);
+    await writeFile(listPath, items.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
+    voicePath = path.join(tempDir, `voice-${index}.mp3`);
+    await runFFmpeg([
+      "-f", "concat", "-safe", "0", "-i", listPath,
+      "-c:a", "libmp3lame", "-b:a", "192k",
+      "-y", voicePath,
+    ]);
+  }
+
+  // Scene total duration = voice chain (min 4s so an SFX-only/short-voice scene still breathes)
+  const sceneDurationMs = Math.max(voiceDurationMs, 4000);
+  const sceneDurationSec = sceneDurationMs / 1000;
+
+  // ---------------------------------------------------------------------------
+  // 3) Generate SFX (ambient + spot cues) via ElevenLabs if available.
+  //    If SFX gen fails, the scene still plays — just without that layer.
+  // ---------------------------------------------------------------------------
+  const sfxInputs: { path: string; filter: string }[] = [];
+  const sfxEnabled = isElevenLabsEnabled() && !!clip.soundscape;
+
+  if (sfxEnabled && clip.soundscape?.ambient?.description) {
+    try {
+      const ambDurSec = Math.max(2, Math.min(22, sceneDurationSec));
+      const ambBuf = await generateSoundEffect({
+        description: clip.soundscape.ambient.description,
+        durationSeconds: ambDurSec,
+        promptInfluence: 0.3,
+      });
+      const ambPath = path.join(tempDir, `amb-${index}.mp3`);
+      await writeFile(ambPath, ambBuf);
+      const gain = clip.soundscape.ambient.gainDb ?? -20;
+      // Loop ambient if generated shorter than scene, then trim to scene duration.
+      const filter = `aloop=loop=-1:size=2e9,atrim=duration=${sceneDurationSec.toFixed(2)},asetpts=PTS-STARTPTS,volume=${gain}dB`;
+      sfxInputs.push({ path: ambPath, filter });
+    } catch (e) {
+      console.warn(`[StoryAdCampaign] ambient SFX failed scene ${index}:`, e);
+    }
+  }
+
+  if (sfxEnabled && clip.soundscape?.spot?.length) {
+    for (let s = 0; s < clip.soundscape.spot.length; s++) {
+      const cue = clip.soundscape.spot[s];
+      if (!cue?.description) continue;
+      try {
+        const dur = Math.max(0.5, Math.min(22, cue.durationSec || 2));
+        const spotBuf = await generateSoundEffect({ description: cue.description, durationSeconds: dur });
+        const spotPath = path.join(tempDir, `spot-${index}-${s}.mp3`);
+        await writeFile(spotPath, spotBuf);
+        const delayMs = Math.max(0, Math.round((cue.atSec || 0) * 1000));
+        const gain = cue.gainDb ?? -10;
+        const filter = `adelay=${delayMs}|${delayMs},volume=${gain}dB`;
+        sfxInputs.push({ path: spotPath, filter });
+      } catch (e) {
+        console.warn(`[StoryAdCampaign] spot SFX ${s} failed scene ${index}:`, e);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4) Final mix
+  //    - If no SFX, just return the voice track.
+  //    - If no voice, mix SFX only against silent base of sceneDurationSec.
+  //    - Otherwise amix voice + every SFX layer with normalize=0.
+  // ---------------------------------------------------------------------------
+  if (!sfxInputs.length) {
+    if (!voicePath) return null;
+    return { audioPath: voicePath, durationMs: voiceDurationMs };
+  }
+
+  const mixedPath = path.join(tempDir, `mix-${index}.mp3`);
+  const ffArgs: string[] = [];
+
+  // Input 0 is the voice track (or a silent base if no voice)
+  if (voicePath) {
+    ffArgs.push("-i", voicePath);
+  } else {
+    ffArgs.push("-f", "lavfi", "-i", `anullsrc=r=44100:cl=stereo:d=${sceneDurationSec.toFixed(2)}`);
+  }
+
+  // SFX inputs
+  sfxInputs.forEach((sfx) => {
+    ffArgs.push("-i", sfx.path);
+  });
+
+  // Filter graph
+  const filterParts: string[] = [];
+  filterParts.push(`[0:a]volume=1.0[v0]`);
+  const mixLabels = ["[v0]"];
+  sfxInputs.forEach((sfx, i) => {
+    const inputIdx = i + 1;
+    filterParts.push(`[${inputIdx}:a]${sfx.filter}[sfx${i}]`);
+    mixLabels.push(`[sfx${i}]`);
+  });
+  filterParts.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0[mix]`);
+
+  ffArgs.push("-filter_complex", filterParts.join(";"));
+  ffArgs.push("-map", "[mix]");
+  ffArgs.push("-c:a", "libmp3lame", "-b:a", "192k");
+  ffArgs.push("-y", mixedPath);
+
+  await runFFmpeg(ffArgs);
+  const finalDur = await probeAudioDurationMs(mixedPath, sceneDurationMs);
+  return { audioPath: mixedPath, durationMs: finalDur };
+}
+
+/**
  * Compose the narrated reel: per scene make a video segment (image+audio for image scenes,
  * original video+audio overlay for video scenes), then ffmpeg-concat all segments.
  */
@@ -1555,10 +1917,12 @@ async function composeNarratedReel(
       const clip = ready[i];
       const segPath = path.join(tempDir, `seg-${String(i + 1).padStart(2, "0")}.mp4`);
 
-      // Download audio if present
+      // Download the scene's audio track. Prefer the new layered mix (narrator + dialogue + SFX)
+      // and fall back to the legacy narrator-only track for older campaigns mid-flight.
       let audioPath: string | null = null;
-      if (clip.audioUrl) {
-        const audioBuf = await downloadToBuffer(clip.audioUrl);
+      const audioSource = clip.mixedAudioUrl || clip.audioUrl;
+      if (audioSource) {
+        const audioBuf = await downloadToBuffer(audioSource);
         audioPath = path.join(tempDir, `audio-${i + 1}.mp3`);
         await writeFile(audioPath, audioBuf);
       }

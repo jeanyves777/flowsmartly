@@ -82,3 +82,51 @@ export async function deleteClonedVoice(voiceId: string): Promise<void> {
     headers: { "xi-api-key": apiKey },
   });
 }
+
+/**
+ * Generate a sound effect via ElevenLabs Sound Generation API.
+ * Pass a natural-language description (e.g. "distant city traffic with light rain")
+ * and a target duration in seconds (0.5–22). Returns an MP3 buffer.
+ *
+ * Why this is here: cinematic narrated reels need ambient beds + spot SFX
+ * (doors, footsteps, rain, swells) to feel like a movie instead of a slideshow.
+ */
+export async function generateSoundEffect(params: {
+  description: string;
+  durationSeconds?: number;
+  promptInfluence?: number;
+}): Promise<Buffer> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("ElevenLabs is not configured");
+
+  const body: Record<string, unknown> = {
+    text: params.description,
+    prompt_influence: params.promptInfluence ?? 0.3,
+  };
+  if (typeof params.durationSeconds === "number") {
+    body.duration_seconds = Math.max(0.5, Math.min(22, params.durationSeconds));
+  }
+
+  const response = await fetch(`${ELEVENLABS_BASE}/sound-generation`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let detail = `${response.status}`;
+    try {
+      const err = await response.json() as Record<string, unknown>;
+      detail = JSON.stringify(err);
+    } catch {
+      try { detail = await response.text(); } catch { /* ignore */ }
+    }
+    throw new Error(`ElevenLabs sound-generation failed: ${detail}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
