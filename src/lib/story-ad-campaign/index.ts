@@ -625,65 +625,71 @@ export async function planSceneGrid(
   const targetSecondsPerClip = Math.round(state.clipLength * targetCoverage);
   const totalWords = Math.round(totalSeconds * wordsPerSecond * targetCoverage);
 
-  const prompt = `You are a screenwriter writing ONE continuous ${totalSeconds}-second short film. It will be SHOT in ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as a single movie. The clips are camera cuts inside ONE scene flow — not separate vignettes.
+  const lastTwo = Math.max(1, Math.min(2, Math.floor(clipCount * 0.15)));
 
-THIS IS NOT AN ADVERTISEMENT. It is a real-life dramatic short film. Characters speak to EACH OTHER on camera. There is NO narrator, NO voiceover, NO ad copy.
+  const prompt = `You are a screenwriter writing ONE continuous ${totalSeconds}-second short film. It will be SHOT in ${clipCount} consecutive ${state.clipLength}-second clips that play back-to-back as a single movie.
 
-THE STORY (write the entire thing as one connected narrative, then split into clips):
-- Pre-write the full ${totalWords}-word screenplay in your head as one continuous conversation/scene.
-- Then break it into ${clipCount} clips. The clip boundaries are camera cuts — the dialogue MUST flow across them as if no cut happened.
-- A character who speaks in clip N may finish their thought in clip N+1. A reaction shot in clip N+1 is a response to what was said in clip N.
-- Lines must reference, react to, or build on what was said in earlier clips. Characters REMEMBER prior conversation.
+🚨 ABSOLUTE TOP PRIORITY — DRAMATIZE THE USER'S BRIEF LITERALLY 🚨
 
-BRAND (organic mention only, in the FINAL THIRD of the film): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
-${brand.industry ? `INDUSTRY: ${brand.industry}` : ""}
-${brand.uniqueValue ? `WHAT IT SOLVES: ${brand.uniqueValue}` : ""}
-${state.storyOutline ? `STORY OUTLINE (follow this):\n${state.storyOutline}` : ""}
-BRIEF (the real-life problem to dramatize): ${state.brief}
-DESIRED FEELING: ${state.goal}
+USER'S BRIEF (this is THE story you must tell, in the order described):
+"""
+${state.brief}
+"""
+
+The brief above is the LAW. Read it carefully and identify the sequence of scenes/settings the user described. Your screenplay must show those EXACT scenes in that EXACT order. If the brief says "first show X, then Y, then Z" — you show X, then Y, then Z. Do NOT invent generic alternative scenes. Do NOT skip ahead to the brand. The first ${clipCount - lastTwo} clips entertain the viewer with the human story; the brand only appears in the LAST ${lastTwo} clip(s).
+
+EXAMPLES OF WHAT NOT TO DO:
+- Brief says "veteran at war, returns home, then catches up with business" → BAD: opening on him at a desk struggling with business. GOOD: opening with combat scenes, returning home, family welcome, THEN business catch-up, THEN brand fits in at the end.
+- Brief says "single mom juggling two jobs with crying baby" → BAD: opening with her smiling about a new tool. GOOD: open with the chaos described, real overwhelm, brand only enters near the end.
+
+THIS IS NOT AN ADVERTISEMENT. It is a real-life dramatic short film. The audience should be EMOTIONALLY INVESTED in the human story before they even know there's a product. Characters speak to EACH OTHER on camera. NO narrator, NO voiceover, NO ad copy.
 
 CHARACTER ROSTER (use the id verbatim when referencing speakers — DO NOT invent new character ids):
 ${charactersBlock}
 
-STORY ARC across ${clipCount} clips:
-- Clips 1–2 (HOOK): Open on the protagonist in their normal world. Establish the relatable, real-life problem WITHOUT naming the brand. The protagonist may be alone (internal moment) or with another character.
-- Middle ~50% (PROBLEM): The problem deepens. Characters react. Tension builds. STILL no brand.
-- Around ~60–70% (DISCOVERY): Another character introduces the protagonist to the brand/product naturally inside the conversation ("Have you tried…?"). First mention.
-- ~75–90% (TRANSFORM): The protagonist uses it. Show change through dialogue and action.
-- Final 1–2 clips (RESOLUTION + CTA): Emotional payoff. A line of dialogue can reference the brand once more, naturally — never as a slogan.
+BRAND (background context only — only mentioned in the last ${lastTwo} clip(s)): ${brand.name}${brand.tagline ? ` — ${brand.tagline}` : ""}
+${brand.industry ? `INDUSTRY: ${brand.industry}` : ""}
+${brand.uniqueValue ? `WHAT IT SOLVES: ${brand.uniqueValue}` : ""}
+DESIRED FEELING (tone): ${state.goal}
+${state.storyOutline ? `\nSTORY OUTLINE (reference if helpful — but the BRIEF above takes priority):\n${state.storyOutline}` : ""}
 
-CONTINUITY RULES (CRITICAL — failing these makes the film feel like disconnected ads):
-1. Treat the whole film as ONE scene flow. Do NOT reset context per clip.
-2. If clip N ends mid-conversation, clip N+1 PICKS UP that conversation. No jump cuts to unrelated moments unless absolutely necessary.
-3. Re-use the same locations and characters across consecutive clips when the conversation continues.
-4. Each character has a consistent voice + arc. They don't suddenly know things they haven't learned yet.
-5. No "new topic" without a transition — the topic of the brand only enters when a character logically brings it up.
-6. When a character is speaking, the NEXT clip's dialogue is typically the OTHER character's reply, not a tangent.
+HOW TO MAP THE USER'S BRIEF ONTO ${clipCount} CLIPS:
+1. Pre-read the brief. Identify the scenes/settings the user mentioned, IN ORDER.
+2. Distribute those scenes across clips 1 through ${clipCount - lastTwo} (the first ~${Math.round(((clipCount - lastTwo) / clipCount) * 100)}% of the film). Each scene gets enough clips to feel real, not rushed.
+3. RESERVE the FINAL ${lastTwo} clip(s) for the brand moment: a natural turning point where the protagonist discovers, uses, or recommends the brand. NEVER mention the brand before then.
+4. The act labels (HOOK / PROBLEM / DISCOVERY / TRANSFORM / RESOLUTION / CTA) are ANNOTATIONS for what's happening — don't let them override the brief. If clip 3 is still "PROBLEM" because the brief's middle section is intense, that's fine.
+
+CONTINUITY RULES:
+- Treat the whole film as ONE scene flow. Dialogue across clip boundaries must connect — clip N+1 picks up from clip N.
+- If a clip ends mid-conversation, clip N+1 continues that conversation.
+- Characters remember what was said earlier; they don't suddenly know things they haven't learned.
+- Re-use the same locations and characters across consecutive clips when the conversation continues.
+- Within ONE scene from the brief (e.g. "at war"), give it MULTIPLE consecutive clips so it feels lived-in, not a flash card.
 
 For each clip output:
-- act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA
+- act: HOOK | PROBLEM | DISCOVERY | TRANSFORM | RESOLUTION | CTA — labels the emotional function; the SCENE itself comes from the brief.
 - shotType: WIDE | MEDIUM | CLOSE_UP | POV | DRONE | MACRO | OVER_SHOULDER
 - cameraMovement: PUSH_IN | PULL_BACK | PAN | STATIC | ORBIT | HANDHELD | TRACK
-- sceneAction: ONE sentence on what physically happens IN THE FLOW of the previous clip's action. Reference the previous moment.
-- moodLighting: lighting + color grade, single line.
-- characterIds: array of all character ids visible on-camera (1 to 3). Use [] for pure product/environment shots.
-- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera (NOT voiceover). Each line: { "characterId": "...", "line": "...", "emotion": "..." }. Lines should connect to the previous clip's dialogue. For a pure visual moment use dialogue: [].
+- sceneAction: ONE sentence describing what physically happens. Must be one of the user's described scenes (or a connecting beat between them). Reference the previous clip's moment so flow is continuous.
+- moodLighting: lighting + color grade, single line. Tailored to the specific scene from the brief.
+- characterIds: array of character ids visible on-camera (1 to 3). [] for pure environment/product shots.
+- dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. For a silent visual moment use dialogue: [].
 
-DURATION-FILL RULE (HARD — failing this produces sparse, ad-like clips):
-- Every ${state.clipLength}-second clip with dialogue must contain AT LEAST ${minWordsPerClip} words of speech (≈${Math.round(state.clipLength * minCoverage)}s) and target ~${targetWordsPerClip} words (≈${targetSecondsPerClip}s).
-- If one character speaks a short line, ADD a reply or a follow-up line from another character to fill the time. Real conversations have back-and-forth.
-- Do NOT write a single 5-word line in a 10-second clip and leave the rest empty. That feels like an ad slate, not a movie.
-- The ONLY clips allowed to use dialogue: [] are intentional silent "breathing room" beats — limit to no more than 2 such clips in the entire ${clipCount}-clip film, and never adjacent.
+DURATION-FILL RULE:
+- Every ${state.clipLength}-second clip with dialogue must contain AT LEAST ${minWordsPerClip} words (≈${Math.round(state.clipLength * minCoverage)}s) and target ~${targetWordsPerClip} words (≈${targetSecondsPerClip}s).
+- If one character speaks a short line, ADD a reply to fill the time. Real conversations have back-and-forth.
+- Silent visual beats (dialogue: []) are allowed but limited to 2 per film, never adjacent — useful for action-heavy scenes from the brief (e.g. a combat moment) where dialogue would feel forced.
 
 HARD RULES:
-- One continuous screenplay. NEVER write isolated vignettes.
-- NEVER write narrator/voiceover. All speech is in-scene dialogue between visible characters.
-- NEVER write ad copy ("Buy now", "Limited time", "Get yours today"). Brand fits the conversation, never pitched.
-- Brand named only in roughly the last third.
-- No on-screen text overlays — visuals only. CTA text is added in post.
+- The BRIEF is the law. Follow its scene order literally.
+- Brand named ONLY in the final ${lastTwo} clip(s). Never before.
+- One continuous screenplay; never isolated vignettes.
+- NEVER write narrator/voiceover. All speech is on-camera dialogue.
+- NEVER write ad copy. Brand fits the conversation organically.
+- No on-screen text overlays.
 - Dialogue must sound like real people, not actors performing.
 
-Return strict JSON with exactly ${clipCount} clips. Imagine reading every clip's dialogue field back-to-back — it MUST sound like one continuous screenplay:
+Return strict JSON with exactly ${clipCount} clips:
 {
   "clips": [
     {
@@ -704,7 +710,7 @@ Return strict JSON with exactly ${clipCount} clips. Imagine reading every clip's
     maxTokens: 5500,
     temperature: 0.75,
     systemPrompt:
-      "You are a screenwriter writing ONE continuous short film. The clips are camera cuts INSIDE ONE scene flow — dialogue must run continuously across clip boundaries. Characters remember and respond to prior lines. Product placement is organic and only in the final third. Return valid JSON only.",
+      "You are a screenwriter who DRAMATIZES THE USER'S BRIEF LITERALLY. Their described scenes and sequence are the LAW — you do not invent generic alternatives. The brand only appears in the final 1–2 clips; before that, you tell the human story the user described. Clips are camera cuts in ONE continuous scene flow; dialogue runs across clip boundaries; characters remember prior lines. Entertain first, brand last. Return valid JSON only.",
   });
 
   const characterIds = new Set(state.characters.map((c) => c.id));
