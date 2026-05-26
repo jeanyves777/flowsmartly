@@ -409,11 +409,16 @@ async function publishToInstagram(
       const createData = await createRes.json();
       if (createData.error) return { success: false, error: createData.error.message };
 
-      // Poll for processing (up to 3 minutes)
+      // Poll for processing. Instagram processes long-form videos (multi-minute narrated reels)
+      // much more slowly than short clips — bumped from 3 min to 12 min to cover up-to-10-min reels.
+      // The poll interval ramps up after the first minute so we stop hammering the API once we
+      // know it's a long-form video.
       const containerId = createData.id;
       let status = "IN_PROGRESS";
-      for (let i = 0; i < 36; i++) {
-        await new Promise((r) => setTimeout(r, 5000));
+      const MAX_POLLS = 90; // ~12 min worst case
+      for (let i = 0; i < MAX_POLLS; i++) {
+        const wait = i < 12 ? 5000 : 10000; // first minute: 5s, then 10s intervals
+        await new Promise((r) => setTimeout(r, wait));
         const statusRes = await fetch(
           `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${token}`
         );
@@ -422,7 +427,13 @@ async function publishToInstagram(
         if (status === "FINISHED") break;
         if (status === "ERROR") return { success: false, error: "Instagram video processing failed" };
       }
-      if (status !== "FINISHED") return { success: false, error: "Instagram video processing timed out" };
+      if (status !== "FINISHED") {
+        return {
+          success: false,
+          error:
+            "Instagram video processing timed out (>12 min). Reels longer than ~90 seconds usually fail Instagram's encoder — try YouTube for long-form storytelling reels.",
+        };
+      }
 
       const publishRes = await fetch(
         `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,

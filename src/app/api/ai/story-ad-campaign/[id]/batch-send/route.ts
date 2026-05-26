@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { checkCreditsAvailable } from "@/lib/credits/costs";
 import {
   batchRenderCampaign,
-  creditsPerClip,
+  estimateCampaignRenderCost,
   getCampaign,
   updateCampaignState,
 } from "@/lib/story-ad-campaign";
@@ -38,25 +38,18 @@ export async function POST(
     );
   }
 
-  const perClip = creditsPerClip(current.state.clipLength);
-  const totalCost = perClip * renderableClips.length;
-
+  // Full cost across video + images + voice (narrator + dialogue) + SFX + caption.
+  // Markup is baked into each cost key in DEFAULT_CREDIT_COSTS — this is the user-facing total.
+  const cost = estimateCampaignRenderCost(current.state);
+  const totalCost = cost.total;
   const isAdmin = !!session.adminId;
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { aiCredits: true },
-  });
-  if (!isAdmin && (!user || user.aiCredits < totalCost)) {
+
+  // Use the unified credit guard — surfaces the same error shape (INSUFFICIENT_CREDITS / FREE_CREDITS_RESTRICTED)
+  // the credit-purchase modal already understands.
+  const block = await checkCreditsAvailable(session.userId, totalCost, false, isAdmin);
+  if (block) {
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "INSUFFICIENT_CREDITS",
-          message: `Batch needs ${totalCost} credits. You have ${user?.aiCredits || 0}.`,
-          required: totalCost,
-          available: user?.aiCredits || 0,
-        },
-      },
+      { success: false, error: { code: block.code, message: block.message, required: block.cost } },
       { status: 402 },
     );
   }
@@ -68,12 +61,20 @@ export async function POST(
       amount: totalCost,
       referenceType: "story_ad_campaign",
       referenceId: id,
-      description: `Story ad campaign batch — ${renderableClips.length} clips via ${current.state.provider}`,
+      description: `Story ad campaign render (${current.state.style}, ${cost.qualityLabel})`,
       metadata: {
         feature: "story_ad_campaign",
+        style: current.state.style,
         clipCount: renderableClips.length,
         clipLength: current.state.clipLength,
         provider: current.state.provider,
+        breakdown: {
+          video: cost.videoCredits,
+          images: cost.imageCredits,
+          voice: cost.voiceCredits,
+          soundEffects: cost.sfxCredits,
+          caption: cost.captionCredits,
+        },
       },
     });
     if (!charge.success) {

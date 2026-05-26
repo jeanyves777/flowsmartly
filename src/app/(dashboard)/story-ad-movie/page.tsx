@@ -55,6 +55,20 @@ type Duration = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
 type Aspect = "9:16" | "1:1" | "16:9";
 type Provider = "veo3" | "xai";
 
+/**
+ * User-facing labels for the render provider tier.
+ * Per the platform-wide media-provider rule, the UI never shows raw provider names
+ * (no "Veo 3", no "xAI"). Tiers map: video Premium = Google Veo, Standard = xAI.
+ */
+const PROVIDER_TIER_LABEL: Record<Provider, string> = {
+  veo3: "Premium",
+  xai: "Standard",
+};
+const PROVIDER_TIER_DESCRIPTION: Record<Provider, string> = {
+  veo3: "Cinematic 8s clips, hard cuts between scenes.",
+  xai: "One seamless reel — first 15s, extended in 10s pieces with no cuts.",
+};
+
 type Act = "HOOK" | "PROBLEM" | "DISCOVERY" | "TRANSFORM" | "RESOLUTION" | "CTA";
 type Shot = "WIDE" | "CLOSE_UP" | "POV" | "DRONE" | "MACRO" | "OVER_SHOULDER" | "MEDIUM";
 type Camera = "PUSH_IN" | "PULL_BACK" | "PAN" | "STATIC" | "ORBIT" | "HANDHELD" | "TRACK";
@@ -913,8 +927,8 @@ function StyleStage({
         title="Format"
         description={
           draft.provider === "xai"
-            ? `${clipCount} beats · first 15s, each next ~10s, chained as ONE seamless reel via xAI extension (no hard cuts).`
-            : `${clipCount} clips of ${draft.clipLength}s each on Veo 3, then stitched into one reel.`
+            ? `${clipCount} beats · ${PROVIDER_TIER_DESCRIPTION.xai}`
+            : `${clipCount} clips of ${draft.clipLength}s each · ${PROVIDER_TIER_DESCRIPTION.veo3}`
         }
       >
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -938,12 +952,12 @@ function StyleStage({
               onChange={(value) => setDraft((prev) => ({ ...prev, aspectRatio: value as Aspect }))}
             />
           </FieldGroup>
-          <FieldGroup label="Render provider">
+          <FieldGroup label="Render quality">
             <SegmentedControl
               value={draft.provider}
               options={[
-                { value: "veo3", label: "Veo 3" },
-                { value: "xai", label: "xAI" },
+                { value: "veo3", label: PROVIDER_TIER_LABEL.veo3 },
+                { value: "xai", label: PROVIDER_TIER_LABEL.xai },
               ]}
               onChange={(value) =>
                 setDraft((prev) => {
@@ -2652,6 +2666,99 @@ function VoiceStage({
 // STAGE 5 — PRODUCE (Render + Deliver, one continuous page)
 // ============================================================================
 
+/**
+ * Fetches the campaign's renderable cost from the server (markup baked in,
+ * raw provider costs hidden) and shows a compact pill + Generate button.
+ *
+ * - Disables the button when the user lacks the credits.
+ * - Tapping the disabled-state button surfaces the shared credit-purchase modal
+ *   via `handleCreditError` — the same flow every other AI feature uses.
+ */
+function RenderCostAndButton({
+  campaignId,
+  clipCount,
+  loading,
+  onSend,
+}: {
+  campaignId: string;
+  clipCount: number;
+  loading: boolean;
+  onSend: () => void;
+}) {
+  interface CostResp {
+    total: number;
+    availableCredits: number;
+    hasEnoughCredits: boolean;
+    qualityLabel: string;
+    isAdmin: boolean;
+  }
+  const [cost, setCost] = useState<CostResp | null>(null);
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchCost() {
+      setFetching(true);
+      try {
+        const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/estimate-cost`);
+        const data = await res.json();
+        if (!cancelled && data?.success) setCost(data.data);
+      } catch {
+        // Best-effort — the button just falls back to "Produce" without a cost pill.
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    }
+    if (clipCount > 0) fetchCost();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, clipCount]);
+
+  function attempt() {
+    if (cost && !cost.hasEnoughCredits && !cost.isAdmin) {
+      handleCreditError(
+        {
+          code: "INSUFFICIENT_CREDITS",
+          message: `This render needs ${cost.total} credits. You have ${cost.availableCredits}.`,
+        },
+        "story ad campaign render",
+      );
+      return;
+    }
+    onSend();
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {cost && (
+        <div className="flex flex-col items-end leading-tight">
+          <span className="text-xs text-muted-foreground">Render cost</span>
+          <span className="text-sm font-bold tabular-nums">
+            {cost.total.toLocaleString()} credits
+          </span>
+          {!cost.isAdmin && (
+            <span className={cn(
+              "text-[10px]",
+              cost.hasEnoughCredits ? "text-muted-foreground" : "text-rose-500 font-semibold",
+            )}>
+              You have {cost.availableCredits.toLocaleString()}
+            </span>
+          )}
+        </div>
+      )}
+      <Button
+        onClick={attempt}
+        disabled={loading || clipCount === 0 || fetching}
+        size="sm"
+      >
+        {loading || fetching ? <AISpinner size={14} /> : <Zap className="h-4 w-4" />}
+        {cost && !cost.hasEnoughCredits && !cost.isAdmin ? "Buy credits" : "Produce reel"}
+      </Button>
+    </div>
+  );
+}
+
 function ProduceStage({
   campaign,
   loading,
@@ -2672,9 +2779,7 @@ function ProduceStage({
   const providerLabel =
     state.style === "narrated"
       ? `Narrated · ${state.narratedSubStyle === "3d" ? "3D illustrations" : "cinematic stills"} + narrator`
-      : state.provider === "veo3"
-        ? "Veo 3 (8s/clip)"
-        : "xAI seamless (15s + 10s extensions)";
+      : `${PROVIDER_TIER_LABEL[state.provider]} quality · ${PROVIDER_TIER_DESCRIPTION[state.provider]}`;
 
   return (
     <div className="space-y-4">
@@ -2710,10 +2815,12 @@ function ProduceStage({
                 <span>{campaign.currentStep || `Rendering ${readyCount}/${state.clips.length}...`}</span>
               </div>
             ) : (
-              <Button onClick={onSend} disabled={loading || !state.clips.length} size="sm">
-                {loading ? <AISpinner size={14} /> : <Zap className="h-4 w-4" />}
-                Produce {state.clips.filter((c) => c.status !== "READY").length} clip(s)
-              </Button>
+              <RenderCostAndButton
+                campaignId={campaign.id}
+                clipCount={state.clips.length}
+                loading={loading}
+                onSend={onSend}
+              />
             )}
           </div>
         </div>
@@ -2862,6 +2969,8 @@ type CaptionAiMode = "draft" | "rewrite" | "shorten" | "hashtags" | "seo";
 
 function DeliverSection({ campaignId, state }: { campaignId: string; state: CampaignState }) {
   const { toast } = useToast();
+  // Used to map destination IDs ("account:cmpxxx") to friendly platform names in toasts.
+  const { platforms: connectedPlatforms } = useSocialPlatforms();
 
   // Seed the caption with AI-generated copy + hashtags merged inline.
   const initialCaption = useMemo(() => {
@@ -2878,6 +2987,21 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
   const [platforms, setPlatforms] = useState<string[]>(["feed"]);
   const [publishing, setPublishing] = useState(false);
   const [aiBusy, setAiBusy] = useState<CaptionAiMode | null>(null);
+
+  // Resolve a destination ID into a human-readable name for toast/error display.
+  function destinationLabel(destination: string): string {
+    if (destination === "feed") return "FlowSmartly Feed";
+    const accountId = destination.startsWith("account:") ? destination.slice(8) : destination;
+    for (const platform of connectedPlatforms) {
+      const acc = platform.accounts?.find((a) => a.id === accountId);
+      if (acc) {
+        const platformLabel = PLATFORM_META[platform.platform]?.label || platform.platform;
+        const handle = acc.username ? `@${acc.username.replace(/^@/, "")}` : (acc.displayName || "");
+        return handle ? `${platformLabel} · ${handle}` : platformLabel;
+      }
+    }
+    return accountId;
+  }
 
   useEffect(() => {
     if (initialCaption && !caption) setCaption(initialCaption);
@@ -2993,16 +3117,28 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
           "Publish failed";
         throw new Error(detail);
       }
-      // Some destinations may report per-platform failures even when the request itself succeeded.
+      // Per-platform failures even when the request itself succeeded (e.g. Instagram timed out).
       const publishResults = (data.data?.publishResults || {}) as Record<string, { success: boolean; error?: string }>;
-      const failures = Object.entries(publishResults).filter(([, r]) => !r?.success);
-      if (failures.length) {
+      const entries = Object.entries(publishResults);
+      const failures = entries.filter(([, r]) => !r?.success);
+      const successes = entries.filter(([, r]) => r?.success);
+
+      const failuresText = failures
+        .map(([id, r]) => `${destinationLabel(id)}: ${r.error || "unknown error"}`)
+        .join(" · ")
+        .slice(0, 600);
+
+      if (failures.length === entries.length && entries.length > 0) {
+        // EVERY destination failed → this is a hard "failed to post"
         toast({
-          title: `Posted with ${failures.length} failure(s)`,
-          description: failures
-            .map(([p, r]) => `${p}: ${r.error || "unknown"}`)
-            .join(" · ")
-            .slice(0, 400),
+          title: "Failed to post",
+          description: failuresText || "All destinations rejected the reel.",
+          variant: "destructive",
+        });
+      } else if (failures.length) {
+        toast({
+          title: `Posted to ${successes.length}, failed on ${failures.length}`,
+          description: failuresText,
           variant: "destructive",
         });
       } else {
@@ -3240,7 +3376,7 @@ function ReadOnlySummary({ state, onAdvance }: { state: CampaignState; onAdvance
           {state.durationSeconds}s ({Math.round(state.durationSeconds / state.clipLength)} clips × {state.clipLength}s)
         </SummaryRow>
         <SummaryRow label="Aspect">{state.aspectRatio}</SummaryRow>
-        <SummaryRow label="Provider">{state.provider === "veo3" ? "Veo 3" : "xAI"}</SummaryRow>
+        <SummaryRow label="Quality">{PROVIDER_TIER_LABEL[state.provider]}</SummaryRow>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Brief</p>

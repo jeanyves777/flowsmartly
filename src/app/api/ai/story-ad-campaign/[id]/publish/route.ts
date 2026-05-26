@@ -47,9 +47,10 @@ export async function POST(
   const payload: Record<string, unknown> = {
     caption: finalText,
     mediaUrls: [current.state.finalVideoUrl],
+    // Tell the downstream route this is a video so it picks the right code path
+    // (Post.mediaType column + platform publishers branch on this).
+    mediaType: "video",
     platforms,
-    aiGenerated: true,
-    status: body.scheduledAt ? "scheduled" : "published",
   };
   if (body.scheduledAt) payload.scheduledAt = body.scheduledAt;
 
@@ -59,10 +60,24 @@ export async function POST(
       headers: { "Content-Type": "application/json", cookie },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error("[StoryAdCampaign.publish] non-JSON upstream response", { status: res.status, body: text.slice(0, 500) });
+      return NextResponse.json(
+        { success: false, error: { message: `Upstream returned ${res.status}: ${text.slice(0, 200)}` } },
+        { status: res.status || 500 },
+      );
+    }
+    if (!res.ok || (data && typeof data === "object" && (data as { success?: boolean }).success === false)) {
+      console.error("[StoryAdCampaign.publish] upstream error", { status: res.status, payload: data });
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Publish failed";
+    console.error("[StoryAdCampaign.publish] fetch threw:", error);
     return NextResponse.json({ success: false, error: { message } }, { status: 500 });
   }
 }

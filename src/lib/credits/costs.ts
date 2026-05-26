@@ -102,7 +102,10 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_STORY_CAMPAIGN_SCENES: 15,        // Full dialogue screenplay across N clips (large structured AI text)
   AI_STORY_CAMPAIGN_SUGGEST: 3,        // Per-field AI fill in Story Ad Campaign editor
   AI_STORY_CAMPAIGN_CAPTION: 5,        // Social caption + hashtags from screenplay
-  AI_STORY_CAMPAIGN_VOICE_LINE: 5,     // TTS per dialogue line in the screenplay preview
+  AI_STORY_CAMPAIGN_VOICE_LINE: 5,     // TTS per dialogue line (narrator + character) ~$0.015 OpenAI / xAI
+  AI_STORY_CAMPAIGN_SCENE_IMAGE: 12,   // Per still illustration in narrated reels (~$0.06 xAI image)
+  AI_STORY_CAMPAIGN_AMBIENT_SFX: 8,    // ElevenLabs sound-generation, ambient bed up to 22s (~$0.04)
+  AI_STORY_CAMPAIGN_SPOT_SFX: 5,       // ElevenLabs sound-generation, short spot cue (~$0.02)
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
@@ -241,6 +244,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_STORY_CAMPAIGN_SUGGEST: "Story Ad Campaign: AI field suggestion",
   AI_STORY_CAMPAIGN_CAPTION: "Story Ad Campaign: social caption + hashtags",
   AI_STORY_CAMPAIGN_VOICE_LINE: "Story Ad Campaign: voice preview per line",
+  AI_STORY_CAMPAIGN_SCENE_IMAGE: "Story Ad Campaign: scene illustration",
+  AI_STORY_CAMPAIGN_AMBIENT_SFX: "Story Ad Campaign: ambient sound bed",
+  AI_STORY_CAMPAIGN_SPOT_SFX: "Story Ad Campaign: spot sound effect",
 };
 
 /**
@@ -401,8 +407,27 @@ export async function checkCreditsForFeature(
   isAdmin = false
 ): Promise<{ code: string; message: string; cost: number } | null> {
   if (isAdmin) return null;
-
   const creditCost = await getDynamicCreditCost(costKey);
+  return checkCreditsAvailable(userId, creditCost, canUseFreeCredits(costKey), isAdmin);
+}
+
+/**
+ * Check if a user has enough credits for an arbitrary total cost (e.g. a multi-step
+ * AI pipeline like a Story Ad Campaign render). Use this when the cost is computed
+ * across many cost keys and you already have the total — `checkCreditsForFeature`
+ * only handles single-key checks.
+ *
+ * `freeCreditEligible` should be true for non-AI features like email/SMS that can
+ * draw against signup free credits; false for AI features that require purchased credits.
+ */
+export async function checkCreditsAvailable(
+  userId: string,
+  totalCredits: number,
+  freeCreditEligible = false,
+  isAdmin = false,
+): Promise<{ code: string; message: string; cost: number } | null> {
+  if (isAdmin) return null;
+  if (totalCredits <= 0) return null;
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -413,37 +438,33 @@ export async function checkCreditsForFeature(
     return {
       code: "INSUFFICIENT_CREDITS",
       message: "User not found.",
-      cost: creditCost,
+      cost: totalCredits,
     };
   }
 
-  const isFreeEligible = canUseFreeCredits(costKey);
   const purchasedCredits = Math.max(0, user.aiCredits - (user.freeCredits || 0));
 
-  if (isFreeEligible) {
-    // Email/SMS: can use all credits (free + purchased)
-    if (user.aiCredits < creditCost) {
+  if (freeCreditEligible) {
+    if (user.aiCredits < totalCredits) {
       return {
         code: "INSUFFICIENT_CREDITS",
-        message: `This requires ${creditCost} credits. You have ${user.aiCredits} credits remaining.`,
-        cost: creditCost,
+        message: `This requires ${totalCredits} credits. You have ${user.aiCredits} credits remaining.`,
+        cost: totalCredits,
       };
     }
   } else {
-    // AI features: can only use purchased credits
-    if (purchasedCredits < creditCost) {
-      if (user.freeCredits > 0 && user.aiCredits >= creditCost) {
-        // Has enough total but they're free credits
+    if (purchasedCredits < totalCredits) {
+      if ((user.freeCredits || 0) > 0 && user.aiCredits >= totalCredits) {
         return {
           code: "FREE_CREDITS_RESTRICTED",
-          message: `Your free credits can only be used for email marketing. Purchase credits to use this feature (${creditCost} credits required).`,
-          cost: creditCost,
+          message: `Your free credits can only be used for email marketing. Purchase credits to use this feature (${totalCredits} credits required).`,
+          cost: totalCredits,
         };
       }
       return {
         code: "INSUFFICIENT_CREDITS",
-        message: `This requires ${creditCost} credits. You have ${purchasedCredits} purchased credits remaining.`,
-        cost: creditCost,
+        message: `This requires ${totalCredits} credits. You have ${purchasedCredits} purchased credits remaining.`,
+        cost: totalCredits,
       };
     }
   }

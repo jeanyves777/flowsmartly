@@ -2815,6 +2815,97 @@ export function totalCreditsForCampaign(durationSeconds: CampaignDurationSeconds
   return creditsPerClip(clipLength) * clipsForDuration(durationSeconds, clipLength);
 }
 
+/**
+ * A breakdown of WHAT the render will charge the user, in credits, by category.
+ * Markup is already baked into each cost key in `DEFAULT_CREDIT_COSTS` — this is
+ * the user-facing total, not the raw provider cost.
+ */
+export interface CampaignRenderCost {
+  total: number;
+  videoCredits: number;
+  imageCredits: number;
+  voiceCredits: number;
+  sfxCredits: number;
+  captionCredits: number;
+  // Plain-language label hiding raw provider names from the user.
+  qualityLabel: string;
+}
+
+/**
+ * Estimate the credit cost to render the campaign in its current state.
+ * Covers: video generation, scene images (narrated), narrator + dialogue TTS,
+ * ambient + spot SFX (narrated), and the final social caption.
+ *
+ * What's deliberately NOT included: the catalog plan + scenes plan + per-field
+ * suggest calls + character preview images. Those are charged separately as
+ * the user progresses through the stages (so they're not double-counted here).
+ */
+export function estimateCampaignRenderCost(state: CampaignState): CampaignRenderCost {
+  const C = DEFAULT_CREDIT_COSTS;
+  const clipCount = state.clips.length || clipsForDuration(state.durationSeconds, state.clipLength);
+
+  let videoCredits = 0;
+  let imageCredits = 0;
+  let voiceCredits = 0;
+  let sfxCredits = 0;
+
+  if (state.style === "narrated") {
+    // Narrated reels: exactly ONE 8s xAI hook video, rest are still images.
+    videoCredits = C.AI_VIDEO_SLIDESHOW; // 100, one-time 8s xAI clip
+    imageCredits = Math.max(0, clipCount - 1) * C.AI_STORY_CAMPAIGN_SCENE_IMAGE; // (N-1) stills
+
+    // Voice: one narrator line per scene + sum of all dialogue lines
+    let narratorLineCount = 0;
+    let dialogueLineCount = 0;
+    let ambientCount = 0;
+    let spotCount = 0;
+    for (const clip of state.clips) {
+      if ((clip.narratorLine || "").trim()) narratorLineCount++;
+      dialogueLineCount += (clip.dialogue || []).filter((l) => (l.line || "").trim()).length;
+      if (clip.soundscape?.ambient?.description) ambientCount++;
+      if (clip.soundscape?.spot?.length) spotCount += clip.soundscape.spot.length;
+    }
+    // If the plan hasn't been generated yet (clipCount > 0 from duration but state.clips is empty)
+    // assume the typical narrated shape so the preview still shows a meaningful number.
+    if (!state.clips.length) {
+      narratorLineCount = clipCount;
+      dialogueLineCount = Math.round(clipCount * 1.2); // ~50% of scenes have 1-3 dialogue lines
+      ambientCount = clipCount;
+      spotCount = Math.round(clipCount * 1.5); // average ~1.5 spot cues / scene
+    }
+    voiceCredits = (narratorLineCount + dialogueLineCount) * C.AI_STORY_CAMPAIGN_VOICE_LINE;
+    sfxCredits = ambientCount * C.AI_STORY_CAMPAIGN_AMBIENT_SFX + spotCount * C.AI_STORY_CAMPAIGN_SPOT_SFX;
+  } else {
+    // 3D / cinematic: every clip is a real video.
+    // Veo 3 = ~60 credits per 8s clip; xAI scales per-second.
+    if (state.provider === "veo3") {
+      videoCredits = clipCount * C.AI_VIDEO_STUDIO; // 60 per clip
+    } else {
+      // xAI billed per 10s. Each clip averages state.clipLength seconds.
+      videoCredits = Math.ceil((clipCount * state.clipLength) / 10) * C.AI_VIDEO_SLIDESHOW;
+    }
+    // Dialogue TTS per line (cinematic + 3D still use the per-line voice preview)
+    let lineCount = 0;
+    for (const clip of state.clips) {
+      lineCount += (clip.dialogue || []).filter((l) => (l.line || "").trim()).length;
+    }
+    if (!state.clips.length) lineCount = Math.round(clipCount * 1.5);
+    voiceCredits = lineCount * C.AI_STORY_CAMPAIGN_VOICE_LINE;
+  }
+
+  const captionCredits = C.AI_STORY_CAMPAIGN_CAPTION;
+  const total = videoCredits + imageCredits + voiceCredits + sfxCredits + captionCredits;
+
+  const qualityLabel =
+    state.style === "narrated"
+      ? "Narrated long-form (image-driven)"
+      : state.provider === "veo3"
+        ? "Premium quality"
+        : "Standard quality";
+
+  return { total, videoCredits, imageCredits, voiceCredits, sfxCredits, captionCredits, qualityLabel };
+}
+
 async function refundFailedClips(
   campaignId: string,
   userId: string,
