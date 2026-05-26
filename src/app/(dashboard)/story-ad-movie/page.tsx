@@ -142,10 +142,8 @@ const STAGES: { id: Phase; label: string; subtitle: string; icon: typeof Sparkle
   { id: "STYLE", label: "Style", subtitle: "3D or Cinematic", icon: Sparkles },
   { id: "CHARACTERS", label: "Characters", subtitle: "Catalog & voices", icon: Users },
   { id: "SCENES", label: "Scenes", subtitle: "Story arc grid", icon: Film },
-  { id: "PROMPTS", label: "Prompts", subtitle: "Per-clip prompt", icon: Edit3 },
-  { id: "VOICE", label: "Voice", subtitle: "Timing preview", icon: Mic },
-  { id: "BATCH", label: "Render", subtitle: "Generate clips", icon: Zap },
-  { id: "DONE", label: "Deliver", subtitle: "Post & download", icon: Send },
+  { id: "PROMPTS", label: "Script", subtitle: "Prompts + voice preview", icon: Edit3 },
+  { id: "BATCH", label: "Produce", subtitle: "Render + deliver", icon: Zap },
 ];
 
 const ACT_BADGE: Record<Act, string> = {
@@ -320,10 +318,14 @@ function PageBody() {
 
   const activePhase: Phase = campaign?.state.phase || (draft.style ? "CHARACTERS" : "STYLE");
 
-  // FAILED is shown on the Render step; otherwise look up the active phase in the stage list
-  const phaseIndex = activePhase === "FAILED"
-    ? STAGES.findIndex((s) => s.id === "BATCH")
-    : STAGES.findIndex((s) => s.id === activePhase);
+  // Map collapsed phases to the visible stepper steps:
+  // - VOICE was merged into PROMPTS (Script step)
+  // - DONE/FAILED stay on the BATCH (Produce step)
+  const phaseIndex = (() => {
+    if (activePhase === "VOICE") return STAGES.findIndex((s) => s.id === "PROMPTS");
+    if (activePhase === "DONE" || activePhase === "FAILED") return STAGES.findIndex((s) => s.id === "BATCH");
+    return STAGES.findIndex((s) => s.id === activePhase);
+  })();
 
   async function createCampaign() {
     if (!draft.style || draft.brief.trim().length < 12) return;
@@ -590,7 +592,7 @@ function PageBody() {
             onAdvance={() => goToPhase("PROMPTS")}
           />
         )}
-        {campaign && activePhase === "PROMPTS" && (
+        {campaign && (activePhase === "PROMPTS" || activePhase === "VOICE") && (
           <PromptsStage
             campaignId={campaign.id}
             state={campaign.state}
@@ -598,28 +600,16 @@ function PageBody() {
               const next = campaign.state.clips.map((c) => (c.id === updated.id ? updated : c));
               localPatch({ clips: next }, { rebuildPrompts: true });
             }}
-            onAdvance={() => goToPhase("VOICE")}
-          />
-        )}
-        {campaign && activePhase === "VOICE" && (
-          <VoiceStage
-            campaignId={campaign.id}
-            state={campaign.state}
             onAdvance={() => goToPhase("BATCH")}
           />
         )}
-        {campaign && (activePhase === "BATCH" || activePhase === "FAILED") && (
-          <BatchStage
+        {campaign && (activePhase === "BATCH" || activePhase === "DONE" || activePhase === "FAILED") && (
+          <ProduceStage
             campaign={campaign}
             loading={stageLoading === "batch"}
             onSend={runBatch}
-            onProviderChange={(provider) => patchState({ provider })}
-            onAdvance={() => goToPhase("DONE")}
             onClipUpdated={() => fetchCampaign(campaign.id)}
           />
-        )}
-        {campaign && activePhase === "DONE" && (
-          <DeliverStage campaign={campaign} onClipUpdated={() => fetchCampaign(campaign.id)} />
         )}
       </main>
     </div>
@@ -1397,26 +1387,129 @@ function PromptsStage({
   onAdvance: () => void;
 }) {
   const [view, setView] = useState<"clips" | "screenplay">("clips");
+
+  // Voice preview state (was in VoiceStage)
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voicePlaying, setVoicePlaying] = useState(false);
+  const [currentLineIdx, setCurrentLineIdx] = useState<number | null>(null);
+  const voiceLinesRef = useRef<ScreenplayLine[]>([]);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceStopRef = useRef(false);
+
+  const totalLines = state.clips.reduce((s, c) => s + c.dialogue.filter((d) => d.line.trim()).length, 0);
+
+  async function fetchScreenplay(): Promise<ScreenplayLine[]> {
+    setVoiceLoading(true);
+    try {
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "screenplay" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Voicing failed");
+      const out: ScreenplayLine[] = (data.data.lines || []).map(
+        (l: {
+          clipIndex?: number;
+          clipAct?: Act;
+          characterId: string | null;
+          characterName: string | null;
+          line: string;
+          emotion?: string;
+          mimeType: string;
+          audioBase64: string;
+          estimatedDurationMs: number;
+        }) => ({
+          clipIndex: l.clipIndex,
+          clipAct: l.clipAct,
+          characterId: l.characterId,
+          characterName: l.characterName,
+          line: l.line,
+          emotion: l.emotion,
+          audioSrc: `data:${l.mimeType};base64,${l.audioBase64}`,
+          estimatedDurationMs: l.estimatedDurationMs,
+        }),
+      );
+      voiceLinesRef.current = out;
+      return out;
+    } finally {
+      setVoiceLoading(false);
+    }
+  }
+
+  function playFrom(idx: number, list: ScreenplayLine[]) {
+    if (voiceStopRef.current) return;
+    if (idx >= list.length) {
+      setVoicePlaying(false);
+      setCurrentLineIdx(null);
+      return;
+    }
+    setVoicePlaying(true);
+    setCurrentLineIdx(idx);
+    const audio = voiceAudioRef.current;
+    if (!audio) return;
+    audio.src = list[idx].audioSrc;
+    audio.onended = () => playFrom(idx + 1, list);
+    audio.play().catch(() => {
+      setVoicePlaying(false);
+      setCurrentLineIdx(null);
+    });
+  }
+
+  async function startPlay() {
+    voiceStopRef.current = false;
+    if (voiceLinesRef.current.length) playFrom(0, voiceLinesRef.current);
+    else {
+      const out = await fetchScreenplay();
+      if (out.length) playFrom(0, out);
+    }
+  }
+
+  function stopPlay() {
+    voiceStopRef.current = true;
+    voiceAudioRef.current?.pause();
+    setVoicePlaying(false);
+    setCurrentLineIdx(null);
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <SectionCard
-        title="Prompts"
+        title="Script"
         description={
           view === "clips"
-            ? "Per-clip editor — edit any field, prompt rebuilds automatically."
+            ? "Per-clip editor — edit any field, prompt rebuilds automatically. Hit Play to hear the full screenplay."
             : "Screenplay view — read every clip's dialogue back-to-back as one continuous script."
         }
         action={
-          <SegmentedControl
-            value={view}
-            options={[
-              { value: "clips", label: "Clip editor" },
-              { value: "screenplay", label: "Screenplay" },
-            ]}
-            onChange={(v) => setView(v as "clips" | "screenplay")}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => (voicePlaying ? stopPlay() : startPlay())}
+              disabled={voiceLoading || totalLines === 0}
+            >
+              {voiceLoading ? <AISpinner size={14} /> : voicePlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {voicePlaying ? "Stop" : voiceLinesRef.current.length ? "Replay" : "Play screenplay"}
+            </Button>
+            <SegmentedControl
+              value={view}
+              options={[
+                { value: "clips", label: "Clip editor" },
+                { value: "screenplay", label: "Screenplay" },
+              ]}
+              onChange={(v) => setView(v as "clips" | "screenplay")}
+            />
+          </div>
         }
       >
+        <audio ref={voiceAudioRef} className="hidden" />
+        {voiceLoading && (
+          <AIGenerationLoader
+            compact
+            currentStep="Voicing the full screenplay..."
+            subtitle="Generating each character's lines in order"
+          />
+        )}
         {view === "clips" ? (
           <div className="space-y-4">
             {state.clips.map((clip) => (
@@ -1430,16 +1523,29 @@ function PromptsStage({
             ))}
           </div>
         ) : (
-          <ScreenplayView state={state} />
+          <ScreenplayView
+            state={state}
+            currentLineIdx={currentLineIdx}
+            lines={voiceLinesRef.current}
+          />
         )}
       </SectionCard>
 
-      <ContinueBar label="Continue to voice preview" hint="Validate timing before render" onContinue={onAdvance} />
+      <ContinueBar label="Continue to Produce" hint="Render + deliver in one step" onContinue={onAdvance} />
     </div>
   );
 }
 
-function ScreenplayView({ state }: { state: CampaignState }) {
+function ScreenplayView({
+  state,
+  currentLineIdx,
+  lines,
+}: {
+  state: CampaignState;
+  currentLineIdx?: number | null;
+  lines?: ScreenplayLine[];
+}) {
+  void lines;
   const totalLines = state.clips.reduce((s, c) => s + c.dialogue.length, 0);
   const totalSeconds = state.clips.reduce(
     (s, c) => s + estimateVoiceSeconds(c.dialogue.map((d) => d.line).join(" ")),
@@ -1478,10 +1584,23 @@ function ScreenplayView({ state }: { state: CampaignState }) {
               {clip.dialogue.length === 0 ? (
                 <p className="pl-4 text-xs italic text-muted-foreground">— silent —</p>
               ) : (
-                clip.dialogue.map((d) => {
+                clip.dialogue.map((d, dIdx) => {
                   const speaker = state.characters.find((c) => c.id === d.characterId);
+                  // Compute global line index (across all clips) to compare with currentLineIdx
+                  let globalIdx = 0;
+                  for (let i = 0; i < state.clips.length; i++) {
+                    if (state.clips[i].id === clip.id) {
+                      globalIdx += dIdx;
+                      break;
+                    }
+                    globalIdx += state.clips[i].dialogue.length;
+                  }
+                  const isPlaying = currentLineIdx === globalIdx;
                   return (
-                    <div key={d.id} className="pl-4">
+                    <div
+                      key={d.id}
+                      className={cn("pl-4 transition-colors", isPlaying && "bg-brand-500/10 -mx-2 px-2 py-1 rounded")}
+                    >
                       <p className="text-xs font-bold uppercase tracking-wider">
                         {speaker?.name || "?"}
                         {d.emotion && (
@@ -2009,62 +2128,53 @@ function VoiceStage({
 }
 
 // ============================================================================
-// STAGE 5 — BATCH RENDER
+// STAGE 5 — PRODUCE (Render + Deliver, one continuous page)
 // ============================================================================
 
-function BatchStage({
+function ProduceStage({
   campaign,
   loading,
   onSend,
-  onProviderChange,
   onClipUpdated,
-  onAdvance,
 }: {
   campaign: CampaignRow;
   loading: boolean;
   onSend: () => void;
-  onProviderChange: (provider: Provider) => void;
   onClipUpdated: () => void;
-  onAdvance?: () => void;
 }) {
   const { state } = campaign;
   const readyCount = state.clips.filter((c) => c.status === "READY").length;
   const failedCount = state.clips.filter((c) => c.status === "FAILED").length;
   const isRendering = campaign.status === "COMPOSITING" || state.clips.some((c) => c.status === "RENDERING");
-  const done = state.phase === "DONE" || (state.clips.length > 0 && readyCount === state.clips.length);
+  const allReady = state.clips.length > 0 && readyCount === state.clips.length;
+  const done = state.phase === "DONE" || allReady;
+  const providerLabel = state.provider === "veo3" ? "Veo 3 (8s/clip)" : "xAI seamless (15s + 10s extensions)";
 
   return (
     <div className="space-y-4">
+      {/* Render status — always visible at top */}
       <SectionCard
         title="Render"
         description={
           state.provider === "xai"
-            ? `Seamless reel mode: clip 1 renders fresh, each next extends from the previous frame — one continuous video, zero hard cuts.`
-            : `${state.clips.length} clips on Veo 3 (8s cap) rendered in parallel, then stitched into one reel.`
+            ? "Seamless reel mode: clip 1 renders fresh, each next extends from the previous frame — one continuous video, zero hard cuts. All processing runs in the background — leave the page and come back, progress is persisted."
+            : "Clips render in parallel on Veo 3, then auto-stitched into one reel. Background-safe — leave the page and progress is persisted."
         }
       >
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
             <CompactStat label="Clips" value={state.clips.length} />
             <CompactStat label="Ready" value={readyCount} highlight="emerald" />
             <CompactStat label="Failed" value={failedCount} highlight={failedCount > 0 ? "rose" : undefined} />
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Provider</span>
-              <SegmentedControl
-                value={state.provider}
-                small
-                options={[
-                  { value: "veo3", label: "Veo 3" },
-                  { value: "xai", label: "xAI" },
-                ]}
-                onChange={(value) => onProviderChange(value as Provider)}
-              />
-            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs">
+              <Zap className="h-3 w-3 text-brand-500" />
+              {providerLabel}
+            </span>
           </div>
           <div>
-            {done ? (
+            {done && state.finalVideoUrl ? (
               <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
-                <CheckCircle2 className="mr-1 h-3 w-3" /> Campaign complete
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Reel ready
               </Badge>
             ) : isRendering ? (
               <div className="flex items-center gap-2 text-sm">
@@ -2074,7 +2184,7 @@ function BatchStage({
             ) : (
               <Button onClick={onSend} disabled={loading || !state.clips.length} size="sm">
                 {loading ? <AISpinner size={14} /> : <Zap className="h-4 w-4" />}
-                Send {state.clips.filter((c) => c.status !== "READY").length} clip(s) to {state.provider === "veo3" ? "Veo 3" : "xAI"}
+                Produce {state.clips.filter((c) => c.status !== "READY").length} clip(s)
               </Button>
             )}
           </div>
@@ -2089,31 +2199,68 @@ function BatchStage({
         )}
       </SectionCard>
 
-      <SectionCard title="Clips">
+      {/* Stitch reminder if all ready but no reel yet (e.g. after retries) */}
+      {allReady && !state.finalVideoUrl && (
+        <StitchReelBar campaignId={campaign.id} onDone={onClipUpdated} />
+      )}
+
+      {/* Deliver section — appears inline once final reel exists */}
+      {state.finalVideoUrl && (
+        <DeliverSection campaignId={campaign.id} state={state} />
+      )}
+
+      {/* Clip grid — collapsible to keep the page tight */}
+      <ClipsCollapsible
+        clips={state.clips}
+        state={state}
+        campaignId={campaign.id}
+        onClipUpdated={onClipUpdated}
+        defaultOpen={!state.finalVideoUrl}
+      />
+    </div>
+  );
+}
+
+function ClipsCollapsible({
+  clips,
+  state,
+  campaignId,
+  onClipUpdated,
+  defaultOpen,
+}: {
+  clips: ClipSlot[];
+  state: CampaignState;
+  campaignId: string;
+  onClipUpdated: () => void;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const failedCount = clips.filter((c) => c.status === "FAILED").length;
+  const readyCount = clips.filter((c) => c.status === "READY").length;
+  return (
+    <SectionCard
+      title="Clips"
+      description={`${readyCount}/${clips.length} ready${failedCount ? ` · ${failedCount} failed` : ""}`}
+      action={
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      }
+    >
+      {open && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {state.clips.map((clip) => (
+          {clips.map((clip) => (
             <ClipRenderCard
               key={clip.id}
               clip={clip}
               state={state}
-              campaignId={campaign.id}
+              campaignId={campaignId}
               onUpdated={onClipUpdated}
             />
           ))}
         </div>
-      </SectionCard>
-
-      {done && state.finalVideoUrl && onAdvance && (
-        <ContinueBar
-          label="Reel ready — continue to Deliver"
-          hint="Add a caption, pick platforms, post."
-          onContinue={onAdvance}
-        />
       )}
-      {done && !state.finalVideoUrl && (
-        <StitchReelBar campaignId={campaign.id} onDone={onClipUpdated} />
-      )}
-    </div>
+    </SectionCard>
   );
 }
 

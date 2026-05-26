@@ -818,16 +818,25 @@ export function buildClipPrompt(
         .join("\n")}`
     : "No on-camera character — focus on environment or product.";
 
+  // Build a precise dialogue script with a clearly marked speaker per line so the
+  // model lip-syncs the right person and other on-camera characters stay silent.
   const dialogueBlock = clip.dialogue.length
-    ? `IN-SCENE DIALOGUE (characters speak ON CAMERA to each other — naturalistic acting, lip-synced, NOT voiceover):\n${clip.dialogue
-        .map((d) => {
-          const speaker = state.characters.find((c) => c.id === d.characterId);
-          const name = speaker?.name || "Character";
-          const emotion = d.emotion ? ` (${d.emotion})` : "";
-          return `${name}${emotion}: "${d.line}"`;
-        })
-        .join("\n")}`
-    : "No dialogue in this clip — pure visual storytelling.";
+    ? `IN-SCENE DIALOGUE (characters speak ON CAMERA — naturalistic acting, precise lip-sync, NOT voiceover):
+${clip.dialogue
+  .map((d, idx) => {
+    const speaker = state.characters.find((c) => c.id === d.characterId);
+    const name = speaker?.name || "Character";
+    const emotion = d.emotion ? ` [${d.emotion}]` : "";
+    return `LINE ${idx + 1} — SPEAKER: ${name}${emotion}\n   "${d.line}"`;
+  })
+  .join("\n")}
+
+LIP-SYNC + ACTING RULES (CRITICAL):
+- ONLY the named SPEAKER moves their lips and speaks their line. Other on-camera characters LISTEN silently; their mouths stay closed during another character's line.
+- Lip movements must precisely match the spoken words — no extra speech, no garbled mouthing, no improvisation beyond the script.
+- Match each character's voice to a consistent persona across the campaign. Do not swap voices mid-clip.
+- During silence beats, characters should react naturally (eye contact, micro-expressions) — no idle muttering or random speech.`
+    : "No dialogue in this clip — pure visual storytelling. All on-camera characters remain silent.";
 
   return [
     `${styleLabel} narrative short film — clip ${clip.index} of ${state.clips.length || "the campaign"}. Act: ${ACT_LABELS[clip.act]}.`,
@@ -840,7 +849,13 @@ export function buildClipPrompt(
     dialogueBlock,
     `Context (do not advertise — story-only): brand ${brand.name}${brand.tagline ? ` (${brand.tagline})` : ""} may appear organically if the dialogue mentions it.`,
     `Duration: ${state.clipLength}s. Aspect: ${state.aspectRatio}.`,
-    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing.`,
+    "QUALITY RULES (HARD):",
+    "- Human anatomy must be correct: TWO hands per person, FIVE fingers per hand, no extra/fused/missing limbs, no warped or floating body parts.",
+    "- Faces: symmetric, normal eye count + shape, no morphing or melting between frames, no extra teeth, no doubled mouths.",
+    "- Each character must look IDENTICAL to their reference portrait across every clip — same face, hair, wardrobe, build.",
+    "- No background characters speaking, no random crowd dialogue, no off-screen narration.",
+    "- Smooth, continuous motion within the clip — no jump-cuts, no time skips, no scene resets mid-clip.",
+    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing, no extra hands, no extra fingers, no fused fingers, no warped faces, no doubled mouths, no characters mouthing lines that aren't theirs, no background dialogue, no jump cuts.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -1059,30 +1074,61 @@ async function renderXaiSeamless(input: {
     await persistClipsProgress(campaignId, clips, i, total);
 
     try {
-      if (i === 0 || !reelUrl) {
-        // First clip: fresh generation at clipLength seconds (capped at 15s).
-        const fresh = await renderClipViaXai(clip, state);
-        reelUrl = fresh;
-      } else {
-        // Subsequent clips: extend the cumulative reel.
-        // xAI extension max is 10s, so cap accordingly.
-        const extDuration = Math.min(10, state.clipLength);
-        const result = await grokVideoClient.extendVideo(reelUrl, clip.prompt, {
-          duration: extDuration,
-          timeoutMs: 900000,
-        });
-        // The COMBINED reel — upload and keep as new reelUrl
-        reelUrl = await uploadToS3(
-          `story-ad-campaigns/reel/${campaignId}/seg-${String(i + 1).padStart(2, "0")}-${nanoid(6)}.mp4`,
-          result.videoBuffer,
-          "video/mp4",
-        );
+      // Retry with backoff so transient API errors don't break the chain.
+      const SEAMLESS_ATTEMPTS = 5;
+      const backoffs = [5000, 15000, 45000, 90000];
+      let attempted = 0;
+      let lastErr: unknown = null;
+      let succeeded = false;
+      while (attempted < SEAMLESS_ATTEMPTS) {
+        attempted++;
+        try {
+          if (i === 0 || !reelUrl) {
+            const fresh = await renderClipViaXai(clip, state);
+            reelUrl = fresh;
+          } else {
+            const extDuration = Math.min(10, state.clipLength);
+            const result = await grokVideoClient.extendVideo(reelUrl, clip.prompt, {
+              duration: extDuration,
+              timeoutMs: 900000,
+            });
+            reelUrl = await uploadToS3(
+              `story-ad-campaigns/reel/${campaignId}/seg-${String(i + 1).padStart(2, "0")}-${nanoid(6)}.mp4`,
+              result.videoBuffer,
+              "video/mp4",
+            );
+          }
+          succeeded = true;
+          break;
+        } catch (error) {
+          lastErr = error;
+          const message = error instanceof Error ? error.message : String(error);
+          const canRetry = attempted < SEAMLESS_ATTEMPTS;
+          console.warn(
+            `[StoryAdCampaign] seamless clip ${clip.index} attempt ${attempted}/${SEAMLESS_ATTEMPTS} failed${canRetry ? " — retrying" : ""}:`,
+            message,
+          );
+          if (!canRetry) break;
+          const wait = backoffs[Math.min(attempted - 1, backoffs.length - 1)];
+          await prisma.cartoonVideo.update({
+            where: { id: campaignId },
+            data: { currentStep: `Retrying clip ${clip.index} in ${Math.round(wait / 1000)}s (attempt ${attempted}/${SEAMLESS_ATTEMPTS})...` },
+          });
+          await new Promise((r) => setTimeout(r, wait));
+        }
       }
-      clips[i] = { ...clips[i], status: "READY", videoUrl: reelUrl, error: null };
+      if (succeeded) {
+        clips[i] = { ...clips[i], status: "READY", videoUrl: reelUrl, error: null };
+      } else {
+        const message = lastErr instanceof Error ? lastErr.message : String(lastErr || "Render failed");
+        clips[i] = { ...clips[i], status: "FAILED", error: message };
+        await persistClipsProgress(campaignId, clips, i + 1, total);
+        break;
+      }
     } catch (error) {
+      // Fallback for any error not caught inside the retry loop
       const message = error instanceof Error ? error.message : "Render failed";
       clips[i] = { ...clips[i], status: "FAILED", error: message };
-      // Stop on first failure — the chain is broken without a base reel
       await persistClipsProgress(campaignId, clips, i + 1, total);
       break;
     }
@@ -1232,7 +1278,7 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
-  const MAX_ATTEMPTS = 3; // initial + 2 retries on transient failures
+  const MAX_ATTEMPTS = 5; // initial + 4 retries with longer backoff so users don't have to babysit
   let cursor = 0;
   let completed = 0;
   const total = clips.length;
@@ -1270,7 +1316,10 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
           message,
         );
         if (!canRetry) break;
-        await new Promise((r) => setTimeout(r, attempt * 4000)); // 4s, 8s backoff
+        // Exponential backoff: 4s, 12s, 30s, 90s. Caps under 3 min so the chain doesn't stall forever.
+        const delays = [4000, 12000, 30000, 90000];
+        const wait = delays[Math.min(attempt - 1, delays.length - 1)];
+        await new Promise((r) => setTimeout(r, wait));
       }
     }
     throw lastError instanceof Error ? lastError : new Error("Render failed");
