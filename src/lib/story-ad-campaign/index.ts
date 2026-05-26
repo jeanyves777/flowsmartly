@@ -1170,6 +1170,21 @@ async function renderXaiSeamless(input: {
       } catch (e) {
         console.warn("[StoryAdCampaign] seamless caption failed:", e);
       }
+
+      // Save final seamless reel to user's media library
+      if (finalVideoUrl) {
+        try {
+          await saveCampaignReelToLibrary({
+            userId,
+            campaignId,
+            title: state.brief?.slice(0, 80) || "Story Ad Campaign",
+            videoUrl: finalVideoUrl,
+            thumbnailUrl: clips.find((c) => c.videoUrl)?.videoUrl || null,
+          });
+        } catch (e) {
+          console.warn("[StoryAdCampaign] seamless media library save failed:", e);
+        }
+      }
     } catch (error) {
       console.error("[StoryAdCampaign] seamless post-assembly failed:", error);
     }
@@ -1481,11 +1496,75 @@ async function runFinalAssembly(input: {
     } catch (e) {
       console.warn("[StoryAdCampaign] caption generation failed:", e);
     }
+
+    // Save the final reel into the user's media library so it appears in /media.
+    if (finalVideoUrl) {
+      try {
+        await saveCampaignReelToLibrary({
+          userId: input.userId,
+          campaignId: input.campaignId,
+          title: input.state.brief?.slice(0, 80) || "Story Ad Campaign",
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: input.clips.find((c) => c.videoUrl)?.videoUrl || null,
+        });
+      } catch (e) {
+        console.warn("[StoryAdCampaign] media library save failed:", e);
+      }
+    }
   } catch (error) {
     console.error("[StoryAdCampaign] final assembly failed:", error);
   }
 
   return { finalVideoUrl, caption, hashtags };
+}
+
+async function ensureStoryAdCampaignFolder(userId: string): Promise<string> {
+  const name = "Story Ad Campaigns";
+  const existing = await prisma.mediaFolder.findFirst({
+    where: { userId, name, parentId: null },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  const folder = await prisma.mediaFolder.create({ data: { userId, name } });
+  return folder.id;
+}
+
+async function saveCampaignReelToLibrary(input: {
+  userId: string;
+  campaignId: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+}): Promise<void> {
+  // Avoid duplicate entries if finalize re-runs (e.g. user clicks Re-stitch)
+  const slug = `${input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "campaign"}-${input.campaignId.slice(-6)}`;
+  const filename = `${slug}.mp4`;
+  const existing = await prisma.mediaFile.findFirst({
+    where: { userId: input.userId, filename },
+    select: { id: true },
+  });
+  const folderId = await ensureStoryAdCampaignFolder(input.userId);
+  const payload = {
+    userId: input.userId,
+    filename,
+    originalName: `${input.title} – Story Ad Campaign`,
+    url: input.videoUrl,
+    type: "video",
+    mimeType: "video/mp4",
+    size: 0,
+    folderId,
+    tags: JSON.stringify(["story-ad-campaign", "ai-generated"]),
+    metadata: JSON.stringify({
+      campaignId: input.campaignId,
+      source: "story-ad-campaign",
+      thumbnail: input.thumbnailUrl || null,
+    }),
+  };
+  if (existing) {
+    await prisma.mediaFile.update({ where: { id: existing.id }, data: { url: input.videoUrl } });
+  } else {
+    await prisma.mediaFile.create({ data: payload });
+  }
 }
 
 /**

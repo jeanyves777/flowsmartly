@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
-import { PLATFORM_META } from "@/components/shared/social-platform-icons";
+import { PLATFORM_META, PLATFORM_REQUIREMENTS } from "@/components/shared/social-platform-icons";
 import { useSocialPlatforms } from "@/hooks/use-social-platforms";
 import { socialAccountDestinationId } from "@/lib/social/destinations";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
@@ -2343,7 +2343,10 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
   }, [state.campaignCaption, state.hashtags]);
 
   const [caption, setCaption] = useState(initialCaption);
-  const [platforms, setPlatforms] = useState<string[]>(state.platforms?.length ? state.platforms : ["feed"]);
+  // Start with just feed selected. The destinations picker only lists video-capable
+  // connected accounts; Stage 0's platform strings ("instagram", "tiktok", …) aren't
+  // destination IDs so seeding from them would inflate the count.
+  const [platforms, setPlatforms] = useState<string[]>(["feed"]);
   const [publishing, setPublishing] = useState(false);
   const [aiBusy, setAiBusy] = useState<CaptionAiMode | null>(null);
 
@@ -2454,11 +2457,32 @@ function DeliverSection({ campaignId, state }: { campaignId: string; state: Camp
         body: JSON.stringify({ caption, platforms }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error?.message || "Publish failed");
-      toast({ title: "Posted!", description: "The campaign reel is live on the selected platforms." });
+      if (!data.success) {
+        const detail =
+          data.error?.message ||
+          (typeof data.error === "string" ? data.error : JSON.stringify(data.error || {}).slice(0, 400)) ||
+          "Publish failed";
+        throw new Error(detail);
+      }
+      // Some destinations may report per-platform failures even when the request itself succeeded.
+      const publishResults = (data.data?.publishResults || {}) as Record<string, { success: boolean; error?: string }>;
+      const failures = Object.entries(publishResults).filter(([, r]) => !r?.success);
+      if (failures.length) {
+        toast({
+          title: `Posted with ${failures.length} failure(s)`,
+          description: failures
+            .map(([p, r]) => `${p}: ${r.error || "unknown"}`)
+            .join(" · ")
+            .slice(0, 400),
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Posted!", description: "The campaign reel is live on the selected destinations." });
+      }
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : "Publish failed",
+        title: "Publish failed",
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
@@ -2974,6 +2998,8 @@ function ConnectedDestinationsPicker({
     ];
     for (const platformId of Object.keys(PLATFORM_META)) {
       if (platformId === "feed") continue;
+      // Only show video-capable platforms. Pinterest, for example, doesn't accept video.
+      if (!PLATFORM_REQUIREMENTS[platformId]?.video) continue;
       const accounts = platformMap.get(platformId)?.accounts || [];
       if (accounts.length === 0) continue;
       for (const acc of accounts) {
@@ -2994,7 +3020,9 @@ function ConnectedDestinationsPicker({
 
   const disconnected = useMemo(() => {
     const connected = new Set(connectedPlatforms.filter((p) => p.connected).map((p) => p.platform));
-    return Object.keys(PLATFORM_META).filter((id) => id !== "feed" && !connected.has(id));
+    return Object.keys(PLATFORM_META).filter(
+      (id) => id !== "feed" && !connected.has(id) && PLATFORM_REQUIREMENTS[id]?.video,
+    );
   }, [connectedPlatforms]);
 
   function toggle(id: string) {
