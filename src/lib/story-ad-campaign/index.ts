@@ -1510,6 +1510,27 @@ async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoi
  * Compose the narrated reel: per scene make a video segment (image+audio for image scenes,
  * original video+audio overlay for video scenes), then ffmpeg-concat all segments.
  */
+/**
+ * Pick a Ken Burns motion (zoom + pan path) per scene index so the reel doesn't feel
+ * like the same push-in repeated. Cycles through 5 patterns: push-in, pull-back, pan-left,
+ * pan-right, slow-zoom-center.
+ */
+function pickKenBurns(index: number): { z: string; x: string; y: string } {
+  const patterns: Array<{ z: string; x: string; y: string }> = [
+    // push in toward center
+    { z: "min(zoom+0.0010,1.20)", x: "iw/2-(iw/zoom/2)", y: "ih/2-(ih/zoom/2)" },
+    // pull back from center (start zoomed in)
+    { z: "if(eq(on,0),1.20,max(zoom-0.0010,1.0))", x: "iw/2-(iw/zoom/2)", y: "ih/2-(ih/zoom/2)" },
+    // slow push toward upper-right
+    { z: "min(zoom+0.0010,1.15)", x: "iw-(iw/zoom)", y: "0" },
+    // slow push toward lower-left
+    { z: "min(zoom+0.0010,1.15)", x: "0", y: "ih-(ih/zoom)" },
+    // gentle pan left to right while slightly zooming in
+    { z: "min(zoom+0.0008,1.12)", x: "(iw-(iw/zoom))*(on/300)", y: "ih/2-(ih/zoom/2)" },
+  ];
+  return patterns[index % patterns.length];
+}
+
 async function composeNarratedReel(
   campaignId: string,
   clips: CampaignClipSlot[],
@@ -1543,40 +1564,56 @@ async function composeNarratedReel(
       }
 
       if (clip.mediaType === "video" && clip.videoUrl) {
-        // Video scene: download video, optionally mix narrator audio over original
+        // Video scene: download video, RE-SCALE to match image segments' resolution,
+        // and replace audio with narrator if available. Re-encoding is required so the
+        // final concat doesn't drop the segment due to dimension mismatch with image scenes.
         const videoBuf = await downloadToBuffer(clip.videoUrl);
         const inPath = path.join(tempDir, `in-${i + 1}.mp4`);
         await writeFile(inPath, videoBuf);
         if (audioPath) {
-          // Replace original audio with narrator (ducked to original at -10dB if mixing would be nicer; for now we overlay)
           await runFFmpeg([
             "-i", inPath,
             "-i", audioPath,
-            "-map", "0:v",
+            "-filter_complex",
+            `[0:v]scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,fps=30[v]`,
+            "-map", "[v]",
             "-map", "1:a",
-            "-c:v", "copy",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
             "-c:a", "aac",
             "-b:a", "192k",
             "-shortest",
+            "-pix_fmt", "yuv420p",
             "-y", segPath,
           ]);
         } else {
-          await runFFmpeg(["-i", inPath, "-c", "copy", "-y", segPath]);
+          await runFFmpeg([
+            "-i", inPath,
+            "-vf", `scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,fps=30`,
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-pix_fmt", "yuv420p",
+            "-y", segPath,
+          ]);
         }
       } else {
-        // Image scene: hold image for narrator duration (or default 6s)
+        // Image scene: hold image for narrator duration (or default 6s) with Ken Burns motion.
+        // Motion type varies per scene index so the reel feels alive instead of one repeated push-in.
         const imagePath = path.join(tempDir, `img-${i + 1}.png`);
         const imageBuf = await downloadToBuffer(clip.imageUrl as string);
         await writeFile(imagePath, imageBuf);
         const duration = audioPath ? "" : `${clip.segmentDuration || 6}`;
+        // ~900 frames at 30fps = 30 seconds of generated motion. `-shortest` pins to audio length.
+        const motion = pickKenBurns(i);
         if (audioPath) {
-          // Image + audio: hold image for audio duration with a slow Ken Burns push-in
           await runFFmpeg([
             "-loop", "1",
             "-i", imagePath,
             "-i", audioPath,
             "-filter_complex",
-            `[0:v]scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,zoompan=z='min(zoom+0.0008,1.15)':d=1:s=${zoomSize}:fps=30[v]`,
+            `[0:v]scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,zoompan=z='${motion.z}':x='${motion.x}':y='${motion.y}':d=900:s=${zoomSize}:fps=30[v]`,
             "-map", "[v]",
             "-map", "1:a",
             "-c:v", "libx264",
@@ -1593,7 +1630,8 @@ async function composeNarratedReel(
             "-loop", "1",
             "-i", imagePath,
             "-t", duration,
-            "-vf", `scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p`,
+            "-vf",
+            `scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,zoompan=z='${motion.z}':x='${motion.x}':y='${motion.y}':d=900:s=${zoomSize}:fps=30`,
             "-c:v", "libx264",
             "-tune", "stillimage",
             "-preset", "veryfast",

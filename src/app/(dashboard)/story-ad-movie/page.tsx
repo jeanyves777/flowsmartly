@@ -2597,8 +2597,9 @@ function ProduceStage({
         )}
       </SectionCard>
 
-      {/* Stitch reminder if all ready but no reel yet (e.g. after retries) */}
-      {allReady && !state.finalVideoUrl && (
+      {/* Stitch reminder if all ready but no reel yet (e.g. after retries).
+          Hidden while the backend is still composing — campaign.status === "COMPOSITING". */}
+      {allReady && !state.finalVideoUrl && !isRendering && campaign.status !== "COMPOSITING" && (
         <StitchReelBar campaignId={campaign.id} onDone={onClipUpdated} />
       )}
 
