@@ -160,10 +160,9 @@ const NARRATION_STAGE: StageDef = {
 };
 
 function stagesForStyle(style: Style | null | undefined): StageDef[] {
-  if (style === "narrated") {
-    // Insert Narration step right after Characters
-    return [STAGES_BASE[0], STAGES_BASE[1], NARRATION_STAGE, ...STAGES_BASE.slice(2)];
-  }
+  // Narrated style keeps the 5-step flow. Narrator selection is shown at the top of Scenes
+  // step (no separate Narration step) so users see narrator + scenes together.
+  void style;
   return STAGES_BASE;
 }
 
@@ -622,24 +621,17 @@ function PageBody() {
               localPatch({ characters: next });
             }}
             onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
-            onAdvance={() =>
-              goToPhase(campaign.state.style === "narrated" ? "NARRATION" : "SCENES")
-            }
-          />
-        )}
-        {campaign && activePhase === "NARRATION" && (
-          <NarrationStage
-            campaignId={campaign.id}
-            state={campaign.state}
             onAdvance={() => goToPhase("SCENES")}
           />
         )}
         {campaign && activePhase === "SCENES" && (
           <ScenesStage
+            campaignId={campaign.id}
             state={campaign.state}
             loading={stageLoading === "scenes"}
             onPlan={runScenesStage}
             onAdvance={() => goToPhase("PROMPTS")}
+            onStateUpdate={(patch) => patchState(patch)}
           />
         )}
         {campaign && (activePhase === "PROMPTS" || activePhase === "VOICE") && (
@@ -1209,6 +1201,131 @@ function NarrationStage({
   );
 }
 
+// Curated narrator presets the user can pick from. Mirrors NARRATOR_PRESETS in the lib.
+const NARRATOR_PRESETS_UI: Array<{
+  id: string;
+  label: string;
+  gender: "male" | "female";
+  tone: string;
+  pace: string;
+  description: string;
+}> = [
+  { id: "documentary-male", label: "Documentary Male", gender: "male", tone: "warm documentary, grounded", pace: "measured, deliberate", description: "Calm, authoritative." },
+  { id: "documentary-female", label: "Documentary Female", gender: "female", tone: "warm documentary, intimate", pace: "measured, gentle", description: "Empathetic, thoughtful." },
+  { id: "epic-male", label: "Epic Cinematic", gender: "male", tone: "dramatic cinematic, weighty", pace: "deliberate, building", description: "Bold and theatrical." },
+  { id: "epic-female", label: "Epic Female", gender: "female", tone: "dramatic cinematic, intense", pace: "deliberate, building", description: "Commanding and rich." },
+  { id: "warm-storyteller", label: "Warm Storyteller", gender: "female", tone: "warm, gentle, lullaby-like", pace: "soft, unhurried", description: "Soothing, comforting." },
+  { id: "intimate-friend", label: "Intimate Friend", gender: "female", tone: "intimate, conversational", pace: "natural, easy", description: "Like a friend telling a story." },
+  { id: "energetic-host", label: "Energetic Host", gender: "male", tone: "energetic, charismatic", pace: "punchy, animated", description: "High-energy host vibe." },
+  { id: "noir-male", label: "Noir Veteran", gender: "male", tone: "rasped, world-weary", pace: "slow, deliberate", description: "Gravelly, lived-in." },
+];
+
+function NarratorPicker({
+  campaignId,
+  current,
+  onChange,
+}: {
+  campaignId: string;
+  current?: { gender: "male" | "female"; tone: string; pace: string; presetId?: string };
+  onChange: (preset: { gender: "male" | "female"; tone: string; pace: string; presetId: string }) => void;
+}) {
+  const { toast } = useToast();
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewAudio, setPreviewAudio] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentId = current?.presetId || "documentary-male";
+
+  async function previewPreset(preset: typeof NARRATOR_PRESETS_UI[number]) {
+    // First select the preset so the backend uses it, then preview
+    if (preset.id !== currentId) {
+      onChange({ gender: preset.gender, tone: preset.tone, pace: preset.pace, presetId: preset.id });
+    }
+    setPreviewId(preset.id);
+    setPreviewAudio(null);
+    try {
+      // Small delay so the state save lands before the preview call reads it
+      await new Promise((r) => setTimeout(r, 200));
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "narrator" }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Preview failed");
+      const line = data.data.lines?.[0];
+      if (!line) throw new Error("No audio");
+      const src = `data:${line.mimeType};base64,${line.audioBase64}`;
+      setPreviewAudio(src);
+      setTimeout(() => audioRef.current?.play().catch(() => {}), 80);
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Preview failed",
+        variant: "destructive",
+      });
+      setPreviewId(null);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Mic className="h-4 w-4 text-amber-600 dark:text-amber-300" />
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">
+          Narrator voice
+        </p>
+        <span className="text-xs text-muted-foreground">Pick one — click a preset to switch and preview.</span>
+      </div>
+      <audio
+        ref={audioRef}
+        src={previewAudio || undefined}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        className="hidden"
+      />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {NARRATOR_PRESETS_UI.map((p) => {
+          const active = p.id === currentId;
+          const loading = previewId === p.id && !previewAudio;
+          const isPlayingThis = previewId === p.id && playing;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => previewPreset(p)}
+              className={cn(
+                "group flex flex-col gap-1 rounded-lg border p-2 text-left transition-colors",
+                active
+                  ? "border-brand-500 bg-brand-500/10"
+                  : "border-border bg-background hover:border-brand-500",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                  <span
+                    className={cn(
+                      "inline-flex h-5 w-5 items-center justify-center rounded-full",
+                      p.gender === "female" ? "bg-rose-500/15 text-rose-600" : "bg-sky-500/15 text-sky-600",
+                    )}
+                  >
+                    {p.gender === "female" ? "♀" : "♂"}
+                  </span>
+                  {p.label}
+                </span>
+                <span className="text-brand-500">
+                  {loading ? <AISpinner size={12} /> : isPlayingThis ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function NarratorCard({
   campaignId,
   narrator,
@@ -1518,22 +1635,40 @@ function SuggestField({
 // ============================================================================
 
 function ScenesStage({
+  campaignId,
   state,
   loading,
   onPlan,
   onAdvance,
+  onStateUpdate,
 }: {
+  campaignId: string;
   state: CampaignState;
   loading: boolean;
   onPlan: () => void;
   onAdvance: () => void;
+  onStateUpdate: (patch: Partial<CampaignState>) => void;
 }) {
-  const clipCount = Math.round(state.durationSeconds / state.clipLength);
+  const isNarrated = state.style === "narrated";
+  const clipCount = isNarrated
+    ? Math.max(6, Math.round(state.durationSeconds / 10))
+    : Math.round(state.durationSeconds / state.clipLength);
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {isNarrated && (
+        <NarratorPicker
+          campaignId={campaignId}
+          current={state.narratorVoice}
+          onChange={(preset) => onStateUpdate({ narratorVoice: preset })}
+        />
+      )}
       <SectionCard
         title="Scenes"
-        description={`${clipCount}-clip arc · hook → problem → discovery → transform → resolution → CTA.`}
+        description={
+          isNarrated
+            ? `${clipCount} scenes · mostly still illustrations + a few animated 8s highlights. Narrator above carries the story.`
+            : `${clipCount}-clip arc · hook → problem → discovery → transform → resolution → CTA.`
+        }
         action={
           <Button onClick={onPlan} disabled={loading} variant={state.clips.length ? "outline" : "default"}>
             {loading ? <AISpinner size={16} /> : <Wand2 className="h-4 w-4" />}
@@ -1546,7 +1681,11 @@ function ScenesStage({
           <EmptyState
             icon={Film}
             title="No story arc yet"
-            description={`Plan ${clipCount} clip slots — each with act, shot, camera, character, and voiceover.`}
+            description={
+              isNarrated
+                ? `Plan ${clipCount} scenes. AI writes the narration arc + picks which scenes should be animated.`
+                : `Plan ${clipCount} clip slots — each with act, shot, camera, character, and voiceover.`
+            }
           />
         )}
         {state.clips.length > 0 && (
@@ -1560,8 +1699,8 @@ function ScenesStage({
 
       {state.clips.length > 0 && (
         <ContinueBar
-          label="Continue to prompts"
-          hint={`${state.clips.length} clips planned`}
+          label="Continue to script"
+          hint={`${state.clips.length} ${isNarrated ? "scenes" : "clips"} planned`}
           onContinue={onAdvance}
         />
       )}

@@ -130,7 +130,89 @@ export interface NarratorVoice {
   /** Free-form tone descriptor, e.g. "documentary, calm" or "epic, cinematic" */
   tone: string;
   pace: string;
+  /** Set when the user picked a preset from NARRATOR_PRESETS instead of the AI default */
+  presetId?: string;
 }
+
+export interface NarratorPreset {
+  id: string;
+  label: string;
+  gender: "male" | "female";
+  tone: string;
+  pace: string;
+  description: string;
+}
+
+/**
+ * Curated narrator voices the user can choose from. Each maps directly to the
+ * TTS engine's gender + style heuristics via tone keywords.
+ */
+export const NARRATOR_PRESETS: NarratorPreset[] = [
+  {
+    id: "documentary-male",
+    label: "Documentary Male",
+    gender: "male",
+    tone: "warm documentary, grounded",
+    pace: "measured, deliberate",
+    description: "Calm, authoritative — perfect for serious real-life stories.",
+  },
+  {
+    id: "documentary-female",
+    label: "Documentary Female",
+    gender: "female",
+    tone: "warm documentary, intimate",
+    pace: "measured, gentle",
+    description: "Empathetic, thoughtful — for emotional narratives.",
+  },
+  {
+    id: "epic-male",
+    label: "Epic Cinematic",
+    gender: "male",
+    tone: "dramatic cinematic, weighty",
+    pace: "deliberate, building",
+    description: "Bold and theatrical — for action and adventure stories.",
+  },
+  {
+    id: "epic-female",
+    label: "Epic Female",
+    gender: "female",
+    tone: "dramatic cinematic, intense",
+    pace: "deliberate, building",
+    description: "Commanding and rich — for high-stakes drama.",
+  },
+  {
+    id: "warm-storyteller",
+    label: "Warm Storyteller",
+    gender: "female",
+    tone: "warm, gentle, lullaby-like",
+    pace: "soft, unhurried",
+    description: "Soothing, comforting — for heartfelt family stories.",
+  },
+  {
+    id: "intimate-friend",
+    label: "Intimate Friend",
+    gender: "female",
+    tone: "intimate, conversational",
+    pace: "natural, easy",
+    description: "Like a friend telling you a story over coffee.",
+  },
+  {
+    id: "energetic-host",
+    label: "Energetic Host",
+    gender: "male",
+    tone: "energetic, charismatic",
+    pace: "punchy, animated",
+    description: "High-energy host vibe — for upbeat brand stories.",
+  },
+  {
+    id: "noir-male",
+    label: "Noir Veteran",
+    gender: "male",
+    tone: "rasped, world-weary",
+    pace: "slow, deliberate",
+    description: "Gravelly, lived-in — for noir, crime, or somber tales.",
+  },
+];
 
 export interface CampaignState {
   phase: CampaignPhase;

@@ -16,6 +16,7 @@ import { generateVoice } from "@/lib/voice/voice-engine";
 import {
   ACT_LABELS,
   CAMERA_LABELS,
+  NARRATOR_PRESETS,
   NEGATIVE_TEXT_PROMPT,
   SHOT_LABELS,
   STYLE_LABELS,
@@ -480,32 +481,40 @@ async function recommendNarratorVoice(
   brand: BrandSnapshot,
   storyOutline: string,
 ): Promise<NarratorVoice> {
-  const prompt = `Pick the right narrator voice for this short film.
+  const presetList = NARRATOR_PRESETS
+    .map((p) => `- ${p.id}: "${p.label}" (${p.gender}, ${p.tone}) — ${p.description}`)
+    .join("\n");
+
+  const prompt = `Pick the best narrator voice for this short film FROM THE PRESET LIST.
 
 STORY OUTLINE: ${storyOutline}
 BRIEF: ${state.brief}
 BRAND TONE: ${brand.voiceTone || "professional"}
 
-The narrator is the voice that carries this documentary-style narrated film over still images and a few animated moments. Match their voice to the emotional weight of the story.
+PRESET LIST:
+${presetList}
+
+Pick the SINGLE id from the list that best fits the story's emotional weight and brand tone. For example: a war veteran's quiet return → 'noir-male' or 'documentary-male'. A heartwarming family story → 'warm-storyteller'. An upbeat brand launch → 'energetic-host'.
 
 Return strict JSON only:
-{
-  "gender": "male" or "female",
-  "tone": "2-4 words like 'warm documentary, intimate' or 'epic cinematic, urgent'",
-  "pace": "2-3 words like 'measured, deliberate' or 'energetic, building'"
-}`;
+{ "presetId": "<one of the ids above>" }`;
 
-  const result = await ai.generateJSON<{ gender: string; tone: string; pace: string }>(prompt, {
-    maxTokens: 200,
-    temperature: 0.6,
-    systemPrompt: "You cast narrator voices for short films. Return valid JSON only.",
+  const result = await ai.generateJSON<{ presetId: string }>(prompt, {
+    maxTokens: 100,
+    temperature: 0.4,
+    systemPrompt: "You pick the right narrator preset for short films. Return valid JSON with one of the listed preset ids.",
   });
 
-  const gender = result?.gender === "female" ? "female" : "male";
+  const preset =
+    NARRATOR_PRESETS.find((p) => p.id === result?.presetId) ||
+    NARRATOR_PRESETS.find((p) => p.id === "documentary-male") ||
+    NARRATOR_PRESETS[0];
+
   return {
-    gender,
-    tone: String(result?.tone || "warm documentary").trim().slice(0, 80),
-    pace: String(result?.pace || "measured").trim().slice(0, 60),
+    gender: preset.gender,
+    tone: preset.tone,
+    pace: preset.pace,
+    presetId: preset.id,
   };
 }
 
@@ -552,7 +561,10 @@ export async function generateCharacterPreviewImage(
   campaignId: string,
 ): Promise<string> {
   if (!state.style) throw new Error("Campaign style must be selected first");
-  const prompt = buildCharacterImagePrompt(character, state.style, brand);
+  // For narrated style, characters should match the chosen sub-style (3d illustrations vs cinematic stills).
+  const effectiveStyle: CampaignStyle =
+    state.style === "narrated" ? state.narratedSubStyle || "cinematic" : state.style;
+  const prompt = buildCharacterImagePrompt(character, effectiveStyle, brand);
   const result = await generateImageXaiFirst(prompt, 1024, 1280, {
     quality: "high",
     transparent: false,
