@@ -98,6 +98,12 @@ interface ClipSlot {
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** Narrated-style fields */
+  mediaType?: "video" | "image";
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+  narratorLine?: string;
+  segmentDuration?: number;
   /** @deprecated */ characterId?: string | null;
   /** @deprecated */ voiceoverLine?: string;
 }
@@ -2533,7 +2539,12 @@ function ProduceStage({
   const isRendering = campaign.status === "COMPOSITING" || state.clips.some((c) => c.status === "RENDERING");
   const allReady = state.clips.length > 0 && readyCount === state.clips.length;
   const done = state.phase === "DONE" || allReady;
-  const providerLabel = state.provider === "veo3" ? "Veo 3 (8s/clip)" : "xAI seamless (15s + 10s extensions)";
+  const providerLabel =
+    state.style === "narrated"
+      ? `Narrated · ${state.narratedSubStyle === "3d" ? "3D illustrations" : "cinematic stills"} + narrator`
+      : state.provider === "veo3"
+        ? "Veo 3 (8s/clip)"
+        : "xAI seamless (15s + 10s extensions)";
 
   return (
     <div className="space-y-4">
@@ -2541,9 +2552,11 @@ function ProduceStage({
       <SectionCard
         title="Render"
         description={
-          state.provider === "xai"
-            ? "Seamless reel mode: clip 1 renders fresh, each next extends from the previous frame — one continuous video, zero hard cuts. All processing runs in the background — leave the page and come back, progress is persisted."
-            : "Clips render in parallel on Veo 3, then auto-stitched into one reel. Background-safe — leave the page and progress is persisted."
+          state.style === "narrated"
+            ? "Narrated production: parallel scene image generation + narrator TTS + ffmpeg compose (image+audio per segment with Ken Burns push-in, audio-driven video scenes). Background-safe — leave the page and progress is persisted."
+            : state.provider === "xai"
+              ? "Seamless reel mode: clip 1 renders fresh, each next extends from the previous frame — one continuous video, zero hard cuts. Background-safe."
+              : "Clips render in parallel on Veo 3, then auto-stitched into one reel. Background-safe."
         }
       >
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
@@ -3054,6 +3067,8 @@ function ClipRenderCard({
       >
         {clip.videoUrl ? (
           <StableVideo src={clip.videoUrl} className="h-full w-full object-cover" />
+        ) : clip.imageUrl ? (
+          <img src={clip.imageUrl} alt="" className="h-full w-full object-cover" />
         ) : clip.status === "RENDERING" || retrying ? (
           <div className="flex h-full w-full items-center justify-center p-2">
             <AIGenerationLoader compact currentStep="Rendering clip" subtitle="Provider working" />

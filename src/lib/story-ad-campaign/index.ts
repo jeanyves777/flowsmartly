@@ -1522,7 +1522,10 @@ async function composeNarratedReel(
   const outputPath = path.join(tempDir, "reel.mp4");
   const listPath = path.join(tempDir, "list.txt");
   const aspect = state.aspectRatio;
-  const targetSize = aspect === "9:16" ? "768x1344" : aspect === "1:1" ? "1024x1024" : "1344x768";
+  // ffmpeg scale/crop use W:H (colon). zoompan's s= uses WxH (no colon).
+  const [tw, th] = aspect === "9:16" ? [768, 1344] : aspect === "1:1" ? [1024, 1024] : [1344, 768];
+  const scaleSize = `${tw}:${th}`;
+  const zoomSize = `${tw}x${th}`;
 
   try {
     const segmentPaths: string[] = [];
@@ -1573,7 +1576,7 @@ async function composeNarratedReel(
             "-i", imagePath,
             "-i", audioPath,
             "-filter_complex",
-            `[0:v]scale=${targetSize}:force_original_aspect_ratio=increase,crop=${targetSize},format=yuv420p,zoompan=z='min(zoom+0.0008,1.15)':d=1:s=${targetSize}:fps=30[v]`,
+            `[0:v]scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p,zoompan=z='min(zoom+0.0008,1.15)':d=1:s=${zoomSize}:fps=30[v]`,
             "-map", "[v]",
             "-map", "1:a",
             "-c:v", "libx264",
@@ -1590,7 +1593,7 @@ async function composeNarratedReel(
             "-loop", "1",
             "-i", imagePath,
             "-t", duration,
-            "-vf", `scale=${targetSize}:force_original_aspect_ratio=increase,crop=${targetSize},format=yuv420p`,
+            "-vf", `scale=${scaleSize}:force_original_aspect_ratio=increase,crop=${scaleSize},format=yuv420p`,
             "-c:v", "libx264",
             "-tune", "stillimage",
             "-preset", "veryfast",
