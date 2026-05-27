@@ -1063,13 +1063,36 @@ HARD RULES:
 - ${state.characters.length} characters total — every speaker must be one of them by id. Do NOT invent new named characters; if you need an extra they remain silent, generic, out-of-focus.
 - DIALOGUE LINES NEVER CONTAIN THE BRAND NAME until the final scene at most. Earlier scenes are about the human story, not the product.
 
-MUSIC CUES (optional, sparse — only where they earn their place):
-Also plan 0–4 music cues across the campaign. Music elevates emotional arcs (hook, transformation,
-resolution) but it CANNOT layer well over heavy dialogue — pick cues that overlap mostly narrator-only
-beats. Each cue spans multiple scenes (typical: 3–10 scenes / 20–60 total seconds). DO NOT plan music
-on every scene; if the story is dialogue-heavy or already SFX-rich, return an empty array.
-Each cue: { "startSceneIndex": int (0-based, inclusive), "endSceneIndex": int (inclusive),
-"description": "one line — mood + tempo + instruments, e.g. 'slow piano, melancholy strings, building swell'" }
+MUSIC CUES — use it SMARTLY, the way a skilled film editor does:
+
+Music in a short film is NOT a background score. It's a tool you use SURGICALLY to
+enhance a specific emotional moment, then GET OUT OF THE WAY. Most of the reel should
+have NO music — just narrator + dialogue + ambient SFX. Silence is what makes the
+moments WITH music actually land.
+
+How to think about it:
+- Picture a documentary you respect. The composer scores one or two key beats — a
+  revelation, a turning point, the final emotional landing — and the rest is voice +
+  ambient. They didn't write a continuous bed. They chose moments.
+- Music ENTERS for a specific reason (a quiet truth, a transformation, an arrival) and
+  EXITS as soon as that moment is over. It does NOT underscore every scene of narration.
+- A reel with music constantly playing under the narrator feels amateur and exhausting.
+  Audiences feel manipulated. Empty space is part of the score.
+
+Smart picks (give 0–3 cues total — EMPTY is often the right answer):
+- A reel about loss might get ONE quiet piano swell on the revelation scene. That's it.
+- A transformation story might get a single building cue at the turning point + a
+  brief warm exhale on the resolution. Two cues, total.
+- A dialogue-heavy comedic piece probably warrants ZERO music.
+- A 30-second hook might get a single 5-second sting at the open and nothing else.
+
+DON'T:
+- Plan 3 cues that together cover most of the reel (that's a continuous bed in disguise).
+- Plan music underneath heavy character dialogue — it competes with the voice.
+- Plan music on the very first AND very last scenes simultaneously — let one breathe.
+
+Each cue: { "startSceneIndex": int, "endSceneIndex": int, "description":
+"specific instrument + tempo + feeling, e.g. 'single piano note swell, slow, 6 seconds, melancholy'" }
 
 Return strict JSON with exactly ${sceneCount} scenes AND the optional music plan:
 {
@@ -1183,8 +1206,11 @@ interface PlannedMusicCue {
 
 function normalizeMusicCues(raw: PlannedMusicCue[] | undefined, sceneCount: number): CampaignMusicCue[] | undefined {
   if (!Array.isArray(raw) || !raw.length) return undefined;
+  // We trust the AI's judgment on count + range + when to use music. No hardcoded
+  // "max N cues" or "max X% coverage" guards — the prompt teaches taste, the model decides.
+  // We only sanity-clamp the indices to valid scene bounds + ensure each cue has a description.
   const out: CampaignMusicCue[] = [];
-  for (const item of raw.slice(0, 4)) {
+  for (const item of raw) {
     if (!item) continue;
     const startRaw = typeof item.startSceneIndex === "number" ? item.startSceneIndex : item.start_scene_index;
     const endRaw = typeof item.endSceneIndex === "number" ? item.endSceneIndex : item.end_scene_index;
@@ -1197,11 +1223,13 @@ function normalizeMusicCues(raw: PlannedMusicCue[] | undefined, sceneCount: numb
       startSceneIndex: start,
       endSceneIndex: end,
       description,
-      gainDb: -16,
+      // Volume default sits well below the voice. The AI decides WHERE music belongs;
+      // this gain is just what keeps it from competing with the narrator when it plays.
+      gainDb: -28,
       model: "clip",
     });
   }
-  // Sort by start index so the overlay step can compose timing predictably.
+  // Stable order (start ascending) so the overlay step can compose timing predictably.
   out.sort((a, b) => a.startSceneIndex - b.startSceneIndex);
   return out.length ? out : undefined;
 }

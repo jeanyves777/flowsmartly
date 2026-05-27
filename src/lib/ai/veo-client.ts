@@ -177,7 +177,9 @@ class VeoClient {
       config.resolution = resolution;
     }
 
-    if (negativePrompt) {
+    // Veo Lite also rejects negativePrompt ("negativePrompt isn't supported by this model")
+    // — Quality + Fast accept it. Only attach the field for non-Lite tiers.
+    if (negativePrompt && resolvedTier !== "lite") {
       config.negativePrompt = negativePrompt;
     }
 
