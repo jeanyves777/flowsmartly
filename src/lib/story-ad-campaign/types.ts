@@ -15,10 +15,15 @@ export type CampaignPhase =
 
 export type CampaignClipLength = 8 | 10 | 12 | 15;
 
-/** Per-provider hard caps (provider docs). */
+/**
+ * Per-tier clip-length cap.
+ * Both Premium and Standard render via Veo 3.1 (Quality / Lite respectively), whose
+ * /generate-preview endpoint tops out at 8s. xAI is a silent fallback only; even
+ * when it kicks in we still clamp to 8s so the final concat doesn't mix clip lengths.
+ */
 export const PROVIDER_CLIP_LENGTH_CAPS: Record<CampaignProvider, number> = {
-  veo3: 8,   // Veo 3.1 generate-preview tops out at 8s per call
-  xai: 15,   // Grok Imagine Video: 1–15s per generation
+  veo3: 8,
+  xai: 8,
 };
 
 /** UI options gated by the provider cap. */
@@ -362,7 +367,9 @@ export function emptyCampaignState(): CampaignState {
     destinationUrl: "",
     aspectRatio: "9:16",
     durationSeconds: 120,
-    clipLength: 10,
+    // Both tiers cap at 8s (Veo /generate-preview limit) — clipLength now lives at the
+    // hard cap so we always use the longest call possible.
+    clipLength: 8,
     platforms: ["instagram", "tiktok"],
     provider: "veo3",
     characters: [],

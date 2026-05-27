@@ -14,6 +14,15 @@ export type VeoDuration = "4" | "6" | "8";
 export type VeoResolution = "720p" | "1080p";
 export type VeoAspectRatio = "16:9" | "9:16";
 
+/**
+ * Veo 3.1 model tiers:
+ * - "quality" → veo-3.1-generate-preview — highest fidelity (~$0.20–0.40/sec)
+ * - "fast"    → veo-3.1-fast-generate-preview — quicker render, slight quality drop (~$0.10–0.15/sec)
+ * - "lite"    → veo-3.1-lite-generate-preview — most cost-effective tier (~$0.03–0.05/sec).
+ *               Same per-second cost as xAI Imagine Video, far better consistency.
+ */
+export type VeoTier = "quality" | "fast" | "lite";
+
 export interface VeoGenerateOptions {
   /** Duration in seconds ('4', '6', or '8'). Default: '8' */
   durationSeconds?: VeoDuration;
@@ -25,8 +34,10 @@ export interface VeoGenerateOptions {
   referenceImageUrl?: string | null;
   /** Content to exclude from the video */
   negativePrompt?: string;
-  /** Use the fast model variant for quicker generation */
+  /** Use the fast model variant. Equivalent to `tier: "fast"`. Left in for back-compat. */
   fast?: boolean;
+  /** Pick a Veo 3.1 model tier. Overrides `fast` when set. */
+  tier?: VeoTier;
 }
 
 export interface VeoVideoResult {
@@ -101,11 +112,16 @@ class VeoClient {
       referenceImageUrl = null,
       negativePrompt,
       fast = false,
+      tier,
     } = options;
 
-    const model = fast
-      ? "veo-3.1-fast-generate-preview"
-      : "veo-3.1-generate-preview";
+    const resolvedTier: VeoTier = tier ?? (fast ? "fast" : "quality");
+    const model =
+      resolvedTier === "lite"
+        ? "veo-3.1-lite-generate-preview"
+        : resolvedTier === "fast"
+          ? "veo-3.1-fast-generate-preview"
+          : "veo-3.1-generate-preview";
 
     let image: { imageBytes: string; mimeType: string } | undefined;
     if (referenceImageUrl) {

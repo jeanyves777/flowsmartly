@@ -1320,6 +1320,18 @@ function normalizeXaiAspect(aspect: CampaignAspectRatio): "16:9" | "9:16" | "1:1
   return aspect === "9:16" ? "9:16" : aspect === "1:1" ? "1:1" : "16:9";
 }
 
+/**
+ * Maps user-facing campaign provider → Veo 3.1 tier.
+ * - "veo3"  → Veo Quality ($0.20–0.40/sec) — Premium tier
+ * - "xai"   → Veo Lite    ($0.03–0.05/sec) — Standard tier (we now render with Veo;
+ *             the "xai" enum value is kept for backward compat with existing campaign rows)
+ *
+ * Veo Fast is intentionally not exposed — Standard always uses Lite per cost mandate.
+ */
+function veoTierForProvider(provider: CampaignProvider): "quality" | "lite" {
+  return provider === "veo3" ? "quality" : "lite";
+}
+
 async function renderClipViaVeo(
   clip: CampaignClipSlot,
   state: CampaignState,
@@ -1327,11 +1339,13 @@ async function renderClipViaVeo(
   // Veo 3.1 generate-preview supports 4/6/8s. Cap requested length at 8.
   const capped = Math.min(8, state.clipLength);
   const duration = (capped === 4 ? "4" : capped === 6 ? "6" : "8") as "4" | "6" | "8";
+  const tier = veoTierForProvider(state.provider);
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
     aspectRatio: normalizeVeoAspect(state.aspectRatio),
     negativePrompt: NEGATIVE_TEXT_PROMPT,
+    tier,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
@@ -1341,12 +1355,39 @@ async function renderClipViaVeo(
   return url;
 }
 
+/**
+ * Render one clip with Veo as the primary path, falling back to xAI Imagine Video on
+ * Veo failure. Used by the cinematic + 3D pipelines for BOTH Premium and Standard tiers
+ * (Premium → Veo Quality, Standard → Veo Lite). xAI is never the primary anymore — it
+ * only catches Veo outages, quota throttles, and content-safety rejections.
+ */
+async function renderClipVeoFirstWithXaiFallback(
+  clip: CampaignClipSlot,
+  state: CampaignState,
+): Promise<string> {
+  try {
+    return await renderClipViaVeo(clip, state);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[StoryAdCampaign] Veo render failed for clip ${clip.index} (${veoTierForProvider(state.provider)}) — falling back to xAI: ${msg.slice(0, 200)}`,
+    );
+    if (!grokVideoClient.isAvailable()) {
+      // No fallback available — rethrow the original error so the retry loop can decide.
+      throw err;
+    }
+    return await renderClipViaXai(clip, state);
+  }
+}
+
 async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
-  // Grok Imagine Video supports 1–15s. Pass through, clamping just in case.
-  const duration = Math.min(15, Math.max(1, state.clipLength));
+  // Grok Imagine Video supports 1–15s, but Veo (our primary) caps at 8s — so even when
+  // we fall back to xAI we clamp to 8s so the final concat mixes clean (uniform clip
+  // lengths feel like one film instead of a jarring mix of 8s and 15s).
+  const duration = Math.min(8, Math.max(1, state.clipLength));
   const result = await grokVideoClient.generateVideo(clip.prompt, {
     duration,
     aspectRatio: normalizeXaiAspect(state.aspectRatio),
@@ -1412,7 +1453,9 @@ async function renderNarratedStory(input: {
       await persistClipsProgress(campaignId, clips, completed, total);
       try {
         if (clip.mediaType === "video") {
-          const url = await renderClipViaXai(clip, { ...state, clipLength: 8 });
+          // Narrated hook video: render with Veo (tier follows the campaign's provider) first,
+          // falling back to xAI only if Veo fails. 8s is Veo's max for /generate-preview.
+          const url = await renderClipVeoFirstWithXaiFallback(clip, { ...state, clipLength: 8 });
           clips[i] = { ...clips[i], status: "READY", videoUrl: url, error: null };
         } else {
           const url = await generateNarratedSceneImage(clip, state, brand);
@@ -2296,23 +2339,26 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   }
 
   // Narrated style has its own pipeline: image gen + narrator TTS + ffmpeg compose.
-  // The single hook video inside that pipeline still goes through renderClipViaXai.
+  // The single hook video inside that pipeline is rendered Veo-first with xAI fallback.
   if (state.style === "narrated") {
     await renderNarratedStory({ campaignId: row.id, userId: row.userId, state });
     return;
   }
 
-  // Cinematic + 3D: every clip is generated INDEPENDENTLY (no xAI extension chain).
-  // We dropped extension mode after the 8.7s seed cap + visual drift made it produce
-  // 8-second low-quality output. The buildClipPrompt continuity block does the
-  // heavy lifting on character + style consistency.
+  // Cinematic + 3D: every clip is generated INDEPENDENTLY (no extension chain).
+  // BOTH tiers go through Veo:
+  //   - Premium  → Veo 3.1 Quality
+  //   - Standard → Veo 3.1 Lite
+  // xAI is purely a fallback when Veo fails (quota, safety filter, transient error).
+  // The buildClipPrompt continuity block does the heavy lifting on character/style
+  // consistency since we render each clip independently.
   await prisma.cartoonVideo.update({
     where: { id: row.id },
     data: { status: "COMPOSITING", progress: 5, currentStep: "Sending clips to provider..." },
   });
 
   const clips = [...state.clips];
-  const renderOne = state.provider === "veo3" ? renderClipViaVeo : renderClipViaXai;
+  const renderOne = renderClipVeoFirstWithXaiFallback;
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
@@ -2873,8 +2919,9 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   let sfxCredits = 0;
 
   if (state.style === "narrated") {
-    // Narrated reels: exactly ONE 8s xAI hook video, rest are still images.
-    videoCredits = C.AI_VIDEO_SLIDESHOW; // 100, one-time 8s xAI clip
+    // Narrated reels: exactly ONE 8s hook video (Veo-first, xAI fallback), rest are still images.
+    // Premium narrated → Veo Quality hook; Standard narrated → Veo Lite hook.
+    videoCredits = state.provider === "veo3" ? C.AI_VIDEO_STUDIO : C.AI_VIDEO_LITE;
     imageCredits = Math.max(0, clipCount - 1) * C.AI_STORY_CAMPAIGN_SCENE_IMAGE; // (N-1) stills
 
     // Voice: one narrator line per scene + sum of all dialogue lines
@@ -2899,14 +2946,14 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
     voiceCredits = (narratorLineCount + dialogueLineCount) * C.AI_STORY_CAMPAIGN_VOICE_LINE;
     sfxCredits = ambientCount * C.AI_STORY_CAMPAIGN_AMBIENT_SFX + spotCount * C.AI_STORY_CAMPAIGN_SPOT_SFX;
   } else {
-    // 3D / cinematic: every clip is a real video.
-    // Veo 3 = ~60 credits per 8s clip; xAI scales per-second.
-    if (state.provider === "veo3") {
-      videoCredits = clipCount * C.AI_VIDEO_STUDIO; // 60 per clip
-    } else {
-      // xAI billed per 10s. Each clip averages state.clipLength seconds.
-      videoCredits = Math.ceil((clipCount * state.clipLength) / 10) * C.AI_VIDEO_SLIDESHOW;
-    }
+    // 3D / cinematic: every clip is a real video, rendered Veo-first with xAI as fallback.
+    //   - Premium (provider="veo3")  → Veo Quality at AI_VIDEO_STUDIO (60 credits per 8s clip)
+    //   - Standard (provider="xai")  → Veo Lite    at AI_VIDEO_LITE  (30 credits per 8s clip)
+    // The legacy "xai" enum value now means "Standard tier" — kept for back-compat with
+    // existing campaign rows. xAI Imagine Video runs only on Veo failure (no extra charge —
+    // the fallback eats the cost since it's an internal recovery).
+    const perClip = state.provider === "veo3" ? C.AI_VIDEO_STUDIO : C.AI_VIDEO_LITE;
+    videoCredits = clipCount * perClip;
     // Dialogue TTS per line (cinematic + 3D still use the per-line voice preview)
     let lineCount = 0;
     for (const clip of state.clips) {
