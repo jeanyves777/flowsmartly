@@ -107,6 +107,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_STORY_CAMPAIGN_SCENE_IMAGE: 12,   // Per still illustration in narrated reels (~$0.06 xAI image)
   AI_STORY_CAMPAIGN_AMBIENT_SFX: 8,    // ElevenLabs sound-generation, ambient bed up to 22s (~$0.04)
   AI_STORY_CAMPAIGN_SPOT_SFX: 5,       // ElevenLabs sound-generation, short spot cue (~$0.02)
+  AI_STORY_CAMPAIGN_MUSIC_CLIP: 40,    // Lyria 3 Clip Preview, 30s music clip (~$0.04 raw)
 
   // --- AI Marketing Image ---
   AI_MARKETING_IMAGE: 12, // Single image for MMS/email campaigns (~$0.06)
@@ -249,6 +250,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_STORY_CAMPAIGN_SCENE_IMAGE: "Story Ad Campaign: scene illustration",
   AI_STORY_CAMPAIGN_AMBIENT_SFX: "Story Ad Campaign: ambient sound bed",
   AI_STORY_CAMPAIGN_SPOT_SFX: "Story Ad Campaign: spot sound effect",
+  AI_STORY_CAMPAIGN_MUSIC_CLIP: "Story Ad Campaign: music track",
 };
 
 /**

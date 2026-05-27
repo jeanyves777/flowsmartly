@@ -11,6 +11,7 @@ import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
@@ -33,6 +34,7 @@ import {
   type CampaignCharacter,
   type CampaignClipLength,
   type CampaignClipSlot,
+  type CampaignMusicCue,
   type ClipDialogueLine,
   type ClipMediaType,
   type CampaignDurationSeconds,
@@ -688,15 +690,24 @@ function normalizeCamera(value: unknown): CameraMovement {
   return valid.includes(v as CameraMovement) ? (v as CameraMovement) : "STATIC";
 }
 
+/**
+ * Returned by `planSceneGrid`. For narrated style we also plan campaign-level music
+ * cues (Lyria 3) — these aren't per-scene, so they live on the state, not on a clip.
+ */
+export interface PlannedSceneGrid {
+  clips: CampaignClipSlot[];
+  musicCues?: CampaignMusicCue[];
+}
+
 export async function planSceneGrid(
   state: CampaignState,
   brand: BrandSnapshot,
-): Promise<CampaignClipSlot[]> {
+): Promise<PlannedSceneGrid> {
   if (!state.style) throw new Error("Campaign style must be selected first");
   if (!state.characters.length) throw new Error("Generate the character catalog first");
 
   // Narrated style uses a different planner — many image scenes + a few video highlights,
-  // narrator-driven with optional character dialogue moments.
+  // narrator-driven with optional character dialogue moments. Only narrated produces music cues.
   if (state.style === "narrated") {
     return planNarratedScenes(state, brand);
   }
@@ -852,7 +863,7 @@ Return strict JSON with exactly ${clipCount} clips:
     clips.push(slot);
   }
 
-  return clips;
+  return { clips };
 }
 
 function normalizeCharacterIds(c: PlannedClip, valid: Set<string>): string[] {
@@ -906,7 +917,7 @@ function normalizeDialogue(c: PlannedClip, valid: Set<string>): ClipDialogueLine
 async function planNarratedScenes(
   state: CampaignState,
   brand: BrandSnapshot,
-): Promise<CampaignClipSlot[]> {
+): Promise<PlannedSceneGrid> {
   // Target ~10 seconds per scene; user picks duration up to 600s.
   const targetSecondsPerScene = 10;
   const sceneCount = Math.max(6, Math.min(60, Math.round(state.durationSeconds / targetSecondsPerScene)));
@@ -963,7 +974,15 @@ HARD RULES:
 - No on-screen text overlays.
 - ${state.characters.length} characters total — don't invent new people unless the brief demands it.
 
-Return strict JSON with exactly ${sceneCount} scenes:
+MUSIC CUES (optional, sparse — only where they earn their place):
+Also plan 0–4 music cues across the campaign. Music elevates emotional arcs (hook, transformation,
+resolution) but it CANNOT layer well over heavy dialogue — pick cues that overlap mostly narrator-only
+beats. Each cue spans multiple scenes (typical: 3–10 scenes / 20–60 total seconds). DO NOT plan music
+on every scene; if the story is dialogue-heavy or already SFX-rich, return an empty array.
+Each cue: { "startSceneIndex": int (0-based, inclusive), "endSceneIndex": int (inclusive),
+"description": "one line — mood + tempo + instruments, e.g. 'slow piano, melancholy strings, building swell'" }
+
+Return strict JSON with exactly ${sceneCount} scenes AND the optional music plan:
 {
   "clips": [
     {
@@ -978,14 +997,17 @@ Return strict JSON with exactly ${sceneCount} scenes:
       "dialogue": [],
       "soundscape": { "ambient": { "description": "..." }, "spot": [ { "description": "...", "atSec": 0.5 } ] }
     }
+  ],
+  "musicCues": [
+    { "startSceneIndex": 0, "endSceneIndex": 2, "description": "soft solo piano, melancholy, slow build" }
   ]
 }`;
 
-  const result = await ai.generateJSON<{ clips: PlannedNarratedClip[] }>(prompt, {
+  const result = await ai.generateJSON<{ clips: PlannedNarratedClip[]; musicCues?: PlannedMusicCue[] }>(prompt, {
     maxTokens: 10000,
     temperature: 0.72,
     systemPrompt:
-      "You are a screenwriter + sound designer for narrated documentary-style short films. The narrator carries the story; the user's brief is the law. Return valid JSON only.",
+      "You are a screenwriter + sound designer + composer for narrated documentary-style short films. The narrator carries the story; the user's brief is the law. Music is sparse and intentional. Return valid JSON only.",
   });
 
   const characterIds = new Set(state.characters.map((c) => c.id));
@@ -1051,7 +1073,41 @@ Return strict JSON with exactly ${sceneCount} scenes:
     clips.push(slot);
   }
 
-  return clips;
+  const musicCues = normalizeMusicCues(result?.musicCues, clips.length);
+  return { clips, musicCues };
+}
+
+interface PlannedMusicCue {
+  startSceneIndex?: number;
+  endSceneIndex?: number;
+  description?: string;
+  start_scene_index?: number;
+  end_scene_index?: number;
+}
+
+function normalizeMusicCues(raw: PlannedMusicCue[] | undefined, sceneCount: number): CampaignMusicCue[] | undefined {
+  if (!Array.isArray(raw) || !raw.length) return undefined;
+  const out: CampaignMusicCue[] = [];
+  for (const item of raw.slice(0, 4)) {
+    if (!item) continue;
+    const startRaw = typeof item.startSceneIndex === "number" ? item.startSceneIndex : item.start_scene_index;
+    const endRaw = typeof item.endSceneIndex === "number" ? item.endSceneIndex : item.end_scene_index;
+    const description = String(item.description || "").trim().slice(0, 220);
+    if (!description) continue;
+    const start = Math.max(0, Math.min(sceneCount - 1, Number.isFinite(startRaw) ? Math.floor(startRaw as number) : 0));
+    const end = Math.max(start, Math.min(sceneCount - 1, Number.isFinite(endRaw) ? Math.floor(endRaw as number) : start));
+    out.push({
+      id: nanoid(6),
+      startSceneIndex: start,
+      endSceneIndex: end,
+      description,
+      gainDb: -16,
+      model: "clip",
+    });
+  }
+  // Sort by start index so the overlay step can compose timing predictably.
+  out.sort((a, b) => a.startSceneIndex - b.startSceneIndex);
+  return out.length ? out : undefined;
 }
 
 interface PlannedSoundscapeSpot {
@@ -1533,6 +1589,32 @@ async function renderNarratedStory(input: {
     console.error("[StoryAdCampaign] narrated compose failed:", error);
   }
 
+  // Stage C.5 — music overlay (Lyria 3). Each cue is generated once and dropped
+  // onto the reel at the timestamp where the cue's startScene begins. Music sits
+  // under voice at -16dB by default; if Lyria isn't configured or any cue fails,
+  // we ship the reel without music instead of failing the whole render.
+  let musicCues = Array.isArray(state.musicCues) ? state.musicCues : [];
+  if (finalVideoUrl && musicCues.length) {
+    try {
+      await prisma.cartoonVideo.update({
+        where: { id: campaignId },
+        data: { progress: 90, currentStep: "Composing musical score..." },
+      });
+      const result = await overlayMusicTracks({
+        campaignId,
+        reelUrl: finalVideoUrl,
+        cues: musicCues,
+        clips,
+      });
+      if (result.reelUrl) {
+        finalVideoUrl = result.reelUrl;
+        musicCues = result.cues;
+      }
+    } catch (error) {
+      console.warn("[StoryAdCampaign] music overlay failed, shipping reel without music:", error);
+    }
+  }
+
   // Stage D — brand logo overlay + caption + media library (reuse helpers)
   let publishCaption: string | undefined;
   let publishHashtags: string[] | undefined;
@@ -1579,6 +1661,7 @@ async function renderNarratedStory(input: {
     phase: allOk ? "DONE" : "FAILED",
     finalVideoUrl,
     finalVideoThumbnailUrl: clips.find((c) => c.imageUrl)?.imageUrl || clips.find((c) => c.videoUrl)?.videoUrl || null,
+    musicCues: musicCues.length ? musicCues : undefined,
     ...(publishCaption ? { campaignCaption: publishCaption } : {}),
     ...(publishHashtags ? { hashtags: publishHashtags } : {}),
   };
@@ -2097,6 +2180,156 @@ async function composeNarratedReel(
     const finalBuf = await readFile(outputPath);
     const key = `story-ad-campaigns/${campaignId}/narrated-${nanoid(8)}.mp4`;
     return uploadToS3(key, finalBuf, "video/mp4");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Overlay Lyria-generated music tracks onto the already-composed reel.
+ *
+ * For each music cue:
+ *   1. Generate a 30s Lyria clip (or reuse `audioUrl` if already rendered)
+ *   2. Compute the cue's start time in the final reel from per-scene durations
+ *   3. Compute the cue's total length from those same durations
+ *   4. ffmpeg amixes all delayed/trimmed music tracks onto the reel's existing audio
+ *
+ * Music sits under voice at -16dB (default — the cue can override via `gainDb`). If
+ * a cue is longer than the 30s Lyria clip, the clip is looped with a short crossfade
+ * via `aloop` + `atrim` so it covers the full span.
+ *
+ * Returns the new reel URL + the cues with `audioUrl`/`durationSec` filled in. If
+ * Lyria isn't configured we throw — the caller wraps this in try/catch and ships the
+ * reel without music.
+ */
+async function overlayMusicTracks(params: {
+  campaignId: string;
+  reelUrl: string;
+  cues: CampaignMusicCue[];
+  clips: CampaignClipSlot[];
+}): Promise<{ reelUrl: string; cues: CampaignMusicCue[] }> {
+  const { campaignId, reelUrl, cues, clips } = params;
+  if (!isLyriaEnabled()) {
+    throw new Error("Lyria (GEMINI_API_KEY) is not configured — skipping music overlay");
+  }
+  if (!cues.length) return { reelUrl, cues };
+
+  const sceneDurations = clips.map((c) => Math.max(2, c.segmentDuration || 8));
+  // Cumulative start time (in seconds) for each scene index. cumStart[i] = total before scene i.
+  const cumStart: number[] = [0];
+  for (let i = 0; i < sceneDurations.length; i++) {
+    cumStart.push(cumStart[i] + sceneDurations[i]);
+  }
+  const totalReelSec = cumStart[cumStart.length - 1];
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "narrated-music-"));
+  try {
+    // Stage 1: generate each cue's audio with Lyria
+    const resolvedCues: Array<{
+      cue: CampaignMusicCue;
+      localPath: string;
+      startSec: number;
+      durationSec: number;
+      gainDb: number;
+    }> = [];
+
+    for (const cue of cues) {
+      if (cue.startSceneIndex >= sceneDurations.length) continue;
+      const endIdx = Math.min(cue.endSceneIndex, sceneDurations.length - 1);
+      const startSec = cumStart[cue.startSceneIndex];
+      const endSec = cumStart[endIdx + 1];
+      const durationSec = Math.max(2, Math.min(totalReelSec - startSec, endSec - startSec));
+
+      // Generate (or reuse) the music clip
+      let buf: Buffer | null = null;
+      let mime = "audio/wav";
+      if (cue.audioUrl) {
+        try {
+          buf = await downloadToBuffer(cue.audioUrl);
+        } catch (e) {
+          console.warn(`[StoryAdCampaign] couldn't reuse existing music ${cue.id}, regenerating:`, e);
+        }
+      }
+      if (!buf) {
+        const result = await generateMusicClip({
+          prompt: cue.description,
+          model: cue.model === "pro" ? "pro" : "clip",
+        });
+        buf = result.audioBuffer;
+        mime = result.mimeType;
+
+        // Upload so future renders can reuse / preview without recharging
+        const ext = mime.includes("wav") ? "wav" : mime.includes("mp3") || mime.includes("mpeg") ? "mp3" : "audio";
+        try {
+          const key = `story-ad-campaigns/${campaignId}/music/${cue.id}-${nanoid(6)}.${ext}`;
+          cue.audioUrl = await uploadToS3(key, buf, mime);
+          cue.durationSec = durationSec;
+        } catch (e) {
+          console.warn(`[StoryAdCampaign] upload of music ${cue.id} failed, continuing locally:`, e);
+        }
+      }
+
+      const localPath = path.join(tempDir, `music-${cue.id}.${mime.includes("wav") ? "wav" : "mp3"}`);
+      await writeFile(localPath, buf);
+
+      resolvedCues.push({
+        cue,
+        localPath,
+        startSec,
+        durationSec,
+        gainDb: typeof cue.gainDb === "number" ? cue.gainDb : -16,
+      });
+    }
+
+    if (!resolvedCues.length) return { reelUrl, cues };
+
+    // Stage 2: build the ffmpeg amix command
+    //
+    // Reel = input 0. Each music file is input 1..N.
+    // For each music input, the filter chain:
+    //   - aloop+atrim guarantees the clip covers its full intended span (Lyria clips are
+    //     30s; if a cue spans 45s we loop and trim)
+    //   - adelay shifts it to the right start time
+    //   - volume gains it down to sit under voice
+    //
+    // Then we amix the reel's audio with every music track (normalize=0 to preserve gains).
+    const ffArgs: string[] = ["-i", reelUrl];
+    for (const r of resolvedCues) {
+      ffArgs.push("-i", r.localPath);
+    }
+
+    const filterParts: string[] = [];
+    const musicLabels: string[] = [];
+    resolvedCues.forEach((r, i) => {
+      const inputIdx = i + 1;
+      const delayMs = Math.round(r.startSec * 1000);
+      filterParts.push(
+        `[${inputIdx}:a]aloop=loop=-1:size=2e9,atrim=duration=${r.durationSec.toFixed(2)},asetpts=PTS-STARTPTS,volume=${r.gainDb}dB,adelay=${delayMs}|${delayMs}[m${i}]`,
+      );
+      musicLabels.push(`[m${i}]`);
+    });
+    // Mix voice (input 0:a) + every music track
+    filterParts.push(`[0:a]${musicLabels.join("")}amix=inputs=${1 + musicLabels.length}:duration=first:normalize=0[mixed]`);
+
+    const outputPath = path.join(tempDir, "reel-with-music.mp4");
+    ffArgs.push(
+      "-filter_complex",
+      filterParts.join(";"),
+      "-map", "0:v",
+      "-map", "[mixed]",
+      "-c:v", "copy",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-shortest",
+      "-y", outputPath,
+    );
+
+    await runFFmpeg(ffArgs);
+
+    const finalBuf = await readFile(outputPath);
+    const key = `story-ad-campaigns/${campaignId}/narrated-music-${nanoid(8)}.mp4`;
+    const newReelUrl = await uploadToS3(key, finalBuf, "video/mp4");
+    return { reelUrl: newReelUrl, cues };
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -2895,6 +3128,8 @@ export interface CampaignRenderCost {
   imageCredits: number;
   voiceCredits: number;
   sfxCredits: number;
+  /** Lyria 3 music tracks (narrated style only) */
+  musicCredits: number;
   captionCredits: number;
   // Plain-language label hiding raw provider names from the user.
   qualityLabel: string;
@@ -2917,6 +3152,7 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   let imageCredits = 0;
   let voiceCredits = 0;
   let sfxCredits = 0;
+  let musicCredits = 0;
 
   if (state.style === "narrated") {
     // Narrated reels: exactly ONE 8s hook video (Veo-first, xAI fallback), rest are still images.
@@ -2945,6 +3181,11 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
     }
     voiceCredits = (narratorLineCount + dialogueLineCount) * C.AI_STORY_CAMPAIGN_VOICE_LINE;
     sfxCredits = ambientCount * C.AI_STORY_CAMPAIGN_AMBIENT_SFX + spotCount * C.AI_STORY_CAMPAIGN_SPOT_SFX;
+
+    // Music: ONE Lyria call per planned cue. Pre-plan default = 2 cues (sensible mid-range guess
+    // so the cost preview shows realistic value before the AI plans them out).
+    const musicCueCount = state.musicCues?.length ?? (state.clips.length ? 0 : 2);
+    musicCredits = musicCueCount * C.AI_STORY_CAMPAIGN_MUSIC_CLIP;
   } else {
     // 3D / cinematic: every clip is a real video, rendered Veo-first with xAI as fallback.
     //   - Premium (provider="veo3")  → Veo Quality at AI_VIDEO_STUDIO (60 credits per 8s clip)
@@ -2964,7 +3205,7 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   }
 
   const captionCredits = C.AI_STORY_CAMPAIGN_CAPTION;
-  const total = videoCredits + imageCredits + voiceCredits + sfxCredits + captionCredits;
+  const total = videoCredits + imageCredits + voiceCredits + sfxCredits + musicCredits + captionCredits;
 
   const qualityLabel =
     state.style === "narrated"
@@ -2973,7 +3214,7 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
         ? "Premium quality"
         : "Standard quality";
 
-  return { total, videoCredits, imageCredits, voiceCredits, sfxCredits, captionCredits, qualityLabel };
+  return { total, videoCredits, imageCredits, voiceCredits, sfxCredits, musicCredits, captionCredits, qualityLabel };
 }
 
 async function refundFailedClips(

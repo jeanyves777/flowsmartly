@@ -55,9 +55,12 @@ export async function POST(
 
   try {
     const brand = await getBrandSnapshot(session.userId);
-    const clips = await planSceneGrid(current.state, brand);
+    const planned = await planSceneGrid(current.state, brand);
     const merged = await updateCampaignState(id, session.userId, {
-      clips,
+      clips: planned.clips,
+      // Narrated style additionally returns campaign-level music cues for Lyria 3.
+      // Cast to satisfy the partial-update signature; CampaignState already has the field.
+      ...(planned.musicCues ? { musicCues: planned.musicCues } : {}),
       phase: "PROMPTS",
     });
     return NextResponse.json({ success: true, data: { state: merged, creditsRemaining: charge.remaining } });

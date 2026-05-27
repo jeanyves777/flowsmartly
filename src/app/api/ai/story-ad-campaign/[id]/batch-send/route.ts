@@ -73,6 +73,7 @@ export async function POST(
           images: cost.imageCredits,
           voice: cost.voiceCredits,
           soundEffects: cost.sfxCredits,
+          music: cost.musicCredits,
           caption: cost.captionCredits,
         },
       },
