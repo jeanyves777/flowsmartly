@@ -1005,6 +1005,19 @@ function StyleStage({
         </FieldGroup>
       </SectionCard>
 
+      {/* Stage 0 cost preview — shown once style is picked so the user knows the full
+          credit cost (with 2% buffer) before committing to creating the campaign row. */}
+      {draft.style && (
+        <DraftCostPreview
+          style={draft.style}
+          durationSeconds={draft.durationSeconds}
+          aspectRatio={draft.aspectRatio}
+          provider={draft.provider}
+          clipLength={draft.clipLength}
+          narratedSubStyle={draft.narratedSubStyle}
+        />
+      )}
+
       <div className="flex flex-col gap-3 rounded-xl border bg-background p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold">Ready to start the campaign?</p>
@@ -1017,6 +1030,104 @@ function StyleStage({
           Start campaign
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Stage 0 cost preview — calls the draft estimate endpoint whenever the user changes
+ * style / duration / tier so they always see the upcoming credit total before clicking
+ * Start campaign. Includes the 2% buffer baked into the server-side calculator.
+ */
+function DraftCostPreview({
+  style,
+  durationSeconds,
+  aspectRatio,
+  provider,
+  clipLength,
+  narratedSubStyle,
+}: {
+  style: Style;
+  durationSeconds: Duration;
+  aspectRatio: Aspect;
+  provider: Provider;
+  clipLength: ClipLen;
+  narratedSubStyle?: "3d" | "cinematic";
+}) {
+  interface DraftCostResp {
+    total: number;
+    availableCredits: number;
+    hasEnoughCredits: boolean;
+    qualityLabel: string;
+    isAdmin: boolean;
+  }
+  const [cost, setCost] = useState<DraftCostResp | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchCost() {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/ai/story-ad-campaign/estimate-cost-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            style,
+            durationSeconds,
+            aspectRatio,
+            provider,
+            clipLength,
+            narratedSubStyle,
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled && data?.success) setCost(data.data);
+      } catch {
+        // Best-effort; just hide the preview if the fetch fails.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchCost();
+    return () => { cancelled = true; };
+  }, [style, durationSeconds, aspectRatio, provider, clipLength, narratedSubStyle]);
+
+  if (!cost && !loading) return null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border bg-brand-50/40 p-4 shadow-sm dark:bg-brand-950/20 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <Zap className="h-5 w-5 text-brand-500" />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Estimated render cost
+          </p>
+          {loading || !cost ? (
+            <p className="text-sm text-muted-foreground">Calculating…</p>
+          ) : (
+            <p className="text-lg font-bold tabular-nums">
+              {cost.total.toLocaleString()} credits
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                · {cost.qualityLabel}
+              </span>
+            </p>
+          )}
+        </div>
+      </div>
+      {cost && !cost.isAdmin && (
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">You have</p>
+          <p
+            className={cn(
+              "text-sm font-bold tabular-nums",
+              cost.hasEnoughCredits ? "text-foreground" : "text-rose-500",
+            )}
+          >
+            {cost.availableCredits.toLocaleString()} credits
+          </p>
+        </div>
+      )}
     </div>
   );
 }

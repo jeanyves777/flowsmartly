@@ -801,11 +801,13 @@ DURATION-FILL RULE:
 
 HARD RULES:
 - The BRIEF is the law. Follow its scene order literally.
-- Brand named ONLY in the final ${lastTwo} clip(s). Never before.
+- Brand named ONLY in the final ${lastTwo} clip(s). Never before. No fake brand mocks, packaging, or signs in earlier clips.
 - One continuous screenplay; never isolated vignettes.
 - NEVER write narrator/voiceover. All speech is on-camera dialogue.
 - NEVER write ad copy. Brand fits the conversation organically.
-- No on-screen text overlays.
+- No on-screen text overlays. No readable signs, no readable phone/laptop screens, no fake app UI.
+- Characters interact with PROPS NATURALLY — phones/laptops/tablets face the user holding them, NOT the camera. The audience sees props from a real bystander's angle.
+- Every speaker must be one of the listed character ids. Extras visible in the scene stay silent, generic, and out-of-focus.
 - Dialogue must sound like real people, not actors performing.
 
 Return strict JSON with exactly ${clipCount} clips:
@@ -985,11 +987,13 @@ NARRATIVE FLOW (CRITICAL — read carefully):
 - Open scene 1 (the hook video) with a strong narrator opening line that pulls the viewer in. Close the final scene with a quiet, emotionally landed line — never a sales pitch.
 
 HARD RULES:
-- Follow the BRIEF's scene order literally.
+- Follow the BRIEF's scene order literally — scenes must appear in the chronological order the user described.
 - ONLY scene 1 is mediaType "video". Every other scene MUST be mediaType "image".
-- Brand named only in the FINAL scene at most. Never before.
-- No on-screen text overlays.
-- ${state.characters.length} characters total — don't invent new people unless the brief demands it.
+- Brand named only in the FINAL scene at most. Never before. No fake brand mocks or logos in earlier scenes.
+- No on-screen text overlays. No visible store signs, no readable phone/laptop screens, no fake app UI.
+- Phone/laptop/tablet props are angled toward the character USING them, not the camera. Show props from a natural bystander's angle.
+- ${state.characters.length} characters total — every speaker must be one of them by id. Do NOT invent new named characters; if you need an extra they remain silent, generic, out-of-focus.
+- DIALOGUE LINES NEVER CONTAIN THE BRAND NAME until the final scene at most. Earlier scenes are about the human story, not the product.
 
 MUSIC CUES (optional, sparse — only where they earn their place):
 Also plan 0–4 music cues across the campaign. Music elevates emotional arcs (hook, transformation,
@@ -1247,15 +1251,21 @@ independently but they all play back-to-back as ONE continuous short film. Match
     continuityBlock,
     characterBlock,
     dialogueBlock,
-    `Context (do not advertise — story-only): brand ${brand.name}${brand.tagline ? ` (${brand.tagline})` : ""} may appear organically if the dialogue mentions it.`,
+    `Context (story-only — do NOT advertise): the brand "${brand.name}" exists in the story's world but is NEVER named or shown until the FINAL clip at the earliest. Until then, no brand logos, no brand-named props, no banner ads in the scene. If a phone or laptop is visible its screen stays blank or shows abstract generic UI, never our brand's interface.`,
     `Duration: ${state.clipLength}s. Aspect: ${state.aspectRatio}.`,
     "QUALITY RULES (HARD):",
     "- Human anatomy must be correct: TWO hands per person, FIVE fingers per hand, no extra/fused/missing limbs, no warped or floating body parts.",
     "- Faces: symmetric, normal eye count + shape, no morphing or melting between frames, no extra teeth, no doubled mouths.",
     "- Each character must look IDENTICAL to their reference portrait across every clip — same face, hair, wardrobe, build.",
+    "- PROP ORIENTATION: phones, laptops, tablets, books, papers, screens, and any handheld device must FACE THE CHARACTER USING IT — not the camera. A person scrolling on their phone holds it tilted toward their own eyes; a person reading a book has the open pages facing themselves; a laptop user faces the screen with the back of the laptop visible to other angles. Show props from the angle a real bystander would see them, never head-on to camera unless the character is intentionally showing the camera what's on the screen.",
+    "- NO TEXT, LOGOS, OR BRAND MARKS ON ANY PROP: phone screens, laptop screens, tablet screens, t-shirts, mugs, billboards, store signs, packaging, posters — all blank or generic shapes. No fictional app icons, no fictional company names, no fake URLs, no UI mockups of our product. Logos are composited onto the final reel separately; the AI never draws one.",
+    "- NO TEXT IN THE WORLD: street signs, license plates, screens, paperwork visible to camera must be illegible or omitted. If text MUST exist (e.g. a passport), keep it small and unreadable.",
+    "- NO NAMED EXTRAS: every visible person matches one of the listed reference portraits. Background characters (passersby, crowds) stay generic, out-of-focus, and silent — no improvised speaking lines, no acting beats.",
     "- No background characters speaking, no random crowd dialogue, no off-screen narration.",
     "- Smooth, continuous motion within the clip — no jump-cuts, no time skips, no scene resets mid-clip.",
-    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing, no extra hands, no extra fingers, no fused fingers, no warped faces, no doubled mouths, no characters mouthing lines that aren't theirs, no background dialogue, no jump cuts.`,
+    "- COHERENT TIME-OF-DAY + WEATHER: don't switch from sunny to rainy or day to night mid-clip unless the scene action specifies a transition. Match the established palette.",
+    "- Camera doesn't talk to itself: no characters break the fourth wall, look directly into camera, or hold props up FOR the camera unless the scene action explicitly says so.",
+    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing, no extra hands, no extra fingers, no fused fingers, no warped faces, no doubled mouths, no characters mouthing lines that aren't theirs, no background dialogue, no jump cuts, no readable text on screens or signs, no fake brand logos or app icons, no fake product packaging, no breaking the fourth wall, no extra characters who weren't cast.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -3258,7 +3268,11 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   }
 
   const captionCredits = C.AI_STORY_CAMPAIGN_CAPTION;
-  const total = videoCredits + imageCredits + voiceCredits + sfxCredits + musicCredits + captionCredits;
+  const subtotal = videoCredits + imageCredits + voiceCredits + sfxCredits + musicCredits + captionCredits;
+  // +2% safety buffer so the cost preview reflects the full trip (catalog plan, scenes plan,
+  // per-field AI suggestions, character preview images), not only the final render. Those
+  // ancillary AI calls are charged at their own stages but the user expects ONE upfront number.
+  const total = Math.ceil(subtotal * 1.02);
 
   const qualityLabel =
     state.style === "narrated"
