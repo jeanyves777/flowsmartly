@@ -12,6 +12,7 @@ import {
   Clock,
   Edit3,
   Film,
+  FolderOpen,
   Mic,
   Pause,
   Play,
@@ -21,11 +22,13 @@ import {
   Sparkles,
   Trash2,
   TriangleAlert,
+  Upload,
   Users,
   Volume2,
   Wand2,
   Zap,
 } from "lucide-react";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -675,6 +678,7 @@ function PageBody() {
             }}
             onApplyState={(next) => setCampaign((prev) => (prev ? { ...prev, state: next } : prev))}
             onAdvance={() => goToPhase("SCENES")}
+            onRefresh={() => fetchCampaign(campaign.id)}
           />
         )}
         {campaign && activePhase === "SCENES" && (
@@ -1226,6 +1230,7 @@ function CharactersStage({
   onEditCharacter,
   onApplyState,
   onAdvance,
+  onRefresh,
 }: {
   campaignId: string;
   state: CampaignState;
@@ -1234,6 +1239,7 @@ function CharactersStage({
   onEditCharacter: (character: Character) => void;
   onApplyState: (state: CampaignState) => void;
   onAdvance: () => void;
+  onRefresh: () => void;
 }) {
   const approvedCount = state.characters.filter((c) => c.approved).length;
   const allApproved = state.characters.length > 0 && approvedCount === state.characters.length;
@@ -1302,6 +1308,7 @@ function CharactersStage({
                   campaignId={campaignId}
                   onChange={onEditCharacter}
                   onGeneratePreview={() => regeneratePreview(character.id)}
+                  onCharacterRefreshed={onRefresh}
                 />
               ))}
             </div>
@@ -1576,14 +1583,21 @@ function CharacterCard({
   campaignId,
   onChange,
   onGeneratePreview,
+  onCharacterRefreshed,
 }: {
   character: Character;
   campaignId: string;
   onChange: (updated: Character) => void;
   onGeneratePreview: () => Promise<void>;
+  /** Called after a custom image is uploaded so the page re-fetches campaign state. */
+  onCharacterRefreshed?: () => void;
 }) {
+  const { toast } = useToast();
   const [generating, setGenerating] = useState(false);
-  const previewBusy = generating || character.previewStatus === "generating";
+  const [uploading, setUploading] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewBusy = generating || uploading || character.previewStatus === "generating";
   const hasPreview = !!character.referenceImageUrl && character.previewStatus === "ready";
 
   async function handleGenerate() {
@@ -1597,6 +1611,57 @@ function CharacterCard({
 
   function patch(updated: Partial<Character>) {
     onChange({ ...character, ...updated, approved: false });
+  }
+
+  async function uploadFile(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(
+        `/api/ai/story-ad-campaign/${campaignId}/characters/${character.id}/upload-image`,
+        { method: "POST", body: form },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Upload failed");
+      toast({ title: "Custom character image set" });
+      onCharacterRefreshed?.();
+    } catch (error) {
+      toast({
+        title: "Couldn't set image",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function useLibraryUrl(url: string) {
+    setUploading(true);
+    try {
+      const res = await fetch(
+        `/api/ai/story-ad-campaign/${campaignId}/characters/${character.id}/upload-image`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        },
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || "Pick failed");
+      toast({ title: "Character image set from library" });
+      onCharacterRefreshed?.();
+    } catch (error) {
+      toast({
+        title: "Couldn't set image",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      setShowLibrary(false);
+    }
   }
 
   return (
@@ -1650,6 +1715,51 @@ function CharacterCard({
           </Button>
         )}
       </div>
+
+      {/* Custom image: upload from device or pick from the user's media library.
+          Either path overrides the AI portrait and revokes character approval. */}
+      <div className="flex flex-wrap gap-1.5">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) uploadFile(file);
+            event.target.value = "";
+          }}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 text-xs"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={previewBusy}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          Upload
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 text-xs"
+          onClick={() => setShowLibrary(true)}
+          disabled={previewBusy}
+        >
+          <FolderOpen className="h-3.5 w-3.5" />
+          From library
+        </Button>
+      </div>
+
+      {showLibrary && (
+        <MediaLibraryPicker
+          open={showLibrary}
+          onClose={() => setShowLibrary(false)}
+          onSelect={(url) => useLibraryUrl(url)}
+          filterTypes={["image"]}
+        />
+      )}
 
       <SuggestField
         campaignId={campaignId}

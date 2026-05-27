@@ -6,6 +6,7 @@ import {
   getBrandSnapshot,
   getCampaign,
   refundStoryAdCampaignUsage,
+  saveCharacterPreviewToLibrary,
   updateCampaignState,
 } from "@/lib/story-ad-campaign";
 import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
@@ -74,6 +75,19 @@ export async function POST(
         : c,
     );
     const merged = await updateCampaignState(id, session.userId, { characters: next });
+
+    // Drop the generated portrait into the user's media library so they can reuse the
+    // character across campaigns. Fire-and-forget — library failures must not affect
+    // the user's flow.
+    void saveCharacterPreviewToLibrary({
+      userId: session.userId,
+      campaignId: id,
+      campaignTitle: current.state.brief?.slice(0, 60) || "Campaign",
+      characterName: character.name,
+      characterRole: character.role,
+      imageUrl,
+    });
+
     return NextResponse.json({ success: true, data: { state: merged, creditsRemaining: charge.remaining } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Preview generation failed";

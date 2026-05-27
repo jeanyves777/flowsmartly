@@ -405,7 +405,28 @@ ABSOLUTE RULE — WHAT A CHARACTER IS:
   · any character whose name starts with "The " followed by a noun.
 - The brand is a TOOL that human characters use inside the story. It is NEVER a character.
 
-Cast THE RIGHT NUMBER of HUMAN characters for THIS story — pick a count between 2 and ${maxCount} based on what the brief actually requires. Most stories need 2–4. A solo-protagonist piece can use just 2 (protagonist + one supporting). An ensemble or family story may need 5–6. Do NOT pad with characters the story doesn't need, and do NOT compress everyone the brief mentions into 3 if the brief clearly calls for more. The protagonist is the person at the center of the brief; the rest are people they encounter in the brief's described scenes (family, enemies, friends, colleagues, etc. — whoever the user mentioned or whoever logically belongs there).
+Cast THE RIGHT NUMBER of HUMAN characters for THIS story — pick a count between 2 and ${maxCount} based on what the brief actually requires.
+
+🚨 INCLUDE EVERY PERSON THE BRIEF NAMES OR DESCRIBES 🚨
+Re-read the brief carefully and LIST every person mentioned, named or unnamed:
+- "his wife" → include the wife as a character (give her a name)
+- "the boss" → include the boss
+- "his new girlfriend" → include the new girlfriend
+- "the team" → if specific people in the team interact, cast them
+Even if a person only appears in ONE scene and never speaks, they STILL need a character entry because they appear ON CAMERA and need a consistent face. The only people you can skip are pure background extras with no significance.
+
+Do NOT compress two distinct people into one (e.g. don't merge "his wife" and "his new girlfriend" into the same character — they're different people). Do NOT pad with characters the brief doesn't justify.
+
+🚨 ORIGINAL NAMES — DO NOT RE-USE DEFAULTS 🚨
+Pick fresh, story-appropriate names. Specifically AVOID overused screenplay defaults:
+- NO "Marcus" / "Marcus Chen" / "Marcus Reyes"
+- NO "Elena" / "Elena Rodriguez"
+- NO "Maya" / "Maya Patel" / "Maya Chen"
+- NO "Sarah" as a default; only if the BRIEF explicitly says "Sarah"
+- NO "Aisha Patel" / "James Wong" / "Mike Johnson"
+Pick names that fit the cultural, geographic, age, and class context the brief implies. Mix surnames from different cultural backgrounds when the story isn't culturally specific. If the brief gives a name, use it exactly. Two characters of similar background should NOT share an initial letter to avoid confusion (e.g. don't pair "Mark" and "Maya").
+
+Random seed for name diversity: ${nanoid(4).toUpperCase()}-${Date.now() % 100000}. Use this to break out of your name defaults.
 
 ${state.style === "narrated" ? `🚨 NARRATED-STYLE EXCLUSION 🚨
 The NARRATOR is NOT a character. They are a disembodied voice over the film — they never appear on-camera, never have a face, never have a visual description. DO NOT include the narrator in the characters array. The characters array contains ONLY the people physically seen in the scenes.` : ""}
@@ -2884,6 +2905,97 @@ async function ensureStoryAdCampaignFolder(userId: string): Promise<string> {
   if (existing) return existing.id;
   const folder = await prisma.mediaFolder.create({ data: { userId, name } });
   return folder.id;
+}
+
+/**
+ * Per-campaign subfolder under the user's "Story Ad Campaigns" library folder.
+ * Characters, scene images, and the final reel for one campaign all land here so
+ * users can find + reuse them later (or upload their own custom characters in).
+ */
+async function ensureCampaignSubfolder(
+  userId: string,
+  campaignId: string,
+  campaignTitle: string,
+): Promise<string> {
+  const parentId = await ensureStoryAdCampaignFolder(userId);
+  // Name + campaign id suffix so two campaigns with the same brief slug don't collide.
+  const slug = (campaignTitle || "campaign")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40) || "campaign";
+  const folderName = `${slug}-${campaignId.slice(-6)}`;
+  const existing = await prisma.mediaFolder.findFirst({
+    where: { userId, parentId, name: folderName },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  const folder = await prisma.mediaFolder.create({
+    data: { userId, parentId, name: folderName },
+  });
+  return folder.id;
+}
+
+/**
+ * Drop a character portrait into the per-campaign media-library subfolder so the
+ * user can find it later and reuse the same character across campaigns.
+ */
+export async function saveCharacterPreviewToLibrary(input: {
+  userId: string;
+  campaignId: string;
+  campaignTitle: string;
+  characterName: string;
+  characterRole: string;
+  imageUrl: string;
+}): Promise<void> {
+  try {
+    const folderId = await ensureCampaignSubfolder(
+      input.userId,
+      input.campaignId,
+      input.campaignTitle,
+    );
+    const safe = (input.characterName || "character")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .slice(0, 30) || "character";
+    const filename = `${safe}.png`;
+    // Mime type is inferred from URL extension for the library — actual image bytes
+    // are already in S3, we just record a pointer.
+    const ext = (input.imageUrl.split("?")[0].split(".").pop() || "png").toLowerCase();
+    const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext}`;
+    const existing = await prisma.mediaFile.findFirst({
+      where: { userId: input.userId, folderId, filename },
+      select: { id: true },
+    });
+    const payload = {
+      userId: input.userId,
+      filename,
+      originalName: `${input.characterName} — ${input.characterRole || "character"}`,
+      url: input.imageUrl,
+      type: "image",
+      mimeType: mime,
+      size: 0,
+      folderId,
+      tags: JSON.stringify(["story-ad-campaign", "character", "ai-generated"]),
+      metadata: JSON.stringify({
+        campaignId: input.campaignId,
+        source: "story-ad-campaign-character",
+        characterName: input.characterName,
+        characterRole: input.characterRole,
+      }),
+    };
+    if (existing) {
+      await prisma.mediaFile.update({
+        where: { id: existing.id },
+        data: { url: input.imageUrl, originalName: payload.originalName },
+      });
+    } else {
+      await prisma.mediaFile.create({ data: payload });
+    }
+  } catch (e) {
+    // Library-save failures must NEVER break the character preview generation.
+    console.warn("[StoryAdCampaign] saving character to library failed:", e);
+  }
 }
 
 async function saveCampaignReelToLibrary(input: {
