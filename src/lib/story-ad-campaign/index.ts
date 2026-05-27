@@ -1107,7 +1107,20 @@ export function buildClipPrompt(
 ): string {
   if (!state.style) return clip.sceneAction;
   const styleLabel = STYLE_LABELS[state.style];
-  const visualLanguage = STYLE_VISUAL_LANGUAGE[state.style];
+
+  // For narrated style the user picks a SUB-STYLE for the visual treatment (3D vs cinematic stills).
+  // Scene 1 is a real video — we need the sub-style's visual language, not the default narrated
+  // "documentary stills" description (which would make a 3D-selected campaign open with photoreal humans).
+  let visualLanguage: string;
+  if (state.style === "narrated") {
+    const sub = state.narratedSubStyle || "cinematic";
+    visualLanguage =
+      sub === "3d"
+        ? STYLE_VISUAL_LANGUAGE["3d"]
+        : STYLE_VISUAL_LANGUAGE["cinematic"];
+  } else {
+    visualLanguage = STYLE_VISUAL_LANGUAGE[state.style];
+  }
 
   const onCamera = clip.characterIds
     .map((id) => state.characters.find((c) => c.id === id))
@@ -1140,6 +1153,17 @@ LIP-SYNC + ACTING RULES (CRITICAL):
 - During silence beats, characters should react naturally (eye contact, micro-expressions) — no idle muttering or random speech.`
     : "No dialogue in this clip — pure visual storytelling. All on-camera characters remain silent.";
 
+  // Continuity block: each clip is generated as an independent video (no provider extension chain),
+  // so we LEAN HARD on textual continuity so the standalone outputs feel like one continuous film.
+  const continuityBlock = `MULTI-CLIP CONTINUITY (THIS IS CRITICAL):
+This clip is part ${clip.index} of a ${state.clips.length || "multi-part"}-part film. Each part is generated
+independently but they all play back-to-back as ONE continuous short film. Match the surrounding clips on:
+- Exact same visual style and color grade as ${visualLanguage}
+- Exact same characters (same face, hair, build, wardrobe family) — see character reference portraits below
+- Same world / time-of-day / weather / setting unless the scene action explicitly says we cut elsewhere
+- Same lens character (anamorphic feel, same depth-of-field language, same shot composition density)
+- Treat this clip as a single shot inside a longer film, not a standalone ad`;
+
   return [
     `${styleLabel} narrative short film — clip ${clip.index} of ${state.clips.length || "the campaign"}. Act: ${ACT_LABELS[clip.act]}.`,
     `This is a real-life dramatic scene, NOT an advertisement. No narrator, no voiceover, no on-screen text.`,
@@ -1147,6 +1171,7 @@ LIP-SYNC + ACTING RULES (CRITICAL):
     `Shot: ${SHOT_LABELS[clip.shotType]}, camera ${CAMERA_LABELS[clip.cameraMovement]}.`,
     `Scene action: ${clip.sceneAction}`,
     `Mood + lighting: ${clip.moodLighting}`,
+    continuityBlock,
     characterBlock,
     dialogueBlock,
     `Context (do not advertise — story-only): brand ${brand.name}${brand.tagline ? ` (${brand.tagline})` : ""} may appear organically if the dialogue mentions it.`,
@@ -2270,26 +2295,24 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
     throw new Error("xAI video is not configured. Switch to Veo 3.");
   }
 
-  // xAI supports video extension → chain extensions for one seamless reel with no cuts.
-  // Veo's extension is only ~7s per call which would need too many calls, so it stays parallel.
   // Narrated style has its own pipeline: image gen + narrator TTS + ffmpeg compose.
+  // The single hook video inside that pipeline still goes through renderClipViaXai.
   if (state.style === "narrated") {
     await renderNarratedStory({ campaignId: row.id, userId: row.userId, state });
     return;
   }
 
-  if (state.provider === "xai") {
-    await renderXaiSeamless({ campaignId: row.id, userId: row.userId, state });
-    return;
-  }
-
+  // Cinematic + 3D: every clip is generated INDEPENDENTLY (no xAI extension chain).
+  // We dropped extension mode after the 8.7s seed cap + visual drift made it produce
+  // 8-second low-quality output. The buildClipPrompt continuity block does the
+  // heavy lifting on character + style consistency.
   await prisma.cartoonVideo.update({
     where: { id: row.id },
     data: { status: "COMPOSITING", progress: 5, currentStep: "Sending clips to provider..." },
   });
 
   const clips = [...state.clips];
-  const renderOne = renderClipViaVeo;
+  const renderOne = state.provider === "veo3" ? renderClipViaVeo : renderClipViaXai;
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
