@@ -170,7 +170,14 @@ interface CampaignState {
   characters: Character[];
   clips: ClipSlot[];
   storyOutline?: string;
-  narratorVoice?: { gender: "male" | "female"; tone: string; pace: string };
+  narratorVoice?: {
+    gender: "male" | "female";
+    tone: string;
+    pace: string;
+    presetId?: string;
+    elevenlabsVoiceId?: string;
+    elevenlabsVoiceName?: string;
+  };
   narratedSubStyle?: "3d" | "cinematic";
   musicCues?: MusicCue[];
   finalVideoUrl?: string | null;
@@ -1501,8 +1508,22 @@ function NarratorPicker({
   onChange,
 }: {
   campaignId: string;
-  current?: { gender: "male" | "female"; tone: string; pace: string; presetId?: string };
-  onChange: (preset: { gender: "male" | "female"; tone: string; pace: string; presetId: string }) => void;
+  current?: {
+    gender: "male" | "female";
+    tone: string;
+    pace: string;
+    presetId?: string;
+    elevenlabsVoiceId?: string;
+    elevenlabsVoiceName?: string;
+  };
+  onChange: (preset: {
+    gender: "male" | "female";
+    tone: string;
+    pace: string;
+    presetId?: string;
+    elevenlabsVoiceId?: string;
+    elevenlabsVoiceName?: string;
+  }) => void;
 }) {
   const { toast } = useToast();
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -1512,9 +1533,18 @@ function NarratorPicker({
   const currentId = current?.presetId || "documentary-male";
 
   async function previewPreset(preset: typeof NARRATOR_PRESETS_UI[number]) {
-    // First select the preset so the backend uses it, then preview
-    if (preset.id !== currentId) {
-      onChange({ gender: preset.gender, tone: preset.tone, pace: preset.pace, presetId: preset.id });
+    // First select the preset so the backend uses it, then preview.
+    // Picking a built-in preset CLEARS any ElevenLabs voice selection — they're mutually
+    // exclusive (the renderer only honors one).
+    if (preset.id !== currentId || current?.elevenlabsVoiceId) {
+      onChange({
+        gender: preset.gender,
+        tone: preset.tone,
+        pace: preset.pace,
+        presetId: preset.id,
+        elevenlabsVoiceId: undefined,
+        elevenlabsVoiceName: undefined,
+      });
     }
     setPreviewId(preset.id);
     setPreviewAudio(null);
@@ -1597,6 +1627,193 @@ function NarratorPicker({
           );
         })}
       </div>
+
+      {/* ElevenLabs voice picker — opt-in premium quality. Slightly higher per-character
+          cost than the default xAI/OpenAI TTS but noticeably more cinematic. */}
+      <ElevenLabsVoicePickerInline
+        currentVoiceId={current?.elevenlabsVoiceId}
+        currentVoiceName={current?.elevenlabsVoiceName}
+        onSelect={(voice) =>
+          onChange({
+            gender: voice.gender,
+            tone: voice.tone,
+            pace: current?.pace || "measured, deliberate",
+            elevenlabsVoiceId: voice.voiceId,
+            elevenlabsVoiceName: voice.name,
+            presetId: undefined,
+          })
+        }
+      />
+    </div>
+  );
+}
+
+/**
+ * Opt-in narrator picker that lists voices from the platform's ElevenLabs account.
+ * Picking a voice here OVERRIDES the built-in preset above — the renderer will route
+ * narrator audio through ElevenLabs (premium quality, ~14x more $ per character).
+ */
+function ElevenLabsVoicePickerInline({
+  currentVoiceId,
+  currentVoiceName,
+  onSelect,
+}: {
+  currentVoiceId?: string;
+  currentVoiceName?: string;
+  onSelect: (voice: { voiceId: string; name: string; gender: "male" | "female"; tone: string }) => void;
+}) {
+  interface ElVoice {
+    voiceId: string;
+    name: string;
+    category: string;
+    description: string | null;
+    previewUrl: string | null;
+    labels: Record<string, string>;
+  }
+  const [voices, setVoices] = useState<ElVoice[] | null>(null);
+  const [enabled, setEnabled] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/ai/elevenlabs/voices");
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error?.message || "Failed to load voices");
+        if (cancelled) return;
+        setEnabled(!!data.data?.enabled);
+        setVoices(data.data?.voices || []);
+      } catch (e) {
+        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  function playPreview(voice: ElVoice) {
+    if (!voice.previewUrl) return;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    const audio = new Audio(voice.previewUrl);
+    audioRef.current = audio;
+    setPlayingId(voice.voiceId);
+    audio.onended = () => setPlayingId((id) => (id === voice.voiceId ? null : id));
+    audio.onerror = () => setPlayingId(null);
+    audio.play().catch(() => setPlayingId(null));
+  }
+
+  if (loadErr) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed bg-muted/30 p-2 text-[11px] text-muted-foreground">
+        Couldn't load ElevenLabs voices: {loadErr}
+      </div>
+    );
+  }
+  if (!voices) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-md border border-dashed bg-muted/30 p-2 text-[11px] text-muted-foreground">
+        <AISpinner size={10} />
+        Loading premium voices…
+      </div>
+    );
+  }
+  if (!enabled || voices.length === 0) {
+    return null; // ElevenLabs not configured — silently hide the section.
+  }
+
+  const visible = showAll ? voices : voices.slice(0, 6);
+
+  function genderOf(v: ElVoice): "male" | "female" {
+    const g = (v.labels?.gender || "").toLowerCase();
+    if (g === "female") return "female";
+    if (g === "male") return "male";
+    return "male";
+  }
+  function toneOf(v: ElVoice): string {
+    const accent = v.labels?.accent ? `${v.labels.accent} accent` : "";
+    const desc = v.labels?.description || v.description || "";
+    return [desc, accent].filter(Boolean).join(", ");
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border bg-background p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+          ✨ Premium voices · ElevenLabs
+        </p>
+        {currentVoiceName && (
+          <Badge className="bg-brand-500 text-white">
+            Selected: {currentVoiceName}
+          </Badge>
+        )}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((v) => {
+          const active = v.voiceId === currentVoiceId;
+          const isPlaying = playingId === v.voiceId;
+          return (
+            <div
+              key={v.voiceId}
+              className={cn(
+                "flex flex-col gap-1.5 rounded-md border p-2 text-xs",
+                active ? "border-brand-500 bg-brand-500/10" : "border-border bg-background hover:border-brand-500",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{v.name}</span>
+                {v.previewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => playPreview(v)}
+                    aria-label={`Preview ${v.name}`}
+                    className="text-brand-500 hover:text-brand-600"
+                  >
+                    {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
+              {v.labels?.gender && (
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {v.labels.gender}{v.labels.accent ? ` · ${v.labels.accent}` : ""}{v.labels.age ? ` · ${v.labels.age}` : ""}
+                </span>
+              )}
+              <p className="line-clamp-2 text-[11px] text-muted-foreground">
+                {v.labels?.description || v.description || v.category}
+              </p>
+              <Button
+                size="sm"
+                variant={active ? "outline" : "default"}
+                className="h-6 text-[11px]"
+                onClick={() => onSelect({
+                  voiceId: v.voiceId,
+                  name: v.name,
+                  gender: genderOf(v),
+                  tone: toneOf(v),
+                })}
+              >
+                {active ? "Selected" : "Use this voice"}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      {voices.length > 6 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 text-xs"
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Show fewer" : `Show all ${voices.length} voices`}
+        </Button>
+      )}
     </div>
   );
 }

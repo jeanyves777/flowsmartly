@@ -73,6 +73,60 @@ export async function generateWithClonedVoice(params: {
   return Buffer.from(await response.arrayBuffer());
 }
 
+/**
+ * A voice as returned by the ElevenLabs catalog. Includes the preview URL the
+ * UI can play to audition before committing to use this voice for the narrator.
+ */
+export interface ElevenLabsVoice {
+  voiceId: string;
+  name: string;
+  category: string;
+  description: string | null;
+  previewUrl: string | null;
+  labels: Record<string, string>;
+}
+
+/**
+ * List the voices available on the connected ElevenLabs account — both premade stock
+ * voices and any voices the user has cloned. Used to populate the narrator-voice picker
+ * in the Story Ad Campaign Scenes step so users can pick an EL voice for premium
+ * narration quality.
+ *
+ * Notes:
+ * - Premade voices are the same across accounts (the 22 stock voices).
+ * - Cloned voices only show up if the account did Voice Studio cloning.
+ */
+export async function listVoices(): Promise<ElevenLabsVoice[]> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("ElevenLabs is not configured");
+
+  const response = await fetch(`${ELEVENLABS_BASE}/voices`, {
+    headers: { "xi-api-key": apiKey },
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => `${response.status}`);
+    throw new Error(`ElevenLabs voices fetch failed: ${detail.slice(0, 300)}`);
+  }
+  const data = await response.json() as {
+    voices?: Array<{
+      voice_id: string;
+      name: string;
+      category?: string;
+      description?: string;
+      preview_url?: string;
+      labels?: Record<string, string>;
+    }>;
+  };
+  return (data.voices || []).map((v) => ({
+    voiceId: v.voice_id,
+    name: v.name,
+    category: v.category || "premade",
+    description: v.description || null,
+    previewUrl: v.preview_url || null,
+    labels: v.labels || {},
+  }));
+}
+
 export async function deleteClonedVoice(voiceId: string): Promise<void> {
   const apiKey = getApiKey();
   if (!apiKey) return;

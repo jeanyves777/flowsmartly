@@ -15,7 +15,7 @@ import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
-import { generateSoundEffect, isElevenLabsEnabled } from "@/lib/voice/elevenlabs-client";
+import { generateSoundEffect, generateWithClonedVoice, isElevenLabsEnabled } from "@/lib/voice/elevenlabs-client";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -1891,6 +1891,23 @@ Aspect ratio: ${aspect}.`;
 
 /** Synthesize narrator audio for one line using the campaign's narrator voice. */
 async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoice): Promise<Buffer> {
+  // Opt-in premium path: when the user picked an ElevenLabs voice, render the narrator
+  // line through ElevenLabs and fall back to the cheaper xAI/OpenAI TTS only if EL fails.
+  const elevenlabsVoiceId = narratorVoice?.elevenlabsVoiceId;
+  if (elevenlabsVoiceId && isElevenLabsEnabled()) {
+    try {
+      const buf = await generateWithClonedVoice({
+        voiceId: elevenlabsVoiceId,
+        text,
+      });
+      return buf;
+    } catch (e) {
+      // Quota exhausted, voice deleted, or any other EL error — fall through to default TTS
+      // so the reel still renders end-to-end.
+      console.warn(`[StoryAdCampaign] ElevenLabs narrator failed (voice ${elevenlabsVoiceId}), falling back to default TTS:`, e instanceof Error ? e.message : e);
+    }
+  }
+
   const gender = narratorVoice?.gender || "male";
   const toneText = (narratorVoice?.tone || "").toLowerCase();
   const style: "professional" | "warm" | "dramatic" | "energetic" =

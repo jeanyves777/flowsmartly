@@ -195,6 +195,15 @@ export interface NarratorVoice {
   pace: string;
   /** Set when the user picked a preset from NARRATOR_PRESETS instead of the AI default */
   presetId?: string;
+  /**
+   * Opt-in: when set, the narrator audio renders via ElevenLabs using THIS voice
+   * (premade or cloned voice from the platform's EL account). When unset, narrator
+   * audio falls back to the default xAI / OpenAI TTS path. ElevenLabs is more
+   * expensive per character but higher quality.
+   */
+  elevenlabsVoiceId?: string;
+  /** Human-readable name of the picked ElevenLabs voice (for UI display). */
+  elevenlabsVoiceName?: string;
 }
 
 export interface NarratorPreset {
