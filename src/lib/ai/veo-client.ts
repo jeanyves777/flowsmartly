@@ -187,12 +187,14 @@ class VeoClient {
       config.referenceImages = referenceImages;
     }
 
-    // Strip native audio for the cheaper Veo Lite tier (40% saving). The SDK key is
-    // `generateAudio` (boolean), per Veo 3.1 docs. Default true; we flip to false when
-    // the caller composes audio separately downstream.
-    if (disableAudio) {
-      config.generateAudio = false;
-    }
+    // NOTE: `generateAudio: false` is a Vertex AI direct REST parameter. The Gemini API
+    // (which the @google/genai SDK targets when using an API key) REJECTS this field with
+    // "generateAudio parameter is not supported in Gemini API". The 40% no-audio savings
+    // is only accessible via Vertex AI with a service-account auth path. We keep the
+    // `disableAudio` option in the type signature for that future swap, but don't pass
+    // it through here — the Gemini-API path always generates audio (we just discard it
+    // in the final compose since our audio mixer overlays its own layers anyway).
+    void disableAudio;
 
     // Create the video generation job
     let operation;

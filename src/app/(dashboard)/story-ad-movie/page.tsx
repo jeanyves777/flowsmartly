@@ -1595,7 +1595,9 @@ function NarratorPicker({
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">
           Narrator voice
         </p>
-        <span className="text-xs text-muted-foreground">Pick one — click a preset to switch and preview.</span>
+        <span className="text-xs text-muted-foreground">
+          ElevenLabs is the default — pick a voice to switch.
+        </span>
       </div>
       <audio
         ref={audioRef}
@@ -1605,47 +1607,8 @@ function NarratorPicker({
         onEnded={() => setPlaying(false)}
         className="hidden"
       />
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {NARRATOR_PRESETS_UI.map((p) => {
-          const active = p.id === currentId;
-          const loading = previewId === p.id && !previewAudio;
-          const isPlayingThis = previewId === p.id && playing;
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => previewPreset(p)}
-              className={cn(
-                "group flex flex-col gap-1 rounded-lg border p-2 text-left transition-colors",
-                active
-                  ? "border-brand-500 bg-brand-500/10"
-                  : "border-border bg-background hover:border-brand-500",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1 text-xs font-semibold">
-                  <span
-                    className={cn(
-                      "inline-flex h-5 w-5 items-center justify-center rounded-full",
-                      p.gender === "female" ? "bg-rose-500/15 text-rose-600" : "bg-sky-500/15 text-sky-600",
-                    )}
-                  >
-                    {p.gender === "female" ? "♀" : "♂"}
-                  </span>
-                  {p.label}
-                </span>
-                <span className="text-brand-500">
-                  {loading ? <AISpinner size={12} /> : isPlayingThis ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
-            </button>
-          );
-        })}
-      </div>
 
-      {/* ElevenLabs voice picker — opt-in premium quality. Slightly higher per-character
-          cost than the default xAI/OpenAI TTS but noticeably more cinematic. */}
+      {/* PRIMARY picker — ElevenLabs voices. This is the platform default now. */}
       <ElevenLabsVoicePickerInline
         currentVoiceId={current?.elevenlabsVoiceId}
         currentVoiceName={current?.elevenlabsVoiceName}
@@ -1660,6 +1623,52 @@ function NarratorPicker({
           })
         }
       />
+
+      {/* FALLBACK / built-in presets. Collapsed behind a toggle so they don't dominate
+          the UI — most users should never need them now that EL is default. */}
+      <details className="mt-3 rounded-md border bg-muted/30 p-2 text-xs">
+        <summary className="cursor-pointer select-none font-semibold text-muted-foreground">
+          Use a built-in voice instead (cheaper TTS fallback)
+        </summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {NARRATOR_PRESETS_UI.map((p) => {
+            const active = p.id === currentId && !current?.elevenlabsVoiceId;
+            const loading = previewId === p.id && !previewAudio;
+            const isPlayingThis = previewId === p.id && playing;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => previewPreset(p)}
+                className={cn(
+                  "group flex flex-col gap-1 rounded-lg border p-2 text-left transition-colors",
+                  active
+                    ? "border-brand-500 bg-brand-500/10"
+                    : "border-border bg-background hover:border-brand-500",
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                    <span
+                      className={cn(
+                        "inline-flex h-5 w-5 items-center justify-center rounded-full",
+                        p.gender === "female" ? "bg-rose-500/15 text-rose-600" : "bg-sky-500/15 text-sky-600",
+                      )}
+                    >
+                      {p.gender === "female" ? "♀" : "♂"}
+                    </span>
+                    {p.label}
+                  </span>
+                  <span className="text-brand-500">
+                    {loading ? <AISpinner size={12} /> : isPlayingThis ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </details>
     </div>
   );
 }
@@ -1762,7 +1771,7 @@ function ElevenLabsVoicePickerInline({
     <div className="mt-3 rounded-lg border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
-          ✨ Premium voices · ElevenLabs
+          Voice library · pick the narrator
         </p>
         {currentVoiceName && (
           <Badge className="bg-brand-500 text-white">

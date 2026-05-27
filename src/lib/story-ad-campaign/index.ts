@@ -1937,24 +1937,56 @@ Aspect ratio: ${aspect}.`;
 }
 
 /** Synthesize narrator audio for one line using the campaign's narrator voice. */
-async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoice): Promise<Buffer> {
-  // Opt-in premium path: when the user picked an ElevenLabs voice, render the narrator
-  // line through ElevenLabs and fall back to the cheaper xAI/OpenAI TTS only if EL fails.
-  const elevenlabsVoiceId = narratorVoice?.elevenlabsVoiceId;
-  if (elevenlabsVoiceId && isElevenLabsEnabled()) {
+/**
+ * Stable ElevenLabs stock-voice IDs that ship with every EL account. We use these as
+ * the default narrator + character voices when the user hasn't picked a specific one,
+ * so EL is the primary TTS path for the campaign even on fresh runs.
+ * - Adam:    deep male voice, well-suited for documentary narration
+ * - Rachel:  calm female voice, balanced for narration + dialogue
+ * - Antoni:  warm male voice for dialogue
+ * - Bella:   soft female voice for dialogue
+ */
+const DEFAULT_ELEVENLABS_VOICES = {
+  narratorMale: "pNInz6obpgDQGcFmaJgB",   // Adam
+  narratorFemale: "21m00Tcm4TlvDq8ikWAM", // Rachel
+  dialogueMale: "ErXwobaYiN019PkySvjV",   // Antoni
+  dialogueFemale: "EXAVITQu4vr4xnSDxMaL", // Bella
+};
+
+/**
+ * Run TTS through ElevenLabs first, fall back to the xAI/OpenAI voice-engine on any EL
+ * failure (quota exhausted, voice deleted, network issues). This keeps the user-facing
+ * promise — "all TTS through ElevenLabs by default" — while never breaking the reel.
+ */
+async function generateTtsElevenLabsFirst(params: {
+  text: string;
+  preferredVoiceId?: string;
+  defaultVoiceId: string;
+  fallbackOptions: { gender: "male" | "female"; style: "professional" | "warm" | "dramatic" | "energetic"; speed: number };
+}): Promise<Buffer> {
+  const { text, preferredVoiceId, defaultVoiceId, fallbackOptions } = params;
+  if (isElevenLabsEnabled()) {
     try {
-      const buf = await generateWithClonedVoice({
-        voiceId: elevenlabsVoiceId,
-        text,
-      });
-      return buf;
+      const voiceId = preferredVoiceId || defaultVoiceId;
+      return await generateWithClonedVoice({ voiceId, text });
     } catch (e) {
-      // Quota exhausted, voice deleted, or any other EL error — fall through to default TTS
-      // so the reel still renders end-to-end.
-      console.warn(`[StoryAdCampaign] ElevenLabs narrator failed (voice ${elevenlabsVoiceId}), falling back to default TTS:`, e instanceof Error ? e.message : e);
+      console.warn(
+        `[StoryAdCampaign] ElevenLabs TTS failed, falling back to xAI/OpenAI:`,
+        e instanceof Error ? e.message : e,
+      );
     }
   }
+  const result = await generateVoice({
+    text,
+    gender: fallbackOptions.gender,
+    accent: "american",
+    style: fallbackOptions.style,
+    speed: fallbackOptions.speed,
+  });
+  return result.audioBuffer;
+}
 
+async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoice): Promise<Buffer> {
   const gender = narratorVoice?.gender || "male";
   const toneText = (narratorVoice?.tone || "").toLowerCase();
   const style: "professional" | "warm" | "dramatic" | "energetic" =
@@ -1965,14 +1997,16 @@ async function synthesizeNarratorAudio(text: string, narratorVoice?: NarratorVoi
         : /energetic|excited|punchy/.test(toneText)
           ? "energetic"
           : "professional";
-  const result = await generateVoice({
+
+  return generateTtsElevenLabsFirst({
     text,
-    gender,
-    accent: "american",
-    style,
-    speed: 0.95,
+    preferredVoiceId: narratorVoice?.elevenlabsVoiceId,
+    defaultVoiceId:
+      gender === "female"
+        ? DEFAULT_ELEVENLABS_VOICES.narratorFemale
+        : DEFAULT_ELEVENLABS_VOICES.narratorMale,
+    fallbackOptions: { gender, style, speed: 0.95 },
   });
-  return result.audioBuffer;
 }
 
 /**
@@ -2017,15 +2051,19 @@ async function synthesizeCharacterDialogueAudio(
       ? 1.06
       : 0.98;
 
-  const result = await generateVoice({
+  // Route through ElevenLabs first (per platform default) and fall back to xAI/OpenAI TTS.
+  const buffer = await generateTtsElevenLabsFirst({
     text,
-    gender,
-    accent: "american",
-    style,
-    speed,
+    defaultVoiceId:
+      gender === "female"
+        ? DEFAULT_ELEVENLABS_VOICES.dialogueFemale
+        : DEFAULT_ELEVENLABS_VOICES.dialogueMale,
+    fallbackOptions: { gender, style, speed },
   });
-
-  return { buffer: result.audioBuffer, estimatedDurationMs: result.estimatedDurationMs };
+  // Word-rate estimate so the mixer can size silence gaps without a probe round-trip.
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const estimatedDurationMs = Math.round((wordCount / 150) * 60 * 1000 / speed);
+  return { buffer, estimatedDurationMs };
 }
 
 /**
