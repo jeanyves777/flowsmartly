@@ -181,9 +181,12 @@ class VeoClient {
       config.negativePrompt = negativePrompt;
     }
 
-    // Veo 3.1 character anchoring: pass as config.referenceImages so the model uses
-    // them as style/asset references rather than first-frame video sources.
-    if (referenceImages.length) {
+    // Veo 3.1 character anchoring via config.referenceImages — but the Lite preview
+    // model REJECTS this field with "referenceImages isn't supported by this model".
+    // Quality (and Fast) support it; Lite does not. For Lite the caller should use
+    // `referenceImageUrl` (first-frame image-to-video) as a partial anchor and rely
+    // on prompt continuity for the rest.
+    if (referenceImages.length && resolvedTier !== "lite") {
       config.referenceImages = referenceImages;
     }
 

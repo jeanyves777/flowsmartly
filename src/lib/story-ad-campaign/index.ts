@@ -1533,26 +1533,31 @@ function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): s
 }
 
 /**
- * Render one narrated-style video scene via Veo Lite, audio disabled.
+ * Render one narrated-style video scene via Veo Lite.
  *
- * Used by full-animation narrated reels where every scene is a real animated clip.
- * Audio (narrator + dialogue + SFX + music) is composed separately by ffmpeg, so we
- * strip Veo's native audio to drop the per-second price from $0.05 → $0.03 (~40% off).
+ * Veo 3.1 Lite does NOT support `config.referenceImages` (that's a Quality-tier feature).
+ * For Lite we use the cheaper alternative: pass the first on-camera character's portrait
+ * as `referenceImageUrl` (image-to-video / first-frame mode) so we at least anchor the
+ * character's face on the opening frame. The MULTI-CLIP CONTINUITY block in the prompt
+ * carries the rest of the scene through.
+ *
+ * Audio handling: Gemini API doesn't accept `generateAudio: false`, so Veo Lite generates
+ * audio we ignore. The downstream mixer overlays narrator + dialogue + SFX + music on its
+ * own track.
  */
 async function renderNarratedVideoScene(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
   const duration = "8" as const;
-  const characterReferenceUrls = collectClipReferenceImages(clip, state);
+  const firstFrameImage = pickClipReferenceImage(clip, state);
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
     aspectRatio: normalizeVeoAspect(state.aspectRatio),
     negativePrompt: NEGATIVE_TEXT_PROMPT,
     tier: "lite",
-    characterReferenceUrls,
-    disableAudio: true,
+    referenceImageUrl: firstFrameImage,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
@@ -1570,11 +1575,21 @@ async function renderClipViaVeo(
   const capped = Math.min(8, state.clipLength);
   const duration = (capped === 4 ? "4" : capped === 6 ? "6" : "8") as "4" | "6" | "8";
   const tier = veoTierForProvider(state.provider);
-  // Anchor every on-camera character so faces stay consistent across the reel.
-  // CRITICAL: pass via `characterReferenceUrls` (Veo's referenceImages mode), NOT
-  // `referenceImageUrl` (first-frame mode). The latter locks the video to look
-  // like the portrait — that's the bug that produced "portrait-only" clips earlier.
-  const characterReferenceUrls = collectClipReferenceImages(clip, state);
+
+  // Character anchoring depends on the tier:
+  //   - Quality → `characterReferenceUrls` (Veo's `config.referenceImages`, up to 3,
+  //     anchors face/build WITHOUT locking the first frame).
+  //   - Lite    → Lite doesn't support referenceImages. We fall back to first-frame
+  //     image-to-video using the primary character's portrait. Less ideal (the opening
+  //     looks like the portrait) but better than no anchor at all.
+  let characterReferenceUrls: string[] = [];
+  let firstFrameImage: string | null = null;
+  if (tier === "lite") {
+    firstFrameImage = pickClipReferenceImage(clip, state);
+  } else {
+    characterReferenceUrls = collectClipReferenceImages(clip, state);
+  }
+
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
@@ -1582,6 +1597,7 @@ async function renderClipViaVeo(
     negativePrompt: NEGATIVE_TEXT_PROMPT,
     tier,
     characterReferenceUrls,
+    referenceImageUrl: firstFrameImage,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
