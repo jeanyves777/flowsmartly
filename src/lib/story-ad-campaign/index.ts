@@ -1253,14 +1253,22 @@ LIP-SYNC + ACTING RULES (CRITICAL):
 
   // Continuity block: each clip is generated as an independent video (no provider extension chain),
   // so we LEAN HARD on textual continuity so the standalone outputs feel like one continuous film.
+  // For tiers where the model supports a reference image (Veo + xAI image-to-video) we also
+  // anchor the visual to the character's portrait — this block reinforces that the portrait is
+  // the EXACT person we want, not "inspired by".
   const continuityBlock = `MULTI-CLIP CONTINUITY (THIS IS CRITICAL):
 This clip is part ${clip.index} of a ${state.clips.length || "multi-part"}-part film. Each part is generated
-independently but they all play back-to-back as ONE continuous short film. Match the surrounding clips on:
+independently but they all play back-to-back as ONE continuous short film. The reference image you receive
+(when provided) is THE EXACT person in this scene — render the same face, hairstyle, ethnicity, build, and
+age that the reference shows. The wardrobe + environment can change per scene action; the FACE cannot.
+
+Match the surrounding clips on:
 - Exact same visual style and color grade as ${visualLanguage}
 - Exact same characters (same face, hair, build, wardrobe family) — see character reference portraits below
 - Same world / time-of-day / weather / setting unless the scene action explicitly says we cut elsewhere
 - Same lens character (anamorphic feel, same depth-of-field language, same shot composition density)
-- Treat this clip as a single shot inside a longer film, not a standalone ad`;
+- Treat this clip as a single shot inside a longer film, not a standalone ad
+- DO NOT introduce new on-camera characters who weren't in the listed roster. Crowds + passersby stay generic, blurred, out-of-focus.`;
 
   return [
     `${styleLabel} narrative short film — clip ${clip.index} of ${state.clips.length || "the campaign"}. Act: ${ACT_LABELS[clip.act]}.`,
@@ -1446,16 +1454,28 @@ function pickClipRenderer(
 }
 
 /**
- * Pick the character reference image to anchor a Veo render. Veo accepts ONE reference,
- * so for multi-character scenes we pick the first on-camera character with an approved
- * portrait. Without this, every scene re-rolls new faces — the catalog gets ignored.
+ * Collect EVERY on-camera character's reference portrait for a clip. Veo 3.1's
+ * `referenceImages` supports up to 3 — we pass all of them so multi-character
+ * scenes (e.g. clip 4 in your reel had two people) stay anchored to the cast
+ * instead of generating new faces.
+ *
+ * Returns just the URLs (the client resolves to bytes). One image is fine; zero
+ * means "no anchor available" and Veo runs prompt-only.
  */
-function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): string | null {
+function collectClipReferenceImages(clip: CampaignClipSlot, state: CampaignState): string[] {
+  const urls: string[] = [];
   for (const id of clip.characterIds || []) {
     const character = state.characters.find((c) => c.id === id);
-    if (character?.referenceImageUrl) return character.referenceImageUrl;
+    if (character?.referenceImageUrl) urls.push(character.referenceImageUrl);
+    if (urls.length >= 3) break;
   }
-  return null;
+  return urls;
+}
+
+/** Single-image picker, used for providers that only accept ONE reference (xAI). */
+function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): string | null {
+  const list = collectClipReferenceImages(clip, state);
+  return list[0] || null;
 }
 
 async function renderClipViaVeo(
@@ -1466,15 +1486,18 @@ async function renderClipViaVeo(
   const capped = Math.min(8, state.clipLength);
   const duration = (capped === 4 ? "4" : capped === 6 ? "6" : "8") as "4" | "6" | "8";
   const tier = veoTierForProvider(state.provider);
-  // Anchor the visual to a real character portrait so faces stay consistent across the reel.
-  const referenceImageUrl = pickClipReferenceImage(clip, state);
+  // Anchor every on-camera character so faces stay consistent across the reel.
+  // CRITICAL: pass via `characterReferenceUrls` (Veo's referenceImages mode), NOT
+  // `referenceImageUrl` (first-frame mode). The latter locks the video to look
+  // like the portrait — that's the bug that produced "portrait-only" clips earlier.
+  const characterReferenceUrls = collectClipReferenceImages(clip, state);
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
     aspectRatio: normalizeVeoAspect(state.aspectRatio),
     negativePrompt: NEGATIVE_TEXT_PROMPT,
     tier,
-    referenceImageUrl,
+    characterReferenceUrls,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
@@ -1513,17 +1536,25 @@ async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
-  // Grok Imagine Video supports 1–15s. When xAI is the user's chosen "cheap" tier we
-  // use the full 15s window (fewer scenes, more dialogue per scene). When xAI is the
-  // FALLBACK for a Veo render that failed, the campaign's clipLength is already 8s
-  // so the final concat stays uniform with the rest of the reel.
-  const cap = state.provider === "cheap" ? 15 : 8;
-  const duration = Math.min(cap, Math.max(1, state.clipLength));
+  // Grok Imagine Video supports 1–15s.
+  // - Cheap tier  → ALWAYS uses xAI's full 15s window so the user gets what they paid for,
+  //                 regardless of stale state.clipLength values on older rows.
+  // - Fallback    → 8s so the clip matches the surrounding Veo clips in concat.
+  const isCheapPrimary = state.provider === "cheap";
+  const duration = isCheapPrimary ? 15 : Math.min(8, Math.max(1, state.clipLength));
+
+  // xAI's `image` parameter (image-to-video) lets us anchor the visual to a real
+  // character portrait — the only way to keep faces consistent across Cheap-tier
+  // clips since xAI has no provider-side multi-clip extension we want to use here.
+  // Same idea as the Veo referenceImageUrl pass-through.
+  const imageUrl = pickClipReferenceImage(clip, state) || undefined;
+
   const result = await grokVideoClient.generateVideo(clip.prompt, {
     duration,
     aspectRatio: normalizeXaiAspect(state.aspectRatio),
     resolution: "720p",
     timeoutMs: 900000,
+    imageUrl,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,

@@ -15,7 +15,9 @@ import {
 } from "@/lib/story-ad-campaign/types";
 
 const ALLOWED_STYLES: CampaignStyle[] = ["3d", "cinematic", "narrated"];
-const ALLOWED_PROVIDERS: CampaignProvider[] = ["veo3", "xai"];
+// "cheap" routes directly to xAI at 15s/clip. Forgetting to include it here silently
+// rewrites a user's Cheap pick to the default Premium tier — a real bug that already shipped.
+const ALLOWED_PROVIDERS: CampaignProvider[] = ["veo3", "xai", "cheap"];
 const ALLOWED_ASPECTS: CampaignAspectRatio[] = ["9:16", "1:1", "16:9"];
 const ALLOWED_CLIP_LENGTHS: CampaignClipLength[] = [8, 10, 12, 15];
 const ALLOWED_DURATIONS: CampaignDurationSeconds[] = [60, 90, 120, 150, 180, 240, 300, 420, 600];

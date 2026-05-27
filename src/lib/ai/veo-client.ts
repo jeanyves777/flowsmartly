@@ -30,8 +30,20 @@ export interface VeoGenerateOptions {
   resolution?: VeoResolution;
   /** Aspect ratio. Default: '16:9' */
   aspectRatio?: VeoAspectRatio;
-  /** Optional image reference used as the visual anchor / first frame */
+  /**
+   * Optional image to use as the literal FIRST FRAME (image-to-video mode).
+   * Pass this only when you actually want the video to start with that exact frame —
+   * never pass a character portrait here, that locks the whole video to look like a
+   * portrait shoot. Use `characterReferenceUrls` for character-anchoring instead.
+   */
   referenceImageUrl?: string | null;
+  /**
+   * One or more character / style reference images that ANCHOR the look (face, build,
+   * wardrobe family) WITHOUT locking the first frame. The model treats them as
+   * "this character looks like this" assets, not as starting points.
+   * Mapped to Veo 3.1's `config.referenceImages`. Up to 3 references.
+   */
+  characterReferenceUrls?: (string | null | undefined)[];
   /** Content to exclude from the video */
   negativePrompt?: string;
   /** Use the fast model variant. Equivalent to `tier: "fast"`. Left in for back-compat. */
@@ -110,6 +122,7 @@ class VeoClient {
       resolution = "720p",
       aspectRatio = "16:9",
       referenceImageUrl = null,
+      characterReferenceUrls = [],
       negativePrompt,
       fast = false,
       tier,
@@ -123,13 +136,27 @@ class VeoClient {
           ? "veo-3.1-fast-generate-preview"
           : "veo-3.1-generate-preview";
 
-    let image: { imageBytes: string; mimeType: string } | undefined;
+    // First-frame image (image-to-video mode). Only used when the caller explicitly
+    // wants the video to START with this exact frame.
+    let firstFrameImage: { imageBytes: string; mimeType: string } | undefined;
     if (referenceImageUrl) {
       const resolved = await resolveImageForVeo(referenceImageUrl);
-      if (resolved) image = resolved;
+      if (resolved) firstFrameImage = resolved;
     }
 
-    console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}, ref=${!!image}`);
+    // Character/style anchor references (Veo 3.1 "assets"). The model uses these to
+    // keep face + build + wardrobe family consistent WITHOUT locking the first frame.
+    // Up to 3 references per call.
+    const refList = (characterReferenceUrls || []).filter((u): u is string => !!u).slice(0, 3);
+    const referenceImages: { image: { imageBytes: string; mimeType: string } }[] = [];
+    if (refList.length) {
+      for (const url of refList) {
+        const resolved = await resolveImageForVeo(url);
+        if (resolved) referenceImages.push({ image: resolved });
+      }
+    }
+
+    console.log(`[Veo] Generating video: model=${model}, duration=${durationSeconds}s, res=${resolution}, aspect=${aspectRatio}, firstFrame=${!!firstFrameImage}, refs=${referenceImages.length}`);
     console.log(`[Veo] Prompt: ${prompt.substring(0, 120)}...`);
 
     // Build config — durationSeconds must be a number for the API
@@ -147,13 +174,19 @@ class VeoClient {
       config.negativePrompt = negativePrompt;
     }
 
+    // Veo 3.1 character anchoring: pass as config.referenceImages so the model uses
+    // them as style/asset references rather than first-frame video sources.
+    if (referenceImages.length) {
+      config.referenceImages = referenceImages;
+    }
+
     // Create the video generation job
     let operation;
     try {
       operation = await this.client.models.generateVideos({
         model,
         prompt,
-        ...(image ? { image } : {}),
+        ...(firstFrameImage ? { image: firstFrameImage } : {}),
         config,
       });
     } catch (err: unknown) {
