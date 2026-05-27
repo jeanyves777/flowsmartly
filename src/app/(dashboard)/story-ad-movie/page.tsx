@@ -933,13 +933,21 @@ function StyleStage({
       >
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <FieldGroup label="Total duration">
-            <SegmentedControl
+            {/* SegmentedControl wraps awkwardly when narrated style exposes 9 length options
+                (60s..10 min). Use a select dropdown for a clean, predictable layout. */}
+            <select
               value={String(draft.durationSeconds)}
-              options={durationOptionsForStyle(draft.style).map((o) => ({ value: String(o.value), label: o.label }))}
-              onChange={(value) =>
-                setDraft((prev) => ({ ...prev, durationSeconds: Number(value) as Duration }))
+              onChange={(event) =>
+                setDraft((prev) => ({ ...prev, durationSeconds: Number(event.target.value) as Duration }))
               }
-            />
+              className="h-9 w-full rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              {durationOptionsForStyle(draft.style).map((option) => (
+                <option key={option.value} value={String(option.value)}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </FieldGroup>
           <FieldGroup label="Aspect ratio">
             <SegmentedControl

@@ -564,7 +564,18 @@ async function publishToYouTube(
 
     if (!initRes.ok) {
       const errData = await initRes.json().catch(() => ({}));
-      return { success: false, error: errData.error?.message || `YouTube upload init failed (${initRes.status})` };
+      const raw: string = errData.error?.message || `YouTube upload init failed (${initRes.status})`;
+      // Google's "Request had invalid authentication credentials..." message is opaque to end
+      // users; translate it to a clear reconnect call-to-action. Also catches reauth flows
+      // after Google revokes a token (e.g. user revoked access on myaccount.google.com).
+      if (initRes.status === 401 || /invalid authentication credential|invalid_grant|insufficient.*authentication|access token/i.test(raw)) {
+        return {
+          success: false,
+          error:
+            "Your YouTube/Google connection has expired or been revoked. Reconnect YouTube in Settings → Social Accounts and try posting again.",
+        };
+      }
+      return { success: false, error: raw };
     }
 
     const uploadUrl = initRes.headers.get("location");
@@ -579,7 +590,15 @@ async function publishToYouTube(
 
     if (!uploadRes.ok) {
       const errData = await uploadRes.json().catch(() => ({}));
-      return { success: false, error: errData.error?.message || `YouTube upload failed (${uploadRes.status})` };
+      const raw: string = errData.error?.message || `YouTube upload failed (${uploadRes.status})`;
+      if (uploadRes.status === 401 || /invalid authentication credential|invalid_grant|access token/i.test(raw)) {
+        return {
+          success: false,
+          error:
+            "Your YouTube/Google connection has expired or been revoked. Reconnect YouTube in Settings → Social Accounts and try posting again.",
+        };
+      }
+      return { success: false, error: raw };
     }
 
     const uploadData = await uploadRes.json();
