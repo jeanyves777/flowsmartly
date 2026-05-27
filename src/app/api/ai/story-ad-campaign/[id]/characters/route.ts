@@ -30,8 +30,11 @@ export async function POST(
     );
   }
 
+  // The "count" param is now a HARD CAP, not a fixed count. The planner picks the
+  // right number for the story between 2 and this max. Default 6 so the AI can scale
+  // up for ensemble pieces; the user can pass a smaller cap to keep casts tight.
   const body = (await request.json().catch(() => ({}))) as { count?: number };
-  const count = Math.max(1, Math.min(6, Number(body.count) || 3));
+  const maxCount = Math.max(2, Math.min(8, Number(body.count) || 6));
 
   const isAdmin = !!session.adminId;
   const charge = await chargeStoryAdCampaignUsage({
@@ -58,7 +61,7 @@ export async function POST(
 
   try {
     const brand = await getBrandSnapshot(session.userId);
-    const plan = await planCharacterCatalog(current.state, brand, count);
+    const plan = await planCharacterCatalog(current.state, brand, maxCount);
     const merged = await updateCampaignState(id, session.userId, {
       characters: plan.characters,
       storyOutline: plan.storyOutline,

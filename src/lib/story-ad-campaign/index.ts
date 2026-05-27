@@ -356,7 +356,8 @@ export interface CharacterCatalogPlan {
 export async function planCharacterCatalog(
   state: CampaignState,
   brand: BrandSnapshot,
-  count = 3,
+  /** Hard cap. The AI picks the right count between 2 and this number based on the story. */
+  maxCount = 6,
 ): Promise<CharacterCatalogPlan> {
   if (!state.style) throw new Error("Campaign style must be selected first");
 
@@ -404,7 +405,10 @@ ABSOLUTE RULE — WHAT A CHARACTER IS:
   · any character whose name starts with "The " followed by a noun.
 - The brand is a TOOL that human characters use inside the story. It is NEVER a character.
 
-Cast exactly ${count} HUMAN characters. The protagonist is the person at the center of the brief; the rest are people they encounter in the brief's described scenes (family, enemies, friends, colleagues, etc. — whoever the user mentioned or whoever logically belongs there).
+Cast THE RIGHT NUMBER of HUMAN characters for THIS story — pick a count between 2 and ${maxCount} based on what the brief actually requires. Most stories need 2–4. A solo-protagonist piece can use just 2 (protagonist + one supporting). An ensemble or family story may need 5–6. Do NOT pad with characters the story doesn't need, and do NOT compress everyone the brief mentions into 3 if the brief clearly calls for more. The protagonist is the person at the center of the brief; the rest are people they encounter in the brief's described scenes (family, enemies, friends, colleagues, etc. — whoever the user mentioned or whoever logically belongs there).
+
+${state.style === "narrated" ? `🚨 NARRATED-STYLE EXCLUSION 🚨
+The NARRATOR is NOT a character. They are a disembodied voice over the film — they never appear on-camera, never have a face, never have a visual description. DO NOT include the narrator in the characters array. The characters array contains ONLY the people physically seen in the scenes.` : ""}
 
 For each character output:
 - name: a real human first (or first + last) name. Examples: "Marcus Reyes", "Elena", "Aisha Patel". Never "The X", never a product name.
@@ -433,13 +437,24 @@ Return strict JSON only:
   });
 
   const raw = Array.isArray(result?.characters) ? result.characters : [];
-  const filtered = raw.filter((c) => isRealHumanCharacter(c, brand));
+  // Strip the narrator if the AI sneaks it in despite the rule (e.g. a "character"
+  // named "Narrator" with no real visual description). Same idea for any voice-of-god
+  // construct in narrated mode.
+  const noNarrator = state.style === "narrated"
+    ? raw.filter((c) => {
+        const name = String(c?.name || "").toLowerCase();
+        const role = String(c?.role || "").toLowerCase();
+        return !/\bnarrator|voice.?over|voice of god|the voice\b/.test(`${name} ${role}`);
+      })
+    : raw;
+  const filtered = noNarrator.filter((c) => isRealHumanCharacter(c, brand));
   if (!filtered.length && raw.length) {
     throw new Error(
       "AI returned only non-human personifications (e.g. 'The System'). Regenerate the catalog — characters must be real humans.",
     );
   }
-  const characters: CampaignCharacter[] = filtered.slice(0, count).map((c) => ({
+  // Hard-clamp to maxCount to protect ourselves from a runaway model, then keep what's left.
+  const characters: CampaignCharacter[] = filtered.slice(0, maxCount).map((c) => ({
     id: nanoid(8),
     name: String(c.name || "").trim().slice(0, 60) || "Character",
     role: String(c.role || "").trim().slice(0, 120) || "Story character",
@@ -962,9 +977,11 @@ For each scene:
     - spot: an array of 0–3 short cues, each { description, atSec } — e.g. { description: "wooden door creaking open", atSec: 1.5 }. These give the scene physicality. Pick the obvious diegetic sounds the scene action calls for (footsteps, glass, wind, car engine, gunfire, applause, etc.).
   Keep it diegetic — what the characters in the scene would actually hear. Avoid music cues; music is handled separately. Avoid clichés that don't fit. If a scene is silent by design, omit the spot array.
 
-NARRATIVE FLOW:
-- The narrator's voice runs continuously across scenes. Each narratorLine connects to the previous — same voice, same arc.
-- Dialogue happens IN the scene; the narrator goes quiet for that beat, then resumes.
+NARRATIVE FLOW (CRITICAL — read carefully):
+- The narrator's voice runs continuously across scenes. Each narratorLine PICKS UP EXACTLY where the previous scene's narrator left off — same voice, same paragraph, same emotional thread. Do NOT restart the topic in each scene.
+- Read the story aloud in your head: the narrator lines, in order, should sound like ONE continuous documentary script, not a list of disconnected captions. Avoid "X is a ..." restatements after the first scene.
+- Each narratorLine should be 2–4 sentences (~25–50 words) — substantial enough to feel like real narration, not a one-line caption.
+- Dialogue happens IN the scene; the narrator goes quiet for that beat, then resumes the SAME continuous voice in the next.
 - Open scene 1 (the hook video) with a strong narrator opening line that pulls the viewer in. Close the final scene with a quiet, emotionally landed line — never a sales pitch.
 
 HARD RULES:
@@ -1377,15 +1394,37 @@ function normalizeXaiAspect(aspect: CampaignAspectRatio): "16:9" | "9:16" | "1:1
 }
 
 /**
- * Maps user-facing campaign provider → Veo 3.1 tier.
- * - "veo3"  → Veo Quality ($0.20–0.40/sec) — Premium tier
- * - "xai"   → Veo Lite    ($0.03–0.05/sec) — Standard tier (we now render with Veo;
- *             the "xai" enum value is kept for backward compat with existing campaign rows)
- *
- * Veo Fast is intentionally not exposed — Standard always uses Lite per cost mandate.
+ * Maps user-facing campaign provider → Veo 3.1 tier (only for Veo-backed tiers).
+ * - "veo3" → Veo Quality (Premium)
+ * - "xai"  → Veo Lite    (Standard)
+ * Cheap tier doesn't go through Veo at all — `pickRenderer` routes it directly to xAI.
  */
 function veoTierForProvider(provider: CampaignProvider): "quality" | "lite" {
   return provider === "veo3" ? "quality" : "lite";
+}
+
+/**
+ * Pick the renderer for the campaign's selected tier.
+ * Premium + Standard go Veo-first with xAI fallback. Cheap goes direct to xAI (no Veo).
+ */
+function pickClipRenderer(
+  provider: CampaignProvider,
+): (clip: CampaignClipSlot, state: CampaignState) => Promise<string> {
+  if (provider === "cheap") return renderClipViaXai;
+  return renderClipVeoFirstWithXaiFallback;
+}
+
+/**
+ * Pick the character reference image to anchor a Veo render. Veo accepts ONE reference,
+ * so for multi-character scenes we pick the first on-camera character with an approved
+ * portrait. Without this, every scene re-rolls new faces — the catalog gets ignored.
+ */
+function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): string | null {
+  for (const id of clip.characterIds || []) {
+    const character = state.characters.find((c) => c.id === id);
+    if (character?.referenceImageUrl) return character.referenceImageUrl;
+  }
+  return null;
 }
 
 async function renderClipViaVeo(
@@ -1396,12 +1435,15 @@ async function renderClipViaVeo(
   const capped = Math.min(8, state.clipLength);
   const duration = (capped === 4 ? "4" : capped === 6 ? "6" : "8") as "4" | "6" | "8";
   const tier = veoTierForProvider(state.provider);
+  // Anchor the visual to a real character portrait so faces stay consistent across the reel.
+  const referenceImageUrl = pickClipReferenceImage(clip, state);
   const result = await veoClient.generateVideoBuffer(clip.prompt, {
     durationSeconds: duration,
     resolution: "720p",
     aspectRatio: normalizeVeoAspect(state.aspectRatio),
     negativePrompt: NEGATIVE_TEXT_PROMPT,
     tier,
+    referenceImageUrl,
   });
   const url = await uploadToS3(
     `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
@@ -1440,10 +1482,12 @@ async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
-  // Grok Imagine Video supports 1–15s, but Veo (our primary) caps at 8s — so even when
-  // we fall back to xAI we clamp to 8s so the final concat mixes clean (uniform clip
-  // lengths feel like one film instead of a jarring mix of 8s and 15s).
-  const duration = Math.min(8, Math.max(1, state.clipLength));
+  // Grok Imagine Video supports 1–15s. When xAI is the user's chosen "cheap" tier we
+  // use the full 15s window (fewer scenes, more dialogue per scene). When xAI is the
+  // FALLBACK for a Veo render that failed, the campaign's clipLength is already 8s
+  // so the final concat stays uniform with the rest of the reel.
+  const cap = state.provider === "cheap" ? 15 : 8;
+  const duration = Math.min(cap, Math.max(1, state.clipLength));
   const result = await grokVideoClient.generateVideo(clip.prompt, {
     duration,
     aspectRatio: normalizeXaiAspect(state.aspectRatio),
@@ -2591,7 +2635,8 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   });
 
   const clips = [...state.clips];
-  const renderOne = renderClipVeoFirstWithXaiFallback;
+  // Tier dispatch: Premium/Standard → Veo-first with xAI fallback. Cheap → xAI direct.
+  const renderOne = pickClipRenderer(state.provider);
 
   // Parallel-ish but capped to avoid quota burst
   const CONCURRENCY = 3;
@@ -3155,9 +3200,14 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   let musicCredits = 0;
 
   if (state.style === "narrated") {
-    // Narrated reels: exactly ONE 8s hook video (Veo-first, xAI fallback), rest are still images.
-    // Premium narrated → Veo Quality hook; Standard narrated → Veo Lite hook.
-    videoCredits = state.provider === "veo3" ? C.AI_VIDEO_STUDIO : C.AI_VIDEO_LITE;
+    // Narrated reels: exactly ONE hook video (8s for Veo tiers, 15s for Cheap),
+    // rest are still images. Premium=Veo Quality, Standard=Veo Lite, Cheap=xAI.
+    videoCredits =
+      state.provider === "veo3"
+        ? C.AI_VIDEO_STUDIO
+        : state.provider === "cheap"
+          ? C.AI_VIDEO_CHEAP
+          : C.AI_VIDEO_LITE;
     imageCredits = Math.max(0, clipCount - 1) * C.AI_STORY_CAMPAIGN_SCENE_IMAGE; // (N-1) stills
 
     // Voice: one narrator line per scene + sum of all dialogue lines
@@ -3187,13 +3237,16 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
     const musicCueCount = state.musicCues?.length ?? (state.clips.length ? 0 : 2);
     musicCredits = musicCueCount * C.AI_STORY_CAMPAIGN_MUSIC_CLIP;
   } else {
-    // 3D / cinematic: every clip is a real video, rendered Veo-first with xAI as fallback.
-    //   - Premium (provider="veo3")  → Veo Quality at AI_VIDEO_STUDIO (60 credits per 8s clip)
-    //   - Standard (provider="xai")  → Veo Lite    at AI_VIDEO_LITE  (30 credits per 8s clip)
-    // The legacy "xai" enum value now means "Standard tier" — kept for back-compat with
-    // existing campaign rows. xAI Imagine Video runs only on Veo failure (no extra charge —
-    // the fallback eats the cost since it's an internal recovery).
-    const perClip = state.provider === "veo3" ? C.AI_VIDEO_STUDIO : C.AI_VIDEO_LITE;
+    // 3D / cinematic: every clip is a real video. Three tiers:
+    //   - Premium  (veo3)  → Veo Quality @ 60 credits / 8s clip
+    //   - Standard (xai)   → Veo Lite    @ 30 credits / 8s clip  (xAI fallback on Veo failure)
+    //   - Cheap    (cheap) → xAI direct  @ 25 credits / 15s clip — fewer scenes, more dialogue
+    const perClip =
+      state.provider === "veo3"
+        ? C.AI_VIDEO_STUDIO
+        : state.provider === "cheap"
+          ? C.AI_VIDEO_CHEAP
+          : C.AI_VIDEO_LITE;
     videoCredits = clipCount * perClip;
     // Dialogue TTS per line (cinematic + 3D still use the per-line voice preview)
     let lineCount = 0;
@@ -3212,7 +3265,9 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
       ? "Narrated long-form (image-driven)"
       : state.provider === "veo3"
         ? "Premium quality"
-        : "Standard quality";
+        : state.provider === "cheap"
+          ? "Cheap (15s/clip)"
+          : "Standard quality";
 
   return { total, videoCredits, imageCredits, voiceCredits, sfxCredits, musicCredits, captionCredits, qualityLabel };
 }

@@ -44,11 +44,9 @@ type Phase = "STYLE" | "CHARACTERS" | "NARRATION" | "SCENES" | "PROMPTS" | "VOIC
 type Style = "3d" | "cinematic" | "narrated";
 type ClipLen = 8 | 10 | 12 | 15;
 
-// Both tiers now render via Veo 3.1 (Quality for Premium, Lite for Standard), whose
-// /generate-preview endpoint caps clips at 8s. xAI is fallback-only and inherits the
-// same 8s cap so the final reel mixes cleanly. Older campaigns with longer clipLength
-// values are clamped at render time.
-const PROVIDER_MAX_CLIP_LEN: Record<Provider, number> = { veo3: 8, xai: 8 };
+// Per-tier clip-length caps. Premium + Standard render via Veo (8s max). Cheap uses
+// xAI Imagine directly at its native 15s window — fewer scenes, more dialogue per scene.
+const PROVIDER_MAX_CLIP_LEN: Record<Provider, number> = { veo3: 8, xai: 8, cheap: 15 };
 
 const STYLE_DURATION_CAP: Record<Style, number> = { "3d": 180, cinematic: 180, narrated: 600 };
 function clipLengthOptionsFor(provider: Provider): ClipLen[] {
@@ -57,20 +55,24 @@ function clipLengthOptionsFor(provider: Provider): ClipLen[] {
 }
 type Duration = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
 type Aspect = "9:16" | "1:1" | "16:9";
-type Provider = "veo3" | "xai";
+type Provider = "veo3" | "xai" | "cheap";
 
 /**
- * User-facing labels for the render quality tier.
+ * User-facing labels for the three render tiers.
  * Per the platform-wide media-provider rule, the UI never shows raw provider names.
- * Both tiers render via Veo 3.1 (Quality vs Lite). xAI is an internal fallback only.
+ * - Premium  → Veo 3.1 Quality
+ * - Standard → Veo 3.1 Lite (xAI fallback on Veo failure)
+ * - Cheap    → xAI Imagine direct (15s clips, lower fidelity)
  */
 const PROVIDER_TIER_LABEL: Record<Provider, string> = {
   veo3: "Premium",
   xai: "Standard",
+  cheap: "Cheap",
 };
 const PROVIDER_TIER_DESCRIPTION: Record<Provider, string> = {
   veo3: "Top-tier cinematic quality, 8s clips, native audio.",
   xai: "Great quality at a lower cost, 8s clips, native audio.",
+  cheap: "Fastest + cheapest, 15s clips — fewer scenes, more dialogue per scene. Lower visual fidelity.",
 };
 
 type Act = "HOOK" | "PROBLEM" | "DISCOVERY" | "TRANSFORM" | "RESOLUTION" | "CTA";
@@ -978,11 +980,13 @@ function StyleStage({
               options={[
                 { value: "veo3", label: PROVIDER_TIER_LABEL.veo3 },
                 { value: "xai", label: PROVIDER_TIER_LABEL.xai },
+                { value: "cheap", label: PROVIDER_TIER_LABEL.cheap },
               ]}
               onChange={(value) =>
                 setDraft((prev) => {
                   const nextProvider = value as Provider;
-                  // Auto-lock clip length to the provider's max so we use the longest call possible.
+                  // Auto-lock clip length to the provider's max so we use the longest call
+                  // possible (Premium/Standard = 8s, Cheap = 15s).
                   return {
                     ...prev,
                     provider: nextProvider,

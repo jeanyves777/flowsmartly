@@ -96,7 +96,8 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- AI Video Studio ---
   AI_VIDEO_STUDIO: 60,    // Veo 3.1 Quality per 8s clip (~$0.35 Google cost) — Premium tier
   AI_VIDEO_LITE: 30,      // Veo 3.1 Lite per 8s clip (~$0.30 Google cost) — Standard tier
-  AI_VIDEO_SLIDESHOW: 100, // Legacy xAI ad video generation, billed per 10 seconds (fallback only)
+  AI_VIDEO_CHEAP: 25,     // xAI Imagine direct per 15s clip (~$0.75–$1.05 raw at 720p) — Cheap tier
+  AI_VIDEO_SLIDESHOW: 100, // Legacy xAI per 10s — used only for Veo-fallback bookkeeping now
 
   // --- Story Ad Campaign (cinematic short film pipeline) ---
   AI_STORY_CAMPAIGN_CATALOG: 8,        // Story outline + 3 characters (structured AI text)
@@ -208,6 +209,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_VIDEO: "FlowAI video generation",
   AI_VIDEO_STUDIO: "AI video Premium (Veo Quality)",
   AI_VIDEO_LITE: "AI video Standard (Veo Lite)",
+  AI_VIDEO_CHEAP: "AI video Cheap (xAI Imagine, 15s)",
   AI_VIDEO_SLIDESHOW: "AI video fallback (legacy)",
   AI_MARKETING_IMAGE: "AI marketing image generation",
   AI_BG_REMOVE: "AI background removal",

@@ -24,6 +24,10 @@ export type CampaignClipLength = 8 | 10 | 12 | 15;
 export const PROVIDER_CLIP_LENGTH_CAPS: Record<CampaignProvider, number> = {
   veo3: 8,
   xai: 8,
+  // Cheap tier uses xAI Imagine's full 15s window — fewer scenes overall for the same
+  // total duration, more dialogue per scene. The reel is uniform-length internally
+  // (all clips are 15s) so concat still mixes cleanly.
+  cheap: 15,
 };
 
 /** UI options gated by the provider cap. */
@@ -44,7 +48,15 @@ export const STYLE_DURATION_CAP: Record<"3d" | "cinematic" | "narrated", Campaig
 
 export type CampaignAspectRatio = "9:16" | "1:1" | "16:9";
 
-export type CampaignProvider = "veo3" | "xai";
+/**
+ * Render tier the user selects:
+ * - "veo3"  → Premium (Veo 3.1 Quality — best fidelity, most expensive)
+ * - "xai"   → Standard (Veo 3.1 Lite — great quality at lower cost; xAI fallback on failure)
+ *             The enum value stays "xai" for back-compat with existing campaign rows;
+ *             the internal renderer maps it to Veo Lite.
+ * - "cheap" → Cheap (xAI Imagine Video direct — fastest + cheapest, lower fidelity)
+ */
+export type CampaignProvider = "veo3" | "xai" | "cheap";
 
 export type ActPosition =
   | "HOOK"
