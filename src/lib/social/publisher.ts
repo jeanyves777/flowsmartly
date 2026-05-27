@@ -248,21 +248,43 @@ async function publishToFacebook(
     }
 
     if (isVideo) {
-      const res = await fetch(
-        `https://graph.facebook.com/v21.0/${pageId}/videos`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            file_url: post.mediaUrls[0],
-            description: post.caption || "",
-            access_token: token,
-          }),
+      // Facebook /videos with file_url is flaky for larger videos — they intermittently
+      // return error code 1 "Please reduce the amount of data you're asking for".
+      // Retry up to 3 times with backoff before giving up. Cap description at 5000 chars
+      // (FB's documented limit; over-long captions can also trigger the same error).
+      const description = (post.caption || "").slice(0, 5000);
+      const videoUrl = post.mediaUrls[0];
+
+      const FB_VIDEO_ATTEMPTS = 3;
+      const backoffs = [3000, 8000]; // ms between attempts
+      let lastError = "Facebook video upload failed";
+
+      for (let attempt = 1; attempt <= FB_VIDEO_ATTEMPTS; attempt++) {
+        const res = await fetch(
+          `https://graph.facebook.com/v21.0/${pageId}/videos`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              file_url: videoUrl,
+              description,
+              access_token: token,
+            }),
+          }
+        );
+        const data = await res.json();
+        if (!data.error) return { success: true, postId: data.id };
+
+        lastError = data.error.message || lastError;
+        const transient = /reduce the amount of data|temporarily unavailable|please try again/i.test(lastError);
+        if (!transient || attempt === FB_VIDEO_ATTEMPTS) {
+          // Permanent failure or out of retries — bail.
+          return { success: false, error: lastError };
         }
-      );
-      const data = await res.json();
-      if (data.error) return { success: false, error: data.error.message };
-      return { success: true, postId: data.id };
+        // Transient — wait and retry.
+        await new Promise((r) => setTimeout(r, backoffs[attempt - 1]));
+      }
+      return { success: false, error: lastError };
     }
 
     if (post.mediaUrls.length === 1) {
@@ -1007,8 +1029,40 @@ async function publishToPinterest(
     return { success: false, error: "Pinterest requires an image" };
   }
 
+  // Pinterest doesn't support video URL pins natively — they expect images. If the user
+  // posted a video, fail fast so the toast says something useful instead of opaque API noise.
+  if (post.mediaType === "video" || post.mediaUrls.some((u) => isVideoUrl(u))) {
+    return {
+      success: false,
+      error: "Pinterest only accepts image pins from this integration. Post the video to YouTube or Facebook instead.",
+    };
+  }
+
   try {
-    // Create a pin (image only — Pinterest doesn't support text-only pins)
+    // Fetch the user's first board so the pin actually lands somewhere visible.
+    // Without board_id Pinterest used to default to a default board but newer API
+    // versions reject the call with a permissions error if scope/board context is missing.
+    const boardsRes = await fetch("https://api.pinterest.com/v5/boards?page_size=10", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const boardsData = await boardsRes.json().catch(() => ({}));
+    if (boardsRes.status === 401 || boardsRes.status === 403) {
+      return {
+        success: false,
+        error:
+          "Pinterest token doesn't have permission to list boards. Reconnect the Pinterest account so it picks up the latest scopes (boards:read + boards:write).",
+      };
+    }
+    const boards = Array.isArray(boardsData?.items) ? boardsData.items : [];
+    if (!boards.length) {
+      return {
+        success: false,
+        error:
+          "No Pinterest board found on your account. Create at least one board on Pinterest, then retry.",
+      };
+    }
+    const boardId: string = boards[0].id;
+
     const res = await fetch("https://api.pinterest.com/v5/pins", {
       method: "POST",
       headers: {
@@ -1016,8 +1070,9 @@ async function publishToPinterest(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        board_id: boardId,
         title: (post.caption || "").split("\n")[0].slice(0, 100) || "Pin",
-        description: post.caption || "",
+        description: (post.caption || "").slice(0, 800),
         media_source: {
           source_type: "image_url",
           url: post.mediaUrls[0],
@@ -1026,8 +1081,10 @@ async function publishToPinterest(
     });
 
     const data = await res.json();
-    if (data.code || data.message) {
-      return { success: false, error: data.message || "Pinterest pin creation failed" };
+    if (!res.ok || data.code || data.message) {
+      // Pinterest packages permission errors as { code, message } even with a 2xx body
+      // in some versions — surface whatever they gave us.
+      return { success: false, error: data.message || `Pinterest pin failed (HTTP ${res.status})` };
     }
     return { success: true, postId: data.id };
   } catch (err: any) {

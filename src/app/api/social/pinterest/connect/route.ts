@@ -19,9 +19,12 @@ export async function GET(request: NextRequest) {
     // CSRF protection
     const state = `${session.userId}:${crypto.randomBytes(16).toString("hex")}`;
 
-    // Pinterest OAuth 2.0 scopes
+    // Pinterest OAuth 2.0 scopes. boards:write is required because POST /v5/pins
+    // implicitly writes to a board (the user's default board if no board_id is given) —
+    // without it Pinterest rejects every pin with "Missing: ['boards:write']".
     const scopes = [
       "boards:read",
+      "boards:write",
       "pins:read",
       "pins:write",
       "user_accounts:read",
