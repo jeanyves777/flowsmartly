@@ -38,7 +38,8 @@ export function clipLengthOptionsForProvider(provider: CampaignProvider): Campai
 }
 
 // Extended for narrated style (up to 10 min). Video styles are capped at 180s in the UI.
-export type CampaignDurationSeconds = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
+// 30s is the floor — useful for short-form catch-phrase reels and TikTok-style hooks.
+export type CampaignDurationSeconds = 30 | 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
 
 export const STYLE_DURATION_CAP: Record<"3d" | "cinematic" | "narrated", CampaignDurationSeconds> = {
   "3d": 180,

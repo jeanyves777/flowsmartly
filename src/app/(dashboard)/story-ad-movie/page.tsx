@@ -56,7 +56,7 @@ function clipLengthOptionsFor(provider: Provider): ClipLen[] {
   const cap = PROVIDER_MAX_CLIP_LEN[provider];
   return ([8, 10, 12, 15] as ClipLen[]).filter((v) => v <= cap);
 }
-type Duration = 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
+type Duration = 30 | 60 | 90 | 120 | 150 | 180 | 240 | 300 | 420 | 600;
 type Aspect = "9:16" | "1:1" | "16:9";
 type Provider = "veo3" | "xai" | "cheap";
 
@@ -253,6 +253,7 @@ const ACT_OPTIONS: Act[] = ["HOOK", "PROBLEM", "DISCOVERY", "TRANSFORM", "RESOLU
 
 // Duration values include up to 10 min for narrated style (video styles capped at 180s in the cards below)
 const DURATION_OPTIONS: { value: Duration; label: string }[] = [
+  { value: 30, label: "30s" },
   { value: 60, label: "1 min" },
   { value: 90, label: "1m 30s" },
   { value: 120, label: "2 min" },
@@ -945,18 +946,33 @@ function StyleStage({
       </SectionCard>
 
       <SectionCard title="Brief">
-        <Textarea
-          value={draft.brief}
-          onChange={(event) => setDraft((prev) => ({ ...prev, brief: event.target.value }))}
-          rows={6}
-          placeholder="A premium consulting firm transforms struggling local businesses into top-ranked players in 90 days..."
-          className="resize-y"
-        />
-        <FieldGroup label="Goal">
-          <Input
-            value={draft.goal}
-            onChange={(event) => setDraft((prev) => ({ ...prev, goal: event.target.value }))}
+        <div className="relative">
+          <Textarea
+            value={draft.brief}
+            onChange={(event) => setDraft((prev) => ({ ...prev, brief: event.target.value }))}
+            rows={6}
+            placeholder="A premium consulting firm transforms struggling local businesses into top-ranked players in 90 days..."
+            className="resize-y pr-12"
           />
+          <DraftSuggestButton
+            field="brief"
+            currentValue={draft.brief}
+            onApply={(value) => setDraft((prev) => ({ ...prev, brief: value }))}
+          />
+        </div>
+        <FieldGroup label="Goal">
+          <div className="relative">
+            <Input
+              value={draft.goal}
+              onChange={(event) => setDraft((prev) => ({ ...prev, goal: event.target.value }))}
+              className="pr-12"
+            />
+            <DraftSuggestButton
+              field="goal"
+              currentValue={draft.goal}
+              onApply={(value) => setDraft((prev) => ({ ...prev, goal: value }))}
+            />
+          </div>
         </FieldGroup>
       </SectionCard>
 
@@ -2170,6 +2186,64 @@ function CharacterCard({
         )}
       </Button>
     </div>
+  );
+}
+
+/**
+ * "Give me an idea" button for Stage 0 (no campaign exists yet).
+ * Calls /api/ai/story-ad-campaign/suggest-draft with the user's brand context and
+ * a random seed so each press returns a fresh angle.
+ */
+function DraftSuggestButton({
+  field,
+  currentValue,
+  onApply,
+}: {
+  field: "brief" | "goal";
+  currentValue: string;
+  onApply: (value: string) => void;
+}) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+
+  async function suggest() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai/story-ad-campaign/suggest-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, currentValue }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "story ad idea")) return;
+        throw new Error(data.error?.message || "Suggestion failed");
+      }
+      const value = String(data.data?.value || "").trim();
+      if (!value) throw new Error("Empty suggestion");
+      onApply(value);
+      toast({ title: field === "brief" ? "New brief idea drafted" : "New goal drafted" });
+    } catch (e) {
+      toast({
+        title: "Couldn't get an idea",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={suggest}
+      disabled={loading}
+      title={field === "brief" ? "AI idea — generate a story angle" : "AI goal idea"}
+      className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-brand-500/10 text-brand-600 hover:bg-brand-500/20 disabled:opacity-50 dark:text-brand-300"
+    >
+      {loading ? <AISpinner size={12} /> : <Sparkles className="h-3.5 w-3.5" />}
+    </button>
   );
 }
 

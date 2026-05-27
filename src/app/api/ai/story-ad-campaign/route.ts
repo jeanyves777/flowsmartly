@@ -20,7 +20,7 @@ const ALLOWED_STYLES: CampaignStyle[] = ["3d", "cinematic", "narrated"];
 const ALLOWED_PROVIDERS: CampaignProvider[] = ["veo3", "xai", "cheap"];
 const ALLOWED_ASPECTS: CampaignAspectRatio[] = ["9:16", "1:1", "16:9"];
 const ALLOWED_CLIP_LENGTHS: CampaignClipLength[] = [8, 10, 12, 15];
-const ALLOWED_DURATIONS: CampaignDurationSeconds[] = [60, 90, 120, 150, 180, 240, 300, 420, 600];
+const ALLOWED_DURATIONS: CampaignDurationSeconds[] = [30, 60, 90, 120, 150, 180, 240, 300, 420, 600];
 const ALLOWED_NARRATED_SUB_STYLES: ("3d" | "cinematic")[] = ["3d", "cinematic"];
 
 function pick<T>(value: unknown, allowed: T[], fallback: T): T {

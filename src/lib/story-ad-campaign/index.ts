@@ -686,6 +686,53 @@ Return strict JSON only:
   return String(result?.value || "").trim().slice(0, 700);
 }
 
+/**
+ * Pre-creation "give me an idea" suggester. Works at Stage 0 when no campaign exists
+ * yet — generates fresh, on-brand ideas for the Brief or Goal field using only the
+ * user's BrandKit + an optional current value as the seed.
+ *
+ * Each call uses a random seed (nanoid + timestamp) injected into the prompt so the
+ * model doesn't lock into one of its memorized defaults.
+ */
+export async function suggestDraftField(input: {
+  field: "brief" | "goal";
+  brand: BrandSnapshot;
+  currentValue?: string;
+  hint?: string;
+}): Promise<string> {
+  const seed = `${nanoid(4).toUpperCase()}-${Date.now() % 100000}`;
+  const fieldDescriptor =
+    input.field === "brief"
+      ? `A CATCHY STORY IDEA the ad will dramatize. 2–4 vivid sentences. Describe a real human moment that connects to ${input.brand.name}'s offer WITHOUT sounding like a pitch. Open on the scene, not on the product. Make it feel like the opening of a short film — surprising, emotional, specific. Pick something different from typical "before/after transformation" tropes.`
+      : `A short campaign GOAL — one sentence on what we want viewers to FEEL when the reel ends. Something like "Build envy", "Show possibility", "Land a quiet truth". Not "drive sign-ups" or "boost sales" — that's the campaign metric, not the goal.`;
+
+  const prompt = `You are writing a fresh, catchy idea for an ad campaign.
+
+BRAND: ${input.brand.name}${input.brand.tagline ? ` — ${input.brand.tagline}` : ""}
+${input.brand.industry ? `INDUSTRY: ${input.brand.industry}` : ""}
+${input.brand.uniqueValue ? `UNIQUE VALUE: ${input.brand.uniqueValue}` : ""}
+${input.brand.targetAudience ? `AUDIENCE: ${input.brand.targetAudience}` : ""}
+${input.brand.voiceTone ? `VOICE: ${input.brand.voiceTone}` : ""}
+${input.currentValue ? `\nCURRENT VALUE (improve or replace — feel free to pivot completely):\n"""\n${input.currentValue}\n"""` : ""}
+${input.hint ? `\nUSER HINT: ${input.hint}` : ""}
+
+RANDOMNESS SEED (so you don't repeat your defaults — vary the idea per request): ${seed}
+
+WRITE THE FIELD: ${fieldDescriptor}
+
+Return strict JSON only:
+{ "value": "the field text" }`;
+
+  const result = await ai.generateJSON<{ value: string }>(prompt, {
+    maxTokens: 500,
+    temperature: 0.95,
+    systemPrompt:
+      "You are a short-form video creative director. Generate fresh, original ideas that AVOID generic ad-speak. Each output should feel unique — don't repeat phrasing across requests. Return valid JSON only.",
+  });
+
+  return String(result?.value || "").trim().slice(0, 1200);
+}
+
 // =============================================================
 // Stage 2 — Scene grid (act assignment, shot, camera, voiceover)
 // =============================================================
