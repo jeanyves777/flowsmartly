@@ -325,6 +325,12 @@ function PageBody() {
       platforms: ["instagram", "tiktok"],
       // Narrated sub-style (only used when style="narrated") — visual look of the stills
       narratedSubStyle: "cinematic" as "3d" | "cinematic",
+      // Narrated full-animation: every scene becomes a real Veo Lite no-audio video clip
+      // instead of stills + Ken Burns. Off by default — opt-in for the higher cost.
+      fullAnimation: false,
+      // Batch mode: route renders through Vertex Batch API for ~50% off. Trade-off is
+      // a ~24h turnaround vs minutes. Off by default for the interactive flow.
+      batchMode: false,
     };
     if (typeof window === "undefined") return base;
     try {
@@ -859,6 +865,8 @@ function StyleStage({
     platforms: string[];
     provider: Provider;
     narratedSubStyle: "3d" | "cinematic";
+    fullAnimation: boolean;
+    batchMode: boolean;
   };
   setDraft: (
     fn:
@@ -1009,6 +1017,36 @@ function StyleStage({
         </FieldGroup>
       </SectionCard>
 
+      {/* Optional render-tier toggles.
+          - Full animation (narrated only) → every scene is a Veo Lite no-audio video clip.
+          - Save 50% / batch mode → routes the render through the Vertex Batch API. Slower (~24h)
+            but half the per-clip cost. Both default off. */}
+      <SectionCard
+        title="Render options"
+        description="Tweak how the render runs. Each toggle changes the cost and turnaround time."
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          {draft.style === "narrated" && (
+            <ToggleCard
+              active={draft.fullAnimation}
+              onToggle={() =>
+                setDraft((prev) => ({ ...prev, fullAnimation: !prev.fullAnimation }))
+              }
+              title="Full animation"
+              tagline="Every scene is a real video clip"
+              description="Renders every narrated scene as a Veo Lite no-audio video (~$0.24 per 8s). Audio still composes separately. Off = stills with Ken Burns motion (much cheaper)."
+            />
+          )}
+          <ToggleCard
+            active={draft.batchMode}
+            onToggle={() => setDraft((prev) => ({ ...prev, batchMode: !prev.batchMode }))}
+            title="Save 50% · batch mode"
+            tagline="Half price · ~24h turnaround"
+            description="Defers your render to the batch queue and discounts every video call by 50%. Results land within 24 hours instead of minutes. Pick this for scheduled / overnight renders, not for ‘ship right now’."
+          />
+        </div>
+      </SectionCard>
+
       {/* Stage 0 cost preview — shown once style is picked so the user knows the full
           credit cost (with 2% buffer) before committing to creating the campaign row. */}
       {draft.style && (
@@ -1019,6 +1057,8 @@ function StyleStage({
           provider={draft.provider}
           clipLength={draft.clipLength}
           narratedSubStyle={draft.narratedSubStyle}
+          fullAnimation={draft.fullAnimation}
+          batchMode={draft.batchMode}
         />
       )}
 
@@ -1050,6 +1090,8 @@ function DraftCostPreview({
   provider,
   clipLength,
   narratedSubStyle,
+  fullAnimation,
+  batchMode,
 }: {
   style: Style;
   durationSeconds: Duration;
@@ -1057,6 +1099,8 @@ function DraftCostPreview({
   provider: Provider;
   clipLength: ClipLen;
   narratedSubStyle?: "3d" | "cinematic";
+  fullAnimation?: boolean;
+  batchMode?: boolean;
 }) {
   interface DraftCostResp {
     total: number;
@@ -1083,6 +1127,8 @@ function DraftCostPreview({
             provider,
             clipLength,
             narratedSubStyle,
+            fullAnimation,
+            batchMode,
           }),
         });
         const data = await res.json();
@@ -1095,7 +1141,7 @@ function DraftCostPreview({
     }
     fetchCost();
     return () => { cancelled = true; };
-  }, [style, durationSeconds, aspectRatio, provider, clipLength, narratedSubStyle]);
+  }, [style, durationSeconds, aspectRatio, provider, clipLength, narratedSubStyle, fullAnimation, batchMode]);
 
   if (!cost && !loading) return null;
 
@@ -1214,6 +1260,58 @@ function StyleCard({
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{tagline}</p>
       </div>
       <p className="text-sm text-muted-foreground">{description}</p>
+    </button>
+  );
+}
+
+/**
+ * Generic on/off card used by Stage 0 render-option toggles (Full animation, Batch mode).
+ * Visual is identical to StyleCard so the page feels consistent; the only difference is
+ * the click behavior toggles boolean state rather than selecting a single option.
+ */
+function ToggleCard({
+  active,
+  onToggle,
+  title,
+  tagline,
+  description,
+  disabled,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  title: string;
+  tagline: string;
+  description: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={active}
+      disabled={disabled}
+      className={cn(
+        "group flex flex-col gap-2 rounded-xl border p-4 text-left shadow-sm transition-colors",
+        active ? "border-brand-500 bg-brand-500/5" : "border-border bg-background",
+        disabled ? "cursor-not-allowed opacity-60" : "hover:border-brand-500",
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold">{title}</h3>
+        <Badge
+          className={cn(
+            disabled
+              ? "bg-muted text-muted-foreground"
+              : active
+                ? "bg-brand-500 text-white"
+                : "bg-muted text-muted-foreground",
+          )}
+        >
+          {disabled ? "Soon" : active ? "On" : "Off"}
+        </Badge>
+      </div>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{tagline}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
     </button>
   );
 }
@@ -3052,6 +3150,14 @@ function ProduceStage({
               <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
                 <CheckCircle2 className="mr-1 h-3 w-3" /> Reel ready
               </Badge>
+            ) : campaign.status === "BATCH_QUEUED" ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-amber-500" />
+                <span>
+                  Queued for batch render · results within ~24h. You can leave this page —
+                  we'll keep going.
+                </span>
+              </div>
             ) : isRendering ? (
               <div className="flex items-center gap-2 text-sm">
                 <AISpinner size={14} />

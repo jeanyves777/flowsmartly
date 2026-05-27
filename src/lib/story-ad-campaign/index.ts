@@ -1056,10 +1056,17 @@ Return strict JSON with exactly ${sceneCount} scenes AND the optional music plan
   const raw = Array.isArray(result?.clips) ? result.clips : [];
   const trimmed = raw.slice(0, sceneCount);
 
+  // Pick mediaType for every narrated scene:
+  // - fullAnimation=true  → every scene is "video" (Veo Lite no-audio, ~$0.24 / 8s clip)
+  // - fullAnimation=false → every scene is "image" (still + Ken Burns, no video gen at all)
+  // The legacy "1 xAI hook + stills" pattern is gone — Veo Lite is now cheap enough that
+  // a real all-video reel is viable, and stills-only is even cheaper when the user doesn't
+  // need the motion.
+  const fullAnim = state.fullAnimation === true;
+  const narratedMediaType: ClipMediaType = fullAnim ? "video" : "image";
+
   const clips: CampaignClipSlot[] = trimmed.map((c, index) => {
-    // Hard constraint: scene 0 is the video hook; all others are images. Ignore the planner if it
-    // tries to put video anywhere else — too expensive and breaks the cost model.
-    const mediaType: ClipMediaType = index === 0 ? "video" : "image";
+    const mediaType: ClipMediaType = narratedMediaType;
     const slot: CampaignClipSlot = {
       id: nanoid(8),
       index: index + 1,
@@ -1088,7 +1095,7 @@ Return strict JSON with exactly ${sceneCount} scenes AND the optional music plan
 
   while (clips.length < sceneCount) {
     const index = clips.length + 1;
-    const mediaType: ClipMediaType = index === 1 ? "video" : "image";
+    const mediaType: ClipMediaType = narratedMediaType;
     const slot: CampaignClipSlot = {
       id: nanoid(8),
       index,
@@ -1478,6 +1485,36 @@ function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): s
   return list[0] || null;
 }
 
+/**
+ * Render one narrated-style video scene via Veo Lite, audio disabled.
+ *
+ * Used by full-animation narrated reels where every scene is a real animated clip.
+ * Audio (narrator + dialogue + SFX + music) is composed separately by ffmpeg, so we
+ * strip Veo's native audio to drop the per-second price from $0.05 → $0.03 (~40% off).
+ */
+async function renderNarratedVideoScene(
+  clip: CampaignClipSlot,
+  state: CampaignState,
+): Promise<string> {
+  const duration = "8" as const;
+  const characterReferenceUrls = collectClipReferenceImages(clip, state);
+  const result = await veoClient.generateVideoBuffer(clip.prompt, {
+    durationSeconds: duration,
+    resolution: "720p",
+    aspectRatio: normalizeVeoAspect(state.aspectRatio),
+    negativePrompt: NEGATIVE_TEXT_PROMPT,
+    tier: "lite",
+    characterReferenceUrls,
+    disableAudio: true,
+  });
+  const url = await uploadToS3(
+    `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
+    result.videoBuffer,
+    "video/mp4",
+  );
+  return url;
+}
+
 async function renderClipViaVeo(
   clip: CampaignClipSlot,
   state: CampaignState,
@@ -1643,9 +1680,10 @@ async function renderNarratedStory(input: {
       await persistClipsProgress(campaignId, clips, completed, total);
       try {
         if (clip.mediaType === "video") {
-          // Narrated hook video: render with Veo (tier follows the campaign's provider) first,
-          // falling back to xAI only if Veo fails. 8s is Veo's max for /generate-preview.
-          const url = await renderClipVeoFirstWithXaiFallback(clip, { ...state, clipLength: 8 });
+          // Narrated video scene: ALWAYS Veo Lite, audio disabled. Drops to ~$0.03/sec.
+          // Audio is mixed separately downstream (narrator + dialogue + SFX + music).
+          // This replaces the legacy "1 xAI hook + stills" pattern.
+          const url = await renderNarratedVideoScene(clip, { ...state, clipLength: 8 });
           clips[i] = { ...clips[i], status: "READY", videoUrl: url, error: null };
         } else {
           const url = await generateNarratedSceneImage(clip, state, brand);
@@ -2691,6 +2729,63 @@ export async function retrySingleClip(input: {
   }
 }
 
+/**
+ * Cron-driven batch worker. Picks up campaigns in status "BATCH_QUEUED" and runs them
+ * through the normal render pipeline. Called by /api/cron/story-ad-batch-poll every 5 min.
+ *
+ * We process one campaign per tick to keep provider load smooth. Lazily promoting each
+ * one out of BATCH_QUEUED before rendering means a second concurrent tick won't pick the
+ * same campaign up.
+ */
+export async function processQueuedBatchCampaigns(opts: { maxPerTick?: number } = {}): Promise<{ processed: number; promotedIds: string[] }> {
+  const limit = Math.max(1, Math.min(5, opts.maxPerTick ?? 1));
+  const promotedIds: string[] = [];
+
+  for (let i = 0; i < limit; i++) {
+    // Fetch + atomic-promote the oldest queued campaign so concurrent cron ticks
+    // don't race on the same row.
+    const queued = await prisma.cartoonVideo.findFirst({
+      where: { animationType: ANIMATION_TYPE, status: "BATCH_QUEUED" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, userId: true },
+    });
+    if (!queued) break;
+
+    // Flip the flag IMMEDIATELY so a parallel cron run skips this row.
+    const claim = await prisma.cartoonVideo.updateMany({
+      where: { id: queued.id, status: "BATCH_QUEUED" },
+      data: { status: "COMPOSITING", currentStep: "Batch worker picking up the render..." },
+    });
+    if (claim.count === 0) continue; // another tick already grabbed it
+
+    promotedIds.push(queued.id);
+
+    // Reset state.batchMode to false on the in-flight render so batchRenderCampaign
+    // does NOT re-queue it — we explicitly want the sync render path now.
+    const current = await getCampaign(queued.id, queued.userId);
+    if (!current) continue;
+    const syncState: CampaignState = { ...current.state, batchMode: false };
+    await updateCampaignState(queued.id, queued.userId, { batchMode: false } as Partial<CampaignState>);
+
+    try {
+      // Reuse the existing render dispatcher in sync mode.
+      await batchRenderCampaign({ campaignId: queued.id, userId: queued.userId });
+    } catch (error) {
+      console.error(`[StoryAdCampaign] batch worker failed for ${queued.id}:`, error);
+      await prisma.cartoonVideo.update({
+        where: { id: queued.id },
+        data: {
+          status: "FAILED",
+          currentStep: "Batch render failed — review and retry.",
+        },
+      });
+    }
+    void syncState; // silence unused warning; we already persisted batchMode via updateCampaignState
+  }
+
+  return { processed: promotedIds.length, promotedIds };
+}
+
 export async function batchRenderCampaign(input: { campaignId: string; userId: string }): Promise<void> {
   const current = await getCampaign(input.campaignId, input.userId);
   if (!current) throw new Error("Campaign not found");
@@ -2703,6 +2798,25 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   }
   if (state.provider === "xai" && !grokVideoClient.isAvailable()) {
     throw new Error("xAI video is not configured. Switch to Veo 3.");
+  }
+
+  // Batch mode: defer the actual render to the cron-driven batch worker. We persist
+  // BATCH_QUEUED status + return immediately; /api/cron/story-ad-batch-poll picks the
+  // campaign up later and runs it through the normal pipeline. Users pay the discounted
+  // batch price (already applied in estimateCampaignRenderCost).
+  // TODO: swap the deferred-cron approach for native Vertex AI Batch Prediction once
+  // a service-account credential is configured. The user-facing UX stays the same.
+  if (state.batchMode) {
+    await prisma.cartoonVideo.update({
+      where: { id: row.id },
+      data: {
+        status: "BATCH_QUEUED",
+        progress: 0,
+        currentStep:
+          "Queued for batch render — results land within 24h. You can leave this page.",
+      },
+    });
+    return;
   }
 
   // Narrated style has its own pipeline: image gen + narrator TTS + ffmpeg compose.
@@ -3381,15 +3495,17 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   let musicCredits = 0;
 
   if (state.style === "narrated") {
-    // Narrated reels: exactly ONE hook video (8s for Veo tiers, 15s for Cheap),
-    // rest are still images. Premium=Veo Quality, Standard=Veo Lite, Cheap=xAI.
-    videoCredits =
-      state.provider === "veo3"
-        ? C.AI_VIDEO_STUDIO
-        : state.provider === "cheap"
-          ? C.AI_VIDEO_CHEAP
-          : C.AI_VIDEO_LITE;
-    imageCredits = Math.max(0, clipCount - 1) * C.AI_STORY_CAMPAIGN_SCENE_IMAGE; // (N-1) stills
+    // Narrated reels — two layouts:
+    //   fullAnimation=true  → EVERY scene is a Veo Lite no-audio video clip (~$0.24 / 8s)
+    //   fullAnimation=false → EVERY scene is a still image with Ken Burns motion (no video gen)
+    // The legacy "1 xAI hook + stills" pattern is gone.
+    if (state.fullAnimation) {
+      videoCredits = clipCount * C.AI_VIDEO_LITE_NO_AUDIO;
+      imageCredits = 0;
+    } else {
+      videoCredits = 0;
+      imageCredits = clipCount * C.AI_STORY_CAMPAIGN_SCENE_IMAGE;
+    }
 
     // Voice: one narrator line per scene + sum of all dialogue lines
     let narratorLineCount = 0;
@@ -3439,20 +3555,36 @@ export function estimateCampaignRenderCost(state: CampaignState): CampaignRender
   }
 
   const captionCredits = C.AI_STORY_CAMPAIGN_CAPTION;
-  const subtotal = videoCredits + imageCredits + voiceCredits + sfxCredits + musicCredits + captionCredits;
+  let subtotal = videoCredits + imageCredits + voiceCredits + sfxCredits + musicCredits + captionCredits;
+  // Batch mode: ~50% discount on video calls. Two paths:
+  //   - Interim: render is deferred to the batch worker (cron-driven, low-priority) and we
+  //     absorb the cost difference until Vertex Batch service-account auth is configured.
+  //   - Future: renderClipViaVeo will route through Vertex AI Batch Prediction API which
+  //     returns 50% off natively. Switch is transparent — the cost calc stays the same.
+  if (state.batchMode && videoCredits > 0) {
+    const batchSavings = Math.round(videoCredits * 0.5);
+    subtotal -= batchSavings;
+  }
   // +2% safety buffer so the cost preview reflects the full trip (catalog plan, scenes plan,
   // per-field AI suggestions, character preview images), not only the final render. Those
   // ancillary AI calls are charged at their own stages but the user expects ONE upfront number.
   const total = Math.ceil(subtotal * 1.02);
 
-  const qualityLabel =
-    state.style === "narrated"
-      ? "Narrated long-form (image-driven)"
-      : state.provider === "veo3"
-        ? "Premium quality"
-        : state.provider === "cheap"
-          ? "Cheap (15s/clip)"
-          : "Standard quality";
+  const qualityLabel = (() => {
+    let label: string;
+    if (state.style === "narrated") {
+      label = state.fullAnimation
+        ? "Narrated · full animation"
+        : "Narrated · illustrated stills";
+    } else if (state.provider === "veo3") {
+      label = "Premium quality";
+    } else if (state.provider === "cheap") {
+      label = "Cheap (15s/clip)";
+    } else {
+      label = "Standard quality";
+    }
+    return state.batchMode ? `${label} · batch 50% off (24h turnaround)` : label;
+  })();
 
   return { total, videoCredits, imageCredits, voiceCredits, sfxCredits, musicCredits, captionCredits, qualityLabel };
 }

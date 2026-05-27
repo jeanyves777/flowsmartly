@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
     provider?: CampaignProvider;
     clipLength?: CampaignClipLength;
     narratedSubStyle?: "3d" | "cinematic";
+    fullAnimation?: boolean;
+    batchMode?: boolean;
   };
 
   // Build a synthetic state from defaults + the bits the user actually picked.
@@ -47,6 +49,8 @@ export async function POST(request: NextRequest) {
     provider: body.provider ?? base.provider,
     clipLength: body.clipLength ?? base.clipLength,
     narratedSubStyle: body.narratedSubStyle,
+    fullAnimation: body.fullAnimation === true,
+    batchMode: body.batchMode === true,
   };
 
   // Style is required for a meaningful estimate; without it the calculator returns

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Play, CheckCircle2, XCircle, RefreshCw, Calendar, Zap, CreditCard, Heart, Globe, Mail, BarChart3, ListChecks, ShoppingBag, MessageSquare, TrendingUp } from "lucide-react";
+import { Clock, Play, CheckCircle2, XCircle, RefreshCw, Calendar, Zap, CreditCard, Heart, Globe, Mail, BarChart3, ListChecks, ShoppingBag, MessageSquare, TrendingUp, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +76,16 @@ const CRON_JOBS: CronJob[] = [
     schedule: "*/5 * * * *",
     frequency: "Every 5 minutes",
     icon: Calendar,
+    category: "content",
+  },
+  {
+    id: "story-ad-batch-poll",
+    name: "Story Ad Batch Renderer",
+    description: "Picks up Story Ad campaigns submitted with batchMode=true and runs them through the render pipeline at ~50% discount.",
+    endpoint: "/api/cron/story-ad-batch-poll",
+    schedule: "*/5 * * * *",
+    frequency: "Every 5 minutes",
+    icon: Film,
     category: "content",
   },
   {

@@ -93,9 +93,42 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_CHAT_IMAGE: 15,      // Single image gen (~$0.08)
   AI_CHAT_VIDEO: 60,      // Veo 3 single clip (~$0.35)
 
+  // --- Flow-AI Agent (tool-using Claude loop) ---
+  // Charged on top of any media costs the tools themselves consume.
+  // AGENT_MESSAGE = once per assistant turn (covers the LLM input/output
+  //   even if zero tools were called). Kept low — must not block conversation.
+  // AGENT_TOOL_CALL_BASE = baseline per tool invocation (covers logging +
+  //   the small fan-out of work most read-only tools do).
+  // The remaining AGENT_* keys override the base when a specific tool has
+  // outsized cost (scheduling = DB write + cron coordination, etc).
+  AGENT_MESSAGE: 3,                // Per agent turn (Claude Haiku tool loop)
+  AGENT_TOOL_CALL_BASE: 1,         // Default per tool call when no override
+  AGENT_SCHEDULE_POST: 5,          // Create + schedule a Post via the agent
+  AGENT_CANCEL_SCHEDULED_POST: 1,
+  AGENT_UPDATE_POST: 2,
+  AGENT_CREATE_AUTOMATION: 5,
+  AGENT_CREATE_CAMPAIGN: 5,
+  AGENT_LIST_FEATURES: 0,          // Free — introspection must never be gated
+  AGENT_SEARCH_FEATURES: 0,
+  AGENT_WHO_AM_I: 0,
+  AGENT_GET_BRAND_IDENTITY: 0,
+  AGENT_PROPOSE_PLAN: 0,           // Free — proposal is "would you like this?", not work
+  AGENT_LIST_SCHEDULED_POSTS: 0,
+  AGENT_GET_CALENDAR: 1,
+  // Tier-priced media tools. The handler picks the right key based on
+  // the `tier` argument. Premium runs the highest-quality provider chain;
+  // Standard uses the fast/cheap chain. Keep these aligned with
+  // AI_CHAT_IMAGE / AI_CHAT_VIDEO so user-facing per-action costs match
+  // the legacy mode-pill flow.
+  AGENT_GENERATE_IMAGE_STANDARD: 12,
+  AGENT_GENERATE_IMAGE_PREMIUM: 18,
+  AGENT_GENERATE_VIDEO_STANDARD: 35,
+  AGENT_GENERATE_VIDEO_PREMIUM: 65,
+
   // --- AI Video Studio ---
   AI_VIDEO_STUDIO: 60,    // Veo 3.1 Quality per 8s clip (~$0.35 Google cost) — Premium tier
   AI_VIDEO_LITE: 30,      // Veo 3.1 Lite per 8s clip (~$0.30 Google cost) — Standard tier
+  AI_VIDEO_LITE_NO_AUDIO: 18, // Veo 3.1 Lite per 8s clip, audio stripped (~$0.24 raw) — narrated full-animation
   AI_VIDEO_CHEAP: 25,     // xAI Imagine direct per 15s clip (~$0.75–$1.05 raw at 720p) — Cheap tier
   AI_VIDEO_SLIDESHOW: 100, // Legacy xAI per 10s — used only for Veo-fallback bookkeeping now
 
@@ -207,8 +240,27 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_MESSAGE: "FlowAI chat message",
   AI_CHAT_IMAGE: "FlowAI image generation",
   AI_CHAT_VIDEO: "FlowAI video generation",
+  AGENT_MESSAGE: "Flow-AI agent: assistant turn",
+  AGENT_TOOL_CALL_BASE: "Flow-AI agent: tool call",
+  AGENT_SCHEDULE_POST: "Flow-AI agent: schedule social post",
+  AGENT_CANCEL_SCHEDULED_POST: "Flow-AI agent: cancel scheduled post",
+  AGENT_UPDATE_POST: "Flow-AI agent: update post",
+  AGENT_CREATE_AUTOMATION: "Flow-AI agent: create automation",
+  AGENT_CREATE_CAMPAIGN: "Flow-AI agent: create campaign",
+  AGENT_LIST_FEATURES: "Flow-AI agent: list features",
+  AGENT_SEARCH_FEATURES: "Flow-AI agent: search features",
+  AGENT_WHO_AM_I: "Flow-AI agent: who am I",
+  AGENT_GET_BRAND_IDENTITY: "Flow-AI agent: get brand identity",
+  AGENT_PROPOSE_PLAN: "Flow-AI agent: propose plan",
+  AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
+  AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
+  AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",
+  AGENT_GENERATE_IMAGE_PREMIUM: "Flow-AI agent: generate image (Premium)",
+  AGENT_GENERATE_VIDEO_STANDARD: "Flow-AI agent: generate video (Standard)",
+  AGENT_GENERATE_VIDEO_PREMIUM: "Flow-AI agent: generate video (Premium)",
   AI_VIDEO_STUDIO: "AI video Premium (Veo Quality)",
   AI_VIDEO_LITE: "AI video Standard (Veo Lite)",
+  AI_VIDEO_LITE_NO_AUDIO: "AI video Lite no-audio (narrated full-anim)",
   AI_VIDEO_CHEAP: "AI video Cheap (xAI Imagine, 15s)",
   AI_VIDEO_SLIDESHOW: "AI video fallback (legacy)",
   AI_MARKETING_IMAGE: "AI marketing image generation",

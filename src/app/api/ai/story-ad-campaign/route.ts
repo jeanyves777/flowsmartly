@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
       : base.platforms,
     provider: pick(body.provider, ALLOWED_PROVIDERS, base.provider),
     narratedSubStyle: pick(body.narratedSubStyle, ALLOWED_NARRATED_SUB_STYLES, "cinematic" as const),
+    // New (2026-05): narrated full-animation toggle + batch-mode toggle. Both default false.
+    fullAnimation: body.fullAnimation === true,
+    batchMode: body.batchMode === true,
     phase: "CHARACTERS" as const,
   };
 

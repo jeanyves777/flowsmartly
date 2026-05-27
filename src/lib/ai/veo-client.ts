@@ -50,6 +50,12 @@ export interface VeoGenerateOptions {
   fast?: boolean;
   /** Pick a Veo 3.1 model tier. Overrides `fast` when set. */
   tier?: VeoTier;
+  /**
+   * Strip Veo's native audio so the generated clip is video-only. Drops the per-second
+   * price from $0.05/sec → $0.03/sec on Veo Lite (~40% saving). Used when the caller
+   * composes audio separately (e.g. narrated reels with TTS + SFX + music layers).
+   */
+  disableAudio?: boolean;
 }
 
 export interface VeoVideoResult {
@@ -126,6 +132,7 @@ class VeoClient {
       negativePrompt,
       fast = false,
       tier,
+      disableAudio = false,
     } = options;
 
     const resolvedTier: VeoTier = tier ?? (fast ? "fast" : "quality");
@@ -178,6 +185,13 @@ class VeoClient {
     // them as style/asset references rather than first-frame video sources.
     if (referenceImages.length) {
       config.referenceImages = referenceImages;
+    }
+
+    // Strip native audio for the cheaper Veo Lite tier (40% saving). The SDK key is
+    // `generateAudio` (boolean), per Veo 3.1 docs. Default true; we flip to false when
+    // the caller composes audio separately downstream.
+    if (disableAudio) {
+      config.generateAudio = false;
     }
 
     // Create the video generation job
