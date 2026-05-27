@@ -1532,6 +1532,33 @@ async function renderClipVeoFirstWithXaiFallback(
   }
 }
 
+/**
+ * Augment a clip prompt with xAI-specific instructions. xAI's Grok Imagine Video
+ * has NO separate "asset reference" mode — it routes everything through one unified
+ * API (prompt + first-frame image upload). To compensate, we:
+ *   1. Inject a verbal CHARACTER SHEET describing each on-camera character's face/build
+ *      in case xAI doesn't fully extract identity from the first-frame image alone.
+ *   2. Explicitly tell xAI the first-frame image is a LIKENESS reference, NOT the
+ *      starting pose — render the scene action below, don't hold the portrait pose.
+ */
+function augmentPromptForXai(clip: CampaignClipSlot, state: CampaignState, hasImage: boolean): string {
+  const onCamera = clip.characterIds
+    .map((id) => state.characters.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  const characterSheet = onCamera.length
+    ? `\n\nCHARACTER SHEET (match each person's face + body type exactly across all clips):\n${onCamera
+        .map((c) => `• ${c.name}: ${c.visualDescription}`)
+        .join("\n")}`
+    : "";
+
+  const imageNote = hasImage
+    ? `\n\nREFERENCE IMAGE: The uploaded image is a CHARACTER LIKENESS reference (face, hair, build, ethnicity). DO NOT treat it as the starting pose or freeze on its background. RENDER THE SCENE ACTION BELOW with that person's face. The character should be acting, moving, and inhabiting the scene described — not standing in a studio backdrop.`
+    : "";
+
+  return `${clip.prompt}${characterSheet}${imageNote}`;
+}
+
 async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
@@ -1543,13 +1570,14 @@ async function renderClipViaXai(
   const isCheapPrimary = state.provider === "cheap";
   const duration = isCheapPrimary ? 15 : Math.min(8, Math.max(1, state.clipLength));
 
-  // xAI's `image` parameter (image-to-video) lets us anchor the visual to a real
-  // character portrait — the only way to keep faces consistent across Cheap-tier
-  // clips since xAI has no provider-side multi-clip extension we want to use here.
-  // Same idea as the Veo referenceImageUrl pass-through.
+  // xAI's `image` parameter is its only character-anchor mechanism (it acts as the
+  // first frame of image-to-video). The augmentPromptForXai() addendum tells xAI to
+  // use that image for LIKENESS only — render the scene action instead of holding
+  // the portrait pose.
   const imageUrl = pickClipReferenceImage(clip, state) || undefined;
+  const augmentedPrompt = augmentPromptForXai(clip, state, !!imageUrl);
 
-  const result = await grokVideoClient.generateVideo(clip.prompt, {
+  const result = await grokVideoClient.generateVideo(augmentedPrompt, {
     duration,
     aspectRatio: normalizeXaiAspect(state.aspectRatio),
     resolution: "720p",
