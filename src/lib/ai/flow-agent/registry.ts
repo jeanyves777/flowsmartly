@@ -107,6 +107,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { importContactsCsv } = await import("./tools/import-contacts-csv");
   const { deletePost } = await import("./tools/delete-post");
   const { sendTestEmailCampaign } = await import("./tools/send-test-email-campaign");
+  const { analyzeUrl } = await import("./tools/analyze-url");
 
   flowAgentTools.register(whoAmI);
   flowAgentTools.register(listMyFeatures);
@@ -134,4 +135,5 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(importContactsCsv);
   flowAgentTools.register(deletePost);
   flowAgentTools.register(sendTestEmailCampaign);
+  flowAgentTools.register(analyzeUrl);
 }

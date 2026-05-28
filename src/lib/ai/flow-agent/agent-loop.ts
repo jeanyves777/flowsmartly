@@ -61,6 +61,8 @@ export interface AgentRunInput {
   /** Client-supplied wall clock + tz so "Monday at 4pm" resolves correctly. */
   clientNow?: string;
   timezone?: string;
+  /** Live background-task status for this conversation (agent awareness). */
+  recentTasks?: Array<{ id: string; kind: string; status: string; note?: string; resultUrl?: string | null }>;
   /** Aborts the loop when the client disconnects. */
   abortSignal: AbortSignal;
   /** Emit SSE event back to the client. */
@@ -108,6 +110,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     userId: input.userId,
     clientNow: input.clientNow,
     timezone: input.timezone,
+    recentTasks: input.recentTasks,
   });
 
   // Seed Claude with prior conversation. Skip the just-saved user message —

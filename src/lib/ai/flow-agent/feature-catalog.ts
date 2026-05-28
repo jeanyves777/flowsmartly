@@ -255,6 +255,18 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
     category: "ecommerce",
   },
 
+  // ────── Web / research ──────
+  {
+    id: "analyze-website",
+    title: "Analyze a website",
+    description: "Fetch + read any public web page so the agent can summarize it, critique it, extract contact info, or draft matching content.",
+    route: "/flow-ai",
+    plans: null,
+    tools: ["analyze_url"],
+    keywords: ["website", "site", "url", "link", "check", "analyze", "browse", "competitor", "scrape", "read page", "look at"],
+    category: "ai",
+  },
+
   // ────── Analytics ──────
   {
     id: "analytics",

@@ -151,6 +151,34 @@ export async function POST(req: NextRequest) {
   });
   const plan = user?.plan ?? "STARTER";
 
+  // Live background-task status for this conversation — so the agent
+  // KNOWS what already finished and doesn't say "I'll let you know" about
+  // a job that's already done.
+  const recentTaskRows = await prisma.agentTask.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    select: { id: true, kind: true, status: true, output: true, error: true },
+  });
+  const recentTasks = recentTaskRows.map((t) => {
+    let resultUrl: string | null = null;
+    if (t.output) {
+      try {
+        const out = JSON.parse(t.output) as { url?: string };
+        if (typeof out.url === "string") resultUrl = out.url;
+      } catch {
+        /* ignore */
+      }
+    }
+    return {
+      id: t.id,
+      kind: t.kind,
+      status: t.status,
+      note: t.status === "failed" ? t.error?.slice(0, 120) ?? undefined : undefined,
+      resultUrl,
+    };
+  });
+
   const encoder = new TextEncoder();
   const abortController = new AbortController();
   req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
@@ -233,6 +261,7 @@ export async function POST(req: NextRequest) {
           })),
           clientNow: body.clientNow,
           timezone: body.timezone,
+          recentTasks,
           abortSignal: abortController.signal,
           emit,
           awaitConfirmation: (planId) => awaitConfirmation(planId, conversationId),

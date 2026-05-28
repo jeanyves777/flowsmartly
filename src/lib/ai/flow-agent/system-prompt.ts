@@ -21,18 +21,29 @@ import { getUserPreferredLanguage, getLanguageLabel, languageDirective } from "@
  * just teaches the agent the loop and the manners.
  */
 
+export interface RecentTaskContext {
+  id: string;
+  kind: string;
+  status: string;
+  /** Short human summary of the result, e.g. "image ready" / "failed: ...". */
+  note?: string;
+  resultUrl?: string | null;
+}
+
 export interface BuildAgentSystemPromptInput {
   userId: string;
   /** ISO date string the client thinks "now" is, used to resolve "Monday at 4pm". */
   clientNow?: string;
   /** IANA timezone string from the client (e.g. "America/New_York"). */
   timezone?: string;
+  /** Background tasks spawned in this conversation + their CURRENT status. */
+  recentTasks?: RecentTaskContext[];
 }
 
 export async function buildAgentSystemPrompt(
   input: BuildAgentSystemPromptInput,
 ): Promise<string> {
-  const { userId, clientNow, timezone } = input;
+  const { userId, clientNow, timezone, recentTasks } = input;
 
   // Pull a thin slice — brand name + plan — so the very first turn already
   // has identity. The full brand kit comes from get_brand_identity when needed.
@@ -53,6 +64,23 @@ export async function buildAgentSystemPrompt(
   const tz = timezone ?? "UTC";
   const languageLabel = getLanguageLabel(language);
 
+  // Live awareness of background jobs in this conversation. Without this
+  // the agent forgets a job it kicked off and tells the user "I'll let
+  // you know" even after the image already finished (the 2026-05-28 bug).
+  const taskLines = (recentTasks ?? [])
+    .slice(0, 8)
+    .map((t) => {
+      const state =
+        t.status === "completed"
+          ? "DONE"
+          : t.status === "failed"
+            ? "FAILED"
+            : t.status === "running" || t.status === "pending"
+              ? "STILL RUNNING"
+              : t.status.toUpperCase();
+      return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${t.resultUrl ? ` [${t.resultUrl}]` : ""}`;
+    });
+
   return [
     `You are Flow-AI — the conversational agent for FlowSmartly, a social-media + marketing platform. You can ACT on the user's account through tools: schedule posts, run campaigns, generate media, manage contacts, look up state. You are not a redirect bot.`,
     ``,
@@ -70,6 +98,17 @@ export async function buildAgentSystemPrompt(
     ``,
     `# Time`,
     `The user's current time is ${now} in timezone ${tz}. When they say "Monday at 4pm", interpret it in THAT timezone, then send absolute ISO strings to tools. Never ask "what timezone" — you already know.`,
+    ``,
+    ...(taskLines.length > 0
+      ? [
+          `# Background jobs in THIS conversation (live status — trust this over your memory)`,
+          ...taskLines,
+          `If a job shows DONE, the result is ALREADY READY — do NOT say "I'll let you know when it's done." Acknowledge it's finished and point to the result. If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
+          ``,
+        ]
+      : []),
+    `# Your capabilities — you are NOT limited`,
+    `You are powered by frontier models and have real tools. You CAN: write/strategize, generate images + videos, produce full narrated story-ad movies, schedule + edit + cancel posts, build email/SMS campaigns + automations, manage + import contacts, read the user's calendar/credits/brand, set their language, AND fetch + analyze any public website via analyze_url. When the user references a site/link, USE analyze_url — never say "I can't browse the web." Before ever claiming you can't do something, call search_features. The only things that cost credits are heavy actions (media generation, scheduling, sending) — those go through propose_plan; plain text answers and lookups are free and immediate.`,
     ``,
     `# The loop`,
     `1. Understand what they want. If ambiguous, ask ONE clarifying question — don't pile on three.`,

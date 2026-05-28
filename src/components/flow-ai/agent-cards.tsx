@@ -2,9 +2,51 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Download } from "lucide-react";
+import { Download, Maximize2, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+
+/**
+ * Full-screen image lightbox. Shared by TaskCard + MediaCard so any
+ * generated image is clickable to view large. Clicking the backdrop or
+ * the X closes it. Download stays available on the card itself.
+ */
+export function MediaLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt="Full size"
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl"
+      />
+      <a
+        href={url}
+        download
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm"
+      >
+        <Download className="h-4 w-4" /> Download
+      </a>
+    </div>
+  );
+}
 
 /**
  * Shared Flow-AI agent UI bits — tool-call chips, plan-proposal cards,
@@ -200,6 +242,7 @@ export function PlanProposalCard({
 // ─── Task card — background job status with inline media when done ────
 
 export function TaskCard({ task }: { task: AgentTaskCardData }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const kindLabel = humanizeTaskKind(task.kind);
   const isRunning = task.status === "running" || task.status === "pending";
   const isDone = task.status === "completed";
@@ -257,14 +300,24 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           {isVideo ? (
             <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
           ) : (
-            <Image
-              src={mediaUrl}
-              alt={kindLabel}
-              width={512}
-              height={512}
-              unoptimized
-              className="block w-full h-auto"
-            />
+            <button
+              type="button"
+              onClick={() => setLightbox(mediaUrl)}
+              className="block w-full group relative"
+              title="Click to view full size"
+            >
+              <Image
+                src={mediaUrl}
+                alt={kindLabel}
+                width={512}
+                height={512}
+                unoptimized
+                className="block w-full h-auto"
+              />
+              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-black/55 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                <Maximize2 className="h-3 w-3" /> View
+              </span>
+            </button>
           )}
           <div className="px-3.5 py-2 flex items-center justify-between">
             <a
@@ -291,6 +344,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           {task.error ?? "Task failed."}
         </div>
       )}
+      {lightbox && <MediaLightbox url={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
