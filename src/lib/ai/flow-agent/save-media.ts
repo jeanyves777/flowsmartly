@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db/client";
 export async function saveToMediaLibrary(params: {
   userId: string;
   url: string;
-  type: "image" | "video" | "audio";
+  type: "image" | "video" | "audio" | "document";
   mimeType: string;
   size?: number;
   originalName?: string;
@@ -43,10 +43,11 @@ export async function saveToMediaLibrary(params: {
 }
 
 function extFor(type: string, mime: string): string {
+  if (mime.includes("pdf")) return "pdf";
   if (mime.includes("png")) return "png";
   if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
   if (mime.includes("webp")) return "webp";
   if (mime.includes("mp4")) return "mp4";
   if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
-  return type === "video" ? "mp4" : type === "audio" ? "mp3" : "png";
+  return type === "video" ? "mp4" : type === "audio" ? "mp3" : type === "document" ? "pdf" : "png";
 }
