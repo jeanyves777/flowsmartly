@@ -459,11 +459,16 @@ export function FlowAIWidget() {
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setOpen(true)}
             aria-label="Open Flow-AI"
-            className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full bg-white dark:bg-gray-900 ring-1 ring-border shadow-lg shadow-blue-500/20 flex items-center justify-center hover:scale-105 transition-transform overflow-hidden"
+            className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full bg-white dark:bg-gray-900 ring-1 ring-border shadow-lg shadow-blue-500/20 flex items-center justify-center hover:scale-105 transition-transform"
           >
-            <Image src="/icon.png" alt="Flow-AI" width={36} height={36} className="h-9 w-9 object-contain" priority unoptimized />
+            {/* Inner wrapper clips the icon to the circle; the badge lives
+                OUTSIDE it so it isn't clipped (the bug: overflow-hidden on
+                the button was hiding the badge). */}
+            <span className="h-14 w-14 rounded-full overflow-hidden flex items-center justify-center">
+              <Image src="/icon.png" alt="Flow-AI" width={36} height={36} className="h-9 w-9 object-contain" priority unoptimized />
+            </span>
             {messages.length > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-gray-900 shadow z-10">
                 {Math.min(9, messages.filter((m) => m.role === "assistant").length)}
               </span>
             )}
