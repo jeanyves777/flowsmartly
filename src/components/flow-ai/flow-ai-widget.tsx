@@ -48,6 +48,9 @@ interface WidgetMessage {
 }
 
 const STORAGE_KEY = "flow-ai-widget-conversation";
+const SIZE_KEY = "flow-ai-widget-size";
+const MIN_W = 340;
+const MIN_H = 420;
 
 const HIDE_ON_PATH_PREFIXES = [
   "/flow-ai", // full-screen shell already covers this
@@ -74,10 +77,16 @@ export function FlowAIWidget() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conversations, setConversations] = useState<Array<{ id: string; title: string | null; updatedAt: string; messageCount: number }>>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // User-resizable panel size (drag the top-left grip). Persisted so it
+  // sticks across opens. Clamped to the viewport on apply.
+  const [panelSize, setPanelSize] = useState<{ width: number; height: number }>({ width: 420, height: 620 });
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
+  // Tracks plan proposals the user has resolved so the live stream's
+  // flushMessage doesn't reset their status back to "pending".
+  const resolvedPlansRef = useRef<Map<string, PlanProposalCardData["status"]>>(new Map());
 
   // Silently re-register an existing push subscription on every mount
   // so a fresh session keeps the device on file. No prompt — that's
@@ -91,11 +100,18 @@ export function FlowAIWidget() {
     setPushPermission(Notification.permission);
   }, []);
 
-  // Restore conversation from session storage on mount.
+  // Restore conversation + saved panel size from session storage on mount.
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) setConversationId(stored);
+      const savedSize = sessionStorage.getItem(SIZE_KEY);
+      if (savedSize) {
+        const parsed = JSON.parse(savedSize) as { width?: number; height?: number };
+        if (typeof parsed.width === "number" && typeof parsed.height === "number") {
+          setPanelSize({ width: parsed.width, height: parsed.height });
+        }
+      }
     } catch {
       /* sessionStorage unavailable */
     }
@@ -166,7 +182,11 @@ export function FlowAIWidget() {
                   ...m,
                   content: assistantText,
                   toolCalls: Array.from(toolCallsById.values()),
-                  planProposals: Array.from(proposalsById.values()),
+                  planProposals: Array.from(proposalsById.values()).map((p) =>
+                    resolvedPlansRef.current.has(p.id)
+                      ? { ...p, status: resolvedPlansRef.current.get(p.id)! }
+                      : p,
+                  ),
                   agentTasks: Array.from(tasksById.values()),
                 }
               : m,
@@ -298,6 +318,8 @@ export function FlowAIWidget() {
   const handlePlanResponse = useCallback(
     async (planId: string, confirmed: boolean) => {
       if (!conversationId) return;
+      // Remember the resolution so the live stream's flushMessage keeps it.
+      resolvedPlansRef.current.set(planId, confirmed ? "confirmed" : "rejected");
       // Optimistic local flip.
       setMessages((prev) =>
         prev.map((m) => {
@@ -445,6 +467,41 @@ export function FlowAIWidget() {
     router.push(url);
   };
 
+  // Drag the top-left grip to resize. Panel is anchored bottom-right, so
+  // moving the grip up/left grows the panel. Persists the final size.
+  const startResize = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = panelSize.width;
+      const startH = panelSize.height;
+      const maxW = typeof window !== "undefined" ? window.innerWidth - 24 : 900;
+      const maxH = typeof window !== "undefined" ? window.innerHeight - 32 : 900;
+
+      const onMove = (ev: PointerEvent) => {
+        const nextW = Math.min(maxW, Math.max(MIN_W, startW + (startX - ev.clientX)));
+        const nextH = Math.min(maxH, Math.max(MIN_H, startH + (startY - ev.clientY)));
+        setPanelSize({ width: nextW, height: nextH });
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setPanelSize((s) => {
+          try {
+            sessionStorage.setItem(SIZE_KEY, JSON.stringify(s));
+          } catch {
+            /* ignore */
+          }
+          return s;
+        });
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [panelSize.width, panelSize.height],
+  );
+
   return (
     <>
       {/* Bubble */}
@@ -485,8 +542,22 @@ export function FlowAIWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-5 right-5 z-40 w-[min(420px,calc(100vw-2rem))] h-[min(620px,calc(100vh-3rem))] rounded-3xl bg-white dark:bg-gray-950 border border-border shadow-2xl shadow-blue-500/10 flex flex-col overflow-hidden"
+            style={{
+              width: `min(${panelSize.width}px, calc(100vw - 2rem))`,
+              height: `min(${panelSize.height}px, calc(100vh - 3rem))`,
+            }}
+            className="fixed bottom-5 right-5 z-40 rounded-3xl bg-white dark:bg-gray-950 border border-border shadow-2xl shadow-blue-500/10 flex flex-col overflow-hidden"
           >
+            {/* Resize grip (top-left) — drag to make the panel bigger/smaller */}
+            <div
+              onPointerDown={startResize}
+              className="absolute top-0 left-0 z-20 h-6 w-6 cursor-nwse-resize group"
+              title="Drag to resize"
+              aria-label="Resize"
+            >
+              <span className="absolute top-1.5 left-1.5 h-2.5 w-2.5 border-l-2 border-t-2 border-muted-foreground/40 group-hover:border-blue-500 rounded-tl-sm transition-colors" />
+            </div>
+
             {/* Header */}
             <div className="flex items-center gap-2 px-3.5 py-3 border-b border-border bg-gradient-to-r from-blue-500/10 to-cyan-500/10">
               <div className="h-8 w-8 rounded-lg bg-white dark:bg-gray-900 ring-1 ring-border flex items-center justify-center overflow-hidden">

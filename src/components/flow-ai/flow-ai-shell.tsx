@@ -134,6 +134,8 @@ export function FlowAIShell() {
   const threadRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Resolved plan proposals — keep their status through stream re-renders.
+  const resolvedPlansRef = useRef<Map<string, PlanProposalCardData["status"]>>(new Map());
 
   // Load conversations + (if any) the active conversation history.
   useEffect(() => {
@@ -281,7 +283,11 @@ export function FlowAIShell() {
                   ...m,
                   content: assistantText,
                   toolCalls: Array.from(toolCallsById.values()),
-                  planProposals: Array.from(proposalsById.values()),
+                  planProposals: Array.from(proposalsById.values()).map((p) =>
+                    resolvedPlansRef.current.has(p.id)
+                      ? { ...p, status: resolvedPlansRef.current.get(p.id)! }
+                      : p,
+                  ),
                   agentTasks: Array.from(tasksById.values()),
                 }
               : m,
@@ -420,6 +426,8 @@ export function FlowAIShell() {
   const respondToPlan = useCallback(
     async (planId: string, confirmed: boolean) => {
       if (!conversationId) return;
+      // Remember the resolution so the live stream's flushMessage keeps it.
+      resolvedPlansRef.current.set(planId, confirmed ? "confirmed" : "rejected");
       // Optimistic local update.
       setMessages((prev) =>
         prev.map((m) => {
