@@ -30,7 +30,7 @@ import { saveToMediaLibrary } from "../save-media";
 export const generateImage: FlowAgentTool = {
   name: "generate_image",
   description:
-    "Generate a single AI image from a text prompt. Tier 'premium' uses the highest-quality provider chain (best for hero shots, ads, polished marketing); 'standard' is faster and cheaper (good for quick concepts, social posts). Runs as a background task — returns IMMEDIATELY with a taskId, then notifies the user when the image is ready. The user can leave the chat and come back; the result will be in the thread. Pass `planId` from a confirmed propose_plan. Cost: Standard = 12 credits, Premium = 18 credits.",
+    "Generate a single RAW, UNBRANDED AI image from a text prompt — for quick concept art, abstract backgrounds, or non-brand visuals. For anything on-brand or client-grade (ads, flyers, cards, announcements, product shots, social creatives, or anything featuring a real person/photo), use create_branded_design instead — it applies brand colors, the real logo, and preserves uploaded faces. Runs as a background task — returns IMMEDIATELY with a taskId, then notifies the user when the image is ready. Pass `planId` from a confirmed propose_plan. Premium costs more than Standard — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
   input_schema: {
     type: "object",
     properties: {

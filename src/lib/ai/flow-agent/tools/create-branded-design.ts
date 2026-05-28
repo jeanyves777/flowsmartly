@@ -1,0 +1,274 @@
+import { prisma } from "@/lib/db/client";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { runVisualForUser } from "@/app/api/ai/visual/route";
+import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
+import type { FlowAgentTool } from "../registry";
+import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
+import { notifyAgentTaskComplete } from "../notify-task-complete";
+
+/**
+ * create_branded_design — the agent's PRIMARY image tool for anything
+ * branded or marketing-grade: ads, flyers, birthday/holiday cards,
+ * announcements, product shots, social creatives. It drives the SAME
+ * robust FlowCreative pipeline the Studio's Create modal uses
+ * (`/api/ai/visual` → runVisualForUser): brand-aware prompt, real brand
+ * colors + logo composite, reference-photo IDENTITY PRESERVATION, and (on
+ * Premium) the quality-review loop that regenerates until the design
+ * passes and the uploaded person's real face is kept.
+ *
+ * This is NOT a reimplementation — it reuses the production visual engine
+ * so we don't re-tune generation. Use plain generate_image only for raw,
+ * unbranded concept art.
+ *
+ * Tier → cost: Standard = AI_VISUAL_DESIGN (15), Premium = 3× (45, quality
+ * loop). The pipeline charges credits itself; this tool does not.
+ */
+export const createBrandedDesign: FlowAgentTool = {
+  name: "create_branded_design",
+  description:
+    "Create a polished, ON-BRAND image via the platform's FlowCreative engine — use this for ANY branded or marketing visual: ads, flyers, birthday/holiday cards, announcements, product images, social posts. It automatically applies the user's brand colors, composites their REAL logo, and — when reference photos are supplied — PRESERVES the real person's face/identity (never invents a lookalike). Premium runs a quality-review loop that regenerates until it passes (best for anything client-facing or with a real person). Pass uploaded photo URLs as referenceImageUrls so the actual person is used. Pass `planId` from a confirmed propose_plan. Premium costs more than Standard — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them. Runs in the background and notifies when ready.",
+  input_schema: {
+    type: "object",
+    properties: {
+      planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
+      prompt: {
+        type: "string",
+        description: "What to create: the message/headline, subject, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Be specific — this is the creative brief.",
+      },
+      tier: {
+        type: "string",
+        description: "'premium' (quality-review loop + strongest identity preservation — use when a real person photo is involved or it's client-facing) or 'standard' (fast, single pass). Always ask the user which they want — cost differs (15 vs 45).",
+      },
+      referenceImageUrls: {
+        type: "array",
+        description: "URLs of uploaded reference photos to USE in the design (e.g. the person's photo). Their face/identity is preserved. Pass the attachment URL(s) the user uploaded — do NOT leave empty if they handed you a photo.",
+        items: { type: "string" },
+      },
+      orientation: {
+        type: "string",
+        description: "'square' (1080x1080, default), 'portrait'/'story' (1080x1920), or 'landscape'/'wide' (1920x1080).",
+      },
+      hasPerson: {
+        type: "boolean",
+        description: "True if the design should feature a person (e.g. a reference photo of someone, or a 'people' hero). Defaults to true when referenceImageUrls is non-empty.",
+      },
+      style: { type: "string", description: "Visual style: 'modern' (default), 'photorealistic', 'minimalist', 'vintage', 'illustration', 'elegant', etc." },
+      ctaText: { type: "string", description: "Optional call-to-action button text. Omit for cards/announcements with no button." },
+    },
+    required: ["planId", "prompt"],
+  },
+  plans: null,
+  // Free base — the FlowCreative pipeline charges AI_VISUAL_DESIGN itself.
+  costKey: "AGENT_PROPOSE_PLAN",
+  mutating: true,
+  handler: async (input, ctx) => {
+    const promptText = typeof input.prompt === "string" ? input.prompt.trim() : "";
+    if (!promptText) {
+      return { ok: false, error_code: "missing_input", message: "prompt (the creative brief) is required." };
+    }
+    const tier = input.tier === "premium" ? "premium" : "standard";
+    const qualityCheckEnabled = tier === "premium";
+
+    const referenceImageUrls = Array.isArray(input.referenceImageUrls)
+      ? input.referenceImageUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0).slice(0, 4)
+      : [];
+    const hasPerson = typeof input.hasPerson === "boolean" ? input.hasPerson : referenceImageUrls.length > 0;
+
+    const baseCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
+    const cost = baseCost * (qualityCheckEnabled ? 3 : 1);
+
+    // Pre-flight credit check mirrors the pipeline (purchased credits only,
+    // non-admin) so the agent can warn instead of starting a doomed job.
+    if (!ctx.isAdmin) {
+      const user = await prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: { aiCredits: true, freeCredits: true },
+      });
+      const purchased = Math.max(0, (user?.aiCredits ?? 0) - (user?.freeCredits ?? 0));
+      if (purchased < cost) {
+        return {
+          ok: false,
+          error_code: "insufficient_credits",
+          message: `A ${tier} branded design costs ${cost} credits (purchased credits only). User has ${purchased}. Suggest /credits.`,
+          meta: { need: cost, have: purchased, tier },
+        };
+      }
+    }
+
+    const brandKit = await prisma.brandKit.findFirst({
+      where: { userId: ctx.userId },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+    });
+    const languageTag = await getUserPreferredLanguage(ctx.userId);
+
+    const colors = parseJson<Record<string, string> | null>(brandKit?.colors, null);
+    const handles = parseJson<Record<string, string> | null>(brandKit?.handles, null);
+    const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
+    const hasBrandLogo = Boolean(brandLogo);
+
+    const brandIdentity = brandKit
+      ? {
+          name: brandKit.name || null,
+          tagline: brandKit.tagline || null,
+          description: brandKit.description || null,
+          industry: brandKit.industry || null,
+          niche: brandKit.niche || null,
+          audience: brandKit.targetAudience || null,
+          voice: brandKit.voiceTone || null,
+          value: brandKit.uniqueValue || null,
+          products: parseJson<unknown[]>(brandKit.products, []),
+          keywords: parseJson<unknown[]>(brandKit.keywords, []),
+          hashtags: parseJson<unknown[]>(brandKit.hashtags, []),
+          colors,
+          handles,
+          website: brandKit.website || null,
+          hasLogo: hasBrandLogo,
+        }
+      : null;
+
+    const contactInfo = brandKit
+      ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
+      : null;
+
+    // Same policy scaffolding the Create modal uses so quality matches the
+    // product page. Logo lock + anti-invention + exact-reference handling.
+    const logoPolicy = hasBrandLogo
+      ? "Logo lock: do NOT draw any logo, wordmark, emblem, seal, crest, mascot, badge, or monogram. FlowSmartly composites the REAL brand logo after generation — leave that area natural, no placeholder box/frame/watermark."
+      : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
+    const exactReferencePolicy = referenceImageUrls.length
+      ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
+      : null;
+    const antiInventionPolicy =
+      "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
+
+    const imagePrompt = withLanguagePrefix(
+      [promptText, exactReferencePolicy, logoPolicy, antiInventionPolicy, "Keep the final visual sharp, high-resolution, and readable."]
+        .filter(Boolean)
+        .join("\n\n"),
+      languageTag,
+    );
+
+    const size = orientationToSize(input.orientation);
+    const provider = tier === "premium" ? "openai" : "xai";
+    const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
+    const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
+
+    const visualBody = {
+      prompt: imagePrompt,
+      category: "social_post",
+      size,
+      style,
+      provider,
+      strictProvider: true,
+      promptMode: "raw_brand",
+      brandIdentity,
+      channels: "selected social channels",
+      heroType: hasPerson ? "people" : "product",
+      textMode: "creative",
+      brandColors: colors,
+      brandLogo,
+      brandName: brandKit?.name || null,
+      showBrandName: !!brandKit?.name,
+      showSocialIcons: !!handles,
+      socialHandles: handles,
+      contactInfo,
+      referenceImageUrl: referenceImageUrls[0] || null,
+      referenceImageUrls,
+      templateImageUrl: null,
+      compositeReferenceSubject: false,
+      logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
+      ctaText,
+      qualityCheckEnabled,
+    };
+
+    const taskId = await spawnBackgroundTask({
+      userId: ctx.userId,
+      conversationId: ctx.conversationId,
+      messageId: ctx.messageId,
+      kind: "create_branded_design",
+      input: { tier, hasPerson, references: referenceImageUrls.length },
+      creditCost: cost,
+      worker: async (taskId) => {
+        publishTaskEvent({
+          type: "progress",
+          taskId,
+          progress: 15,
+          message: qualityCheckEnabled ? "Designing + quality-checking your branded image…" : "Designing your branded image…",
+        });
+
+        const result = await runVisualForUser(visualBody, { userId: ctx.userId, isAdmin: ctx.isAdmin });
+        const resBody = result.body as {
+          success?: boolean;
+          data?: { design?: { id?: string; imageUrl?: string } };
+          error?: { message?: string };
+        };
+        if (result.status !== 200 || !resBody.success || !resBody.data?.design?.imageUrl) {
+          const msg = resBody.error?.message || "The design could not be generated.";
+          await notifyAgentTaskComplete({
+            userId: ctx.userId,
+            taskId,
+            kind: "create_branded_design",
+            ok: false,
+            summary: "Your branded design hit a snag",
+            detail: msg,
+            deepLink: `/flow-ai?conversationId=${ctx.conversationId}&taskId=${taskId}`,
+          });
+          throw new Error(msg);
+        }
+
+        const url = resBody.data.design.imageUrl;
+        const designId = resBody.data.design.id;
+
+        await notifyAgentTaskComplete({
+          userId: ctx.userId,
+          taskId,
+          kind: "create_branded_design",
+          ok: true,
+          summary: `Your ${tier === "premium" ? "Premium" : "Standard"} branded design is ready`,
+          deepLink: `/flow-ai?conversationId=${ctx.conversationId}&taskId=${taskId}`,
+          previewImageUrl: url,
+        });
+
+        return {
+          output: { url, designId, tier, link: "/studio" },
+          resultRefType: "Design",
+          resultRefId: designId,
+        };
+      },
+    });
+
+    ctx.emit({
+      type: "task_started",
+      taskId,
+      kind: "create_branded_design",
+      summary: qualityCheckEnabled ? "Creating your Premium branded design (quality-checked)…" : "Creating your branded design…",
+    });
+
+    return {
+      ok: true,
+      data: {
+        taskId,
+        tier,
+        creditCostQuoted: cost,
+        usedReferencePhoto: referenceImageUrls.length > 0,
+        userMessage: `Started a ${tier} branded design via FlowCreative${referenceImageUrls.length ? ` using the uploaded photo (real face preserved)` : ""}. Runs in the background; the user gets the image inline + a notification. Tell them you'll let them know when it's ready.`,
+      },
+    };
+  },
+};
+
+function orientationToSize(orientation: unknown): string {
+  const o = typeof orientation === "string" ? orientation.toLowerCase() : "";
+  if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
+  if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
+  return "1080x1080";
+}
+
+function parseJson<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}

@@ -333,7 +333,50 @@ export async function POST(request: NextRequest) {
     if (gate) return gate;
 
     const body = await request.json();
-    const {
+    const result = await runVisualForUser(body, {
+      userId: session.userId,
+      isAdmin: !!session.adminId,
+      adminId: session.adminId ?? null,
+    });
+    return NextResponse.json(result.body, { status: result.status });
+  } catch (error) {
+    console.error("Visual generation error:", error);
+    const rawMessage = error instanceof Error ? error.message : "";
+    const safeMessage = /api[_\s-]?key|authorization|bearer|token/i.test(rawMessage)
+      ? "The selected image provider is not configured correctly."
+      : rawMessage || "Failed to generate visual design";
+    return NextResponse.json(
+      { success: false, error: { message: safeMessage } },
+      { status: 500 }
+    );
+  }
+}
+
+/** Context for a server-side visual generation (route or Flow-AI agent). */
+export interface VisualUserContext {
+  userId: string;
+  isAdmin: boolean;
+  adminId?: string | null;
+}
+
+/**
+ * Core visual-design generation shared by the /api/ai/visual route AND the
+ * Flow-AI agent's create_branded_design tool. Runs credit check → Design row
+ * → full pipeline (incl. quality-check loop + face-identity lock + reference
+ * compositing + brand-logo overlay) → persistence → Media Library save.
+ * Returns a { status, body } pair; throws on unexpected pipeline errors so
+ * the caller can map to a 500.
+ */
+export async function runVisualForUser(
+  // Matches the original handler's untyped JSON body so the existing
+  // destructure + pipeline param construction type-check unchanged.
+  body: Record<string, any>,
+  ctx: VisualUserContext,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  // Shim so the original handler body (which referenced `session`) keeps
+  // working unchanged whether called from the route or the agent.
+  const session = { userId: ctx.userId, adminId: ctx.adminId ?? null };
+  const {
       prompt, category, size, style,
       brandColors, heroType, textMode,
       brandLogo, brandName, contactInfo,
@@ -361,13 +404,13 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!prompt || !category || !size) {
-      return NextResponse.json(
-        { success: false, error: { message: "Prompt, category, and size are required" } },
-        { status: 400 }
-      );
+      return {
+        status: 400,
+        body: { success: false, error: { message: "Prompt, category, and size are required" } },
+      };
     }
 
-    const isAdmin = !!session.adminId;
+    const isAdmin = ctx.isAdmin;
     const qualityCheckRequested = normalizeQualityCheck(qualityCheckEnabled ?? qualityCheck);
     const baseCreditCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
     const creditCost = baseCreditCost * (qualityCheckRequested ? 3 : 1);
@@ -380,15 +423,16 @@ export async function POST(request: NextRequest) {
 
     if (!isAdmin) {
       if (!currentUser) {
-        return NextResponse.json(
-          { success: false, error: { code: "INSUFFICIENT_CREDITS", message: "User not found.", cost: creditCost } },
-          { status: 403 }
-        );
+        return {
+          status: 403,
+          body: { success: false, error: { code: "INSUFFICIENT_CREDITS", message: "User not found.", cost: creditCost } },
+        };
       }
       const purchasedCredits = Math.max(0, currentUser.aiCredits - (currentUser.freeCredits || 0));
       if (purchasedCredits < creditCost) {
-        return NextResponse.json(
-          {
+        return {
+          status: 403,
+          body: {
             success: false,
             error: {
               code: currentUser.aiCredits >= creditCost && (currentUser.freeCredits || 0) > 0
@@ -400,8 +444,7 @@ export async function POST(request: NextRequest) {
               cost: creditCost,
             },
           },
-          { status: 403 }
-        );
+        };
       }
     }
 
@@ -530,37 +573,29 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: await presignAllUrls({
-        design: {
-          id: updatedDesign.id,
-          prompt: updatedDesign.prompt,
-          category: updatedDesign.category,
-          size: updatedDesign.size,
-          style: updatedDesign.style,
-          imageUrl: imageFileUrl,
-          pipeline: result.pipeline,
-          status: updatedDesign.status,
-          createdAt: updatedDesign.createdAt.toISOString(),
-        },
-        creditsUsed: isAdmin ? 0 : creditCost,
-        creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - creditCost,
-        qualityCheck: qualityCheckRequested,
-        qualityReview: result.qualityReviews?.at(-1) || null,
-      }),
-    });
-  } catch (error) {
-    console.error("Visual generation error:", error);
-    const rawMessage = error instanceof Error ? error.message : "";
-    const safeMessage = /api[_\s-]?key|authorization|bearer|token/i.test(rawMessage)
-      ? "The selected image provider is not configured correctly."
-      : rawMessage || "Failed to generate visual design";
-    return NextResponse.json(
-      { success: false, error: { message: safeMessage } },
-      { status: 500 }
-    );
-  }
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: await presignAllUrls({
+          design: {
+            id: updatedDesign.id,
+            prompt: updatedDesign.prompt,
+            category: updatedDesign.category,
+            size: updatedDesign.size,
+            style: updatedDesign.style,
+            imageUrl: imageFileUrl,
+            pipeline: result.pipeline,
+            status: updatedDesign.status,
+            createdAt: updatedDesign.createdAt.toISOString(),
+          },
+          creditsUsed: isAdmin ? 0 : creditCost,
+          creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - creditCost,
+          qualityCheck: qualityCheckRequested,
+          qualityReview: result.qualityReviews?.at(-1) || null,
+        }),
+      },
+    };
 }
 
 // ═══════════════════════════════════════════════════════════════

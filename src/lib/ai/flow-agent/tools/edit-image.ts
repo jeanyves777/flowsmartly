@@ -27,7 +27,7 @@ import { saveToMediaLibrary } from "../save-media";
 export const editImage: FlowAgentTool = {
   name: "edit_image",
   description:
-    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or composite the user's real brand logo onto it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for an edit instruction ('make the sky sunset', 'remove the text', 'add a coffee cup'). Set `addBrandLogo: true` to overlay the user's actual BrandKit logo (never an AI-drawn one). At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. Cost: Standard edit = 12 credits, Premium edit = 18 credits; logo-only composite is free.",
+    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or composite the user's real brand logo onto it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for an edit instruction ('make the sky sunset', 'remove the text', 'add a coffee cup'). Set `addBrandLogo: true` to overlay the user's actual BrandKit logo (never an AI-drawn one). At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. A logo-only composite (no prompt) is free; an AI edit costs the image tier price — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
   input_schema: {
     type: "object",
     properties: {
