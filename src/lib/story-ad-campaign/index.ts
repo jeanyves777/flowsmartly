@@ -1561,38 +1561,29 @@ function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): s
 }
 
 /**
- * Render one narrated-style video scene via Veo Lite.
+ * Render one narrated-style video scene. Routes through the SAME tier-aware renderer
+ * the cinematic/3D pipeline uses, so narrated full-animation respects the user's tier
+ * choice:
+ *   - Premium  (veo3)  → Veo Quality (referenceImages + negativePrompt, top fidelity)
+ *   - Standard (xai)   → Veo Lite (first-frame anchor, no referenceImages/negativePrompt)
+ *   - Cheap    (cheap) → xAI Imagine direct
  *
- * Veo 3.1 Lite does NOT support `config.referenceImages` (that's a Quality-tier feature).
- * For Lite we use the cheaper alternative: pass the first on-camera character's portrait
- * as `referenceImageUrl` (image-to-video / first-frame mode) so we at least anchor the
- * character's face on the opening frame. The MULTI-CLIP CONTINUITY block in the prompt
- * carries the rest of the scene through.
+ * Was previously hardcoded to Veo Lite which gave narrated reels worse character
+ * consistency than the cheaper cinematic path got. Now narrated benefits from whatever
+ * tier the user paid for.
  *
- * Audio handling: Gemini API doesn't accept `generateAudio: false`, so Veo Lite generates
- * audio we ignore. The downstream mixer overlays narrator + dialogue + SFX + music on its
- * own track.
+ * Audio: Veo always generates native audio on the Gemini API path (no `generateAudio: false`
+ * support); the downstream mixer overlays narrator + dialogue + SFX + music separately,
+ * effectively replacing the native track.
  */
 async function renderNarratedVideoScene(
   clip: CampaignClipSlot,
   state: CampaignState,
 ): Promise<string> {
-  const duration = "8" as const;
-  const firstFrameImage = pickClipReferenceImage(clip, state);
-  const result = await veoClient.generateVideoBuffer(clip.prompt, {
-    durationSeconds: duration,
-    resolution: "720p",
-    aspectRatio: normalizeVeoAspect(state.aspectRatio),
-    negativePrompt: NEGATIVE_TEXT_PROMPT,
-    tier: "lite",
-    referenceImageUrl: firstFrameImage,
-  });
-  const url = await uploadToS3(
-    `story-ad-campaigns/clips/${clip.id}-${nanoid(6)}.mp4`,
-    result.videoBuffer,
-    "video/mp4",
-  );
-  return url;
+  // 8s is Veo's hard cap; xAI also clamps to 8s for fallback so the final concat
+  // stays uniform across narrated scenes.
+  const renderOne = pickClipRenderer(state.provider);
+  return renderOne(clip, { ...state, clipLength: 8 });
 }
 
 async function renderClipViaVeo(
