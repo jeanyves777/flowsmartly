@@ -92,6 +92,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listScheduledPosts } = await import("./tools/list-scheduled-posts");
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
+  const { editImage } = await import("./tools/edit-image");
   const { generateVideo } = await import("./tools/generate-video");
   const { startStoryAdCampaign } = await import("./tools/start-story-ad-campaign");
   const { listContacts, addContact } = await import("./tools/contact-tools");
@@ -125,6 +126,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listScheduledPosts);
   flowAgentTools.register(cancelScheduledPost);
   flowAgentTools.register(generateImage);
+  flowAgentTools.register(editImage);
   flowAgentTools.register(generateVideo);
   flowAgentTools.register(startStoryAdCampaign);
   flowAgentTools.register(listContacts);
