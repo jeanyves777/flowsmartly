@@ -41,6 +41,7 @@ import {
   useAgentSender,
   type TaskStreamEvent,
 } from "./use-agent-stream";
+import { RichText, TypingDots } from "./rich-text";
 
 /**
  * FlowAI Shell — multi-modal conversational assistant, fullscreen overlay.
@@ -121,18 +122,18 @@ export function FlowAIShell() {
   const [conversationTitle, setConversationTitle] = useState("New conversation");
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mode, setMode] = useState<Mode>("text");
-  const [tier, setTier] = useState<Tier>("standard");
+  // Mode pills removed 2026-05-28 — everything routes through the agent,
+  // which picks the right tool (text/image/video/story-ad) from the
+  // request. `mode` is pinned to "text" so send() always hits the agent.
+  const mode: Mode = "text";
+  const tier: Tier = "standard";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Image attachments for the next agent message (paperclip upload).
+  const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name: string }>>([]);
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Media analysis (upload an image OR paste a URL → Claude Haiku vision)
-  const [analyzing, setAnalyzing] = useState(false);
-  const [urlInputOpen, setUrlInputOpen] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
 
   // Load conversations + (if any) the active conversation history.
   useEffect(() => {
@@ -218,137 +219,29 @@ export function FlowAIShell() {
     }
   }, []);
 
-  // Convert a File to base64 (without the data: prefix) for the analyze endpoint.
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const comma = result.indexOf(",");
-        resolve(comma >= 0 ? result.slice(comma + 1) : result);
-      };
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
-
-  // Run media analysis (upload OR URL) → append assistant message with the
-  // structured result + a row of action buttons. Doesn't open a separate
-  // panel — it lives inline in chat like any other AI turn.
-  const analyzeMedia = useCallback(
-    async (payload: { mediaUrl?: string; base64?: string; previewUrl?: string; userNote?: string }) => {
-      if (analyzing) return;
-      setAnalyzing(true);
-      const userMsg: Message = {
-        id: `u-${Date.now()}`,
-        role: "user",
-        content: payload.userNote
-          ? `Analyze this image — ${payload.userNote}`
-          : "Analyze this image",
-        mediaType: "image",
-        mediaUrl: payload.previewUrl || payload.mediaUrl || null,
-      };
-      const pendingMsg: Message = {
-        id: `p-${Date.now()}`,
-        role: "assistant",
-        content: "Analyzing image with vision model…",
-      };
-      setMessages((prev) => [...prev, userMsg, pendingMsg]);
-
-      try {
-        const res = await fetch("/api/flow-ai/analyze-media", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mediaUrl: payload.mediaUrl,
-            base64: payload.base64,
-            userNote: payload.userNote,
-          }),
-        });
-        const json = await res.json();
-        if (!json?.success) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === pendingMsg.id
-                ? { ...m, content: `Analysis failed: ${json?.error?.message || "unknown error"}` }
-                : m,
-            ),
-          );
+  // Image upload → base64 data URL → attachment chip. The agent receives
+  // these as vision input on the next send (it decides what to do with
+  // them — analyze, base a design on them, etc.). 5 MB / 4-image cap.
+  const handleFiles = useCallback(
+    (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const slots = Math.max(0, 4 - attachments.length);
+      const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, slots);
+      picked.forEach((file) => {
+        if (file.size > 5 * 1024 * 1024) {
+          toast({ variant: "destructive", title: "File too large", description: "Max 5 MB per image." });
           return;
         }
-        const a = json.data.analysis as {
-          description: string;
-          subject: string;
-          mood: string;
-          dominantColors: string[];
-          textVisible: string | null;
-          brandFitNotes: string | null;
-          suggestedUses: string[];
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setAttachments((prev) => (prev.length >= 4 ? prev : [...prev, { dataUrl, name: file.name }]));
         };
-        const lines = [
-          `**${a.subject}** — ${a.mood}`,
-          a.description,
-          a.brandFitNotes ? `Brand fit: ${a.brandFitNotes}` : "",
-          a.textVisible ? `Visible text: "${a.textVisible}"` : "",
-          a.dominantColors?.length ? `Colors: ${a.dominantColors.join(", ")}` : "",
-          a.suggestedUses?.length
-            ? `\nSuggested uses:\n${a.suggestedUses.map((s) => `• ${s}`).join("\n")}`
-            : "",
-          `\nWhat would you like to do with this image?`,
-        ]
-          .filter(Boolean)
-          .join("\n\n");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingMsg.id
-              ? { ...m, content: lines, mediaType: "image", mediaUrl: payload.previewUrl || payload.mediaUrl || null }
-              : m,
-          ),
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Analysis failed";
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingMsg.id ? { ...m, content: `Analysis failed: ${message}` } : m,
-          ),
-        );
-      } finally {
-        setAnalyzing(false);
-      }
+        reader.readAsDataURL(file);
+      });
     },
-    [analyzing],
+    [attachments.length, toast],
   );
-
-  const handleFilePick = useCallback(
-    async (file: File | null) => {
-      if (!file) return;
-      if (!file.type.startsWith("image/")) {
-        toast({ variant: "destructive", title: "Image required", description: "Only image files supported." });
-        return;
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        toast({ variant: "destructive", title: "File too large", description: "Max 8 MB." });
-        return;
-      }
-      const base64 = await fileToBase64(file);
-      const previewUrl = `data:${file.type};base64,${base64}`;
-      analyzeMedia({ base64, previewUrl, userNote: input.trim() || undefined });
-      setInput("");
-    },
-    [analyzeMedia, input, toast],
-  );
-
-  const handleUrlSubmit = useCallback(() => {
-    const url = urlInput.trim();
-    if (!url) return;
-    if (!/^https?:\/\//.test(url) && !url.startsWith("data:")) {
-      toast({ variant: "destructive", title: "Invalid URL", description: "Must be http(s) or data:" });
-      return;
-    }
-    analyzeMedia({ mediaUrl: url, previewUrl: url, userNote: input.trim() || undefined });
-    setUrlInput("");
-    setUrlInputOpen(false);
-    setInput("");
-  }, [analyzeMedia, input, urlInput, toast]);
 
   // ─── Agent-mode (text) ────────────────────────────────────────────
   // Text-mode chat goes through the new tool-using agent endpoint via
@@ -357,8 +250,12 @@ export function FlowAIShell() {
   // generate route for now (Phase 8 will migrate those to tools).
   const sendAgent = useAgentSender();
   const sendToAgent = useCallback(
-    async (trimmed: string, _userMsg: Message, pendingMsg: Message) => {
-      const res = await sendAgent({ message: trimmed, conversationId });
+    async (trimmed: string, _userMsg: Message, pendingMsg: Message, atts?: Array<{ dataUrl: string; name: string }>) => {
+      const res = await sendAgent({
+        message: trimmed,
+        conversationId,
+        attachments: atts?.map((a) => ({ dataUrl: a.dataUrl, name: a.name })),
+      });
       if (!res.ok || !res.body) {
         let errMsg = "Agent failed to start";
         try {
@@ -460,15 +357,21 @@ export function FlowAIShell() {
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || sending) return;
+      const pendingAttachments = attachments;
+      if ((!trimmed && pendingAttachments.length === 0) || sending) return;
       setInput("");
+      setAttachments([]);
       setSending(true);
-      setStatusMessage(mode === "text" ? null : "Preparing…");
+      setStatusMessage(null);
 
       const userMsg: Message = {
         id: `tmp-u-${Date.now()}`,
         role: "user",
-        content: trimmed,
+        content:
+          trimmed ||
+          `[${pendingAttachments.length} image${pendingAttachments.length > 1 ? "s" : ""} attached]`,
+        mediaType: pendingAttachments.length > 0 ? "image" : undefined,
+        mediaUrl: pendingAttachments[0]?.dataUrl ?? undefined,
         createdAt: new Date().toISOString(),
       };
       const pendingMsg: Message = {
@@ -480,9 +383,9 @@ export function FlowAIShell() {
       setMessages((prev) => [...prev, userMsg, pendingMsg]);
 
       try {
-        // Text mode goes through the new tool-using agent.
-        if (mode === "text") {
-          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg);
+        // Everything routes through the tool-using agent now (no modes).
+        {
+          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments);
           if (newConvId && !conversationId) {
             setConversationId(newConvId);
             const url = new URL(window.location.href);
@@ -490,94 +393,7 @@ export function FlowAIShell() {
             window.history.replaceState({}, "", url.toString());
           }
           refreshConversations(newConvId || conversationId).catch(() => {});
-          return;
         }
-
-        const res = await fetch("/api/ai/assistant/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, conversationId, mode, tier }),
-        });
-
-        if (!res.ok || !res.body) {
-          let errMsg = "Generation failed";
-          try {
-            const data = await res.json();
-            errMsg = data?.error || data?.message || errMsg;
-          } catch { /* not json */ }
-          throw new Error(errMsg);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let assistantContent = "";
-        let newConvId: string | null = null;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split("\n\n");
-          buffer = events.pop() ?? "";
-          for (const evt of events) {
-            const line = evt.split("\n").find((l) => l.startsWith("data: "));
-            if (!line) continue;
-            const payload = line.slice(6);
-            let data: {
-              type: string;
-              conversationId?: string;
-              text?: string;
-              message?: string;
-              mediaType?: "image" | "video";
-              mediaUrl?: string;
-              content?: string;
-            };
-            try {
-              data = JSON.parse(payload);
-            } catch {
-              continue;
-            }
-            if (data.type === "start" && data.conversationId) {
-              newConvId = data.conversationId;
-            } else if (data.type === "status" && typeof data.message === "string") {
-              setStatusMessage(data.message);
-            } else if (data.type === "delta" && typeof data.text === "string") {
-              assistantContent += data.text;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === pendingMsg.id ? { ...m, content: assistantContent } : m,
-                ),
-              );
-            } else if (data.type === "media" && data.mediaType && data.mediaUrl) {
-              const finalContent = data.content || assistantContent || "Generated.";
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === pendingMsg.id
-                    ? {
-                        ...m,
-                        content: finalContent,
-                        mediaType: data.mediaType ?? null,
-                        mediaUrl: data.mediaUrl ?? null,
-                      }
-                    : m,
-                ),
-              );
-            } else if (data.type === "done") {
-              setStatusMessage(null);
-            } else if (data.type === "error") {
-              throw new Error(data.message || "Stream error");
-            }
-          }
-        }
-
-        if (newConvId && !conversationId) {
-          setConversationId(newConvId);
-          const url = new URL(window.location.href);
-          url.searchParams.set("conversationId", newConvId);
-          window.history.replaceState({}, "", url.toString());
-        }
-        refreshConversations(newConvId || conversationId).catch(() => {});
       } catch (err) {
         setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
         toast({
@@ -590,7 +406,7 @@ export function FlowAIShell() {
         setStatusMessage(null);
       }
     },
-    [conversationId, sending, mode, tier, refreshConversations, toast, sendToAgent],
+    [conversationId, sending, attachments, refreshConversations, toast, sendToAgent],
   );
 
   // Confirm or reject a plan proposal — POSTs to /confirm, then optimistically
@@ -944,12 +760,12 @@ export function FlowAIShell() {
                 <MessageSquare className="h-4 w-4" />
               </button>
             )}
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/30">
-              <Sparkles className="h-4 w-4 text-white" />
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-gray-900 ring-1 ring-border flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+              <Image src="/icon.png" alt="Flow-AI" width={24} height={24} unoptimized className="h-6 w-6 object-contain" />
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold truncate">{conversationTitle}</h1>
-              <p className="text-[10px] text-muted-foreground">FlowAI · text · image · video</p>
+              <p className="text-[10px] text-muted-foreground">Flow-AI · text · image · video</p>
             </div>
           </div>
           <button
@@ -984,91 +800,52 @@ export function FlowAIShell() {
 
         <div className="border-t border-border bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl px-4 sm:px-6 py-3">
           <div className="max-w-3xl mx-auto">
-            <ModeToolbar
-              mode={mode}
-              setMode={setMode}
-              tier={tier}
-              setTier={setTier}
-              showTier={tierAvailable}
-              disabled={sending}
-            />
-
-            {urlInputOpen && (
-              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-blue-50/40 dark:bg-blue-950/20 px-2 py-1.5">
-                <LinkIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 ml-1" />
-                <input
-                  type="url"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleUrlSubmit();
-                    } else if (e.key === "Escape") {
-                      setUrlInputOpen(false);
-                      setUrlInput("");
-                    }
-                  }}
-                  placeholder="Paste an image URL — https://..."
-                  className="flex-1 bg-transparent border-0 outline-none focus:ring-0 text-sm py-1"
-                  autoFocus
-                  disabled={analyzing}
-                />
-                <button
-                  type="button"
-                  onClick={handleUrlSubmit}
-                  disabled={analyzing || !urlInput.trim()}
-                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40 px-1"
-                >
-                  Analyze
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setUrlInputOpen(false); setUrlInput(""); }}
-                  className="text-xs text-muted-foreground hover:text-foreground px-1"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
+            {/* Mode pills removed 2026-05-28 — the agent picks the right
+                tool (text / image / video / story-ad) from the request.
+                Upload stays. */}
 
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                handleFilePick(file);
+                handleFiles(e.target.files);
                 if (e.target) e.target.value = "";
               }}
             />
 
-            <div className="mt-2 flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-blue-500 focus-within:shadow-md transition-all px-2 py-1.5">
+            {/* Attachment preview chips */}
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((a, i) => (
+                  <div key={i} className="relative h-14 w-14 rounded-lg overflow-hidden border border-border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0 right-0 h-4 w-4 bg-black/60 text-white flex items-center justify-center rounded-bl"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-blue-500 focus-within:shadow-md transition-all px-2 py-1.5">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={sending || analyzing}
+                disabled={sending || attachments.length >= 4}
                 className="h-9 w-9 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Upload image"
-                title="Upload an image to analyze"
+                aria-label="Attach image"
+                title="Attach an image"
               >
                 <Paperclip className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setUrlInputOpen((v) => !v)}
-                disabled={sending || analyzing}
-                className={cn(
-                  "h-9 w-9 rounded-md transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
-                  urlInputOpen
-                    ? "text-blue-600 bg-blue-50 dark:bg-blue-950/30"
-                    : "text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30",
-                )}
-                aria-label="Analyze image from URL"
-                title="Paste an image URL to analyze"
-              >
-                <LinkIcon className="h-4 w-4" />
               </button>
               <textarea
                 ref={textareaRef}
@@ -1081,32 +858,23 @@ export function FlowAIShell() {
                   }
                 }}
                 rows={1}
-                placeholder={
-                  analyzing
-                    ? "Analyzing image…"
-                    : urlInputOpen
-                    ? "Optional context for the image above…"
-                    : MODE_PLACEHOLDER[mode]
-                }
+                placeholder="Ask Flow-AI to write, design, schedule, generate — anything…"
                 className="flex-1 bg-transparent border-0 outline-none focus:ring-0 resize-none py-2 px-2 text-sm leading-relaxed max-h-40"
-                disabled={sending || analyzing}
+                disabled={sending}
               />
               <button
                 type="button"
                 onClick={() => send(input)}
-                disabled={sending || analyzing || !input.trim()}
+                disabled={sending || (!input.trim() && attachments.length === 0)}
                 className="h-9 w-9 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-blue-500/20"
                 aria-label="Send"
               >
-                {sending || analyzing ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
+                {sending ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
               </button>
             </div>
 
             <p className="text-[10px] text-muted-foreground/80 mt-1.5 text-center">
-              {MODE_LABEL[mode]}
-              {tierAvailable ? ` · ${tier === "premium" ? "Premium" : "Standard"}` : ""}
-              {" · "}~{currentCost} credit{currentCost === 1 ? "" : "s"} per generation
-              {" · "}Shift+Enter for newline
+              Flow-AI can act on your account · charges credits when you confirm · Shift+Enter for newline
             </p>
           </div>
         </div>
@@ -1233,8 +1001,8 @@ function FlowAIEmptyState({ mode, onSuggest }: { mode: Mode; onSuggest: (q: stri
   const suggestions = suggestionsByMode[mode];
   return (
     <div className="text-center py-12 sm:py-20">
-      <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
-        <Sparkles className="h-7 w-7 text-white" />
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-white dark:bg-gray-900 ring-1 ring-border flex items-center justify-center mb-4 shadow-lg shadow-blue-500/20 overflow-hidden">
+        <Image src="/icon.png" alt="Flow-AI" width={40} height={40} unoptimized className="h-10 w-10 object-contain" />
       </div>
       <h2 className="text-xl font-semibold mb-2">{headlineByMode[mode]}</h2>
       <p className="text-sm text-muted-foreground mb-6">{subByMode[mode]}</p>
@@ -1267,12 +1035,11 @@ function PendingAssistant({ mode, tier, status }: { mode: Mode; tier: Tier; stat
   if (mode === "text") {
     return (
       <div className="flex gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center flex-shrink-0">
-          <Sparkles className="h-4 w-4" />
+        <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 ring-1 ring-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <Image src="/icon.png" alt="Flow-AI" width={22} height={22} unoptimized className="h-[22px] w-[22px] object-contain" />
         </div>
-        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl text-sm bg-muted/60 text-muted-foreground">
-          <AISpinner size={14} />
-          {label}
+        <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-gray-800 border border-border">
+          <TypingDots />
         </div>
       </div>
     );
@@ -1280,8 +1047,8 @@ function PendingAssistant({ mode, tier, status }: { mode: Mode; tier: Tier; stat
 
   return (
     <div className="flex gap-3">
-      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center flex-shrink-0">
-        <Sparkles className="h-4 w-4" />
+      <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 ring-1 ring-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <Image src="/icon.png" alt="Flow-AI" width={22} height={22} unoptimized className="h-[22px] w-[22px] object-contain" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="inline-block max-w-full">
@@ -1312,25 +1079,29 @@ function MessageView({
     <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
       <div
         className={cn(
-          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-1",
+          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-1 overflow-hidden",
           isUser
             ? "bg-muted text-muted-foreground"
-            : "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-sm shadow-blue-500/20",
+            : "bg-white dark:bg-gray-800 ring-1 ring-border",
         )}
       >
-        {isUser ? <span className="text-xs font-semibold">You</span> : <Sparkles className="h-4 w-4" />}
+        {isUser ? (
+          <span className="text-xs font-semibold">You</span>
+        ) : (
+          <Image src="/icon.png" alt="Flow-AI" width={22} height={22} unoptimized className="h-[22px] w-[22px] object-contain" />
+        )}
       </div>
       <div className={cn("flex-1 min-w-0", isUser ? "text-right" : "text-left")}>
         {message.content && (
           <div
             className={cn(
-              "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words max-w-full",
+              "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left",
               isUser
-                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
                 : "bg-white dark:bg-gray-800 border border-border text-foreground",
             )}
           >
-            {message.content}
+            {isUser ? message.content : <RichText text={message.content} />}
           </div>
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (

@@ -3,7 +3,28 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { runFlowAgent } from "@/lib/ai/flow-agent/agent-loop";
 import { awaitConfirmation } from "@/lib/ai/flow-agent/job-state";
+import { ai, HAIKU_MODEL } from "@/lib/ai/client";
 import type { AgentEvent } from "@/lib/ai/flow-agent/tool-context";
+
+/**
+ * Generate a short title for a brand-new conversation from the first
+ * user message. Fire-and-forget — failures leave the default
+ * "New Conversation" rather than blocking anything.
+ */
+async function autoTitleConversation(conversationId: string, seed: string): Promise<void> {
+  try {
+    const raw = await ai.generate(
+      `Summarize this into a 3-6 word conversation title. No quotes, no trailing punctuation, Title Case:\n\n"${seed.slice(0, 400)}"`,
+      { model: HAIKU_MODEL, maxTokens: 24, temperature: 0.3, systemPrompt: "You write concise chat titles. Output only the title." },
+    );
+    const title = raw.trim().replace(/^["'`]+|["'`]+$/g, "").replace(/[.!?]+$/, "").slice(0, 60);
+    if (title) {
+      await prisma.aIConversation.update({ where: { id: conversationId }, data: { title } });
+    }
+  } catch {
+    /* keep default title */
+  }
+}
 
 /**
  * POST /api/flow-ai/agent — SSE-streaming Flow-AI agent endpoint.
@@ -77,6 +98,7 @@ export async function POST(req: NextRequest) {
   // so any DB error surfaces as a regular HTTP error the client can
   // handle, not as an SSE failure.
   let conversationId: string;
+  let isNewConversation = false;
   if (body.conversationId) {
     const conv = await prisma.aIConversation.findFirst({
       where: { id: body.conversationId, userId: session.userId },
@@ -95,6 +117,7 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
     conversationId = created.id;
+    isNewConversation = true;
   }
 
   // Persist the user turn immediately so it survives a client disconnect.
@@ -234,6 +257,15 @@ export async function POST(req: NextRequest) {
           where: { id: conversationId },
           data: { updatedAt: new Date() },
         });
+
+        // Auto-title a brand-new conversation from the first user message
+        // (or its attachments). Fire-and-forget so it never delays the
+        // stream close. Without this every conversation reads
+        // "New Conversation" and they all look merged in the sidebar.
+        if (isNewConversation) {
+          const titleSeed = message || "Shared an image";
+          autoTitleConversation(conversationId, titleSeed).catch(() => {});
+        }
 
         send({
           type: "done",

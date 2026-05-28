@@ -4,9 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Maximize2, Plus, Paperclip } from "lucide-react";
+import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
   ToolCallChip,
   PlanProposalCard,
@@ -22,6 +21,7 @@ import {
   subscribeToTaskStream,
 } from "./use-agent-stream";
 import { useWebPushAutoSubscribe, requestPushPermission } from "./use-web-push";
+import { RichText, TypingDots } from "./rich-text";
 
 /**
  * Floating Flow-AI widget — compact agent chat that lives in the
@@ -70,6 +70,10 @@ export function FlowAIWidget() {
   // Pending image attachments (base64 data URLs) shown as chips above the
   // composer until the next send. Restored from the old widget's upload.
   const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name: string }>>([]);
+  // Conversation history panel (toggle back to a previous conversation).
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [conversations, setConversations] = useState<Array<{ id: string; title: string | null; updatedAt: string; messageCount: number }>>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -330,7 +334,105 @@ export function FlowAIWidget() {
     taskStreamsRef.current.clear();
     setMessages([]);
     setConversationId(null);
+    setHistoryOpen(false);
   };
+
+  // Fetch the conversation list when the history panel opens.
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true);
+    setLoadingHistory(true);
+    try {
+      const res = await fetch("/api/ai/assistant/conversations?limit=30");
+      const json = await res.json();
+      const raw = json?.data?.conversations ?? json?.conversations ?? [];
+      setConversations(
+        raw.map((c: { id: string; title: string | null; updatedAt: string; messageCount?: number; _count?: { messages?: number } }) => ({
+          id: c.id,
+          title: c.title,
+          updatedAt: c.updatedAt,
+          messageCount: c.messageCount ?? c._count?.messages ?? 0,
+        })),
+      );
+    } catch (err) {
+      console.error("[FlowAIWidget] load history failed:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  // Load a previous conversation's messages into the widget thread.
+  // Parses each assistant message's metadata so tool/plan/task cards
+  // (and the rehydration endpoints) reflect prior state.
+  const loadConversation = useCallback(
+    async (id: string) => {
+      taskStreamsRef.current.forEach((c) => c.abort());
+      taskStreamsRef.current.clear();
+      setHistoryOpen(false);
+      setConversationId(id);
+      setMessages([]);
+      try {
+        const res = await fetch(`/api/ai/assistant/conversations/${id}`);
+        const json = await res.json();
+        const conv = json?.data ?? json;
+        const rawMsgs: Array<{ id: string; role: string; content: string }> = conv?.messages ?? [];
+        setMessages(
+          rawMsgs
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            })),
+        );
+        // Rehydrate plan proposals + tasks for this conversation so cards
+        // render in their persisted state (same endpoints the shell uses).
+        rehydrateConversation(id);
+      } catch (err) {
+        console.error("[FlowAIWidget] load conversation failed:", err);
+      }
+    },
+    [],
+  );
+
+  // Pull persisted plan proposals + tasks and attach them to their
+  // owning messages (multi-device / reopen parity with the full shell).
+  const rehydrateConversation = useCallback(async (id: string) => {
+    try {
+      const [propRes, taskRes] = await Promise.all([
+        fetch(`/api/flow-ai/agent/proposals?conversationId=${id}`),
+        fetch(`/api/flow-ai/tasks?conversationId=${id}`),
+      ]);
+      const propJson = await propRes.json().catch(() => null);
+      const taskJson = await taskRes.json().catch(() => null);
+      const proposalsByMsg = new Map<string, PlanProposalCardData[]>();
+      if (Array.isArray(propJson?.proposals)) {
+        for (const p of propJson.proposals as Array<{ id: string; messageId: string; summary: string; steps: PlanProposalCardData["steps"]; totalCreditCost: number; status: PlanProposalCardData["status"] }>) {
+          const list = proposalsByMsg.get(p.messageId) ?? [];
+          list.push({ id: p.id, summary: p.summary, steps: p.steps ?? [], totalCreditCost: p.totalCreditCost ?? 0, status: p.status });
+          proposalsByMsg.set(p.messageId, list);
+        }
+      }
+      const tasksByMsg = new Map<string, AgentTaskCardData[]>();
+      if (Array.isArray(taskJson?.tasks)) {
+        for (const t of taskJson.tasks as Array<{ id: string; messageId: string | null; kind: string; status: AgentTaskCardData["status"]; output: { url?: string } | null; error: string | null; resultRefType: string | null; resultRefId: string | null }>) {
+          if (!t.messageId) continue;
+          const list = tasksByMsg.get(t.messageId) ?? [];
+          list.push({ id: t.id, kind: t.kind, status: t.status, output: t.output, error: t.error, resultRefType: t.resultRefType, resultRefId: t.resultRefId });
+          tasksByMsg.set(t.messageId, list);
+        }
+      }
+      if (proposalsByMsg.size === 0 && tasksByMsg.size === 0) return;
+      setMessages((prev) =>
+        prev.map((m) => ({
+          ...m,
+          planProposals: proposalsByMsg.get(m.id) ?? m.planProposals,
+          agentTasks: tasksByMsg.get(m.id) ?? m.agentTasks,
+        })),
+      );
+    } catch (err) {
+      console.error("[FlowAIWidget] rehydrate failed:", err);
+    }
+  }, []);
 
   const handleExpand = () => {
     setOpen(false);
@@ -390,6 +492,18 @@ export function FlowAIWidget() {
               </div>
               <button
                 type="button"
+                onClick={() => (historyOpen ? setHistoryOpen(false) : openHistory())}
+                className={cn(
+                  "h-8 w-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center",
+                  historyOpen && "bg-muted text-foreground",
+                )}
+                aria-label="Conversation history"
+                title="Conversation history"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
                 onClick={handleNewConversation}
                 className="h-8 w-8 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
                 aria-label="New conversation"
@@ -416,7 +530,48 @@ export function FlowAIWidget() {
               </button>
             </div>
 
-            {/* Thread */}
+            {/* Conversation history panel */}
+            {historyOpen ? (
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen(false)}
+                    className="h-6 w-6 rounded hover:bg-muted flex items-center justify-center"
+                    aria-label="Back"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  Conversations
+                </div>
+                {loadingHistory ? (
+                  <div className="px-3 py-4 text-xs text-muted-foreground">Loading…</div>
+                ) : conversations.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-muted-foreground">No conversations yet.</div>
+                ) : (
+                  conversations.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => loadConversation(c.id)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2",
+                        c.id === conversationId
+                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                          : "hover:bg-muted text-foreground",
+                      )}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 opacity-60" />
+                      <span className="truncate flex-1">{c.title || "Untitled conversation"}</span>
+                      <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                        {new Date(c.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : (
+            /* Thread */
             <div
               ref={threadRef}
               className="flex-1 overflow-y-auto px-3.5 py-4 space-y-3 bg-gradient-to-b from-transparent to-muted/20"
@@ -441,11 +596,11 @@ export function FlowAIWidget() {
               )}
               {sending && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground pl-10">
-                  <AISpinner size={12} />
-                  Thinking…
+                  <TypingDots />
                 </div>
               )}
             </div>
+            )}
 
             {/* Input */}
             <div className="border-t border-border bg-white dark:bg-gray-950 p-2.5">
@@ -607,17 +762,26 @@ function WidgetMessageView({
         )}
       </div>
       <div className={cn("flex-1 min-w-0 space-y-2", isUser ? "text-right" : "text-left")}>
-        {message.content && (
+        {message.content ? (
           <div
             className={cn(
-              "inline-block px-3 py-1.5 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words max-w-full",
+              "inline-block px-3 py-1.5 rounded-2xl text-sm leading-snug break-words max-w-full text-left",
               isUser
-                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
                 : "bg-white dark:bg-gray-900 border border-border text-foreground",
             )}
           >
-            {message.content}
+            {isUser ? message.content : <RichText text={message.content} />}
           </div>
+        ) : (
+          !isUser &&
+          // Assistant bubble still empty → show the typing indicator inside
+          // a bubble so it reads as "the AI is composing a reply".
+          (!message.toolCalls?.length && !message.planProposals?.length && !message.agentTasks?.length) && (
+            <div className="inline-flex items-center px-3 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-border">
+              <TypingDots />
+            </div>
+          )
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
