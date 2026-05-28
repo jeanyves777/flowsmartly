@@ -194,7 +194,10 @@ export function FlowAIWidget() {
         await consumeAgentStreamWithReplay(res.body, conversationId ?? "", {
           onStart: (convId) => {
             resolvedConversationId = convId;
-            if (!conversationId) setConversationId(convId);
+            // Always adopt the server's conversation id — it may differ
+            // from ours if our cached id was stale (the server started a
+            // fresh conversation instead of 404'ing).
+            if (convId !== conversationId) setConversationId(convId);
           },
           onText: (delta) => {
             assistantText += delta;

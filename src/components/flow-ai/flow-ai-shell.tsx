@@ -386,7 +386,10 @@ export function FlowAIShell() {
         // Everything routes through the tool-using agent now (no modes).
         {
           const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments);
-          if (newConvId && !conversationId) {
+          // Adopt the server's conversation id whenever it differs — covers
+          // both first-message (was null) and stale-id reassignment (the
+          // server started fresh instead of 404'ing).
+          if (newConvId && newConvId !== conversationId) {
             setConversationId(newConvId);
             const url = new URL(window.location.href);
             url.searchParams.set("conversationId", newConvId);

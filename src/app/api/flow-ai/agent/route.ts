@@ -99,19 +99,20 @@ export async function POST(req: NextRequest) {
   // handle, not as an SSE failure.
   let conversationId: string;
   let isNewConversation = false;
-  if (body.conversationId) {
-    const conv = await prisma.aIConversation.findFirst({
-      where: { id: body.conversationId, userId: session.userId },
-      select: { id: true },
-    });
-    if (!conv) {
-      return new Response(JSON.stringify({ error: "Conversation not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    conversationId = conv.id;
+  const existingConv = body.conversationId
+    ? await prisma.aIConversation.findFirst({
+        where: { id: body.conversationId, userId: session.userId },
+        select: { id: true },
+      })
+    : null;
+  if (existingConv) {
+    conversationId = existingConv.id;
   } else {
+    // No id, OR a stale client-cached id that no longer exists for this
+    // user (deleted conversation, different account, DB reset between
+    // deploys). NEVER 404 here — a stale cache must not block the chat
+    // (see feedback-no-stuck-ai-chat). Just start a fresh conversation;
+    // the client adopts the new id from the `start` event.
     const created = await prisma.aIConversation.create({
       data: { userId: session.userId },
       select: { id: true },
