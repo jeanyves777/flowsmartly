@@ -2,9 +2,64 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X, ExternalLink } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+
+/**
+ * Small "Copy" button shown under an assistant text reply so the user can
+ * grab the response (a verse, caption, draft, etc.) and paste it elsewhere.
+ * Copies the RAW markdown/text the assistant produced. Shared by the full
+ * page + the floating widget.
+ */
+export function CopyTextButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for non-secure contexts / older browsers.
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked — leave the icon unchanged.
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? "Copied" : "Copy reply"}
+      title={copied ? "Copied" : "Copy"}
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors",
+        className,
+      )}
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-emerald-500" /> Copied
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5" /> Copy
+        </>
+      )}
+    </button>
+  );
+}
 
 /**
  * Full-screen image lightbox. Shared by TaskCard + MediaCard so any

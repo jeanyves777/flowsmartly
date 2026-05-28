@@ -30,6 +30,7 @@ import {
   ToolCallChip,
   PlanProposalCard,
   TaskCard,
+  CopyTextButton,
   type AgentToolCardData,
   type PlanProposalCardData,
   type PlanStepData,
@@ -1113,6 +1114,11 @@ function MessageView({
             )}
           >
             {isUser ? message.content : <RichText text={message.content} />}
+          </div>
+        )}
+        {!isUser && message.content && (
+          <div className="mt-1 pl-1">
+            <CopyTextButton text={message.content} />
           </div>
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (

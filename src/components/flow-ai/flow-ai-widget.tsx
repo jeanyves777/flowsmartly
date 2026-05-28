@@ -10,6 +10,7 @@ import {
   ToolCallChip,
   PlanProposalCard,
   TaskCard,
+  CopyTextButton,
   type AgentToolCardData,
   type AgentTaskCardData,
   type PlanProposalCardData,
@@ -874,6 +875,11 @@ function WidgetMessageView({
               <TypingDots />
             </div>
           )
+        )}
+        {!isUser && message.content && (
+          <div className="pl-1">
+            <CopyTextButton text={message.content} />
+          </div>
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
