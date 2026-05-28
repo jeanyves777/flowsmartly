@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: result.error }, { status: statusCode });
     }
 
-    // Format the result for the frontend
+    // Format the result for the frontend. `preferredLanguage` was
+    // auto-detected from the input description so the brand kit comes
+    // back in that language and every future AI surface keeps it
+    // (see feedback-ai-respects-user-language).
     const brandKit = {
       name: result.data?.name || "",
       tagline: result.data?.tagline || "",
@@ -61,6 +64,7 @@ export async function POST(request: NextRequest) {
       handles: {},
       colors: { primary: "#0ea5e9", secondary: "#8b5cf6", accent: "#f59e0b" },
       avoidWords: [],
+      preferredLanguage: result.data?.detectedLanguage || "en",
     };
 
     return NextResponse.json({

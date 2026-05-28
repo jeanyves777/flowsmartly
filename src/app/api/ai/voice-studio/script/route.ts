@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { generateScript } from "@/lib/voice/script-generator";
+import { getUserPreferredLanguage } from "@/lib/ai/user-language";
 
 /**
  * POST /api/ai/voice-studio/script — Generate a voiceover script using AI
@@ -65,13 +66,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate script
+    // Generate script in the user's preferred language
+    const language = await getUserPreferredLanguage(session.userId);
     const result = await generateScript({
       topic,
       tone,
       duration,
       brandName,
       brandDescription,
+      language,
     });
 
     // Deduct credits

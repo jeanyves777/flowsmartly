@@ -1,0 +1,247 @@
+import type { NextRequest } from "next/server";
+import { getSession } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/client";
+import { runFlowAgent } from "@/lib/ai/flow-agent/agent-loop";
+import { awaitConfirmation } from "@/lib/ai/flow-agent/job-state";
+import type { AgentEvent } from "@/lib/ai/flow-agent/tool-context";
+
+/**
+ * POST /api/flow-ai/agent — SSE-streaming Flow-AI agent endpoint.
+ *
+ * Body: { conversationId?: string, message: string, timezone?: string, clientNow?: string }
+ *
+ * Streams Server-Sent Events of shape `data: <json>\n\n`. Event payloads
+ * are AgentEvent (see tool-context.ts) — the frontend dispatches each by
+ * `type` to render text deltas, tool-call cards, plan-proposal cards,
+ * task progress, credit charges, and errors.
+ *
+ * Per feedback-no-stuck-ai-chat: this route NEVER 4xx/5xx after the
+ * stream opens. Errors arrive as `error` events; the stream always emits
+ * a final `done` event. The ONLY pre-stream gate is authentication.
+ */
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 minutes — plenty for tool loops with media generation
+
+export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  let body: {
+    conversationId?: string;
+    message?: string;
+    timezone?: string;
+    clientNow?: string;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  if (!message) {
+    return new Response(JSON.stringify({ error: "message is required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Get or create the conversation. We do this BEFORE the stream opens
+  // so any DB error surfaces as a regular HTTP error the client can
+  // handle, not as an SSE failure.
+  let conversationId: string;
+  if (body.conversationId) {
+    const conv = await prisma.aIConversation.findFirst({
+      where: { id: body.conversationId, userId: session.userId },
+      select: { id: true },
+    });
+    if (!conv) {
+      return new Response(JSON.stringify({ error: "Conversation not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    conversationId = conv.id;
+  } else {
+    const created = await prisma.aIConversation.create({
+      data: { userId: session.userId },
+      select: { id: true },
+    });
+    conversationId = created.id;
+  }
+
+  // Persist the user turn immediately so it survives a client disconnect.
+  const userMsg = await prisma.aIMessage.create({
+    data: { conversationId, role: "user", content: message },
+    select: { id: true },
+  });
+
+  // Pre-create the assistant message row so tool-call audit rows have a
+  // valid foreign key. We'll update content + metadata after the loop.
+  const assistantMsg = await prisma.aIMessage.create({
+    data: { conversationId, role: "assistant", content: "" },
+    select: { id: true },
+  });
+
+  // Pull the most recent ~20 turns so the model has context.
+  const history = await prisma.aIMessage.findMany({
+    where: { conversationId, id: { not: assistantMsg.id } },
+    orderBy: { createdAt: "asc" },
+    take: 40,
+    select: { role: true, content: true, metadata: true },
+  });
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { plan: true },
+  });
+  const plan = user?.plan ?? "STARTER";
+
+  const encoder = new TextEncoder();
+  const abortController = new AbortController();
+  req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (event: AgentEvent) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          /* controller already closed */
+        }
+      };
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      };
+
+      // Open the stream with a start event so the client can hide
+      // its "connecting…" spinner immediately.
+      send({ type: "start", conversationId, messageId: assistantMsg.id });
+
+      // Track text + metadata we'll persist to the assistant message row.
+      let assembledText = "";
+      const toolCallSummaries: Array<{
+        id: string;
+        name: string;
+        ok: boolean;
+        errorCode?: string;
+        creditCost: number;
+      }> = [];
+      const planProposalIds: string[] = [];
+      const taskIds: string[] = [];
+
+      // Wrap emit so we can sniff certain events for persistence.
+      const emit = (event: AgentEvent) => {
+        if (event.type === "text_delta") {
+          assembledText += event.text;
+        } else if (event.type === "tool_call_result") {
+          const okFlag =
+            typeof event.output === "object" &&
+            event.output !== null &&
+            "ok" in event.output &&
+            (event.output as { ok?: unknown }).ok === true;
+          toolCallSummaries.push({
+            id: event.id,
+            name: event.name,
+            ok: okFlag,
+            errorCode: event.errorCode,
+            creditCost: event.creditCost,
+          });
+        } else if (event.type === "plan_proposal") {
+          planProposalIds.push(event.id);
+        } else if (event.type === "task_started") {
+          taskIds.push(event.taskId);
+        }
+        send(event);
+      };
+
+      try {
+        const result = await runFlowAgent({
+          userId: session.userId,
+          isAdmin: !!session.adminId,
+          plan,
+          conversationId,
+          messageId: assistantMsg.id,
+          userMessage: message,
+          history: history.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            metadata: m.metadata,
+          })),
+          clientNow: body.clientNow,
+          timezone: body.timezone,
+          abortSignal: abortController.signal,
+          emit,
+          awaitConfirmation: (planId) => awaitConfirmation(planId, conversationId),
+        });
+
+        // Persist the final assistant message.
+        const metadata = {
+          toolCalls: toolCallSummaries,
+          planProposals: planProposalIds,
+          taskRefs: taskIds,
+          tokensUsed: result.tokensUsed,
+          creditsUsed: result.creditsUsed,
+        };
+        await prisma.aIMessage.update({
+          where: { id: assistantMsg.id },
+          data: {
+            content: result.finalText || assembledText,
+            tokensUsed: result.tokensUsed,
+            metadata: JSON.stringify(metadata),
+          },
+        });
+        await prisma.aIConversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() },
+        });
+
+        send({
+          type: "done",
+          tokensUsed: result.tokensUsed,
+          creditsUsed: result.creditsUsed,
+          iterations: result.iterations,
+        });
+      } catch (e) {
+        // Belt-and-braces: agent-loop already converts everything to
+        // events, but if anything escapes (DB outage, etc.), surface it
+        // as an error event so the stream still closes cleanly.
+        const msg = e instanceof Error ? e.message : "Agent failed";
+        console.error("[flow-ai/agent] Stream failure:", e);
+        send({ type: "error", message: msg, recoverable: false });
+        send({ type: "done", tokensUsed: 0, creditsUsed: 0, iterations: 0 });
+      } finally {
+        close();
+      }
+    },
+    cancel() {
+      abortController.abort();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no", // nginx: don't buffer SSE
+    },
+  });
+}

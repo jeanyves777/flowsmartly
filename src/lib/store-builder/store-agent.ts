@@ -15,6 +15,7 @@ import {
 } from "./store-site-builder";
 import { cleanupV3Patterns } from "@/lib/build-utils/validators";
 import { searchProductImages, downloadImageToStoreDir } from "./image-search";
+import { getUserPreferredLanguage, getLanguageLabel, DEFAULT_LANGUAGE } from "@/lib/ai/user-language";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -966,6 +967,18 @@ export async function runStoreAgentV3(
   let toolCalls = 0;
   const maxIterations = 50;
 
+  // Per feedback-ai-respects-user-language: a non-English merchant should
+  // get a store written in their language — all customer-facing copy
+  // (hero, about, policies, buttons, product blurbs) in the user's
+  // language. Append a directive to the system prompt rather than mutate
+  // the big V3_SYSTEM_PROMPT constant.
+  const storeLanguage = await getUserPreferredLanguage(userId).catch(() => DEFAULT_LANGUAGE);
+  const languageLabel = getLanguageLabel(storeLanguage);
+  const systemPromptWithLanguage =
+    storeLanguage === DEFAULT_LANGUAGE
+      ? V3_SYSTEM_PROMPT
+      : `${V3_SYSTEM_PROMPT}\n\nLANGUAGE (CRITICAL): Write ALL customer-facing copy in ${languageLabel} (${storeLanguage}) — hero text, section headings, about/policy/FAQ pages, button labels, navigation, product descriptions, checkout copy. Code identifiers, file names, and import paths stay in English. Currency + number formatting should suit a ${languageLabel}-speaking audience.`;
+
   const userPrompt = buildStorePrompt(storeInfo, products, categories);
   let messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
 
@@ -985,7 +998,7 @@ export async function runStoreAgentV3(
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 16000,
-        system: V3_SYSTEM_PROMPT,
+        system: systemPromptWithLanguage,
         tools: V3_TOOLS,
         messages,
       });

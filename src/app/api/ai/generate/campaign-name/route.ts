@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/client";
 import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { aiHub } from "@/lib/ai";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 const schema = z.object({
   objective: z.string().optional(),
@@ -92,10 +93,15 @@ Example format:
 
 Return ONLY the JSON array.`;
 
+    // Per feedback-ai-respects-user-language: campaign names land in the
+    // user's dashboard, so they need to be in the user's language too.
+    const language = await getUserPreferredLanguage(session.userId);
+    const systemPrompt = `${languageDirective(language)}\n\nYou are a creative marketing strategist. Return only valid JSON arrays of campaign name strings.`;
+
     const result = await ai.generateJSON<string[]>(prompt, {
       maxTokens: 300,
       temperature: 0.9,
-      systemPrompt: "You are a creative marketing strategist. Return only valid JSON arrays of campaign name strings.",
+      systemPrompt,
     });
 
     const names: string[] = Array.isArray(result)

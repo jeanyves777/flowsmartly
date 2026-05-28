@@ -5,6 +5,7 @@
 
 import { ai } from "../client";
 import { buildCaptionPrompt, SYSTEM_PROMPTS } from "../prompts";
+import { getUserPreferredLanguage, languageDirective } from "../user-language";
 import type { CaptionGenerationRequest, CaptionGenerationResult } from "../types";
 
 export async function generateCaption(request: CaptionGenerationRequest): Promise<CaptionGenerationResult> {
@@ -17,10 +18,15 @@ export async function generateCaption(request: CaptionGenerationRequest): Promis
     brandContext: request.brandContext,
   });
 
+  // Per feedback-ai-respects-user-language: prepend the language clause
+  // to every text generator's system prompt.
+  const language = await getUserPreferredLanguage(request.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${SYSTEM_PROMPTS.contentCreator}`;
+
   const content = await ai.generate(prompt, {
     maxTokens: 1024,
     temperature: 0.8,
-    systemPrompt: SYSTEM_PROMPTS.contentCreator,
+    systemPrompt,
   });
 
   return {

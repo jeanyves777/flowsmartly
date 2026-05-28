@@ -1,0 +1,277 @@
+"use client";
+
+import Image from "next/image";
+import { Download } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
+
+/**
+ * Shared Flow-AI agent UI bits — tool-call chips, plan-proposal cards,
+ * task cards. Imported by both the full-screen `FlowAIShell` and the
+ * floating `FlowAIWidget` so the two surfaces stay visually + behaviorally
+ * identical as we evolve the agent.
+ *
+ * Pure presentational — no SSE handling lives here. Callers feed in the
+ * already-parsed data and wire the `onPlanResponse` callback to their
+ * `/api/flow-ai/agent/confirm` POST.
+ */
+
+export interface AgentToolCardData {
+  id: string;
+  name: string;
+  status: "running" | "ok" | "error";
+  errorCode?: string;
+  creditCost?: number;
+  durationMs?: number;
+  output?: unknown;
+}
+
+export interface PlanStepData {
+  id?: string;
+  title: string;
+  detail?: string;
+  toolName?: string;
+  creditCost?: number;
+}
+
+export interface PlanProposalCardData {
+  id: string;
+  summary: string;
+  steps: PlanStepData[];
+  totalCreditCost: number;
+  status: "pending" | "confirmed" | "rejected" | "expired";
+}
+
+export interface AgentTaskCardData {
+  id: string;
+  kind: string;
+  status: "pending" | "running" | "completed" | "failed" | "canceled";
+  summary?: string;
+  progress?: number;
+  progressMessage?: string;
+  output?: { url?: string; tier?: string; [key: string]: unknown } | null;
+  error?: string | null;
+  resultRefType?: string | null;
+  resultRefId?: string | null;
+}
+
+// ─── Tool-call chip ────────────────────────────────────────────────────
+
+export function ToolCallChip({ call }: { call: AgentToolCardData }) {
+  const label = humanizeToolName(call.name);
+  const tone =
+    call.status === "running"
+      ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300"
+      : call.status === "ok"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+        : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border",
+        tone,
+      )}
+      title={call.errorCode ? `Error: ${call.errorCode}` : undefined}
+    >
+      {call.status === "running" ? (
+        <AISpinner size={10} />
+      ) : call.status === "ok" ? (
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+      )}
+      {label}
+      {typeof call.creditCost === "number" && call.creditCost > 0 && (
+        <span className="opacity-70">· {call.creditCost}cr</span>
+      )}
+    </span>
+  );
+}
+
+function humanizeToolName(name: string): string {
+  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Plan proposal card — Confirm / Cancel ────────────────────────────
+
+export function PlanProposalCard({
+  proposal,
+  onResponse,
+}: {
+  proposal: PlanProposalCardData;
+  onResponse?: (planId: string, confirmed: boolean) => void;
+}) {
+  const isPending = proposal.status === "pending";
+  const statusLabel =
+    proposal.status === "confirmed"
+      ? "Confirmed"
+      : proposal.status === "rejected"
+        ? "Canceled"
+        : proposal.status === "expired"
+          ? "Expired"
+          : "Waiting for you";
+  const statusTone =
+    proposal.status === "confirmed"
+      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+      : proposal.status === "rejected"
+        ? "bg-muted text-muted-foreground"
+        : proposal.status === "expired"
+          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+          : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300";
+
+  return (
+    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+      <div className="px-3.5 py-2.5 border-b border-border flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-foreground">Confirm action</span>
+        <span className={cn("text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full", statusTone)}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="px-3.5 py-3 space-y-2.5">
+        <p className="text-sm text-foreground leading-snug">{proposal.summary}</p>
+        {proposal.steps.length > 0 && (
+          <ol className="text-xs text-muted-foreground space-y-1 pl-4 list-decimal">
+            {proposal.steps.map((s, i) => (
+              <li key={s.id ?? i}>
+                <span className="text-foreground">{s.title}</span>
+                {s.detail && <span className="block opacity-70 mt-0.5">{s.detail}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="text-[11px] text-muted-foreground border-t border-border pt-2">
+          Estimated cost: <span className="font-semibold text-foreground">{proposal.totalCreditCost} credits</span>
+        </div>
+      </div>
+      {isPending && onResponse && (
+        <div className="px-3.5 py-2.5 bg-muted/40 flex items-center gap-2 border-t border-border">
+          <button
+            type="button"
+            onClick={() => onResponse(proposal.id, false)}
+            className="px-3 h-8 rounded-md text-xs font-medium border border-border bg-white dark:bg-gray-800 hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onResponse(proposal.id, true)}
+            className="flex-1 px-3 h-8 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
+          >
+            Confirm — proceed
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Task card — background job status with inline media when done ────
+
+export function TaskCard({ task }: { task: AgentTaskCardData }) {
+  const kindLabel = humanizeTaskKind(task.kind);
+  const isRunning = task.status === "running" || task.status === "pending";
+  const isDone = task.status === "completed";
+  const isFailed = task.status === "failed" || task.status === "canceled";
+  const mediaUrl =
+    typeof task.output?.url === "string" && /^https?:\/\//.test(task.output.url)
+      ? task.output.url
+      : null;
+  const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
+
+  return (
+    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+      <div className="px-3.5 py-2.5 border-b border-border flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {isRunning ? (
+            <AISpinner size={14} />
+          ) : isDone ? (
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+          )}
+          <span className="text-xs font-semibold text-foreground truncate">{kindLabel}</span>
+        </div>
+        <span
+          className={cn(
+            "text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full",
+            isRunning
+              ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+              : isDone
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+          )}
+        >
+          {task.status}
+        </span>
+      </div>
+      {isRunning && (
+        <div className="px-3.5 py-3 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {task.progressMessage ?? task.summary ?? "Working…"}
+          </p>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(6, task.progress ?? 30))}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground/70">
+            You can leave this chat — we&apos;ll notify you when it&apos;s ready.
+          </p>
+        </div>
+      )}
+      {isDone && mediaUrl && (
+        <div className="bg-muted/30">
+          {isVideo ? (
+            <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
+          ) : (
+            <Image
+              src={mediaUrl}
+              alt={kindLabel}
+              width={512}
+              height={512}
+              unoptimized
+              className="block w-full h-auto"
+            />
+          )}
+          <div className="px-3.5 py-2 flex items-center justify-between">
+            <a
+              href={mediaUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Download
+            </a>
+            {typeof task.output?.tier === "string" && (
+              <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
+            )}
+          </div>
+        </div>
+      )}
+      {isDone && !mediaUrl && (
+        <div className="px-3.5 py-3 text-xs text-muted-foreground">Done.</div>
+      )}
+      {isFailed && (
+        <div className="px-3.5 py-3 text-xs text-rose-600 dark:text-rose-400">
+          {task.error ?? "Task failed."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function humanizeTaskKind(kind: string): string {
+  const map: Record<string, string> = {
+    generate_image: "AI image",
+    generate_video: "AI video",
+    schedule_post: "Scheduled post",
+    import_contacts_csv: "Contact import",
+    create_email_campaign: "Email campaign",
+    start_story_ad_campaign: "Story ad movie",
+    create_automation: "Marketing automation",
+  };
+  return map[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}

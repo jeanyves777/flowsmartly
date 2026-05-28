@@ -5,6 +5,7 @@
 
 import { ai } from "../client";
 import { buildAutoGenerationPrompt, SYSTEM_PROMPTS } from "../prompts";
+import { getUserPreferredLanguage, languageDirective } from "../user-language";
 import type { AutoGenerationRequest, IdeaItem } from "../types";
 
 export type AutoGenerationResult = {
@@ -22,10 +23,16 @@ export async function generateAuto(request: AutoGenerationRequest): Promise<Auto
     brandContext: request.brandContext,
   });
 
+  // Per feedback-ai-respects-user-language: auto-generation runs for
+  // every template category (post, caption, hashtags, ideas) — all of
+  // them must respect the user's chosen language.
+  const language = await getUserPreferredLanguage(request.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${SYSTEM_PROMPTS.contentCreator}`;
+
   const response = await ai.generate(prompt, {
     maxTokens: 2048,
     temperature: 0.8,
-    systemPrompt: SYSTEM_PROMPTS.contentCreator,
+    systemPrompt,
   });
 
   // Parse response based on category

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { TRANSACTION_TYPES } from "@/lib/credits";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { getPresignedUrl, uploadToS3 } from "@/lib/utils/s3-client";
+import { getUserPreferredLanguage, languageDirective, getLanguageLabel } from "@/lib/ai/user-language";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { nanoid } from "nanoid";
 import { spawn } from "child_process";
@@ -210,7 +211,11 @@ export function normalizeStoryAdMovieInput(body: Record<string, unknown>) {
   };
 }
 
-async function generateStoryAdScript(input: StoryAdMovieInput, brand: BrandSnapshot): Promise<StoryAdMovieScript> {
+async function generateStoryAdScript(
+  input: StoryAdMovieInput,
+  brand: BrandSnapshot,
+  language: string,
+): Promise<StoryAdMovieScript> {
   const sceneCount = input.duration <= 10 ? 4 : input.duration <= 20 ? 5 : input.duration <= 30 ? 6 : 8;
   const wordsPerScene = input.duration <= 10 ? 8 : input.duration <= 20 ? 10 : 12;
   const styleHint = STYLE_HINTS[input.style] || STYLE_HINTS.cinematic;
@@ -292,11 +297,17 @@ Return strict JSON only:
   ]
 }`;
 
+  // Per feedback-ai-respects-user-language: every text field the
+  // pipeline produces (title, captions, narration, hashtags) must land
+  // in the user's language. voiceover TTS will pick this up downstream
+  // when we pass the same `language` tag to the voice client.
+  const languageLabel = getLanguageLabel(language);
+  const systemPrompt = `${languageDirective(language)}\n\nYou are a senior creative director for direct-response video ads. Return valid JSON only. Build premium, story-driven commercial still movies. All narration / captions / titles / hashtags MUST be in ${languageLabel}. The videoPrompt + imagePrompt may stay in English for the image/video models, but any TEXT inside those prompts (signs, on-screen copy) should specify ${languageLabel}.`;
+
   const result = await ai.generateJSON<StoryAdMovieScript>(prompt, {
     maxTokens: 2600,
     temperature: 0.78,
-    systemPrompt:
-      "You are a senior creative director for direct-response video ads. Return valid JSON only. Build premium, story-driven commercial still movies.",
+    systemPrompt,
   });
 
   if (!result?.scenes?.length) {
@@ -639,10 +650,13 @@ async function concatenateXaiChapters(chapters: Buffer[]): Promise<Buffer> {
 export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<void> {
   try {
     await updateJobStatus(input.jobId, "PROCESSING", 8, "Reading your brand and offer...");
-    const brand = await getBrandSnapshot(input.userId);
+    const [brand, language] = await Promise.all([
+      getBrandSnapshot(input.userId),
+      getUserPreferredLanguage(input.userId),
+    ]);
 
     await updateJobStatus(input.jobId, "PROCESSING", 18, "Writing the ad story...");
-    const script = await generateStoryAdScript(input, brand);
+    const script = await generateStoryAdScript(input, brand, language);
     const compatibleScript = toCartoonCompatibleScript(script);
 
     const existingMeta = await prisma.cartoonVideo.findUnique({

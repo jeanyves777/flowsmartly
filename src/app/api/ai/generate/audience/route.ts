@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/client";
 import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { aiHub } from "@/lib/ai";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 const audienceSchema = z.object({
   campaignName: z.string().optional(),
@@ -106,10 +107,15 @@ Example format:
 
 Return ONLY the JSON array.`;
 
+    // Per feedback-ai-respects-user-language: audience tag labels render
+    // in the user's dashboard — must be in their language.
+    const language = await getUserPreferredLanguage(session.userId);
+    const systemPrompt = `${languageDirective(language)}\n\nYou are a digital advertising expert. Return only valid JSON arrays of audience targeting tags.`;
+
     const result = await ai.generateJSON<AudienceTag[]>(prompt, {
       maxTokens: 500,
       temperature: 0.8,
-      systemPrompt: "You are a digital advertising expert. Return only valid JSON arrays of audience targeting tags.",
+      systemPrompt,
     });
 
     const tags: AudienceTag[] = Array.isArray(result)

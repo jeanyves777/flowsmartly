@@ -14,9 +14,23 @@ import {
   initSiteDirV3, buildSiteV3, deploySiteV3,
 } from "./site-builder";
 import { downloadImageToDir } from "./image-search";
+import { getUserPreferredLanguage, getLanguageLabel, DEFAULT_LANGUAGE } from "@/lib/ai/user-language";
 import type { SiteQuestionnaire, AgentProgress } from "@/types/website-builder";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+/**
+ * Append a language directive to a website system prompt when the user's
+ * preferred language isn't English. All visitor-facing copy is produced
+ * in their language; code identifiers stay English.
+ * See feedback-ai-respects-user-language.
+ */
+async function withSiteLanguage(systemPrompt: string, userId: string): Promise<string> {
+  const lang = await getUserPreferredLanguage(userId).catch(() => DEFAULT_LANGUAGE);
+  if (lang === DEFAULT_LANGUAGE) return systemPrompt;
+  const label = getLanguageLabel(lang);
+  return `${systemPrompt}\n\nLANGUAGE (CRITICAL): Write ALL visitor-facing copy in ${label} (${lang}) — hero, headings, body, nav, buttons, footer, form labels, SEO meta titles/descriptions. Code identifiers, file names, and import paths stay in English.`;
+}
 
 // --- Tool Definitions ---
 
@@ -522,6 +536,7 @@ export async function runWebsiteAgent(
 
   const userPrompt = buildUserPrompt(questionnaire);
   let messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
+  const systemPrompt = await withSiteLanguage(SYSTEM_PROMPT, userId);
 
   try {
     await prisma.website.update({
@@ -535,7 +550,7 @@ export async function runWebsiteAgent(
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 16000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: TOOLS,
         messages,
       });
@@ -698,6 +713,8 @@ export async function runWebsiteAgentV3(
       "DO NOT write: package.json, tsconfig.json, postcss.config.mjs, next.config.ts, .env.local, src/lib/api-client.ts, src/app/api/[...path]/route.ts, ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx"
     );
 
+  const v3SystemPromptLocalized = await withSiteLanguage(v3SystemPrompt, userId);
+
   try {
     await prisma.website.update({
       where: { id: websiteId },
@@ -714,7 +731,7 @@ export async function runWebsiteAgentV3(
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 16000,
-        system: v3SystemPrompt,
+        system: v3SystemPromptLocalized,
         tools: TOOLS,
         messages,
       });

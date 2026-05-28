@@ -6,6 +6,7 @@
 
 import { ai } from "../client";
 import { buildBrandContext } from "../prompts";
+import { languageDirective, DEFAULT_LANGUAGE } from "../user-language";
 import type { BrandContext, ToneType } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,8 @@ export interface EmailGenerationRequest {
   eventName?: string;
   eventDate?: string;
   customPrompt?: string;
+  /** BCP-47 tag — the email body + subject are produced in this language. Defaults to "en". */
+  language?: string;
 }
 
 export interface SMSGenerationRequest {
@@ -111,6 +114,8 @@ export interface SMSGenerationRequest {
   eventName?: string;
   link?: string;
   customPrompt?: string;
+  /** BCP-47 tag — the SMS body is produced in this language. Defaults to "en". */
+  language?: string;
 }
 
 export interface EmailGenerationResult {
@@ -225,10 +230,11 @@ Return ONLY valid JSON in this exact format:
   "htmlContent": "<!DOCTYPE html><html>...</html>"
 }`;
 
+  const emailSystem = `${languageDirective(request.language ?? DEFAULT_LANGUAGE)}\n\n${EMAIL_SYSTEM_PROMPT}`;
   const response = await ai.generate(prompt, {
     maxTokens: 2500,
     temperature: 0.7,
-    systemPrompt: EMAIL_SYSTEM_PROMPT,
+    systemPrompt: emailSystem,
   });
 
   return parseEmailResponse(response);
@@ -285,10 +291,11 @@ Generate an SMS message that:
 
 Return ONLY the SMS message text, nothing else. No quotes, no labels, just the message.`;
 
+  const smsSystem = `${languageDirective(request.language ?? DEFAULT_LANGUAGE)}\n\n${SMS_SYSTEM_PROMPT}`;
   const response = await ai.generate(prompt, {
     maxTokens: 200,
     temperature: 0.6,
-    systemPrompt: SMS_SYSTEM_PROMPT,
+    systemPrompt: smsSystem,
   });
 
   let content = response.trim();

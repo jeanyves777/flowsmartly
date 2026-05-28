@@ -110,6 +110,8 @@ model User {
   referrals             Referral[]
   aiConversations       AIConversation[]
   aiMemories            UserAiMemory[]
+  agentTasks            AgentTask[]
+  pushSubscriptions     PushSubscription[]
   postAutomations       PostAutomation[]
   contentCampaigns      ContentCampaign[]
   contentAutomations    ContentAutomation[]
@@ -1218,6 +1220,13 @@ model BrandKit {
   // Visual Identity
   colors String @default("{}") // JSON: {primary, secondary, accent}
   fonts  String @default("{}") // JSON: {heading, body}
+
+  // Preferred output language for ALL AI generation tied to this brand.
+  // BCP-47 tag (e.g. "en", "fr", "es", "pt-BR"). null = auto-detect from
+  // user input each call. EVERY AI surface in the app (agent tools, post
+  // generators, captions, emails, voice) MUST read this and respond in
+  // the chosen language. See feedback-ai-respects-user-language memory.
+  preferredLanguage String? @default("en")
 
   // Content Guidelines
   guidelines String? // Detailed brand guidelines
@@ -2720,8 +2729,9 @@ model AIConversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages AIMessage[]
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+  agentTasks AgentTask[]
 
   @@index([userId])
   @@index([updatedAt])
@@ -2730,17 +2740,176 @@ model AIConversation {
 model AIMessage {
   id             String   @id @default(cuid())
   conversationId String
-  role           String // "user" or "assistant"
+  role           String // "user" or "assistant" or "system"
   content        String
   tokensUsed     Int      @default(0)
   mediaType      String? // "image", "video", null for text
   mediaUrl       String? // S3 URL for generated media
+  // JSON blob with agent metadata: { toolCalls: [...], proposedPlan: {...},
+  // taskRefs: ["task_xxx"], thinking: "...", etc. } — null for plain text msgs
+  metadata       String?
   createdAt      DateTime @default(now())
 
   conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+// ============================================
+// FLOW-AI AGENT — tool-use tasks + audit log
+// ============================================
+// AgentTask  = a long-running side-effect kicked off by the agent
+//              (schedule a post, generate a video, import contacts).
+//              Status flips through pending → running → completed/failed.
+//              Completion fires a notification + can be streamed back to
+//              the chat if the user returns mid-task.
+//
+// AgentToolCall = per-call audit row for every tool invocation. Lets us
+//                 (a) show the user exactly what the agent did, and
+//                 (b) bill correctly when something fails partway through.
+
+model AgentTask {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String?
+  messageId      String? // the assistant AIMessage that spawned the task
+
+  // What the agent is doing. Free-form string so new tools can register
+  // task kinds without a migration. Examples: "schedule_post",
+  // "generate_video", "import_contacts_csv", "create_email_campaign".
+  kind   String
+  status String @default("pending") // pending | running | completed | failed | canceled
+
+  input  String  @default("{}") // JSON of the tool's input
+  output String? // JSON of the result, populated on completion
+  error  String? // error message on failure
+
+  // Soft ref to the produced record so the chat can deep-link
+  // ("View your scheduled post" → /content/scheduled/{resultRefId}).
+  resultRefType String?
+  resultRefId   String?
+
+  creditCost  Int       @default(0)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation AIConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  toolCalls    AgentToolCall[]
+
+  @@index([userId, status])
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model AgentToolCall {
+  id             String  @id @default(cuid())
+  conversationId String
+  messageId      String // the assistant AIMessage that issued the call
+  taskId         String? // optional — set when the call spawned an AgentTask
+  // Monotonic per-conversation event sequence — used by mobile/web clients
+  // to resume an SSE stream after a network drop (?lastSeq=N replays events
+  // with seq > N). Auto-incremented at insert time inside a transaction.
+  seq            Int     @default(0)
+
+  toolName String
+  input    String  @default("{}") // JSON
+  output   String? // JSON result (truncated if huge)
+  error    String? // error message if the handler threw
+  errorCode String? // structured error key — "insufficient_credits", "plan_required", etc.
+
+  creditCost Int @default(0)
+  durationMs Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  task AgentTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, seq])
+  @@index([conversationId, createdAt])
+  @@index([taskId])
+}
+
+// ============================================
+// AgentPlanProposal — persistent state for propose_plan
+// ============================================
+// Every Confirm/Cancel card the agent shows lives here. Status is the
+// source of truth for the UI when a client reconnects mid-conversation
+// (avoids "ghost confirm buttons" for proposals that already expired or
+// were resolved on another device).
+//
+// Lifecycle: pending → confirmed | rejected | expired
+//
+// The in-process EventEmitter in job-state.ts continues to power the
+// blocking awaitConfirmation in the agent loop. This table is the
+// reconciliation layer for mobile/multi-device — see the
+// "Mobile / multi-device resilience requirements" section of the
+// flow-ai-agent-sdk-roadmap memory.
+// ============================================
+// Web Push subscriptions — for browser/mobile push notifications
+// ============================================
+// Each row is one device/browser the user has granted push permission to.
+// `endpoint` is the unique push service URL. `p256dh` + `auth` are the
+// keys the browser handed us during PushManager.subscribe() — required
+// by web-push to encrypt the payload.
+//
+// Used today by `notifyAgentTaskComplete` to push background-task
+// completions (image/video ready, story ad rendered, etc.) so the user
+// gets a system notification even if the tab is backgrounded or closed.
+// One user can have many subscriptions (phone + desktop + laptop).
+//
+// Lifecycle:
+//   - Subscribe: POST /api/flow-ai/push/subscribe creates a row
+//   - Unsubscribe: DELETE /api/flow-ai/push/subscribe removes by endpoint
+//   - Auto-cleanup: 410 Gone / 404 from the push service marks the row
+//     for deletion next time we try to send (handled by sendWebPush)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  // ISO of last successful push; null = never sent yet
+  lastUsedAt DateTime?
+  // Counts failed deliveries — when this hits 3 we treat the sub as
+  // dead and let the next 410 prune it.
+  failureCount Int    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AgentPlanProposal {
+  id             String   @id // e.g. "plan_a1b2c3d4e5f6" — generated by propose_plan tool
+  conversationId String
+  messageId      String   // the assistant AIMessage that proposed the plan
+  userId         String
+
+  summary         String
+  steps           String   @default("[]") // JSON array of PlanStep
+  totalCreditCost Int      @default(0)
+  // Monotonic per-conversation sequence — see AgentToolCall.seq comment.
+  seq             Int      @default(0)
+
+  status     String    @default("pending") // pending | confirmed | rejected | expired
+  resolvedAt DateTime?
+  // ISO timestamp when this proposal stops accepting confirmations.
+  // Default 10 minutes after creation; set at insert.
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId, seq])
+  @@index([userId, status])
+  @@index([expiresAt])
 }
 
 // ============================================

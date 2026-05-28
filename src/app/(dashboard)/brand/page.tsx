@@ -45,6 +45,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { SUPPORTED_LANGUAGES } from "@/lib/ai/user-language";
 
 function TikTokIcon({ className }: { className?: string }) {
   return (
@@ -132,6 +133,7 @@ interface BrandKit {
   state: string | null;
   zip: string | null;
   country: string | null;
+  preferredLanguage: string | null;
   isComplete: boolean;
 }
 
@@ -185,6 +187,10 @@ export default function BrandIdentityPage() {
     state: "",
     zip: "",
     country: "US",
+    // Locked-in AI output language. Every generation (Flow-AI agent,
+    // captions, images, videos, voice) reads this and produces content
+    // in the chosen language. See feedback-ai-respects-user-language.
+    preferredLanguage: "en",
   });
 
   // Input states for adding items
@@ -970,6 +976,34 @@ export default function BrandIdentityPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="preferred-language">
+                  AI Output Language
+                  <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                    All AI uses this
+                  </span>
+                </Label>
+                <Select
+                  value={formData.preferredLanguage ?? "en"}
+                  onValueChange={(v) => setFormData({ ...formData, preferredLanguage: v })}
+                >
+                  <SelectTrigger id="preferred-language" className="w-full">
+                    <SelectValue placeholder="Pick a language" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.tag} value={lang.tag}>
+                        {lang.nativeLabel}
+                        <span className="opacity-60 ml-2">{lang.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Every AI generation across FlowSmartly — Flow-AI agent, captions,
+                  images, videos, voice scripts, emails — writes in this language.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Personality Traits (select multiple)</Label>

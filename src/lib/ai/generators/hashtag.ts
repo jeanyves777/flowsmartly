@@ -5,6 +5,7 @@
 
 import { ai } from "../client";
 import { buildHashtagPrompt, SYSTEM_PROMPTS } from "../prompts";
+import { getUserPreferredLanguage, languageDirective } from "../user-language";
 import type { HashtagGenerationRequest, HashtagGenerationResult } from "../types";
 
 export async function generateHashtags(request: HashtagGenerationRequest): Promise<HashtagGenerationResult> {
@@ -16,10 +17,15 @@ export async function generateHashtags(request: HashtagGenerationRequest): Promi
     brandContext: request.brandContext,
   });
 
+  // Per feedback-ai-respects-user-language: hashtags follow the user's
+  // language too (#diadelpadre instead of #fathersday for Spanish users).
+  const language = await getUserPreferredLanguage(request.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${SYSTEM_PROMPTS.hashtagExpert}`;
+
   const content = await ai.generate(prompt, {
     maxTokens: 512,
     temperature: 0.7,
-    systemPrompt: SYSTEM_PROMPTS.hashtagExpert,
+    systemPrompt,
   });
 
   // Parse hashtags from response

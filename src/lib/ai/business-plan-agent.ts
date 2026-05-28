@@ -1,5 +1,6 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 import type { AgentTool } from "./client";
 
 /**
@@ -260,11 +261,17 @@ export async function runBusinessPlanAgent(
 ): Promise<BusinessPlanResult> {
   const tools = buildTools({ userId: input.userId });
 
+  // Per feedback-ai-respects-user-language: every text-producing call
+  // prepends the user's language directive so all 13 sections come back
+  // in their language — not silently English.
+  const language = await getUserPreferredLanguage(input.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${buildSystemPrompt(input)}`;
+
   const run = await ai.runWithTools<{ sections: BusinessPlanSection[] } | { error: string }>(
     buildUserMessage(input),
     tools,
     {
-      systemPrompt: buildSystemPrompt(input),
+      systemPrompt,
       model: HAIKU_MODEL,
       maxTokens: 16000,
       maxIterations: 8,

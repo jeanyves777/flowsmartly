@@ -8,7 +8,9 @@ import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { EmailVerificationBanner } from "@/components/layout/email-verification-banner";
 import { OnboardingBanner } from "@/components/layout/onboarding-banner";
 import { cn } from "@/lib/utils/cn";
-import { ChatWidget } from "@/components/ai-assistant/chat-widget";
+// Upgraded 2026-05-27: legacy ChatWidget replaced by the tool-using
+// FlowAIWidget. See flow-ai-agent-sdk-roadmap memory.
+import { FlowAIWidget } from "@/components/flow-ai/flow-ai-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
 import { CreateModal } from "@/components/shared/create-modal";
 import { ShieldCheck, FolderKanban } from "lucide-react";
@@ -398,7 +400,7 @@ export default function DashboardLayout({
         </main>
 
         {/* FlowAI Chat Assistant */}
-        <ChatWidget />
+        <FlowAIWidget />
 
         {/* Earning Opportunities Widget (hidden for agent impersonation) */}
         {!isAgentImpersonating && <EarnWidget />}

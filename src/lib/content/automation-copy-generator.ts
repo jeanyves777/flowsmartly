@@ -3,6 +3,7 @@ import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { recordAiMemory } from "@/lib/ai-memory";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 export interface GenerateCopyOptions {
   userId: string;
@@ -45,6 +46,7 @@ async function generateHashtagsForBrief(opts: {
   brief: string;
   brandLine: string;
   platforms: string[];
+  language?: string;
 }): Promise<string[]> {
   const platformLine = opts.platforms.length
     ? `Posting to: ${opts.platforms.join(", ")}.`
@@ -57,12 +59,14 @@ Pick tags that ACTUALLY apply to this post — proper nouns (event names, locati
 Post brief: ${opts.brief}`;
 
   try {
+    const hashtagSystem = opts.language
+      ? `${languageDirective(opts.language)}\n\nYou generate concise, on-brand social media hashtags. Output hashtags only, space-separated, no preamble.`
+      : "You generate concise, on-brand social media hashtags. Output hashtags only, space-separated, no preamble.";
     const raw = await ai.generate(prompt, {
       model: HAIKU_MODEL,
       maxTokens: 80,
       temperature: 0.7,
-      systemPrompt:
-        "You generate concise, on-brand social media hashtags. Output hashtags only, space-separated, no preamble.",
+      systemPrompt: hashtagSystem,
     });
     const cleaned = raw
       .replace(/^["'`\s]+|["'`\s]+$/g, "")
@@ -140,6 +144,10 @@ export async function generateAutomationCopy(
     const parsed = JSON.parse(automation.platforms || "[]");
     if (Array.isArray(parsed)) platforms = parsed.filter((p) => typeof p === "string");
   } catch { /* default empty */ }
+  // Per feedback-ai-respects-user-language: scheduled automation posts
+  // fire unattended, so they MUST honor the saved language without any
+  // per-call user input.
+  const language = await getUserPreferredLanguage(opts.userId);
   let hashtagList: string[] = [];
   try {
     const parsed = JSON.parse(automation.hashtags || "[]");
@@ -167,7 +175,7 @@ export async function generateAutomationCopy(
       return `${stripped}\n\n${tagBlock}`;
     }
     if (captionHasHashtags(caption)) return caption;
-    const aiTags = await generateHashtagsForBrief({ brief, brandLine, platforms });
+    const aiTags = await generateHashtagsForBrief({ brief, brandLine, platforms, language });
     if (aiTags.length === 0) {
       console.warn(
         "[automation-copy] ALL hashtag sources failed; post will ship without tags",
@@ -230,8 +238,7 @@ Write the actual post: hook, value, light CTA. Keep the body under 220 character
       model: HAIKU_MODEL,
       maxTokens: 400,
       temperature: 0.8,
-      systemPrompt:
-        "You are a concise social media copywriter. Return only the caption — no quotes, no preamble.",
+      systemPrompt: `${languageDirective(language)}\n\nYou are a concise social media copywriter. Return only the caption — no quotes, no preamble.`,
     });
   } catch (err) {
     console.warn(

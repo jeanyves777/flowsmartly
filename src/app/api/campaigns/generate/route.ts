@@ -10,6 +10,7 @@ import {
   SMSTemplateType,
 } from "@/lib/ai/generators/campaign";
 import { aiHub } from "@/lib/ai/hub";
+import { getUserPreferredLanguage } from "@/lib/ai/user-language";
 
 // POST /api/campaigns/generate - Generate AI campaign content
 export async function POST(request: NextRequest) {
@@ -61,8 +62,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch user's brand identity for personalized AI generation
-    const brandContext = await aiHub.getBrandContext(session.userId) ?? undefined;
+    // Fetch user's brand identity + language for personalized AI generation
+    const [brandContext, language] = await Promise.all([
+      aiHub.getBrandContext(session.userId).then((c) => c ?? undefined),
+      getUserPreferredLanguage(session.userId),
+    ]);
 
     let result;
 
@@ -77,6 +81,7 @@ export async function POST(request: NextRequest) {
         eventName,
         eventDate,
         customPrompt,
+        language,
       });
     } else {
       result = await generateSMSContent({
@@ -89,6 +94,7 @@ export async function POST(request: NextRequest) {
         eventName,
         link,
         customPrompt,
+        language,
       });
     }
 

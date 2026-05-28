@@ -162,6 +162,13 @@ export interface BrandGenerationResult {
   hashtags: string[];
   products: string[];
   uniqueValue: string;
+  /**
+   * BCP-47 tag (e.g. "en", "fr", "es", "pt-BR") — language the AI
+   * detected in the user's input description. The API route persists
+   * this as `BrandKit.preferredLanguage` so every downstream AI surface
+   * automatically uses it. See feedback-ai-respects-user-language.
+   */
+  detectedLanguage: string;
 }
 
 // AI usage tracking

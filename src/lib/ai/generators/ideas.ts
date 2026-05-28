@@ -5,6 +5,7 @@
 
 import { ai } from "../client";
 import { buildIdeasPrompt, SYSTEM_PROMPTS } from "../prompts";
+import { getUserPreferredLanguage, languageDirective } from "../user-language";
 import type { IdeasGenerationRequest, IdeasGenerationResult, IdeaItem } from "../types";
 
 export async function generateIdeas(request: IdeasGenerationRequest): Promise<IdeasGenerationResult> {
@@ -17,10 +18,16 @@ export async function generateIdeas(request: IdeasGenerationRequest): Promise<Id
     brandContext: request.brandContext,
   });
 
+  // Per feedback-ai-respects-user-language: idea titles + descriptions
+  // come back in the user's language. The TITLE/DESCRIPTION/PILLAR
+  // delimiters in the parser are language-agnostic, so this swap is safe.
+  const language = await getUserPreferredLanguage(request.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${SYSTEM_PROMPTS.contentPlanner}`;
+
   const content = await ai.generate(prompt, {
     maxTokens: 2048,
     temperature: 0.8,
-    systemPrompt: SYSTEM_PROMPTS.contentPlanner,
+    systemPrompt,
   });
 
   // Parse ideas from response

@@ -19,11 +19,28 @@ import {
   Download,
   Paperclip,
   Link as LinkIcon,
+  FolderOpen,
 } from "lucide-react";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import {
+  ToolCallChip,
+  PlanProposalCard,
+  TaskCard,
+  type AgentToolCardData,
+  type PlanProposalCardData,
+  type PlanStepData,
+  type AgentTaskCardData,
+} from "./agent-cards";
+import {
+  subscribeToTaskStream,
+  consumeAgentStreamWithReplay,
+  useAgentSender,
+  type TaskStreamEvent,
+} from "./use-agent-stream";
 
 /**
  * FlowAI Shell — multi-modal conversational assistant, fullscreen overlay.
@@ -51,7 +68,16 @@ interface Message {
   mediaType?: "image" | "video" | null;
   mediaUrl?: string | null;
   createdAt?: string;
+  // Agent-mode extras — only populated when the message came from the
+  // tool-using agent endpoint (text mode). See feature: Flow-AI Agent SDK.
+  toolCalls?: AgentToolCardData[];
+  planProposals?: PlanProposalCardData[];
+  agentTasks?: AgentTaskCardData[];
 }
+
+// Agent card types (AgentTaskCardData, AgentToolCardData, PlanStepData,
+// PlanProposalCardData) are imported from `./agent-cards` so the shell
+// and the floating widget share one definition.
 
 interface ConversationListItem {
   id: string;
@@ -59,6 +85,9 @@ interface ConversationListItem {
   updatedAt: string;
   messageCount?: number;
 }
+
+// `subscribeToTaskStream` + `TaskStreamEvent` moved to ./use-agent-stream
+// so the widget and the shell share the same SSE plumbing.
 
 const COST_BY_MODE: Record<Mode, number> = {
   text: 2,
@@ -321,6 +350,113 @@ export function FlowAIShell() {
     setInput("");
   }, [analyzeMedia, input, urlInput, toast]);
 
+  // ─── Agent-mode (text) ────────────────────────────────────────────
+  // Text-mode chat goes through the new tool-using agent endpoint via
+  // the shared resumable consumer — same parser + auto-replay-on-drop
+  // as the floating FlowAIWidget. Image/video modes stay on the legacy
+  // generate route for now (Phase 8 will migrate those to tools).
+  const sendAgent = useAgentSender();
+  const sendToAgent = useCallback(
+    async (trimmed: string, _userMsg: Message, pendingMsg: Message) => {
+      const res = await sendAgent({ message: trimmed, conversationId });
+      if (!res.ok || !res.body) {
+        let errMsg = "Agent failed to start";
+        try {
+          const data = await res.json();
+          errMsg = data?.error || errMsg;
+        } catch {
+          /* not json */
+        }
+        throw new Error(errMsg);
+      }
+
+      let assistantText = "";
+      let newConvId: string | null = null;
+      const toolCallsById = new Map<string, AgentToolCardData>();
+      const proposalsById = new Map<string, PlanProposalCardData>();
+      const tasksById = new Map<string, AgentTaskCardData>();
+
+      const flushMessage = () => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingMsg.id
+              ? {
+                  ...m,
+                  content: assistantText,
+                  toolCalls: Array.from(toolCallsById.values()),
+                  planProposals: Array.from(proposalsById.values()),
+                  agentTasks: Array.from(tasksById.values()),
+                }
+              : m,
+          ),
+        );
+      };
+
+      await consumeAgentStreamWithReplay(res.body, conversationId ?? "", {
+        onStart: (convId) => {
+          newConvId = convId;
+        },
+        onText: (delta) => {
+          assistantText += delta;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === pendingMsg.id ? { ...m, content: assistantText } : m)),
+          );
+        },
+        onToolCallStart: (call) => {
+          toolCallsById.set(call.id, call);
+          flushMessage();
+        },
+        onToolCallResult: (call) => {
+          toolCallsById.set(call.id, call);
+          flushMessage();
+        },
+        onPlanProposal: (proposal) => {
+          proposalsById.set(proposal.id, proposal);
+          flushMessage();
+        },
+        onTaskStarted: (task) => {
+          tasksById.set(task.id, task);
+          flushMessage();
+        },
+        onTaskProgress: (taskId, progress, message) => {
+          const existing = tasksById.get(taskId);
+          if (existing) {
+            tasksById.set(taskId, {
+              ...existing,
+              progress: progress ?? existing.progress,
+              progressMessage: message ?? existing.progressMessage,
+            });
+            flushMessage();
+          }
+        },
+        onTaskCompleted: (task) => {
+          const existing = tasksById.get(task.id);
+          tasksById.set(task.id, { ...(existing ?? task), ...task });
+          flushMessage();
+        },
+        onTaskFailed: (taskId, error) => {
+          const existing = tasksById.get(taskId);
+          if (existing) {
+            tasksById.set(taskId, { ...existing, status: "failed", error: error ?? null });
+            flushMessage();
+          }
+        },
+        onError: (message) => {
+          assistantText = assistantText
+            ? `${assistantText}\n\n_⚠️ ${message}_`
+            : `⚠️ ${message}`;
+          flushMessage();
+        },
+        onDone: () => {
+          flushMessage();
+        },
+      });
+
+      return newConvId;
+    },
+    [conversationId, sendAgent],
+  );
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -344,6 +480,19 @@ export function FlowAIShell() {
       setMessages((prev) => [...prev, userMsg, pendingMsg]);
 
       try {
+        // Text mode goes through the new tool-using agent.
+        if (mode === "text") {
+          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg);
+          if (newConvId && !conversationId) {
+            setConversationId(newConvId);
+            const url = new URL(window.location.href);
+            url.searchParams.set("conversationId", newConvId);
+            window.history.replaceState({}, "", url.toString());
+          }
+          refreshConversations(newConvId || conversationId).catch(() => {});
+          return;
+        }
+
         const res = await fetch("/api/ai/assistant/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -441,8 +590,195 @@ export function FlowAIShell() {
         setStatusMessage(null);
       }
     },
-    [conversationId, sending, mode, tier, refreshConversations, toast],
+    [conversationId, sending, mode, tier, refreshConversations, toast, sendToAgent],
   );
+
+  // Confirm or reject a plan proposal — POSTs to /confirm, then optimistically
+  // flips the local card's status. The agent loop, paused on awaitConfirmation,
+  // wakes up server-side; its next text_delta arrives on the same SSE stream
+  // if the stream is still open, otherwise the user will see results when they
+  // come back via the persisted tool-call audit + AgentTask rehydration.
+  const respondToPlan = useCallback(
+    async (planId: string, confirmed: boolean) => {
+      if (!conversationId) return;
+      // Optimistic local update.
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (!m.planProposals) return m;
+          const updated = m.planProposals.map((p) =>
+            p.id === planId
+              ? { ...p, status: (confirmed ? "confirmed" : "rejected") as PlanProposalCardData["status"] }
+              : p,
+          );
+          return { ...m, planProposals: updated };
+        }),
+      );
+      try {
+        const res = await fetch("/api/flow-ai/agent/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId, planId, confirmed }),
+        });
+        const json = await res.json();
+        // If the server says the proposal was already resolved (e.g. via
+        // another device or it expired), reconcile to that state.
+        if (json?.status && json.status !== (confirmed ? "confirmed" : "rejected")) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (!m.planProposals) return m;
+              const updated = m.planProposals.map((p) =>
+                p.id === planId ? { ...p, status: json.status as PlanProposalCardData["status"] } : p,
+              );
+              return { ...m, planProposals: updated };
+            }),
+          );
+        }
+      } catch (err) {
+        console.error("[FlowAI] confirm failed:", err);
+        toast({
+          title: "Couldn't send your response",
+          description: "Check your connection — try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [conversationId, toast],
+  );
+
+  // Rehydrate plan proposals + task state whenever we land on a saved
+  // conversation. Phone-came-back-from-sleep flow: any plan that the
+  // server already marked confirmed/rejected/expired shows in its real
+  // state instead of a zombie "pending" card.
+  useEffect(() => {
+    if (!conversationId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [propRes, taskRes] = await Promise.all([
+          fetch(`/api/flow-ai/agent/proposals?conversationId=${conversationId}`),
+          fetch(`/api/flow-ai/tasks?conversationId=${conversationId}`),
+        ]);
+        const propJson = await propRes.json().catch(() => null);
+        const taskJson = await taskRes.json().catch(() => null);
+        if (cancelled) return;
+        const proposals: PlanProposalCardData[] = Array.isArray(propJson?.proposals)
+          ? propJson.proposals.map((p: { id: string; messageId: string; summary: string; steps: PlanStepData[]; totalCreditCost: number; status: PlanProposalCardData["status"] }) => ({
+              id: p.id,
+              summary: p.summary,
+              steps: p.steps ?? [],
+              totalCreditCost: p.totalCreditCost ?? 0,
+              status: p.status,
+            }))
+          : [];
+        const tasksByMsg = new Map<string, AgentTaskCardData[]>();
+        const liveTaskIds: string[] = [];
+        if (Array.isArray(taskJson?.tasks)) {
+          for (const t of taskJson.tasks as Array<{
+            id: string;
+            messageId: string | null;
+            kind: string;
+            status: AgentTaskCardData["status"];
+            output: { url?: string; tier?: string } | null;
+            error: string | null;
+            resultRefType: string | null;
+            resultRefId: string | null;
+          }>) {
+            if (!t.messageId) continue;
+            const card: AgentTaskCardData = {
+              id: t.id,
+              kind: t.kind,
+              status: t.status,
+              output: t.output,
+              error: t.error,
+              resultRefType: t.resultRefType,
+              resultRefId: t.resultRefId,
+            };
+            const list = tasksByMsg.get(t.messageId) ?? [];
+            list.push(card);
+            tasksByMsg.set(t.messageId, list);
+            if (t.status === "pending" || t.status === "running") {
+              liveTaskIds.push(t.id);
+            }
+          }
+        }
+        if (proposals.length === 0 && tasksByMsg.size === 0) return;
+        const proposalsByMsg = new Map<string, PlanProposalCardData[]>();
+        if (Array.isArray(propJson?.proposals)) {
+          for (const p of propJson.proposals as Array<{ id: string; messageId: string }>) {
+            const list = proposalsByMsg.get(p.messageId) ?? [];
+            const card = proposals.find((x) => x.id === p.id);
+            if (card) list.push(card);
+            proposalsByMsg.set(p.messageId, list);
+          }
+        }
+        setMessages((prev) =>
+          prev.map((m) => {
+            const planCards = proposalsByMsg.get(m.id);
+            const taskList = tasksByMsg.get(m.id);
+            if (!planCards && !taskList) return m;
+            return {
+              ...m,
+              planProposals: planCards ?? m.planProposals,
+              agentTasks: taskList ?? m.agentTasks,
+            };
+          }),
+        );
+
+        // For any task that's still running, open the per-task SSE so the
+        // card updates live (phone-back-from-sleep + multi-device flow).
+        for (const taskId of liveTaskIds) {
+          if (cancelled) break;
+          subscribeToTaskStream(taskId, (event) => {
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (!m.agentTasks) return m;
+                const idx = m.agentTasks.findIndex((t) => t.id === taskId);
+                if (idx === -1) return m;
+                const current = m.agentTasks[idx];
+                let next: AgentTaskCardData = current;
+                if (event.type === "snapshot") {
+                  next = {
+                    ...current,
+                    status: event.status,
+                    output: event.output ?? current.output,
+                    error: event.error ?? current.error,
+                    resultRefType: event.resultRefType ?? current.resultRefType,
+                    resultRefId: event.resultRefId ?? current.resultRefId,
+                  };
+                } else if (event.type === "progress") {
+                  next = {
+                    ...current,
+                    progress: event.progress ?? current.progress,
+                    progressMessage: event.message ?? current.progressMessage,
+                  };
+                } else if (event.type === "completed") {
+                  next = {
+                    ...current,
+                    status: "completed",
+                    output: event.output ?? current.output,
+                    resultRefType: event.resultRefType ?? current.resultRefType,
+                    resultRefId: event.resultRefId ?? current.resultRefId,
+                  };
+                } else if (event.type === "failed") {
+                  next = { ...current, status: "failed", error: event.error ?? current.error };
+                } else {
+                  return m;
+                }
+                const updated = [...m.agentTasks];
+                updated[idx] = next;
+                return { ...m, agentTasks: updated };
+              }),
+            );
+          });
+        }
+      } catch (err) {
+        console.error("[FlowAI] rehydrate failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
 
   const handleNewConversation = useCallback(() => {
     setConversationId(null);
@@ -636,7 +972,9 @@ export function FlowAIShell() {
             ) : messages.length === 0 ? (
               <FlowAIEmptyState mode={mode} onSuggest={(q) => send(q)} />
             ) : (
-              messages.map((m) => <MessageView key={m.id} message={m} />)
+              messages.map((m) => (
+                <MessageView key={m.id} message={m} onPlanResponse={respondToPlan} />
+              ))
             )}
             {sending && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
               <PendingAssistant mode={mode} tier={tier} status={statusMessage} />
@@ -962,7 +1300,13 @@ function PendingAssistant({ mode, tier, status }: { mode: Mode; tier: Tier; stat
 
 // ─── Message renderer ─────────────────────────────────────────────────────
 
-function MessageView({ message }: { message: Message }) {
+function MessageView({
+  message,
+  onPlanResponse,
+}: {
+  message: Message;
+  onPlanResponse?: (planId: string, confirmed: boolean) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
@@ -989,6 +1333,31 @@ function MessageView({ message }: { message: Message }) {
             {message.content}
           </div>
         )}
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <div className={cn("mt-2 flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
+            {message.toolCalls.map((tc) => (
+              <ToolCallChip key={tc.id} call={tc} />
+            ))}
+          </div>
+        )}
+        {message.planProposals && message.planProposals.length > 0 && (
+          <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+            {message.planProposals.map((p) => (
+              <PlanProposalCard
+                key={p.id}
+                proposal={p}
+                onResponse={onPlanResponse}
+              />
+            ))}
+          </div>
+        )}
+        {message.agentTasks && message.agentTasks.length > 0 && (
+          <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+            {message.agentTasks.map((t) => (
+              <TaskCard key={t.id} task={t} />
+            ))}
+          </div>
+        )}
         {message.mediaType === "image" && message.mediaUrl && (
           <MediaCard kind="image" url={message.mediaUrl} alignRight={isUser} />
         )}
@@ -999,6 +1368,9 @@ function MessageView({ message }: { message: Message }) {
     </div>
   );
 }
+
+// ToolCallChip, PlanProposalCard, TaskCard moved to ./agent-cards
+// (shared with the floating FlowAIWidget). Local helpers retained below.
 
 function MediaCard({
   kind,

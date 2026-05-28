@@ -54,6 +54,9 @@ const brandKitSchema = z.object({
   state: optionalString(50),
   zip: optionalString(20),
   country: optionalString(10),
+  // BCP-47 language tag — ALL AI generation across the platform respects
+  // this. See feedback-ai-respects-user-language memory.
+  preferredLanguage: optionalString(10),
 });
 
 // GET /api/brand - Get user's brand identity
@@ -179,6 +182,7 @@ export async function POST(request: NextRequest) {
       state: data.state || null,
       zip: data.zip || null,
       country: data.country || null,
+      preferredLanguage: data.preferredLanguage || "en",
       isDefault: true,
       isComplete: !!(data.name && data.industry && data.targetAudience && data.voiceTone),
     };

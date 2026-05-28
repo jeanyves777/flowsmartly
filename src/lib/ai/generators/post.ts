@@ -5,6 +5,7 @@
 
 import { ai } from "../client";
 import { buildPostPrompt, SYSTEM_PROMPTS } from "../prompts";
+import { getUserPreferredLanguage, languageDirective } from "../user-language";
 import type { PostGenerationRequest, PostGenerationResult } from "../types";
 
 export async function generatePost(request: PostGenerationRequest): Promise<PostGenerationResult> {
@@ -15,10 +16,17 @@ export async function generatePost(request: PostGenerationRequest): Promise<Post
     brandContext: request.brandContext,
   });
 
+  // Per feedback-ai-respects-user-language: every AI text generator
+  // injects the user's preferred language directive into the system
+  // prompt. This is the only language-aware change here — the prompt
+  // builder + temperature settings stay identical.
+  const language = await getUserPreferredLanguage(request.userId);
+  const systemPrompt = `${languageDirective(language)}\n\n${SYSTEM_PROMPTS.contentCreator}`;
+
   const content = await ai.generate(prompt, {
     maxTokens: 1024,
     temperature: 0.8,
-    systemPrompt: SYSTEM_PROMPTS.contentCreator,
+    systemPrompt,
   });
 
   return {

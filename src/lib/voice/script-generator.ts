@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { languageDirective, getLanguageLabel, DEFAULT_LANGUAGE } from "@/lib/ai/user-language";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -8,6 +9,8 @@ export interface ScriptGenerateOptions {
   duration?: number;
   brandName?: string;
   brandDescription?: string;
+  /** BCP-47 tag — the spoken script is written in this language. Defaults to "en". */
+  language?: string;
 }
 
 export async function generateScript(options: ScriptGenerateOptions): Promise<{
@@ -16,9 +19,14 @@ export async function generateScript(options: ScriptGenerateOptions): Promise<{
   wordCount: number;
 }> {
   const { topic, tone = "professional", duration = 30, brandName, brandDescription } = options;
+  const language = options.language ?? DEFAULT_LANGUAGE;
   const targetWords = Math.round((duration / 60) * 150);
 
-  const systemPrompt = `You are a professional voiceover scriptwriter. Write a script for a voiceover narration.
+  // Per feedback-ai-respects-user-language: the spoken voiceover must be
+  // in the user's language so the TTS voice reads the right words.
+  const systemPrompt = `${languageDirective(language)}
+
+You are a professional voiceover scriptwriter. Write a script for a voiceover narration in ${getLanguageLabel(language)}.
 
 Rules:
 - Write EXACTLY around ${targetWords} words (target: ${duration} seconds at natural speaking pace)
