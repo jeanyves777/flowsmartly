@@ -1,20 +1,29 @@
 import { prisma } from "@/lib/db/client";
+import { enumerateCampaignAutomationOccurrences } from "@/lib/content/campaign-calendar";
 import type { FlowAgentTool } from "../registry";
 
 /**
- * list_scheduled_posts — show what the user has on the calendar.
- * Read-only, free. The agent should use this when the user asks
- * "what's scheduled?" or before scheduling something new (to avoid
- * stomping on an existing post at the same time).
+ * list_scheduled_posts — show what the user actually has on the calendar.
+ *
+ * CRITICAL: the content calendar is fed by TWO sources, not one. A
+ * previous version only queried scheduled `Post` rows and reported
+ * "nothing scheduled" to users whose calendars were full of content
+ * automations — see the 2026-05-28 live bug. We now merge:
+ *   1. `Post` rows with status=SCHEDULED (one-off posts the user queued)
+ *   2. ContentAutomation occurrences (recurring/calendar-driven "cron
+ *      jobs waiting") via the same `enumerateCampaignAutomationOccurrences`
+ *      helper the calendar UI uses.
+ *
+ * Read-only, free.
  */
 export const listScheduledPosts: FlowAgentTool = {
   name: "list_scheduled_posts",
   description:
-    "List the user's upcoming SCHEDULED posts, in order of scheduledAt ascending. Returns at most `limit` rows (default 20, max 50). Optionally filter by a date range. Use BEFORE scheduling something new so you can warn the user if there's already a post at that time.",
+    "List everything on the user's content calendar in a date range — both one-off SCHEDULED posts AND recurring/automation occurrences ('cron jobs' that will fire). Merged + sorted by time ascending. Returns up to `limit` items (default 30, max 100). Use BEFORE telling the user their calendar is empty, and BEFORE scheduling something new so you can flag conflicts. The two kinds are tagged with `source: 'post' | 'automation'`.",
   input_schema: {
     type: "object",
     properties: {
-      limit: { type: "number", description: "Max rows (1-50, default 20)." },
+      limit: { type: "number", description: "Max items (1-100, default 30)." },
       fromIso: { type: "string", description: "Optional ISO datetime lower bound (default = now)." },
       toIso: { type: "string", description: "Optional ISO datetime upper bound (default = +30 days)." },
     },
@@ -25,7 +34,7 @@ export const listScheduledPosts: FlowAgentTool = {
   handler: async (input, ctx) => {
     try {
       const limit =
-        typeof input.limit === "number" ? Math.min(50, Math.max(1, Math.floor(input.limit))) : 20;
+        typeof input.limit === "number" ? Math.min(100, Math.max(1, Math.floor(input.limit))) : 30;
       const fromIso = typeof input.fromIso === "string" ? input.fromIso : null;
       const toIso = typeof input.toIso === "string" ? input.toIso : null;
       const now = new Date();
@@ -40,38 +49,79 @@ export const listScheduledPosts: FlowAgentTool = {
         };
       }
 
-      const posts = await prisma.post.findMany({
-        where: {
-          userId: ctx.userId,
-          status: "SCHEDULED",
-          deletedAt: null,
-          scheduledAt: { gte: from, lte: to },
-        },
-        orderBy: { scheduledAt: "asc" },
-        take: limit,
-        select: {
-          id: true,
-          caption: true,
-          scheduledAt: true,
-          platforms: true,
-          mediaType: true,
-          mediaUrl: true,
-        },
-      });
+      // Pull both sources in parallel — same as the calendar UI.
+      const [posts, automationOccurrences] = await Promise.all([
+        prisma.post.findMany({
+          where: {
+            userId: ctx.userId,
+            status: "SCHEDULED",
+            deletedAt: null,
+            scheduledAt: { gte: from, lte: to },
+          },
+          orderBy: { scheduledAt: "asc" },
+          take: limit,
+          select: {
+            id: true,
+            caption: true,
+            scheduledAt: true,
+            platforms: true,
+            mediaType: true,
+            mediaUrl: true,
+          },
+        }),
+        enumerateCampaignAutomationOccurrences(ctx.userId, from, to).catch((e) => {
+          console.error("[list_scheduled_posts] automation enumerate failed:", e);
+          return [];
+        }),
+      ]);
+
+      type Item = {
+        source: "post" | "automation";
+        id: string;
+        caption: string;
+        scheduledAt: string | null;
+        platforms: string[];
+        kind: string;
+        editable: boolean;
+      };
+
+      const postItems: Item[] = posts.map((p) => ({
+        source: "post",
+        id: p.id,
+        caption: (p.caption ?? "").slice(0, 200),
+        scheduledAt: p.scheduledAt?.toISOString() ?? null,
+        platforms: safeParseArray(p.platforms),
+        kind: "one-off post",
+        editable: true, // can update_post / cancel_scheduled_post
+      }));
+
+      const automationItems: Item[] = automationOccurrences.map((o) => ({
+        source: "automation",
+        id: o.id, // composite automationId:occurrenceKey
+        caption: o.topic || o.itemName || o.campaignName,
+        scheduledAt: o.scheduledAt,
+        platforms: o.platforms,
+        kind: `${o.triggerType.toLowerCase()} automation (campaign: ${o.campaignName})`,
+        editable: false, // managed via the automation, not a Post row — use update_automation
+      }));
+
+      const merged = [...postItems, ...automationItems]
+        .filter((i) => i.scheduledAt)
+        .sort((a, b) => (a.scheduledAt! < b.scheduledAt! ? -1 : 1))
+        .slice(0, limit);
 
       return {
         ok: true,
         data: {
-          count: posts.length,
+          totalScheduledPosts: postItems.length,
+          totalAutomationOccurrences: automationItems.length,
+          count: merged.length,
           range: { fromIso: from.toISOString(), toIso: to.toISOString() },
-          posts: posts.map((p) => ({
-            postId: p.id,
-            caption: (p.caption ?? "").slice(0, 280),
-            scheduledAt: p.scheduledAt?.toISOString() ?? null,
-            platforms: safeParseArray(p.platforms),
-            mediaType: p.mediaType,
-            hasMedia: !!p.mediaUrl,
-          })),
+          items: merged,
+          note:
+            automationItems.length > 0
+              ? "Some items come from recurring content automations (source='automation') — those are edited via update_automation, not update_post/cancel_scheduled_post."
+              : undefined,
         },
       };
     } catch (e) {

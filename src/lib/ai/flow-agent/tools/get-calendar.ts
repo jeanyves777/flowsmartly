@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { enumerateCampaignAutomationOccurrences } from "@/lib/content/campaign-calendar";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -46,7 +47,7 @@ export const getCalendar: FlowAgentTool = {
       const limit =
         typeof input.limit === "number" ? Math.min(100, Math.max(1, Math.floor(input.limit))) : 50;
 
-      const [posts, campaigns, automations] = await Promise.all([
+      const [posts, campaigns, automations, automationOccurrences] = await Promise.all([
         prisma.post.findMany({
           where: {
             userId: ctx.userId,
@@ -95,10 +96,14 @@ export const getCalendar: FlowAgentTool = {
             timezone: true,
           },
         }),
+        enumerateCampaignAutomationOccurrences(ctx.userId, from, to).catch((e) => {
+          console.error("[get_calendar] automation enumerate failed:", e);
+          return [];
+        }),
       ]);
 
       const entries: Array<{
-        kind: "post" | "campaign";
+        kind: "post" | "campaign" | "automation";
         id: string;
         at: string;
         label: string;
@@ -126,6 +131,18 @@ export const getCalendar: FlowAgentTool = {
           label: `${c.type} campaign`,
           detail: `${c.name}${c.subject ? ` — "${truncate(c.subject, 60)}"` : ""}`,
           link: `/campaigns/${c.id}`,
+        });
+      }
+      // Recurring/calendar-driven content automation occurrences — the
+      // "cron jobs waiting" the user sees as blue dots on the calendar.
+      for (const o of automationOccurrences) {
+        entries.push({
+          kind: "automation",
+          id: o.id,
+          at: o.scheduledAt,
+          label: "Automated post",
+          detail: `${truncate(o.topic || o.itemName || o.campaignName, 80)} → ${o.platforms.join(", ")} (${o.triggerType.toLowerCase()})`,
+          link: "/content/calendar",
         });
       }
       entries.sort((a, b) => a.at.localeCompare(b.at));

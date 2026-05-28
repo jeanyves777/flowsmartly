@@ -191,6 +191,8 @@ export function subscribeToTaskStream(
 export interface AgentSendInput {
   message: string;
   conversationId: string | null;
+  /** Optional image attachments as base64 data URLs (data:image/...;base64,...). */
+  attachments?: Array<{ dataUrl: string; name?: string }>;
 }
 
 export function useAgentSender() {
@@ -203,6 +205,7 @@ export function useAgentSender() {
         conversationId: input.conversationId,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clientNow: new Date().toISOString(),
+        attachments: input.attachments,
       }),
     });
   }, []);

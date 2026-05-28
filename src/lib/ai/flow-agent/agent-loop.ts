@@ -54,6 +54,8 @@ export interface AgentRunInput {
   messageId: string;
   /** User's freshly-saved message — already persisted by the caller. */
   userMessage: string;
+  /** Optional image attachments — fed to Claude vision on the triggering turn. */
+  attachments?: Array<{ mediaType: string; dataBase64: string }>;
   /** Prior turns to seed Claude's context. Most recent last. */
   history: Array<{ role: "user" | "assistant"; content: string; metadata?: string | null }>;
   /** Client-supplied wall clock + tz so "Monday at 4pm" resolves correctly. */
@@ -124,6 +126,21 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   const messages: Array<{ role: "user" | "assistant"; content: any }> = priorMessages.map(
     (m) => ({ role: m.role, content: m.content }),
   );
+
+  // If the triggering turn carried image attachments, rebuild the LAST
+  // user message as multimodal content blocks (text + images) so Claude
+  // can see them. Anthropic accepts base64 image blocks alongside text.
+  if (input.attachments && input.attachments.length > 0) {
+    const lastUserIdx = messages.length - 1;
+    if (lastUserIdx >= 0 && messages[lastUserIdx].role === "user") {
+      const textPart = { type: "text", text: input.userMessage };
+      const imageParts = input.attachments.map((a) => ({
+        type: "image",
+        source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 },
+      }));
+      messages[lastUserIdx] = { role: "user", content: [textPart, ...imageParts] };
+    }
+  }
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;

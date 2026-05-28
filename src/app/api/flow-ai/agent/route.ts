@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     message?: string;
     timezone?: string;
     clientNow?: string;
+    attachments?: Array<{ dataUrl?: string; name?: string }>;
   };
   try {
     body = await req.json();
@@ -48,8 +49,25 @@ export async function POST(req: NextRequest) {
   }
 
   const message = typeof body.message === "string" ? body.message.trim() : "";
-  if (!message) {
-    return new Response(JSON.stringify({ error: "message is required" }), {
+
+  // Parse image attachments (base64 data URLs from the composer's file
+  // picker). Cap at 4 images, 5 MB each, to keep the model request sane.
+  const attachments: Array<{ mediaType: string; dataBase64: string }> = [];
+  if (Array.isArray(body.attachments)) {
+    for (const a of body.attachments.slice(0, 4)) {
+      if (typeof a?.dataUrl !== "string") continue;
+      const m = a.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/);
+      if (!m) continue;
+      const dataBase64 = m[2];
+      // ~5 MB raw → ~6.7 MB base64
+      if (dataBase64.length > 7_000_000) continue;
+      attachments.push({ mediaType: m[1] === "image/jpg" ? "image/jpeg" : m[1], dataBase64 });
+    }
+  }
+
+  // A message OR at least one attachment is required.
+  if (!message && attachments.length === 0) {
+    return new Response(JSON.stringify({ error: "message or an attachment is required" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -80,8 +98,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Persist the user turn immediately so it survives a client disconnect.
+  // Note: attachment images aren't persisted to the message row (they're
+  // transient vision input); a marker keeps the thread readable on reload.
+  const persistedContent = message || (attachments.length > 0 ? `[sent ${attachments.length} image${attachments.length > 1 ? "s" : ""}]` : "");
   const userMsg = await prisma.aIMessage.create({
-    data: { conversationId, role: "user", content: message },
+    data: { conversationId, role: "user", content: persistedContent },
     select: { id: true },
   });
 
@@ -179,7 +200,8 @@ export async function POST(req: NextRequest) {
           plan,
           conversationId,
           messageId: assistantMsg.id,
-          userMessage: message,
+          userMessage: message || "(see attached image)",
+          attachments,
           history: history.map((m) => ({
             role: m.role as "user" | "assistant",
             content: m.content,

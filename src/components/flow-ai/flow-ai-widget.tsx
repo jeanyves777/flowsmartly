@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles, Send, X, Maximize2, Plus } from "lucide-react";
+import { Send, X, Maximize2, Plus, Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
@@ -66,8 +67,12 @@ export function FlowAIWidget() {
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
+  // Pending image attachments (base64 data URLs) shown as chips above the
+  // composer until the next send. Restored from the old widget's upload.
+  const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name: string }>>([]);
 
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Silently re-register an existing push subscription on every mount
@@ -122,14 +127,19 @@ export function FlowAIWidget() {
   const handleSend = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || sending) return;
+      const pendingAttachments = attachments;
+      // Allow sending with only an image (no text).
+      if ((!trimmed && pendingAttachments.length === 0) || sending) return;
       setInput("");
+      setAttachments([]);
       setSending(true);
 
       const userMsg: WidgetMessage = {
         id: `tmp-u-${Date.now()}`,
         role: "user",
-        content: trimmed,
+        content:
+          trimmed ||
+          `[${pendingAttachments.length} image${pendingAttachments.length > 1 ? "s" : ""} attached]`,
       };
       const pendingMsg: WidgetMessage = {
         id: `tmp-a-${Date.now()}`,
@@ -161,7 +171,11 @@ export function FlowAIWidget() {
       };
 
       try {
-        const res = await send({ message: trimmed, conversationId });
+        const res = await send({
+          message: trimmed,
+          conversationId,
+          attachments: pendingAttachments.map((a) => ({ dataUrl: a.dataUrl, name: a.name })),
+        });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
           try {
@@ -253,8 +267,26 @@ export function FlowAIWidget() {
       }
       void resolvedConversationId; // referenced for clarity, used via setConversationId
     },
-    [conversationId, send, sending],
+    [conversationId, send, sending, attachments],
   );
+
+  // Read picked image files → base64 data URLs → attachment chips.
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const slots = Math.max(0, 4 - attachments.length);
+    const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, slots);
+    picked.forEach((file) => {
+      if (file.size > 5 * 1024 * 1024) return; // 5 MB cap
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setAttachments((prev) =>
+          prev.length >= 4 ? prev : [...prev, { dataUrl, name: file.name }],
+        );
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [attachments.length]);
 
   const handlePlanResponse = useCallback(
     async (planId: string, confirmed: boolean) => {
@@ -322,11 +354,11 @@ export function FlowAIWidget() {
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setOpen(true)}
             aria-label="Open Flow-AI"
-            className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center hover:scale-105 transition-transform"
+            className="fixed bottom-5 right-5 z-40 h-14 w-14 rounded-full bg-white dark:bg-gray-900 ring-1 ring-border shadow-lg shadow-blue-500/20 flex items-center justify-center hover:scale-105 transition-transform overflow-hidden"
           >
-            <Sparkles className="h-6 w-6" />
+            <Image src="/icon.png" alt="Flow-AI" width={36} height={36} className="h-9 w-9 object-contain" priority unoptimized />
             {messages.length > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-rose-500 text-[10px] font-bold flex items-center justify-center border-2 border-white">
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
                 {Math.min(9, messages.filter((m) => m.role === "assistant").length)}
               </span>
             )}
@@ -347,8 +379,8 @@ export function FlowAIWidget() {
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-3.5 py-3 border-b border-border bg-gradient-to-r from-blue-500/10 to-cyan-500/10">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-sm shadow-blue-500/30">
-                <Sparkles className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-lg bg-white dark:bg-gray-900 ring-1 ring-border flex items-center justify-center overflow-hidden">
+                <Image src="/icon.png" alt="Flow-AI" width={24} height={24} className="h-6 w-6 object-contain" unoptimized />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground leading-tight">Flow-AI</p>
@@ -417,6 +449,25 @@ export function FlowAIWidget() {
 
             {/* Input */}
             <div className="border-t border-border bg-white dark:bg-gray-950 p-2.5">
+              {/* Attachment preview chips */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {attachments.map((a, i) => (
+                    <div key={i} className="relative h-12 w-12 rounded-lg overflow-hidden border border-border group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-0 right-0 h-4 w-4 bg-black/60 text-white flex items-center justify-center rounded-bl"
+                        aria-label="Remove attachment"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -424,6 +475,27 @@ export function FlowAIWidget() {
                 }}
                 className="flex items-end gap-2"
               >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || attachments.length >= 4}
+                  className="h-9 w-9 rounded-xl border border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  aria-label="Attach image"
+                  title="Attach image"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -440,8 +512,8 @@ export function FlowAIWidget() {
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || sending}
-                  className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  disabled={(!input.trim() && attachments.length === 0) || sending}
+                  className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                   aria-label="Send"
                 >
                   <Send className="h-4 w-4" />
@@ -522,13 +594,17 @@ function WidgetMessageView({
     <div className={cn("flex gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
       <div
         className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 overflow-hidden",
           isUser
             ? "bg-muted text-muted-foreground"
-            : "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-sm shadow-blue-500/20",
+            : "bg-white dark:bg-gray-900 ring-1 ring-border",
         )}
       >
-        {isUser ? <span className="text-[10px] font-semibold">You</span> : <Sparkles className="h-3.5 w-3.5" />}
+        {isUser ? (
+          <span className="text-[10px] font-semibold">You</span>
+        ) : (
+          <Image src="/icon.png" alt="Flow-AI" width={20} height={20} className="h-5 w-5 object-contain" unoptimized />
+        )}
       </div>
       <div className={cn("flex-1 min-w-0 space-y-2", isUser ? "text-right" : "text-left")}>
         {message.content && (
@@ -586,8 +662,8 @@ function EmptyState({
   ];
   return (
     <div className="flex flex-col items-center justify-center text-center px-4 py-6 space-y-4">
-      <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
-        <Sparkles className="h-5 w-5" />
+      <div className="h-12 w-12 rounded-2xl bg-white dark:bg-gray-900 ring-1 ring-border flex items-center justify-center shadow-md shadow-blue-500/20 overflow-hidden">
+        <Image src="/icon.png" alt="Flow-AI" width={32} height={32} className="h-8 w-8 object-contain" unoptimized />
       </div>
       <div className="space-y-1">
         <p className="text-sm font-semibold text-foreground">Hey, I&apos;m Flow-AI</p>
