@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -253,6 +253,10 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
       : null;
   const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
   const isAudio = mediaUrl ? /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(mediaUrl) : false;
+  // In-app deep link to the produced result (proposal, pitch, website,
+  // store, etc.) — tools put it on output.link. Lets the user open it.
+  const resultLink =
+    typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
 
   return (
     <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
@@ -342,7 +346,21 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </div>
       )}
       {isDone && !mediaUrl && (
-        <div className="px-3.5 py-3 text-xs text-muted-foreground">Done.</div>
+        <div className="px-3.5 py-3 flex items-center justify-between gap-2">
+          {resultLink ? (
+            <>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Ready</span>
+              <a
+                href={resultLink}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
+              >
+                Open <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">Done.</span>
+          )}
+        </div>
       )}
       {isFailed && (
         <div className="px-3.5 py-3 text-xs text-rose-600 dark:text-rose-400">
