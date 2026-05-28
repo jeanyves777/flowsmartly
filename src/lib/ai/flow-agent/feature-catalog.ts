@@ -255,6 +255,72 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
     category: "ecommerce",
   },
 
+  // ────── Pitch Board (sell YOUR services to prospects) ──────
+  {
+    id: "pitch-board-proposal",
+    title: "Create a service proposal (Pitch Board)",
+    description: "Generate a branded, PDF-ready proposal selling the user's OWN services (from their Brand Kit) to a specific prospect. Multi-agent: research + copy + visual deck.",
+    route: "/pitch-board",
+    plans: ["PRO", "BUSINESS", "ENTERPRISE"],
+    tools: ["create_proposal"],
+    keywords: ["proposal", "pitch", "sell", "offer", "deal", "client", "prospect", "deck", "quote", "sales", "service proposal", "pdf proposal"],
+    category: "leads",
+  },
+  {
+    id: "pitch-board-pitch",
+    title: "Research a prospect + write an outreach pitch",
+    description: "Research a target business (site + Google profile) and write a personalized cold-outreach pitch selling the user's services.",
+    route: "/pitch-board",
+    plans: ["PRO", "BUSINESS", "ENTERPRISE"],
+    tools: ["create_pitch"],
+    keywords: ["pitch", "outreach", "cold email", "prospect", "research", "reach out", "cold pitch", "lead"],
+    category: "leads",
+  },
+  {
+    id: "pitch-board-leads",
+    title: "Find leads (Pitch Board)",
+    description: "Search businesses by industry + location, then turn them into proposals/pitches or save to contacts.",
+    route: "/pitch-board",
+    plans: ["PRO", "BUSINESS", "ENTERPRISE"],
+    tools: [],
+    keywords: ["leads", "find businesses", "prospecting", "local businesses", "lead finder"],
+    category: "leads",
+  },
+
+  // ────── Business / planning ──────
+  {
+    id: "business-plan",
+    title: "AI Business Plan",
+    description: "Generate a 13-section investor-grade business plan with charts, anchored in the user's Brand Kit. Editable + PDF-exportable.",
+    route: "/business-plan",
+    plans: null,
+    tools: [],
+    keywords: ["business plan", "investor", "strategy", "funding", "pitch deck", "13 section", "market analysis"],
+    category: "ai",
+  },
+
+  // ────── Voice / audio ──────
+  {
+    id: "voice-studio",
+    title: "Voice Studio (TTS + cloning)",
+    description: "Generate voiceover audio from a script (text-to-speech), with a voice library, AI script writing, and voice cloning. Output in the user's language.",
+    route: "/voice-studio",
+    plans: null,
+    tools: [],
+    keywords: ["voice", "voiceover", "tts", "text to speech", "narration", "audio", "speech", "clone voice", "podcast"],
+    category: "media",
+  },
+  {
+    id: "logo-generator",
+    title: "Logo Generator",
+    description: "AI logo generation with vision evaluation + brand-aligned concepts.",
+    route: "/logo-generator",
+    plans: null,
+    tools: [],
+    keywords: ["logo", "brand mark", "icon", "identity", "logo design"],
+    category: "branding",
+  },
+
   // ────── Web / research ──────
   {
     id: "analyze-website",
