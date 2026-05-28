@@ -85,6 +85,7 @@ export function FlowAIWidget() {
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
   // Tracks plan proposals the user has resolved so the live stream's
   // flushMessage doesn't reset their status back to "pending".
@@ -101,6 +102,15 @@ export function FlowAIWidget() {
     if (typeof window === "undefined" || !("Notification" in window)) return;
     setPushPermission(Notification.permission);
   }, []);
+
+  // Auto-grow the composer as the user types — just enough to read, capped
+  // at ~4 lines (max-h-28 = 112px); beyond that it scrolls internally.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+  }, [input]);
 
   // Restore conversation + saved panel size from session storage on mount.
   useEffect(() => {
@@ -732,6 +742,7 @@ export function FlowAIWidget() {
                   <Paperclip className="h-4 w-4" />
                 </button>
                 <textarea
+                  ref={composerRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -743,7 +754,7 @@ export function FlowAIWidget() {
                   placeholder="Ask Flow-AI…"
                   rows={1}
                   disabled={sending}
-                  className="flex-1 resize-none rounded-xl border border-border bg-white dark:bg-gray-900 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 max-h-24 disabled:opacity-50"
+                  className="flex-1 resize-none rounded-xl border border-border bg-white dark:bg-gray-900 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 max-h-28 overflow-y-auto disabled:opacity-50"
                 />
                 <button
                   type="submit"
