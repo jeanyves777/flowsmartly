@@ -19,7 +19,7 @@ const ACTION_COSTS: Array<{ action: string; tool: string; key: CreditCostKey }> 
   { action: "Schedule a social post", tool: "schedule_social_post", key: "AGENT_SCHEDULE_POST" },
   { action: "Generate image (Standard)", tool: "generate_image", key: "AGENT_GENERATE_IMAGE_STANDARD" },
   { action: "Generate image (Premium)", tool: "generate_image", key: "AGENT_GENERATE_IMAGE_PREMIUM" },
-  { action: "Branded design — Standard", tool: "create_branded_design", key: "AI_VISUAL_DESIGN" },
+  { action: "Branded design (FlowCreative)", tool: "create_branded_design", key: "AI_VISUAL_DESIGN" },
   { action: "Generate video (Standard)", tool: "generate_video", key: "AGENT_GENERATE_VIDEO_STANDARD" },
   { action: "Generate video (Premium)", tool: "generate_video", key: "AGENT_GENERATE_VIDEO_PREMIUM" },
   { action: "Service proposal (Pitch Board)", tool: "create_proposal", key: "AI_SERVICE_PROPOSAL" },
@@ -64,16 +64,6 @@ export const listMyFeatures: FlowAgentTool = {
         tool: a.tool,
         credits: costs[i] as number,
       }));
-      // Premium branded design = 3× the Standard (quality-review loop). Derived
-      // from the live Standard cost so it stays in sync with admin DB pricing.
-      const visualStd = actionCosts.find((a) => a.tool === "create_branded_design")?.credits;
-      if (typeof visualStd === "number") {
-        actionCosts.push({
-          action: "Branded design — Premium (quality-checked)",
-          tool: "create_branded_design",
-          credits: visualStd * 3,
-        });
-      }
       const balance = user?.aiCredits ?? 0;
 
       return {

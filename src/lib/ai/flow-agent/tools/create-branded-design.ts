@@ -26,31 +26,27 @@ import { notifyAgentTaskComplete } from "../notify-task-complete";
 export const createBrandedDesign: FlowAgentTool = {
   name: "create_branded_design",
   description:
-    "Create a polished, ON-BRAND image via the platform's FlowCreative engine — use this for ANY branded or marketing visual: ads, flyers, birthday/holiday cards, announcements, product images, social posts. It automatically applies the user's brand colors, composites their REAL logo, and — when reference photos are supplied — PRESERVES the real person's face/identity (never invents a lookalike). Premium runs a quality-review loop that regenerates until it passes (best for anything client-facing or with a real person). Pass uploaded photo URLs as referenceImageUrls so the actual person is used. Pass `planId` from a confirmed propose_plan. Premium costs more than Standard — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them. Runs in the background and notifies when ready.",
+    "Create a polished, ON-BRAND image via the platform's FlowCreative engine (the SAME engine the Studio Create modal uses) — use this for ANY branded or marketing visual: ads, flyers, birthday/holiday cards, announcements, product images, social posts. It automatically applies the user's brand colors, composites their REAL logo, and — when reference photos are supplied — PRESERVES the real person's/product's identity (never invents a lookalike). If the user uploaded a photo of a person/product, you MUST pass its URL in referenceImageUrls — otherwise the engine generates a stranger. Tiers differ in engine quality (Premium = sharper text/detail); always ask which they want and read the exact live prices from list_my_features (admin-set, from the DB) — never hardcode. Keep the prompt focused on the user's actual request; don't pile on brand-tone adjectives (the engine applies the brand separately). Pass `planId` from a confirmed propose_plan. Runs in the background and notifies when ready.",
   input_schema: {
     type: "object",
     properties: {
       planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
       prompt: {
         type: "string",
-        description: "What to create: the message/headline, subject, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Be specific — this is the creative brief.",
+        description: "The creative brief: message/headline, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Keep it focused on what the user asked for (e.g. 'a fun, festive birthday flyer with a Bible verse') — do NOT add brand-tone adjectives; the engine applies the brand separately.",
       },
       tier: {
         type: "string",
-        description: "'premium' (quality-review loop + strongest identity preservation — use when a real person photo is involved or it's client-facing) or 'standard' (fast, single pass). Always ask the user which they want — cost differs (15 vs 45).",
+        description: "'premium' (highest-fidelity engine — sharper text/detail, best for client-facing) or 'standard' (fast everyday). Always ask the user which they want; read the exact live prices from list_my_features.",
       },
       referenceImageUrls: {
         type: "array",
-        description: "URLs of uploaded reference photos to USE in the design (e.g. the person's photo). Their face/identity is preserved. Pass the attachment URL(s) the user uploaded — do NOT leave empty if they handed you a photo.",
+        description: "URLs of uploaded reference photos to USE in the design (the real person/product). Identity is preserved. If the user uploaded a photo, you MUST put its URL here — never leave empty when they handed you one, or the engine will invent a different subject.",
         items: { type: "string" },
       },
       orientation: {
         type: "string",
         description: "'square' (1080x1080, default), 'portrait'/'story' (1080x1920), or 'landscape'/'wide' (1920x1080).",
-      },
-      hasPerson: {
-        type: "boolean",
-        description: "True if the design should feature a person (e.g. a reference photo of someone, or a 'people' hero). Defaults to true when referenceImageUrls is non-empty.",
       },
       style: { type: "string", description: "Visual style: 'modern' (default), 'photorealistic', 'minimalist', 'vintage', 'illustration', 'elegant', etc." },
       ctaText: { type: "string", description: "Optional call-to-action button text. Omit for cards/announcements with no button." },
@@ -67,15 +63,12 @@ export const createBrandedDesign: FlowAgentTool = {
       return { ok: false, error_code: "missing_input", message: "prompt (the creative brief) is required." };
     }
     const tier = input.tier === "premium" ? "premium" : "standard";
-    const qualityCheckEnabled = tier === "premium";
 
     const referenceImageUrls = Array.isArray(input.referenceImageUrls)
       ? input.referenceImageUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0).slice(0, 4)
       : [];
-    const hasPerson = typeof input.hasPerson === "boolean" ? input.hasPerson : referenceImageUrls.length > 0;
 
-    const baseCost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
-    const cost = baseCost * (qualityCheckEnabled ? 3 : 1);
+    const cost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
 
     // Pre-flight credit check mirrors the pipeline (purchased credits only,
     // non-admin) so the agent can warn instead of starting a doomed job.
@@ -106,6 +99,13 @@ export const createBrandedDesign: FlowAgentTool = {
     const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
     const hasBrandLogo = Boolean(brandLogo);
 
+    const contactInfo = brandKit
+      ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
+      : null;
+    const contactLine = [brandKit?.phone, brandKit?.email, brandKit?.website, brandKit?.address]
+      .filter((v): v is string => !!v && v.trim().length > 0)
+      .join("  ·  ");
+
     const brandIdentity = brandKit
       ? {
           name: brandKit.name || null,
@@ -122,12 +122,11 @@ export const createBrandedDesign: FlowAgentTool = {
           colors,
           handles,
           website: brandKit.website || null,
+          email: brandKit.email || null,
+          phone: brandKit.phone || null,
+          address: brandKit.address || null,
           hasLogo: hasBrandLogo,
         }
-      : null;
-
-    const contactInfo = brandKit
-      ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
       : null;
 
     // Same policy scaffolding the Create modal uses so quality matches the
@@ -138,11 +137,19 @@ export const createBrandedDesign: FlowAgentTool = {
     const exactReferencePolicy = referenceImageUrls.length
       ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
       : null;
+    // Real, factual brand elements the design MUST show (not tone — these are
+    // required content). The user explicitly wants the brand name + contact on it.
+    const brandDisplayPolicy = [
+      brandKit?.name ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.` : null,
+      contactLine ? `Include these REAL contact details in small, legible text near the bottom (copy them exactly, do not invent any): ${contactLine}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
     const antiInventionPolicy =
       "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
 
     const imagePrompt = withLanguagePrefix(
-      [promptText, exactReferencePolicy, logoPolicy, antiInventionPolicy, "Keep the final visual sharp, high-resolution, and readable."]
+      [promptText, exactReferencePolicy, brandDisplayPolicy || null, logoPolicy, antiInventionPolicy, "Keep the final visual sharp, high-resolution, and readable."]
         .filter(Boolean)
         .join("\n\n"),
       languageTag,
@@ -153,6 +160,10 @@ export const createBrandedDesign: FlowAgentTool = {
     const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
     const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
 
+    // Mirror the Studio Create modal's /api/ai/visual body EXACTLY — same
+    // raw_brand pipeline, provider-by-tier, reference handling, and logo
+    // overlay that already produces great designs there. Don't add knobs
+    // FlowCreative wasn't built with; it's already tuned.
     const visualBody = {
       prompt: imagePrompt,
       category: "social_post",
@@ -163,13 +174,13 @@ export const createBrandedDesign: FlowAgentTool = {
       promptMode: "raw_brand",
       brandIdentity,
       channels: "selected social channels",
-      heroType: hasPerson ? "people" : "product",
+      heroType: "product",
       textMode: "creative",
       brandColors: colors,
       brandLogo,
       brandName: brandKit?.name || null,
       showBrandName: !!brandKit?.name,
-      showSocialIcons: !!handles,
+      showSocialIcons: true,
       socialHandles: handles,
       contactInfo,
       referenceImageUrl: referenceImageUrls[0] || null,
@@ -178,7 +189,6 @@ export const createBrandedDesign: FlowAgentTool = {
       compositeReferenceSubject: false,
       logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
       ctaText,
-      qualityCheckEnabled,
     };
 
     const taskId = await spawnBackgroundTask({
@@ -186,14 +196,14 @@ export const createBrandedDesign: FlowAgentTool = {
       conversationId: ctx.conversationId,
       messageId: ctx.messageId,
       kind: "create_branded_design",
-      input: { tier, hasPerson, references: referenceImageUrls.length },
+      input: { tier, references: referenceImageUrls.length },
       creditCost: cost,
       worker: async (taskId) => {
         publishTaskEvent({
           type: "progress",
           taskId,
           progress: 15,
-          message: qualityCheckEnabled ? "Designing + quality-checking your branded image…" : "Designing your branded image…",
+          message: "Designing your branded image…",
         });
 
         const result = await runVisualForUser(visualBody, { userId: ctx.userId, isAdmin: ctx.isAdmin });
@@ -241,7 +251,7 @@ export const createBrandedDesign: FlowAgentTool = {
       type: "task_started",
       taskId,
       kind: "create_branded_design",
-      summary: qualityCheckEnabled ? "Creating your Premium branded design (quality-checked)…" : "Creating your branded design…",
+      summary: "Creating your branded design…",
     });
 
     return {

@@ -142,7 +142,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       // mediaUrl to schedule_social_post) — not just look at it.
       const urlNote =
         input.attachmentUrls && input.attachmentUrls.length > 0
-          ? `\n\n[The user uploaded ${input.attachmentUrls.length} image(s). To USE them in a post/design, pass the URL as mediaUrl: ${input.attachmentUrls.join(", ")}. If they want it posted, attach it — don't generate a new image.]`
+          ? `\n\n[The user uploaded ${input.attachmentUrls.length} image(s) — URL(s): ${input.attachmentUrls.join(", ")}. You MUST use these real images, never generate a stand-in. For a BRANDED DESIGN/flyer/card (create_branded_design), pass them as referenceImageUrls so the real person/product is kept (identity preserved). For a plain social post (schedule_social_post), pass as mediaUrl. Never invent a different face/photo when the user handed you one.]`
           : "";
       const textPart = { type: "text", text: `${input.userMessage}${urlNote}` };
       const imageParts = input.attachments.map((a) => ({
