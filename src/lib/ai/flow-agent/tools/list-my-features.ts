@@ -25,8 +25,10 @@ const ACTION_COSTS: Array<{ action: string; tool: string; key: CreditCostKey }> 
   { action: "Create email/SMS campaign", tool: "create_email_campaign", key: "AGENT_CREATE_CAMPAIGN" },
   { action: "Create automation", tool: "create_automation", key: "AGENT_CREATE_AUTOMATION" },
   { action: "Business plan", tool: "(open /business-plan)", key: "AI_BUSINESS_PLAN" },
-  { action: "Voiceover script", tool: "(open /voice-studio)", key: "AI_VOICE_SCRIPT" },
+  { action: "Narration (per segment)", tool: "generate_narration", key: "AI_VOICE_GENERATION" },
   { action: "Logo generation", tool: "(open /logo-generator)", key: "AI_LOGO_GENERATION" },
+  { action: "Build website", tool: "build_website", key: "AI_WEBSITE_GENERATE" },
+  { action: "Build store", tool: "build_store", key: "AI_STORE_GENERATE" },
 ];
 
 export const listMyFeatures: FlowAgentTool = {

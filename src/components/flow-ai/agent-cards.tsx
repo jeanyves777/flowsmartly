@@ -366,6 +366,8 @@ function humanizeTaskKind(kind: string): string {
     create_proposal: "Service proposal",
     create_pitch: "Outreach pitch",
     generate_narration: "Narrated audio",
+    build_website: "Website build",
+    build_store: "Store build",
   };
   return map[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
