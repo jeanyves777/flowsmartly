@@ -7,6 +7,7 @@ import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-lang
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
+import { saveToMediaLibrary } from "../save-media";
 
 /**
  * generate_image — produce a single image from a prompt. Tiered (premium
@@ -143,6 +144,17 @@ export const generateImage: FlowAgentTool = {
         const ext = result.format === "png" ? "png" : "jpg";
         const key = `flow-ai/${ctx.userId}/${ctx.conversationId}-${Date.now()}.${ext}`;
         const url = await uploadToS3(key, buffer, `image/${result.format}`);
+
+        // Save to the Media Library so it appears in /media too.
+        await saveToMediaLibrary({
+          userId: ctx.userId,
+          url,
+          type: "image",
+          mimeType: `image/${result.format}`,
+          size: buffer.length,
+          tags: ["flow-ai", tier],
+          metadata: { prompt, tier, width, height },
+        });
 
         // Charge credits AFTER the work succeeded (so a provider failure
         // doesn't drain the user's balance).

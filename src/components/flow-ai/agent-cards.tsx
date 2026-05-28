@@ -252,6 +252,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
       ? task.output.url
       : null;
   const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
+  const isAudio = mediaUrl ? /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(mediaUrl) : false;
 
   return (
     <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
@@ -299,6 +300,10 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         <div className="bg-muted/30">
           {isVideo ? (
             <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
+          ) : isAudio ? (
+            <div className="px-3.5 py-3">
+              <audio src={mediaUrl} controls preload="metadata" className="w-full" />
+            </div>
           ) : (
             <button
               type="button"
@@ -360,6 +365,7 @@ function humanizeTaskKind(kind: string): string {
     create_automation: "Marketing automation",
     create_proposal: "Service proposal",
     create_pitch: "Outreach pitch",
+    generate_narration: "Narrated audio",
   };
   return map[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

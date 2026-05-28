@@ -301,13 +301,13 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
 
   // ────── Voice / audio ──────
   {
-    id: "voice-studio",
-    title: "Voice Studio (TTS + cloning)",
-    description: "Generate voiceover audio from a script (text-to-speech), with a voice library, AI script writing, and voice cloning. Output in the user's language.",
-    route: "/voice-studio",
+    id: "narrated-audio",
+    title: "Narrated audio / voice conversation",
+    description: "Turn any text into narrated audio — a single narrator OR a multi-character conversation (e.g. a male + a female). User picks ElevenLabs voices per character; the agent synthesizes + stitches the audio and returns a player.",
+    route: "/flow-ai",
     plans: null,
-    tools: [],
-    keywords: ["voice", "voiceover", "tts", "text to speech", "narration", "audio", "speech", "clone voice", "podcast"],
+    tools: ["list_voices", "generate_narration"],
+    keywords: ["narrate", "narration", "audio", "voiceover", "voice", "conversation", "male and female", "dialogue", "read this aloud", "podcast", "two voices", "characters", "tts", "text to speech"],
     category: "media",
   },
   {

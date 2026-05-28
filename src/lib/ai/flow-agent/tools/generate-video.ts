@@ -8,6 +8,7 @@ import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-lang
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
+import { saveToMediaLibrary } from "../save-media";
 
 /**
  * generate_video — single short video clip. Tiered: premium = Google Veo
@@ -145,6 +146,16 @@ export const generateVideo: FlowAgentTool = {
 
         const key = `flow-ai/${ctx.userId}/${ctx.conversationId}-${Date.now()}.mp4`;
         const url = await uploadToS3(key, videoBuffer, "video/mp4");
+
+        await saveToMediaLibrary({
+          userId: ctx.userId,
+          url,
+          type: "video",
+          mimeType: "video/mp4",
+          size: videoBuffer.length,
+          tags: ["flow-ai", tier],
+          metadata: { prompt, tier, aspectRatio, durationSeconds },
+        });
 
         if (!ctx.isAdmin && cost > 0) {
           await creditService.deductCredits({

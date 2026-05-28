@@ -110,6 +110,8 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { analyzeUrl } = await import("./tools/analyze-url");
   const { createProposal } = await import("./tools/create-proposal");
   const { createPitch } = await import("./tools/create-pitch");
+  const { listVoicesTool } = await import("./tools/list-voices");
+  const { generateNarration } = await import("./tools/generate-narration");
 
   flowAgentTools.register(whoAmI);
   flowAgentTools.register(listMyFeatures);
@@ -140,4 +142,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(analyzeUrl);
   flowAgentTools.register(createProposal);
   flowAgentTools.register(createPitch);
+  flowAgentTools.register(listVoicesTool);
+  flowAgentTools.register(generateNarration);
 }
