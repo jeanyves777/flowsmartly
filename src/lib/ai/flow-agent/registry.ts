@@ -114,6 +114,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { generateNarration } = await import("./tools/generate-narration");
   const { buildWebsite } = await import("./tools/build-website");
   const { buildStore } = await import("./tools/build-store");
+  const { listConnectedSocials } = await import("./tools/list-connected-socials");
 
   flowAgentTools.register(whoAmI);
   flowAgentTools.register(listMyFeatures);
@@ -148,4 +149,5 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(generateNarration);
   flowAgentTools.register(buildWebsite);
   flowAgentTools.register(buildStore);
+  flowAgentTools.register(listConnectedSocials);
 }

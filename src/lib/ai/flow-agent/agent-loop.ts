@@ -56,6 +56,8 @@ export interface AgentRunInput {
   userMessage: string;
   /** Optional image attachments — fed to Claude vision on the triggering turn. */
   attachments?: Array<{ mediaType: string; dataBase64: string }>;
+  /** S3 URLs of the uploaded attachments — the agent can pass these as media to tools. */
+  attachmentUrls?: string[];
   /** Prior turns to seed Claude's context. Most recent last. */
   history: Array<{ role: "user" | "assistant"; content: string; metadata?: string | null }>;
   /** Client-supplied wall clock + tz so "Monday at 4pm" resolves correctly. */
@@ -136,7 +138,13 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   if (input.attachments && input.attachments.length > 0) {
     const lastUserIdx = messages.length - 1;
     if (lastUserIdx >= 0 && messages[lastUserIdx].role === "user") {
-      const textPart = { type: "text", text: input.userMessage };
+      // Tell the agent the URLs so it can USE the image (e.g. pass it as
+      // mediaUrl to schedule_social_post) — not just look at it.
+      const urlNote =
+        input.attachmentUrls && input.attachmentUrls.length > 0
+          ? `\n\n[The user uploaded ${input.attachmentUrls.length} image(s). To USE them in a post/design, pass the URL as mediaUrl: ${input.attachmentUrls.join(", ")}. If they want it posted, attach it — don't generate a new image.]`
+          : "";
+      const textPart = { type: "text", text: `${input.userMessage}${urlNote}` };
       const imageParts = input.attachments.map((a) => ({
         type: "image",
         source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 },

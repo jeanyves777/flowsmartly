@@ -4,6 +4,9 @@ import { prisma } from "@/lib/db/client";
 import { runFlowAgent } from "@/lib/ai/flow-agent/agent-loop";
 import { awaitConfirmation } from "@/lib/ai/flow-agent/job-state";
 import { ai, HAIKU_MODEL } from "@/lib/ai/client";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
+import { nanoid } from "nanoid";
 import type { AgentEvent } from "@/lib/ai/flow-agent/tool-context";
 
 /**
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
 
   // Parse image attachments (base64 data URLs from the composer's file
   // picker). Cap at 4 images, 5 MB each, to keep the model request sane.
-  const attachments: Array<{ mediaType: string; dataBase64: string }> = [];
+  const attachments: Array<{ mediaType: string; dataBase64: string; url?: string }> = [];
   if (Array.isArray(body.attachments)) {
     for (const a of body.attachments.slice(0, 4)) {
       if (typeof a?.dataUrl !== "string") continue;
@@ -85,6 +88,30 @@ export async function POST(req: NextRequest) {
       attachments.push({ mediaType: m[1] === "image/jpg" ? "image/jpeg" : m[1], dataBase64 });
     }
   }
+
+  // Upload each attachment to S3 + the media library so the agent can
+  // (a) reference a real URL when the user wants it IN a post/design, and
+  // (b) the image persists + shows in /media. Vision still gets the
+  // base64 so the model can actually SEE it. Best-effort per image.
+  for (const att of attachments) {
+    try {
+      const ext = att.mediaType.includes("png") ? "png" : att.mediaType.includes("webp") ? "webp" : att.mediaType.includes("gif") ? "gif" : "jpg";
+      const buf = Buffer.from(att.dataBase64, "base64");
+      const key = `flow-ai/${session.userId}/upload-${nanoid(8)}.${ext}`;
+      att.url = await uploadToS3(key, buf, att.mediaType);
+      await saveToMediaLibrary({
+        userId: session.userId,
+        url: att.url,
+        type: "image",
+        mimeType: att.mediaType,
+        size: buf.length,
+        tags: ["flow-ai", "upload"],
+      }).catch(() => {});
+    } catch (e) {
+      console.error("[flow-ai/agent] attachment upload failed (vision still works):", e);
+    }
+  }
+  const attachmentUrls = attachments.map((a) => a.url).filter((u): u is string => !!u);
 
   // A message OR at least one attachment is required.
   if (!message && attachments.length === 0) {
@@ -126,7 +153,15 @@ export async function POST(req: NextRequest) {
   // transient vision input); a marker keeps the thread readable on reload.
   const persistedContent = message || (attachments.length > 0 ? `[sent ${attachments.length} image${attachments.length > 1 ? "s" : ""}]` : "");
   const userMsg = await prisma.aIMessage.create({
-    data: { conversationId, role: "user", content: persistedContent },
+    data: {
+      conversationId,
+      role: "user",
+      content: persistedContent,
+      // Surface the uploaded image in the thread (renders in the user
+      // bubble + survives reload).
+      mediaType: attachmentUrls.length > 0 ? "image" : null,
+      mediaUrl: attachmentUrls[0] ?? null,
+    },
     select: { id: true },
   });
 
@@ -254,6 +289,7 @@ export async function POST(req: NextRequest) {
           messageId: assistantMsg.id,
           userMessage: message || "(see attached image)",
           attachments,
+          attachmentUrls,
           history: history.map((m) => ({
             role: m.role as "user" | "assistant",
             content: m.content,

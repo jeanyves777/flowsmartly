@@ -42,6 +42,7 @@ interface WidgetMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  images?: string[]; // attachment previews (data URLs) on user messages
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
   agentTasks?: AgentTaskCardData[];
@@ -157,9 +158,8 @@ export function FlowAIWidget() {
       const userMsg: WidgetMessage = {
         id: `tmp-u-${Date.now()}`,
         role: "user",
-        content:
-          trimmed ||
-          `[${pendingAttachments.length} image${pendingAttachments.length > 1 ? "s" : ""} attached]`,
+        content: trimmed,
+        images: pendingAttachments.map((a) => a.dataUrl),
       };
       const pendingMsg: WidgetMessage = {
         id: `tmp-a-${Date.now()}`,
@@ -841,6 +841,19 @@ function WidgetMessageView({
         )}
       </div>
       <div className={cn("flex-1 min-w-0 space-y-2", isUser ? "text-right" : "text-left")}>
+        {message.images && message.images.length > 0 && (
+          <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
+            {message.images.map((src, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={src}
+                alt="Attachment"
+                className="h-24 w-24 object-cover rounded-xl border border-border"
+              />
+            ))}
+          </div>
+        )}
         {message.content ? (
           <div
             className={cn(
