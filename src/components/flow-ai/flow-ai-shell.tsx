@@ -49,8 +49,6 @@ import { RichText, TypingDots } from "./rich-text";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useVoiceConversation } from "./use-voice-conversation";
 import { VoiceWaveform } from "./voice-waveform";
-import { useVoiceLang } from "./voice-lang";
-import { VoiceLangPicker } from "./voice-lang-picker";
 import { speakAloud } from "./use-tts";
 
 /**
@@ -439,13 +437,9 @@ export function FlowAIShell() {
     [conversationId, sending, attachments, refreshConversations, toast, sendToAgent],
   );
 
-  // Dictation language — Web Speech can't auto-detect, so the user picks it.
-  const [voiceLang, setVoiceLang] = useVoiceLang();
-
   // Voice mode — browser speech-to-text; final transcript sends as a voice
   // turn so the reply is read back aloud via the self-hosted TTS.
   const voice = useSpeechRecognition({
-    lang: voiceLang,
     onFinal: (transcript) => {
       void send(transcript, true);
     },
@@ -453,7 +447,6 @@ export function FlowAIShell() {
 
   // Hands-free conversation mode — continuous listen → send → speak → listen.
   const conversation = useVoiceConversation({
-    lang: voiceLang,
     onUtterance: (text, onReply) => {
       void send(text, false, onReply);
     },
@@ -951,9 +944,6 @@ export function FlowAIShell() {
                 className="flex-1 bg-transparent border-0 outline-none focus:ring-0 resize-none py-2 px-2 text-sm leading-relaxed max-h-40"
                 disabled={sending}
               />
-              {(voice.supported || conversation.supported) && (
-                <VoiceLangPicker value={voiceLang} onChange={setVoiceLang} className="flex-shrink-0" />
-              )}
               {voice.supported && (
                 <button
                   type="button"

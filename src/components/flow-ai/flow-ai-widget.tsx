@@ -27,8 +27,6 @@ import { RichText, TypingDots } from "./rich-text";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useVoiceConversation } from "./use-voice-conversation";
 import { VoiceWaveform } from "./voice-waveform";
-import { useVoiceLang } from "./voice-lang";
-import { VoiceLangPicker } from "./voice-lang-picker";
 import { speakAloud } from "./use-tts";
 
 /**
@@ -321,10 +319,7 @@ export function FlowAIWidget() {
 
   // Voice mode — browser speech-to-text. On a final transcript, send it as a
   // voice turn so the reply is read back automatically.
-  const [voiceLang, setVoiceLang] = useVoiceLang();
-
   const voice = useSpeechRecognition({
-    lang: voiceLang,
     onFinal: (transcript) => {
       void handleSend(transcript, true);
     },
@@ -332,7 +327,6 @@ export function FlowAIWidget() {
 
   // Hands-free conversation mode — continuous listen → send → speak → listen.
   const conversation = useVoiceConversation({
-    lang: voiceLang,
     onUtterance: (text, onReply) => {
       void handleSend(text, false, onReply);
     },
@@ -821,9 +815,6 @@ export function FlowAIWidget() {
                   disabled={sending}
                   className="flex-1 resize-none rounded-xl border border-border bg-white dark:bg-gray-900 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 max-h-28 overflow-y-auto disabled:opacity-50"
                 />
-                {(voice.supported || conversation.supported) && (
-                  <VoiceLangPicker value={voiceLang} onChange={setVoiceLang} className="max-w-[5rem] flex-shrink-0" />
-                )}
                 {voice.supported && (
                   <button
                     type="button"
