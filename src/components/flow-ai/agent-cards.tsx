@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
-import { synthesizeSpeech } from "./use-tts";
+import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -71,52 +71,42 @@ export function CopyTextButton({ text, className }: { text: string; className?: 
  */
 export function SpeakButton({ text, className }: { text: string; className?: string }) {
   const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const urlRef = useRef<string | null>(null);
+  const playerRef = useRef<SpeechPlayer | null>(null);
 
-  const cleanup = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
-    }
-  };
-
-  useEffect(() => cleanup, []);
+  useEffect(
+    () => () => {
+      playerRef.current?.stop();
+      playerRef.current = null;
+    },
+    [],
+  );
 
   const handleClick = async () => {
     if (state === "playing" || state === "loading") {
-      cleanup();
+      playerRef.current?.stop();
+      playerRef.current = null;
       setState("idle");
       return;
     }
     setState("loading");
+    const player = createSpeechPlayer();
+    playerRef.current = player;
     try {
-      const url = await synthesizeSpeech(text);
-      if (!url) {
+      // Streams chunk-by-chunk: flips to "playing" the moment the first
+      // sentence starts (~1.5s) instead of waiting for the whole reply.
+      const { playedAny } = await player.play(text, () => setState("playing"));
+      if (playerRef.current !== player) return; // a newer click superseded us
+      if (!playedAny) {
         setState("error");
-        setTimeout(() => setState("idle"), 2500);
-        return;
+        setTimeout(() => setState((s) => (s === "error" ? "idle" : s)), 2500);
+      } else {
+        setState("idle");
       }
-      urlRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => {
-        cleanup();
-        setState("idle");
-      };
-      audio.onerror = () => {
-        cleanup();
-        setState("idle");
-      };
-      await audio.play();
-      setState("playing");
     } catch {
       setState("error");
-      setTimeout(() => setState("idle"), 2500);
+      setTimeout(() => setState((s) => (s === "error" ? "idle" : s)), 2500);
+    } finally {
+      if (playerRef.current === player) playerRef.current = null;
     }
   };
 
