@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAllowedMobileRedirect } from "@/lib/auth/mobile-oauth";
 
 /**
  * Facebook OAuth - Step 1: Redirect to Facebook
@@ -9,6 +10,11 @@ export async function GET(request: NextRequest) {
   const fbAppId = process.env.FACEBOOK_AUTH_APP_ID;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook/callback`;
   const mode = request.nextUrl.searchParams.get("mode") || "login";
+  // Native app passes platform=mobile so the callback returns tokens via a
+  // deep link instead of setting web cookies. See flow-ai-mobile-app memory.
+  const platform = request.nextUrl.searchParams.get("platform");
+  // App's own deep-link base (flowsmartly:// or exp:// for Expo Go).
+  const mobileRedirect = request.nextUrl.searchParams.get("redirect");
 
   if (!fbAppId) {
     return NextResponse.json(
@@ -38,6 +44,24 @@ export async function GET(request: NextRequest) {
     maxAge: 600, // 10 minutes
     path: "/",
   });
+  if (platform === "mobile") {
+    response.cookies.set("oauth_platform", "mobile", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+    if (isAllowedMobileRedirect(mobileRedirect)) {
+      response.cookies.set("oauth_redirect", mobileRedirect!, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 600,
+        path: "/",
+      });
+    }
+  }
 
   return response;
 }

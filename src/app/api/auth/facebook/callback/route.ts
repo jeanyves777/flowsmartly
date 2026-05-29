@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { createSession, setSessionCookies } from "@/lib/auth/session";
+import { buildMobileRedirect } from "@/lib/auth/mobile-oauth";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -13,14 +14,17 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
   const mode = request.cookies.get("oauth_mode")?.value || "login";
+  // Native app login: return tokens via deep link instead of web cookies.
+  const isMobile = request.cookies.get("oauth_platform")?.value === "mobile";
+  const redirectBase = request.cookies.get("oauth_redirect")?.value;
 
   if (error) {
     console.error("Facebook OAuth error:", error);
-    return clearAndRedirect(`${APP_URL}/login?error=facebook_auth_failed`);
+    return clearAndRedirect(isMobile ? buildMobileRedirect(redirectBase, { error: "oauth_failed" }) : `${APP_URL}/login?error=facebook_auth_failed`);
   }
 
   if (!code) {
-    return clearAndRedirect(`${APP_URL}/login?error=no_code`);
+    return clearAndRedirect(isMobile ? buildMobileRedirect(redirectBase, { error: "no_code" }) : `${APP_URL}/login?error=no_code`);
   }
 
   try {
@@ -100,14 +104,19 @@ export async function GET(request: NextRequest) {
         userAgent,
         ipAddress
       );
-      await setSessionCookies(accessToken, refreshToken);
 
+      // Mobile app: hand the JWT pair to the app via deep link, no cookies.
+      if (isMobile) {
+        return clearAndRedirect(buildMobileRedirect(redirectBase, { accessToken, refreshToken }));
+      }
+
+      await setSessionCookies(accessToken, refreshToken);
       return clearAndRedirect(`${APP_URL}/feed`);
     }
 
     // No account found
     if (mode === "login") {
-      return clearAndRedirect(`${APP_URL}/login?error=no_account_found`);
+      return clearAndRedirect(isMobile ? buildMobileRedirect(redirectBase, { error: "no_account" }) : `${APP_URL}/login?error=no_account_found`);
     }
 
     // Register mode — store OAuth data in cookie, redirect to register page
@@ -132,12 +141,14 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error("[Facebook OAuth] Callback error:", error);
-    return clearAndRedirect(`${APP_URL}/login?error=oauth_failed`);
+    return clearAndRedirect(isMobile ? buildMobileRedirect(redirectBase, { error: "oauth_failed" }) : `${APP_URL}/login?error=oauth_failed`);
   }
 }
 
 function clearAndRedirect(url: string) {
   const response = NextResponse.redirect(url);
   response.cookies.delete("oauth_mode");
+  response.cookies.delete("oauth_platform");
+  response.cookies.delete("oauth_redirect");
   return response;
 }
