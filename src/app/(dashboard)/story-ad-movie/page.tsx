@@ -3514,7 +3514,10 @@ function ProduceStage({
         campaignId={campaign.id}
         onClipUpdated={onClipUpdated}
         defaultOpen={!state.finalVideoUrl}
-        reviewMode={allReady && !state.finalVideoUrl && !isRendering}
+        // Review controls (approve / regenerate / edit / remove / reorder / add) are
+        // available whenever clips aren't actively rendering — even after a final reel
+        // exists, so the user can keep tweaking and re-compose.
+        reviewMode={state.clips.length > 0 && !isRendering}
       />
     </div>
   );
