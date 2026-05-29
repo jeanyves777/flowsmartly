@@ -94,6 +94,22 @@ export function languageDirective(tag: string): string {
 }
 
 /**
+ * Language directive for the CONVERSATIONAL agent (Flow-AI chat). Unlike
+ * `languageDirective` (which locks one-shot generators to the preferred
+ * language), the chat agent MIRRORS the user's language turn-by-turn —
+ * detecting it from their typed or spoken message — while still defaulting
+ * generated CONTENT to the account's preferred language.
+ */
+export function conversationLanguageDirective(preferredTag: string): string {
+  const label = getLanguageLabel(preferredTag);
+  return [
+    `# Language — mirror the user (HARD RULE)`,
+    `You are fluent in many languages. DETECT the language of the user's latest message (whether typed or transcribed from voice) and ALWAYS reply in that SAME language — match it turn by turn. NEVER claim you "only respond in English" or in any single language; you reply in whatever language the user uses.`,
+    `The account's preferred CONTENT language is ${label} (${preferredTag}). Use that as the DEFAULT language for content you GENERATE for them (captions, posts, emails, designs, narration). But if the user is communicating in another language, or asks for a specific one, produce the content in THAT language instead.`,
+  ].join("\n");
+}
+
+/**
  * One-shot helper for creative generators that don't have a system prompt
  * (single-prompt image / video calls). Prepends a short language clause to
  * an arbitrary user prompt so any rendered text or voiceover comes out in

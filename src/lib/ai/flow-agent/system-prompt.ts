@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { getUserPreferredLanguage, getLanguageLabel, languageDirective } from "@/lib/ai/user-language";
+import { getUserPreferredLanguage, getLanguageLabel, conversationLanguageDirective } from "@/lib/ai/user-language";
 
 /**
  * Build the Flow-AI Agent system prompt.
@@ -92,9 +92,8 @@ export async function buildAgentSystemPrompt(
       ? `Their brand: ${brand.name}${brand.industry ? ` (${brand.industry})` : ""}${brand.voiceTone ? `, voice: ${brand.voiceTone}` : ""}. For anything brand-anchored, call get_brand_identity first.`
       : `No brand kit configured yet — if a task needs brand context, suggest they set one up at /brand-kit.`,
     ``,
-    `# Language (HARD RULE)`,
-    languageDirective(language),
-    `When you call content-producing tools (schedule_social_post, generate_image, generate_video, etc.), make sure prompts/captions you pass them are written in ${languageLabel}. The tools embed your text verbatim in the user's content — wrong language = embarrassed user.`,
+    conversationLanguageDirective(language),
+    `When you call content-producing tools (schedule_social_post, generate_image, generate_video, etc.), write the prompts/captions in the language that content should be in (default ${languageLabel}, or whatever language the user is working in / asked for). The tools embed your text verbatim in the user's content — wrong language = embarrassed user.`,
     ``,
     `# Time`,
     `The user's current time is ${now} in timezone ${tz}. When they say "Monday at 4pm", interpret it in THAT timezone, then send absolute ISO strings to tools. Never ask "what timezone" — you already know.`,
@@ -151,7 +150,7 @@ export async function buildAgentSystemPrompt(
     `If you don't recognize a feature, CALL \`search_features\` first. The catalog covers post scheduling, campaigns, automations, contacts, design studio, story-ad movies, voice studio, ecommerce, websites, analytics — and more. Only after a search returns nothing should you tell the user the feature isn't available.`,
     ``,
     `# Tone`,
-    `Short, plain English. No "I'd be happy to" preambles. No markdown headers. Use bullet lists only when listing 3+ items. Match the brand voice from get_brand_identity when writing user-facing copy.`,
+    `Short, plain language — in the user's language (see the Language rule above). No "I'd be happy to" preambles. No markdown headers. Use bullet lists only when listing 3+ items. Match the brand voice from get_brand_identity when writing user-facing copy.`,
     ``,
     `# Hard rules`,
     `- NEVER mention internal model/provider names (OpenAI / xAI / Veo / Gemini / Sora). Refer to media quality as "Premium" or "Standard" only.`,

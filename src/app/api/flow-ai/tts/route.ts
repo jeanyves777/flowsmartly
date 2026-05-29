@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { prisma } from "@/lib/db/client";
 
 /**
  * Flow-AI text-to-speech proxy. Forwards to the self-hosted Supertonic TTS
@@ -34,18 +33,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: { code: "missing_text" } }, { status: 400 });
   }
 
-  // Language: explicit > BrandKit.preferredLanguage > "en". Supertonic wants
-  // a base ISO code, so strip any region subtag (pt-BR -> pt).
-  let lang = typeof body.lang === "string" && body.lang.trim() ? body.lang.trim() : "";
-  if (!lang) {
-    const bk = await prisma.brandKit.findFirst({
-      where: { userId: session.userId },
-      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-      select: { preferredLanguage: true },
-    });
-    lang = bk?.preferredLanguage || "en";
-  }
-  lang = lang.split(/[-_]/)[0].toLowerCase() || "en";
+  // Language: explicit ISO code if given (base subtag, pt-BR -> pt), else
+  // "na" — Supertonic's language-agnostic mode. The agent replies in the
+  // user's own language (could be any), and the caller doesn't know which,
+  // so "na" lets the model pronounce the reply's actual language correctly
+  // instead of forcing one preferred language onto every reply.
+  const explicit = typeof body.lang === "string" && body.lang.trim() ? body.lang.trim() : "";
+  const lang = explicit ? explicit.split(/[-_]/)[0].toLowerCase() : "na";
 
   const voice = typeof body.voice === "string" && VALID_VOICES.has(body.voice) ? body.voice : "F1";
 
