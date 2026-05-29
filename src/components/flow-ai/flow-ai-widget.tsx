@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft } from "lucide-react";
+import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft, Mic } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   ToolCallChip,
@@ -24,6 +24,8 @@ import {
 } from "./use-agent-stream";
 import { useWebPushAutoSubscribe, requestPushPermission } from "./use-web-push";
 import { RichText, TypingDots } from "./rich-text";
+import { useSpeechRecognition } from "./use-speech-recognition";
+import { speakAloud } from "./use-tts";
 
 /**
  * Floating Flow-AI widget — compact agent chat that lives in the
@@ -158,7 +160,7 @@ export function FlowAIWidget() {
   }
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, viaVoice = false) => {
       const trimmed = text.trim();
       const pendingAttachments = attachments;
       // Allow sending with only an image (no text).
@@ -292,6 +294,10 @@ export function FlowAIWidget() {
           },
           onDone: () => {
             flushMessage();
+            // In voice mode, read the reply back automatically (self-hosted TTS).
+            if (viaVoice && assistantText.trim()) {
+              void speakAloud(assistantText);
+            }
           },
         });
       } catch (err) {
@@ -308,6 +314,14 @@ export function FlowAIWidget() {
     },
     [conversationId, send, sending, attachments],
   );
+
+  // Voice mode — browser speech-to-text. On a final transcript, send it as a
+  // voice turn so the reply is read back automatically.
+  const voice = useSpeechRecognition({
+    onFinal: (transcript) => {
+      void handleSend(transcript, true);
+    },
+  });
 
   // Read picked image files → base64 data URLs → attachment chips.
   const handleFiles = useCallback((files: FileList | null) => {
@@ -752,11 +766,28 @@ export function FlowAIWidget() {
                       handleSend(input);
                     }
                   }}
-                  placeholder="Ask Flow-AI…"
+                  placeholder={voice.listening ? voice.interim || "Listening…" : "Ask Flow-AI…"}
                   rows={1}
                   disabled={sending}
                   className="flex-1 resize-none rounded-xl border border-border bg-white dark:bg-gray-900 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 max-h-28 overflow-y-auto disabled:opacity-50"
                 />
+                {voice.supported && (
+                  <button
+                    type="button"
+                    onClick={voice.toggle}
+                    disabled={sending}
+                    className={cn(
+                      "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                      voice.listening
+                        ? "border-red-500 bg-red-500 text-white animate-pulse"
+                        : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-label={voice.listening ? "Stop listening" : "Speak"}
+                    title={voice.listening ? "Listening… tap to stop" : "Talk to Flow-AI"}
+                  >
+                    <Mic className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={(!input.trim() && attachments.length === 0) || sending}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { synthesizeSpeech } from "./use-tts";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -94,18 +95,12 @@ export function SpeakButton({ text, className }: { text: string; className?: str
     }
     setState("loading");
     try {
-      const res = await fetch("/api/flow-ai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
+      const url = await synthesizeSpeech(text);
+      if (!url) {
         setState("error");
         setTimeout(() => setState("idle"), 2500);
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
       urlRef.current = url;
       const audio = new Audio(url);
       audioRef.current = audio;

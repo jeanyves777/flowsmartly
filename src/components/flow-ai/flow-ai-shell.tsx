@@ -20,6 +20,7 @@ import {
   Paperclip,
   Link as LinkIcon,
   FolderOpen,
+  Mic,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -44,6 +45,8 @@ import {
   type TaskStreamEvent,
 } from "./use-agent-stream";
 import { RichText, TypingDots } from "./rich-text";
+import { useSpeechRecognition } from "./use-speech-recognition";
+import { speakAloud } from "./use-tts";
 
 /**
  * FlowAI Shell — multi-modal conversational assistant, fullscreen overlay.
@@ -254,7 +257,7 @@ export function FlowAIShell() {
   // generate route for now (Phase 8 will migrate those to tools).
   const sendAgent = useAgentSender();
   const sendToAgent = useCallback(
-    async (trimmed: string, _userMsg: Message, pendingMsg: Message, atts?: Array<{ dataUrl: string; name: string }>) => {
+    async (trimmed: string, _userMsg: Message, pendingMsg: Message, atts?: Array<{ dataUrl: string; name: string }>, viaVoice = false) => {
       const res = await sendAgent({
         message: trimmed,
         conversationId,
@@ -354,6 +357,9 @@ export function FlowAIShell() {
         },
         onDone: () => {
           flushMessage();
+          if (viaVoice && assistantText.trim()) {
+            void speakAloud(assistantText);
+          }
         },
       });
 
@@ -363,7 +369,7 @@ export function FlowAIShell() {
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, viaVoice = false) => {
       const trimmed = text.trim();
       const pendingAttachments = attachments;
       if ((!trimmed && pendingAttachments.length === 0) || sending) return;
@@ -393,7 +399,7 @@ export function FlowAIShell() {
       try {
         // Everything routes through the tool-using agent now (no modes).
         {
-          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments);
+          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments, viaVoice);
           // Adopt the server's conversation id whenever it differs — covers
           // both first-message (was null) and stale-id reassignment (the
           // server started fresh instead of 404'ing).
@@ -419,6 +425,14 @@ export function FlowAIShell() {
     },
     [conversationId, sending, attachments, refreshConversations, toast, sendToAgent],
   );
+
+  // Voice mode — browser speech-to-text; final transcript sends as a voice
+  // turn so the reply is read back aloud via the self-hosted TTS.
+  const voice = useSpeechRecognition({
+    onFinal: (transcript) => {
+      void send(transcript, true);
+    },
+  });
 
   // Confirm or reject a plan proposal — POSTs to /confirm, then optimistically
   // flips the local card's status. The agent loop, paused on awaitConfirmation,
@@ -871,10 +885,27 @@ export function FlowAIShell() {
                   }
                 }}
                 rows={1}
-                placeholder="Ask Flow-AI to write, design, schedule, generate — anything…"
+                placeholder={voice.listening ? voice.interim || "Listening…" : "Ask Flow-AI to write, design, schedule, generate — anything…"}
                 className="flex-1 bg-transparent border-0 outline-none focus:ring-0 resize-none py-2 px-2 text-sm leading-relaxed max-h-40"
                 disabled={sending}
               />
+              {voice.supported && (
+                <button
+                  type="button"
+                  onClick={voice.toggle}
+                  disabled={sending}
+                  className={cn(
+                    "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                    voice.listening
+                      ? "border-red-500 bg-red-500 text-white animate-pulse"
+                      : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-label={voice.listening ? "Stop listening" : "Talk to Flow-AI"}
+                  title={voice.listening ? "Listening… tap to stop" : "Talk to Flow-AI"}
+                >
+                  <Mic className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => send(input)}
