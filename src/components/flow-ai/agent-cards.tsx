@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X, ExternalLink, Copy, Check } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
@@ -55,6 +55,103 @@ export function CopyTextButton({ text, className }: { text: string; className?: 
       ) : (
         <>
           <Copy className="h-3.5 w-3.5" /> Copy
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * "Play" button shown next to Copy — speaks the assistant reply aloud using
+ * the self-hosted Supertonic TTS proxy (/api/flow-ai/tts). Toggles play/stop,
+ * shows a spinner while synthesizing, and quietly hides itself if the voice
+ * service is unavailable (so it never clutters the UI when TTS is down).
+ * Shared by the full page + the floating widget.
+ */
+export function SpeakButton({ text, className }: { text: string; className?: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  const cleanup = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null;
+    }
+  };
+
+  useEffect(() => cleanup, []);
+
+  const handleClick = async () => {
+    if (state === "playing" || state === "loading") {
+      cleanup();
+      setState("idle");
+      return;
+    }
+    setState("loading");
+    try {
+      const res = await fetch("/api/flow-ai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        setState("error");
+        setTimeout(() => setState("idle"), 2500);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      urlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        cleanup();
+        setState("idle");
+      };
+      audio.onerror = () => {
+        cleanup();
+        setState("idle");
+      };
+      await audio.play();
+      setState("playing");
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 2500);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={state === "playing" ? "Stop" : "Play reply aloud"}
+      title={state === "error" ? "Voice unavailable" : state === "playing" ? "Stop" : "Play aloud"}
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors",
+        state === "error" && "text-amber-500",
+        className,
+      )}
+    >
+      {state === "loading" ? (
+        <>
+          <AISpinner size={14} /> …
+        </>
+      ) : state === "playing" ? (
+        <>
+          <Square className="h-3.5 w-3.5 fill-current" /> Stop
+        </>
+      ) : state === "error" ? (
+        <>
+          <Volume2 className="h-3.5 w-3.5" /> Unavailable
+        </>
+      ) : (
+        <>
+          <Volume2 className="h-3.5 w-3.5" /> Play
         </>
       )}
     </button>

@@ -11,6 +11,7 @@ import {
   PlanProposalCard,
   TaskCard,
   CopyTextButton,
+  SpeakButton,
   type AgentToolCardData,
   type AgentTaskCardData,
   type PlanProposalCardData,
@@ -888,8 +889,9 @@ function WidgetMessageView({
           )
         )}
         {!isUser && message.content && (
-          <div className="pl-1">
+          <div className="pl-1 flex items-center gap-3">
             <CopyTextButton text={message.content} />
+            <SpeakButton text={message.content} />
           </div>
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (
