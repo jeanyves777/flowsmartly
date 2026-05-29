@@ -1831,10 +1831,49 @@ async function renderNarratedStory(input: {
     await rm(audioTempDir, { recursive: true, force: true });
   }
 
-  // Stage C — ffmpeg compose: image+audio per segment, then concat all
+  // Gate: stop at clips-ready for manual review unless automation auto-composites.
+  // The user reviews each scene (approve / regenerate / remove / reorder / add) then
+  // explicitly triggers composeNarratedFinal via the finalize endpoint.
+  if (!state.autoComposite) {
+    const reviewState: CampaignState = {
+      ...state,
+      clips,
+      phase: "BATCH",
+      finalVideoUrl: null,
+      finalVideoThumbnailUrl: clips.find((c) => c.imageUrl)?.imageUrl || clips.find((c) => c.videoUrl)?.videoUrl || null,
+    };
+    await prisma.cartoonVideo.update({
+      where: { id: campaignId },
+      data: {
+        status: "CLIPS_READY",
+        progress: 100,
+        currentStep: "All scenes rendered — review them, then compose the final reel.",
+        metadata: writeCampaign(reviewState),
+      },
+    });
+    return;
+  }
+
+  await composeNarratedFinal({ campaignId, userId, clips, state });
+}
+
+/**
+ * Stage C–D for narrated reels: ffmpeg compose per-scene segments → concat → Lyria
+ * music overlay → brand logo → caption → media library save → final state update.
+ * Extracted so both the auto-render path AND the manual finalize endpoint can run it.
+ */
+async function composeNarratedFinal(input: {
+  campaignId: string;
+  userId: string;
+  clips: CampaignClipSlot[];
+  state: CampaignState;
+}): Promise<{ finalVideoUrl: string | null }> {
+  const { campaignId, userId, clips, state } = input;
+  const brand = await getBrandSnapshot(userId);
+
   await prisma.cartoonVideo.update({
     where: { id: campaignId },
-    data: { progress: 85, currentStep: "Composing the final reel..." },
+    data: { status: "COMPOSITING", progress: 85, currentStep: "Composing the final reel..." },
   });
   let finalVideoUrl: string | null = null;
   try {
@@ -1843,10 +1882,6 @@ async function renderNarratedStory(input: {
     console.error("[StoryAdCampaign] narrated compose failed:", error);
   }
 
-  // Stage C.5 — music overlay (Lyria 3). Each cue is generated once and dropped
-  // onto the reel at the timestamp where the cue's startScene begins. Music sits
-  // under voice at -16dB by default; if Lyria isn't configured or any cue fails,
-  // we ship the reel without music instead of failing the whole render.
   let musicCues = Array.isArray(state.musicCues) ? state.musicCues : [];
   if (finalVideoUrl && musicCues.length) {
     try {
@@ -1854,12 +1889,7 @@ async function renderNarratedStory(input: {
         where: { id: campaignId },
         data: { progress: 90, currentStep: "Composing musical score..." },
       });
-      const result = await overlayMusicTracks({
-        campaignId,
-        reelUrl: finalVideoUrl,
-        cues: musicCues,
-        clips,
-      });
+      const result = await overlayMusicTracks({ campaignId, reelUrl: finalVideoUrl, cues: musicCues, clips });
       if (result.reelUrl) {
         finalVideoUrl = result.reelUrl;
         musicCues = result.cues;
@@ -1869,7 +1899,6 @@ async function renderNarratedStory(input: {
     }
   }
 
-  // Stage D — brand logo overlay + caption + media library (reuse helpers)
   let publishCaption: string | undefined;
   let publishHashtags: string[] | undefined;
   if (finalVideoUrl) {
@@ -1908,7 +1937,7 @@ async function renderNarratedStory(input: {
     }
   }
 
-  const allOk = clips.every((c) => c.status === "READY") && !!finalVideoUrl;
+  const allOk = !!finalVideoUrl;
   const finalState: CampaignState = {
     ...state,
     clips,
@@ -1924,12 +1953,13 @@ async function renderNarratedStory(input: {
     data: {
       status: allOk ? "COMPLETED" : "FAILED",
       progress: 100,
-      currentStep: allOk ? "Narrated reel ready" : "Some scenes failed — review and re-run",
+      currentStep: allOk ? "Narrated reel ready" : "Compose failed — review and re-run",
       metadata: writeCampaign(finalState),
       videoUrl: finalVideoUrl,
       completedAt: allOk ? new Date() : null,
     },
   });
+  return { finalVideoUrl };
 }
 
 /** Generate a still illustration for an image scene using the same image router as character previews. */
@@ -2825,6 +2855,122 @@ async function renderXaiSeamless(input: {
  * Re-render a single clip in place. Used for the "Retry" button on failed clip cards.
  * Skips the final concat/logo/caption steps — those re-run from the next full batch send.
  */
+/** Re-number clips 1..N after add/remove/reorder so index stays contiguous. */
+function reindexClips(clips: CampaignClipSlot[]): CampaignClipSlot[] {
+  return clips.map((c, i) => ({ ...c, index: i + 1 }));
+}
+
+/** Toggle a clip's reviewed/approved flag. No render — just state. */
+export async function setClipApproval(input: {
+  campaignId: string;
+  userId: string;
+  clipId: string;
+  approved: boolean;
+}): Promise<CampaignState> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const clips = current.state.clips.map((c) =>
+    c.id === input.clipId ? { ...c, approved: input.approved } : c,
+  );
+  return updateCampaignState(input.campaignId, input.userId, { clips });
+}
+
+/** Remove a clip entirely (e.g. user doesn't want this beat). Re-indexes the rest. */
+export async function removeClip(input: {
+  campaignId: string;
+  userId: string;
+  clipId: string;
+}): Promise<CampaignState> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const remaining = current.state.clips.filter((c) => c.id !== input.clipId);
+  if (remaining.length === current.state.clips.length) throw new Error("Clip not found");
+  if (!remaining.length) throw new Error("Cannot remove the last clip.");
+  return updateCampaignState(input.campaignId, input.userId, { clips: reindexClips(remaining) });
+}
+
+/** Reorder clips to match the given ordered list of clip ids. Re-indexes. */
+export async function reorderClips(input: {
+  campaignId: string;
+  userId: string;
+  orderedIds: string[];
+}): Promise<CampaignState> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const byId = new Map(current.state.clips.map((c) => [c.id, c]));
+  const reordered: CampaignClipSlot[] = [];
+  for (const id of input.orderedIds) {
+    const clip = byId.get(id);
+    if (clip) { reordered.push(clip); byId.delete(id); }
+  }
+  // Append any clips the client didn't mention (safety) so none are lost.
+  for (const leftover of byId.values()) reordered.push(leftover);
+  return updateCampaignState(input.campaignId, input.userId, { clips: reindexClips(reordered) });
+}
+
+/**
+ * Insert a NEW clip after a given clip (or at the end) and render it immediately.
+ * The user can supply a sceneAction/description; we build the full prompt + render.
+ */
+export async function addAndRenderClip(input: {
+  campaignId: string;
+  userId: string;
+  afterClipId?: string | null;
+  sceneAction?: string;
+  act?: ActPosition;
+}): Promise<{ state: CampaignState; clipId: string; status: "READY" | "FAILED"; error?: string }> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const { state } = current;
+  const brand = await getBrandSnapshot(input.userId);
+
+  // Build a new slot. Inherit shot/camera defaults; user can edit + re-render later.
+  const baseChars = state.clips[0]?.characterIds || (state.characters[0] ? [state.characters[0].id] : []);
+  const newClip: CampaignClipSlot = {
+    id: nanoid(8),
+    index: state.clips.length + 1,
+    act: input.act || "TRANSFORM",
+    shotType: "MEDIUM",
+    cameraMovement: "STATIC",
+    sceneAction: (input.sceneAction || "A new beat in the story.").trim().slice(0, 400),
+    moodLighting: "Natural cinematic lighting.",
+    characterIds: baseChars,
+    dialogue: [],
+    mediaType: state.style === "narrated" ? (state.fullAnimation ? "video" : "image") : "video",
+    imageUrl: null,
+    videoUrl: null,
+    audioUrl: null,
+    mixedAudioUrl: undefined,
+    segmentDuration: state.style === "narrated" && !state.fullAnimation ? 10 : 8,
+    prompt: "",
+    status: "PENDING",
+    error: null,
+  };
+  newClip.prompt = buildClipPrompt(newClip, state, brand);
+
+  // Splice into position
+  const clips = [...state.clips];
+  const afterIdx = input.afterClipId ? clips.findIndex((c) => c.id === input.afterClipId) : clips.length - 1;
+  const insertAt = afterIdx === -1 ? clips.length : afterIdx + 1;
+  clips.splice(insertAt, 0, newClip);
+  const reindexed = reindexClips(clips);
+  await updateCampaignState(input.campaignId, input.userId, { clips: reindexed });
+
+  // Render the new clip in place via the same retry path.
+  const result = await retrySingleClip({
+    campaignId: input.campaignId,
+    userId: input.userId,
+    clipId: newClip.id,
+  });
+  const after = await getCampaign(input.campaignId, input.userId);
+  return {
+    state: after?.state || current.state,
+    clipId: newClip.id,
+    status: result.status,
+    error: result.error,
+  };
+}
+
 export async function retrySingleClip(input: {
   campaignId: string;
   userId: string;
@@ -2845,13 +2991,27 @@ export async function retrySingleClip(input: {
   }
 
   const clips = [...state.clips];
-  clips[idx] = { ...clips[idx], status: "RENDERING", error: null };
+  // Re-build the prompt from the (possibly edited) scene action before rendering, so a
+  // user who tweaked the script gets a fresh clip matching the new text.
+  const brand = await getBrandSnapshot(input.userId);
+  clips[idx] = { ...clips[idx], prompt: buildClipPrompt(clips[idx], state, brand), status: "RENDERING", error: null, approved: false };
   await updateCampaignState(input.campaignId, input.userId, { clips });
 
-  const renderOne = state.provider === "veo3" ? renderClipViaVeo : renderClipViaXai;
-
   try {
-    const url = await renderOne(clips[idx], state);
+    const clip = clips[idx];
+    if (state.style === "narrated" && clip.mediaType === "image") {
+      // Narrated still scene → regenerate the illustration.
+      const imageUrl = await generateNarratedSceneImage(clip, state, brand);
+      clips[idx] = { ...clips[idx], status: "READY", imageUrl, error: null };
+      await updateCampaignState(input.campaignId, input.userId, { clips });
+      return { status: "READY" };
+    }
+    // Video scene (cinematic/3D clip OR narrated full-animation/hook).
+    const renderOne =
+      state.style === "narrated"
+        ? renderNarratedVideoScene
+        : pickClipRenderer(state.provider);
+    const url = await renderOne(clip, state);
     clips[idx] = { ...clips[idx], status: "READY", videoUrl: url, error: null };
     await updateCampaignState(input.campaignId, input.userId, { clips });
     return { status: "READY", videoUrl: url };
@@ -3054,6 +3214,29 @@ export async function batchRenderCampaign(input: { campaignId: string; userId: s
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, clips.length) }, () => worker()));
 
   const allOk = clips.every((c) => c.status === "READY");
+
+  // Auto-composite ONLY in automation mode. In the interactive default, stop at
+  // "clips ready" so the user can review / approve / regenerate / remove / reorder /
+  // add clips before explicitly triggering the final compose (StitchReelBar → finalize).
+  if (allOk && !state.autoComposite) {
+    const reviewState: CampaignState = {
+      ...state,
+      clips,
+      phase: "BATCH",
+      finalVideoUrl: null,
+      finalVideoThumbnailUrl: clips.find((c) => c.videoUrl)?.videoUrl || null,
+    };
+    await prisma.cartoonVideo.update({
+      where: { id: row.id },
+      data: {
+        status: "CLIPS_READY",
+        progress: 100,
+        currentStep: "All clips rendered — review them, then compose the final reel.",
+        metadata: writeCampaign(reviewState),
+      },
+    });
+    return;
+  }
 
   let finalVideoUrl: string | null = null;
   let publishCaption: string | undefined;
@@ -3357,6 +3540,21 @@ export async function finalizeCampaign(input: {
 }): Promise<{ finalVideoUrl: string | null }> {
   const current = await getCampaign(input.campaignId, input.userId);
   if (!current) throw new Error("Campaign not found");
+
+  // Narrated reels need their own compose tail (per-scene image+audio segments,
+  // music overlay, logo, caption). Branch to composeNarratedFinal.
+  if (current.state.style === "narrated") {
+    const readyScenes = current.state.clips.filter(
+      (c) => c.status === "READY" && (c.imageUrl || c.videoUrl),
+    );
+    if (!readyScenes.length) throw new Error("No rendered scenes yet — render before composing.");
+    return composeNarratedFinal({
+      campaignId: input.campaignId,
+      userId: input.userId,
+      clips: current.state.clips,
+      state: current.state,
+    });
+  }
 
   const readyClips = current.state.clips.filter((c) => c.status === "READY" && c.videoUrl);
   if (!readyClips.length) {

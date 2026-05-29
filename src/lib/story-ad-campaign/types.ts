@@ -162,6 +162,8 @@ export interface CampaignClipSlot {
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** User reviewed this rendered clip and approved it for the final compose. */
+  approved?: boolean;
   /** Narrated style: what the narrator says over this scene */
   narratorLine?: string;
   /** Narrated style: video vs still image. Image is the cheap default. */
@@ -345,6 +347,15 @@ export interface CampaignState {
    * content-pipeline workloads, not for interactive "render right now" runs.
    */
   batchMode?: boolean;
+  /**
+   * When true, the render pipeline composites the final reel automatically as soon as all
+   * clips finish. When false/undefined (the interactive default), rendering STOPS at
+   * "clips ready" so the user can review, approve, regenerate, remove, reorder, or add
+   * clips before explicitly triggering the final compose. Only the scheduled-automation
+   * path sets this true (no human in the loop).
+   */
+  autoComposite?: boolean;
+  /** Per-clip approval is tracked on CampaignClipSlot.approved. */
   storyOutline?: string;
   campaignCaption?: string;
   ctaText?: string;

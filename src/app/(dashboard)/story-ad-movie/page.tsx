@@ -134,6 +134,7 @@ interface ClipSlot {
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  approved?: boolean;
   /** Narrated-style fields */
   mediaType?: "video" | "image";
   imageUrl?: string | null;
@@ -3488,10 +3489,17 @@ function ProduceStage({
         <MusicPlanCard cues={state.musicCues} />
       )}
 
-      {/* Stitch reminder if all ready but no reel yet (e.g. after retries).
-          Hidden while the backend is still composing — campaign.status === "COMPOSITING". */}
+      {/* Explicit compose step. Clips render but DON'T auto-composite — the user reviews
+          each clip below (approve / regenerate / edit / remove / reorder / add) then clicks
+          here to build the final reel. Hidden while the backend is composing. */}
       {allReady && !state.finalVideoUrl && !isRendering && campaign.status !== "COMPOSITING" && (
-        <StitchReelBar campaignId={campaign.id} onDone={onClipUpdated} />
+        <StitchReelBar
+          campaignId={campaign.id}
+          onDone={onClipUpdated}
+          label="Clips ready — review below, then compose the final reel"
+          hint="Nothing is auto-composited. Approve / regenerate / reorder / add clips first, then build the reel when you're happy."
+          buttonLabel="Compose final reel"
+        />
       )}
 
       {/* Deliver section — appears inline once final reel exists */}
@@ -3506,6 +3514,7 @@ function ProduceStage({
         campaignId={campaign.id}
         onClipUpdated={onClipUpdated}
         defaultOpen={!state.finalVideoUrl}
+        reviewMode={allReady && !state.finalVideoUrl && !isRendering}
       />
     </div>
   );
@@ -3517,35 +3526,100 @@ function ClipsCollapsible({
   campaignId,
   onClipUpdated,
   defaultOpen,
+  reviewMode,
 }: {
   clips: ClipSlot[];
   state: CampaignState;
   campaignId: string;
   onClipUpdated: () => void;
   defaultOpen: boolean;
+  /** Show the per-clip review toolbar + add-clip button (when clips are ready for review). */
+  reviewMode?: boolean;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(defaultOpen);
+  const [adding, setAdding] = useState(false);
   const failedCount = clips.filter((c) => c.status === "FAILED").length;
   const readyCount = clips.filter((c) => c.status === "READY").length;
+  const approvedCount = clips.filter((c) => c.approved).length;
+
+  // Single entry point for all clip-management actions. Translates a "move up/down"
+  // directive into the orderedIds the backend expects.
+  async function manage(body: Record<string, unknown>): Promise<boolean> {
+    try {
+      let payload = body;
+      if (body.action === "reorder" && body.move) {
+        const ids = clips.map((c) => c.id);
+        const i = ids.indexOf(body.clipId as string);
+        if (i === -1) return false;
+        const j = body.move === "up" ? i - 1 : i + 1;
+        if (j < 0 || j >= ids.length) return false;
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        payload = { action: "reorder", orderedIds: ids };
+      }
+      const res = await fetch(`/api/ai/story-ad-campaign/${campaignId}/clips/manage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (handleCreditError(data.error || {}, "clip action")) return false;
+        throw new Error(data.error?.message || "Action failed");
+      }
+      onClipUpdated();
+      return true;
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Action failed", variant: "destructive" });
+      return false;
+    }
+  }
+
+  async function addClip() {
+    setAdding(true);
+    try {
+      const ok = await manage({ action: "add" });
+      if (ok) toast({ title: "New clip added + rendered" });
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
     <SectionCard
       title="Clips"
-      description={`${readyCount}/${clips.length} ready${failedCount ? ` · ${failedCount} failed` : ""}`}
+      description={
+        reviewMode
+          ? `${approvedCount}/${clips.length} approved · review each clip, then compose the reel`
+          : `${readyCount}/${clips.length} ready${failedCount ? ` · ${failedCount} failed` : ""}`
+      }
       action={
-        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide" : "Show"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {reviewMode && (
+            <Button size="sm" variant="outline" onClick={addClip} disabled={adding}>
+              {adding ? <AISpinner size={14} /> : <Plus className="h-4 w-4" />}
+              Add clip
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+            {open ? "Hide" : "Show"}
+          </Button>
+        </div>
       }
     >
       {open && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {clips.map((clip) => (
+          {clips.map((clip, i) => (
             <ClipRenderCard
               key={clip.id}
               clip={clip}
               state={state}
               campaignId={campaignId}
               onUpdated={onClipUpdated}
+              reviewMode={reviewMode}
+              isFirst={i === 0}
+              isLast={i === clips.length - 1}
+              onManage={manage}
             />
           ))}
         </div>
@@ -3919,16 +3993,29 @@ function ClipRenderCard({
   state,
   campaignId,
   onUpdated,
+  reviewMode,
+  isFirst,
+  isLast,
+  onManage,
 }: {
   clip: ClipSlot;
   state: CampaignState;
   campaignId: string;
   onUpdated: () => void;
+  /** When true, shows the full review toolbar (approve/regenerate/edit/remove/reorder). */
+  reviewMode?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
+  /** Calls the clip-manage endpoint; returns true on success. */
+  onManage?: (body: Record<string, unknown>) => Promise<boolean>;
 }) {
   const status = statusToBadge(clip.status);
   const Icon = status.icon;
   const { toast } = useToast();
   const [retrying, setRetrying] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftAction, setDraftAction] = useState(clip.sceneAction);
 
   async function retry() {
     setRetrying(true);
@@ -3938,8 +4025,8 @@ function ClipRenderCard({
       });
       const data = await res.json();
       if (!data.success) {
-        if (handleCreditError(data.error || {}, "clip retry")) return;
-        throw new Error(data.error?.message || "Retry failed");
+        if (handleCreditError(data.error || {}, "clip regenerate")) return;
+        throw new Error(data.error?.message || "Regenerate failed");
       }
       onUpdated();
       const result = data.data?.result;
@@ -3953,17 +4040,57 @@ function ClipRenderCard({
         });
       }
     } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Retry failed",
-        variant: "destructive",
-      });
+      toast({ title: error instanceof Error ? error.message : "Regenerate failed", variant: "destructive" });
     } finally {
       setRetrying(false);
     }
   }
 
+  // Save the edited scene action (script) for this clip, then regenerate it.
+  async function saveScriptAndRegenerate() {
+    setBusy(true);
+    try {
+      // Persist the new sceneAction via the standard campaign PATCH, then regenerate.
+      const patchRes = await fetch(`/api/ai/story-ad-campaign/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state: {
+            clips: state.clips.map((c) =>
+              c.id === clip.id ? { ...c, sceneAction: draftAction, approved: false } : c,
+            ),
+          },
+        }),
+      });
+      const patchData = await patchRes.json();
+      if (!patchData.success) throw new Error(patchData.error?.message || "Couldn't save script");
+      setEditing(false);
+      onUpdated();
+      await retry(); // re-render with the new script
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Save failed", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function manage(body: Record<string, unknown>) {
+    if (!onManage) return;
+    setBusy(true);
+    try {
+      await onManage(body);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <div className="rounded-lg border bg-background p-3 shadow-sm">
+    <div
+      className={cn(
+        "rounded-lg border bg-background p-3 shadow-sm transition-colors",
+        clip.approved && "border-emerald-500/60 ring-1 ring-emerald-500/30",
+      )}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full border bg-muted text-xs font-bold">
@@ -4009,7 +4136,58 @@ function ClipRenderCard({
           </div>
         )}
       </div>
-      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{clip.sceneAction}</p>
+
+      {editing ? (
+        <div className="mt-2 space-y-2">
+          <Textarea
+            value={draftAction}
+            onChange={(e) => setDraftAction(e.target.value)}
+            rows={3}
+            className="resize-y text-xs"
+            placeholder="Describe what happens in this scene..."
+          />
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={saveScriptAndRegenerate} disabled={busy} className="flex-1 text-xs">
+              {busy ? <AISpinner size={12} /> : <Wand2 className="h-3 w-3" />}
+              Save + regenerate
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setDraftAction(clip.sceneAction); }} className="text-xs">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{clip.sceneAction}</p>
+      )}
+
+      {reviewMode && !editing && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          <Button
+            size="sm"
+            variant={clip.approved ? "outline" : "default"}
+            className={cn("h-7 flex-1 text-[11px]", clip.approved && "border-emerald-500/60 text-emerald-600 dark:text-emerald-300")}
+            disabled={busy || clip.status !== "READY"}
+            onClick={() => manage({ action: "approve", clipId: clip.id, approved: !clip.approved })}
+          >
+            {clip.approved ? <><Check className="h-3 w-3" /> Approved</> : <><Check className="h-3 w-3" /> Approve</>}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={retrying || busy} onClick={retry} title="Regenerate this clip">
+            {retrying ? <AISpinner size={12} /> : <RefreshCw className="h-3 w-3" />}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy} onClick={() => setEditing(true)} title="Edit script + regenerate">
+            <Edit3 className="h-3 w-3" />
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy || isFirst} onClick={() => manage({ action: "reorder", move: "up", clipId: clip.id })} title="Move up">
+            <ArrowLeft className="h-3 w-3 rotate-90" />
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={busy || isLast} onClick={() => manage({ action: "reorder", move: "down", clipId: clip.id })} title="Move down">
+            <ArrowLeft className="h-3 w-3 -rotate-90" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-destructive" disabled={busy} onClick={() => manage({ action: "remove", clipId: clip.id })} title="Remove clip">
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
