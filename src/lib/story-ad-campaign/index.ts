@@ -1330,8 +1330,15 @@ LIP-SYNC + ACTING RULES (CRITICAL):
 - ONLY the named SPEAKER moves their lips and speaks their line. Other on-camera characters LISTEN silently; their mouths stay closed during another character's line.
 - Lip movements must precisely match the spoken words — no extra speech, no garbled mouthing, no improvisation beyond the script.
 - Match each character's voice to a consistent persona across the campaign. Do not swap voices mid-clip.
-- During silence beats, characters should react naturally (eye contact, micro-expressions) — no idle muttering or random speech.`
-    : "No dialogue in this clip — pure visual storytelling. All on-camera characters remain silent.";
+- During silence beats, characters react naturally (eye contact, micro-expressions) — no idle muttering or random speech.
+
+EYELINE + BLOCKING (CRITICAL — they are talking TO EACH OTHER, not to the audience):
+- Characters FACE and LOOK AT each other while talking — natural eye contact between the people in the conversation. The speaker looks at the listener; the listener looks back.
+- They DO NOT look into the camera lens, do NOT address the viewer, do NOT break the fourth wall. This is a fly-on-the-wall scene the camera happens to observe — like overhearing a real conversation.
+- Stage them facing each other: use two-shots, over-the-shoulder angles, or profile/three-quarter framing so we read it as a real exchange between two people. Avoid both characters standing flat, facing the lens like a news anchor.
+- Body language is conversational: angled toward each other, gestures directed at the other person, reactions on the listener's face. Never a presenter pose toward camera.
+- The ONLY time a character may look at the lens is if the SCENE ACTION explicitly says they address the camera (direct testimonial). Otherwise eyelines stay between the characters.`
+    : "No dialogue in this clip — pure visual storytelling. Characters stay in the world, never looking at or addressing the camera.";
 
   // Continuity block: each clip is generated as an independent video (no provider extension chain),
   // so we LEAN HARD on textual continuity so the standalone outputs feel like one continuous film.
@@ -1375,8 +1382,8 @@ Match the surrounding clips on:
     "- No background characters speaking, no random crowd dialogue, no off-screen narration.",
     "- Smooth, continuous motion within the clip — no jump-cuts, no time skips, no scene resets mid-clip.",
     "- COHERENT TIME-OF-DAY + WEATHER: don't switch from sunny to rainy or day to night mid-clip unless the scene action specifies a transition. Match the established palette.",
-    "- Camera doesn't talk to itself: no characters break the fourth wall, look directly into camera, or hold props up FOR the camera unless the scene action explicitly says so.",
-    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing, no extra hands, no extra fingers, no fused fingers, no warped faces, no doubled mouths, no characters mouthing lines that aren't theirs, no background dialogue, no jump cuts, no readable text on screens or signs, no fake brand logos or app icons, no fake product packaging, no breaking the fourth wall, no extra characters who weren't cast.`,
+    "- EYELINES: when characters talk to each other they LOOK AT each other, not the camera. No fourth-wall breaks, no addressing the viewer, no presenter/news-anchor pose facing the lens — unless the scene action explicitly calls for a direct-to-camera testimonial.",
+    `Hard negative: ${NEGATIVE_TEXT_PROMPT}, no narrator voiceover, no ad slate, no logo overlay, no commercial framing, no extra hands, no extra fingers, no fused fingers, no warped faces, no doubled mouths, no characters mouthing lines that aren't theirs, no background dialogue, no jump cuts, no readable text on screens or signs, no fake brand logos or app icons, no fake product packaging, no breaking the fourth wall, no characters looking into the camera, no characters facing the lens while talking, no direct address to the viewer, no news-anchor framing, no extra characters who weren't cast.`,
   ]
     .filter(Boolean)
     .join("\n");
