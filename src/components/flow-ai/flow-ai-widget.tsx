@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft, Mic } from "lucide-react";
+import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft, Mic, AudioLines } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   ToolCallChip,
@@ -25,6 +25,8 @@ import {
 import { useWebPushAutoSubscribe, requestPushPermission } from "./use-web-push";
 import { RichText, TypingDots } from "./rich-text";
 import { useSpeechRecognition } from "./use-speech-recognition";
+import { useVoiceConversation } from "./use-voice-conversation";
+import { VoiceWaveform } from "./voice-waveform";
 import { speakAloud } from "./use-tts";
 
 /**
@@ -160,7 +162,7 @@ export function FlowAIWidget() {
   }
 
   const handleSend = useCallback(
-    async (text: string, viaVoice = false) => {
+    async (text: string, viaVoice = false, onReplyComplete?: (replyText: string) => void) => {
       const trimmed = text.trim();
       const pendingAttachments = attachments;
       // Allow sending with only an image (no text).
@@ -294,10 +296,10 @@ export function FlowAIWidget() {
           },
           onDone: () => {
             flushMessage();
-            // In voice mode, read the reply back automatically (self-hosted TTS).
-            if (viaVoice && assistantText.trim()) {
-              void speakAloud(assistantText);
-            }
+            // Conversation mode drives speaking itself (to resume listening
+            // after); one-shot voice mode just auto-plays the reply.
+            if (onReplyComplete) onReplyComplete(assistantText);
+            else if (viaVoice && assistantText.trim()) void speakAloud(assistantText);
           },
         });
       } catch (err) {
@@ -320,6 +322,13 @@ export function FlowAIWidget() {
   const voice = useSpeechRecognition({
     onFinal: (transcript) => {
       void handleSend(transcript, true);
+    },
+  });
+
+  // Hands-free conversation mode — continuous listen → send → speak → listen.
+  const conversation = useVoiceConversation({
+    onUtterance: (text, onReply) => {
+      void handleSend(text, false, onReply);
     },
   });
 
@@ -728,6 +737,41 @@ export function FlowAIWidget() {
                   ))}
                 </div>
               )}
+              {conversation.active && (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-blue-500/40 bg-blue-50/60 dark:bg-blue-950/30 px-2.5 py-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={cn(
+                        "h-2 w-2 rounded-full flex-shrink-0 animate-pulse",
+                        conversation.state === "listening"
+                          ? "bg-emerald-500"
+                          : conversation.state === "speaking"
+                            ? "bg-blue-500"
+                            : "bg-amber-500",
+                      )}
+                    />
+                    <VoiceWaveform
+                      analyser={conversation.analyser}
+                      bars={4}
+                      className={conversation.state === "listening" ? "text-emerald-500" : "text-blue-500"}
+                    />
+                    <span className="text-[11px] font-medium text-foreground truncate">
+                      {conversation.state === "listening"
+                        ? conversation.interim || "Listening…"
+                        : conversation.state === "thinking"
+                          ? "Thinking…"
+                          : "Speaking…"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={conversation.stop}
+                    className="text-[11px] font-medium px-2 h-6 rounded-full bg-foreground text-background hover:opacity-90 flex items-center gap-1 flex-shrink-0"
+                  >
+                    <X className="h-3 w-3" /> End
+                  </button>
+                </div>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -783,9 +827,26 @@ export function FlowAIWidget() {
                         : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
                     )}
                     aria-label={voice.listening ? "Stop listening" : "Speak"}
-                    title={voice.listening ? "Listening… tap to stop" : "Talk to Flow-AI"}
+                    title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
                   >
                     <Mic className="h-4 w-4" />
+                  </button>
+                )}
+                {conversation.supported && (
+                  <button
+                    type="button"
+                    onClick={conversation.toggle}
+                    disabled={sending}
+                    className={cn(
+                      "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                      conversation.active
+                        ? "border-blue-500 bg-blue-500 text-white"
+                        : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
+                    title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
+                  >
+                    <AudioLines className="h-4 w-4" />
                   </button>
                 )}
                 <button

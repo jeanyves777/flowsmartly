@@ -21,6 +21,7 @@ import {
   Link as LinkIcon,
   FolderOpen,
   Mic,
+  AudioLines,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -46,6 +47,8 @@ import {
 } from "./use-agent-stream";
 import { RichText, TypingDots } from "./rich-text";
 import { useSpeechRecognition } from "./use-speech-recognition";
+import { useVoiceConversation } from "./use-voice-conversation";
+import { VoiceWaveform } from "./voice-waveform";
 import { speakAloud } from "./use-tts";
 
 /**
@@ -257,7 +260,14 @@ export function FlowAIShell() {
   // generate route for now (Phase 8 will migrate those to tools).
   const sendAgent = useAgentSender();
   const sendToAgent = useCallback(
-    async (trimmed: string, _userMsg: Message, pendingMsg: Message, atts?: Array<{ dataUrl: string; name: string }>, viaVoice = false) => {
+    async (
+      trimmed: string,
+      _userMsg: Message,
+      pendingMsg: Message,
+      atts?: Array<{ dataUrl: string; name: string }>,
+      viaVoice = false,
+      onReplyComplete?: (replyText: string) => void,
+    ) => {
       const res = await sendAgent({
         message: trimmed,
         conversationId,
@@ -357,9 +367,10 @@ export function FlowAIShell() {
         },
         onDone: () => {
           flushMessage();
-          if (viaVoice && assistantText.trim()) {
-            void speakAloud(assistantText);
-          }
+          // Conversation mode drives speaking itself (so it can resume
+          // listening after); one-shot voice mode just auto-plays.
+          if (onReplyComplete) onReplyComplete(assistantText);
+          else if (viaVoice && assistantText.trim()) void speakAloud(assistantText);
         },
       });
 
@@ -369,7 +380,7 @@ export function FlowAIShell() {
   );
 
   const send = useCallback(
-    async (text: string, viaVoice = false) => {
+    async (text: string, viaVoice = false, onReplyComplete?: (replyText: string) => void) => {
       const trimmed = text.trim();
       const pendingAttachments = attachments;
       if ((!trimmed && pendingAttachments.length === 0) || sending) return;
@@ -399,7 +410,7 @@ export function FlowAIShell() {
       try {
         // Everything routes through the tool-using agent now (no modes).
         {
-          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments, viaVoice);
+          const newConvId = await sendToAgent(trimmed, userMsg, pendingMsg, pendingAttachments, viaVoice, onReplyComplete);
           // Adopt the server's conversation id whenever it differs — covers
           // both first-message (was null) and stale-id reassignment (the
           // server started fresh instead of 404'ing).
@@ -431,6 +442,13 @@ export function FlowAIShell() {
   const voice = useSpeechRecognition({
     onFinal: (transcript) => {
       void send(transcript, true);
+    },
+  });
+
+  // Hands-free conversation mode — continuous listen → send → speak → listen.
+  const conversation = useVoiceConversation({
+    onUtterance: (text, onReply) => {
+      void send(text, false, onReply);
     },
   });
 
@@ -863,6 +881,43 @@ export function FlowAIShell() {
               </div>
             )}
 
+            {conversation.active && (
+              <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-blue-500/40 bg-blue-50/60 dark:bg-blue-950/30 px-3 py-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full flex-shrink-0 animate-pulse",
+                      conversation.state === "listening"
+                        ? "bg-emerald-500"
+                        : conversation.state === "speaking"
+                          ? "bg-blue-500"
+                          : "bg-amber-500",
+                    )}
+                  />
+                  <VoiceWaveform
+                    analyser={conversation.analyser}
+                    className={conversation.state === "listening" ? "text-emerald-500" : "text-blue-500"}
+                  />
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {conversation.state === "listening"
+                      ? conversation.interim || "Listening…"
+                      : conversation.state === "thinking"
+                        ? "Thinking…"
+                        : conversation.state === "speaking"
+                          ? "Speaking…"
+                          : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={conversation.stop}
+                  className="text-xs font-medium px-3 h-7 rounded-full bg-foreground text-background hover:opacity-90 flex items-center gap-1.5 flex-shrink-0"
+                >
+                  <X className="h-3 w-3" /> End
+                </button>
+              </div>
+            )}
+
             <div className="flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-blue-500 focus-within:shadow-md transition-all px-2 py-1.5">
               <button
                 type="button"
@@ -901,9 +956,26 @@ export function FlowAIShell() {
                       : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
                   )}
                   aria-label={voice.listening ? "Stop listening" : "Talk to Flow-AI"}
-                  title={voice.listening ? "Listening… tap to stop" : "Talk to Flow-AI"}
+                  title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
                 >
                   <Mic className="h-4 w-4" />
+                </button>
+              )}
+              {conversation.supported && (
+                <button
+                  type="button"
+                  onClick={conversation.toggle}
+                  disabled={sending}
+                  className={cn(
+                    "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                    conversation.active
+                      ? "border-blue-500 bg-blue-500 text-white"
+                      : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
+                  title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
+                >
+                  <AudioLines className="h-4 w-4" />
                 </button>
               )}
               <button
