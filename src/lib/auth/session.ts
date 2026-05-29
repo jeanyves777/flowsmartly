@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/db/client";
 import { verifyAccessToken, verifyRefreshToken, generateTokenPair } from "./tokens";
 import { nanoid } from "nanoid";
@@ -39,8 +39,74 @@ export interface Session {
 }
 
 /**
- * Get the current session from cookies
- * Checks: user session → refresh → agent impersonation → admin preview
+ * Build a user session from a verified access token. Shared by the
+ * cookie path (web) and the Authorization: Bearer path (mobile app).
+ * Returns null if the token is invalid or the user is gone/deleted.
+ */
+async function buildSessionFromAccessToken(token: string): Promise<Session | null> {
+  const payload = await verifyAccessToken(token);
+  if (!payload) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      username: true,
+      avatarUrl: true,
+      plan: true,
+      aiCredits: true,
+      balanceCents: true,
+      emailVerified: true,
+      onboardingComplete: true,
+      deletedAt: true,
+    },
+  });
+
+  if (!user || user.deletedAt) return null;
+
+  return {
+    userId: payload.userId,
+    sessionId: payload.sessionId,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      plan: user.plan,
+      aiCredits: user.aiCredits,
+      balanceCents: user.balanceCents,
+      emailVerified: user.emailVerified,
+      onboardingComplete: user.onboardingComplete,
+    },
+  };
+}
+
+/**
+ * Read a Bearer access token from the Authorization header, if present.
+ * The native mobile app (Expo) sends `Authorization: Bearer <accessToken>`
+ * instead of cookies — see flow-ai-mobile-app memory. Web requests never
+ * set this header, so the cookie path is unaffected.
+ */
+async function getBearerAccessToken(): Promise<string | null> {
+  try {
+    const hdrs = await headers();
+    const authz = hdrs.get("authorization") || hdrs.get("Authorization");
+    if (!authz) return null;
+    const match = /^Bearer\s+(.+)$/i.exec(authz.trim());
+    return match?.[1]?.trim() || null;
+  } catch {
+    // headers() can throw outside a request scope — treat as no token.
+    return null;
+  }
+}
+
+/**
+ * Get the current session.
+ * Checks: agent impersonation cookie → access-token cookie → Bearer header
+ * (mobile) → refresh cookie → admin preview cookie.
  */
 export async function getSession(): Promise<Session | null> {
   const cookieStore = await cookies();
@@ -54,49 +120,18 @@ export async function getSession(): Promise<Session | null> {
     }
   }
 
+  // Try regular user session via access-token cookie (web).
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
-
-  // Try regular user session via access token
   if (accessToken) {
-    const payload = await verifyAccessToken(accessToken);
-    if (payload) {
-      // Get user from database
-      const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          username: true,
-          avatarUrl: true,
-          plan: true,
-          aiCredits: true,
-          balanceCents: true,
-          emailVerified: true,
-          onboardingComplete: true,
-          deletedAt: true,
-        },
-      });
+    const session = await buildSessionFromAccessToken(accessToken);
+    if (session) return session;
+  }
 
-      if (user && !user.deletedAt) {
-        return {
-          userId: payload.userId,
-          sessionId: payload.sessionId,
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            username: user.username,
-            avatarUrl: user.avatarUrl,
-            plan: user.plan,
-            aiCredits: user.aiCredits,
-            balanceCents: user.balanceCents,
-            emailVerified: user.emailVerified,
-            onboardingComplete: user.onboardingComplete,
-          },
-        };
-      }
-    }
+  // Try Bearer access token from the Authorization header (mobile app).
+  const bearerToken = await getBearerAccessToken();
+  if (bearerToken) {
+    const session = await buildSessionFromAccessToken(bearerToken);
+    if (session) return session;
   }
 
   // Access token missing or invalid - try to refresh using refresh token
