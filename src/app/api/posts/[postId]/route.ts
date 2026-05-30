@@ -48,7 +48,14 @@ export async function GET(
             name: true,
             username: true,
             avatarUrl: true,
+            oauthAvatarUrl: true,
             plan: true,
+          },
+        },
+        adCampaign: {
+          select: {
+            destinationUrl: true,
+            cpvCents: true,
           },
         },
         comments: {
@@ -62,6 +69,7 @@ export async function GET(
                 name: true,
                 username: true,
                 avatarUrl: true,
+                oauthAvatarUrl: true,
               },
             },
             replies: {
@@ -74,6 +82,7 @@ export async function GET(
                     name: true,
                     username: true,
                     avatarUrl: true,
+                    oauthAvatarUrl: true,
                   },
                 },
               },
@@ -96,21 +105,29 @@ export async function GET(
       );
     }
 
-    // Check if user liked/bookmarked
+    // Check if user liked/bookmarked, and whether they've already earned on this promoted post.
     let isLiked = false;
     let isBookmarked = false;
+    let hasEarned = false;
 
     if (session) {
-      const [like, bookmark] = await Promise.all([
+      const [like, bookmark, earnedView] = await Promise.all([
         prisma.like.findUnique({
           where: { postId_userId: { postId, userId: session.userId } },
         }),
         prisma.bookmark.findUnique({
           where: { postId_userId: { postId, userId: session.userId } },
         }),
+        post.isPromoted
+          ? prisma.postView.findFirst({
+              where: { postId, viewerUserId: session.userId, earnedCents: { gt: 0 } },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
       ]);
       isLiked = !!like;
       isBookmarked = !!bookmark;
+      hasEarned = !!earnedView;
     }
 
     let viewCount = post.viewCount;
@@ -156,7 +173,7 @@ export async function GET(
             id: post.user.id,
             name: post.user.name,
             username: post.user.username,
-            avatarUrl: post.user.avatarUrl,
+            avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
             isVerified: post.user.plan !== "STARTER",
           },
           likesCount: post.likeCount,
@@ -165,17 +182,30 @@ export async function GET(
           viewCount,
           isLiked,
           isBookmarked,
+          isPromoted: post.isPromoted,
+          destinationUrl: post.adCampaign?.destinationUrl || null,
+          cpvCents: post.adCampaign?.cpvCents || 0,
           createdAt: post.createdAt.toISOString(),
           comments: post.comments.map(comment => ({
             id: comment.id,
             content: comment.content,
-            author: comment.user,
+            author: {
+              id: comment.user.id,
+              name: comment.user.name,
+              username: comment.user.username,
+              avatarUrl: comment.user.avatarUrl ?? comment.user.oauthAvatarUrl,
+            },
             likesCount: comment.likeCount,
             repliesCount: comment._count.replies,
             replies: comment.replies.map(reply => ({
               id: reply.id,
               content: reply.content,
-              author: reply.user,
+              author: {
+                id: reply.user.id,
+                name: reply.user.name,
+                username: reply.user.username,
+                avatarUrl: reply.user.avatarUrl ?? reply.user.oauthAvatarUrl,
+              },
               createdAt: reply.createdAt.toISOString(),
             })),
             createdAt: comment.createdAt.toISOString(),
