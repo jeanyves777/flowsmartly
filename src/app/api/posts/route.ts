@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // For feed and following types, only show posts from followed users + own + FlowSmartly
+    // For feed and following types, only show posts from followed users +
+    // own + FlowSmartly, OR posts that are boosted (isPromoted=true) so
+    // sponsored content reaches non-followers too.
     if ((type === "feed" || type === "following") && session && !userId && !trend) {
       const following = await prisma.follow.findMany({
         where: { followerId: session.userId },
@@ -70,7 +72,27 @@ export async function GET(request: NextRequest) {
       if (flowsmartlyUser && !followingIds.includes(flowsmartlyUser.id)) {
         followingIds.push(flowsmartlyUser.id);
       }
-      where.userId = { in: followingIds };
+      // Hand both branches through a top-level OR. If a hashtag/trend filter
+      // was set above it lived on `where.OR`; rewrap to AND so we don't drop it.
+      const existingOr = (where as { OR?: unknown[] }).OR;
+      if (existingOr) {
+        (where as { AND?: unknown[] }).AND = [
+          { OR: existingOr },
+          { OR: [{ userId: { in: followingIds } }, { isPromoted: true }] },
+        ];
+        delete (where as { OR?: unknown[] }).OR;
+      } else {
+        (where as { OR?: unknown[] }).OR = [
+          { userId: { in: followingIds } },
+          { isPromoted: true },
+        ];
+      }
+    }
+
+    // type=videos: surface every video post regardless of follow (used by
+    // /reels and the feed's Reels strip). Still respects userId/trend if set.
+    if (type === "videos") {
+      where.mediaType = "video";
     }
 
     // Fetch posts with pagination
@@ -112,16 +134,20 @@ export async function GET(request: NextRequest) {
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, -1) : posts;
 
-    // Get user's likes, bookmarks, and ad view earnings if logged in
+    // Get user's likes, bookmarks, ad view earnings, and follow status for
+    // each post's author (so the client can render "Follow" buttons in /reels
+    // for non-followed authors).
     let userLikes: Set<string> = new Set();
     let userBookmarks: Set<string> = new Set();
     let userEarnedPosts: Set<string> = new Set();
+    let followedAuthors: Set<string> = new Set();
 
     if (session) {
       const postIds = postsToReturn.map(p => p.id);
       const promotedPostIds = postsToReturn.filter(p => p.isPromoted).map(p => p.id);
+      const authorIds = Array.from(new Set(postsToReturn.map(p => p.user.id)));
 
-      const [likes, bookmarks, earnedViews] = await Promise.all([
+      const [likes, bookmarks, earnedViews, follows] = await Promise.all([
         prisma.like.findMany({
           where: { userId: session.userId, postId: { in: postIds } },
           select: { postId: true },
@@ -140,11 +166,18 @@ export async function GET(request: NextRequest) {
               select: { postId: true },
             })
           : [],
+        authorIds.length > 0
+          ? prisma.follow.findMany({
+              where: { followerId: session.userId, followingId: { in: authorIds } },
+              select: { followingId: true },
+            })
+          : [],
       ]);
 
       userLikes = new Set(likes.map(l => l.postId));
       userBookmarks = new Set(bookmarks.map(b => b.postId));
       userEarnedPosts = new Set(earnedViews.map(v => v.postId));
+      followedAuthors = new Set(follows.map(f => f.followingId));
     }
 
     // Format posts for response
@@ -163,6 +196,9 @@ export async function GET(request: NextRequest) {
         username: post.user.username,
         avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
         isVerified: post.user.plan !== "STARTER",
+        isFollowing: session
+          ? post.user.id === session.userId || followedAuthors.has(post.user.id)
+          : false,
       },
       likesCount: post.likeCount,
       commentsCount: post._count.comments,
