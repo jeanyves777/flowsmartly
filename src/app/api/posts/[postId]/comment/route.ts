@@ -47,6 +47,7 @@ export async function GET(
             name: true,
             username: true,
             avatarUrl: true,
+            oauthAvatarUrl: true,
           },
         },
         _count: {
@@ -64,7 +65,12 @@ export async function GET(
         comments: commentsToReturn.map(comment => ({
           id: comment.id,
           content: comment.content,
-          author: comment.user,
+          author: {
+            id: comment.user.id,
+            name: comment.user.name,
+            username: comment.user.username,
+            avatarUrl: comment.user.avatarUrl ?? comment.user.oauthAvatarUrl,
+          },
           likesCount: comment.likeCount,
           repliesCount: comment._count.replies,
           createdAt: comment.createdAt.toISOString(),
@@ -157,6 +163,7 @@ export async function POST(
               name: true,
               username: true,
               avatarUrl: true,
+              oauthAvatarUrl: true,
             },
           },
         },
@@ -189,7 +196,12 @@ export async function POST(
         comment: {
           id: comment.id,
           content: comment.content,
-          author: comment.user,
+          author: {
+            id: comment.user.id,
+            name: comment.user.name,
+            username: comment.user.username,
+            avatarUrl: comment.user.avatarUrl ?? comment.user.oauthAvatarUrl,
+          },
           likesCount: 0,
           repliesCount: 0,
           createdAt: comment.createdAt.toISOString(),
