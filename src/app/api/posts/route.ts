@@ -196,9 +196,11 @@ export async function GET(request: NextRequest) {
         username: post.user.username,
         avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
         isVerified: post.user.plan !== "STARTER",
-        isFollowing: session
-          ? post.user.id === session.userId || followedAuthors.has(post.user.id)
-          : false,
+        // isFollowing is purely "do I follow this author?" — owning the post
+        // is a separate `isSelf` flag so the client can hide the button
+        // entirely for self-posts instead of mis-labelling them "Following".
+        isFollowing: session ? followedAuthors.has(post.user.id) : false,
+        isSelf: session ? post.user.id === session.userId : false,
       },
       likesCount: post.likeCount,
       commentsCount: post._count.comments,

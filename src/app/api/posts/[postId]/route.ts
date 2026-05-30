@@ -105,13 +105,16 @@ export async function GET(
       );
     }
 
-    // Check if user liked/bookmarked, and whether they've already earned on this promoted post.
+    // Check if user liked/bookmarked, whether they've already earned on this
+    // promoted post, and whether they follow the author (for the reels
+    // Follow button when this post is the first one prefetched).
     let isLiked = false;
     let isBookmarked = false;
     let hasEarned = false;
+    let isFollowing = false;
 
     if (session) {
-      const [like, bookmark, earnedView] = await Promise.all([
+      const [like, bookmark, earnedView, follow] = await Promise.all([
         prisma.like.findUnique({
           where: { postId_userId: { postId, userId: session.userId } },
         }),
@@ -124,10 +127,22 @@ export async function GET(
               select: { id: true },
             })
           : Promise.resolve(null),
+        post.user.id === session.userId
+          ? Promise.resolve(null)
+          : prisma.follow.findUnique({
+              where: {
+                followerId_followingId: {
+                  followerId: session.userId,
+                  followingId: post.user.id,
+                },
+              },
+              select: { id: true },
+            }),
       ]);
       isLiked = !!like;
       isBookmarked = !!bookmark;
       hasEarned = !!earnedView;
+      isFollowing = !!follow;
     }
 
     let viewCount = post.viewCount;
@@ -175,6 +190,8 @@ export async function GET(
             username: post.user.username,
             avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
             isVerified: post.user.plan !== "STARTER",
+            isFollowing,
+            isSelf: session ? post.user.id === session.userId : false,
           },
           likesCount: post.likeCount,
           commentsCount: post._count.comments,
