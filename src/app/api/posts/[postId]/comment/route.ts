@@ -65,6 +65,8 @@ export async function GET(
         comments: commentsToReturn.map(comment => ({
           id: comment.id,
           content: comment.content,
+          mediaUrl: comment.mediaUrl ?? null,
+          mediaType: comment.mediaType ?? null,
           author: {
             id: comment.user.id,
             name: comment.user.name,
@@ -106,10 +108,16 @@ export async function POST(
 
     const body = await request.json();
     const { content, parentId } = body;
+    const mediaUrlRaw = typeof body.mediaUrl === "string" ? body.mediaUrl.trim() : "";
+    const mediaTypeRaw = typeof body.mediaType === "string" ? body.mediaType.trim() : "";
+    const mediaUrl = mediaUrlRaw || null;
+    const mediaType =
+      mediaTypeRaw && ["image", "video"].includes(mediaTypeRaw) ? mediaTypeRaw : null;
 
-    if (!content?.trim()) {
+    // A comment needs either text or media (matches Facebook / IG behaviour).
+    if (!content?.trim() && !mediaUrl) {
       return NextResponse.json(
-        { success: false, error: { message: "Content is required" } },
+        { success: false, error: { message: "Comment cannot be empty" } },
         { status: 400 }
       );
     }
@@ -154,7 +162,9 @@ export async function POST(
           postId,
           userId: session.userId,
           parentId,
-          content,
+          content: content?.trim() || "",
+          mediaUrl,
+          mediaType,
         },
         include: {
           user: {
@@ -196,6 +206,8 @@ export async function POST(
         comment: {
           id: comment.id,
           content: comment.content,
+          mediaUrl: comment.mediaUrl ?? null,
+          mediaType: comment.mediaType ?? null,
           author: {
             id: comment.user.id,
             name: comment.user.name,

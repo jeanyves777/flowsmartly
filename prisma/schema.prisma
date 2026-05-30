@@ -358,6 +358,10 @@ model Comment {
   parentId String?
   content  String
 
+  // Optional media attached to the comment (mobile composer + web later).
+  mediaUrl  String?
+  mediaType String? // "image" | "video"
+
   likeCount Int @default(0)
 
   createdAt DateTime  @default(now())
