@@ -32,6 +32,10 @@ export async function createCreditCheckoutSession(params: {
   userEmail: string;
   packageId: string;
   stripeCustomerId?: string | null;
+  /** Override the post-checkout redirect URL. Mobile passes a deep link. */
+  successUrl?: string;
+  /** Override the cancelled-checkout redirect URL. Mobile passes a deep link. */
+  cancelUrl?: string;
 }) {
   if (!stripe) {
     throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
@@ -74,8 +78,8 @@ export async function createCreditCheckoutSession(params: {
       bonus: String(pkg.bonusCredits),
       type: "credit_purchase",
     },
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=cancelled`,
+    success_url: params.successUrl || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=success`,
+    cancel_url: params.cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=cancelled`,
   };
 
   if (params.stripeCustomerId) {
@@ -93,6 +97,10 @@ export async function createSubscriptionCheckoutSession(params: {
   planId: string;
   interval: "monthly" | "yearly";
   stripeCustomerId?: string | null;
+  /** Override the post-checkout redirect URL. Mobile passes a deep link. */
+  successUrl?: string;
+  /** Override the cancelled-checkout redirect URL. Mobile passes a deep link. */
+  cancelUrl?: string;
 }) {
   if (!stripe) {
     throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
@@ -141,8 +149,8 @@ export async function createSubscriptionCheckoutSession(params: {
       monthlyCredits: String(plan.monthlyCredits),
       type: "subscription",
     },
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=cancelled`,
+    success_url: params.successUrl || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=success`,
+    cancel_url: params.cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?tab=billing&payment=cancelled`,
   };
 
   if (params.stripeCustomerId) {
