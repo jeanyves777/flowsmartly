@@ -68,10 +68,27 @@ export const DOMAIN_PRICING: Record<string, DomainPrice> = {
   org:    { costCents: 1000, retailCents: 1499 },
 };
 
-/** TLDs eligible for the free domain on Pro plan */
-export const FREE_DOMAIN_TLDS = ["com", "store", "shop", "online", "co"];
+/**
+ * TLDs we can advertise as TRULY FREE — wholesale cost to FlowSmartly is
+ * $0 (sponsored/promo deal etc.). Empty by default — every TLD in
+ * DOMAIN_PRICING has a non-zero costCents (cheapest is .store / .online at
+ * $3/yr from OpenSRS), so we can't honestly call any of them free.
+ *
+ * Populate this list ONLY when a registry actually gives us a zero-cost
+ * TLD. The search endpoint reads this + a user-eligibility check before
+ * returning `isFreeEligible: true`. The purchase endpoint rejects
+ * `isFree: true` for any TLD not in this list.
+ */
+export const TRULY_FREE_TLDS: string[] = [];
 
-/** Maximum yearly value for free domain ($14.99) */
+/**
+ * Historical / marketing alias kept for legacy callers + UI copy. Do NOT
+ * use this for eligibility gating — use TRULY_FREE_TLDS instead.
+ * @deprecated use TRULY_FREE_TLDS for gating.
+ */
+export const FREE_DOMAIN_TLDS = TRULY_FREE_TLDS;
+
+/** Maximum yearly value for free domain — only meaningful when a TLD is in TRULY_FREE_TLDS. */
 export const FREE_DOMAIN_MAX_VALUE_CENTS = 1499;
 
 /** All supported TLDs for search */
@@ -83,9 +100,13 @@ export function getDomainRetailPrice(tld: string): number | null {
   return pricing ? pricing.retailCents : null;
 }
 
-/** Check if a TLD is eligible for the Pro plan free domain */
+/**
+ * Check if a TLD is eligible for a truly-free claim (no wholesale cost to
+ * FlowSmartly). Currently returns false for every TLD until we close a
+ * sponsored deal — see TRULY_FREE_TLDS.
+ */
 export function isFreeDomainEligible(tld: string): boolean {
-  return FREE_DOMAIN_TLDS.includes(tld.toLowerCase());
+  return TRULY_FREE_TLDS.includes(tld.toLowerCase());
 }
 
 /** Format cents to dollar string */
