@@ -25,6 +25,11 @@ export async function POST(request: NextRequest) {
     let domain = body.domain as string | undefined;
     const tld = body.tld as string | undefined;
     const isFree = body.isFree === true;
+    // Optional saved payment-method ID — mobile passes this so the server
+    // confirms the PaymentIntent inline (no Stripe.js or hosted checkout).
+    const paymentMethodId = typeof body.paymentMethodId === "string" && body.paymentMethodId
+      ? body.paymentMethodId
+      : undefined;
 
     // If domain already includes the TLD (e.g. "example.com"), extract just the SLD
     if (domain && tld && domain.endsWith(`.${tld}`)) {
@@ -166,8 +171,34 @@ export async function POST(request: NextRequest) {
         amountCents: retailPrice,
         storeId: store?.id || "",
         tld,
+        paymentMethodId,
       });
 
+      // Server-side confirmation path (mobile flow): the PaymentIntent has
+      // already been confirmed with the saved card. Webhook will register
+      // the domain on `payment_intent.succeeded`. Surface a concrete status
+      // so the mobile client can show success / 3DS-fallback inline.
+      if (paymentMethodId) {
+        const ok = paymentResult.status === "succeeded" || paymentResult.status === "processing";
+        return NextResponse.json({
+          success: true,
+          data: {
+            domainName: fullDomain,
+            amountCents: retailPrice,
+            status: ok ? "registering" : paymentResult.status,
+            paymentIntentId: paymentResult.paymentIntentId,
+            requiresAction: paymentResult.requiresAction,
+            // Only surface clientSecret when the card needs 3DS — mobile
+            // can fall back to its hosted-checkout escape hatch for that
+            // single PaymentIntent.
+            ...(paymentResult.requiresAction
+              ? { clientSecret: paymentResult.clientSecret }
+              : {}),
+          },
+        });
+      }
+
+      // Web flow — client confirms via <PaymentElement /> using clientSecret.
       return NextResponse.json({
         success: true,
         data: {

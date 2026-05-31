@@ -210,7 +210,14 @@ export async function createDomainPaymentIntent(params: {
   amountCents: number;
   storeId: string;
   tld: string;
-}): Promise<{ clientSecret: string; paymentIntentId: string }> {
+  /**
+   * Optional saved payment method ID. When provided the PaymentIntent is
+   * confirmed inline on the server — the webhook then registers the domain
+   * just like any other paid path. Lets mobile complete a purchase without
+   * the Stripe SDK or a hosted Checkout redirect.
+   */
+  paymentMethodId?: string;
+}): Promise<{ clientSecret: string; paymentIntentId: string; status: string; requiresAction: boolean }> {
   if (!stripe) {
     throw new Error("Stripe is not configured.");
   }
@@ -218,14 +225,10 @@ export async function createDomainPaymentIntent(params: {
   // Extract SLD from full domain (e.g. "example.com" -> "example")
   const sld = params.domainName.replace(`.${params.tld}`, "");
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  const baseParams = {
     amount: params.amountCents,
     currency: "usd",
     customer: params.customerId,
-    automatic_payment_methods: {
-      enabled: true,
-      allow_redirects: "never",
-    },
     description: `Domain registration: ${params.domainName}`,
     metadata: {
       type: "domain_purchase",
@@ -235,10 +238,25 @@ export async function createDomainPaymentIntent(params: {
       tld: params.tld,
       sld,
     },
-  });
+  } as const;
+
+  const paymentIntent = params.paymentMethodId
+    ? await stripe.paymentIntents.create({
+        ...baseParams,
+        payment_method: params.paymentMethodId,
+        payment_method_types: ["card"],
+        confirm: true,
+        off_session: false,
+      })
+    : await stripe.paymentIntents.create({
+        ...baseParams,
+        automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+      });
 
   return {
     clientSecret: paymentIntent.client_secret!,
     paymentIntentId: paymentIntent.id,
+    status: paymentIntent.status,
+    requiresAction: paymentIntent.status === "requires_action",
   };
 }
