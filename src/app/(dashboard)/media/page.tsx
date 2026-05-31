@@ -36,6 +36,43 @@ interface MediaFile {
   createdAt: string;
 }
 
+/**
+ * Video first-frame fallback used when MediaFile.metadata.thumbnailUrl is missing.
+ * `preload="metadata"` alone often paints a blank black frame in Chrome/Safari
+ * because no frame has been decoded yet. Seeking to 0.1s once metadata loads
+ * forces the decoder to render the first real frame in every browser.
+ */
+function VideoFirstFrame({
+  src,
+  className,
+}: {
+  src: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      playsInline
+      preload="metadata"
+      className={className}
+      onLoadedMetadata={() => {
+        const el = ref.current;
+        if (el && el.currentTime < 0.1) {
+          try {
+            el.currentTime = 0.1;
+          } catch {
+            // Some browsers throw on seek before metadata is fully ready —
+            // safe to ignore; the next loadedmetadata pass will catch it.
+          }
+        }
+      }}
+    />
+  );
+}
+
 interface MediaFolder {
   id: string;
   name: string;
@@ -946,13 +983,7 @@ export default function MediaLibraryPage() {
                             {file.metadata?.thumbnailUrl ? (
                               <img src={file.metadata.thumbnailUrl} alt={file.originalName} className="h-full w-full object-cover" />
                             ) : (
-                              <video
-                                src={file.url}
-                                muted
-                                playsInline
-                                preload="metadata"
-                                className="h-full w-full object-cover"
-                              />
+                              <VideoFirstFrame src={file.url} className="h-full w-full object-cover" />
                             )}
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white">
@@ -1026,13 +1057,7 @@ export default function MediaLibraryPage() {
                           {file.metadata?.thumbnailUrl ? (
                             <img src={file.metadata.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <video
-                              src={file.url}
-                              muted
-                              playsInline
-                              preload="metadata"
-                              className="h-full w-full object-cover"
-                            />
+                            <VideoFirstFrame src={file.url} className="h-full w-full object-cover" />
                           )}
                           <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                             <Video className="h-4 w-4 text-white" />

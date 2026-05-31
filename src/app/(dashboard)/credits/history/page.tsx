@@ -461,23 +461,22 @@ export default function CreditHistoryPage() {
                       <p className="text-xs text-muted-foreground">{inv.currency}</p>
                     </div>
 
-                    {/* Actions */}
+                    {/* Actions — branded PDF (opens in new tab; browsers offer save) */}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="shrink-0"
-                      title="Download Invoice"
-                      onClick={() => {
-                        // Print-friendly view of this invoice
-                        const items = inv.items.map((it: InvoiceItem) =>
-                          `<tr><td style="padding:8px;border-bottom:1px solid #eee">${it.description}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${it.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">$${(it.unitPriceCents/100).toFixed(2)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">$${(it.totalCents/100).toFixed(2)}</td></tr>`
-                        ).join("");
-                        const html = `<!DOCTYPE html><html><head><title>${inv.invoiceNumber}</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1a1a1a}h1{font-size:28px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:24px}th{text-align:left;padding:8px;border-bottom:2px solid #333;font-size:13px;text-transform:uppercase;letter-spacing:0.5px}td{font-size:14px}.total-row td{border-top:2px solid #333;font-weight:bold;font-size:16px;padding-top:12px}.meta{color:#666;font-size:14px;line-height:1.8}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px}.badge{display:inline-block;background:#dcfce7;color:#16a34a;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600}</style></head><body><div class="header"><div><h1>Invoice</h1><p style="color:#666;margin:0">${inv.invoiceNumber}</p></div><div style="text-align:right"><h2 style="margin:0;font-size:20px">FlowSmartly</h2><p style="color:#666;margin:4px 0">flowsmartly.com</p></div></div><div class="meta"><p><strong>Date:</strong> ${formatShortDate(inv.createdAt)}</p><p><strong>Status:</strong> <span class="badge">${inv.status}</span></p>${inv.paymentMethod ? `<p><strong>Payment:</strong> ${inv.paymentMethod}</p>` : ""}</div><table><thead><tr><th>Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>${items}<tr class="total-row"><td colspan="3" style="text-align:right;padding:12px 8px">Total</td><td style="text-align:right;padding:12px 8px">$${(inv.totalCents/100).toFixed(2)} ${inv.currency}</td></tr></tbody></table><p style="margin-top:40px;color:#999;font-size:12px;text-align:center">Thank you for your purchase!</p></body></html>`;
-                        const w = window.open("", "_blank");
-                        if (w) { w.document.write(html); w.document.close(); w.print(); }
-                      }}
+                      title="Download invoice PDF"
+                      asChild
                     >
-                      <Download className="w-4 h-4" />
+                      <a
+                        href={`/api/user/invoices/${inv.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={`${inv.invoiceNumber}.pdf`}
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
                     </Button>
                   </div>
                 ))}
