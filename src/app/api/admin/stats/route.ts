@@ -35,24 +35,25 @@ export async function GET() {
       topPages,
       topCountries,
     ] = await Promise.all([
-      // Total users
-      prisma.user.count({ where: { deletedAt: null } }),
+      // Total users (synthetic seed accounts excluded from real-user stats)
+      prisma.user.count({ where: { deletedAt: null, isSynthetic: false } }),
       // Users created in last 30 days
       prisma.user.count({
-        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
+        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null, isSynthetic: false },
       }),
       // Users created in previous 30 days (for comparison)
       prisma.user.count({
         where: {
           createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
           deletedAt: null,
+          isSynthetic: false,
         },
       }),
-      // Total posts
-      prisma.post.count({ where: { deletedAt: null } }),
+      // Total posts (excluding synthetic seed posts)
+      prisma.post.count({ where: { deletedAt: null, user: { isSynthetic: false } } }),
       // Posts in last 30 days
       prisma.post.count({
-        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
+        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null, user: { isSynthetic: false } },
       }),
       // Page views last 30 days
       prisma.pageView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),

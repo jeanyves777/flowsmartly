@@ -150,15 +150,21 @@ model User {
   websiteBlogPosts      WebsiteBlogPost[]
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
+  syntheticPersona      SyntheticPersona?
 
   // Onboarding
   onboardingComplete Boolean @default(false)
+
+  // Synthetic (internal seed) accounts — feed-engagement bots. Never billed,
+  // never emailed, never paid out, excluded from real-user analytics.
+  isSynthetic Boolean @default(false)
 
   @@index([email])
   @@index([username])
   @@index([stripeCustomerId])
   @@index([referralCode])
   @@index([createdAt])
+  @@index([isSynthetic])
 }
 
 model SocialAccount {
@@ -5335,4 +5341,81 @@ model AiTemplate {
   @@index([queryHash])
   @@index([generationBatch])
   @@index([createdAt])
+}
+
+// ============================================
+// SYNTHETIC FEED ENGAGEMENT (internal seed accounts)
+// ============================================
+// A pool of internal "resident" users that seed activity on the native feed
+// (likes, comments, follows, views, posts) so real users land on a live,
+// engaging feed. Closed-loop: they ONLY act inside FlowSmartly's own feed.
+// Fully isolated from money/billing/email/real-user analytics via isSynthetic.
+
+model SyntheticPersona {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  niche     String // business niche key (fitness, food, realestate, ...)
+  bio       String?
+  voiceTone String @default("friendly")
+  language  String @default("en") // BCP-47, mirrors comment/caption language
+
+  // Active window in the persona's OWN timezone (0–23). Engine only acts
+  // when the persona's local hour falls inside [activeStartHour, activeEndHour].
+  activeStartHour Int @default(8)
+  activeEndHour   Int @default(23)
+
+  // Daily action budgets — engine randomizes around these and resets per UTC day.
+  dailyLikes    Int @default(8)
+  dailyComments Int @default(2)
+  dailyFollows  Int @default(1)
+  postChance    Int @default(15) // % chance per active day to publish one post
+
+  enabled      Boolean   @default(true)
+  lastActiveAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([niche])
+  @@index([enabled])
+}
+
+// Append-only audit trail of every synthetic action — powers the admin
+// dashboard, daily-quota counting, and dedup (e.g. don't comment twice).
+model SyntheticActivityLog {
+  id           String   @id @default(cuid())
+  actorId      String // persona user id
+  action       String // like | comment | follow | view | post
+  targetPostId String?
+  targetUserId String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetPostId])
+}
+
+// Pre-seeded pool of free, license-free images stored on our OWN S3, tagged
+// by niche. Bot posts pick from here — ZERO per-post API calls / credits.
+model SyntheticMediaAsset {
+  id        String   @id @default(cuid())
+  niche     String
+  url       String // S3 URL
+  hash      String   @unique // sha256 of the image bytes (dedup)
+  source    String   @default("picsum")
+  usedCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([niche])
+}
+
+// Global singleton switchboard for the whole synthetic engagement system.
+model SyntheticConfig {
+  id        String   @id @default("singleton")
+  enabled   Boolean  @default(false)
+  intensity Int      @default(100) // 0–100 global activity multiplier
+  niches    String   @default("[]") // JSON array of active niche keys
+  updatedAt DateTime @updatedAt
 }

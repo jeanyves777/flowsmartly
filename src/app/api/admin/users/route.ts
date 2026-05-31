@@ -22,8 +22,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    // Build where clause
-    const where: Record<string, unknown> = {};
+    // Build where clause. Synthetic (internal seed) accounts are excluded from
+    // the real-users view — they're managed on the Engagement admin page.
+    const where: Record<string, unknown> = { isSynthetic: false };
 
     if (status === "active") {
       where.deletedAt = null;
@@ -75,16 +76,18 @@ export async function GET(request: NextRequest) {
       prisma.user.count({ where }),
       // Get stats
       Promise.all([
-        prisma.user.count({ where: { deletedAt: null } }),
+        prisma.user.count({ where: { deletedAt: null, isSynthetic: false } }),
         prisma.user.count({
           where: {
             deletedAt: null,
+            isSynthetic: false,
             lastLoginAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
           },
         }),
         prisma.user.count({
           where: {
             deletedAt: null,
+            isSynthetic: false,
             plan: { not: "STARTER" },
           },
         }),
@@ -92,6 +95,7 @@ export async function GET(request: NextRequest) {
           where: {
             createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
             deletedAt: null,
+            isSynthetic: false,
           },
         }),
       ]),
@@ -120,7 +124,7 @@ export async function GET(request: NextRequest) {
     const planDistribution = await prisma.user.groupBy({
       by: ["plan"],
       _count: { id: true },
-      where: { deletedAt: null },
+      where: { deletedAt: null, isSynthetic: false },
     });
 
     return NextResponse.json({

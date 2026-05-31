@@ -61,11 +61,21 @@ export interface SendEmailParams {
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
 }
 
+/** Non-routable domain used by synthetic (internal seed) accounts. Any mail to
+ * this domain is hard-dropped so bots never receive transactional email,
+ * notifications or campaigns — and we never damage deliverability. */
+const SYNTHETIC_EMAIL_DOMAIN = "seed.flowsmartly.internal";
+
 export async function sendEmail(params: SendEmailParams): Promise<{
   success: boolean;
   messageId?: string;
   error?: string;
 }> {
+  // Never deliver to synthetic seed accounts.
+  if (params.to && params.to.toLowerCase().includes(`@${SYNTHETIC_EMAIL_DOMAIN}`)) {
+    return { success: false, error: "Synthetic recipient — email suppressed" };
+  }
+
   const transport = getTransporter();
 
   if (!transport) {

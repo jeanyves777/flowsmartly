@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Play, CheckCircle2, XCircle, RefreshCw, Calendar, Zap, CreditCard, Heart, Globe, Mail, BarChart3, ListChecks, ShoppingBag, MessageSquare, TrendingUp, Film } from "lucide-react";
+import { Clock, Play, CheckCircle2, XCircle, RefreshCw, Calendar, Zap, CreditCard, Heart, Globe, Mail, BarChart3, ListChecks, ShoppingBag, MessageSquare, TrendingUp, Film, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,16 @@ const CRON_JOBS: CronJob[] = [
     frequency: "Every 5 minutes",
     icon: Calendar,
     category: "content",
+  },
+  {
+    id: "engagement",
+    name: "Feed Engagement Engine",
+    description: "Synthetic seed accounts engage the native feed (views, likes, comments, follows, posts) on staggered schedules to keep the feed lively",
+    endpoint: "/api/cron/engagement",
+    schedule: "*/20 * * * *",
+    frequency: "Every 20 minutes",
+    icon: Users,
+    category: "engagement",
   },
   {
     id: "story-ad-batch-poll",

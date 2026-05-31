@@ -7,6 +7,7 @@ const ALLOWED_CRON_ENDPOINTS = new Set([
   "/api/cron/domain-renewals",
   "/api/cron/reengagement",
   "/api/cron/publish-scheduled-posts",
+  "/api/cron/engagement",
   "/api/content/automation/scheduler",
   "/api/content/strategy/reminders",
   "/api/content/strategy/weekly-digest",

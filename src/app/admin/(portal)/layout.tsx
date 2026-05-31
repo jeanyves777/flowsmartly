@@ -99,6 +99,7 @@ const navItems: NavItem[] = [
   { href: "/admin/agents", icon: Briefcase, label: "Agents", permission: "VIEW_USERS" },
   { href: "/admin/referrals", icon: Gift, label: "Referrals", permission: "VIEW_ANALYTICS" },
   { href: "/admin/subscriptions", icon: Repeat, label: "Subscriptions", permission: "EDIT_SETTINGS" },
+  { href: "/admin/engagement", icon: Sparkles, label: "Feed Engagement", permission: "EDIT_SETTINGS" },
   { href: "/admin/cron-jobs", icon: Timer, label: "Cron Jobs", permission: "EDIT_SETTINGS" },
   { href: "/admin/system", icon: Server, label: "System", permission: "EDIT_SETTINGS" },
   { href: "/admin/settings", icon: Settings, label: "Settings", permission: "VIEW_SETTINGS" },
