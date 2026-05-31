@@ -9,6 +9,35 @@ export type EntryStatus =
   | "DECLINED"
   | "NOT_INTERESTED";
 
+/**
+ * Canonical list of valid entry statuses. API routes import this instead of
+ * hardcoding the array so the allowed values stay in sync with the type.
+ */
+export const ENTRY_STATUSES: EntryStatus[] = [
+  "PENDING",
+  "CALLED",
+  "NO_ANSWER",
+  "CALLBACK",
+  "COMPLETED",
+  "DECLINED",
+  "NOT_INTERESTED",
+];
+
+/**
+ * Statuses a non-owner assignee is allowed to set — operational call-outcome
+ * statuses only. Owner-only flows (e.g. follow-up archival) are unaffected;
+ * this constrains only what an assignee can push on an entry.
+ */
+export const ASSIGNEE_ALLOWED_ENTRY_STATUSES: EntryStatus[] = [
+  "PENDING",
+  "CALLED",
+  "NO_ANSWER",
+  "CALLBACK",
+  "COMPLETED",
+  "DECLINED",
+  "NOT_INTERESTED",
+];
+
 export interface SurveyQuestion {
   id: string;
   type: "text" | "textarea" | "rating" | "multiple_choice" | "yes_no" | "email" | "phone";

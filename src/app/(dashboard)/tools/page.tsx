@@ -9,6 +9,7 @@ import {
   Scissors,
   BarChart3,
   CalendarDays,
+  FormInput,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -29,6 +30,15 @@ const tools = [
     icon: FileQuestion,
     color: "from-violet-500 to-purple-600",
     bgLight: "bg-violet-50 dark:bg-violet-950/30",
+    available: true,
+  },
+  {
+    name: "Data Collection",
+    description: "Build smart forms and attendance sheets to collect, verify, and sync information straight to your contacts.",
+    href: "/tools/data-collection",
+    icon: FormInput,
+    color: "from-amber-500 to-orange-600",
+    bgLight: "bg-amber-50 dark:bg-amber-950/30",
     available: true,
   },
   {

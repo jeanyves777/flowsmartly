@@ -9,29 +9,31 @@ export async function POST(
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
     }
 
     const { id } = await params;
     const body = await request.json();
     const { name, submissionIds } = body;
 
+    const filteredIds = Array.isArray(submissionIds) && submissionIds.length > 0 ? submissionIds : null;
+
     // Verify DataForm ownership
     const dataForm = await prisma.dataForm.findUnique({
       where: { id },
       include: {
-        submissions: submissionIds
-          ? { where: { id: { in: submissionIds } } }
+        submissions: filteredIds
+          ? { where: { id: { in: filteredIds } } }
           : true,
       },
     });
 
     if (!dataForm) {
-      return NextResponse.json({ error: "Form not found" }, { status: 404 });
+      return NextResponse.json({ success: false, error: { message: "Form not found" } }, { status: 404 });
     }
 
     if (dataForm.userId !== session.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ success: false, error: { message: "Forbidden" } }, { status: 403 });
     }
 
     // Get submissions (all or filtered)
@@ -39,7 +41,7 @@ export async function POST(
 
     if (submissions.length === 0) {
       return NextResponse.json(
-        { error: "No submissions to create follow-up from" },
+        { success: false, error: { message: "No submissions to create follow-up from" } },
         { status: 400 }
       );
     }
@@ -111,13 +113,16 @@ export async function POST(
     });
 
     return NextResponse.json({
-      followUpId: followUp.id,
-      entriesCreated: entries.length,
+      success: true,
+      data: {
+        followUpId: followUp.id,
+        entriesCreated: entries.length,
+      },
     });
   } catch (error) {
     console.error("Error creating follow-up:", error);
     return NextResponse.json(
-      { error: "Failed to create follow-up" },
+      { success: false, error: { message: "Failed to create follow-up" } },
       { status: 500 }
     );
   }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
+import { ENTRY_STATUSES, type EntryStatus } from "@/types/follow-up";
 
 // GET /api/follow-ups/[id]/entries — List entries for a follow-up
 export async function GET(
@@ -52,8 +54,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "25");
+    const { page, limit, skip } = parsePagination(searchParams, { defaultLimit: 25, maxLimit: 100 });
     const status = searchParams.get("status");
     const search = searchParams.get("search") || "";
 
@@ -100,7 +101,6 @@ export async function GET(
         },
       },
     };
-    const skip = (page - 1) * limit;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let entries: any[] = [];
@@ -164,12 +164,7 @@ export async function GET(
         customData: JSON.parse(e.customData || "{}"),
       })),
       meta: { isOwner, currentUserId: session.userId },
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(total, page, limit),
     });
   } catch (error) {
     console.error("List entries error:", error);
@@ -211,10 +206,30 @@ export async function POST(
     const body = await request.json();
     const { contactId, assigneeId, name, phone, email, address, referralSource, notes, status, nextFollowUp } = body;
 
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedEmail = typeof email === "string" ? email.trim() : "";
+    const trimmedPhone = typeof phone === "string" ? phone.trim() : "";
+
     // Need at least a name, email, or phone
-    if (!contactId && !name && !email && !phone) {
+    if (!contactId && !trimmedName && !trimmedEmail && !trimmedPhone) {
       return NextResponse.json(
         { success: false, error: { message: "At least a name, email, or phone is required" } },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format when provided
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Please enter a valid email address" } },
+        { status: 400 }
+      );
+    }
+
+    // Validate phone has at least some digits when provided
+    if (trimmedPhone && !/\d/.test(trimmedPhone)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Please enter a valid phone number" } },
         { status: 400 }
       );
     }
@@ -232,26 +247,44 @@ export async function POST(
       }
     }
 
-    const entry = await prisma.followUpEntry.create({
-      data: {
-        followUpId: id,
-        contactId: contactId || null,
-        assigneeId: assigneeId || null,
-        name: name?.trim() || null,
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        address: address?.trim() || null,
-        referralSource: referralSource?.trim() || null,
-        notes: notes?.trim() || null,
-        status: status || "PENDING",
-        nextFollowUp: nextFollowUp ? new Date(nextFollowUp) : null,
-      },
-    });
+    // Validate status against the canonical list if provided
+    if (status !== undefined && !ENTRY_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Invalid status" } },
+        { status: 400 }
+      );
+    }
 
-    // Update counter
-    await prisma.followUp.update({
-      where: { id },
-      data: { totalEntries: { increment: 1 } },
+    const newStatus: EntryStatus = (status as EntryStatus) || "PENDING";
+
+    // Create the entry and recompute counters from real counts in one transaction
+    const entry = await prisma.$transaction(async (tx) => {
+      const created = await tx.followUpEntry.create({
+        data: {
+          followUpId: id,
+          contactId: contactId || null,
+          assigneeId: assigneeId || null,
+          name: trimmedName || null,
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+          address: typeof address === "string" ? address.trim() || null : null,
+          referralSource: typeof referralSource === "string" ? referralSource.trim() || null : null,
+          notes: typeof notes === "string" ? notes.trim() || null : null,
+          status: newStatus,
+          nextFollowUp: nextFollowUp ? new Date(nextFollowUp) : null,
+        },
+      });
+
+      const [total, completed] = await Promise.all([
+        tx.followUpEntry.count({ where: { followUpId: id } }),
+        tx.followUpEntry.count({ where: { followUpId: id, status: "COMPLETED" } }),
+      ]);
+      await tx.followUp.update({
+        where: { id },
+        data: { totalEntries: total, completedEntries: completed },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ success: true, data: entry });

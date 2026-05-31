@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
 
 // GET /api/follow-ups — List follow-ups for authenticated user
 export async function GET(request: NextRequest) {
@@ -14,8 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const { page, limit, skip, take } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 100 });
     const status = searchParams.get("status");
     const search = searchParams.get("search") || "";
 
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
       prisma.followUp.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip,
+        take,
         include: {
           contactList: { select: { id: true, name: true } },
           _count: { select: { entries: true } },
@@ -70,12 +70,7 @@ export async function GET(request: NextRequest) {
         isOwner: f.userId === session.userId,
         ownerName: f.user?.name || null,
       })),
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(total, page, limit),
     });
   } catch (error) {
     console.error("List follow-ups error:", error);

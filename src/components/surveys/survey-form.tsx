@@ -48,11 +48,13 @@ export function SurveyForm({ slug, title, description, questions, thankYouMessag
 
     for (const q of questions) {
       const val = answers[q.id];
-      if (!val) continue;
-      if (q.type === "email") respondentEmail = String(val);
-      else if (q.type === "phone") respondentPhone = String(val);
-      else if (q.label.toLowerCase().includes("name") && q.type === "text" && !respondentName) {
-        respondentName = String(val);
+      if (val === undefined || val === null) continue;
+      const str = String(val).trim();
+      if (!str) continue;
+      if (q.type === "email") respondentEmail = str;
+      else if (q.type === "phone") respondentPhone = str;
+      else if (q.type === "text" && !respondentName && (q.label || "").toLowerCase().includes("name")) {
+        respondentName = str;
       }
     }
 

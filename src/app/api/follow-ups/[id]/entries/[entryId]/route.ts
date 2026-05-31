@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { createNotification } from "@/lib/notifications";
+import { ENTRY_STATUSES, ASSIGNEE_ALLOWED_ENTRY_STATUSES } from "@/types/follow-up";
 
 // PUT /api/follow-ups/[id]/entries/[entryId] — Update entry
 export async function PUT(
@@ -82,12 +83,22 @@ export async function PUT(
     if (nextFollowUp !== undefined) data.nextFollowUp = nextFollowUp ? new Date(nextFollowUp) : null;
     if (callDate !== undefined) data.callDate = callDate ? new Date(callDate) : null;
 
+    // Track whether the COMPLETED set may have changed so we recompute the
+    // follow-up counter from a real count (avoids double-counting races).
+    let completionMayHaveChanged = false;
+
     if (status !== undefined) {
-      const validStatuses = ["PENDING", "CALLED", "NO_ANSWER", "CALLBACK", "COMPLETED", "DECLINED", "NOT_INTERESTED"];
-      if (!validStatuses.includes(status)) {
+      if (!ENTRY_STATUSES.includes(status)) {
         return NextResponse.json(
           { success: false, error: { message: "Invalid status" } },
           { status: 400 }
+        );
+      }
+      // Non-owner assignees may only set operational statuses
+      if (!isOwner && !ASSIGNEE_ALLOWED_ENTRY_STATUSES.includes(status)) {
+        return NextResponse.json(
+          { success: false, error: { message: "Not authorized to set this status" } },
+          { status: 403 }
         );
       }
       data.status = status;
@@ -98,46 +109,45 @@ export async function PUT(
         data.callDate = new Date();
       }
 
-      // Update follow-up completedEntries counter
+      // Only recompute the counter when the status actually transitions
+      // to or from COMPLETED.
       const wasCompleted = entry.status === "COMPLETED";
       const isNowCompleted = status === "COMPLETED";
-
-      if (!wasCompleted && isNowCompleted) {
-        await prisma.followUp.update({
-          where: { id },
-          data: { completedEntries: { increment: 1 } },
-        });
-      } else if (wasCompleted && !isNowCompleted) {
-        await prisma.followUp.update({
-          where: { id },
-          data: { completedEntries: { decrement: 1 } },
-        });
-      }
+      completionMayHaveChanged = wasCompleted !== isNowCompleted;
     }
 
-    const updated = await prisma.followUpEntry.update({
-      where: { id: entryId },
-      data,
-      include: {
-        contact: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            imageUrl: true,
-          },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
-          },
+    const include = {
+      contact: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          imageUrl: true,
         },
       },
-    });
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+        },
+      },
+    };
+
+    // Update the entry and (only when needed) recompute completedEntries from a
+    // count query inside a transaction so concurrent updates can't double-count.
+    const updated = completionMayHaveChanged
+      ? await prisma.$transaction(async (tx) => {
+          const u = await tx.followUpEntry.update({ where: { id: entryId }, data, include });
+          const completed = await tx.followUpEntry.count({
+            where: { followUpId: id, status: "COMPLETED" },
+          });
+          await tx.followUp.update({ where: { id }, data: { completedEntries: completed } });
+          return u;
+        })
+      : await prisma.followUpEntry.update({ where: { id: entryId }, data, include });
 
     // Notify the new assignee when assignment changes
     if (assigneeId !== undefined && assigneeId && assigneeId !== entry.assigneeId) {
@@ -213,14 +223,18 @@ export async function DELETE(
       );
     }
 
-    await prisma.followUpEntry.delete({ where: { id: entryId } });
-
-    // Update counters
-    const updates: Record<string, unknown> = { totalEntries: { decrement: 1 } };
-    if (entry.status === "COMPLETED") {
-      updates.completedEntries = { decrement: 1 };
-    }
-    await prisma.followUp.update({ where: { id }, data: updates });
+    // Delete and recompute counters from real counts (no blind decrements).
+    await prisma.$transaction(async (tx) => {
+      await tx.followUpEntry.delete({ where: { id: entryId } });
+      const [total, completed] = await Promise.all([
+        tx.followUpEntry.count({ where: { followUpId: id } }),
+        tx.followUpEntry.count({ where: { followUpId: id, status: "COMPLETED" } }),
+      ]);
+      await tx.followUp.update({
+        where: { id },
+        data: { totalEntries: total, completedEntries: completed },
+      });
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -21,55 +21,77 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SURVEY_STATUS_CONFIG, type SurveyData, type SurveyStatus } from "@/types/survey";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SurveysPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [surveys, setSurveys] = useState<SurveyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
-  const [toast, setToast] = useState("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  // Debounce the search input (300ms) so we don't fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchSurveys = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "12", page: String(page) });
       if (statusFilter) params.set("status", statusFilter);
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/surveys?${params}`);
       const json = await res.json();
-      if (json.success) {
-        setSurveys(json.data || []);
-        if (json.pagination) setPagination(json.pagination);
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to load surveys");
       }
-    } catch {
-      /* silent */
+      setSurveys(json.data || []);
+      if (json.pagination) setPagination(json.pagination);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't load surveys", description: (err as Error).message });
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, page]);
+  }, [statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     fetchSurveys();
   }, [fetchSurveys]);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(""), 3000);
-      return () => clearTimeout(timer);
+  const handleCopyLink = async (slug: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/survey/${slug}`);
+      toast({ title: "Link copied to clipboard" });
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't copy link" });
     }
-  }, [toast]);
-
-  const handleCopyLink = (slug: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/survey/${slug}`);
-    setToast("Link copied to clipboard!");
+    setOpenMenu(null);
   };
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "ACTIVE" ? "CLOSED" : "ACTIVE";
+    if (newStatus === "CLOSED") {
+      const ok = await confirmDialog({
+        title: "Close survey?",
+        description: "Closed surveys stop accepting new responses. You can reopen it later.",
+        confirmText: "Close survey",
+        variant: "destructive",
+      });
+      if (!ok) {
+        setOpenMenu(null);
+        return;
+      }
+    }
     try {
       const res = await fetch(`/api/surveys/${id}`, {
         method: "PUT",
@@ -77,12 +99,13 @@ export default function SurveysPage() {
         body: JSON.stringify({ status: newStatus, isActive: newStatus === "ACTIVE" }),
       });
       const json = await res.json();
-      if (json.success) {
-        setSurveys((prev) => prev.map((s) => (s.id === id ? { ...s, status: newStatus as SurveyStatus, isActive: newStatus === "ACTIVE" } : s)));
-        setToast(`Survey ${newStatus === "ACTIVE" ? "activated" : "closed"}`);
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to update status");
       }
-    } catch {
-      setToast("Failed to update status");
+      setSurveys((prev) => prev.map((s) => (s.id === id ? { ...s, status: newStatus as SurveyStatus, isActive: newStatus === "ACTIVE" } : s)));
+      toast({ title: `Survey ${newStatus === "ACTIVE" ? "activated" : "closed"}` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't update status", description: (err as Error).message });
     }
     setOpenMenu(null);
   };
@@ -94,16 +117,20 @@ export default function SurveysPage() {
       confirmText: "Delete",
       variant: "destructive",
     });
-    if (!ok) return;
+    if (!ok) {
+      setOpenMenu(null);
+      return;
+    }
     try {
       const res = await fetch(`/api/surveys/${id}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) {
-        setSurveys((prev) => prev.filter((s) => s.id !== id));
-        setToast("Survey deleted");
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to delete survey");
       }
-    } catch {
-      setToast("Failed to delete survey");
+      setSurveys((prev) => prev.filter((s) => s.id !== id));
+      toast({ title: "Survey deleted" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't delete survey", description: (err as Error).message });
     }
     setOpenMenu(null);
   };
@@ -128,7 +155,7 @@ export default function SurveysPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
           <FileQuestion className="h-5 w-5 text-violet-500" />
           <div>
@@ -171,7 +198,7 @@ export default function SurveysPage() {
         <div className="flex-1" />
         <div className="relative max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search surveys..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8 h-9 text-sm" />
+          <Input placeholder="Search surveys..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
       </div>
 
@@ -286,13 +313,6 @@ export default function SurveysPage() {
             </div>
           )}
         </>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 z-50 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-bottom-5">
-          {toast}
-        </div>
       )}
     </div>
   );

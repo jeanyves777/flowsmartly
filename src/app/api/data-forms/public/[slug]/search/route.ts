@@ -33,13 +33,16 @@ export async function GET(
       );
     }
 
-    // Search ALL contacts for this user (case-insensitive)
+    // Search ALL contacts for this user (case-insensitive on Postgres; the
+    // `any`-typed where mirrors the submissions route so `mode` type-checks
+    // against the local SQLite client while staying correct in production).
+    const where: any = {
+      userId: form.userId,
+      status: "ACTIVE",
+      firstName: { contains: q, mode: "insensitive" },
+    };
     const contacts = await prisma.contact.findMany({
-      where: {
-        userId: form.userId,
-        status: "ACTIVE",
-        firstName: { contains: q },
-      },
+      where,
       select: {
         id: true,
         firstName: true,

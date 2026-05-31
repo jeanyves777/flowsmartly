@@ -27,51 +27,61 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EVENT_STATUS_CONFIG, type EventData, type EventStatus } from "@/types/event";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function EventsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
-  const [toast, setToast] = useState("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  // Debounce search input (300ms) before it drives the fetch
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: "12", page: String(page) });
       if (statusFilter) params.set("status", statusFilter);
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/events?${params}`);
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setEvents(json.data || []);
         if (json.pagination) setPagination(json.pagination);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to load events",
+          description: json.error?.message,
+        });
       }
     } catch {
-      /* silent */
+      toast({ variant: "destructive", title: "Failed to load events", description: "Network error. Please try again." });
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, page]);
+  }, [statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(""), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
   const handleCopyLink = (slug: string) => {
     navigator.clipboard.writeText(`${window.location.origin}/event/${slug}`);
-    setToast("Link copied to clipboard!");
+    toast({ title: "Link copied to clipboard!" });
   };
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
@@ -83,12 +93,14 @@ export default function EventsPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, status: newStatus as EventStatus } : e)));
-        setToast(`Event ${newStatus === "ACTIVE" ? "activated" : "closed"}`);
+        toast({ title: `Event ${newStatus === "ACTIVE" ? "activated" : "closed"}` });
+      } else {
+        toast({ variant: "destructive", title: "Failed to update status", description: json.error?.message });
       }
     } catch {
-      setToast("Failed to update status");
+      toast({ variant: "destructive", title: "Failed to update status" });
     }
     setOpenMenu(null);
   };
@@ -104,12 +116,14 @@ export default function EventsPage() {
     try {
       const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setEvents((prev) => prev.filter((e) => e.id !== id));
-        setToast("Event deleted");
+        toast({ title: "Event deleted" });
+      } else {
+        toast({ variant: "destructive", title: "Failed to delete event", description: json.error?.message });
       }
     } catch {
-      setToast("Failed to delete event");
+      toast({ variant: "destructive", title: "Failed to delete event" });
     }
     setOpenMenu(null);
   };
@@ -186,7 +200,7 @@ export default function EventsPage() {
         <div className="flex-1" />
         <div className="relative max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search events..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8 h-9 text-sm" />
+          <Input placeholder="Search events..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
       </div>
 
@@ -325,13 +339,6 @@ export default function EventsPage() {
             </div>
           )}
         </>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 z-50 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-bottom-5">
-          {toast}
-        </div>
       )}
     </div>
   );

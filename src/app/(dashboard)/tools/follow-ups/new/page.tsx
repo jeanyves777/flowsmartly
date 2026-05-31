@@ -18,6 +18,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 
 interface ContactList {
   id: string;
@@ -43,8 +44,14 @@ export default function NewFollowUpPage() {
           setContactLists(json.data.lists || json.data || []);
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        toast({
+          title: "Couldn't load contact lists",
+          description: "You can still create the follow-up and import contacts later.",
+          variant: "destructive",
+        });
+      });
+  }, [toast]);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -67,7 +74,7 @@ export default function NewFollowUpPage() {
       });
       const json = await res.json();
 
-      if (!json.success) throw new Error(json.error?.message || "Failed to create");
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to create");
 
       toast({ title: "Created!", description: `Follow-up "${name}" created successfully` });
       router.push(`/tools/follow-ups/${json.data.id}`);
@@ -79,7 +86,7 @@ export default function NewFollowUpPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push("/tools/follow-ups")}>
@@ -104,7 +111,16 @@ export default function NewFollowUpPage() {
           </div>
 
           <div>
-            <Label htmlFor="name">Name *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="name">Name *</Label>
+              <AISuggestButton
+                endpoint="/api/tools/ai-suggest"
+                payload={{ task: "Suggest a short, punchy follow-up campaign name (max 5 words)", context: { kind: "follow-up", existingDescription: description } }}
+                onResult={(v) => setName(v)}
+                label="Suggest"
+                size="sm"
+              />
+            </div>
             <Input
               id="name"
               placeholder="e.g. Q1 Sales Outreach"
@@ -115,7 +131,16 @@ export default function NewFollowUpPage() {
           </div>
 
           <div>
-            <Label htmlFor="description">Description</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Description</Label>
+              <AISuggestButton
+                endpoint="/api/tools/ai-suggest"
+                payload={{ task: "Write a 1-2 sentence description for this follow-up campaign", context: { kind: "follow-up", name } }}
+                onResult={(v) => setDescription(v)}
+                label="Suggest"
+                size="sm"
+              />
+            </div>
             <Textarea
               id="description"
               placeholder="Optional description..."

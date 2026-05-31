@@ -58,7 +58,16 @@ export async function POST(
       );
     }
 
-    // 4. Validate order status — can only refund completed orders
+    // 4. Validate order status — only completed / partially-refunded orders are
+    // refundable. A fully REFUNDED (or still PENDING) order is rejected here,
+    // which is the first half of the double-refund guard.
+    if (order.status === "REFUNDED") {
+      return NextResponse.json(
+        { success: false, error: { message: "Order has already been fully refunded" } },
+        { status: 400 }
+      );
+    }
+
     if (order.status !== "COMPLETED" && order.status !== "PARTIALLY_REFUNDED") {
       return NextResponse.json(
         {
@@ -71,7 +80,9 @@ export async function POST(
       );
     }
 
-    // 5. Calculate refund amount
+    // 5. Calculate refund amount. The remaining-refundable check is the second
+    // half of the double-refund guard: requested + already-refunded must never
+    // exceed the charged amount.
     const remainingRefundable = order.amountCents - order.refundedAmountCents;
 
     if (remainingRefundable <= 0) {
@@ -135,13 +146,16 @@ export async function POST(
       );
     }
 
-    // 8. Determine new order status
+    // 8. Determine new order status. Status is REFUNDED only when the order is
+    // fully refunded, otherwise PARTIALLY_REFUNDED.
     const newRefundedTotal = order.refundedAmountCents + refundAmount;
     const isFullyRefunded = newRefundedTotal >= order.amountCents;
     const newStatus = isFullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED";
 
-    // 9. Update TicketOrder
-    const updatedOrder = await prisma.ticketOrder.update({
+    // 9-11. Persist the order, event total, and (when fully refunded) the
+    // registration cancellation as a single atomic transaction so the Stripe
+    // refund can't succeed while our DB is left half-updated.
+    const updateOrderOp = prisma.ticketOrder.update({
       where: { id: order.id },
       data: {
         refundedAmountCents: { increment: refundAmount },
@@ -149,27 +163,21 @@ export async function POST(
         status: newStatus,
       },
     });
-
-    // 10. Update Event totalRefundedCents
-    await prisma.event.update({
+    const updateEventOp = prisma.event.update({
       where: { id: event.id },
-      data: {
-        totalRefundedCents: { increment: refundAmount },
-      },
+      data: { totalRefundedCents: { increment: refundAmount } },
     });
 
-    // 11. If fully refunded, cancel the associated EventRegistration
-    if (isFullyRefunded) {
-      await prisma.eventRegistration.updateMany({
-        where: {
-          eventId: id,
-          ticketOrderId: order.id,
-        },
-        data: {
-          status: "cancelled",
-        },
-      });
-    }
+    const [updatedOrder] = isFullyRefunded
+      ? await prisma.$transaction([
+          updateOrderOp,
+          updateEventOp,
+          prisma.eventRegistration.updateMany({
+            where: { eventId: id, ticketOrderId: order.id },
+            data: { status: "cancelled" },
+          }),
+        ])
+      : await prisma.$transaction([updateOrderOp, updateEventOp]);
 
     return NextResponse.json({
       success: true,

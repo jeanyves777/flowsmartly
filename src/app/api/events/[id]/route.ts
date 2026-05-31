@@ -54,7 +54,7 @@ export async function PUT(
 
     const existing = await prisma.event.findFirst({
       where: { id, userId: session.userId },
-      select: { id: true },
+      select: { id: true, eventDate: true },
     });
 
     if (!existing) {
@@ -85,6 +85,36 @@ export async function PUT(
       settings,
       status,
     } = body;
+
+    // ── Validate incoming values before building the update set ──
+    const VALID_STATUSES = ["DRAFT", "ACTIVE", "CLOSED", "CANCELLED"];
+    if (status !== undefined && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json({ success: false, error: { message: "Invalid event status" } }, { status: 400 });
+    }
+
+    if (title !== undefined && (typeof title !== "string" || !title.trim())) {
+      return NextResponse.json({ success: false, error: { message: "Title cannot be empty" } }, { status: 400 });
+    }
+
+    if (eventDate !== undefined && Number.isNaN(new Date(eventDate).getTime())) {
+      return NextResponse.json({ success: false, error: { message: "Event date is invalid" } }, { status: 400 });
+    }
+
+    if (ticketPrice !== undefined && ticketPrice !== null && (typeof ticketPrice !== "number" || ticketPrice < 0)) {
+      return NextResponse.json({ success: false, error: { message: "Ticket price must be zero or greater" } }, { status: 400 });
+    }
+
+    if (capacity !== undefined && capacity !== null && (typeof capacity !== "number" || capacity < 0)) {
+      return NextResponse.json({ success: false, error: { message: "Capacity must be zero or greater (or empty for unlimited)" } }, { status: 400 });
+    }
+
+    // When publishing (status -> ACTIVE), the event date must not be in the past.
+    if (status === "ACTIVE") {
+      const effectiveDate = eventDate !== undefined ? new Date(eventDate) : new Date(existing.eventDate);
+      if (effectiveDate.getTime() < Date.now()) {
+        return NextResponse.json({ success: false, error: { message: "Cannot publish an event whose date is in the past" } }, { status: 400 });
+      }
+    }
 
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title.trim();
@@ -149,10 +179,15 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: { message: "Event not found" } }, { status: 404 });
     }
 
-    // Delete registrations first, then ticket orders, then event
-    await prisma.eventRegistration.deleteMany({ where: { eventId: id } });
-    await prisma.ticketOrder.deleteMany({ where: { eventId: id } });
-    await prisma.event.delete({ where: { id } });
+    // Delete registrations first, then ticket orders, then the event itself.
+    // EventRegistration.ticketOrderId is a plain String (no FK to TicketOrder),
+    // so this order is safe. Wrapped in a transaction so a partial failure
+    // cannot leave orphaned registrations/orders behind.
+    await prisma.$transaction([
+      prisma.eventRegistration.deleteMany({ where: { eventId: id } }),
+      prisma.ticketOrder.deleteMany({ where: { eventId: id } }),
+      prisma.event.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true, data: { message: "Event deleted" } });
   } catch (error) {

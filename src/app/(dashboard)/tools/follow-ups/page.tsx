@@ -39,14 +39,21 @@ export default function FollowUpsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("ALL");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, totalEntries: 0 });
+
+  // Debounce the search input by 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchFollowUps = useCallback(async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams();
       if (filter !== "ALL") params.set("type", filter);
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       params.set("limit", "50");
 
       const res = await fetch(`/api/follow-ups?${params}`);
@@ -69,7 +76,7 @@ export default function FollowUpsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filter, search, toast]);
+  }, [filter, debouncedSearch, toast]);
 
   useEffect(() => {
     fetchFollowUps();
@@ -94,7 +101,37 @@ export default function FollowUpsPage() {
     }
   };
 
+  const STATUS_CONFIRM: Record<string, { title: string; description: string; confirmText: string; success: string }> = {
+    COMPLETED: {
+      title: "Mark as completed?",
+      description: "This follow-up will be marked completed. You can reactivate it later.",
+      confirmText: "Mark Completed",
+      success: "Follow-up marked as completed",
+    },
+    ARCHIVED: {
+      title: "Archive this follow-up?",
+      description: "Archived follow-ups are hidden from the active list. You can restore it later.",
+      confirmText: "Archive",
+      success: "Follow-up archived",
+    },
+    ACTIVE: {
+      title: "Reactivate this follow-up?",
+      description: "This follow-up will become active again.",
+      confirmText: "Reactivate",
+      success: "Follow-up reactivated",
+    },
+  };
+
   const handleStatusChange = async (id: string, status: string) => {
+    const cfg = STATUS_CONFIRM[status];
+    if (cfg) {
+      const ok = await confirmDialog({
+        title: cfg.title,
+        description: cfg.description,
+        confirmText: cfg.confirmText,
+      });
+      if (!ok) return;
+    }
     try {
       const res = await fetch(`/api/follow-ups/${id}`, {
         method: "PUT",
@@ -102,7 +139,8 @@ export default function FollowUpsPage() {
         body: JSON.stringify({ status }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to update status");
+      toast({ title: "Updated", description: cfg?.success || "Status updated" });
       fetchFollowUps();
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
@@ -158,7 +196,7 @@ export default function FollowUpsPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search follow-ups..."

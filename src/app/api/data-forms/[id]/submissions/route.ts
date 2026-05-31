@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
 
 export async function GET(
   request: NextRequest,
@@ -30,11 +31,8 @@ export async function GET(
 
     // Query params
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const { page, limit, skip, take } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 100 });
     const search = searchParams.get("search") || "";
-
-    const skip = (page - 1) * limit;
 
     // Build where clause
     const where: any = { formId: id };
@@ -51,7 +49,7 @@ export async function GET(
         where,
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       prisma.dataFormSubmission.count({ where }),
     ]);
@@ -65,12 +63,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: parsedSubmissions,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
+      pagination: paginationMeta(total, page, limit),
     });
   } catch (error) {
     console.error("Error fetching submissions:", error);

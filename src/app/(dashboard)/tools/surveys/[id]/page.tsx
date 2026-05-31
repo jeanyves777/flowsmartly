@@ -8,13 +8,16 @@ import {
   ExternalLink, FileText, Send, Users, Search,
   RefreshCw, Star, Mail, Phone,
 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 import { SURVEY_STATUS_CONFIG, type SurveyData, type SurveyStatus, type SurveyResponseData } from "@/types/survey";
 import { QUESTION_TYPES, type SurveyQuestion } from "@/types/follow-up";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const QUESTION_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   QUESTION_TYPES.map((t) => [t.value, t.label])
@@ -29,13 +32,14 @@ interface ContactList {
 export default function SurveyDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const id = params.id as string;
 
   const [survey, setSurvey] = useState<SurveyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"builder" | "responses" | "share" | "send">("builder");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
 
   // Builder state
   const [title, setTitle] = useState("");
@@ -52,6 +56,7 @@ export default function SurveyDetailPage() {
   const [resPage, setResPage] = useState(1);
   const [resPagination, setResPagination] = useState<{ total: number; pages: number }>({ total: 0, pages: 0 });
   const [resSearch, setResSearch] = useState("");
+  const [debouncedResSearch, setDebouncedResSearch] = useState("");
   const [selectedRes, setSelectedRes] = useState<Set<string>>(new Set());
 
   // Brand state
@@ -104,7 +109,7 @@ export default function SurveyDetailPage() {
     try {
       const res = await fetch(`/api/surveys/${id}`);
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setSurvey(json.data);
         setTitle(json.data.title);
         setDescription(json.data.description || "");
@@ -113,33 +118,49 @@ export default function SurveyDetailPage() {
         setIsActive(json.data.isActive);
         if (json.data.contactListId) setSendListId(json.data.contactListId);
       } else {
+        toast({ variant: "destructive", title: "Couldn't load survey", description: json?.error?.message });
         router.push("/tools/surveys");
       }
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't load survey", description: "Network error. Please try again." });
+      router.push("/tools/surveys");
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, toast]);
 
   useEffect(() => {
     fetchSurvey();
   }, [fetchSurvey]);
+
+  // Debounce the response search (300ms) so we don't fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedResSearch(resSearch);
+      setResPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [resSearch]);
 
   // Fetch responses
   const fetchResponses = useCallback(async () => {
     setResLoading(true);
     try {
       const p = new URLSearchParams({ page: String(resPage), limit: "25" });
-      if (resSearch) p.set("search", resSearch);
+      if (debouncedResSearch) p.set("search", debouncedResSearch);
       const res = await fetch(`/api/surveys/${id}/responses?${p}`);
       const json = await res.json();
-      if (json.success && json.data) {
-        setResponses(json.data);
-        setResPagination(json.pagination || { total: 0, pages: 0 });
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to load responses");
       }
+      setResponses(json.data || []);
+      setResPagination(json.pagination || { total: 0, pages: 0 });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't load responses", description: (err as Error).message });
     } finally {
       setResLoading(false);
     }
-  }, [id, resPage, resSearch]);
+  }, [id, resPage, debouncedResSearch, toast]);
 
   useEffect(() => {
     if (activeTab === "responses") fetchResponses();
@@ -152,10 +173,13 @@ export default function SurveyDetailPage() {
         .then((r) => r.json())
         .then((json) => {
           if (json.success) setContactLists(json.data?.lists || json.data || []);
+          else throw new Error(json?.error?.message || "Failed to load contact lists");
         })
-        .catch(() => {});
+        .catch((err) => {
+          toast({ variant: "destructive", title: "Couldn't load contact lists", description: (err as Error).message });
+        });
     }
-  }, [activeTab, contactLists.length]);
+  }, [activeTab, contactLists.length, toast]);
 
   // Fetch marketing config when Send tab becomes active
   useEffect(() => {
@@ -202,12 +226,68 @@ export default function SurveyDetailPage() {
         }),
       });
       const json = await res.json();
-      if (json.success) {
-        setSurvey(json.data);
-        showToast("Survey saved!");
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to save survey");
       }
+      setSurvey(json.data);
+      toast({ title: "Survey saved" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't save survey", description: (err as Error).message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Generate questions with AI (structured)
+  const ALLOWED_TYPES: SurveyQuestion["type"][] = ["text", "textarea", "email", "phone", "rating", "multiple_choice", "yes_no"];
+  const genQId = () => `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+  const handleGenerateQuestions = async () => {
+    if (generatingQuestions) return;
+    setGeneratingQuestions(true);
+    try {
+      const res = await fetch("/api/tools/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: `Generate 5 survey questions for "${title.trim() || "a customer feedback survey"}"`,
+          context: { title: title.trim(), description: description.trim() },
+          format: "json",
+          jsonHint:
+            "an array of objects: {type:'text'|'textarea'|'email'|'phone'|'rating'|'multiple_choice'|'yes_no', label:string, required:boolean, options?:string[]}",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.result)) {
+        throw new Error(json?.error?.message || "Failed to generate questions");
+      }
+      const mapped: SurveyQuestion[] = (json.result as Array<Record<string, unknown>>)
+        .filter((q) => q && typeof q.label === "string")
+        .map((q) => {
+          const type = (ALLOWED_TYPES.includes(q.type as SurveyQuestion["type"]) ? q.type : "text") as SurveyQuestion["type"];
+          return {
+            id: genQId(),
+            type,
+            label: String(q.label),
+            required: q.required === true,
+            placeholder: "",
+            ...(type === "multiple_choice"
+              ? {
+                  options:
+                    Array.isArray(q.options) && q.options.length > 0
+                      ? (q.options as unknown[]).map((o) => String(o))
+                      : ["Option 1", "Option 2"],
+                }
+              : {}),
+          };
+        });
+      if (mapped.length === 0) throw new Error("No usable questions were generated");
+      setQuestions((prev) => [...prev, ...mapped]);
+      toast({ title: `Added ${mapped.length} AI-generated question${mapped.length === 1 ? "" : "s"}` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't generate questions", description: (err as Error).message });
+    } finally {
+      setGeneratingQuestions(false);
     }
   };
 
@@ -253,28 +333,34 @@ export default function SurveyDetailPage() {
       variant: "destructive",
     });
     if (!ok) return;
-    const res = await fetch(`/api/surveys/${id}/responses`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: Array.from(selectedRes) }),
-    });
-    const json = await res.json();
-    if (json.success) {
+    try {
+      const res = await fetch(`/api/surveys/${id}/responses`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedRes) }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to delete responses");
+      }
+      const deleted = json.data?.deleted ?? selectedRes.size;
       setSelectedRes(new Set());
       fetchResponses();
       fetchSurvey();
-      showToast(`${json.data?.deleted || selectedRes.size} responses deleted`);
+      toast({ title: `${deleted} response${deleted === 1 ? "" : "s"} deleted` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't delete responses", description: (err as Error).message });
     }
   };
 
   // Send survey
   const handleSend = async () => {
     if (!sendListId || sendListId === "none") {
-      showToast("Select a contact list");
+      toast({ variant: "destructive", title: "Select a contact list" });
       return;
     }
     if (questions.length === 0) {
-      showToast("Add at least one question before sending");
+      toast({ variant: "destructive", title: "Add at least one question before sending" });
       return;
     }
 
@@ -301,19 +387,16 @@ export default function SurveyDetailPage() {
         body: JSON.stringify({ channel: sendChannel, contactListId: sendListId }),
       });
       const json = await res.json();
-      if (json.success) {
-        showToast(json.data?.message || "Survey sent!");
-        fetchSurvey();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to send survey");
       }
+      toast({ title: json.data?.message || "Survey queued for sending" });
+      fetchSurvey();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't send survey", description: (err as Error).message });
     } finally {
       setIsSending(false);
     }
-  };
-
-  // Toast helper
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
   };
 
   // Survey public URL
@@ -331,7 +414,7 @@ export default function SurveyDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3"></div>
           <div className="h-64 bg-muted rounded"></div>
@@ -341,7 +424,7 @@ export default function SurveyDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/tools/surveys" className="text-muted-foreground hover:text-foreground">
@@ -364,7 +447,7 @@ export default function SurveyDetailPage() {
         {activeTab === "builder" && (
           <Button onClick={handleSave} disabled={saving || !title.trim()}>
             {saving ? <AISpinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-            {saving ? "Saving..." : "Save"}
+            Save
           </Button>
         )}
       </div>
@@ -394,7 +477,16 @@ export default function SurveyDetailPage() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Survey Title</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium">Survey Title</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, catchy survey title", context: { description } }}
+                    onResult={(v) => setTitle(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -403,7 +495,16 @@ export default function SurveyDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">Description (optional)</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium">Description (optional)</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short friendly survey description", context: { title } }}
+                    onResult={(v) => setDescription(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -414,10 +515,25 @@ export default function SurveyDetailPage() {
 
             {/* Questions List */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Questions</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Questions</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateQuestions}
+                  disabled={generatingQuestions}
+                >
+                  {generatingQuestions ? (
+                    <AISpinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Generate with AI
+                </Button>
+              </div>
               {questions.length === 0 && (
                 <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
-                  <p className="text-muted-foreground mb-4">No questions yet. Add your first question to get started.</p>
+                  <p className="text-muted-foreground mb-4">No questions yet. Add your first question or generate a set with AI.</p>
                 </div>
               )}
               {questions.map((question, index) => (
@@ -433,6 +549,16 @@ export default function SurveyDetailPage() {
                           onChange={(e) => updateQuestion(question.id, { label: e.target.value })}
                           placeholder="Enter your question..."
                           className="flex-1"
+                        />
+                        <AISuggestButton
+                          endpoint="/api/tools/ai-suggest"
+                          payload={{
+                            task: `Write one clear survey question (label) of type "${question.type}"`,
+                            context: { surveyTitle: title, description, currentLabel: question.label },
+                          }}
+                          onResult={(v) => updateQuestion(question.id, { label: v })}
+                          label="Suggest"
+                          size="sm"
                         />
                         <button
                           onClick={() =>
@@ -573,7 +699,16 @@ export default function SurveyDetailPage() {
 
             {/* Thank You Message */}
             <div>
-              <label className="block text-sm font-medium mb-1.5">Thank You Message</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium">Thank You Message</label>
+                <AISuggestButton
+                  endpoint="/api/tools/ai-suggest"
+                  payload={{ task: "Write a warm thank-you message shown after a survey is submitted", context: { title } }}
+                  onResult={(v) => setThankYouMessage(v)}
+                  label="Suggest"
+                  size="sm"
+                />
+              </div>
               <Input
                 value={thankYouMessage}
                 onChange={(e) => setThankYouMessage(e.target.value)}
@@ -1057,10 +1192,9 @@ export default function SurveyDetailPage() {
         )}
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
-          {toast}
+      {generatingQuestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <AIGenerationLoader currentStep="Generating survey questions..." subtitle="This usually takes a few seconds" />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
 
 // GET /api/events/[id]/sales — Ticket sales dashboard data (auth required, owner only)
 export async function GET(
@@ -33,17 +34,15 @@ export async function GET(
 
     // 2. Parse query params
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
+    const { page, limit, skip, take } = parsePagination(searchParams, { defaultLimit: 25, maxLimit: 100 });
     const search = searchParams.get("search")?.trim() || "";
-    const skip = (page - 1) * limit;
 
     // 3. Build search filter
     const searchFilter = search
       ? {
           OR: [
-            { buyerEmail: { contains: search } },
-            { buyerName: { contains: search } },
+            { buyerEmail: { contains: search, mode: "insensitive" as const } },
+            { buyerName: { contains: search, mode: "insensitive" as const } },
           ],
         }
       : {};
@@ -84,7 +83,7 @@ export async function GET(
         where: { eventId: id, ...searchFilter },
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       prisma.ticketOrder.count({
         where: { eventId: id, ...searchFilter },
@@ -137,12 +136,7 @@ export async function GET(
         summary,
         orders,
         dailySales,
-        pagination: {
-          page,
-          limit,
-          totalCount,
-          totalPages: Math.ceil(totalCount / limit),
-        },
+        pagination: paginationMeta(totalCount, page, limit),
       },
     });
   } catch (error) {

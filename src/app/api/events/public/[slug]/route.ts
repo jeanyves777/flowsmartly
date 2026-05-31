@@ -205,7 +205,8 @@ export async function POST(
         return NextResponse.json({ success: false, error: { message: "Email is required" } }, { status: 400 });
       }
 
-      // Check capacity
+      // Soft pre-check for a friendly message; the authoritative atomic
+      // reservation happens just before creating the registration below.
       if (event.capacity && event.registrationCount >= event.capacity) {
         return NextResponse.json(
           { success: false, error: { message: "This event has reached its capacity" } },
@@ -214,33 +215,56 @@ export async function POST(
       }
     }
 
+    // Atomically reserve a capacity slot BEFORE creating the registration.
+    // When the event has a capacity, updateMany only matches (and increments)
+    // while registrationCount is still below it, so two concurrent registrants
+    // can never push the count past capacity (fixes the check-then-increment
+    // TOCTOU race). Unlimited-capacity events increment unconditionally.
+    const reservation = await prisma.event.updateMany({
+      where:
+        event.capacity != null
+          ? { id: event.id, registrationCount: { lt: event.capacity } }
+          : { id: event.id },
+      data: { registrationCount: { increment: 1 } },
+    });
+
+    if (reservation.count === 0) {
+      return NextResponse.json(
+        { success: false, error: { message: "This event has reached its capacity" } },
+        { status: 400 }
+      );
+    }
+
     // Generate unique ticket code
     let ticketCode = generateTicketCode();
     while (await prisma.eventRegistration.findUnique({ where: { ticketCode } })) {
       ticketCode = generateTicketCode();
     }
 
-    // Create registration
-    const registration = await prisma.eventRegistration.create({
-      data: {
-        eventId: event.id,
-        name: name?.trim() || null,
-        email: email?.trim() || null,
-        phone: phone?.trim() || null,
-        status: "registered",
-        rsvpResponse: rsvpResponse || null,
-        formData: formData ? JSON.stringify(formData) : "{}",
-        ticketCode,
-        ipAddress: ip,
-        userAgent: request.headers.get("user-agent") || null,
-      },
-    });
-
-    // Increment registration count
-    await prisma.event.update({
-      where: { id: event.id },
-      data: { registrationCount: { increment: 1 } },
-    });
+    // Create registration. If this fails, release the reserved slot so the
+    // count doesn't drift above the real number of registrations.
+    let registration;
+    try {
+      registration = await prisma.eventRegistration.create({
+        data: {
+          eventId: event.id,
+          name: name?.trim() || null,
+          email: email?.trim() || null,
+          phone: phone?.trim() || null,
+          status: "registered",
+          rsvpResponse: rsvpResponse || null,
+          formData: formData ? JSON.stringify(formData) : "{}",
+          ticketCode,
+          ipAddress: ip,
+          userAgent: request.headers.get("user-agent") || null,
+        },
+      });
+    } catch (createErr) {
+      await prisma.event
+        .update({ where: { id: event.id }, data: { registrationCount: { decrement: 1 } } })
+        .catch(() => {});
+      throw createErr;
+    }
 
     // Auto-create contact if email provided
     if (email?.trim()) {

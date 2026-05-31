@@ -66,7 +66,8 @@ export async function POST(
       },
     });
 
-    const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/follow-ups/shared/${shareSlug}`;
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com").replace(/\/$/, "");
+    const shareUrl = `${appUrl}/follow-ups/shared/${shareSlug}`;
 
     return NextResponse.json({
       shareSlug,

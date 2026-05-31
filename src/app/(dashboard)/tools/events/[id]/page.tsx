@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { useToast } from "@/hooks/use-toast";
 import {
   EVENT_STATUS_CONFIG,
   REGISTRATION_STATUS_CONFIG,
@@ -49,13 +50,16 @@ interface SalesData {
 export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const id = params.id as string;
+
+  // Format currency helper
+  const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "registrations" | "sales" | "share" | "send">("overview");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
 
   // Registrations state
   const [registrations, setRegistrations] = useState<EventRegistrationData[]>([]);
@@ -108,12 +112,6 @@ export default function EventDetailPage() {
       })
       .catch(() => {});
   }, []);
-
-  // Toast helper
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
 
   // Fetch event
   const fetchEvent = useCallback(async () => {
@@ -226,10 +224,14 @@ export default function EventDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setEvent(json.data);
-        showToast(`Event ${newStatus === "ACTIVE" ? "activated" : "closed"}`);
+        toast({ title: `Event ${newStatus === "ACTIVE" ? "activated" : "closed"}` });
+      } else {
+        toast({ variant: "destructive", title: "Failed to update status", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to update status" });
     } finally {
       setSaving(false);
     }
@@ -249,38 +251,44 @@ export default function EventDetailPage() {
       body: JSON.stringify({ ids: Array.from(selectedRegs) }),
     });
     const json = await res.json();
-    if (json.success) {
+    if (res.ok && json.success) {
       setSelectedRegs(new Set());
       fetchRegistrations();
       fetchEvent();
-      showToast(`${json.data?.deleted || selectedRegs.size} registration(s) deleted`);
+      toast({ title: `${json.data?.deleted || selectedRegs.size} registration(s) deleted` });
+    } else {
+      toast({ variant: "destructive", title: "Failed to delete registrations", description: json.error?.message });
     }
   };
 
   // Refund order
-  const handleRefund = async (ticketOrderId: string) => {
+  const handleRefund = async (order: TicketOrderData) => {
+    const refundable = order.amountCents - order.refundedAmountCents;
+    const amountStr = formatCents(refundable);
     const ok = await confirmDialog({
-      title: "Refund this order?",
-      description: "This action cannot be undone.",
-      confirmText: "Refund",
+      title: `Refund ${amountStr} to ${order.buyerName}?`,
+      description: "This issues a Stripe refund to the buyer and cancels their registration. This action cannot be undone.",
+      confirmText: `Refund ${amountStr}`,
       variant: "destructive",
     });
     if (!ok) return;
-    setRefundingId(ticketOrderId);
+    setRefundingId(order.id);
     try {
       const res = await fetch(`/api/events/${id}/refund`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketOrderId }),
+        body: JSON.stringify({ ticketOrderId: order.id }),
       });
       const json = await res.json();
-      if (json.success) {
-        showToast("Refund processed successfully");
+      if (res.ok && json.success) {
+        toast({ title: "Refund processed successfully" });
         fetchSales();
         fetchEvent();
       } else {
-        showToast(json.error || "Refund failed");
+        toast({ variant: "destructive", title: "Refund failed", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Refund failed", description: "Network error. Please try again." });
     } finally {
       setRefundingId(null);
     }
@@ -294,12 +302,14 @@ export default function EventDetailPage() {
         method: "POST",
       });
       const json = await res.json();
-      if (json.success) {
-        showToast("Landing page created!");
+      if (res.ok && json.success) {
+        toast({ title: "Landing page created!" });
         fetchEvent();
       } else {
-        showToast(json.error || "Failed to create landing page");
+        toast({ variant: "destructive", title: "Failed to create landing page", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to create landing page" });
     } finally {
       setCreatingLP(false);
     }
@@ -308,7 +318,7 @@ export default function EventDetailPage() {
   // Send event
   const handleSend = async () => {
     if (!sendListId || sendListId === "none") {
-      showToast("Select a contact list");
+      toast({ variant: "destructive", title: "Select a contact list" });
       return;
     }
 
@@ -329,12 +339,14 @@ export default function EventDetailPage() {
         body: JSON.stringify({ channel: sendChannel, contactListId: sendListId }),
       });
       const json = await res.json();
-      if (json.success) {
-        showToast(json.data?.message || "Event invitation sent!");
+      if (res.ok && json.success) {
+        toast({ title: json.data?.message || "Event invitation sent!" });
         fetchEvent();
       } else {
-        showToast(json.error || "Failed to send");
+        toast({ variant: "destructive", title: "Failed to send", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to send", description: "Network error. Please try again." });
     } finally {
       setIsSending(false);
     }
@@ -356,13 +368,10 @@ export default function EventDetailPage() {
     { key: "send" as const, label: "Send", icon: Send },
   ];
 
-  // Format currency helper
-  const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
   // Loading state
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3"></div>
           <div className="h-64 bg-muted rounded"></div>
@@ -374,7 +383,7 @@ export default function EventDetailPage() {
   // Not found state
   if (!event) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="space-y-6">
         <div className="text-center py-20">
           <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Event not found</h2>
@@ -391,9 +400,9 @@ export default function EventDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3">
         <Link href="/tools/events">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
@@ -956,7 +965,7 @@ export default function EventDetailPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleRefund(order.id)}
+                                      onClick={() => handleRefund(order)}
                                       disabled={refundingId === order.id}
                                       className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                                     >
@@ -1041,7 +1050,7 @@ export default function EventDetailPage() {
                   size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(eventUrl);
-                    showToast("Link copied!");
+                    toast({ title: "Link copied!" });
                   }}
                 >
                   <Copy className="h-4 w-4" />
@@ -1250,13 +1259,6 @@ export default function EventDetailPage() {
           </div>
         )}
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }

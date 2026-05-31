@@ -38,6 +38,10 @@ export async function POST(
       return NextResponse.json({ success: false, error: { message: "Event not found" } }, { status: 404 });
     }
 
+    if (event.status === "DRAFT") {
+      return NextResponse.json({ success: false, error: { message: "Publish the event before sending invitations" } }, { status: 400 });
+    }
+
     if (event.status === "CLOSED") {
       return NextResponse.json({ success: false, error: { message: "Cannot send invitations for a closed event" } }, { status: 400 });
     }

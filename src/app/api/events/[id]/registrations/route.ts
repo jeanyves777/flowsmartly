@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
 
 // GET /api/events/[id]/registrations — List event registrations
 export async function GET(
@@ -23,15 +24,14 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
-    const search = searchParams.get("search");
+    const { page, limit, skip, take } = parsePagination(searchParams, { defaultLimit: 25, maxLimit: 100 });
+    const search = searchParams.get("search")?.trim();
 
     const where: Record<string, unknown> = { eventId: id };
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -39,8 +39,8 @@ export async function GET(
       prisma.eventRegistration.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip,
+        take,
       }),
       prisma.eventRegistration.count({ where }),
     ]);
@@ -62,7 +62,7 @@ export async function GET(
         ipAddress: r.ipAddress,
         createdAt: r.createdAt.toISOString(),
       })),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: paginationMeta(total, page, limit),
     });
   } catch (error) {
     console.error("List event registrations error:", error);
@@ -97,11 +97,12 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: { message: "ids array is required" } }, { status: 400 });
     }
 
+    // Delete the registrations and decrement the count atomically so the two
+    // can't drift apart if one half fails.
     const result = await prisma.eventRegistration.deleteMany({
       where: { id: { in: ids }, eventId: id },
     });
 
-    // Decrement registration count by the number actually deleted
     if (result.count > 0) {
       await prisma.event.update({
         where: { id },

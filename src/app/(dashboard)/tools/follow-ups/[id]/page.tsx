@@ -50,6 +50,7 @@ import {
   type EntryStatus,
 } from "@/types/follow-up";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
 
 interface FollowUpDetail {
@@ -87,9 +88,19 @@ export default function FollowUpDetailPage() {
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entryFilter, setEntryFilter] = useState("");
+  const [debouncedEntryFilter, setDebouncedEntryFilter] = useState("");
   const [entryStatusFilter, setEntryStatusFilter] = useState<string>("ALL");
   const [entryPage, setEntryPage] = useState(1);
   const [entryTotal, setEntryTotal] = useState(0);
+
+  // Status change (header) + restrict-to-assigned saving indicators
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [isSavingRestrict, setIsSavingRestrict] = useState(false);
+
+  // Edit follow-up name/description dialog
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
 
   // Entry dialog
   const [showEntryDialog, setShowEntryDialog] = useState(false);
@@ -148,7 +159,7 @@ export default function FollowUpDetailPage() {
     try {
       const params = new URLSearchParams({ page: String(entryPage), limit: "25" });
       if (entryStatusFilter !== "ALL") params.set("status", entryStatusFilter);
-      if (entryFilter) params.set("search", entryFilter);
+      if (debouncedEntryFilter) params.set("search", debouncedEntryFilter);
 
       const res = await fetch(`/api/follow-ups/${id}/entries?${params}`);
       const json = await res.json();
@@ -161,7 +172,16 @@ export default function FollowUpDetailPage() {
     } finally {
       setEntriesLoading(false);
     }
-  }, [id, entryPage, entryStatusFilter, entryFilter, toast]);
+  }, [id, entryPage, entryStatusFilter, debouncedEntryFilter, toast]);
+
+  // Debounce the entries search by 300ms (resets to page 1)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedEntryFilter(entryFilter);
+      setEntryPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [entryFilter]);
 
   useEffect(() => { fetchFollowUp(); }, [fetchFollowUp]);
   useEffect(() => { if (followUp) fetchEntries(); }, [fetchEntries, followUp]);
@@ -194,8 +214,14 @@ export default function FollowUpDetailPage() {
         }
         setTeamMembers(allMembers);
       })
-      .catch(() => {});
-  }, [followUp?.isOwner]);
+      .catch(() => {
+        toast({
+          title: "Couldn't load team members",
+          description: "Assignment options may be unavailable. Try refreshing.",
+          variant: "destructive",
+        });
+      });
+  }, [followUp?.isOwner, toast]);
 
   // Fetch contact lists for import/export
   useEffect(() => {
@@ -203,9 +229,15 @@ export default function FollowUpDetailPage() {
       fetch("/api/contact-lists?limit=100")
         .then((r) => r.json())
         .then((json) => { if (json.success) setContactLists(json.data?.lists || json.data || []); })
-        .catch(() => {});
+        .catch(() => {
+          toast({
+            title: "Couldn't load contact lists",
+            description: "Please try opening this dialog again.",
+            variant: "destructive",
+          });
+        });
     }
-  }, [showImportDialog, showExportDialog, contactLists.length]);
+  }, [showImportDialog, showExportDialog, contactLists.length, toast]);
 
   // Entry CRUD
   const openAddEntry = () => {
@@ -244,7 +276,7 @@ export default function FollowUpDetailPage() {
           body: JSON.stringify(payload),
         });
         const json = await res.json();
-        if (!json.success) throw new Error(json.error?.message);
+        if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to update entry");
         toast({ title: "Updated", description: "Entry updated successfully" });
       } else {
         const res = await fetch(`/api/follow-ups/${id}/entries`, {
@@ -253,7 +285,7 @@ export default function FollowUpDetailPage() {
           body: JSON.stringify(payload),
         });
         const json = await res.json();
-        if (!json.success) throw new Error(json.error?.message);
+        if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to add entry");
         toast({ title: "Added", description: "Entry added successfully" });
       }
 
@@ -272,7 +304,7 @@ export default function FollowUpDetailPage() {
     try {
       const res = await fetch(`/api/follow-ups/${id}/entries/${deleteId}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to delete entry");
       toast({ title: "Deleted", description: "Entry removed" });
       setDeleteId(null);
       fetchEntries();
@@ -294,10 +326,10 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
-      if (!json.success) {
+      if (!res.ok || !json.success) {
         // Revert on failure
         fetchEntries();
-        throw new Error(json.error?.message);
+        throw new Error(json.error?.message || "Failed to update status");
       }
       // Only refresh the header stats, not the entry list
       fetchFollowUp();
@@ -322,9 +354,9 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ assigneeId: assigneeId || null }),
       });
       const json = await res.json();
-      if (!json.success) {
+      if (!res.ok || !json.success) {
         fetchEntries();
-        throw new Error(json.error?.message);
+        throw new Error(json.error?.message || "Failed to update assignee");
       }
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
@@ -359,7 +391,7 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ notes: trimmed || null }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to save note");
       // Update locally without full refetch
       setEntries((prev) =>
         prev.map((e) => (e.id === entryId ? { ...e, notes: trimmed || null } : e))
@@ -383,7 +415,7 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ contactListId: importListId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to import");
       toast({ title: "Imported!", description: json.data.message });
       setShowImportDialog(false);
       setImportListId("");
@@ -410,7 +442,7 @@ export default function FollowUpDetailPage() {
           body: JSON.stringify({ name: exportNewListName.trim() }),
         });
         const listJson = await listRes.json();
-        if (!listJson.success) throw new Error(listJson.error?.message || "Failed to create list");
+        if (!listRes.ok || !listJson.success) throw new Error(listJson.error?.message || "Failed to create list");
         targetListId = listJson.data.list.id;
         // Refresh contact lists cache
         setContactLists([]);
@@ -422,7 +454,7 @@ export default function FollowUpDetailPage() {
         body: JSON.stringify({ listId: targetListId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to export");
       toast({ title: "Exported!", description: json.data.message });
       setShowExportDialog(false);
       setExportListId("");
@@ -433,6 +465,61 @@ export default function FollowUpDetailPage() {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Change follow-up status (header dropdown) — confirmed + honest toasts
+  const handleFollowUpStatusChange = async (status: "COMPLETED" | "ACTIVE") => {
+    const confirmCfg = status === "COMPLETED"
+      ? { title: "Mark as completed?", description: "This follow-up will be marked completed. You can reactivate it later.", confirmText: "Mark Completed", success: "Marked as completed" }
+      : { title: "Reactivate this follow-up?", description: "This follow-up will become active again.", confirmText: "Reactivate", success: "Follow-up reactivated" };
+    const ok = await confirmDialog({ title: confirmCfg.title, description: confirmCfg.description, confirmText: confirmCfg.confirmText });
+    if (!ok) return;
+    setIsChangingStatus(true);
+    try {
+      const res = await fetch(`/api/follow-ups/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to update status");
+      toast({ title: "Updated", description: confirmCfg.success });
+      fetchFollowUp();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
+  // Open + save the name/description edit dialog
+  const openEditDetails = () => {
+    setEditForm({ name: followUp?.name || "", description: followUp?.description || "" });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!editForm.name.trim()) {
+      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+      return;
+    }
+    setIsSavingDetails(true);
+    try {
+      const res = await fetch(`/api/follow-ups/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editForm.name.trim(), description: editForm.description.trim() || null }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to save");
+      toast({ title: "Saved", description: "Follow-up details updated" });
+      setShowEditDialog(false);
+      fetchFollowUp();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setIsSavingDetails(false);
     }
   };
 
@@ -448,7 +535,7 @@ export default function FollowUpDetailPage() {
     try {
       const res = await fetch(`/api/follow-ups/${id}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message);
+      if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to delete follow-up");
       toast({ title: "Deleted", description: "Follow-up deleted" });
       router.push("/tools/follow-ups");
     } catch (err) {
@@ -512,25 +599,26 @@ export default function FollowUpDetailPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {followUp.status === "ACTIVE" && (
-              <DropdownMenuItem onClick={() => {
-                fetch(`/api/follow-ups/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "COMPLETED" }) })
-                  .then(() => fetchFollowUp());
-              }}>
+            {followUp.isOwner && (
+              <DropdownMenuItem onClick={openEditDetails}>
+                <Edit className="h-4 w-4 mr-2" /> Edit Details
+              </DropdownMenuItem>
+            )}
+            {followUp.isOwner && followUp.status === "ACTIVE" && (
+              <DropdownMenuItem disabled={isChangingStatus} onClick={() => handleFollowUpStatusChange("COMPLETED")}>
                 <CheckCircle2 className="h-4 w-4 mr-2" /> Mark Completed
               </DropdownMenuItem>
             )}
-            {followUp.status !== "ACTIVE" && (
-              <DropdownMenuItem onClick={() => {
-                fetch(`/api/follow-ups/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ACTIVE" }) })
-                  .then(() => fetchFollowUp());
-              }}>
+            {followUp.isOwner && followUp.status !== "ACTIVE" && (
+              <DropdownMenuItem disabled={isChangingStatus} onClick={() => handleFollowUpStatusChange("ACTIVE")}>
                 <Clock className="h-4 w-4 mr-2" /> Reactivate
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem className="text-destructive" onClick={handleDeleteFollowUp}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </DropdownMenuItem>
+            {followUp.isOwner && (
+              <DropdownMenuItem className="text-destructive" onClick={handleDeleteFollowUp}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -593,12 +681,12 @@ export default function FollowUpDetailPage() {
               </Button>
             )}
             <div className="flex-1" />
-            <div className="relative max-w-xs">
+            <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder="Search entries..."
                 value={entryFilter}
-                onChange={(e) => { setEntryFilter(e.target.value); setEntryPage(1); }}
+                onChange={(e) => setEntryFilter(e.target.value)}
                 className="pl-8 h-9 text-sm"
               />
             </div>
@@ -619,20 +707,32 @@ export default function FollowUpDetailPage() {
           {followUp.isOwner && teamMembers.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border text-sm">
               <Switch
+                disabled={isSavingRestrict}
                 checked={followUp.settings?.restrictToAssigned === true}
                 onCheckedChange={async (checked) => {
+                  const prevSettings = followUp.settings;
                   const newSettings = { ...followUp.settings, restrictToAssigned: checked };
                   setFollowUp((prev) => prev ? { ...prev, settings: newSettings } : prev);
+                  setIsSavingRestrict(true);
                   try {
-                    await fetch(`/api/follow-ups/${id}`, {
+                    const res = await fetch(`/api/follow-ups/${id}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ settings: newSettings }),
                     });
-                  } catch { /* silent */ }
+                    const json = await res.json();
+                    if (!res.ok || !json.success) throw new Error(json.error?.message || "Failed to save setting");
+                  } catch (err) {
+                    // Revert the optimistic toggle on failure
+                    setFollowUp((prev) => prev ? { ...prev, settings: prevSettings } : prev);
+                    toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+                  } finally {
+                    setIsSavingRestrict(false);
+                  }
                 }}
               />
               <span className="text-muted-foreground">Members only see assigned entries</span>
+              {isSavingRestrict && <AISpinner className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             </div>
           )}
 
@@ -986,6 +1086,62 @@ export default function FollowUpDetailPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Edit Details Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Follow-Up</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Name *</Label>
+                <AISuggestButton
+                  endpoint="/api/tools/ai-suggest"
+                  payload={{ task: "Suggest a short, punchy follow-up campaign name (max 5 words)", context: { kind: "follow-up", existingDescription: editForm.description } }}
+                  onResult={(v) => setEditForm((f) => ({ ...f, name: v }))}
+                  label="Suggest"
+                  size="sm"
+                />
+              </div>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                className="mt-1"
+                disabled={isSavingDetails}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Description</Label>
+                <AISuggestButton
+                  endpoint="/api/tools/ai-suggest"
+                  payload={{ task: "Write a 1-2 sentence description for this follow-up campaign", context: { kind: "follow-up", name: editForm.name } }}
+                  onResult={(v) => setEditForm((f) => ({ ...f, description: v }))}
+                  label="Suggest"
+                  size="sm"
+                />
+              </div>
+              <Textarea
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description..."
+                className="mt-1"
+                rows={3}
+                disabled={isSavingDetails}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)} disabled={isSavingDetails}>Cancel</Button>
+            <Button onClick={handleSaveDetails} disabled={isSavingDetails || !editForm.name.trim()}>
+              {isSavingDetails ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Entry Dialog */}
       <Dialog open={showEntryDialog} onOpenChange={setShowEntryDialog}>
         <DialogContent className="max-w-lg">
@@ -1054,8 +1210,11 @@ export default function FollowUpDetailPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEntryDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveEntry} disabled={isSavingEntry}>
+            <Button variant="outline" onClick={() => setShowEntryDialog(false)} disabled={isSavingEntry}>Cancel</Button>
+            <Button
+              onClick={handleSaveEntry}
+              disabled={isSavingEntry || !(entryForm.name.trim() || entryForm.email.trim() || entryForm.phone.trim())}
+            >
               {isSavingEntry ? <AISpinner className="h-4 w-4 animate-spin mr-2" /> : null}
               {editingEntry ? "Update" : "Add Entry"}
             </Button>

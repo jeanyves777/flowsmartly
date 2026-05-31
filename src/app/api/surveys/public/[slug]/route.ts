@@ -23,17 +23,12 @@ export async function GET(
       },
     });
 
-    if (!survey) {
+    // Return the same 404 for missing AND inactive so we don't leak whether a
+    // given slug exists (enumeration). The user-facing message still explains why.
+    if (!survey || !survey.isActive) {
       return NextResponse.json(
-        { success: false, error: { message: "Survey not found" } },
+        { success: false, error: { message: "This survey is not available." } },
         { status: 404 }
-      );
-    }
-
-    if (!survey.isActive) {
-      return NextResponse.json(
-        { success: false, error: { message: "This survey is no longer accepting responses" } },
-        { status: 410 }
       );
     }
 
@@ -76,17 +71,11 @@ export async function POST(
       },
     });
 
-    if (!survey) {
+    // Same 404 for missing and inactive — don't leak slug existence.
+    if (!survey || !survey.isActive) {
       return NextResponse.json(
-        { success: false, error: { message: "Survey not found" } },
+        { success: false, error: { message: "This survey is not available." } },
         { status: 404 }
-      );
-    }
-
-    if (!survey.isActive) {
-      return NextResponse.json(
-        { success: false, error: { message: "This survey is no longer accepting responses" } },
-        { status: 410 }
       );
     }
 

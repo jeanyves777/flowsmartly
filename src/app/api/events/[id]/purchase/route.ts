@@ -56,7 +56,8 @@ export async function POST(
       );
     }
 
-    // 3. Check capacity
+    // 3. Quick (non-authoritative) capacity pre-check for a fast, friendly
+    //    response. The authoritative atomic reservation happens in step 7.
     if (event.capacity !== null && event.registrationCount >= event.capacity) {
       return NextResponse.json(
         { success: false, error: { message: "Event is sold out" } },
@@ -95,12 +96,15 @@ export async function POST(
       );
     }
 
-    // 5. Calculate fees
+    // 5. Calculate fees. Clamp to non-negative integers; for tiny ticket prices
+    //    Math.round can yield a 0 fee, which is fine — organizerAmount is always
+    //    amount minus fee so the two always sum back to amountCents.
     const amountCents = event.ticketPrice;
-    const platformFeeCents = Math.round(
-      amountCents * event.platformFeePercent / 100
+    const platformFeeCents = Math.max(
+      0,
+      Math.round((amountCents * event.platformFeePercent) / 100)
     );
-    const organizerAmountCents = amountCents - platformFeeCents;
+    const organizerAmountCents = Math.max(0, amountCents - platformFeeCents);
 
     // 6. Verify Stripe is configured
     if (!stripe) {
@@ -110,55 +114,102 @@ export async function POST(
       );
     }
 
-    // 7. Create TicketOrder in DB with a placeholder stripeSessionId (will update after session creation)
-    const order = await prisma.ticketOrder.create({
-      data: {
-        eventId: event.id,
-        buyerName: name.trim(),
-        buyerEmail: email.trim(),
-        amountCents,
-        platformFeeCents,
-        organizerAmountCents,
-        stripeSessionId: `pending_${Date.now()}`, // Temporary, updated below
-        status: "PENDING",
-      },
-    });
+    // 7. Authoritative capacity guard. registrationCount is owned by the
+    //    payments webhook (it increments on checkout.session.completed), so we
+    //    must NOT increment it here or paid tickets would be double-counted.
+    //    Instead, count committed registrations + already-PENDING orders against
+    //    capacity to close the check-then-act race between concurrent buyers.
+    if (event.capacity !== null) {
+      const pendingOrders = await prisma.ticketOrder.count({
+        where: { eventId: event.id, status: "PENDING" },
+      });
+      if (event.registrationCount + pendingOrders >= event.capacity) {
+        return NextResponse.json(
+          { success: false, error: { message: "Event is sold out" } },
+          { status: 400 }
+        );
+      }
+    }
 
-    // 8. Create Stripe Checkout Session
+    // No capacity slot is mutated here, so there is nothing to release on error.
+    const releaseSlot = async () => {};
+
+    // 8. Create the Stripe Checkout Session FIRST so we never persist an order
+    //    row for a session that failed to create (avoids orphaned orders).
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: amountCents,
-            product_data: {
-              name: event.ticketName || event.title,
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: amountCents,
+              product_data: {
+                name: event.ticketName || event.title,
+              },
             },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        customer_email: email.trim(),
+        metadata: {
+          eventId: event.id,
+          type: "event_ticket",
+          buyerPhone: phone?.trim() || "",
         },
-      ],
-      customer_email: email.trim(),
-      metadata: {
-        eventId: event.id,
-        ticketOrderId: order.id,
-        type: "event_ticket",
-        buyerPhone: phone?.trim() || "",
-      },
-      success_url: `${appUrl}/event/${event.slug}?ticket=success&orderId=${order.id}`,
-      cancel_url: `${appUrl}/event/${event.slug}?ticket=cancelled`,
-    });
+        success_url: `${appUrl}/event/${event.slug}?ticket=success`,
+        cancel_url: `${appUrl}/event/${event.slug}?ticket=cancelled`,
+      });
+    } catch (stripeErr) {
+      await releaseSlot();
+      throw stripeErr;
+    }
 
-    // 9. Update TicketOrder with the real stripeSessionId
-    await prisma.ticketOrder.update({
-      where: { id: order.id },
-      data: { stripeSessionId: session.id },
-    });
+    // 9. Persist the TicketOrder with the real Stripe session id.
+    let order;
+    try {
+      order = await prisma.ticketOrder.create({
+        data: {
+          eventId: event.id,
+          buyerName: name.trim(),
+          buyerEmail: email.trim(),
+          amountCents,
+          platformFeeCents,
+          organizerAmountCents,
+          stripeSessionId: session.id,
+          status: "PENDING",
+        },
+      });
+    } catch (dbErr) {
+      await releaseSlot();
+      throw dbErr;
+    }
 
-    // 10. Return checkout URL
+    // 10. Attach the order id to the session metadata. The payments webhook
+    //     resolves the purchase via session.metadata.ticketOrderId, so this MUST
+    //     succeed before we hand the buyer a checkout URL — otherwise a paid
+    //     ticket would never be marked COMPLETED. If it fails, roll everything
+    //     back so we don't leave a chargeable session with no resolvable order.
+    try {
+      await stripe.checkout.sessions.update(session.id, {
+        metadata: {
+          eventId: event.id,
+          ticketOrderId: order.id,
+          type: "event_ticket",
+          buyerPhone: phone?.trim() || "",
+        },
+      });
+    } catch (metaErr) {
+      await prisma.ticketOrder.delete({ where: { id: order.id } }).catch(() => {});
+      await stripe.checkout.sessions.expire(session.id).catch(() => {});
+      await releaseSlot();
+      throw metaErr;
+    }
+
+    // 11. Return checkout URL
     return NextResponse.json({
       success: true,
       data: {

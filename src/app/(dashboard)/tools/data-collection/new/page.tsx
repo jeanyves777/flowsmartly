@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FIELD_TYPES, type DataFormField, type DataFormFieldType, type DataFormType } from "@/types/data-form";
 import { useToast } from "@/hooks/use-toast";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 
 export default function NewFormPage() {
   const router = useRouter();
@@ -22,6 +24,7 @@ export default function NewFormPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [expandedField, setExpandedField] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [generatingFields, setGeneratingFields] = useState(false);
 
   // Contact list selection for Smart Collect
   const [contactLists, setContactLists] = useState<{ id: string; name: string; totalCount: number }[]>([]);
@@ -61,6 +64,67 @@ export default function NewFormPage() {
 
   const updateField = (id: string, updates: Partial<DataFormField>) => {
     setFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
+  // Generate a set of form fields with AI based on the form's goal (title/description).
+  const ALLOWED_FIELD_TYPES = FIELD_TYPES.map(t => t.value);
+  const handleGenerateFields = async () => {
+    if (generatingFields) return;
+    const goal = title.trim() || description.trim();
+    if (!goal) {
+      toast({ variant: "destructive", title: "Add a title or description first", description: "Tell us what you want to collect so the AI can suggest fields." });
+      return;
+    }
+    setGeneratingFields(true);
+    try {
+      const res = await fetch("/api/tools/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: `Generate form fields to collect: ${goal}`,
+          context: { title: title.trim(), description: description.trim() },
+          format: "json",
+          jsonHint: `an array of objects matching the DataFormField type: {type, label, required, options?}. type must be one of: ${ALLOWED_FIELD_TYPES.join(", ")}. Only include "options" for select, radio, or checkbox types.`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.result)) {
+        toast({ variant: "destructive", title: "Couldn't generate fields", description: json.error?.message || "Try again or add fields manually." });
+        return;
+      }
+      const generated: DataFormField[] = json.result
+        .filter((f: { type?: string; label?: string }) => f && typeof f.label === "string" && f.label.trim())
+        .map((f: { type?: string; label?: string; required?: boolean; options?: unknown }) => {
+          const type: DataFormFieldType = ALLOWED_FIELD_TYPES.includes(f.type as DataFormFieldType)
+            ? (f.type as DataFormFieldType)
+            : "text";
+          const needsOptions = ["select", "radio", "checkbox"].includes(type);
+          const options = needsOptions
+            ? (Array.isArray(f.options) && f.options.length > 0
+                ? (f.options as unknown[]).map(o => String(o))
+                : ["Option 1", "Option 2"])
+            : undefined;
+          return {
+            id: genId(),
+            type,
+            label: f.label!.trim(),
+            required: !!f.required,
+            placeholder: "",
+            options,
+          };
+        });
+      if (generated.length === 0) {
+        toast({ variant: "destructive", title: "Couldn't generate fields", description: "The AI returned no usable fields. Try again." });
+        return;
+      }
+      setFields(prev => [...prev, ...generated]);
+      toast({ title: `Added ${generated.length} field${generated.length === 1 ? "" : "s"}` });
+    } catch (error) {
+      console.error("Generate fields error:", error);
+      toast({ variant: "destructive", title: "Couldn't generate fields", description: "Network error. Please try again." });
+    } finally {
+      setGeneratingFields(false);
+    }
   };
 
   const moveField = (index: number, direction: "up" | "down") => {
@@ -178,10 +242,20 @@ export default function NewFormPage() {
     : !!title.trim() && fields.length > 0;
 
   return (
-    <div className="min-h-screen bg-muted/50">
+    <div className="space-y-6">
+      {generatingFields && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <AIGenerationLoader
+            currentStep="Generating form fields..."
+            subtitle="Designing fields to collect what you need"
+            className="w-full max-w-md"
+            compact
+          />
+        </div>
+      )}
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="sticky top-0 z-10 bg-card border-b border-border -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/tools/data-collection">
@@ -201,12 +275,12 @@ export default function NewFormPage() {
               )}
               {formType === "STANDARD" && (
                 <Button variant="outline" onClick={() => handleSave(false)} disabled={saving || !title.trim()}>
-                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   Save Draft
                 </Button>
               )}
               <Button onClick={() => handleSave(true)} disabled={saving || !canPublish}>
-                <Send className="h-4 w-4 mr-2" />
+                {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                 {formType === "SMART_COLLECT" ? "Create & Publish" : "Publish"}
               </Button>
             </div>
@@ -215,7 +289,7 @@ export default function NewFormPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         {/* Form Type Selector */}
         <div className="mb-8">
           <label className="block text-sm font-medium text-muted-foreground mb-3">Form Type</label>
@@ -289,9 +363,18 @@ export default function NewFormPage() {
             {/* Form Settings */}
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Form Title <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Form Title <span className="text-red-500">*</span>
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, catchy title for a data collection form", context: { formType, description } }}
+                    onResult={(v) => setTitle(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -300,7 +383,17 @@ export default function NewFormPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">Description</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">Description</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, friendly form description", context: { title, formType } }}
+                    onResult={(v) => setDescription(v)}
+                    label="Suggest"
+                    size="sm"
+                    disabled={!title.trim()}
+                  />
+                </div>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -310,7 +403,16 @@ export default function NewFormPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">Thank You Message</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">Thank You Message</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a warm thank-you message shown after someone submits this form", context: { title, formType } }}
+                    onResult={(v) => setThankYouMessage(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={thankYouMessage}
                   onChange={(e) => setThankYouMessage(e.target.value)}
@@ -392,11 +494,17 @@ export default function NewFormPage() {
             {/* Standard Form: Fields Builder */}
             {formType === "STANDARD" && (
               <div className="bg-card border border-border rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 gap-2">
                   <h2 className="text-lg font-semibold text-foreground">Form Fields</h2>
-                  <Button variant="outline" size="sm" onClick={() => setShowTypeSelector(!showTypeSelector)}>
-                    <Plus className="h-4 w-4 mr-2" /> Add Field
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleGenerateFields} disabled={generatingFields}>
+                      {generatingFields ? <AISpinner className="h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                      Generate with AI
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowTypeSelector(!showTypeSelector)}>
+                      <Plus className="h-4 w-4 mr-2" /> Add Field
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Field Type Selector */}

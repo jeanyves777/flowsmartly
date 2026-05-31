@@ -169,12 +169,18 @@ export async function POST(
       );
     }
 
-    // Parse form fields and validate required fields
+    // Parse form fields and validate required fields (reject whitespace-only).
     const fields = form.fields ? JSON.parse(form.fields) : [];
     for (const field of fields) {
       if (field.required) {
         const value = data[field.id];
-        if (value === undefined || value === null || value === "") {
+        const isEmpty =
+          value === undefined ||
+          value === null ||
+          value === false ||
+          (typeof value === "string" && value.trim() === "") ||
+          (Array.isArray(value) && value.length === 0);
+        if (isEmpty) {
           return NextResponse.json(
             { success: false, error: { message: `Field "${field.label}" is required` } },
             { status: 400 }
@@ -189,7 +195,9 @@ export async function POST(
     let finalRespondentPhone = respondentPhone;
 
     for (const field of fields) {
-      const value = data[field.id];
+      const raw = data[field.id];
+      if (!raw) continue;
+      const value = typeof raw === "string" ? raw.trim() : raw;
       if (!value) continue;
 
       if (field.type === "email" && !finalRespondentEmail) {

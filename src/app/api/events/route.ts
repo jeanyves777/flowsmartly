@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { parsePagination, paginationMeta } from "@/lib/tools/pagination";
 
 function generateSlug(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -15,17 +16,16 @@ export async function GET(request: NextRequest) {
     if (!session) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const { page, limit, skip, take } = parsePagination(searchParams, { defaultLimit: 20, maxLimit: 100 });
     const status = searchParams.get("status");
-    const search = searchParams.get("search");
+    const search = searchParams.get("search")?.trim();
 
     const where: Record<string, unknown> = { userId: session.userId };
     if (status) where.status = status;
     if (search) {
       where.OR = [
-        { title: { contains: search } },
-        { description: { contains: search } },
+        { title: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
       prisma.event.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip,
+        take,
         include: {
           contactList: { select: { id: true, name: true } },
           _count: { select: { registrations: true, ticketOrders: true } },
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         settings: JSON.parse(e.settings || "{}"),
         contactListName: e.contactList?.name || null,
       })),
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: paginationMeta(total, page, limit),
     });
   } catch (error) {
     console.error("List events error:", error);
@@ -96,6 +96,18 @@ export async function POST(request: NextRequest) {
 
     if (!eventDate) {
       return NextResponse.json({ success: false, error: { message: "Event date is required" } }, { status: 400 });
+    }
+
+    if (Number.isNaN(new Date(eventDate).getTime())) {
+      return NextResponse.json({ success: false, error: { message: "Event date is invalid" } }, { status: 400 });
+    }
+
+    if (ticketPrice != null && (typeof ticketPrice !== "number" || ticketPrice < 0)) {
+      return NextResponse.json({ success: false, error: { message: "Ticket price must be zero or greater" } }, { status: 400 });
+    }
+
+    if (capacity != null && (typeof capacity !== "number" || capacity < 0)) {
+      return NextResponse.json({ success: false, error: { message: "Capacity must be zero or greater" } }, { status: 400 });
     }
 
     if (contactListId) {

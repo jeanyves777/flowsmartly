@@ -89,23 +89,22 @@ export async function POST(
       });
     }
 
-    // Create entries for new contacts
-    await prisma.followUpEntry.createMany({
-      data: newContacts.map((m) => ({
-        followUpId: id,
-        contactId: m.contact.id,
-        name: [m.contact.firstName, m.contact.lastName].filter(Boolean).join(" ") || null,
-        phone: m.contact.phone,
-        email: m.contact.email,
-        address: m.contact.address,
-        status: "PENDING",
-      })),
-    });
-
-    // Update counter
-    await prisma.followUp.update({
-      where: { id },
-      data: { totalEntries: { increment: newContacts.length } },
+    // Create entries for new contacts and recompute the counter from a real
+    // count (no blind increment) inside a transaction.
+    await prisma.$transaction(async (tx) => {
+      await tx.followUpEntry.createMany({
+        data: newContacts.map((m) => ({
+          followUpId: id,
+          contactId: m.contact.id,
+          name: [m.contact.firstName, m.contact.lastName].filter(Boolean).join(" ") || null,
+          phone: m.contact.phone,
+          email: m.contact.email,
+          address: m.contact.address,
+          status: "PENDING",
+        })),
+      });
+      const total = await tx.followUpEntry.count({ where: { followUpId: id } });
+      await tx.followUp.update({ where: { id }, data: { totalEntries: total } });
     });
 
     return NextResponse.json({

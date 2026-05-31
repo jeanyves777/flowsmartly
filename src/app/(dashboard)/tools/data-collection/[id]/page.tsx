@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon, FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare, Share2, Phone, ListPlus, FolderPlus } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Copy, Check, ExternalLink, Download, Eye, Settings as SettingsIcon, FileText, Send, Users, Search, MoreVertical, RefreshCw, Mail, MessageSquare, Share2, Phone, ListPlus, FolderPlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,17 +14,19 @@ import { FIELD_TYPES, FORM_STATUS_CONFIG, type DataFormField, type DataFormField
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 
 export default function DataFormDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const id = params.id as string;
 
   const [form, setForm] = useState<DataFormData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"builder" | "submissions" | "share" | "send" | "settings">("builder");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
 
   // Builder state
   const [title, setTitle] = useState("");
@@ -33,14 +35,17 @@ export default function DataFormDetailPage() {
   const [thankYouMessage, setThankYouMessage] = useState("");
   const [expandedField, setExpandedField] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [generatingFields, setGeneratingFields] = useState(false);
 
   // Submissions state
   const [submissions, setSubmissions] = useState<DataFormSubmissionData[]>([]);
   const [subLoading, setSubLoading] = useState(false);
   const [subPage, setSubPage] = useState(1);
   const [subPagination, setSubPagination] = useState<{total:number;pages:number}>({total:0,pages:0});
+  const [subSearchInput, setSubSearchInput] = useState("");
   const [subSearch, setSubSearch] = useState("");
   const [selectedSubs, setSelectedSubs] = useState<Set<string>>(new Set());
+  const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
 
   // Brand state
   const [brand, setBrand] = useState<{
@@ -136,6 +141,15 @@ export default function DataFormDetailPage() {
     if (activeTab === "submissions") fetchSubmissions();
   }, [activeTab, fetchSubmissions]);
 
+  // Debounce the submissions search box (300ms) → reset to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSubSearch(subSearchInput);
+      setSubPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [subSearchInput]);
+
   // Fetch contact lists on mount (used in sync dialog + send tab)
   useEffect(() => {
     fetch("/api/contact-lists?limit=100")
@@ -170,7 +184,7 @@ export default function DataFormDetailPage() {
   // Send form handler
   const handleSendForm = async () => {
     if (!sendListId) {
-      showToast("Please select a contact list");
+      toast({ variant: "destructive", title: "Please select a contact list" });
       return;
     }
     setIsSending(true);
@@ -181,14 +195,14 @@ export default function DataFormDetailPage() {
         body: JSON.stringify({ channel: sendChannel, contactListId: sendListId }),
       });
       const json = await res.json();
-      if (json.success) {
-        showToast(json.data.message);
+      if (res.ok && json.success) {
+        toast({ title: json.data.message });
         fetchForm();
       } else {
-        showToast(json.error?.message || "Failed to send form");
+        toast({ variant: "destructive", title: "Failed to send form", description: json.error?.message });
       }
     } catch {
-      showToast("Failed to send form");
+      toast({ variant: "destructive", title: "Failed to send form" });
     } finally {
       setIsSending(false);
     }
@@ -196,7 +210,10 @@ export default function DataFormDetailPage() {
 
   // Save form (builder)
   const handleSave = async () => {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      toast({ variant: "destructive", title: "Title is required" });
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/data-forms/${id}`, {
@@ -210,10 +227,14 @@ export default function DataFormDetailPage() {
         }),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setForm(json.data);
-        showToast("Form saved!");
+        toast({ title: "Form saved" });
+      } else {
+        toast({ variant: "destructive", title: "Failed to save form", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save form" });
     } finally {
       setSaving(false);
     }
@@ -251,6 +272,60 @@ export default function DataFormDetailPage() {
     setFields(prev => prev.filter(f => f.id !== fieldId));
   };
 
+  // Generate additional form fields with AI based on the form goal.
+  const ALLOWED_FIELD_TYPES = FIELD_TYPES.map(t => t.value);
+  const handleGenerateFields = async () => {
+    if (generatingFields) return;
+    const goal = title.trim() || description.trim();
+    if (!goal) {
+      toast({ variant: "destructive", title: "Add a title or description first", description: "Tell us what you want to collect so the AI can suggest fields." });
+      return;
+    }
+    setGeneratingFields(true);
+    try {
+      const res = await fetch("/api/tools/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: `Generate form fields to collect: ${goal}`,
+          context: { title: title.trim(), description: description.trim() },
+          format: "json",
+          jsonHint: `an array of objects matching the DataFormField type: {type, label, required, options?}. type must be one of: ${ALLOWED_FIELD_TYPES.join(", ")}. Only include "options" for select, radio, or checkbox types.`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.result)) {
+        toast({ variant: "destructive", title: "Couldn't generate fields", description: json.error?.message || "Try again or add fields manually." });
+        return;
+      }
+      const generated: DataFormField[] = json.result
+        .filter((f: { label?: string }) => f && typeof f.label === "string" && f.label.trim())
+        .map((f: { type?: string; label?: string; required?: boolean; options?: unknown }) => {
+          const type: DataFormFieldType = ALLOWED_FIELD_TYPES.includes(f.type as DataFormFieldType)
+            ? (f.type as DataFormFieldType)
+            : "text";
+          const needsOptions = ["select", "radio", "checkbox"].includes(type);
+          const options = needsOptions
+            ? (Array.isArray(f.options) && f.options.length > 0
+                ? (f.options as unknown[]).map(o => String(o))
+                : ["Option 1", "Option 2"])
+            : undefined;
+          return { id: genId(), type, label: f.label!.trim(), required: !!f.required, placeholder: "", options };
+        });
+      if (generated.length === 0) {
+        toast({ variant: "destructive", title: "Couldn't generate fields", description: "The AI returned no usable fields. Try again." });
+        return;
+      }
+      setFields(prev => [...prev, ...generated]);
+      toast({ title: `Added ${generated.length} field${generated.length === 1 ? "" : "s"}` });
+    } catch (error) {
+      console.error("Generate fields error:", error);
+      toast({ variant: "destructive", title: "Couldn't generate fields", description: "Network error. Please try again." });
+    } finally {
+      setGeneratingFields(false);
+    }
+  };
+
   // Submissions actions
   const handleSyncContacts = () => {
     setSyncMode("none");
@@ -276,88 +351,123 @@ export default function DataFormDetailPage() {
         body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setShowSyncDialog(false);
-        showToast(json.data.message || `${json.data.created} contacts created`);
+        toast({ title: json.data.message || `${json.data.created} contacts created` });
         if (json.data.listId) {
           router.push(`/contacts?tab=contacts&listId=${json.data.listId}`);
         }
       } else {
-        showToast(json.error?.message || "Failed to sync contacts");
+        toast({ variant: "destructive", title: "Failed to sync contacts", description: json.error?.message });
       }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to sync contacts" });
     } finally {
       setIsSyncing(false);
     }
   };
 
   const handleCreateFollowUp = async () => {
-    const ids = selectedSubs.size > 0 ? Array.from(selectedSubs) : undefined;
-    const res = await fetch(`/api/data-forms/${id}/create-followup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submissionIds: ids }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      showToast(`Follow-up created with ${json.data.entriesCreated} entries`);
-      router.push(`/tools/follow-ups/${json.data.followUpId}`);
+    if (isCreatingFollowUp) return;
+    setIsCreatingFollowUp(true);
+    try {
+      const ids = selectedSubs.size > 0 ? Array.from(selectedSubs) : undefined;
+      const res = await fetch(`/api/data-forms/${id}/create-followup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionIds: ids }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast({ title: `Follow-up created with ${json.data.entriesCreated} entries` });
+        router.push(`/tools/follow-ups/${json.data.followUpId}`);
+      } else {
+        toast({ variant: "destructive", title: "Failed to create follow-up", description: json.error?.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to create follow-up" });
+    } finally {
+      setIsCreatingFollowUp(false);
     }
   };
 
   const handleBulkDelete = async () => {
     const ok = await confirmDialog({
       title: `Delete ${selectedSubs.size} submission${selectedSubs.size === 1 ? "" : "s"}?`,
+      description: "This permanently removes the selected submissions. This action cannot be undone.",
       confirmText: "Delete",
       variant: "destructive",
     });
     if (!ok) return;
-    const res = await fetch(`/api/data-forms/${id}/submissions`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: Array.from(selectedSubs) }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      setSelectedSubs(new Set());
-      fetchSubmissions();
-      fetchForm();
-      showToast(`${json.data.deleted} submissions deleted`);
+    try {
+      const res = await fetch(`/api/data-forms/${id}/submissions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedSubs) }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setSelectedSubs(new Set());
+        fetchSubmissions();
+        fetchForm();
+        toast({ title: `${json.data.deleted} submission${json.data.deleted === 1 ? "" : "s"} deleted` });
+      } else {
+        toast({ variant: "destructive", title: "Failed to delete submissions", description: json.error?.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to delete submissions" });
     }
   };
 
   // Settings actions
   const handleStatusChange = async (status: "DRAFT" | "ACTIVE" | "CLOSED") => {
-    const res = await fetch(`/api/data-forms/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      setForm(json.data);
-      showToast(`Form status changed to ${FORM_STATUS_CONFIG[status].label}`);
+    if (status === "CLOSED" && form?.status === "ACTIVE") {
+      const ok = await confirmDialog({
+        title: "Close this form?",
+        description: "It will stop accepting new submissions until you re-activate it.",
+        confirmText: "Close Form",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    try {
+      const res = await fetch(`/api/data-forms/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setForm(json.data);
+        toast({ title: `Form status changed to ${FORM_STATUS_CONFIG[status].label}` });
+      } else {
+        toast({ variant: "destructive", title: "Failed to update status", description: json.error?.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to update status" });
     }
   };
 
   const handleDelete = async () => {
     const ok = await confirmDialog({
       title: "Delete this form?",
-      description: "This action cannot be undone.",
+      description: "This permanently deletes the form and all its submissions. This action cannot be undone.",
       confirmText: "Delete",
       variant: "destructive",
     });
     if (!ok) return;
-    const res = await fetch(`/api/data-forms/${id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (json.success) {
-      router.push("/tools/data-collection");
+    try {
+      const res = await fetch(`/api/data-forms/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast({ title: "Form deleted" });
+        router.push("/tools/data-collection");
+      } else {
+        toast({ variant: "destructive", title: "Failed to delete form", description: json.error?.message });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to delete form" });
     }
-  };
-
-  // Toast helper
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
   };
 
   // Tab configuration
@@ -371,7 +481,7 @@ export default function DataFormDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3"></div>
           <div className="h-64 bg-muted rounded"></div>
@@ -381,9 +491,9 @@ export default function DataFormDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3">
         <Link href="/tools/data-collection" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
         </Link>
@@ -400,13 +510,13 @@ export default function DataFormDetailPage() {
         {activeTab === "builder" && (
           <Button onClick={handleSave} disabled={saving || !title.trim()}>
             {saving ? <AISpinner className="h-4 w-4 mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-            {saving ? "Saving..." : "Save"}
+            Save
           </Button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border mb-6">
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -430,7 +540,16 @@ export default function DataFormDetailPage() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Form Title</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium">Form Title</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, catchy title for a data collection form", context: { formType: form?.type, description } }}
+                    onResult={(v) => setTitle(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
@@ -439,7 +558,17 @@ export default function DataFormDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">Description (optional)</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium">Description (optional)</label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, friendly form description", context: { title, formType: form?.type } }}
+                    onResult={(v) => setDescription(v)}
+                    label="Suggest"
+                    size="sm"
+                    disabled={!title.trim()}
+                  />
+                </div>
                 <Input
                   value={description}
                   onChange={e => setDescription(e.target.value)}
@@ -485,7 +614,13 @@ export default function DataFormDetailPage() {
             ) : (
               <>
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold">Form Fields</h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">Form Fields</h3>
+                    <Button variant="outline" size="sm" onClick={handleGenerateFields} disabled={generatingFields}>
+                      {generatingFields ? <AISpinner className="h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                      Generate with AI
+                    </Button>
+                  </div>
                   {fields.length === 0 && (
                     <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
                       <p className="text-muted-foreground mb-4">No fields yet. Add your first field to get started.</p>
@@ -639,7 +774,16 @@ export default function DataFormDetailPage() {
 
             {/* Thank You Message */}
             <div>
-              <label className="block text-sm font-medium mb-1.5">Thank You Message</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium">Thank You Message</label>
+                <AISuggestButton
+                  endpoint="/api/tools/ai-suggest"
+                  payload={{ task: "Write a warm thank-you message shown after someone submits this form", context: { title, formType: form?.type } }}
+                  onResult={(v) => setThankYouMessage(v)}
+                  label="Suggest"
+                  size="sm"
+                />
+              </div>
               <Input
                 value={thankYouMessage}
                 onChange={e => setThankYouMessage(e.target.value)}
@@ -659,8 +803,8 @@ export default function DataFormDetailPage() {
                   <Users className="h-4 w-4 mr-1" />
                   Sync to Contacts
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleCreateFollowUp} disabled={submissions.length === 0}>
-                  <Send className="h-4 w-4 mr-1" />
+                <Button variant="outline" size="sm" onClick={handleCreateFollowUp} disabled={submissions.length === 0 || isCreatingFollowUp}>
+                  {isCreatingFollowUp ? <AISpinner className="h-4 w-4 mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                   Create Follow-Up
                 </Button>
               </div>
@@ -668,8 +812,8 @@ export default function DataFormDetailPage() {
                 <div className="relative flex-1 sm:flex-initial">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    value={subSearch}
-                    onChange={e => setSubSearch(e.target.value)}
+                    value={subSearchInput}
+                    onChange={e => setSubSearchInput(e.target.value)}
                     placeholder="Search submissions..."
                     className="pl-9 w-full sm:w-64"
                   />
@@ -960,9 +1104,13 @@ export default function DataFormDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/form/${form.slug}`);
-                    showToast("Link copied!");
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(`${window.location.origin}/form/${form.slug}`);
+                      toast({ title: "Link copied" });
+                    } catch {
+                      toast({ variant: "destructive", title: "Couldn't copy link" });
+                    }
                   }}
                 >
                   <Copy className="h-4 w-4" />
@@ -1082,13 +1230,23 @@ export default function DataFormDetailPage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Thank You Message</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium block">Thank You Message</label>
+                <AISuggestButton
+                  endpoint="/api/tools/ai-suggest"
+                  payload={{ task: "Write a warm thank-you message shown after someone submits this form", context: { title, formType: form?.type } }}
+                  onResult={(v) => setThankYouMessage(v)}
+                  label="Suggest"
+                  size="sm"
+                />
+              </div>
               <Input
                 value={thankYouMessage}
                 onChange={e => setThankYouMessage(e.target.value)}
                 placeholder="Thank you for your submission!"
               />
-              <Button variant="outline" size="sm" className="mt-2" onClick={handleSave}>
+              <Button variant="outline" size="sm" className="mt-2" onClick={handleSave} disabled={saving || !title.trim()}>
+                {saving ? <AISpinner className="h-4 w-4 mr-1" /> : null}
                 Save
               </Button>
             </div>
@@ -1184,19 +1342,12 @@ export default function DataFormDetailPage() {
                 (syncMode === "new" && !syncNewListName.trim())
               }
             >
-              {isSyncing && <AISpinner className="h-4 w-4 mr-2 animate-spin" />}
+              {isSyncing && <AISpinner className="h-4 w-4 mr-2" />}
               Sync Contacts
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }

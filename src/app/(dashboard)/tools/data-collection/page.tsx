@@ -1,23 +1,34 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Search, Copy, Trash2, ExternalLink, MoreVertical, FileText, Eye, ToggleLeft, ToggleRight, Sparkles, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FORM_STATUS_CONFIG, type DataFormData, type DataFormStatus } from "@/types/data-form";
 import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 export default function DataCollectionPage() {
-  const router = useRouter();
+  const { toast } = useToast();
   const [forms, setForms] = useState<DataFormData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<DataFormStatus | "">("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
-  const [toast, setToast] = useState("");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // Debounce search input (300ms) → resets to page 1 when the query changes.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const fetchForms = useCallback(async () => {
     setLoading(true);
@@ -27,36 +38,45 @@ export default function DataCollectionPage() {
       if (search) params.set("search", search);
       const res = await fetch(`/api/data-forms?${params}`);
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         setForms(json.data);
         setPagination(json.pagination);
+      } else {
+        toast({ variant: "destructive", title: "Failed to load forms", description: json.error?.message });
       }
     } catch (error) {
       console.error("Failed to fetch forms:", error);
-      setToast("Failed to load forms");
+      toast({ variant: "destructive", title: "Failed to load forms" });
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, search, toast]);
 
   useEffect(() => {
     fetchForms();
   }, [fetchForms]);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(""), 3000);
-      return () => clearTimeout(timer);
+  const handleCopyLink = async (slug: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/form/${slug}`);
+      toast({ title: "Link copied to clipboard" });
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't copy link" });
     }
-  }, [toast]);
-
-  const handleCopyLink = (slug: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/form/${slug}`);
-    setToast("Link copied to clipboard!");
   };
 
   const handleToggleStatus = async (id: string, currentStatus: DataFormStatus) => {
     const newStatus: DataFormStatus = currentStatus === "ACTIVE" ? "CLOSED" : "ACTIVE";
+    if (newStatus === "CLOSED") {
+      const ok = await confirmDialog({
+        title: "Close this form?",
+        description: "It will stop accepting new submissions until you re-activate it.",
+        confirmText: "Close Form",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    setTogglingId(id);
     try {
       const res = await fetch(`/api/data-forms/${id}`, {
         method: "PUT",
@@ -64,22 +84,24 @@ export default function DataCollectionPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         fetchForms();
-        setToast(`Form ${newStatus === "ACTIVE" ? "activated" : "closed"}`);
+        toast({ title: `Form ${newStatus === "ACTIVE" ? "activated" : "closed"}` });
       } else {
-        setToast("Failed to update status");
+        toast({ variant: "destructive", title: "Failed to update status", description: json.error?.message });
       }
     } catch (error) {
       console.error("Failed to toggle status:", error);
-      setToast("Failed to update status");
+      toast({ variant: "destructive", title: "Failed to update status" });
+    } finally {
+      setTogglingId(null);
     }
   };
 
   const handleDelete = async (id: string, title: string) => {
     const ok = await confirmDialog({
       title: `Delete "${title}"?`,
-      description: "This action cannot be undone.",
+      description: "This permanently deletes the form and all its submissions. This action cannot be undone.",
       confirmText: "Delete",
       variant: "destructive",
     });
@@ -90,21 +112,16 @@ export default function DataCollectionPage() {
         method: "DELETE",
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success) {
         fetchForms();
-        setToast("Form deleted successfully");
+        toast({ title: "Form deleted" });
       } else {
-        setToast("Failed to delete form");
+        toast({ variant: "destructive", title: "Failed to delete form", description: json.error?.message });
       }
     } catch (error) {
       console.error("Failed to delete form:", error);
-      setToast("Failed to delete form");
+      toast({ variant: "destructive", title: "Failed to delete form" });
     }
-  };
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
   };
 
   const handleStatusFilter = (value: string) => {
@@ -113,10 +130,9 @@ export default function DataCollectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Data Collection</h1>
             <p className="text-sm text-muted-foreground mt-1">Create and manage custom forms to collect data from your audience</p>
@@ -130,14 +146,14 @@ export default function DataCollectionPage() {
         </div>
 
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Search forms..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -266,9 +282,15 @@ export default function DataCollectionPage() {
                         <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                           <button
                             onClick={() => handleToggleStatus(form.id, form.status)}
-                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2 first:rounded-t-lg"
+                            disabled={togglingId === form.id}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2 first:rounded-t-lg disabled:opacity-50"
                           >
-                            {form.status === "ACTIVE" ? (
+                            {togglingId === form.id ? (
+                              <>
+                                <AISpinner size={16} />
+                                Updating...
+                              </>
+                            ) : form.status === "ACTIVE" ? (
                               <>
                                 <ToggleLeft className="w-4 h-4" />
                                 Close Form
@@ -330,14 +352,6 @@ export default function DataCollectionPage() {
             )}
           </>
         )}
-      </div>
-
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-6 py-3 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }

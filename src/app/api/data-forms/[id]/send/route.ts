@@ -152,7 +152,8 @@ export async function POST(
 
       const userId = session.userId;
       const formId = id;
-      (async () => {
+      void (async () => {
+       try {
         let sent = 0;
         for (let i = 0; i < validContacts.length; i += BATCH_SIZE) {
           const batch = validContacts.slice(i, i + BATCH_SIZE);
@@ -208,11 +209,16 @@ export async function POST(
           where: { id: marketingConfig!.id },
           data: { emailSentThisMonth: { increment: sent } },
         });
+       } catch (err) {
+         console.error("Form email send (background) failed:", err);
+       }
       })();
 
+      // Sending happens asynchronously in batches, so we honestly report the
+      // job as QUEUED rather than claiming a definitive "Sent to N".
       return NextResponse.json({
         success: true,
-        data: { message: `Sending form to ${validContacts.length} contacts via email`, channel: "email", recipients: validContacts.length },
+        data: { message: `Queued form to ${validContacts.length} contact${validContacts.length === 1 ? "" : "s"} via email`, channel: "email", queued: validContacts.length, recipients: validContacts.length },
       });
     }
 
@@ -241,7 +247,8 @@ export async function POST(
       const userId = session.userId;
       const formId = id;
       const fromNumber = smsConfig.smsPhoneNumber!;
-      (async () => {
+      void (async () => {
+       try {
         let sent = 0;
         for (let i = 0; i < validContacts.length; i += BATCH_SIZE) {
           const batch = validContacts.slice(i, i + BATCH_SIZE);
@@ -273,11 +280,14 @@ export async function POST(
           where: { id: formId },
           data: { sendCount: { increment: sent }, lastSentAt: new Date() },
         });
+       } catch (err) {
+         console.error("Form SMS send (background) failed:", err);
+       }
       })();
 
       return NextResponse.json({
         success: true,
-        data: { message: `Sending form to ${validContacts.length} contacts via SMS`, channel: "sms", recipients: validContacts.length },
+        data: { message: `Queued form to ${validContacts.length} contact${validContacts.length === 1 ? "" : "s"} via SMS`, channel: "sms", queued: validContacts.length, recipients: validContacts.length },
       });
     }
 

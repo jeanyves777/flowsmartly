@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Star } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Save, Send, ChevronDown, ChevronUp, X, Star, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import type { SurveyQuestion } from "@/types/follow-up";
 import { useToast } from "@/hooks/use-toast";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 
 type SurveyQuestionType = SurveyQuestion["type"];
 
@@ -33,8 +35,60 @@ export default function NewSurveyPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
 
   const genId = () => Math.random().toString(36).slice(2, 9);
+
+  const ALLOWED_TYPES: SurveyQuestionType[] = ["text", "textarea", "email", "phone", "rating", "multiple_choice", "yes_no"];
+
+  const handleGenerateQuestions = async () => {
+    if (generatingQuestions) return;
+    setGeneratingQuestions(true);
+    try {
+      const res = await fetch("/api/tools/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: `Generate 5 survey questions for "${title.trim() || "a customer feedback survey"}"`,
+          context: { title: title.trim(), description: description.trim() },
+          format: "json",
+          jsonHint:
+            "an array of objects: {type:'text'|'textarea'|'email'|'phone'|'rating'|'multiple_choice'|'yes_no', label:string, required:boolean, options?:string[]}",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.result)) {
+        throw new Error(json?.error?.message || "Failed to generate questions");
+      }
+      const mapped: SurveyQuestion[] = (json.result as Array<Record<string, unknown>>)
+        .filter((q) => q && typeof q.label === "string")
+        .map((q) => {
+          const type = (ALLOWED_TYPES.includes(q.type as SurveyQuestionType) ? q.type : "text") as SurveyQuestionType;
+          return {
+            id: genId(),
+            type,
+            label: String(q.label),
+            required: q.required === true,
+            placeholder: "",
+            options:
+              type === "multiple_choice"
+                ? (Array.isArray(q.options) && q.options.length > 0
+                    ? (q.options as unknown[]).map((o) => String(o))
+                    : ["Option 1", "Option 2"])
+                : undefined,
+          };
+        });
+      if (mapped.length === 0) {
+        throw new Error("No usable questions were generated");
+      }
+      setQuestions((prev) => [...prev, ...mapped]);
+      toast({ title: `Added ${mapped.length} AI-generated question${mapped.length === 1 ? "" : "s"}` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't generate questions", description: (err as Error).message });
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
 
   const addQuestion = (type: SurveyQuestionType) => {
     const typeLabel = QUESTION_TYPES.find(t => t.value === type)?.label || type;
@@ -166,7 +220,7 @@ export default function NewSurveyPage() {
     <div className="min-h-screen bg-muted/50">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/tools/surveys">
@@ -193,14 +247,14 @@ export default function NewSurveyPage() {
                 onClick={() => handleSave(false)}
                 disabled={saving || !title.trim()}
               >
-                <Save className="h-4 w-4 mr-2" />
+                {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Save Draft
               </Button>
               <Button
                 onClick={() => handleSave(true)}
                 disabled={saving || !title.trim() || questions.length === 0}
               >
-                <Send className="h-4 w-4 mr-2" />
+                {saving ? <AISpinner className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                 Publish
               </Button>
             </div>
@@ -209,16 +263,25 @@ export default function NewSurveyPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Builder Section */}
           <div className={`space-y-6 ${showPreview ? "hidden lg:block" : ""}`}>
             {/* Survey Settings */}
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Survey Title <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Survey Title <span className="text-red-500">*</span>
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short, catchy survey title", context: { description } }}
+                    onResult={(v) => setTitle(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -227,9 +290,18 @@ export default function NewSurveyPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Description
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Description
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a short friendly survey description", context: { title } }}
+                    onResult={(v) => setDescription(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -239,9 +311,18 @@ export default function NewSurveyPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Thank You Message
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Thank You Message
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{ task: "Write a warm thank-you message shown after a survey is submitted", context: { title } }}
+                    onResult={(v) => setThankYouMessage(v)}
+                    label="Suggest"
+                    size="sm"
+                  />
+                </div>
                 <Input
                   value={thankYouMessage}
                   onChange={(e) => setThankYouMessage(e.target.value)}
@@ -252,18 +333,33 @@ export default function NewSurveyPage() {
 
             {/* Questions */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-lg font-semibold text-foreground">
                   Questions
                 </h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTypeSelector(!showTypeSelector)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Question
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateQuestions}
+                    disabled={generatingQuestions}
+                  >
+                    {generatingQuestions ? (
+                      <AISpinner className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Generate with AI
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTypeSelector(!showTypeSelector)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Question
+                  </Button>
+                </div>
               </div>
 
               {/* Question Type Selector */}
@@ -333,9 +429,21 @@ export default function NewSurveyPage() {
                       {expandedQuestion === question.id && (
                         <div className="p-3 pt-0 space-y-3 border-t border-border">
                           <div>
-                            <label className="block text-xs font-medium text-muted-foreground mb-1">
-                              Label
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-xs font-medium text-muted-foreground">
+                                Label
+                              </label>
+                              <AISuggestButton
+                                endpoint="/api/tools/ai-suggest"
+                                payload={{
+                                  task: `Write one clear survey question (label) of type "${question.type}"`,
+                                  context: { surveyTitle: title, description, currentLabel: question.label },
+                                }}
+                                onResult={(v) => updateQuestion(question.id, { label: v })}
+                                label="Suggest"
+                                size="sm"
+                              />
+                            </div>
                             <Input
                               value={question.label}
                               onChange={(e) => updateQuestion(question.id, { label: e.target.value })}
@@ -525,6 +633,12 @@ export default function NewSurveyPage() {
           </div>
         </div>
       </div>
+
+      {generatingQuestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <AIGenerationLoader currentStep="Generating survey questions..." subtitle="This usually takes a few seconds" />
+        </div>
+      )}
     </div>
   );
 }

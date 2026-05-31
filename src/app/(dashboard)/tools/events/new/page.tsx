@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISuggestButton } from "@/components/shared/ai-suggest-button";
 import { useToast } from "@/hooks/use-toast";
 import {
   FIELD_TYPES,
@@ -294,10 +295,10 @@ export default function NewEventPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-muted">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="sticky top-0 z-10 -mx-4 md:-mx-6 bg-card border-b border-border">
+        <div className="px-4 md:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/tools/events">
@@ -341,7 +342,7 @@ export default function NewEventPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* ── Left Column: Builder ───────────────────────────────────────── */}
           <div
@@ -364,20 +365,35 @@ export default function NewEventPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g., Summer Product Launch"
                   className="text-lg"
+                  disabled={saving}
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Description
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-foreground">
+                    Description
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{
+                      task: "Write an engaging, concise event description (2-4 sentences) that excites people to attend",
+                      context: { title, venueName, eventDate, isOnline },
+                    }}
+                    onResult={(v) => setDescription(v)}
+                    label="Suggest"
+                    size="sm"
+                    disabled={saving}
+                  />
+                </div>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Tell people about your event..."
-                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none disabled:opacity-50"
                   rows={3}
+                  disabled={saving}
                 />
               </div>
 
@@ -427,6 +443,7 @@ export default function NewEventPage() {
                   type="datetime-local"
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
+                  disabled={saving}
                   className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
@@ -443,6 +460,7 @@ export default function NewEventPage() {
                   type="datetime-local"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  disabled={saving}
                   className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
@@ -455,7 +473,8 @@ export default function NewEventPage() {
                 <select
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
-                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  disabled={saving}
+                  className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {TIMEZONES.map((tz) => (
                     <option key={tz.value} value={tz.value}>
@@ -492,6 +511,7 @@ export default function NewEventPage() {
                     onChange={(e) => setOnlineUrl(e.target.value)}
                     placeholder="https://zoom.us/j/..."
                     type="url"
+                    disabled={saving}
                   />
                 </div>
               ) : (
@@ -504,6 +524,7 @@ export default function NewEventPage() {
                       value={venueName}
                       onChange={(e) => setVenueName(e.target.value)}
                       placeholder="e.g., Convention Center"
+                      disabled={saving}
                     />
                   </div>
                   <div>
@@ -514,6 +535,7 @@ export default function NewEventPage() {
                       value={venueAddress}
                       onChange={(e) => setVenueAddress(e.target.value)}
                       placeholder="e.g., 123 Main St, City, State"
+                      disabled={saving}
                     />
                   </div>
                 </>
@@ -815,6 +837,7 @@ export default function NewEventPage() {
                         )
                       }
                       placeholder="Maximum number of attendees"
+                      disabled={saving}
                     />
                   </div>
 
@@ -852,13 +875,27 @@ export default function NewEventPage() {
                   {ticketType === "paid" && (
                     <div className="space-y-3 p-4 bg-muted rounded-lg border border-border">
                       <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">
-                          Ticket Name
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-foreground">
+                            Ticket Name
+                          </label>
+                          <AISuggestButton
+                            endpoint="/api/tools/ai-suggest"
+                            payload={{
+                              task: "Suggest a short, appealing ticket tier name (e.g. General Admission, VIP Pass) for this event",
+                              context: { title, eventDate },
+                            }}
+                            onResult={(v) => setTicketName(v)}
+                            label="Suggest"
+                            size="sm"
+                            disabled={saving}
+                          />
+                        </div>
                         <Input
                           value={ticketName}
                           onChange={(e) => setTicketName(e.target.value)}
                           placeholder="e.g., General Admission"
+                          disabled={saving}
                         />
                       </div>
                       <div>
@@ -883,6 +920,7 @@ export default function NewEventPage() {
                             }
                             placeholder="0.00"
                             className="pl-7"
+                            disabled={saving}
                           />
                         </div>
                       </div>
@@ -900,15 +938,29 @@ export default function NewEventPage() {
 
               {/* Thank You Message */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Thank You Message
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-foreground">
+                    Thank You Message
+                  </label>
+                  <AISuggestButton
+                    endpoint="/api/tools/ai-suggest"
+                    payload={{
+                      task: "Write a warm, short thank-you message shown to someone right after they register for this event",
+                      context: { title, eventDate },
+                    }}
+                    onResult={(v) => setThankYouMessage(v)}
+                    label="Suggest"
+                    size="sm"
+                    disabled={saving}
+                  />
+                </div>
                 <textarea
                   value={thankYouMessage}
                   onChange={(e) => setThankYouMessage(e.target.value)}
                   placeholder="Message shown after registration"
-                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground resize-none disabled:opacity-50"
                   rows={2}
+                  disabled={saving}
                 />
               </div>
 

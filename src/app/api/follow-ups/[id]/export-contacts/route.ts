@@ -48,15 +48,36 @@ export async function POST(
       }
     }
 
+    // Hard cap so a single export can't run unbounded. We log if truncated
+    // (no silent caps rule) and report it in the response.
+    const MAX_ENTRIES = 5000;
+
     // Get entries to export
     const whereEntries: Record<string, unknown> = { followUpId: id };
     if (entryIds && entryIds.length > 0) {
       whereEntries.id = { in: entryIds };
     }
 
+    const totalMatching = await prisma.followUpEntry.count({ where: whereEntries });
+    const truncated = totalMatching > MAX_ENTRIES;
+    if (truncated) {
+      console.warn(
+        `export-contacts: follow-up ${id} has ${totalMatching} entries, processing first ${MAX_ENTRIES}`
+      );
+    }
+
     const entries = await prisma.followUpEntry.findMany({
       where: whereEntries,
-      include: { contact: true },
+      select: {
+        id: true,
+        contactId: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+      },
+      orderBy: { createdAt: "asc" },
+      take: MAX_ENTRIES,
     });
 
     if (entries.length === 0) {
@@ -66,38 +87,77 @@ export async function POST(
       );
     }
 
+    // Normalize email/phone once per entry
+    const normalized = entries.map((e) => ({
+      id: e.id,
+      contactId: e.contactId,
+      name: (e.name || "").trim(),
+      email: e.email?.trim() || null,
+      phone: e.phone?.trim() || null,
+      address: e.address?.trim() || null,
+    }));
+
+    // (1) Batch-load existing contacts for this user by the set of emails/phones
+    const emailSet = Array.from(
+      new Set(normalized.map((e) => e.email).filter((v): v is string => !!v))
+    );
+    const phoneSet = Array.from(
+      new Set(normalized.map((e) => e.phone).filter((v): v is string => !!v))
+    );
+
+    const [existingByEmailRows, existingByPhoneRows] = await Promise.all([
+      emailSet.length
+        ? prisma.contact.findMany({
+            where: { userId: session.userId, email: { in: emailSet } },
+            select: { id: true, email: true },
+          })
+        : Promise.resolve([] as { id: string; email: string | null }[]),
+      phoneSet.length
+        ? prisma.contact.findMany({
+            where: { userId: session.userId, phone: { in: phoneSet } },
+            select: { id: true, phone: true },
+          })
+        : Promise.resolve([] as { id: string; phone: string | null }[]),
+    ]);
+
+    const contactByEmail = new Map<string, string>();
+    for (const c of existingByEmailRows) if (c.email) contactByEmail.set(c.email, c.id);
+    const contactByPhone = new Map<string, string>();
+    for (const c of existingByPhoneRows) if (c.phone) contactByPhone.set(c.phone, c.id);
+
     let created = 0;
     let skipped = 0;
     let linked = 0;
 
-    for (const entry of entries) {
-      // Skip entries that are already linked to a contact
-      if (entry.contactId && entry.contact) {
-        // If a list was specified, add existing contact to that list
+    // (2) Build the create / link plan in memory.
+    // resolvedContactId per entry → used to link entry + build list membership set.
+    const entryLinkUpdates: { entryId: string; contactId: string }[] = [];
+    const contactIdsForList = new Set<string>(); // contacts to add to the target list
+
+    // New contacts to create (dedup by email/phone within this batch).
+    const newContactsData: Array<{
+      userId: string;
+      email: string | null;
+      phone: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      address: string | null;
+      emailOptedIn: boolean;
+      emailOptedInAt: Date | null;
+      smsOptedIn: boolean;
+      smsOptedInAt: Date | null;
+    }> = [];
+    // Map an entry to the email/phone key of a to-be-created contact so we can
+    // resolve the real id after createMany.
+    const pendingNew: { entryId: string; email: string | null; phone: string | null }[] = [];
+    const plannedNewKeys = new Set<string>(); // de-dupe new contacts within the batch
+
+    for (const e of normalized) {
+      // Already linked to a contact
+      if (e.contactId) {
         if (listId) {
-          const alreadyInList = await prisma.contactListMember.findUnique({
-            where: {
-              contactListId_contactId: {
-                contactListId: listId,
-                contactId: entry.contactId,
-              },
-            },
-          });
-          if (!alreadyInList) {
-            await prisma.contactListMember.create({
-              data: { contactListId: listId, contactId: entry.contactId },
-            });
-            await prisma.contactList.update({
-              where: { id: listId },
-              data: {
-                totalCount: { increment: 1 },
-                activeCount: { increment: 1 },
-              },
-            });
-            linked++;
-          } else {
-            skipped++;
-          }
+          contactIdsForList.add(e.contactId);
+          linked++;
         } else {
           skipped++;
         }
@@ -105,105 +165,138 @@ export async function POST(
       }
 
       // Need at least email or phone to create a contact
-      const email = entry.email?.trim() || null;
-      const phone = entry.phone?.trim() || null;
-
-      if (!email && !phone) {
+      if (!e.email && !e.phone) {
         skipped++;
         continue;
       }
 
-      // Check for existing contact by email or phone
-      let existingContact = null;
-      if (email) {
-        existingContact = await prisma.contact.findUnique({
-          where: { userId_email: { userId: session.userId, email } },
-        });
-      }
-      if (!existingContact && phone) {
-        existingContact = await prisma.contact.findUnique({
-          where: { userId_phone: { userId: session.userId, phone } },
-        });
-      }
+      const existingId =
+        (e.email && contactByEmail.get(e.email)) ||
+        (e.phone && contactByPhone.get(e.phone)) ||
+        null;
 
-      if (existingContact) {
-        // Link the entry to the existing contact
-        await prisma.followUpEntry.update({
-          where: { id: entry.id },
-          data: { contactId: existingContact.id },
-        });
-
-        // Add to list if specified
-        if (listId) {
-          const alreadyInList = await prisma.contactListMember.findUnique({
-            where: {
-              contactListId_contactId: {
-                contactListId: listId,
-                contactId: existingContact.id,
-              },
-            },
-          });
-          if (!alreadyInList) {
-            await prisma.contactListMember.create({
-              data: { contactListId: listId, contactId: existingContact.id },
-            });
-            await prisma.contactList.update({
-              where: { id: listId },
-              data: {
-                totalCount: { increment: 1 },
-                activeCount: { increment: 1 },
-              },
-            });
-          }
-        }
-
+      if (existingId) {
+        entryLinkUpdates.push({ entryId: e.id, contactId: existingId });
+        if (listId) contactIdsForList.add(existingId);
         linked++;
         continue;
       }
 
-      // Parse name into firstName/lastName
-      const nameParts = (entry.name || "").trim().split(/\s+/);
+      // Plan a new contact — dedupe within the batch by email/phone key
+      const key = `${e.email || ""}|${e.phone || ""}`;
+      if (plannedNewKeys.has(key)) {
+        // Another entry in this batch already plans this contact; link after create.
+        pendingNew.push({ entryId: e.id, email: e.email, phone: e.phone });
+        continue;
+      }
+      plannedNewKeys.add(key);
+
+      const nameParts = e.name.split(/\s+/).filter(Boolean);
       const firstName = nameParts[0] || null;
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
-      // Create new contact
-      const newContact = await prisma.contact.create({
-        data: {
-          userId: session.userId,
-          email,
-          phone,
-          firstName,
-          lastName,
-          address: entry.address || null,
-          emailOptedIn: !!email,
-          emailOptedInAt: email ? new Date() : null,
-          smsOptedIn: !!phone,
-          smsOptedInAt: phone ? new Date() : null,
-        },
+      newContactsData.push({
+        userId: session.userId,
+        email: e.email,
+        phone: e.phone,
+        firstName,
+        lastName,
+        address: e.address,
+        emailOptedIn: !!e.email,
+        emailOptedInAt: e.email ? new Date() : null,
+        smsOptedIn: !!e.phone,
+        smsOptedInAt: e.phone ? new Date() : null,
       });
+      pendingNew.push({ entryId: e.id, email: e.email, phone: e.phone });
+      created++;
+    }
 
-      // Link entry to the new contact
-      await prisma.followUpEntry.update({
-        where: { id: entry.id },
-        data: { contactId: newContact.id },
-      });
+    // (3) Transactional writes: createMany new contacts, then resolve ids,
+    // link entries, createMany list members, and fix the list count.
+    await prisma.$transaction(async (tx) => {
+      // New contacts are pre-filtered: every email/phone in this batch was
+      // checked against the user's existing contacts, and the batch is deduped
+      // by email/phone key — so none collide with the unique constraints.
+      if (newContactsData.length > 0) {
+        await tx.contact.createMany({ data: newContactsData });
+      }
 
-      // Add to list if specified
-      if (listId) {
-        await prisma.contactListMember.create({
-          data: { contactListId: listId, contactId: newContact.id },
-        });
-        await prisma.contactList.update({
-          where: { id: listId },
-          data: {
-            totalCount: { increment: 1 },
-            activeCount: { increment: 1 },
-          },
+      // Resolve ids for the newly created (or now-existing) contacts.
+      if (pendingNew.length > 0) {
+        const newEmails = Array.from(
+          new Set(pendingNew.map((p) => p.email).filter((v): v is string => !!v))
+        );
+        const newPhones = Array.from(
+          new Set(pendingNew.map((p) => p.phone).filter((v): v is string => !!v))
+        );
+        const [emailRows, phoneRows] = await Promise.all([
+          newEmails.length
+            ? tx.contact.findMany({
+                where: { userId: session.userId, email: { in: newEmails } },
+                select: { id: true, email: true },
+              })
+            : Promise.resolve([] as { id: string; email: string | null }[]),
+          newPhones.length
+            ? tx.contact.findMany({
+                where: { userId: session.userId, phone: { in: newPhones } },
+                select: { id: true, phone: true },
+              })
+            : Promise.resolve([] as { id: string; phone: string | null }[]),
+        ]);
+        const byEmail = new Map<string, string>();
+        for (const c of emailRows) if (c.email) byEmail.set(c.email, c.id);
+        const byPhone = new Map<string, string>();
+        for (const c of phoneRows) if (c.phone) byPhone.set(c.phone, c.id);
+
+        for (const p of pendingNew) {
+          const cid = (p.email && byEmail.get(p.email)) || (p.phone && byPhone.get(p.phone)) || null;
+          if (cid) {
+            entryLinkUpdates.push({ entryId: p.entryId, contactId: cid });
+            if (listId) contactIdsForList.add(cid);
+          }
+        }
+      }
+
+      // Link entries to their resolved contacts (grouped by contactId to batch updates).
+      const byContact = new Map<string, string[]>();
+      for (const u of entryLinkUpdates) {
+        const arr = byContact.get(u.contactId) || [];
+        arr.push(u.entryId);
+        byContact.set(u.contactId, arr);
+      }
+      for (const [contactId, entryIdList] of byContact) {
+        await tx.followUpEntry.updateMany({
+          where: { id: { in: entryIdList } },
+          data: { contactId },
         });
       }
 
-      created++;
-    }
+      // Add contacts to the target list. Pre-filter against existing membership
+      // so we never collide on the (contactListId, contactId) unique constraint.
+      if (listId && contactIdsForList.size > 0) {
+        const candidateIds = Array.from(contactIdsForList);
+        const existingMembers = await tx.contactListMember.findMany({
+          where: { contactListId: listId, contactId: { in: candidateIds } },
+          select: { contactId: true },
+        });
+        const alreadyMember = new Set(existingMembers.map((m) => m.contactId));
+        const toAdd = candidateIds.filter((cid) => !alreadyMember.has(cid));
+
+        if (toAdd.length > 0) {
+          await tx.contactListMember.createMany({
+            data: toAdd.map((contactId) => ({ contactListId: listId, contactId })),
+          });
+        }
+        // Set the list's counts to the REAL member count (no blind increments).
+        const memberCount = await tx.contactListMember.count({
+          where: { contactListId: listId },
+        });
+        await tx.contactList.update({
+          where: { id: listId },
+          data: { totalCount: memberCount, activeCount: memberCount },
+        });
+      }
+    });
 
     return NextResponse.json({
       success: true,
@@ -212,7 +305,10 @@ export async function POST(
         linked,
         skipped,
         total: entries.length,
-        message: `Exported ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}`,
+        truncated,
+        message:
+          `Exported ${created} new contacts${linked > 0 ? `, linked ${linked} existing` : ""}${skipped > 0 ? `, ${skipped} skipped` : ""}` +
+          (truncated ? ` (only the first ${MAX_ENTRIES} of ${totalMatching} entries processed)` : ""),
       },
     });
   } catch (error) {

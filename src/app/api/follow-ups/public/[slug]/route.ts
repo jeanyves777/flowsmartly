@@ -27,7 +27,7 @@ export async function GET(
 
     if (!followUp) {
       return NextResponse.json(
-        { error: "Follow-up not found or not shared" },
+        { success: false, error: { message: "Follow-up not found or not shared" } },
         { status: 404 }
       );
     }
@@ -50,6 +50,7 @@ export async function GET(
     const teamId = teamMembership?.team.id;
 
     // Basic info (always returned)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response: any = {
       id: followUp.id,
       name: followUp.name,
@@ -118,7 +119,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching public follow-up:", error);
     return NextResponse.json(
-      { error: "Failed to fetch follow-up" },
+      { success: false, error: { message: "Failed to fetch follow-up" } },
       { status: 500 }
     );
   }

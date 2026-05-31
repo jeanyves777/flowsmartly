@@ -58,20 +58,57 @@ export async function PUT(
     }
 
     const body = await request.json();
+    // Whitelist updatable fields — never spread arbitrary body keys (userId, slug,
+    // type, responseCount, sendCount, etc. must not be client-mutable).
     const { title, description, fields, status, thankYouMessage, settings, contactListId } = body;
 
     const data: Record<string, unknown> = {};
-    if (title !== undefined) data.title = title.trim();
-    if (description !== undefined) data.description = description?.trim() || null;
-    if (fields !== undefined) data.fields = JSON.stringify(fields);
-    if (thankYouMessage !== undefined) data.thankYouMessage = thankYouMessage.trim();
-    if (settings !== undefined) data.settings = JSON.stringify(settings);
-    if (contactListId !== undefined) data.contactListId = contactListId || null;
+
+    if (title !== undefined) {
+      const trimmed = typeof title === "string" ? title.trim() : "";
+      if (!trimmed) {
+        return NextResponse.json({ success: false, error: { message: "Title cannot be empty" } }, { status: 400 });
+      }
+      data.title = trimmed;
+    }
+    if (description !== undefined) {
+      data.description = typeof description === "string" && description.trim() ? description.trim() : null;
+    }
+    if (fields !== undefined) {
+      if (!Array.isArray(fields)) {
+        return NextResponse.json({ success: false, error: { message: "Fields must be an array" } }, { status: 400 });
+      }
+      data.fields = JSON.stringify(fields);
+    }
+    if (thankYouMessage !== undefined) {
+      data.thankYouMessage = typeof thankYouMessage === "string" ? thankYouMessage.trim() : "";
+    }
+    if (settings !== undefined && settings && typeof settings === "object") {
+      data.settings = JSON.stringify(settings);
+    }
+    if (contactListId !== undefined) {
+      if (contactListId) {
+        const list = await prisma.contactList.findFirst({
+          where: { id: contactListId, userId: session.userId },
+          select: { id: true },
+        });
+        if (!list) {
+          return NextResponse.json({ success: false, error: { message: "Contact list not found" } }, { status: 404 });
+        }
+        data.contactListId = contactListId;
+      } else {
+        data.contactListId = null;
+      }
+    }
     if (status !== undefined) {
       if (!["DRAFT", "ACTIVE", "CLOSED"].includes(status)) {
         return NextResponse.json({ success: false, error: { message: "Invalid status" } }, { status: 400 });
       }
       data.status = status;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ success: false, error: { message: "No valid fields to update" } }, { status: 400 });
     }
 
     const dataForm = await prisma.dataForm.update({
