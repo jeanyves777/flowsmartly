@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setSyntheticConfig } from "@/lib/synthetic/config";
 import { createPersonas, personaStats } from "@/lib/synthetic/generator";
+import { backfillAvatars } from "@/lib/synthetic/avatars";
 import { seedMediaPool, mediaPoolCounts } from "@/lib/synthetic/media-pool";
 import { NICHES } from "@/lib/synthetic/niches";
 
@@ -57,17 +58,32 @@ export async function GET(request: NextRequest) {
     actions.seedingStarted = { perNiche: seed };
   }
 
-  // Persona generation — background (avatar fetching is slow).
+  // Persona generation — background. Fast (no avatar fetch), then trickle faces.
   if (generate > 0) {
     (async () => {
       try {
         const res = await createPersonas(generate);
-        console.log(`[Bringup] generated ${res.created} personas (${res.withAvatar} with faces)`);
+        console.log(`[Bringup] generated ${res.created} personas`);
+        const bf = await backfillAvatars();
+        console.log(`[Bringup] backfilled ${bf.filled}/${bf.attempted} avatars`);
       } catch (e) {
         console.error("[Bringup] generation failed:", e);
       }
     })().catch(() => {});
     actions.generationStarted = { count: generate };
+  }
+
+  // Standalone avatar backfill (?backfill=1) — fill faces for any faceless personas.
+  if (sp.get("backfill") === "1") {
+    (async () => {
+      try {
+        const bf = await backfillAvatars();
+        console.log(`[Bringup] backfilled ${bf.filled}/${bf.attempted} avatars`);
+      } catch (e) {
+        console.error("[Bringup] backfill failed:", e);
+      }
+    })().catch(() => {});
+    actions.backfillStarted = true;
   }
 
   const [personas, media] = await Promise.all([personaStats(), mediaPoolCounts()]);

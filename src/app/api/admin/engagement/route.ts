@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getAdminSession, hasPermission } from "@/lib/admin/auth";
 import { getSyntheticConfig, setSyntheticConfig } from "@/lib/synthetic/config";
 import { createPersonas, personaStats } from "@/lib/synthetic/generator";
+import { backfillAvatars } from "@/lib/synthetic/avatars";
 import { seedMediaPool, mediaPoolCounts } from "@/lib/synthetic/media-pool";
 import { engagementStats, runEngagementTick } from "@/lib/synthetic/engine";
 import { NICHES } from "@/lib/synthetic/niches";
@@ -91,14 +92,15 @@ export async function POST(request: NextRequest) {
         const niches = Array.isArray(body.niches) && body.niches.length
           ? body.niches.map(String)
           : undefined;
-        // Fire-and-forget: avatar fetching is slow; don't block the request.
-        createPersonas(count, niches).catch((e) =>
-          console.error("[Synthetic] generate failed:", e)
-        );
+        // Fire-and-forget: create personas fast, then trickle faces in.
+        (async () => {
+          await createPersonas(count, niches);
+          await backfillAvatars();
+        })().catch((e) => console.error("[Synthetic] generate failed:", e));
         return NextResponse.json({
           success: true,
           data: { started: true, count },
-          message: `Generating ${count} personas in the background…`,
+          message: `Generating ${count} personas (faces fill in shortly)…`,
         });
       }
 
@@ -135,6 +137,16 @@ export async function POST(request: NextRequest) {
           );
         await prisma.syntheticPersona.update({ where: { id: personaId }, data: { enabled } });
         return NextResponse.json({ success: true });
+      }
+
+      case "backfill_avatars": {
+        backfillAvatars().catch((e) =>
+          console.error("[Synthetic] backfill failed:", e)
+        );
+        return NextResponse.json({
+          success: true,
+          message: "Backfilling AI faces for faceless personas in the background…",
+        });
       }
 
       case "run_tick": {

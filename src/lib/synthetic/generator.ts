@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db/client";
 import { SYNTHETIC_EMAIL_DOMAIN } from "./config";
 import { NICHE_KEYS } from "./niches";
 import { randomName, buildUsername, buildBio } from "./names";
-import { fetchUniqueAvatar } from "./avatars";
 
 /**
  * Creates synthetic personas: real `User` rows flagged isSynthetic with a
- * matching `SyntheticPersona`. AI-face avatars are fetched + uploaded to S3.
- * Accounts are aged (staggered createdAt) so they don't all appear at once.
+ * matching `SyntheticPersona`. Persona creation is FAST and never blocks on the
+ * (rate-limited) AI-face source — avatars are filled in afterwards by
+ * `backfillAvatars()` (see avatars.ts), which self-throttles. Accounts are aged
+ * (staggered createdAt) so they don't all appear at once.
  */
 
 // Timezone pool → staggers each persona's daily active window across the globe.
@@ -49,21 +50,19 @@ async function uniqueUsername(first: string, last: string): Promise<string> {
 
 export interface GenerateResult {
   created: number;
-  withAvatar: number;
   byNiche: Record<string, number>;
 }
 
 /**
  * Generate `count` personas, evenly distributed across `niches` (defaults to all).
- * Fetches an AI face for each (best-effort; leaves null if the source fails).
+ * Fast — no avatar fetching here. Avatars are backfilled separately.
  */
 export async function createPersonas(
   count: number,
   niches: string[] = NICHE_KEYS
 ): Promise<GenerateResult> {
   const pool = niches.length ? niches : NICHE_KEYS;
-  const seenHashes = new Set<string>();
-  const result: GenerateResult = { created: 0, withAvatar: 0, byNiche: {} };
+  const result: GenerateResult = { created: 0, byNiche: {} };
 
   for (let i = 0; i < count; i++) {
     const niche = pool[i % pool.length];
@@ -120,32 +119,11 @@ export async function createPersonas(
       continue; // collision or transient error — skip this one
     }
 
-    // Best-effort AI face avatar.
-    try {
-      const avatar = await fetchUniqueAvatar(user.id, seenHashes);
-      if (avatar) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { avatarUrl: avatar.url },
-        });
-        result.withAvatar++;
-      }
-    } catch {
-      // leave avatar null; feed falls back to initials
-    }
-
     result.created++;
     result.byNiche[niche] = (result.byNiche[niche] || 0) + 1;
-
-    // Throttle the AI-face source so it doesn't rate-limit / serve duplicates.
-    await sleep(700 + Math.floor(Math.random() * 500));
   }
 
   return result;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 /** Count existing synthetic personas, broken down by niche. */

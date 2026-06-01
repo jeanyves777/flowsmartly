@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import sharp from "sharp";
+import { prisma } from "@/lib/db/client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 
 /**
@@ -40,7 +41,7 @@ async function fetchFaceBuffer(): Promise<Buffer | null> {
 export async function fetchUniqueAvatar(
   userId: string,
   seenHashes: Set<string>,
-  maxTries = 4
+  maxTries = 2
 ): Promise<{ url: string; hash: string } | null> {
   for (let attempt = 0; attempt < maxTries; attempt++) {
     const raw = await fetchFaceBuffer();
@@ -71,4 +72,43 @@ export async function fetchUniqueAvatar(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Trickle AI faces onto synthetic personas that don't have one yet. Self-
+ * throttling (`delayMs` between fetches) so the free face source isn't hammered.
+ * Safe to run repeatedly — it only touches personas with a null avatar. Designed
+ * to run fire-and-forget in the background after `createPersonas()`.
+ */
+export async function backfillAvatars(
+  max = 1000,
+  delayMs = 2500
+): Promise<{ filled: number; attempted: number }> {
+  const targets = await prisma.user.findMany({
+    where: { isSynthetic: true, avatarUrl: null, deletedAt: null },
+    select: { id: true },
+    take: max,
+  });
+
+  const seenHashes = new Set<string>();
+  let filled = 0;
+  let consecutiveFailures = 0;
+
+  for (const u of targets) {
+    const avatar = await fetchUniqueAvatar(u.id, seenHashes);
+    if (avatar) {
+      await prisma.user
+        .update({ where: { id: u.id }, data: { avatarUrl: avatar.url } })
+        .catch(() => {});
+      filled++;
+      consecutiveFailures = 0;
+      await sleep(delayMs);
+    } else {
+      // Source is throttling — back off progressively, then keep trying.
+      consecutiveFailures++;
+      await sleep(Math.min(30000, delayMs * (1 + consecutiveFailures)));
+    }
+  }
+
+  return { filled, attempted: targets.length };
 }
