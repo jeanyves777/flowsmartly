@@ -23,8 +23,18 @@ export function getGptImageSize(width: number, height: number): "1024x1024" | "1
 }
 
 export function xaiFirstImageProviderOrder(preferred?: ImageProvider | null): ImageProvider[] {
+  // Premium tier = Google (Gemini) primary (~4x cheaper than OpenAI high), with
+  // OpenAI as the fallback — NEVER xAI, so a Premium request never silently
+  // drops to the Standard engine. (OpenAI-preferred kept as a mirror case.)
+  // Every other case keeps the xAI-first chain.
+  const base: Array<ImageProvider | null | undefined> =
+    preferred === "gemini"
+      ? ["gemini", "openai"]
+      : preferred === "openai"
+        ? ["openai", "gemini"]
+        : ["xai", preferred, "openai", "gemini"];
   const order: ImageProvider[] = [];
-  for (const provider of ["xai", preferred, "openai", "gemini"] as Array<ImageProvider | null | undefined>) {
+  for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);
   }
   return order;
@@ -148,8 +158,16 @@ export function referencePreservingEditProviderOrder(
   intent: ImageEditIntent = "identity",
 ): ImageProvider[] {
   void intent;
+  // Premium tier = Google (Gemini) primary, OpenAI fallback, NEVER xAI —
+  // mirrors the generation-order rule above so reference/edit Premium calls
+  // behave the same way.
   const order: ImageProvider[] = [];
-  const base: Array<ImageProvider | null | undefined> = ["xai", preferred, "openai", "gemini"];
+  const base: Array<ImageProvider | null | undefined> =
+    preferred === "gemini"
+      ? ["gemini", "openai"]
+      : preferred === "openai"
+        ? ["openai", "gemini"]
+        : ["xai", preferred, "openai", "gemini"];
 
   for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);

@@ -22,6 +22,7 @@ import { saveDesignImage } from "@/lib/utils/file-storage";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { compositeBrandLogoOnImageBase64 } from "@/lib/media/brand-logo-compositor";
+import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 
 /**
@@ -1072,12 +1073,13 @@ async function runRawBrandPipeline(params: PipelineParams) {
   if (params.brandLogo) {
     try {
       console.log(`[Visual] Compositing real brand logo after raw brand generation on ${finalSize.width}x${finalSize.height}`);
+      const placement = await resolveLogoPlacement(finalBase64, params);
       finalBase64 = await compositeLogo(
         finalBase64,
         params.brandLogo,
         `${finalSize.width}x${finalSize.height}`,
-        params.logoPlacement?.sizePercent || params.logoSizePercent || undefined,
-        params.logoPlacement || undefined,
+        placement?.sizePercent || params.logoSizePercent || undefined,
+        placement,
       );
     } catch (logoErr) {
       console.error("[Visual] Raw brand logo compositing failed:", logoErr);
@@ -1573,12 +1575,13 @@ Output a polished, print-ready ${params.category} background. The photo will be 
   if (hasLogo && params.brandLogo) {
     try {
       console.log(`[Visual] Compositing logo on ${finalW}x${finalH} canvas...`);
+      const placement = await resolveLogoPlacement(finalBase64, params);
       finalBase64 = await compositeLogo(
         finalBase64,
         params.brandLogo,
         `${finalW}x${finalH}`,
-        params.logoPlacement?.sizePercent || params.logoSizePercent || undefined,
-        params.logoPlacement || undefined,
+        placement?.sizePercent || params.logoSizePercent || undefined,
+        placement,
       );
       console.log("[Visual] Logo composited successfully");
     } catch (logoErr) {
@@ -1882,6 +1885,40 @@ RULES:
 // ═══════════════════════════════════════════════════════════════
 // LOGO COMPOSITING — sharp-based overlay
 // ═══════════════════════════════════════════════════════════════
+
+/**
+ * Decide WHERE the brand logo goes BEFORE compositing it.
+ *
+ * If the caller pinned an explicit position (x/y — e.g. from a manual logo
+ * editor) we respect it. Otherwise we run the same vision safe-area pass the
+ * GBP / automation-media pipelines use (analyzeLogoPlacement): it inspects the
+ * finished image and returns a clear TOP corner (left or right) with no text,
+ * faces, or subject, so the logo never lands on the headline or body copy.
+ * Falls back to the analyzer's own top-right default if vision is unavailable.
+ */
+async function resolveLogoPlacement(
+  imageBase64: string,
+  params: PipelineParams,
+): Promise<LogoPlacement | undefined> {
+  const explicit = params.logoPlacement;
+  if (explicit && (explicit.x !== undefined || explicit.y !== undefined)) {
+    return explicit;
+  }
+  try {
+    const safe = await analyzeLogoPlacement(Buffer.from(imageBase64, "base64"));
+    console.log(
+      `[Visual] Safe-area logo placement: corner=${safe.corner} source=${safe.source}${safe.reason ? ` reason="${safe.reason}"` : ""}`,
+    );
+    return {
+      x: safe.x,
+      y: safe.y,
+      sizePercent: explicit?.sizePercent ?? params.logoSizePercent ?? safe.sizePercent,
+    };
+  } catch (err) {
+    console.warn("[Visual] Safe-area analysis failed; using provided/default placement:", err);
+    return explicit ?? undefined;
+  }
+}
 
 async function compositeLogo(
   imageBase64: string,

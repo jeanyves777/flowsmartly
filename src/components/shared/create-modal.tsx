@@ -35,7 +35,10 @@ type FlowMediaAspect = "1:1" | "9:16" | "16:9";
 type FlowMediaTier = "standard" | "premium";
 type FlowVideoDuration = 8 | 15 | 30;
 
-const imageProviderForTier = (tier: FlowMediaTier) => (tier === "premium" ? "openai" : "xai");
+// Premium image → Google (Gemini): ~$0.039/image vs OpenAI gpt-image high
+// ~$0.167/image (~4x cheaper) at comparable quality, so Google is primary and
+// OpenAI is the fallback (see image-router order). Standard → xAI.
+const imageProviderForTier = (tier: FlowMediaTier) => (tier === "premium" ? "gemini" : "xai");
 const videoProviderForTier = (tier: FlowMediaTier) => (tier === "premium" ? "veo3" : "grok");
 
 const FLOW_MEDIA_TIERS: Array<{
@@ -1293,7 +1296,9 @@ function FlowCreativeModal({
             size: aspect.imageSize,
             style: flowMediaStyle,
             provider: imageProviderForTier(flowMediaTier),
-            strictProvider: true,
+            // No strictProvider: Premium (OpenAI) now falls back to Google
+            // (Gemini) on failure instead of hard-failing — see image-router
+            // order. Standard (xAI) keeps its own xAI-first fallback chain.
             promptMode: "raw_brand",
             brandIdentity: rawBrandIdentity,
             channels: "selected social channels",
@@ -1309,7 +1314,9 @@ function FlowCreativeModal({
             templateImageUrl: null,
             referenceImageUrls: flowMediaReferenceUrls,
             compositeReferenceSubject: false,
-            logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
+            // No fixed logoPlacement: the server runs a vision safe-area pass
+            // (analyzeLogoPlacement) on the finished image and drops the logo
+            // in a clear top corner so it never covers the headline/body text.
             ctaText: null,
           }),
         });
