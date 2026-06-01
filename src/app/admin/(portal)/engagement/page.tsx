@@ -21,7 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 
 interface Snapshot {
-  config: { enabled: boolean; intensity: number; niches: string[] };
+  config: {
+    enabled: boolean;
+    intensity: number;
+    niches: string[];
+    planCaps: { free: number; paid: number; overrides: Record<string, number> };
+  };
   niches: { key: string; label: string }[];
   personas: { total: number; enabled: number; byNiche: Record<string, number> };
   media: Record<string, number>;
@@ -62,6 +67,8 @@ export default function AdminEngagementPage() {
   const [intensity, setIntensity] = useState(100);
   const [genCount, setGenCount] = useState(50);
   const [perNiche, setPerNiche] = useState(12);
+  const [freeCap, setFreeCap] = useState(5);
+  const [paidCap, setPaidCap] = useState(150);
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -71,6 +78,10 @@ export default function AdminEngagementPage() {
       if (data.success) {
         setSnap(data.data);
         setIntensity(data.data.config.intensity);
+        if (data.data.config.planCaps) {
+          setFreeCap(data.data.config.planCaps.free ?? 5);
+          setPaidCap(data.data.config.planCaps.paid ?? 150);
+        }
       }
     } finally {
       setLoading(false);
@@ -292,6 +303,55 @@ export default function AdminEngagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Plan tiering — paying clients get more engagement on their content */}
+      <Card>
+        <CardContent className="p-5 space-y-3">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> Plan tiering — daily interactions per client
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Max synthetic likes/comments/replies/shares/follows a real user&apos;s content
+            receives per day, by plan. Paying clients see far more engagement than free users.
+            Views stay uncapped so every feed feels alive.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Free (STARTER) / day</label>
+              <input
+                type="number"
+                min={0}
+                value={freeCap}
+                onChange={(e) => setFreeCap(parseInt(e.target.value) || 0)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Paying plans / day</label>
+              <input
+                type="number"
+                min={0}
+                value={paidCap}
+                onChange={(e) => setPaidCap(parseInt(e.target.value) || 0)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm mt-1"
+              />
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() =>
+              post(
+                { action: "set_config", planCaps: { free: freeCap, paid: paidCap, overrides: {} } },
+                "caps"
+              )
+            }
+            disabled={busy === "caps"}
+          >
+            {busy === "caps" ? <AISpinner size={14} className="mr-1" /> : null}
+            Save tiering
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Run-now + niche breakdown */}
       <div className="grid lg:grid-cols-2 gap-4">

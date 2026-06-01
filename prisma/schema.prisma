@@ -5418,5 +5418,9 @@ model SyntheticConfig {
   enabled   Boolean  @default(false)
   intensity Int      @default(100) // 0–100 global activity multiplier
   niches    String   @default("[]") // JSON array of active niche keys
+  // Per-recipient daily interaction caps by plan tier, so paying clients' content
+  // receives far more synthetic engagement than free users'. JSON:
+  // { "free": 5, "paid": 150, "overrides": { "PRO": 300 } }
+  planCaps  String   @default("{}")
   updatedAt DateTime @updatedAt
 }

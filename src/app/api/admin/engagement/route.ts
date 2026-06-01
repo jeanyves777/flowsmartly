@@ -79,10 +79,25 @@ export async function POST(request: NextRequest) {
   try {
     switch (action) {
       case "set_config": {
-        const patch: { enabled?: boolean; intensity?: number; niches?: string[] } = {};
+        const patch: {
+          enabled?: boolean;
+          intensity?: number;
+          niches?: string[];
+          planCaps?: { free: number; paid: number; overrides: Record<string, number> };
+        } = {};
         if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
         if (typeof body.intensity === "number") patch.intensity = body.intensity;
         if (Array.isArray(body.niches)) patch.niches = body.niches.map(String);
+        if (body.planCaps && typeof body.planCaps === "object") {
+          patch.planCaps = {
+            free: Number(body.planCaps.free) || 0,
+            paid: Number(body.planCaps.paid) || 0,
+            overrides:
+              body.planCaps.overrides && typeof body.planCaps.overrides === "object"
+                ? body.planCaps.overrides
+                : {},
+          };
+        }
         const config = await setSyntheticConfig(patch);
         return NextResponse.json({ success: true, data: { config } });
       }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/client";
-import { getSyntheticConfig } from "./config";
+import { getSyntheticConfig, resolvePlanCap } from "./config";
 import { generateComment, generateReply, generateCaption } from "./content";
 import { pickMediaAsset } from "./media-pool";
 
@@ -145,7 +145,7 @@ export async function runEngagementTick(): Promise<TickResult> {
       },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { id: true, userId: true, user: { select: { username: true } } },
+      select: { id: true, userId: true, user: { select: { username: true, plan: true } } },
     }),
     prisma.post.findMany({
       where: { status: "PUBLISHED", deletedAt: null, user: { isSynthetic: true } },
@@ -157,19 +157,45 @@ export async function runEngagementTick(): Promise<TickResult> {
       where: { isSynthetic: false, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 60,
-      select: { id: true, username: true },
+      select: { id: true, username: true, plan: true },
     }),
   ]);
 
-  const allPosts = [...realPosts, ...synthPosts];
   const realPostIds = new Set(realPosts.map((p) => p.id));
 
+  // ── Plan-tiered daily caps: paying clients' content receives far more
+  // synthetic engagement than free users'. We cap the *visible* social actions
+  // (likes/comments/replies/shares/follows) per real recipient per UTC day,
+  // keyed to their plan. Views stay uncapped so every feed feels alive. ──
+  const planByUserId = new Map<string, string>();
+  for (const rp of realPosts) planByUserId.set(rp.userId, rp.user?.plan || "STARTER");
+  for (const ru of realUsers) planByUserId.set(ru.id, ru.plan || "STARTER");
+
+  const receivedRows = await prisma.syntheticActivityLog.groupBy({
+    by: ["targetUserId"],
+    where: {
+      createdAt: { gte: dayStart },
+      targetUserId: { not: null },
+      action: { in: ["like", "comment", "reply", "share", "follow"] },
+    },
+    _count: { _all: true },
+  });
+  const received = new Map<string, number>();
+  for (const r of receivedRows) if (r.targetUserId) received.set(r.targetUserId, r._count._all);
+
+  const capForUser = (uid: string) => resolvePlanCap(planByUserId.get(uid), config.planCaps);
+  const underCap = (uid: string) => (received.get(uid) ?? 0) < capForUser(uid);
+  const bump = (uid: string) => received.set(uid, (received.get(uid) ?? 0) + 1);
+
   type TargetPost = { id: string; userId: string; user: { username: string } };
-  function chooseTargetPost(): TargetPost | null {
+  // respectCap=true restricts real-post targets to authors under their daily cap
+  // (used for likes/comments/shares); views pass false so they stay uncapped.
+  function chooseTargetPost(respectCap = true): TargetPost | null {
+    const pool = respectCap ? realPosts.filter((rp) => underCap(rp.userId)) : realPosts;
     // 70% lean toward real-user posts so real people get the engagement.
-    if (realPosts.length && (rand() < 0.7 || synthPosts.length === 0)) return pick(realPosts);
+    if (pool.length && (rand() < 0.7 || synthPosts.length === 0)) return pick(pool);
     if (synthPosts.length) return pick(synthPosts);
-    return allPosts.length ? pick(allPosts) : null;
+    return pool.length ? pick(pool) : null;
   }
 
   let actionBudget = maxActions;
@@ -183,10 +209,10 @@ export async function runEngagementTick(): Promise<TickResult> {
     const done = doneMap.get(p.userId) ?? { like: 0, comment: 0, reply: 0, follow: 0, share: 0, post: 0 };
     let acted = false;
 
-    // ── VIEWS (cheap, high volume) — 0–2 per tick while active ──
+    // ── VIEWS (cheap, high volume, UNCAPPED) — 0–2 per tick while active ──
     const viewTarget = 1 + Math.floor(rand() * 2);
     for (let v = 0; v < viewTarget && actionBudget > 0; v++) {
-      const tp = chooseTargetPost();
+      const tp = chooseTargetPost(false);
       if (!tp || tp.userId === p.userId) continue;
       const ok = await doView(tp.id, p.userId);
       if (ok) {
@@ -196,25 +222,28 @@ export async function runEngagementTick(): Promise<TickResult> {
       }
     }
 
-    // ── LIKES ──
+    // ── LIKES (cap-aware) ──
     const likeRemaining = Math.max(0, p.dailyLikes - done.like);
     if (likeRemaining > 0 && rand() < clampProb((likeRemaining / ticksLeft) * intensity)) {
       const tp = chooseTargetPost();
       if (tp && tp.userId !== p.userId) {
-        const ok = await doLike(tp.id, tp.userId, p, realPostIds.has(tp.id));
+        const isReal = realPostIds.has(tp.id);
+        const ok = await doLike(tp.id, tp.userId, p, isReal);
         if (ok) {
           stats.actions.likes++;
           actionBudget--;
           acted = true;
+          if (isReal) bump(tp.userId);
         }
       }
     }
 
-    // ── COMMENTS & REPLIES ──
+    // ── COMMENTS & REPLIES (cap-aware) ──
     const commentRemaining = Math.max(0, p.dailyComments - done.comment - done.reply);
     if (commentRemaining > 0 && rand() < clampProb((commentRemaining / ticksLeft) * intensity)) {
       const tp = chooseTargetPost();
       if (tp && tp.userId !== p.userId) {
+        const isReal = realPostIds.has(tp.id);
         // ~40% reply to an existing comment (contextual + optional @mention);
         // otherwise a top-level comment that sometimes @mentions the author.
         let ok = false;
@@ -223,40 +252,44 @@ export async function runEngagementTick(): Promise<TickResult> {
           if (ok) stats.actions.replies++;
         }
         if (!ok) {
-          ok = await doComment(tp, p, realPostIds.has(tp.id));
+          ok = await doComment(tp, p, isReal);
           if (ok) stats.actions.comments++;
         }
         if (ok) {
           actionBudget--;
           acted = true;
+          if (isReal) bump(tp.userId);
         }
       }
     }
 
-    // ── SHARES ──
+    // ── SHARES (cap-aware) ──
     const shareRemaining = Math.max(0, p.dailyShares - done.share);
     if (shareRemaining > 0 && rand() < clampProb((shareRemaining / ticksLeft) * intensity)) {
       const tp = chooseTargetPost();
       if (tp && tp.userId !== p.userId) {
-        const ok = await doShare(tp.id, p.userId);
+        const isReal = realPostIds.has(tp.id);
+        const ok = await doShare(tp.id, p.userId, isReal ? tp.userId : null);
         if (ok) {
           stats.actions.shares++;
           actionBudget--;
           acted = true;
+          if (isReal) bump(tp.userId);
         }
       }
     }
 
-    // ── FOLLOWS ──
+    // ── FOLLOWS (cap-aware: only follow real users still under their daily cap) ──
     const followRemaining = Math.max(0, p.dailyFollows - done.follow);
     if (followRemaining > 0 && rand() < clampProb((followRemaining / ticksLeft) * intensity)) {
-      const target = pickFollowTarget(realUsers, synthPosts, p.userId);
+      const target = pickFollowTarget(realUsers, synthPosts, p.userId, underCap);
       if (target) {
         const ok = await doFollow(p, target);
         if (ok) {
           stats.actions.follows++;
           actionBudget--;
           acted = true;
+          if (target.isReal) bump(target.id);
         }
       }
     }
@@ -426,7 +459,11 @@ async function doReply(
   return true;
 }
 
-async function doShare(postId: string, actorId: string): Promise<boolean> {
+async function doShare(
+  postId: string,
+  actorId: string,
+  targetUserId: string | null
+): Promise<boolean> {
   try {
     await prisma.$transaction([
       prisma.share.create({ data: { postId, platform: pick(SHARE_PLATFORMS) } }),
@@ -435,7 +472,7 @@ async function doShare(postId: string, actorId: string): Promise<boolean> {
   } catch {
     return false;
   }
-  await logAction(actorId, "share", { postId });
+  await logAction(actorId, "share", { postId, targetUserId: targetUserId ?? undefined });
   return true;
 }
 
@@ -500,12 +537,15 @@ async function doPost(p: PersonaRow): Promise<boolean> {
 function pickFollowTarget(
   realUsers: Array<{ id: string; username: string }>,
   synthPosts: Array<{ id: string; userId: string }>,
-  selfId: string
+  selfId: string,
+  underCap: (uid: string) => boolean
 ): { id: string; username: string; isReal: boolean } | null {
-  // 75% follow real users (gives them a real "new follower" ping).
-  if (realUsers.length && (rand() < 0.75 || synthPosts.length === 0)) {
-    const u = pick(realUsers.filter((u) => u.id !== selfId));
-    return u ? { id: u.id, username: u.username, isReal: true } : null;
+  // 75% follow real users (gives them a real "new follower" ping) — but only
+  // real users still under their plan's daily cap.
+  const eligibleReal = realUsers.filter((u) => u.id !== selfId && underCap(u.id));
+  if (eligibleReal.length && (rand() < 0.75 || synthPosts.length === 0)) {
+    const u = pick(eligibleReal);
+    return { id: u.id, username: u.username, isReal: true };
   }
   const sp = synthPosts.filter((s) => s.userId !== selfId);
   if (!sp.length) return null;
