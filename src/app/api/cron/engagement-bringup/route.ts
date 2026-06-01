@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setSyntheticConfig } from "@/lib/synthetic/config";
-import { createPersonas, personaStats } from "@/lib/synthetic/generator";
+import { createPersonas, personaStats, seedSyntheticFollowGraph } from "@/lib/synthetic/generator";
 import { backfillAvatars } from "@/lib/synthetic/avatars";
 import { seedMediaPool, mediaPoolCounts } from "@/lib/synthetic/media-pool";
 import { NICHES } from "@/lib/synthetic/niches";
@@ -71,6 +71,20 @@ export async function GET(request: NextRequest) {
       }
     })().catch(() => {});
     actions.generationStarted = { count: generate };
+  }
+
+  // Follower graph (?follows=1) — make synthetic accounts follow each other so
+  // none show "0 followers". Fast (DB-only) but run in background to be safe.
+  if (sp.get("follows") === "1") {
+    (async () => {
+      try {
+        const fg = await seedSyntheticFollowGraph();
+        console.log(`[Bringup] follow graph: ${fg.created} follows across ${fg.personas} personas`);
+      } catch (e) {
+        console.error("[Bringup] follow graph failed:", e);
+      }
+    })().catch(() => {});
+    actions.followGraphStarted = true;
   }
 
   // Standalone avatar backfill (?backfill=1) — fill faces for any faceless personas.

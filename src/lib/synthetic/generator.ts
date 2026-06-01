@@ -126,6 +126,44 @@ export async function createPersonas(
   return result;
 }
 
+/**
+ * Seed a follower graph AMONG the synthetic accounts so none of them show
+ * "0 followers". Each persona follows a random 15–70 others; because everyone
+ * does this, each ends up with a believable, varied follower count too. DB-only
+ * (no network), idempotent (skipDuplicates), safe to re-run as personas grow.
+ */
+export async function seedSyntheticFollowGraph(): Promise<{ created: number; personas: number }> {
+  const users = await prisma.user.findMany({
+    where: { isSynthetic: true, deletedAt: null },
+    select: { id: true },
+  });
+  const ids = users.map((u) => u.id);
+  if (ids.length < 2) return { created: 0, personas: ids.length };
+
+  const rows: { followerId: string; followingId: string }[] = [];
+  for (const id of ids) {
+    const k = Math.min(ids.length - 1, randInt(15, 70));
+    const picks = new Set<string>();
+    let guard = 0;
+    while (picks.size < k && guard < k * 4) {
+      const t = ids[Math.floor(Math.random() * ids.length)];
+      if (t !== id) picks.add(t);
+      guard++;
+    }
+    for (const t of picks) rows.push({ followerId: id, followingId: t });
+  }
+
+  let created = 0;
+  for (let i = 0; i < rows.length; i += 1000) {
+    const res = await prisma.follow.createMany({
+      data: rows.slice(i, i + 1000),
+      skipDuplicates: true,
+    });
+    created += res.count;
+  }
+  return { created, personas: ids.length };
+}
+
 /** Count existing synthetic personas, broken down by niche. */
 export async function personaStats(): Promise<{
   total: number;

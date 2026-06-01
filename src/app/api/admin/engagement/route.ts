@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getAdminSession, hasPermission } from "@/lib/admin/auth";
 import { getSyntheticConfig, setSyntheticConfig } from "@/lib/synthetic/config";
-import { createPersonas, personaStats } from "@/lib/synthetic/generator";
+import { createPersonas, personaStats, seedSyntheticFollowGraph } from "@/lib/synthetic/generator";
 import { backfillAvatars } from "@/lib/synthetic/avatars";
 import { seedMediaPool, mediaPoolCounts } from "@/lib/synthetic/media-pool";
 import { engagementStats, runEngagementTick } from "@/lib/synthetic/engine";
@@ -137,6 +137,16 @@ export async function POST(request: NextRequest) {
           );
         await prisma.syntheticPersona.update({ where: { id: personaId }, data: { enabled } });
         return NextResponse.json({ success: true });
+      }
+
+      case "seed_follows": {
+        seedSyntheticFollowGraph().catch((e) =>
+          console.error("[Synthetic] follow graph failed:", e)
+        );
+        return NextResponse.json({
+          success: true,
+          message: "Building the follower graph among personas in the background…",
+        });
       }
 
       case "backfill_avatars": {
