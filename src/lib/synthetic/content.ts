@@ -126,8 +126,9 @@ const COMMENTS: Record<Lang, { reactions: string[]; questions: string[]; cheers:
   },
 };
 
-/** Build a single believable comment for a persona reacting to a post. */
-export function generateComment(opts: { niche: string; language?: string }): string {
+/** Build a single believable comment for a persona reacting to a post.
+ * If `mention` (a username) is given, the comment sometimes @mentions them. */
+export function generateComment(opts: { niche: string; language?: string; mention?: string }): string {
   const lang = normLang(opts.language);
   const bank = COMMENTS[lang];
   const noun = pick(getNiche(opts.niche).nouns);
@@ -138,6 +139,57 @@ export function generateComment(opts: { niche: string; language?: string }): str
   else base = pick(bank.cheers);
   let text = base.replace("{noun}", noun);
   if (maybe(0.45)) text += ` ${pick(EMOJI)}`;
+  if (opts.mention && maybe(0.5)) {
+    text = maybe(0.5) ? `@${opts.mention} ${text}` : `${text} @${opts.mention}`;
+  }
+  return text;
+}
+
+// ── Reply banks (contextual responses to another comment) ────────────────────
+
+const REPLIES: Record<Lang, string[]> = {
+  en: [
+    "So true!",
+    "Couldn't agree more",
+    "This 💯",
+    "Exactly my thoughts",
+    "Haha love this take",
+    "Well said!",
+    "Yes!! 🙌",
+    "Facts",
+    "Same here honestly",
+    "You nailed it",
+    "Great point",
+    "Appreciate you saying this",
+    "Right?! Glad I'm not the only one",
+    "100% agree with you",
+    "This needed to be said",
+    "Couldn't have put it better",
+    "Spot on",
+    "My thoughts exactly 🙌",
+  ],
+  fr: [
+    "Tellement vrai !",
+    "Je suis bien d'accord",
+    "Exactement !",
+    "Bien dit !",
+    "Carrément",
+    "Trop d'accord",
+    "Bien vu",
+    "Merci pour ce partage",
+    "C'est exactement ça",
+    "Tu as tout résumé",
+    "100% d'accord",
+    "Pareil pour moi honnêtement",
+  ],
+};
+
+/** Build a contextual reply to another comment, optionally @mentioning its author. */
+export function generateReply(opts: { language?: string; mention?: string }): string {
+  const lang = normLang(opts.language);
+  let text = pick(REPLIES[lang]);
+  if (maybe(0.4)) text += ` ${pick(EMOJI)}`;
+  if (opts.mention && maybe(0.7)) text = `@${opts.mention} ${text}`;
   return text;
 }
 

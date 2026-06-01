@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { getSyntheticConfig } from "./config";
-import { generateComment, generateCaption } from "./content";
+import { generateComment, generateReply, generateCaption } from "./content";
 import { pickMediaAsset } from "./media-pool";
 
 /**
@@ -21,7 +21,7 @@ const TICKS_PER_HOUR = 60 / TICK_MINUTES;
 // allows ~2000 actions/tick; the per-persona daily quotas are the real limiter.
 const BASE_MAX_ACTIONS_PER_TICK = 2000;
 
-type ActionCounts = { like: number; comment: number; follow: number; share: number; post: number };
+type ActionCounts = { like: number; comment: number; reply: number; follow: number; share: number; post: number };
 
 const SHARE_PLATFORMS = ["feed", "copy_link", "whatsapp", "message", "story"];
 
@@ -68,7 +68,7 @@ export interface TickResult {
   skipped?: string;
   activePersonas: number;
   processed: number;
-  actions: { likes: number; comments: number; follows: number; views: number; shares: number; posts: number };
+  actions: { likes: number; comments: number; replies: number; follows: number; views: number; shares: number; posts: number };
 }
 
 export async function runEngagementTick(): Promise<TickResult> {
@@ -76,7 +76,7 @@ export async function runEngagementTick(): Promise<TickResult> {
   const stats: TickResult = {
     activePersonas: 0,
     processed: 0,
-    actions: { likes: 0, comments: 0, follows: 0, views: 0, shares: 0, posts: 0 },
+    actions: { likes: 0, comments: 0, replies: 0, follows: 0, views: 0, shares: 0, posts: 0 },
   };
 
   if (!config.enabled) return { ...stats, skipped: "disabled" };
@@ -123,9 +123,10 @@ export async function runEngagementTick(): Promise<TickResult> {
   });
   const doneMap = new Map<string, ActionCounts>();
   for (const g of grouped) {
-    const c = doneMap.get(g.actorId) ?? { like: 0, comment: 0, follow: 0, share: 0, post: 0 };
+    const c = doneMap.get(g.actorId) ?? { like: 0, comment: 0, reply: 0, follow: 0, share: 0, post: 0 };
     if (g.action === "like") c.like = g._count._all;
     else if (g.action === "comment") c.comment = g._count._all;
+    else if (g.action === "reply") c.reply = g._count._all;
     else if (g.action === "follow") c.follow = g._count._all;
     else if (g.action === "share") c.share = g._count._all;
     else if (g.action === "post") c.post = g._count._all;
@@ -144,13 +145,13 @@ export async function runEngagementTick(): Promise<TickResult> {
       },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, user: { select: { username: true } } },
     }),
     prisma.post.findMany({
       where: { status: "PUBLISHED", deletedAt: null, user: { isSynthetic: true } },
       orderBy: { createdAt: "desc" },
       take: 150,
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, user: { select: { username: true } } },
     }),
     prisma.user.findMany({
       where: { isSynthetic: false, deletedAt: null },
@@ -163,7 +164,8 @@ export async function runEngagementTick(): Promise<TickResult> {
   const allPosts = [...realPosts, ...synthPosts];
   const realPostIds = new Set(realPosts.map((p) => p.id));
 
-  function chooseTargetPost(): { id: string; userId: string } | null {
+  type TargetPost = { id: string; userId: string; user: { username: string } };
+  function chooseTargetPost(): TargetPost | null {
     // 70% lean toward real-user posts so real people get the engagement.
     if (realPosts.length && (rand() < 0.7 || synthPosts.length === 0)) return pick(realPosts);
     if (synthPosts.length) return pick(synthPosts);
@@ -178,7 +180,7 @@ export async function runEngagementTick(): Promise<TickResult> {
     if (actionBudget <= 0) break;
     const h = localHour(p.user.timezone, now);
     const ticksLeft = Math.max(1, Math.ceil((p.activeEndHour - h + 1) * TICKS_PER_HOUR));
-    const done = doneMap.get(p.userId) ?? { like: 0, comment: 0, follow: 0, share: 0, post: 0 };
+    const done = doneMap.get(p.userId) ?? { like: 0, comment: 0, reply: 0, follow: 0, share: 0, post: 0 };
     let acted = false;
 
     // ── VIEWS (cheap, high volume) — 0–2 per tick while active ──
@@ -208,14 +210,23 @@ export async function runEngagementTick(): Promise<TickResult> {
       }
     }
 
-    // ── COMMENTS ──
-    const commentRemaining = Math.max(0, p.dailyComments - done.comment);
+    // ── COMMENTS & REPLIES ──
+    const commentRemaining = Math.max(0, p.dailyComments - done.comment - done.reply);
     if (commentRemaining > 0 && rand() < clampProb((commentRemaining / ticksLeft) * intensity)) {
       const tp = chooseTargetPost();
       if (tp && tp.userId !== p.userId) {
-        const ok = await doComment(tp.id, tp.userId, p, realPostIds.has(tp.id));
+        // ~40% reply to an existing comment (contextual + optional @mention);
+        // otherwise a top-level comment that sometimes @mentions the author.
+        let ok = false;
+        if (rand() < 0.4) {
+          ok = await doReply(tp, p);
+          if (ok) stats.actions.replies++;
+        }
+        if (!ok) {
+          ok = await doComment(tp, p, realPostIds.has(tp.id));
+          if (ok) stats.actions.comments++;
+        }
         if (ok) {
-          stats.actions.comments++;
           actionBudget--;
           acted = true;
         }
@@ -321,19 +332,23 @@ async function doLike(
 }
 
 async function doComment(
-  postId: string,
-  authorId: string,
+  tp: { id: string; userId: string; user: { username: string } },
   p: PersonaRow,
   isRealTarget: boolean
 ): Promise<boolean> {
-  // Avoid the same persona commenting twice on one post.
+  const postId = tp.id;
+  const authorId = tp.userId;
+  // Avoid the same persona top-level-commenting twice on one post (replies are
+  // tracked separately via parentId).
   const existing = await prisma.comment.findFirst({
-    where: { postId, userId: p.userId, deletedAt: null },
+    where: { postId, userId: p.userId, parentId: null, deletedAt: null },
     select: { id: true },
   });
   if (existing) return false;
 
-  const content = generateComment({ niche: p.niche, language: p.language });
+  // ~40% of comments @mention the post author (then the generator decides ~50%).
+  const mention = rand() < 0.4 ? tp.user?.username : undefined;
+  const content = generateComment({ niche: p.niche, language: p.language, mention });
   try {
     await prisma.$transaction([
       prisma.comment.create({ data: { postId, userId: p.userId, content } }),
@@ -351,6 +366,57 @@ async function doComment(
           type: "COMMENT",
           title: "New Comment",
           message: `${p.user.name} commented on your post`,
+          data: JSON.stringify({ postId, userId: p.userId }),
+          actionUrl: `/feed?post=${postId}`,
+        },
+      })
+      .catch(() => {});
+  }
+  return true;
+}
+
+/** Reply to an existing comment on the post — threaded (parentId) + contextual,
+ * often @mentioning the comment's author. Notifies that author if they're real. */
+async function doReply(
+  tp: { id: string; userId: string },
+  p: PersonaRow
+): Promise<boolean> {
+  const postId = tp.id;
+  const parents = await prisma.comment.findMany({
+    where: { postId, deletedAt: null, parentId: null, userId: { not: p.userId } },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+    select: { id: true, userId: true, user: { select: { username: true, isSynthetic: true } } },
+  });
+  if (!parents.length) return false;
+  const parent = pick(parents);
+
+  // Don't reply twice to the same comment.
+  const dup = await prisma.comment.findFirst({
+    where: { postId, userId: p.userId, parentId: parent.id, deletedAt: null },
+    select: { id: true },
+  });
+  if (dup) return false;
+
+  const content = generateReply({ language: p.language, mention: parent.user?.username });
+  try {
+    await prisma.$transaction([
+      prisma.comment.create({ data: { postId, userId: p.userId, parentId: parent.id, content } }),
+      prisma.post.update({ where: { id: postId }, data: { commentCount: { increment: 1 } } }),
+    ]);
+  } catch {
+    return false;
+  }
+  await logAction(p.userId, "reply", { postId, targetUserId: parent.userId });
+  // Real-user payoff: "X replied to your comment" (in-app only).
+  if (parent.user && !parent.user.isSynthetic && parent.userId !== p.userId) {
+    await prisma.notification
+      .create({
+        data: {
+          userId: parent.userId,
+          type: "COMMENT",
+          title: "New Reply",
+          message: `${p.user.name} replied to your comment`,
           data: JSON.stringify({ postId, userId: p.userId }),
           actionUrl: `/feed?post=${postId}`,
         },
@@ -493,7 +559,7 @@ export async function engagementStats(): Promise<{
     prisma.syntheticActivityLog.groupBy({ by: ["action"], _count: { _all: true } }),
   ]);
   const toMap = (rows: typeof todayRows) => {
-    const m: Record<string, number> = { like: 0, comment: 0, follow: 0, view: 0, share: 0, post: 0 };
+    const m: Record<string, number> = { like: 0, comment: 0, reply: 0, follow: 0, view: 0, share: 0, post: 0 };
     for (const r of rows) m[r.action] = r._count._all;
     return m;
   };

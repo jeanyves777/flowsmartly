@@ -35,9 +35,20 @@ interface Snapshot {
   }>;
 }
 
+const ACTION_VERB: Record<string, string> = {
+  like: "liked a post",
+  comment: "commented",
+  reply: "replied to a comment",
+  follow: "followed someone",
+  view: "viewed a post",
+  share: "shared a post",
+  post: "published a post",
+};
+
 const ACTION_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   like: Heart,
   comment: MessageSquare,
+  reply: MessageSquare,
   follow: UserPlus,
   view: Eye,
   share: Share2,
@@ -109,6 +120,7 @@ export default function AdminEngagementPage() {
     { label: "Views today", value: today.view || 0, icon: Eye },
     { label: "Likes today", value: today.like || 0, icon: Heart },
     { label: "Comments today", value: today.comment || 0, icon: MessageSquare },
+    { label: "Replies today", value: today.reply || 0, icon: MessageSquare },
     { label: "Follows today", value: today.follow || 0, icon: UserPlus },
     { label: "Shares today", value: today.share || 0, icon: Share2 },
     { label: "Posts today", value: today.post || 0, icon: FileText },
@@ -333,7 +345,7 @@ export default function AdminEngagementPage() {
                     <span className="font-medium truncate">
                       {r.actor?.name || "—"}
                     </span>
-                    <span className="text-muted-foreground">{r.action}ed</span>
+                    <span className="text-muted-foreground">{ACTION_VERB[r.action] || r.action}</span>
                     <span className="text-xs text-muted-foreground ml-auto shrink-0">
                       {new Date(r.createdAt).toLocaleTimeString()}
                     </span>
