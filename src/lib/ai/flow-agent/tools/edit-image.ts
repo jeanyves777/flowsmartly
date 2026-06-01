@@ -3,6 +3,7 @@ import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { editImagesXaiFirst } from "@/lib/ai/image-router";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
 import { uploadToS3, getPresignedUrl } from "@/lib/utils/s3-client";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import type { FlowAgentTool } from "../registry";
@@ -99,6 +100,7 @@ export const editImage: FlowAgentTool = {
       }
     }
 
+    const hasExplicitPosition = typeof input.logoPosition === "string";
     const placement = positionToPlacement(input.logoPosition);
 
     const taskId = await spawnBackgroundTask({
@@ -142,10 +144,22 @@ export const editImage: FlowAgentTool = {
         // (b) Composite the real brand logo, if requested.
         if (logoSource) {
           publishTaskEvent({ type: "progress", taskId, progress: 70, message: "Adding your logo…" });
+          // When the caller didn't pin a position, run the same vision
+          // safe-area pass the FlowCreative pipeline uses so the logo lands
+          // in a clear corner and never covers the headline/body text.
+          let logoPlacement = placement;
+          if (!hasExplicitPosition) {
+            try {
+              const safe = await analyzeLogoPlacement(buffer);
+              logoPlacement = { x: safe.x, y: safe.y, sizePercent: safe.sizePercent };
+            } catch {
+              /* keep default placement on vision failure */
+            }
+          }
           buffer = await compositeBrandLogoOnImageBuffer({
             imageBuffer: buffer,
             logoSource,
-            placement,
+            placement: logoPlacement,
             smartBackdrop: true,
           });
           format = "png"; // compositor outputs PNG

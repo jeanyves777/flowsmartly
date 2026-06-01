@@ -34,6 +34,7 @@ import {
   TaskCard,
   CopyTextButton,
   SpeakButton,
+  mediaDownloadHref,
   type AgentToolCardData,
   type PlanProposalCardData,
   type PlanStepData,
@@ -1296,10 +1297,8 @@ function MediaCard({
       </div>
       <div className={cn("mt-1.5 flex gap-2", alignRight ? "justify-end" : "justify-start")}>
         <a
-          href={url}
+          href={mediaDownloadHref(url)}
           download
-          target="_blank"
-          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         >
           <Download className="h-3 w-3" />

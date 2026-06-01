@@ -148,6 +148,17 @@ export function SpeakButton({ text, className }: { text: string; className?: str
  * generated image is clickable to view large. Clicking the backdrop or
  * the X closes it. Download stays available on the card itself.
  */
+
+/**
+ * Build a same-origin download URL for a generated asset. A cross-origin
+ * `<a download>` to S3 just opens the file in a new tab (browsers ignore the
+ * download attribute cross-origin); this routes through our proxy which
+ * streams it back with Content-Disposition: attachment so it actually saves.
+ */
+export function mediaDownloadHref(url: string, name = "flowsmartly-design"): string {
+  return `/api/flow-ai/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
+}
+
 export function MediaLightbox({ url, onClose }: { url: string; onClose: () => void }) {
   return (
     <div
@@ -172,10 +183,8 @@ export function MediaLightbox({ url, onClose }: { url: string; onClose: () => vo
         className="max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl"
       />
       <a
-        href={url}
+        href={mediaDownloadHref(url)}
         download
-        target="_blank"
-        rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm"
       >
@@ -467,10 +476,8 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           )}
           <div className="px-3.5 py-2 flex items-center justify-between">
             <a
-              href={mediaUrl}
+              href={mediaDownloadHref(mediaUrl, `flowsmartly-${task.kind || "design"}`)}
               download
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <Download className="h-3 w-3" />

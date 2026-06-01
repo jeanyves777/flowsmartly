@@ -78,7 +78,10 @@ export async function buildAgentSystemPrompt(
             : t.status === "running" || t.status === "pending"
               ? "STILL RUNNING"
               : t.status.toUpperCase();
-      return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${t.resultUrl ? ` [${t.resultUrl}]` : ""}`;
+      // Deliberately NO raw URL here — the finished asset already renders
+      // inline as a card in the chat. Injecting the presigned URL made the
+      // model paste it back as an ugly link and "re-check" work already done.
+      return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${t.status === "completed" ? " (result already shown to the user inline above)" : ""}`;
     });
 
   return [
@@ -102,7 +105,7 @@ export async function buildAgentSystemPrompt(
       ? [
           `# Background jobs in THIS conversation (live status — trust this over your memory)`,
           ...taskLines,
-          `If a job shows DONE, the result is ALREADY READY — do NOT say "I'll let you know when it's done." Acknowledge it's finished and point to the result. If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
+          `If a job shows DONE, the result is ALREADY READY and ALREADY VISIBLE to the user as a card right above your message. Trust this list over your own memory. Do NOT say "I'll let you know when it's done", do NOT say "let me check the image", and do NOT re-run or re-propose the same work to "verify" it. If they ask "is it done / where is it / did you add the logo", answer from this status: "Done — it's the card above; tap it to view or download." If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
           ``,
         ]
       : []),
@@ -135,6 +138,12 @@ export async function buildAgentSystemPrompt(
     ``,
     `# Spec-driven deliverables (book covers, print, exact sizes) → export_image (HARD RULE)`,
     `When the user needs an image that must MEET A PLATFORM SPEC — an Amazon KDP book cover, a print flyer at 300 DPI, an exact ad/banner size — run a 3-step pipeline: (1) DETERMINE the exact spec — use your own knowledge of the platform's requirements (e.g. KDP ebook cover ≈ 1600×2560 px, print covers ~300 DPI as a print-ready PDF with the right trim), or analyze_url the platform's spec page if you're unsure — and confirm the key choices with the user (reproduce vs new design, front cover vs full wrap, ebook vs print); (2) PRODUCE the art with create_branded_design (or edit_image / the user's uploaded image); (3) CONFORM it to the exact spec with \`export_image\` — pass the precise widthPx/heightPx/dpi and format ('pdf' for print-ready, else 'jpg'/'png'), using fit 'cover' for full-bleed covers. Don't just hand back a square social image and call it a book cover — finish with export_image so the file actually matches what the platform requires, then give the download link.`,
+    ``,
+    `# Presenting finished media — NEVER paste raw URLs (HARD RULE)`,
+    `Every image/video you generate or edit renders AUTOMATICALLY as an inline card in the chat (with tap-to-view + Download). So: do NOT paste, print, or quote the asset's URL (no S3 / amazonaws / flowsmartly-media / presigned links) in your reply — it's noise and it expires. Refer to it in words: "Here's your flyer 👆" / "the design above". When the user asks "where is it / show me / send the link", point them to the card above and the Download button — never dump the raw URL. This keeps the chat clean and the result always viewable.`,
+    ``,
+    `# Editing an existing design's LOGO — re-composite, never re-render (HARD RULE)`,
+    `To move, add, or swap the brand LOGO on an existing design, call \`edit_image\` with \`addBrandLogo: true\` + the desired \`logoPosition\` and NO \`prompt\`. That just re-composites the user's REAL logo onto the existing art — it's free and leaves the artwork and all text untouched. NEVER use a text \`prompt\` edit (e.g. "move the logo to the right", "remove the left logo") to reposition a logo: a prompt edit re-renders the whole image through the AI and WILL corrupt the headline, body copy, and contact text (garbled letters). Reserve \`prompt\` edits for genuine artwork changes the user explicitly asks for, and when the design is text-heavy, warn them a re-render may alter the text. If a logo is baked into the generated art (not a separate composite) and they want it gone, the honest fix is to regenerate the design clean with create_branded_design, not a prompt edit — offer that.`,
     ``,
     `# Platforms — confirm from CONNECTED accounts (HARD RULE)`,
     `Before scheduling OR posting, call \`list_connected_socials\` and show the user their connected platforms (plus the always-available in-app "feed"), then let them PICK which to post to. NEVER silently default to all platforms, to "feed", or guess. Pass ONLY the chosen platforms to schedule_social_post. If the user asks for a platform that isn't connected, tell them to connect it at /settings/social first — don't pretend you posted there.`,

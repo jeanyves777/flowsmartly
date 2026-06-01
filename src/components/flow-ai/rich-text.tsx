@@ -183,11 +183,28 @@ function renderInline(text: string): React.ReactNode[] {
     } else if (token.startsWith("_")) {
       nodes.push(<em key={k++}>{token.slice(1, -1)}</em>);
     } else if (token.startsWith("http")) {
-      nodes.push(
-        <a key={k++} href={safeHref(token)} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all">
-          {token}
-        </a>,
-      );
+      // If the model slipped a raw asset URL into its reply (it shouldn't —
+      // finished media renders as a card), show it as an inline thumbnail
+      // instead of a giant presigned-URL link wall.
+      if (looksLikeImageUrl(token)) {
+        nodes.push(
+          <a key={k++} href={safeHref(token)} target="_blank" rel="noopener noreferrer" className="block my-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={token}
+              alt="Generated media"
+              referrerPolicy="no-referrer"
+              className="max-h-72 w-auto rounded-lg border border-border object-contain"
+            />
+          </a>,
+        );
+      } else {
+        nodes.push(
+          <a key={k++} href={safeHref(token)} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all">
+            {token}
+          </a>,
+        );
+      }
     }
     lastIndex = m.index + token.length;
   }
@@ -195,6 +212,15 @@ function renderInline(text: string): React.ReactNode[] {
     nodes.push(text.slice(lastIndex));
   }
   return nodes;
+}
+
+/** Does this URL point at an image we can render inline? */
+function looksLikeImageUrl(url: string): boolean {
+  const path = url.split("?")[0].toLowerCase();
+  if (/\.(png|jpe?g|webp|gif|avif)$/.test(path)) return true;
+  // Our own media buckets/paths serve images even when the extension is
+  // hidden behind a presigned query string.
+  return /flowsmartly-media|\/flow-ai\/|\/designs\//.test(url);
 }
 
 function safeHref(url: string): string {
