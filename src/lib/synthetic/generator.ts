@@ -109,6 +109,7 @@ export async function createPersonas(
               dailyLikes: randInt(4, 14),
               dailyComments: randInt(1, 4),
               dailyFollows: randInt(0, 2),
+              dailyShares: randInt(0, 3),
               postChance: randInt(8, 25),
               enabled: true,
             },

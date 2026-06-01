@@ -15,11 +15,15 @@ import { pickMediaAsset } from "./media-pool";
  * Closed-loop: only touches FlowSmartly's own Post/Like/Comment/Follow/PostView.
  */
 
-const TICK_MINUTES = 20;
+const TICK_MINUTES = 10;
 const TICKS_PER_HOUR = 60 / TICK_MINUTES;
-const MAX_ACTIONS_PER_TICK = 500; // safety cap on DB writes per run
+// Per-tick DB-write ceiling scales with intensity (slider 0–100). At 100% this
+// allows ~2000 actions/tick; the per-persona daily quotas are the real limiter.
+const BASE_MAX_ACTIONS_PER_TICK = 2000;
 
-type ActionCounts = { like: number; comment: number; follow: number; post: number };
+type ActionCounts = { like: number; comment: number; follow: number; share: number; post: number };
+
+const SHARE_PLATFORMS = ["feed", "copy_link", "whatsapp", "message", "story"];
 
 interface PersonaRow {
   id: string;
@@ -31,6 +35,7 @@ interface PersonaRow {
   dailyLikes: number;
   dailyComments: number;
   dailyFollows: number;
+  dailyShares: number;
   postChance: number;
   user: { id: string; name: string; username: string; timezone: string };
 }
@@ -63,7 +68,7 @@ export interface TickResult {
   skipped?: string;
   activePersonas: number;
   processed: number;
-  actions: { likes: number; comments: number; follows: number; views: number; posts: number };
+  actions: { likes: number; comments: number; follows: number; views: number; shares: number; posts: number };
 }
 
 export async function runEngagementTick(): Promise<TickResult> {
@@ -71,12 +76,13 @@ export async function runEngagementTick(): Promise<TickResult> {
   const stats: TickResult = {
     activePersonas: 0,
     processed: 0,
-    actions: { likes: 0, comments: 0, follows: 0, views: 0, posts: 0 },
+    actions: { likes: 0, comments: 0, follows: 0, views: 0, shares: 0, posts: 0 },
   };
 
   if (!config.enabled) return { ...stats, skipped: "disabled" };
   const intensity = Math.max(0, Math.min(100, config.intensity)) / 100;
   if (intensity <= 0) return { ...stats, skipped: "intensity-zero" };
+  const maxActions = Math.max(200, Math.round(BASE_MAX_ACTIONS_PER_TICK * intensity));
 
   const now = new Date();
 
@@ -94,6 +100,7 @@ export async function runEngagementTick(): Promise<TickResult> {
       dailyLikes: true,
       dailyComments: true,
       dailyFollows: true,
+      dailyShares: true,
       postChance: true,
       user: { select: { id: true, name: true, username: true, timezone: true } },
     },
@@ -116,10 +123,11 @@ export async function runEngagementTick(): Promise<TickResult> {
   });
   const doneMap = new Map<string, ActionCounts>();
   for (const g of grouped) {
-    const c = doneMap.get(g.actorId) ?? { like: 0, comment: 0, follow: 0, post: 0 };
+    const c = doneMap.get(g.actorId) ?? { like: 0, comment: 0, follow: 0, share: 0, post: 0 };
     if (g.action === "like") c.like = g._count._all;
     else if (g.action === "comment") c.comment = g._count._all;
     else if (g.action === "follow") c.follow = g._count._all;
+    else if (g.action === "share") c.share = g._count._all;
     else if (g.action === "post") c.post = g._count._all;
     doneMap.set(g.actorId, c);
   }
@@ -162,7 +170,7 @@ export async function runEngagementTick(): Promise<TickResult> {
     return allPosts.length ? pick(allPosts) : null;
   }
 
-  let actionBudget = MAX_ACTIONS_PER_TICK;
+  let actionBudget = maxActions;
 
   // Process personas in random order so the per-tick cap doesn't always favour
   // the same accounts.
@@ -170,7 +178,7 @@ export async function runEngagementTick(): Promise<TickResult> {
     if (actionBudget <= 0) break;
     const h = localHour(p.user.timezone, now);
     const ticksLeft = Math.max(1, Math.ceil((p.activeEndHour - h + 1) * TICKS_PER_HOUR));
-    const done = doneMap.get(p.userId) ?? { like: 0, comment: 0, follow: 0, post: 0 };
+    const done = doneMap.get(p.userId) ?? { like: 0, comment: 0, follow: 0, share: 0, post: 0 };
     let acted = false;
 
     // ── VIEWS (cheap, high volume) — 0–2 per tick while active ──
@@ -208,6 +216,20 @@ export async function runEngagementTick(): Promise<TickResult> {
         const ok = await doComment(tp.id, tp.userId, p, realPostIds.has(tp.id));
         if (ok) {
           stats.actions.comments++;
+          actionBudget--;
+          acted = true;
+        }
+      }
+    }
+
+    // ── SHARES ──
+    const shareRemaining = Math.max(0, p.dailyShares - done.share);
+    if (shareRemaining > 0 && rand() < clampProb((shareRemaining / ticksLeft) * intensity)) {
+      const tp = chooseTargetPost();
+      if (tp && tp.userId !== p.userId) {
+        const ok = await doShare(tp.id, p.userId);
+        if (ok) {
+          stats.actions.shares++;
           actionBudget--;
           acted = true;
         }
@@ -338,6 +360,19 @@ async function doComment(
   return true;
 }
 
+async function doShare(postId: string, actorId: string): Promise<boolean> {
+  try {
+    await prisma.$transaction([
+      prisma.share.create({ data: { postId, platform: pick(SHARE_PLATFORMS) } }),
+      prisma.post.update({ where: { id: postId }, data: { shareCount: { increment: 1 } } }),
+    ]);
+  } catch {
+    return false;
+  }
+  await logAction(actorId, "share", { postId });
+  return true;
+}
+
 async function doFollow(
   p: PersonaRow,
   target: { id: string; username: string; isReal: boolean }
@@ -458,7 +493,7 @@ export async function engagementStats(): Promise<{
     prisma.syntheticActivityLog.groupBy({ by: ["action"], _count: { _all: true } }),
   ]);
   const toMap = (rows: typeof todayRows) => {
-    const m: Record<string, number> = { like: 0, comment: 0, follow: 0, view: 0, post: 0 };
+    const m: Record<string, number> = { like: 0, comment: 0, follow: 0, view: 0, share: 0, post: 0 };
     for (const r of rows) m[r.action] = r._count._all;
     return m;
   };

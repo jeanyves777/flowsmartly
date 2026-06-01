@@ -8,6 +8,7 @@ import {
   UserPlus,
   Eye,
   FileText,
+  Share2,
   Play,
   Sparkles,
   Images,
@@ -39,6 +40,7 @@ const ACTION_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   comment: MessageSquare,
   follow: UserPlus,
   view: Eye,
+  share: Share2,
   post: FileText,
 };
 
@@ -108,6 +110,7 @@ export default function AdminEngagementPage() {
     { label: "Likes today", value: today.like || 0, icon: Heart },
     { label: "Comments today", value: today.comment || 0, icon: MessageSquare },
     { label: "Follows today", value: today.follow || 0, icon: UserPlus },
+    { label: "Shares today", value: today.share || 0, icon: Share2 },
     { label: "Posts today", value: today.post || 0, icon: FileText },
   ];
 

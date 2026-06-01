@@ -5369,6 +5369,7 @@ model SyntheticPersona {
   dailyLikes    Int @default(8)
   dailyComments Int @default(2)
   dailyFollows  Int @default(1)
+  dailyShares   Int @default(1)
   postChance    Int @default(15) // % chance per active day to publish one post
 
   enabled      Boolean   @default(true)
