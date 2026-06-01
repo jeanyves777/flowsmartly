@@ -136,9 +136,16 @@ export async function createPersonas(
 
     result.created++;
     result.byNiche[niche] = (result.byNiche[niche] || 0) + 1;
+
+    // Throttle the AI-face source so it doesn't rate-limit / serve duplicates.
+    await sleep(700 + Math.floor(Math.random() * 500));
   }
 
   return result;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /** Count existing synthetic personas, broken down by niche. */

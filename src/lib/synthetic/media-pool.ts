@@ -26,11 +26,14 @@ async function fetchImage(niche: string, salt: number): Promise<Buffer | null> {
     `https://picsum.photos/seed/${niche}${salt}/800/800`,
   ];
   for (const url of candidates) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000); // never hang the loop
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartly/1.0)" },
         redirect: "follow",
         cache: "no-store",
+        signal: controller.signal,
       });
       if (!res.ok) continue;
       const buf = Buffer.from(await res.arrayBuffer());
@@ -38,6 +41,8 @@ async function fetchImage(niche: string, salt: number): Promise<Buffer | null> {
       return buf;
     } catch {
       // try next source
+    } finally {
+      clearTimeout(timer);
     }
   }
   return null;

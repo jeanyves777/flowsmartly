@@ -12,10 +12,13 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 const FACE_URL = "https://thispersondoesnotexist.com/";
 
 async function fetchFaceBuffer(): Promise<Buffer | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000); // never hang the loop
   try {
     const res = await fetch(FACE_URL, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; FlowSmartly/1.0)" },
       cache: "no-store",
+      signal: controller.signal,
     });
     if (!res.ok) return null;
     const arr = await res.arrayBuffer();
@@ -24,6 +27,8 @@ async function fetchFaceBuffer(): Promise<Buffer | null> {
     return buf;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
