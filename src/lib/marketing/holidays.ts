@@ -91,6 +91,17 @@ function computeEaster(year: number): { month: number; day: number } {
 
 export const US_HOLIDAYS: Holiday[] = [
   {
+    id: "happy-new-month",
+    name: "Happy New Month",
+    month: 1,
+    day: 0, // computed — always the 1st of the upcoming month (see getHolidayDate)
+    category: "cultural",
+    icon: "\u{1F5D3}\u{FE0F}", // spiral calendar
+    defaultSubject: "Happy New Month! A Fresh Start Awaits",
+    promptHint:
+      "Create an uplifting 'Happy New Month' greeting celebrating the start of a fresh month — new goals, positive intentions, gratitude, and motivation. Warm and encouraging, not a hard sale. End with a light, friendly call to action.",
+  },
+  {
     id: "new-years-day",
     name: "New Year's Day",
     month: 1,
@@ -403,6 +414,17 @@ export function getHolidayDate(
   }
 
   switch (holiday.id) {
+    case "happy-new-month": {
+      // Recurring monthly greeting — always resolves to the 1st of the NEXT
+      // upcoming month. The `year` arg is intentionally ignored: the
+      // scheduler's next-occurrence loop (resolveCalendarSourceDate) tries
+      // [year, year+1] and picks the first future date, which handles the
+      // Dec→Jan wrap correctly.
+      const now = new Date();
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      return { month: next.getMonth() + 1, day: 1 };
+    }
+
     case "mlk-day":
       // 3rd Monday of January
       return getNthDayOfMonth(year, 1, 1, 3);

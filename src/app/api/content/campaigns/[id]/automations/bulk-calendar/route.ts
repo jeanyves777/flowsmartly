@@ -22,6 +22,12 @@ const DEFAULT_PLATFORMS = ["instagram", "facebook"];
 const AI_FILL_CONCURRENCY = 3;
 
 function holidayDateContext(holidayId: string, year: number): string {
+  if (holidayId === "happy-new-month") {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthName = next.toLocaleString("en-US", { month: "long" });
+    return `Today's date: ${now.toISOString().slice(0, 10)}. This is a "Happy New Month" greeting for the start of ${monthName} ${next.getFullYear()}. Wish the audience a happy, productive ${monthName}. Do NOT reference any specific holiday or any other month.`;
+  }
   const isNyeLike = holidayId === "new-years-eve" || holidayId === "nye";
   const isNewYears = holidayId === "new-years-day" || holidayId === "new-year";
   if (isNyeLike) {
