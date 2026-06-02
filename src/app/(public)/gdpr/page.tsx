@@ -52,7 +52,7 @@ export default function GDPRPage() {
             <PolicyVisualHeader
               label="Data protection"
               title="GDPR Compliance"
-              updated="Last updated: February 25, 2026"
+              updated="Last updated: June 1, 2026"
               description="FlowSmartly is committed to protecting personal data and respecting privacy rights under GDPR, including access, correction, portability, restriction, and deletion requests."
               image={illustrationImages.policyGdpr}
             />
@@ -489,16 +489,57 @@ export default function GDPRPage() {
                 </h3>
                 <ol className="list-decimal list-inside space-y-2 text-muted-foreground leading-relaxed ml-2">
                   <li>Log in to your FlowSmartly account</li>
-                  <li>Go to Settings → Account</li>
-                  <li>Scroll to &quot;Delete Account&quot; section</li>
-                  <li>Click &quot;Delete My Account&quot;</li>
                   <li>
-                    Confirm deletion (this action cannot be undone)
+                    Go to{" "}
+                    <Link
+                      href="/settings"
+                      className="text-brand-600 hover:text-brand-700 underline"
+                    >
+                      Settings
+                    </Link>{" "}
+                    → Security
+                  </li>
+                  <li>Scroll to the &quot;Delete Account&quot; section</li>
+                  <li>Click &quot;Delete my account&quot;</li>
+                  <li>
+                    Confirm with your password (or type &quot;DELETE&quot; if you sign in with
+                    Google/Facebook). This action cannot be undone.
                   </li>
                 </ol>
+                <p className="text-muted-foreground leading-relaxed mt-3">
+                  Deletion takes effect immediately: any active subscription is cancelled, your
+                  personal data is erased, and you are signed out of every device.
+                </p>
 
                 <h3 className="text-base font-semibold text-foreground mt-6 mb-2">
-                  Method 2: Email Request
+                  Method 2: Delete Specific Data (Without Deleting Your Account)
+                </h3>
+                <p className="text-muted-foreground leading-relaxed mb-3">
+                  You don&apos;t have to delete your whole account to remove data. While signed
+                  in, you can delete individual items at any time:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed ml-2">
+                  <li>Posts, captions, images, and videos you created — from your feed or media library</li>
+                  <li>Connected social accounts — Settings → Connections → Disconnect</li>
+                  <li>Saved payment methods — Settings → Billing → remove card</li>
+                  <li>Profile details (bio, avatar, links) — Settings → Profile</li>
+                  <li>Contact lists and SMS/email campaign data — from the relevant campaign screen</li>
+                </ul>
+                <p className="text-muted-foreground leading-relaxed mt-3">
+                  To request erasure of a specific category of data that you can&apos;t remove
+                  yourself, email{" "}
+                  <a
+                    href="mailto:info@flowsmartly.com"
+                    className="text-brand-600 hover:text-brand-700 underline"
+                  >
+                    info@flowsmartly.com
+                  </a>{" "}
+                  with the subject &quot;GDPR Partial Data Deletion Request&quot; and describe the
+                  data you want deleted. We process these within <strong>30 days</strong>.
+                </p>
+
+                <h3 className="text-base font-semibold text-foreground mt-6 mb-2">
+                  Method 3: Email Request (Full Deletion)
                 </h3>
                 <p className="text-muted-foreground leading-relaxed mb-3">
                   Send an email to{" "}

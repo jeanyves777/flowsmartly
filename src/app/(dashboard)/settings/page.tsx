@@ -61,6 +61,7 @@ interface UserProfile {
   emailVerified: boolean;
   twoFactorEnabled: boolean;
   twoFactorEnabledAt: string | null;
+  hasPassword: boolean;
   postsCount: number;
   followersCount: number;
   followingCount: number;
@@ -171,6 +172,12 @@ export default function SettingsPage() {
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [twoFactorPassword, setTwoFactorPassword] = useState("");
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+
+  // Delete account (GDPR self-service erasure)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -724,6 +731,36 @@ export default function SettingsPage() {
     if (!twoFactorSetup?.recoveryCodes.length) return;
     await navigator.clipboard.writeText(twoFactorSetup.recoveryCodes.join("\n"));
     toast({ title: "Recovery codes copied" });
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      const response = await fetch("/api/auth/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: deletePassword,
+          confirmation: deleteConfirmation,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to delete account");
+      }
+
+      // Account is gone — clear local state and send the user to the homepage.
+      toast({ title: "Account deleted", description: "Your account and personal data have been removed." });
+      window.location.href = "/";
+    } catch (err) {
+      toast({
+        title: "Could not delete account",
+        description: err instanceof Error ? err.message : "Please try again",
+        variant: "destructive",
+      });
+      setIsDeletingAccount(false);
+    }
   };
 
   const handleThemeChange = async (newTheme: string) => {
@@ -1412,6 +1449,43 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Danger Zone — Delete Account (GDPR self-service erasure) */}
+              <Card className="border-red-500/40">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                    Delete Account
+                  </CardTitle>
+                  <CardDescription>
+                    Permanently delete your account and erase your personal data. This cannot be undone.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4 rounded-lg border border-red-500/30 bg-red-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">This will:</p>
+                      <ul className="mt-1 list-disc pl-5 space-y-0.5">
+                        <li>Cancel any active subscription</li>
+                        <li>Erase your name, email, photos, and connected accounts</li>
+                        <li>Sign you out of every device immediately</li>
+                      </ul>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setDeletePassword("");
+                        setDeleteConfirmation("");
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete my account
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
 
@@ -1977,6 +2051,84 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Account Confirmation */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => !isDeletingAccount && setDeleteDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Delete your account?
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes your account and erases your personal data (name, email,
+              photos, and connected social accounts). Any active subscription is cancelled. This
+              action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {user?.hasPassword ? (
+              <div className="space-y-2">
+                <Label htmlFor="deletePassword">Enter your password to confirm</Label>
+                <Input
+                  id="deletePassword"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your password"
+                  autoComplete="current-password"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="deleteConfirmation">
+                  Type <span className="font-semibold text-red-600">DELETE</span> to confirm
+                </Label>
+                <Input
+                  id="deleteConfirmation"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="DELETE"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeletingAccount}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={
+                isDeletingAccount ||
+                (user?.hasPassword
+                  ? !deletePassword
+                  : deleteConfirmation.trim().toUpperCase() !== "DELETE")
+              }
+            >
+              {isDeletingAccount ? (
+                <>
+                  <AISpinner className="w-4 h-4 mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Permanently delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
