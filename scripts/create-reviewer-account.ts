@@ -1,91 +1,100 @@
 /**
- * Create Test Reviewer Account for Facebook App Review
- * Run this on the production server to create the reviewer test account
+ * Create / repair the store-reviewer test account (Google Play & app review).
+ * Run on the production server: `npx tsx scripts/create-reviewer-account.ts`
  *
- * Usage: npx tsx scripts/create-reviewer-account.ts
+ * IMPORTANT: the password is hashed with the SAME scrypt scheme the live login
+ * uses (src/lib/auth/password.ts) — `saltB64:hashB64`. An earlier version of
+ * this script used bcrypt, whose hash verifyPassword() can't read, so the
+ * account could never log in with email/password. This version is verifiable
+ * end-to-end and will UPDATE an existing account's hash so it works.
  */
 
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { randomBytes, scryptSync } from "crypto";
 
 const prisma = new PrismaClient();
 
-async function createReviewerAccount() {
-  try {
-    console.log("Creating reviewer test account...");
+// Mirror src/lib/auth/password.ts exactly so the live login can verify it.
+const SALT_LENGTH = 32;
+const KEY_LENGTH = 64;
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
 
-    const email = "reviewer@flowsmartly.com";
-    const password = "FlowTest2024!Review";
-    const username = "flowsmartly_reviewer";
+function hashPassword(password: string): string {
+  const salt = randomBytes(SALT_LENGTH);
+  const hash = scryptSync(password, salt, KEY_LENGTH, SCRYPT_PARAMS);
+  return `${salt.toString("base64")}:${hash.toString("base64")}`;
+}
 
-    // Check if account already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+async function main() {
+  const email = "reviewer@flowsmartly.com";
+  const password = "FlowReview2026!Play";
+  const username = "flowsmartly_reviewer";
+
+  const passwordHash = hashPassword(password);
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        passwordHash, // repair to a scrypt hash the login can verify
+        name: "App Reviewer",
+        username: existing.username || username,
+        emailVerified: true,
+        emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
+        deletedAt: null,
+        plan: "PRO",
+        aiCredits: existing.aiCredits < 500 ? 500 : existing.aiCredits,
+        oauthProvider: null, // ensure it's an email/password account
+      },
     });
-
-    if (existingUser) {
-      console.log("✅ Reviewer account already exists!");
-      console.log(`   Email: ${email}`);
-      console.log(`   Username: ${existingUser.username}`);
-      console.log(`   User ID: ${existingUser.id}`);
-      return;
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user account
+    console.log("✅ Reviewer account REPAIRED (password reset to scrypt hash).");
+    console.log(`   User ID: ${existing.id}`);
+  } else {
     const user = await prisma.user.create({
       data: {
         email,
         username,
-        name: "Facebook Reviewer",
-        passwordHash: hashedPassword,
+        name: "App Reviewer",
+        passwordHash,
         country: "US",
         region: "worldwide",
         emailVerified: true,
         emailVerifiedAt: new Date(),
         lastLoginAt: new Date(),
-        aiCredits: 500, // Give reviewer plenty of credits
+        aiCredits: 500,
         freeCredits: 500,
-        plan: "PRO", // Give PRO access so they can test all features
+        plan: "PRO",
       },
     });
-
-    // Add welcome credits transaction
     await prisma.creditTransaction.create({
       data: {
         userId: user.id,
         amount: 500,
         type: "BONUS",
-        description: "Test account credits for Facebook reviewer",
+        description: "Test account credits for app reviewer",
         balanceAfter: 500,
       },
     });
-
-    console.log("\n✅ Reviewer account created successfully!");
-    console.log("\n📋 TEST CREDENTIALS:");
-    console.log(`   Email: ${email}`);
-    console.log(`   Password: ${password}`);
-    console.log(`   Username: ${username}`);
+    console.log("✅ Reviewer account CREATED.");
     console.log(`   User ID: ${user.id}`);
-    console.log(`   Plan: PRO`);
-    console.log(`   Credits: 500`);
-    console.log("\n✅ Account is ready for Facebook app review!");
-  } catch (error) {
-    console.error("❌ Error creating reviewer account:", error);
-    throw error;
-  } finally {
-    await prisma.$disconnect();
   }
+
+  console.log("\n📋 REVIEWER CREDENTIALS:");
+  console.log(`   Email:    ${email}`);
+  console.log(`   Password: ${password}`);
+  console.log(`   Username: ${username}`);
+  console.log(`   Plan: PRO · Credits: 500`);
 }
 
-createReviewerAccount()
-  .then(() => {
-    console.log("\n✅ Script completed successfully!");
+main()
+  .then(async () => {
+    await prisma.$disconnect();
     process.exit(0);
   })
-  .catch((error) => {
-    console.error("\n❌ Script failed:", error);
+  .catch(async (e) => {
+    console.error("❌ Script failed:", e);
+    await prisma.$disconnect();
     process.exit(1);
   });
