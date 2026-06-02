@@ -204,23 +204,44 @@ export async function GET(request: NextRequest) {
     }
 
     // Pattern-derive thumbnail URLs from a stored media key/URL.
-    // Only works for keys minted by /api/media — `media/{baseId}.{ext}` → has
-    // `media/thumbs-md/{baseId}.webp` and `media/thumbs-sm/{baseId}.webp`
-    // siblings (uploaded in parallel). For everything else, return null and
-    // let the client fall back to the full URL.
+    // Two conventions exist:
+    //  - `/api/media` uploads (post 2026-06-02) → `media/{baseId}.{ext}` has
+    //    siblings at `media/thumbs-md/{baseId}.webp` and `media/thumbs-sm/...`
+    //  - Backfilled legacy + synthetic uploads → `{prefix}/{name}.{ext}` has
+    //    siblings at `{prefix}/{name}_md.webp` and `{prefix}/{name}_sm.webp`
+    //    (the backfill script appends suffix in the same directory)
+    // For anything that doesn't match either, return null and let the client
+    // fall back to the full URL.
     const deriveImageThumbs = (urlOrKey: string | null | undefined): { md: string; sm: string } | null => {
       if (!urlOrKey) return null;
-      // Strip any query/signature first.
       const clean = urlOrKey.split("?")[0];
-      // Match either bare key "media/abc.webp" or full URL "...amazonaws.com/media/abc.webp"
-      const m = clean.match(/(^|\/)media\/([^/]+)\.(webp|png|jpg|jpeg)$/i);
-      if (!m) return null;
-      const baseId = m[2];
-      const prefix = clean.slice(0, m.index! + m[1].length); // "" or "https://.../"
-      return {
-        md: `${prefix}media/thumbs-md/${baseId}.webp`,
-        sm: `${prefix}media/thumbs-sm/${baseId}.webp`,
-      };
+      // Don't re-derive from already-derived thumb keys
+      if (/(?:_md|_sm)\.webp$/i.test(clean) || /\/thumbs-(?:md|sm)\//i.test(clean)) {
+        return null;
+      }
+      // Prefer the explicit /media/thumbs-md|sm/ form when the key is under
+      // /media/ (smaller WebPs hand-tuned by /api/media's sharp pipeline).
+      const mediaMatch = clean.match(/(^|\/)media\/([^/]+)\.(webp|png|jpg|jpeg)$/i);
+      if (mediaMatch) {
+        const baseId = mediaMatch[2];
+        const prefix = clean.slice(0, mediaMatch.index! + mediaMatch[1].length);
+        return {
+          md: `${prefix}media/thumbs-md/${baseId}.webp`,
+          sm: `${prefix}media/thumbs-sm/${baseId}.webp`,
+        };
+      }
+      // Generic suffix form for everything else (synthetic/, posts/, designs/,
+      // cartoons/, logos/, etc.) — the backfill script generates `*_md.webp`
+      // and `*_sm.webp` siblings.
+      const genericMatch = clean.match(/^(.*)\.(webp|png|jpg|jpeg)$/i);
+      if (genericMatch) {
+        const base = genericMatch[1];
+        return {
+          md: `${base}_md.webp`,
+          sm: `${base}_sm.webp`,
+        };
+      }
+      return null;
     };
     // Bulk-load MediaFile records for video posts so we can surface the
     // existing JPEG poster (`metadata.thumbnailUrl`) — mobile reels needs it
