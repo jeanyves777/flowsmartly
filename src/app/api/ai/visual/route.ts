@@ -682,7 +682,13 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     // Art direction = design CALIBER + composition only (NOT text/legibility
     // rules — see feedback_no_text_rules_in_image_prompts). Lifts models away
     // from flat "photo + caption" output toward real designed layouts.
-    "Act as a senior art director and professional graphic designer. Produce a polished, premium, advertising-grade marketing DESIGN: deliberate layout with strong visual hierarchy, balanced composition, depth, and tasteful use of color, contrast of scale, and negative space. It must look intentionally designed — magazine / high-end social-campaign quality — NOT a flat, generic, clip-art, or plain stock-photo-with-text look.",
+    "You are a senior art director and graphic designer. Unless the user clearly asked for a plain photograph, produce a COMPLETE, professionally designed promotional flyer/poster — agency / premium-Canva quality — NOT a plain photo with a caption. Design the entire composition deliberately:",
+    "- LAYOUT & STRUCTURE: organize the canvas into clear designed zones — a small top eyebrow/tagline strip, a bold stylized HERO TITLE, a short supporting subhead, a concise body block, an optional highlight badge/seal, a call-to-action banner, and a footer strip. Strong visual hierarchy, intentional spacing, depth, and balanced composition that fills the canvas.",
+    "- TYPOGRAPHY AS DESIGN: treat type as a graphic element — mix complementary styles (e.g. an elegant script accent word paired with a heavy display/condensed word), vary size and weight for hierarchy, and set headlines on shaped backers (brush strokes, ribbons, color blocks) where it elevates the piece.",
+    "- BRAND COLOR SYSTEM: build the whole palette from the brand colors — backgrounds, accent shapes, dividers, banners — so it reads as one cohesive branded design.",
+    "- DECORATIVE ELEMENTS: add tasteful, theme-appropriate graphic detailing that fits the occasion and brand — brush strokes, torn-paper / ribbon banners, badges or seals for highlights, subtle texture or gradient, confetti for celebrations, botanical / island motifs for tropical themes. Integrate them into the composition, never as loose clip-art stickers.",
+    "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the design (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
+    "- FINISH: rich, layered, intentional, magazine / advertising-grade. Avoid flat, empty, generic, or default-template looks.",
     "",
     "Marketing image context",
     `Canvas: ${params.width}x${params.height}`,
