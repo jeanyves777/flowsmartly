@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { presignAllUrls, extractS3Key } from "@/lib/utils/s3-client";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
+import { getBlockedUserIds } from "@/lib/social/blocks";
 
 function parseStringArray(value: string | null | undefined): string[] {
   if (!value) return [];
@@ -43,6 +44,28 @@ export async function GET(request: NextRequest) {
     // Filter by specific user if provided
     if (userId) {
       where.userId = userId;
+    }
+
+    // Hide posts authored by anyone the viewer has blocked OR who has blocked
+    // the viewer (mutual invisibility). Layered as `userId.notIn` so it
+    // survives the OR/AND rewrites below for trend/feed/following branches.
+    const blockedAuthorIds = await getBlockedUserIds(session?.userId);
+    if (blockedAuthorIds.length > 0) {
+      const existingUserId = where.userId as
+        | string
+        | { in?: string[]; notIn?: string[] }
+        | undefined;
+      if (typeof existingUserId === "string") {
+        // Profile view of a blocked user: short-circuit to an impossible filter
+        // so we return an empty feed without leaking the user's posts.
+        if (blockedAuthorIds.includes(existingUserId)) {
+          where.userId = { in: [] };
+        }
+      } else if (existingUserId && typeof existingUserId === "object") {
+        where.userId = { ...existingUserId, notIn: blockedAuthorIds };
+      } else {
+        where.userId = { notIn: blockedAuthorIds };
+      }
     }
 
     if (trend) {

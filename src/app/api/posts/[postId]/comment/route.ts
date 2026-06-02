@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { getBlockedUserIds } from "@/lib/social/blocks";
 
 // GET /api/posts/[postId]/comment - Get comments for a post
 export async function GET(
@@ -8,6 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
+    const session = await getSession();
     const { postId } = await params;
     const { searchParams } = new URL(request.url);
     const cursor = searchParams.get("cursor");
@@ -31,11 +33,18 @@ export async function GET(
       );
     }
 
+    // Hide comments authored by anyone the viewer has blocked OR who has
+    // blocked the viewer (mutual invisibility).
+    const blockedAuthorIds = await getBlockedUserIds(session?.userId);
+
     const comments = await prisma.comment.findMany({
       where: {
         postId,
         parentId: parentId || null,
         deletedAt: null,
+        ...(blockedAuthorIds.length > 0
+          ? { userId: { notIn: blockedAuthorIds } }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
       take: limit + 1,

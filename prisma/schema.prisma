@@ -151,6 +151,8 @@ model User {
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
   syntheticPersona      SyntheticPersona?
+  blocksInitiated       UserBlock[]                     @relation("UserBlocks_blocker")
+  blocksReceived        UserBlock[]                     @relation("UserBlocks_blocked")
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -457,6 +459,24 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+// User-to-user block. Mutual invisibility: the blocker stops seeing the
+// blocked user's posts/comments AND vice versa. Required for the mobile
+// app's Google Play IARC "users can be blocked" declaration. Silent — the
+// blocked user is never notified.
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("UserBlocks_blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlocks_blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
 }
 
 // ============================================
