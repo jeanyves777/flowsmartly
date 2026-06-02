@@ -12,6 +12,7 @@ import {
 import { generateImageForRole } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { veoClient } from "@/lib/ai/veo-client";
+import { generateVideoForRole } from "@/lib/ai/video-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 
 /**
@@ -278,33 +279,23 @@ export async function POST(req: NextRequest) {
           // mode === "video"
           send({ type: "status", message: "Starting video render…" });
 
-          // Premium → Google Veo (longer, native audio). Standard → xAI Grok
-          // (faster, cheaper). If the preferred provider isn't configured we
-          // fall back to the other so the user never sees a config error.
-          const tryVeo = tier === "premium" && veoClient.isAvailable();
-          const tryGrok = !tryVeo && grokVideoClient.isAvailable();
-          if (!tryVeo && !tryGrok) {
+          // Centralized video routing (media-models VIDEO_CHAINS): premium →
+          // Veo quality (native audio, 1080p), standard → Grok, with automatic
+          // fallback. Never expose provider names.
+          if (!veoClient.isAvailable() && !grokVideoClient.isAvailable()) {
             throw new Error("Video generation is not configured");
           }
-
-          let videoBuffer: Buffer;
-          let videoContentType = "video/mp4";
-          if (tryVeo) {
-            const veoResult = await veoClient.generateVideoBuffer(message, {
-              durationSeconds: "8",
-              resolution: "720p",
+          const videoContentType = "video/mp4";
+          const gen = await generateVideoForRole(
+            tier === "premium" ? "video_premium" : "video_standard",
+            {
+              prompt: message,
+              durationSeconds: 8,
               aspectRatio: "16:9",
-            });
-            videoBuffer = veoResult.videoBuffer;
-          } else {
-            const grokResult = await grokVideoClient.generateVideo(message, {
-              duration: 8,
-              aspectRatio: "16:9",
-              resolution: "720p",
               onStatus: (m) => send({ type: "status", message: m }),
-            });
-            videoBuffer = grokResult.videoBuffer;
-          }
+            },
+          );
+          const videoBuffer = gen.videoBuffer;
 
           send({ type: "status", message: "Uploading…" });
           const key = `flow-ai/${session.userId}/${convId}-${Date.now()}.mp4`;

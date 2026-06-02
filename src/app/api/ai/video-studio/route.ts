@@ -611,8 +611,13 @@ function resolveRuntimeVideoProvider(
 ): RuntimeVideoProvider {
   if (requestedProvider === "slideshow") return "slideshow";
   if (requestedProvider === "grok") return "grok";
-  if (requestedProvider === "auto" && duration <= 15 && grokVideoClient.isAvailable()) {
-    return "grok";
+  if (requestedProvider === "veo3") return "veo3";
+  // auto — QUALITY-FIRST: Veo for short single-shot clips (highest fidelity +
+  // native audio); Grok for longer clips since Veo single-shot maxes at ~8s.
+  if (requestedProvider === "auto") {
+    if (duration <= 8 && veoClient.isAvailable()) return "veo3";
+    if (grokVideoClient.isAvailable()) return "grok";
+    return "veo3";
   }
   return "veo3";
 }

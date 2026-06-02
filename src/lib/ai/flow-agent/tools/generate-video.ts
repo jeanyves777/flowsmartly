@@ -3,7 +3,8 @@ import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { videoChain, videoRole } from "@/lib/ai/media-models";
+import { videoRole } from "@/lib/ai/media-models";
+import { generateVideoForRole } from "@/lib/ai/video-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import type { FlowAgentTool } from "../registry";
@@ -69,21 +70,18 @@ export const generateVideo: FlowAgentTool = {
       }
     }
 
-    // Pick the provider from the GLOBAL video policy (media-models VIDEO_CHAINS)
-    // so the tier→provider ladder lives in one place. Premium → Veo "quality",
-    // Standard → Grok; fall through to Grok if the primary isn't configured.
-    // We NEVER show provider names to the user.
-    const videoPrimary = videoChain(videoRole(tier))[0];
-    const veoTier = videoPrimary.veoTier ?? "quality";
-    const useVeo = videoPrimary.provider === "veo3" && veoClient.isAvailable();
-    const useGrok = !useVeo && grokVideoClient.isAvailable();
-    if (!useVeo && !useGrok) {
+    // Provider selection is centralized in the video router (media-models
+    // VIDEO_CHAINS): premium → Veo quality (native audio, 1080p), standard →
+    // Grok, duration-aware (Veo only ≤8s) with automatic fallback. We never
+    // show provider names to the user. Fail fast only if NOTHING is configured.
+    if (!veoClient.isAvailable() && !grokVideoClient.isAvailable()) {
       return {
         ok: false,
         error_code: "upstream_failed",
         message: "Video generation isn't configured on this environment. Tell the user we're working on it.",
       };
     }
+    const role = videoRole(tier);
 
     // Language prefix — any rendered text or generated voiceover stays
     // in the user's language. See feedback-ai-respects-user-language.
@@ -105,42 +103,22 @@ export const generateVideo: FlowAgentTool = {
           message: "Starting video render…",
         });
 
+        // Veo has no progress callback — fire periodic heartbeats so the UI
+        // doesn't look stuck during the (multi-minute) render.
+        const heartbeat = setInterval(() => {
+          publishTaskEvent({ type: "progress", taskId, message: "Rendering video…" });
+        }, 15000);
         let videoBuffer: Buffer;
-        if (useVeo) {
-          // Veo has no progress callback — fire periodic heartbeats so the
-          // UI doesn't look stuck. Veo internally polls every 5s for up to
-          // 6 min, so this matches its real cadence.
-          const heartbeat = setInterval(() => {
-            publishTaskEvent({
-              type: "progress",
-              taskId,
-              message: "Rendering video…",
-            });
-          }, 15000);
-          try {
-            // Veo only supports 16:9 and 9:16. If the user asked for 1:1,
-            // fall through to 9:16 (vertical) — closer to square reels.
-            const veoAspect: "16:9" | "9:16" = aspectRatio === "16:9" ? "16:9" : "9:16";
-            const veoResult = await veoClient.generateVideoBuffer(enrichedPrompt, {
-              durationSeconds: String(Math.min(8, durationSeconds)) as "8",
-              resolution: "720p",
-              aspectRatio: veoAspect,
-              tier: veoTier,
-            });
-            videoBuffer = veoResult.videoBuffer;
-          } finally {
-            clearInterval(heartbeat);
-          }
-        } else {
-          const grokResult = await grokVideoClient.generateVideo(enrichedPrompt, {
-            duration: durationSeconds,
+        try {
+          const gen = await generateVideoForRole(role, {
+            prompt: enrichedPrompt,
+            durationSeconds,
             aspectRatio,
-            resolution: "720p",
-            onStatus: (message) => {
-              publishTaskEvent({ type: "progress", taskId, message });
-            },
+            onStatus: (message) => publishTaskEvent({ type: "progress", taskId, message }),
           });
-          videoBuffer = grokResult.videoBuffer;
+          videoBuffer = gen.videoBuffer;
+        } finally {
+          clearInterval(heartbeat);
         }
 
         publishTaskEvent({
