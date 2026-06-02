@@ -3,6 +3,7 @@ import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { videoChain, videoRole } from "@/lib/ai/media-models";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import type { FlowAgentTool } from "../registry";
@@ -68,9 +69,13 @@ export const generateVideo: FlowAgentTool = {
       }
     }
 
-    // Pick the provider. Premium prefers Veo when configured; otherwise
-    // fall through to Grok. We NEVER show provider names to the user.
-    const useVeo = tier === "premium" && veoClient.isAvailable();
+    // Pick the provider from the GLOBAL video policy (media-models VIDEO_CHAINS)
+    // so the tier→provider ladder lives in one place. Premium → Veo "quality",
+    // Standard → Grok; fall through to Grok if the primary isn't configured.
+    // We NEVER show provider names to the user.
+    const videoPrimary = videoChain(videoRole(tier))[0];
+    const veoTier = videoPrimary.veoTier ?? "quality";
+    const useVeo = videoPrimary.provider === "veo3" && veoClient.isAvailable();
     const useGrok = !useVeo && grokVideoClient.isAvailable();
     if (!useVeo && !useGrok) {
       return {
@@ -120,6 +125,7 @@ export const generateVideo: FlowAgentTool = {
               durationSeconds: String(Math.min(8, durationSeconds)) as "8",
               resolution: "720p",
               aspectRatio: veoAspect,
+              tier: veoTier,
             });
             videoBuffer = veoResult.videoBuffer;
           } finally {

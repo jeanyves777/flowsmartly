@@ -3,6 +3,7 @@ import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-clien
 import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
 import { flowImageClient } from "./flow-image-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
+import { imageChain, IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
 
 export type RoutedImageProvider = ImageProvider | "flow";
 
@@ -53,7 +54,7 @@ export async function generateImageWithProvider(
   prompt: string,
   width: number,
   height: number,
-  options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
+  options: { quality?: "low" | "medium" | "high"; transparent?: boolean; model?: string } = {},
 ): Promise<RoutedImageResult> {
   switch (provider) {
     case "xai": {
@@ -61,25 +62,31 @@ export async function generateImageWithProvider(
         throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
       }
       const aspectRatio = sizeToAspectRatio(width, height);
+      // 2K is only valid on the quality model — the base grok-imagine-image
+      // rejects it, so gate the resolution on the model name.
+      const xaiModel = options.model || XAI_IMAGE_MODEL;
+      const wants2k = options.quality === "high" && /quality/.test(xaiModel);
       return {
         base64: await xaiClient.generateImage(prompt, {
           aspectRatio,
-          resolution: options.quality === "high" ? "2k" : undefined,
+          resolution: wants2k ? "2k" : undefined,
         }),
-        model: XAI_IMAGE_MODEL,
+        model: xaiModel,
         provider,
         format: "jpeg",
       };
     }
     case "openai": {
       const size = getGptImageSize(width, height);
+      const openaiModel = options.model || OPENAI_IMAGE_GEN_MODEL;
       return {
         base64: await openaiClient.generateImage(prompt, {
           size,
           quality: options.quality || "high",
           transparent: options.transparent,
+          model: openaiModel,
         }),
-        model: OPENAI_IMAGE_GEN_MODEL,
+        model: openaiModel,
         provider,
         format: "png",
       };
@@ -89,9 +96,10 @@ export async function generateImageWithProvider(
         throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
       }
       const aspectRatio = sizeToAspectRatioGemini(width, height);
+      const geminiModel = options.model || "imagen-4.0-generate-001";
       return {
-        base64: await geminiImageClient.generateImage(prompt, { aspectRatio }),
-        model: "imagen-4.0-generate-001",
+        base64: await geminiImageClient.generateImage(prompt, { aspectRatio, model: geminiModel }),
+        model: geminiModel,
         provider,
         format: "png",
       };
@@ -259,5 +267,117 @@ export async function editImagesXaiFirst(
     }
   }
 
+  throw new Error(lastError instanceof Error ? lastError.message : "Image edit failed");
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ROLE-AWARE entry points — the preferred way to generate/edit images. They
+// consult the GLOBAL media-model policy (src/lib/ai/media-models.ts) so every
+// surface uses the same provider+model ladder for a given role, with fallback.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generate an image for a media ROLE (design_generate / bulk_multi / premium…).
+ * Walks that role's provider+model chain and returns the first success.
+ */
+export async function generateImageForRole(
+  role: ImageRole,
+  prompt: string,
+  width: number,
+  height: number,
+  options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
+): Promise<RoutedImageResult> {
+  let lastError: unknown = null;
+  for (const step of imageChain(role)) {
+    try {
+      const result = await generateImageWithProvider(step.provider, prompt, width, height, {
+        quality: options.quality,
+        transparent: options.transparent && step.provider === "openai",
+        model: step.model,
+      });
+      if (result.base64) return result;
+      throw new Error(`${step.provider} returned no image`);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[ImageRouter/role:${role}] ${step.provider} (${step.model}) failed, trying next:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  throw new Error(lastError instanceof Error ? lastError.message : "Image generation failed");
+}
+
+/**
+ * Edit image(s) for a media ROLE. Only edit-capable providers are used: Imagen
+ * generate models can't edit, so any "gemini" step is coerced to the Nano Banana
+ * edit model and "flow" steps are skipped.
+ */
+export async function editImagesForRole(
+  role: ImageRole,
+  prompt: string,
+  imageBuffers: Buffer[],
+  width: number,
+  height: number,
+  options: { quality?: "low" | "medium" | "high"; intent?: ImageEditIntent } = {},
+): Promise<RoutedImageResult> {
+  void options.intent;
+  const sourceBuffers = imageBuffers.filter(Boolean).slice(0, 5);
+  if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
+
+  let lastError: unknown = null;
+  for (const step of imageChain(role)) {
+    // Edit chains only contain edit-capable providers (gemini/openai/xai).
+    const model = step.provider === "gemini" ? IMAGE_MODEL_IDS.nanoBanana : step.model;
+    try {
+      if (step.provider === "xai") {
+        if (!xaiClient.isAvailable()) throw new Error("xAI provider is not configured.");
+        const base64 = await xaiClient.editImages(
+          prompt,
+          sourceBuffers.map((b) => b.toString("base64")),
+          { aspectRatio: sizeToAspectRatio(width, height) },
+        );
+        if (base64) return { base64, model, provider: "xai", format: "jpeg" };
+        throw new Error("xai returned no image");
+      }
+      if (step.provider === "openai") {
+        const size = getGptImageSize(width, height);
+        const base64 =
+          sourceBuffers.length > 1
+            ? await openaiClient.editMultiImage(
+                prompt,
+                sourceBuffers.map((buffer, i) => ({
+                  buffer,
+                  filename: i === 0 ? "canvas.png" : `reference-${i}.png`,
+                  type: "image/png",
+                })),
+                { size, quality: options.quality || "high", model },
+              )
+            : await openaiClient.editImage(prompt, sourceBuffers[0], {
+                size,
+                quality: options.quality || "high",
+                model,
+              });
+        if (base64) return { base64, model, provider: "openai", format: "png" };
+        throw new Error("openai returned no image");
+      }
+      if (step.provider === "gemini") {
+        if (!geminiImageClient.isAvailable()) throw new Error("Gemini provider is not configured.");
+        const base64 = await geminiImageClient.editImages(
+          prompt,
+          sourceBuffers.map((b) => b.toString("base64")),
+          { aspectRatio: sizeToAspectRatioGemini(width, height) },
+        );
+        if (base64) return { base64, model, provider: "gemini", format: "png" };
+        throw new Error("gemini returned no image");
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[ImageRouter/editRole:${role}] ${step.provider} failed, trying next:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
   throw new Error(lastError instanceof Error ? lastError.message : "Image edit failed");
 }

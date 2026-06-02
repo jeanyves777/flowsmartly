@@ -10,7 +10,7 @@ import { TRANSACTION_TYPES, creditService } from "@/lib/credits";
 import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageXaiFirst, generateImageForRole } from "@/lib/ai/image-router";
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -1999,7 +1999,7 @@ Visual style: ${visualLanguage}. Film-still quality. No text overlays. No waterm
 Brand context (do NOT draw the logo): ${brand.name}.
 Aspect ratio: ${aspect}.`;
 
-  const result = await generateImageXaiFirst(prompt, w, h, { quality: "high", transparent: false });
+  const result = await generateImageForRole("bulk_multi", prompt, w, h, { quality: "medium" });
   if (!result.base64) throw new Error("Image provider returned no image");
   const buf = Buffer.from(result.base64, "base64");
   const ext = result.format === "jpeg" ? "jpg" : result.format;

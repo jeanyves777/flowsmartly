@@ -6,7 +6,7 @@
  */
 
 import { ai } from "@/lib/ai/client";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageForRole } from "@/lib/ai/image-router";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import fs from "fs";
 import os from "os";
@@ -182,7 +182,7 @@ export async function generateSlideshowImages(
 
     // First attempt
     try {
-      const result = await generateImageXaiFirst(scene.imagePrompt, imageSize.width, imageSize.height, { quality: "high" });
+      const result = await generateImageForRole("bulk_multi", scene.imagePrompt, imageSize.width, imageSize.height, { quality: "medium" });
       base64 = result.base64;
     } catch (err) {
       console.warn(`[Slideshow] Image gen failed for scene ${i + 1}, retrying:`, err);
@@ -191,7 +191,7 @@ export async function generateSlideshowImages(
     // Retry once
     if (!base64) {
       try {
-        const result = await generateImageXaiFirst(scene.imagePrompt, imageSize.width, imageSize.height, { quality: "high" });
+        const result = await generateImageForRole("bulk_multi", scene.imagePrompt, imageSize.width, imageSize.height, { quality: "medium" });
         base64 = result.base64;
       } catch (retryErr) {
         throw new Error(`Failed to generate image for scene ${i + 1} after retry: ${retryErr instanceof Error ? retryErr.message : "Unknown error"}`);

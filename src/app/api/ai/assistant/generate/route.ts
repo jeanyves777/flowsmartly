@@ -9,7 +9,7 @@ import {
   checkCreditsForFeature,
   type CreditCostKey,
 } from "@/lib/credits/costs";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageForRole } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { veoClient } from "@/lib/ai/veo-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -216,11 +216,13 @@ export async function POST(req: NextRequest) {
             // Premium → OpenAI first (best quality), Standard → xAI first
             // (faster, cheaper). Router falls back through providers on
             // failure so we never strand the user on a single provider.
-            const preferred = tier === "premium" ? "openai" : "xai";
-            const result = await generateImageXaiFirst(enrichedPrompt, 1024, 1024, {
-              quality: tier === "premium" ? "high" : "medium",
-              preferredProvider: preferred,
-            });
+            const result = await generateImageForRole(
+              tier === "premium" ? "premium" : "design_generate",
+              enrichedPrompt,
+              1024,
+              1024,
+              { quality: tier === "premium" ? "high" : "medium" },
+            );
             if (!result.base64) throw new Error("Image generator returned no image");
 
             send({ type: "status", message: "Uploading…" });

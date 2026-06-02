@@ -207,11 +207,14 @@ class GeminiImageClient {
     options: {
       aspectRatio?: GeminiAspectRatio;
       numberOfImages?: number;
+      /** Imagen model id — defaults to the flagship. Pass Ultra/Fast per role. */
+      model?: string;
     } = {}
   ): Promise<string | null> {
     const {
       aspectRatio = "1:1",
       numberOfImages = 1,
+      model = "imagen-4.0-generate-001",
     } = options;
 
     if (!this.client) {
@@ -224,7 +227,7 @@ class GeminiImageClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.models.generateImages({
-          model: "imagen-4.0-generate-001",
+          model,
           prompt,
           config: {
             numberOfImages,

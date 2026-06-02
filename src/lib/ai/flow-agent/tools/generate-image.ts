@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageForRole } from "@/lib/ai/image-router";
+import { imageGenerateRole } from "@/lib/ai/media-models";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import type { FlowAgentTool } from "../registry";
@@ -124,10 +125,8 @@ export const generateImage: FlowAgentTool = {
           message: "Generating image…",
         });
 
-        const preferredProvider = tier === "premium" ? "openai" : "xai";
-        const result = await generateImageXaiFirst(enrichedPrompt, width, height, {
+        const result = await generateImageForRole(imageGenerateRole(tier), enrichedPrompt, width, height, {
           quality: tier === "premium" ? "high" : "medium",
-          preferredProvider,
         });
         if (!result.base64) {
           throw new Error("Image generator returned no image");

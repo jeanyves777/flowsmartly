@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { editImagesXaiFirst } from "@/lib/ai/image-router";
+import { editImagesForRole } from "@/lib/ai/image-router";
+import { imageEditRole } from "@/lib/ai/media-models";
 import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 import { analyzeLogoPlacement } from "@/lib/media/analyze-logo-placement";
 import { uploadToS3, getPresignedUrl } from "@/lib/utils/s3-client";
@@ -16,7 +17,8 @@ import { saveToMediaLibrary } from "../save-media";
  * image the user uploaded) and either (a) edit it with an instruction
  * ("make the background blue", "remove the text") and/or (b) composite the
  * user's REAL BrandKit logo onto it. Reuses the same provider chain the rest
- * of the platform uses (editImagesXaiFirst) — no reimplementation — and the
+ * of the platform uses (editImagesForRole → global model policy) — no
+ * reimplementation — and the
  * shared compositeBrandLogoOnImageBuffer for the logo overlay.
  *
  * Runs as a BACKGROUND TASK like generate_image. Mutating, confirmed-plan.
@@ -131,9 +133,8 @@ export const editImage: FlowAgentTool = {
               .join(" "),
             languageTag,
           );
-          const result = await editImagesXaiFirst(enrichedPrompt, [buffer], 1024, 1024, {
+          const result = await editImagesForRole(imageEditRole(tier), enrichedPrompt, [buffer], 1024, 1024, {
             quality: tier === "premium" ? "high" : "medium",
-            preferredProvider: tier === "premium" ? "openai" : "xai",
             intent: "identity",
           });
           if (!result.base64) throw new Error("Image editor returned no image");

@@ -1148,6 +1148,7 @@ function FlowCreativeModal({
           size: aspect.imageSize,
           style: flowMediaStyle,
           provider: imageProviderForTier(flowMediaTier),
+          tier: flowMediaTier,
           promptMode: "edit",
           brandIdentity: buildRawBrandIdentity(brandKit),
           brandColors: brandKit?.colors || null,
@@ -1296,6 +1297,7 @@ function FlowCreativeModal({
             size: aspect.imageSize,
             style: flowMediaStyle,
             provider: imageProviderForTier(flowMediaTier),
+            tier: flowMediaTier,
             // No strictProvider: Premium (OpenAI) now falls back to Google
             // (Gemini) on failure instead of hard-failing — see image-router
             // order. Standard (xAI) keeps its own xAI-first fallback chain.

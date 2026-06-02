@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
-import { OPENAI_IMAGE_EDIT_MODEL, openaiClient } from "@/lib/ai/openai-client";
 import {
-  editImagesXaiFirst,
-  generateImageWithProvider as routedGenerateImageWithProvider,
-  xaiFirstImageGenerationProviderOrder,
-  type RoutedImageProvider,
+  generateImageForRole,
+  editImagesForRole,
+  type ImageEditIntent,
 } from "@/lib/ai/image-router";
-import { xaiClient, sizeToAspectRatio } from "@/lib/ai/xai-client";
-import { geminiImageClient, sizeToAspectRatioGemini } from "@/lib/ai/gemini-image-client";
+import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { readFile, writeFile, mkdir, unlink } from "fs/promises";
@@ -35,13 +32,6 @@ import type { ImageProvider } from "@/lib/constants/design-presets";
  *
  * Flow: Provider generates image → upscale to target → composite brand logo
  */
-
-function getGptImageSize(width: number, height: number): "1024x1024" | "1536x1024" | "1024x1536" {
-  const aspectRatio = width / height;
-  if (aspectRatio > 1.3) return "1536x1024";
-  if (aspectRatio < 0.77) return "1024x1536";
-  return "1024x1024";
-}
 
 type EditReferenceMode = "adapt" | "exact" | "keep_face";
 type EditIntent = "auto" | "improve" | "replace_subject";
@@ -129,14 +119,6 @@ function isBackgroundReplacementIntent(prompt: string): boolean {
 function shouldLockFaceButAllowStyling(prompt: string): boolean {
   const normalized = prompt.toLowerCase();
   return /\b(cloth|clothes|clothing|outfit|attire|dress|shirt|suit|uniform|wear|wearing|robe|jacket)\b/.test(normalized);
-}
-
-function uniqueProviderOrder(...providers: Array<ImageProvider | false | null | undefined>): ImageProvider[] {
-  const ordered: ImageProvider[] = [];
-  for (const provider of providers) {
-    if (provider && !ordered.includes(provider)) ordered.push(provider);
-  }
-  return ordered;
 }
 
 /**
@@ -396,6 +378,7 @@ export async function runVisualForUser(
       editReferenceImageUrls,
       provider,
       strictProvider,
+      tier: tierInput,
       promptMode,
       brandIdentity,
       channels,
@@ -463,6 +446,7 @@ export async function runVisualForUser(
     });
 
     const [width, height] = size.split("x").map(Number);
+    const tier: "standard" | "premium" = tierInput === "premium" ? "premium" : "standard";
     const selectedProvider: ImageProvider = provider || "xai";
     console.log(`[Visual] Provider: ${selectedProvider} for ${width}x${height} (ratio ${(width / height).toFixed(2)})`);
 
@@ -491,6 +475,7 @@ export async function runVisualForUser(
           : [],
       provider: selectedProvider,
       strictProvider: strictProvider === true,
+      tier,
       promptMode: promptMode === "raw_brand" ? "raw_brand" : "direct",
       brandIdentity: brandIdentity && typeof brandIdentity === "object" ? brandIdentity : null,
       channels: typeof channels === "string" ? channels : null,
@@ -643,6 +628,8 @@ interface PipelineParams {
   // see runEditPipeline below.
   provider: ImageProvider;
   strictProvider?: boolean;
+  /** User-facing media tier — drives the global model policy (generate/edit role). */
+  tier: "standard" | "premium";
   promptMode?: "direct" | "raw_brand";
   brandIdentity?: Record<string, unknown> | null;
   channels?: string | null;
@@ -722,51 +709,6 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     .join("\n");
 }
 
-async function generateImageWithProvider(
-  provider: RoutedImageProvider,
-  prompt: string,
-  width: number,
-  height: number
-): Promise<{ base64: string | null; model: string }> {
-  const generated = await routedGenerateImageWithProvider(provider, prompt, width, height, { quality: "high" });
-  return { base64: generated.base64, model: generated.model };
-}
-
-function getProviderOrderWithGoogleFallback(provider: ImageProvider): RoutedImageProvider[] {
-  return xaiFirstImageGenerationProviderOrder(provider);
-}
-
-async function generateImageWithFallback(
-  provider: ImageProvider,
-  prompt: string,
-  width: number,
-  height: number,
-  strictProvider = false
-): Promise<{ base64: string | null; model: string; provider: RoutedImageProvider }> {
-  const providerOrder: RoutedImageProvider[] = strictProvider
-    ? [provider]
-    : getProviderOrderWithGoogleFallback(provider);
-  let lastError: unknown = null;
-
-  for (const candidate of providerOrder) {
-    try {
-      const generated = await generateImageWithProvider(candidate, prompt, width, height);
-      if (generated.base64) {
-        return { ...generated, provider: candidate };
-      }
-      throw new Error(`${candidate} returned no image`);
-    } catch (error) {
-      lastError = error;
-      console.warn(
-        `[Visual] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying next image fallback" : ""}:`,
-        error
-      );
-    }
-  }
-
-  const message = lastError instanceof Error ? lastError.message : "Failed to generate design image";
-  throw new Error(message);
-}
 
 function parseJsonFromText(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
@@ -1022,21 +964,19 @@ async function runRawBrandPipeline(params: PipelineParams) {
 
   if (referenceUrls.length > 0) {
     const refBuffers = await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)));
-    const edited = await editImagesXaiFirst(promptUsed, refBuffers, params.width, params.height, {
-      preferredProvider: params.provider,
+    const edited = await editImagesForRole(imageEditRole(params.tier), promptUsed, refBuffers, params.width, params.height, {
       quality: "high",
       intent: params.compositeReferenceSubject ? "creative" : "exact",
-      strictProvider: params.strictProvider,
     });
     base64 = edited.base64;
     model = edited.model;
   } else {
-    const generated = await generateImageWithFallback(
-      params.provider,
+    const generated = await generateImageForRole(
+      imageGenerateRole(params.tier),
       promptUsed,
       params.width,
       params.height,
-      params.strictProvider
+      { quality: "high" },
     );
     base64 = generated.base64;
     model = generated.model;
@@ -1363,75 +1303,34 @@ Output a polished, print-ready ${params.category} background. The photo will be 
 
   let base64: string | null;
   let model: string;
-  const hasRef = !!refBuffer;
 
   // bg-only when user ref → composite later; template edit when no userRef; raw text-to-image otherwise.
   const generationPrompt = bgOnlyPrompt || templateRefPrompt || designPrompt;
   const useEditApi = useTemplateEdit;
 
   if (!useEditApi) {
-    const generated = await generateImageWithFallback(provider, generationPrompt, width, height, params.strictProvider);
+    const generated = await generateImageForRole(
+      imageGenerateRole(params.tier),
+      generationPrompt,
+      width,
+      height,
+      { quality: "high" },
+    );
     base64 = generated.base64;
     model = generated.model;
   } else {
-    switch (provider) {
-    case "openai": {
-      const gptSize = getGptImageSize(width, height);
-      console.log(`[Visual] OpenAI gpt-image-1 @ ${gptSize}${hasRef ? " (with reference → edit API)" : ""}`);
-
-      if (useEditApi && refBuffer) {
-        base64 = await openaiClient.editImage(templateRefPrompt!, refBuffer, {
-          size: gptSize,
-          quality: "high",
-        });
-      } else {
-        base64 = await openaiClient.generateImage(generationPrompt, {
-          size: gptSize,
-          quality: "high",
-        });
-      }
-      model = hasRef ? OPENAI_IMAGE_EDIT_MODEL : "gpt-image-1";
-      break;
-    }
-
-    case "xai": {
-      const aspectRatio = sizeToAspectRatio(width, height);
-      console.log(`[Visual] xAI grok-imagine-image @ ${aspectRatio}${hasRef ? " (with reference → edit API)" : ""}`);
-
-      if (!xaiClient.isAvailable()) {
-        throw new Error("xAI provider is not configured. Please set XAI_API_KEY.");
-      }
-      if (useEditApi && refBuffer) {
-        const refBase64 = refBuffer.toString("base64");
-        base64 = await xaiClient.editImage(templateRefPrompt!, refBase64, { aspectRatio });
-      } else {
-        base64 = await xaiClient.generateImage(generationPrompt, { aspectRatio });
-      }
-      model = "grok-imagine-image";
-      break;
-    }
-
-    case "gemini": {
-      const aspectRatio = sizeToAspectRatioGemini(width, height);
-      console.log(`[Visual] Gemini imagen-4 @ ${aspectRatio}${hasRef ? " (with reference → edit API)" : ""}`);
-
-      if (!geminiImageClient.isAvailable()) {
-        throw new Error("Gemini provider is not configured. Please set GEMINI_API_KEY.");
-      }
-      if (useEditApi && refBuffer) {
-        const refBase64 = refBuffer.toString("base64");
-        base64 = await geminiImageClient.editImage(templateRefPrompt!, refBase64, { aspectRatio });
-      } else {
-        base64 = await geminiImageClient.generateImage(generationPrompt, { aspectRatio });
-      }
-      model = "gemini-2.5-flash-image";
-      break;
-    }
-
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
-    }
-
+    // Template/reference edit — recreate the design in the template's style via
+    // the role-aware edit chain (global model policy picks the provider+model).
+    const edited = await editImagesForRole(
+      imageEditRole(params.tier),
+      templateRefPrompt!,
+      [refBuffer!],
+      width,
+      height,
+      { quality: "high", intent: "exact" },
+    );
+    base64 = edited.base64;
+    model = edited.model;
   }
 
   if (!base64) {
@@ -1758,115 +1657,30 @@ RULES:
     ? await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)))
     : [];
 
-  const editBufferForProvider = editBuffer;
-  const editPromptForProvider = editPrompt;
-  const editReferenceBuffersForProvider = editReferenceBuffers;
-
-  const editWithProvider = async (candidate: ImageProvider): Promise<{ base64: string | null; model: string }> => {
-    switch (candidate) {
-      case "openai": {
-        const gptSize = getGptImageSize(width, height);
-        console.log(`[Visual/Edit] OpenAI ${OPENAI_IMAGE_EDIT_MODEL} @ ${gptSize}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
-        if (editReferenceBuffersForProvider.length > 0) {
-          return {
-            base64: await openaiClient.editMultiImage(
-              editPromptForProvider,
-              [
-                { buffer: editBufferForProvider, filename: "canvas.png", type: "image/png" },
-                ...editReferenceBuffersForProvider.map((buffer, index) => ({
-                  buffer,
-                  filename: `reference-${index + 1}.png`,
-                  type: "image/png",
-                })),
-              ],
-              { size: gptSize, quality: "high" },
-            ),
-            model: OPENAI_IMAGE_EDIT_MODEL,
-          };
-        }
-        return {
-          base64: await openaiClient.editImage(editPromptForProvider, editBufferForProvider, {
-            size: gptSize,
-            quality: "high",
-          }),
-          model: OPENAI_IMAGE_EDIT_MODEL,
-        };
-      }
-
-      case "xai": {
-        const aspectRatio = sizeToAspectRatio(width, height);
-        console.log(`[Visual/Edit] xAI grok-imagine-image @ ${aspectRatio}${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
-        if (!xaiClient.isAvailable()) {
-          throw new Error("xAI provider is not configured.");
-        }
-        const canvasBase64 = editBufferForProvider.toString("base64");
-        if (editReferenceBuffersForProvider.length > 0) {
-          return {
-            base64: await xaiClient.editImages(
-              editPromptForProvider,
-              [
-                canvasBase64,
-                ...editReferenceBuffersForProvider.map((buffer) => buffer.toString("base64")),
-              ],
-              { aspectRatio },
-            ),
-            model: "grok-imagine-image",
-          };
-        }
-        return {
-          base64: await xaiClient.editImage(editPromptForProvider, canvasBase64, { aspectRatio }),
-          model: "grok-imagine-image",
-        };
-      }
-
-      case "gemini": {
-        console.log(`[Visual/Edit] Google Gemini image edit${editReferenceBuffersForProvider.length ? ` (${editReferenceBuffersForProvider.length + 1} images)` : ""}`);
-        if (!geminiImageClient.isAvailable()) {
-          throw new Error("Gemini provider is not configured.");
-        }
-        const pngBuffers = await Promise.all(
-          [editBufferForProvider, ...editReferenceBuffersForProvider].map((buffer) =>
-            sharp(buffer).png().toBuffer()
-          )
-        );
-        const pngBase64s = pngBuffers.map((buffer) => buffer.toString("base64"));
-        return {
-          base64: await geminiImageClient.editImages(editPromptForProvider, pngBase64s),
-          model: "gemini-2.5-flash-image",
-        };
-      }
-
-      default:
-        throw new Error(`Unknown provider: ${candidate}`);
-    }
-  };
-
-  const providerOrder: ImageProvider[] = uniqueProviderOrder(provider, "xai", "gemini", "openai");
-
-  let base64: string | null = null;
-  let model = "";
-  let usedProvider = provider;
-  let lastError: unknown = null;
-
-  for (const candidate of providerOrder) {
-    try {
-      const result = await editWithProvider(candidate);
-      if (result.base64) {
-        base64 = result.base64;
-        model = result.model;
-        usedProvider = candidate;
-        break;
-      }
-      throw new Error(`${candidate} returned no image`);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[Visual/Edit] ${candidate} failed${candidate !== providerOrder[providerOrder.length - 1] ? ", trying next image fallback" : ""}:`, error);
-    }
-  }
+  // Role-aware edit: the global model policy picks the provider+model ladder
+  // (Nano Banana → OpenAI → xAI for standard; gpt-image for premium). Image 1
+  // is always the canvas; references follow.
+  const editIntentForRole: ImageEditIntent =
+    effectiveEditReferenceMode === "keep_face"
+      ? "identity"
+      : effectiveEditReferenceMode === "exact"
+        ? "exact"
+        : "creative";
+  console.log(`[Visual/Edit] Role edit (tier=${params.tier}, intent=${editIntentForRole}, refs=${editReferenceBuffers.length})`);
+  const edited = await editImagesForRole(
+    imageEditRole(params.tier),
+    editPrompt,
+    [editBuffer, ...editReferenceBuffers],
+    width,
+    height,
+    { quality: "high", intent: editIntentForRole },
+  );
+  const base64 = edited.base64;
+  const model = edited.model;
+  const usedProvider = edited.provider;
 
   if (!base64) {
-    const message = lastError instanceof Error ? lastError.message : "Edit returned no image";
-    throw new Error(message);
+    throw new Error("Edit returned no image");
   }
 
   // Skip logo compositing on edits — the logo was already composited on the original
@@ -1878,7 +1692,7 @@ RULES:
     imageUrl: `data:image/png;base64,${finalBase64}`,
     pipeline: "edit" as const,
     model,
-    promptUsed: editPromptForProvider,
+    promptUsed: editPrompt,
   };
 }
 

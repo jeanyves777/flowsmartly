@@ -171,6 +171,7 @@ export const createBrandedDesign: FlowAgentTool = {
       style,
       provider,
       strictProvider: true,
+      tier,
       promptMode: "raw_brand",
       brandIdentity,
       channels: "selected social channels",

@@ -58,9 +58,10 @@ class OpenAIClient {
       size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
       quality?: "low" | "medium" | "high";
       transparent?: boolean;
+      model?: string;
     } = {}
   ): Promise<string | null> {
-    const { size = "auto", quality = "medium", transparent = false } = options;
+    const { size = "auto", quality = "medium", transparent = false, model = OPENAI_IMAGE_GEN_MODEL } = options;
 
     const maxRetries = 2;
     let lastError: unknown;
@@ -68,14 +69,14 @@ class OpenAIClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.images.generate({
-          model: OPENAI_IMAGE_GEN_MODEL,
+          model,
           prompt,
           n: 1,
           size,
           quality,
           // background: "transparent" only works on gpt-image-1 / 1.5.
           // For gpt-image-2 leave it off (defaults to opaque/auto).
-          ...(transparent && modelSupportsTransparentBg(OPENAI_IMAGE_GEN_MODEL)
+          ...(transparent && modelSupportsTransparentBg(model)
             ? { background: "transparent" as const }
             : {}),
         });
@@ -192,9 +193,10 @@ class OpenAIClient {
       size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
       quality?: "low" | "medium" | "high";
       inputFidelity?: "low" | "high";
+      model?: string;
     } = {}
   ): Promise<string | null> {
-    const { size = "auto", quality = "high", inputFidelity = "high" } = options;
+    const { size = "auto", quality = "high", inputFidelity = "high", model = OPENAI_IMAGE_EDIT_MODEL } = options;
 
     const maxRetries = 2;
     let lastError: unknown;
@@ -208,14 +210,14 @@ class OpenAIClient {
         // input_fidelity is gpt-image-1/1.5 only — silently dropped on
         // gpt-image-2 to avoid "unknown parameter" errors.
         const editParams: Record<string, unknown> = {
-          model: OPENAI_IMAGE_EDIT_MODEL,
+          model,
           image: imageFile,
           prompt,
           n: 1,
           size,
           quality,
         };
-        if (modelSupportsInputFidelity(OPENAI_IMAGE_EDIT_MODEL)) {
+        if (modelSupportsInputFidelity(model)) {
           editParams.input_fidelity = inputFidelity;
         }
         const response = await this.client.images.edit(
@@ -266,9 +268,10 @@ class OpenAIClient {
       size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
       quality?: "low" | "medium" | "high";
       inputFidelity?: "low" | "high";
+      model?: string;
     } = {},
   ): Promise<string | null> {
-    const { size = "auto", quality = "high", inputFidelity = "high" } = options;
+    const { size = "auto", quality = "high", inputFidelity = "high", model = OPENAI_IMAGE_EDIT_MODEL } = options;
 
     const maxRetries = 2;
     let lastError: unknown;
@@ -284,14 +287,14 @@ class OpenAIClient {
         // image is the primary reference (composition); rest are auxiliary.
         // input_fidelity is gpt-image-1/1.5 only — dropped on gpt-image-2.
         const editParams: Record<string, unknown> = {
-          model: OPENAI_IMAGE_EDIT_MODEL,
+          model,
           image: imageFiles,
           prompt,
           n: 1,
           size,
           quality,
         };
-        if (modelSupportsInputFidelity(OPENAI_IMAGE_EDIT_MODEL)) {
+        if (modelSupportsInputFidelity(model)) {
           editParams.input_fidelity = inputFidelity;
         }
         const response = await this.client.images.edit(
