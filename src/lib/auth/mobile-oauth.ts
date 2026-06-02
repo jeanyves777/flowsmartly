@@ -6,12 +6,16 @@
  * Expo Go. We echo the tokens onto that base so social login works in both.
  *
  * SECURITY: only known app schemes are allowed so this can't be turned into an
- * open redirect that leaks tokens to an arbitrary URL. `exp:`/`exp+...:` are
- * permitted for Expo Go during development — drop them once the app ships as a
- * standalone build that only uses `flowsmartly://`.
+ * open redirect that leaks tokens to an arbitrary URL. In PRODUCTION only the
+ * standalone `flowsmartly://` scheme is accepted; the Expo Go schemes
+ * (`exp:`/`exp+...:`) are permitted ONLY outside production so social login can
+ * still be tested in Expo Go during local development.
  */
 
-const ALLOWED_SCHEMES = ["flowsmartly:", "exp:", "exp+flowsmartly:"];
+const ALLOWED_SCHEMES =
+  process.env.NODE_ENV === "production"
+    ? ["flowsmartly:"]
+    : ["flowsmartly:", "exp:", "exp+flowsmartly:"];
 const DEFAULT_BASE = "flowsmartly://auth";
 
 export function isAllowedMobileRedirect(url: string | undefined | null): boolean {
