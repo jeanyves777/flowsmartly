@@ -19,15 +19,16 @@ const STORAGE_URL =
 /**
  * Upload a Buffer to S3 and return the public URL.
  *
- * Defaults to `public-read` ACL + a 1-year immutable cache header so the
- * browser/CDN can cache content-addressed objects forever (all our keys
- * include a UUID/hash, so they never change in place). Pass
- * `{ acl: "private" }` for anything that must stay gated behind presigning.
+ * Adds a 1-year immutable Cache-Control header so the browser/CDN can
+ * cache content-addressed objects forever (all our keys include a
+ * UUID/hash, so they never change in place).
  *
- * NOTE: Requires the bucket to allow public ACLs. If S3 Block Public Access
- * is on, run:
- *   aws s3api put-public-access-block --bucket flowsmartly-media \
- *     --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+ * Public-read access is granted by the bucket policy (see prod bucket
+ * `flowsmartly-media`'s `PublicReadGetObject` statement). The bucket is
+ * configured with `BucketOwnerEnforced` ownership which DISABLES ACLs
+ * entirely — passing an `ACL:` field would return
+ * `AccessControlListNotSupported`. The `opts.acl` parameter is kept for
+ * API stability but is intentionally ignored.
  */
 export async function uploadToS3(
   key: string,
@@ -35,7 +36,7 @@ export async function uploadToS3(
   contentType: string,
   opts?: { acl?: "private" | "public-read"; cacheControl?: string }
 ): Promise<string> {
-  const acl = opts?.acl ?? "public-read";
+  void opts?.acl; // ACLs disabled by bucket ownership; access is policy-driven.
   const cacheControl = opts?.cacheControl ?? "public, max-age=31536000, immutable";
   await s3.send(
     new PutObjectCommand({
@@ -44,7 +45,6 @@ export async function uploadToS3(
       Body: body,
       ContentType: contentType,
       CacheControl: cacheControl,
-      ACL: acl,
     })
   );
   return `${STORAGE_URL}/${key}`;
