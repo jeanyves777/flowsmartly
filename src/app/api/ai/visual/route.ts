@@ -688,6 +688,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "- BRAND COLOR SYSTEM: build the whole palette from the brand colors — backgrounds, accent shapes, dividers, banners — so it reads as one cohesive branded design.",
     "- DECORATIVE ELEMENTS: add tasteful, theme-appropriate graphic detailing that fits the occasion and brand — brush strokes, torn-paper / ribbon banners, badges or seals for highlights, subtle texture or gradient, confetti for celebrations, botanical / island motifs for tropical themes. Integrate them into the composition, never as loose clip-art stickers.",
     "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the design (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
+    "- BRAND & CONTACT DETAILS (REQUIRED): weave the brand name + tagline into a designed header lockup, and present the contact details — phone, email, website, address, and social handles, using the EXACT values provided — as a STYLED footer bar (a colored/branded strip with small matching icons and dividers between items). Brand and contact info must ALWAYS be present and visually designed into the piece — NEVER dropped on as plain, unstyled, floating text. Leave clean space where the real logo will be composited.",
     "- FINISH: rich, layered, intentional, magazine / advertising-grade. Avoid flat, empty, generic, or default-template looks.",
     "",
     "Marketing image context",
