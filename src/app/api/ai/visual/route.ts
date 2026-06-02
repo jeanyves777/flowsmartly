@@ -679,6 +679,11 @@ function buildRawBrandPrompt(params: PipelineParams): string {
   });
 
   return [
+    // Art direction = design CALIBER + composition only (NOT text/legibility
+    // rules — see feedback_no_text_rules_in_image_prompts). Lifts models away
+    // from flat "photo + caption" output toward real designed layouts.
+    "Act as a senior art director and professional graphic designer. Produce a polished, premium, advertising-grade marketing DESIGN: deliberate layout with strong visual hierarchy, balanced composition, depth, and tasteful use of color, contrast of scale, and negative space. It must look intentionally designed — magazine / high-end social-campaign quality — NOT a flat, generic, clip-art, or plain stock-photo-with-text look.",
+    "",
     "Marketing image context",
     `Canvas: ${params.width}x${params.height}`,
     `Category: ${params.category}`,

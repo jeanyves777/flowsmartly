@@ -224,8 +224,37 @@ class GeminiImageClient {
     const maxRetries = 2;
     let lastError: unknown;
 
+    // Two distinct Google image engines:
+    //  - imagen-*  → photorealism model, via the dedicated generateImages API.
+    //  - gemini-*  (Nano Banana, gemini-2.5-flash-image) → the design/text
+    //    powerhouse, via generateContent. Imagen makes pretty photos but poor
+    //    graphic-design layouts; Nano Banana is what we want for flyers/posters.
+    const isImagen = /^imagen/i.test(model);
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
+        if (!isImagen) {
+          // Nano Banana text-to-image (no source image = pure generation).
+          const response = await this.client.models.generateContent({
+            model,
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `${prompt}\n\n[Output a single ${aspectRatio} image.]` }],
+              },
+            ],
+            config: { responseModalities: ["TEXT", "IMAGE"] },
+          });
+          const parts = response.candidates?.[0]?.content?.parts;
+          if (parts) {
+            for (const part of parts) {
+              if (part.inlineData?.data) return part.inlineData.data;
+            }
+          }
+          console.warn("[GeminiImage] No image data in Nano Banana generate response");
+          return null;
+        }
+
         const response = await this.client.models.generateImages({
           model,
           prompt,

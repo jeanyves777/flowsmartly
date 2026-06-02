@@ -52,10 +52,15 @@ export type ImageRole = "design_generate" | "design_edit" | "bulk_multi" | "prem
 const M = IMAGE_MODEL_IDS;
 
 export const IMAGE_CHAINS: Record<ImageRole, ImageModelStep[]> = {
+  // From-scratch branded DESIGNS (flyers/posters/ads — text + layout heavy).
+  // Nano Banana FIRST: it's Google's design/text engine and renders real
+  // graphic-design layouts, unlike Imagen 4 which is a photorealism model and
+  // produces flat/simple composites for designed work. OpenAI gpt-image is the
+  // high-end fallback (excellent at designed layouts); Imagen is last-resort.
   design_generate: [
-    { provider: "gemini", model: M.imagenUltra },
-    { provider: "gemini", model: M.imagenFlagship },
+    { provider: "gemini", model: M.nanoBanana },
     { provider: "openai", model: M.gptImage1 },
+    { provider: "gemini", model: M.imagenUltra },
     { provider: "xai", model: M.xaiBase },
   ],
   // Edit/reference work — only providers that accept an input image. Gemini's
