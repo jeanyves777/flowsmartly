@@ -682,18 +682,18 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     // Art direction = design CALIBER + composition only (NOT text/legibility
     // rules — see feedback_no_text_rules_in_image_prompts). Lifts models away
     // from flat "photo + caption" output toward real designed layouts.
-    "You are a senior art director and graphic designer. Unless the user clearly asked for a plain photograph, produce a COMPLETE, professionally designed promotional flyer/poster — agency / premium-Canva quality — NOT a plain photo with a caption. Design the entire composition deliberately:",
-    "- LAYOUT & STRUCTURE: organize the canvas into clear designed zones — a small top eyebrow/tagline strip, a bold stylized HERO TITLE, a short supporting subhead, a concise body block, an optional highlight badge/seal, a call-to-action banner, and a footer strip. Strong visual hierarchy, intentional spacing, depth, and balanced composition that fills the canvas.",
+    "You are a senior art director and graphic designer. Unless the user clearly asked for a plain photograph, design a COMPLETE, professionally art-directed promotional marketing graphic that FILLS THE ENTIRE FRAME edge-to-edge — agency / premium quality, a fully composed branded visual (not a plain photo with a caption). The image IS the final on-screen graphic itself: no surrounding border, mat, paper edge, mockup, or surface. Compose the whole thing deliberately:",
+    "- LAYOUT & STRUCTURE: organize the frame into clear designed zones — a small top eyebrow/tagline strip, a bold stylized HERO TITLE, a short supporting subhead, a concise body block, an optional highlight badge/seal, a call-to-action bar, and a footer strip. Strong visual hierarchy, intentional spacing, depth, and balanced composition that fills the frame edge-to-edge.",
     "- TYPOGRAPHY AS DESIGN: treat type as a graphic element — mix complementary styles (e.g. an elegant script accent word paired with a heavy display/condensed word), vary size and weight for hierarchy, and set headlines on shaped backers (brush strokes, ribbons, color blocks) where it elevates the piece.",
-    "- BRAND COLOR SYSTEM: build the whole palette from the brand colors — backgrounds, accent shapes, dividers, banners — so it reads as one cohesive branded design.",
-    "- DECORATIVE ELEMENTS: add tasteful, theme-appropriate graphic detailing that fits the occasion and brand — brush strokes, torn-paper / ribbon banners, badges or seals for highlights, subtle texture or gradient, confetti for celebrations, botanical / island motifs for tropical themes. Integrate them into the composition, never as loose clip-art stickers.",
-    "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the design (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
-    "- BRAND & CONTACT DETAILS (REQUIRED): weave the brand name + tagline into a designed header lockup, and present the contact details — phone, email, website, address, and social handles, using the EXACT values provided — as a STYLED footer bar (a colored/branded strip with small matching icons and dividers between items). Brand and contact info must ALWAYS be present and visually designed into the piece — NEVER dropped on as plain, unstyled, floating text. Leave clean space where the real logo will be composited.",
-    "- FINISH: rich, layered, intentional, magazine / advertising-grade. Avoid flat, empty, generic, or default-template looks.",
+    "- BRAND COLOR SYSTEM: build the whole palette from the brand colors — backgrounds, accent shapes, dividers, bars — so it reads as one cohesive branded visual.",
+    "- DECORATIVE ELEMENTS: add tasteful, theme-appropriate graphic detailing that fits the occasion and brand — brush strokes, torn-paper / ribbon shapes, badges or seals for highlights, subtle texture or gradient, confetti for celebrations, botanical / island motifs for tropical themes. Integrate them into the composition, never as loose clip-art stickers.",
+    "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the composition (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
+    "- BRAND & CONTACT DETAILS (REQUIRED): weave the brand name + tagline into a designed header lockup, and present the contact details — phone, email, website, address, and social handles, using the EXACT values provided — as a STYLED footer bar (a colored/branded strip with small matching icons and dividers between items). Brand and contact info must ALWAYS be present and visually designed in — NEVER dropped on as plain, unstyled, floating text. Leave clean space where the real logo will be composited.",
+    "- FINISH: rich, layered, intentional, editorial and advertising-grade. Avoid flat, empty, generic, or stock-template looks.",
     "",
     "Marketing image context",
-    `Canvas: ${params.width}x${params.height}`,
-    `Category: ${params.category}`,
+    `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,
+    `Use case: ${String(params.category).replace(/_/g, " ")}`,
     params.channels ? `Channels: ${params.channels}` : null,
     params.style ? `Style preference: ${params.style}` : null,
     params.templateImageUrl
