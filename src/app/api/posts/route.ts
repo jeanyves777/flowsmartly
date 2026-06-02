@@ -203,40 +203,107 @@ export async function GET(request: NextRequest) {
       followedAuthors = new Set(follows.map(f => f.followingId));
     }
 
+    // Pattern-derive thumbnail URLs from a stored media key/URL.
+    // Only works for keys minted by /api/media — `media/{baseId}.{ext}` → has
+    // `media/thumbs-md/{baseId}.webp` and `media/thumbs-sm/{baseId}.webp`
+    // siblings (uploaded in parallel). For everything else, return null and
+    // let the client fall back to the full URL.
+    const deriveImageThumbs = (urlOrKey: string | null | undefined): { md: string; sm: string } | null => {
+      if (!urlOrKey) return null;
+      // Strip any query/signature first.
+      const clean = urlOrKey.split("?")[0];
+      // Match either bare key "media/abc.webp" or full URL "...amazonaws.com/media/abc.webp"
+      const m = clean.match(/(^|\/)media\/([^/]+)\.(webp|png|jpg|jpeg)$/i);
+      if (!m) return null;
+      const baseId = m[2];
+      const prefix = clean.slice(0, m.index! + m[1].length); // "" or "https://.../"
+      return {
+        md: `${prefix}media/thumbs-md/${baseId}.webp`,
+        sm: `${prefix}media/thumbs-sm/${baseId}.webp`,
+      };
+    };
+    // Bulk-load MediaFile records for video posts so we can surface the
+    // existing JPEG poster (`metadata.thumbnailUrl`) — mobile reels needs it
+    // to render an Image tile instead of mounting a full VideoView. Posts
+    // store bare keys ("media/abc.mp4") in `mediaUrl` but MediaFile.url is
+    // the full S3 URL, so we look up by both forms.
+    const STORAGE_URL_BASE = process.env.NEXT_PUBLIC_STORAGE_URL
+      || `https://${process.env.S3_BUCKET || "flowsmartly-media"}.s3.${process.env.AWS_REGION || "us-east-2"}.amazonaws.com`;
+    const videoPostMediaUrls = postsToReturn
+      .filter((p) => p.mediaType === "video" && p.mediaUrl)
+      .map((p) => p.mediaUrl as string);
+    const videoPosterByKey = new Map<string, string>();
+    if (videoPostMediaUrls.length > 0) {
+      const lookupKeys = new Set<string>();
+      for (const k of videoPostMediaUrls) {
+        lookupKeys.add(k);
+        if (!k.startsWith("http")) lookupKeys.add(`${STORAGE_URL_BASE}/${k}`);
+      }
+      const videoMatches = await prisma.mediaFile.findMany({
+        where: { url: { in: Array.from(lookupKeys) } },
+        select: { url: true, metadata: true },
+      });
+      for (const m of videoMatches) {
+        try {
+          const meta = JSON.parse(m.metadata) as { thumbnailUrl?: string };
+          if (!meta?.thumbnailUrl) continue;
+          // Key the map by both the full URL and the bare key form so the
+          // lookup below works regardless of which form the post stores.
+          videoPosterByKey.set(m.url, meta.thumbnailUrl);
+          const keyOnly = extractS3Key(m.url);
+          if (keyOnly && keyOnly !== m.url) videoPosterByKey.set(keyOnly, meta.thumbnailUrl);
+        } catch {
+          // ignore malformed metadata
+        }
+      }
+    }
+
     // Format posts for response
-    const formattedPosts = postsToReturn.map(post => ({
-      id: post.id,
-      content: post.caption || "",
-      mediaUrls: (() => {
+    const formattedPosts = postsToReturn.map(post => {
+      const mediaUrls = (() => {
         const fromMeta = parseStringArray(post.mediaMeta);
         return fromMeta.length ? fromMeta : post.mediaUrl ? [post.mediaUrl] : [];
-      })(),
-      mediaType: post.mediaType,
-      hashtags: parseStringArray(post.hashtags),
-      author: {
-        id: post.user.id,
-        name: post.user.name,
-        username: post.user.username,
-        avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
-        isVerified: post.user.plan !== "STARTER",
-        // isFollowing is purely "do I follow this author?" — owning the post
-        // is a separate `isSelf` flag so the client can hide the button
-        // entirely for self-posts instead of mis-labelling them "Following".
-        isFollowing: session ? followedAuthors.has(post.user.id) : false,
-        isSelf: session ? post.user.id === session.userId : false,
-      },
-      likesCount: post.likeCount,
-      commentsCount: post._count.comments,
-      sharesCount: post.shareCount,
-      viewCount: post.viewCount,
-      isLiked: userLikes.has(post.id),
-      isBookmarked: userBookmarks.has(post.id),
-      isPromoted: post.isPromoted,
-      hasEarned: userEarnedPosts.has(post.id),
-      destinationUrl: post.adCampaign?.destinationUrl || null,
-      cpvCents: post.adCampaign?.cpvCents || 0,
-      createdAt: post.createdAt.toISOString(),
-    }));
+      })();
+      const primary = mediaUrls[0] || null;
+      const imageThumbs = post.mediaType === "video" ? null : deriveImageThumbs(primary);
+      const videoPoster = post.mediaType === "video" && post.mediaUrl ? videoPosterByKey.get(post.mediaUrl) || null : null;
+      return {
+        id: post.id,
+        content: post.caption || "",
+        mediaUrls,
+        mediaType: post.mediaType,
+        // Image thumbnails (md=800px, sm=240px) — clients use sm in grids and
+        // md in the feed; full mediaUrls only on full-screen view.
+        thumbnails: imageThumbs,
+        // Video poster (640px JPEG) — lets reels strip render an Image tile
+        // instead of mounting a VideoView per post.
+        mediaThumbnailUrl: videoPoster,
+        hashtags: parseStringArray(post.hashtags),
+        author: {
+          id: post.user.id,
+          name: post.user.name,
+          username: post.user.username,
+          avatarUrl: post.user.avatarUrl ?? post.user.oauthAvatarUrl,
+          isVerified: post.user.plan !== "STARTER",
+          // isFollowing is purely "do I follow this author?" — owning the post
+          // is a separate `isSelf` flag so the client can hide the button
+          // entirely for self-posts instead of mis-labelling them "Following".
+          isFollowing: session ? followedAuthors.has(post.user.id) : false,
+          isSelf: session ? post.user.id === session.userId : false,
+        },
+        likesCount: post.likeCount,
+        commentsCount: post._count.comments,
+        sharesCount: post.shareCount,
+        viewCount: post.viewCount,
+        isLiked: userLikes.has(post.id),
+        isBookmarked: userBookmarks.has(post.id),
+        isPromoted: post.isPromoted,
+        hasEarned: userEarnedPosts.has(post.id),
+        destinationUrl: post.adCampaign?.destinationUrl || null,
+        cpvCents: post.adCampaign?.cpvCents || 0,
+        createdAt: post.createdAt.toISOString(),
+      };
+    });
 
     // Fetch active non-post ad campaigns to intersperse in feed
     let adCampaigns: Array<{
@@ -293,14 +360,23 @@ export async function GET(request: NextRequest) {
       feedItems.splice(insertAt, 0, adCampaigns[i]);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: await presignAllUrls({
-        posts: feedItems,
-        nextCursor: hasMore ? postsToReturn[postsToReturn.length - 1].id : null,
-        hasMore,
-      }),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: await presignAllUrls({
+          posts: feedItems,
+          nextCursor: hasMore ? postsToReturn[postsToReturn.length - 1].id : null,
+          hasMore,
+        }),
+      },
+      {
+        // Per-user (isLiked / isFollowing / hasEarned), so `private`. 30s
+        // window makes back-nav + pull-to-refresh instant without serving
+        // staleness anyone would notice. No s-maxage — no edge cache without
+        // per-user partitioning.
+        headers: { "Cache-Control": "private, max-age=30" },
+      }
+    );
   } catch (error) {
     console.error("Get posts error:", error);
     return NextResponse.json(

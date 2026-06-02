@@ -439,8 +439,43 @@ export async function POST(request: NextRequest) {
 
     const filename = `${baseId}.${uploadExt}`;
 
-    // Upload (optimized) file to S3
-    const url = await uploadToS3(`media/${filename}`, buffer, uploadMimeType);
+    // Upload (optimized) file to S3 + image thumbnail variants in parallel.
+    // Medium (800px) and small (240px) WebP versions cut feed/library payload
+    // from a 4096px master to ~50-200 KB and ~5-30 KB respectively.
+    const mainUploadP = uploadToS3(`media/${filename}`, buffer, uploadMimeType);
+
+    let thumbMdUploadP: Promise<string | null> = Promise.resolve(null);
+    let thumbSmUploadP: Promise<string | null> = Promise.resolve(null);
+    if (isImage && uploadMimeType !== "image/svg+xml" && uploadMimeType !== "image/gif") {
+      const mdKey = `media/thumbs-md/${baseId}.webp`;
+      const smKey = `media/thumbs-sm/${baseId}.webp`;
+      thumbMdUploadP = sharp(buffer)
+        .resize({ width: 800, withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer()
+        .then((buf) => uploadToS3(mdKey, buf, "image/webp"))
+        .catch((err) => {
+          console.error("[media] medium thumbnail failed:", err);
+          return null;
+        });
+      thumbSmUploadP = sharp(buffer)
+        .resize({ width: 240, withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toBuffer()
+        .then((buf) => uploadToS3(smKey, buf, "image/webp"))
+        .catch((err) => {
+          console.error("[media] small thumbnail failed:", err);
+          return null;
+        });
+    }
+
+    const [url, thumbnailUrlMd, thumbnailUrlSm] = await Promise.all([
+      mainUploadP,
+      thumbMdUploadP,
+      thumbSmUploadP,
+    ]);
+    if (thumbnailUrlMd) metadata.thumbnailUrlMd = thumbnailUrlMd;
+    if (thumbnailUrlSm) metadata.thumbnailUrlSm = thumbnailUrlSm;
 
     // Generate thumbnail for video files
     if (fileType === "video") {

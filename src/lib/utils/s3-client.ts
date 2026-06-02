@@ -18,18 +18,33 @@ const STORAGE_URL =
 
 /**
  * Upload a Buffer to S3 and return the public URL.
+ *
+ * Defaults to `public-read` ACL + a 1-year immutable cache header so the
+ * browser/CDN can cache content-addressed objects forever (all our keys
+ * include a UUID/hash, so they never change in place). Pass
+ * `{ acl: "private" }` for anything that must stay gated behind presigning.
+ *
+ * NOTE: Requires the bucket to allow public ACLs. If S3 Block Public Access
+ * is on, run:
+ *   aws s3api put-public-access-block --bucket flowsmartly-media \
+ *     --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
  */
 export async function uploadToS3(
   key: string,
   body: Buffer,
-  contentType: string
+  contentType: string,
+  opts?: { acl?: "private" | "public-read"; cacheControl?: string }
 ): Promise<string> {
+  const acl = opts?.acl ?? "public-read";
+  const cacheControl = opts?.cacheControl ?? "public, max-age=31536000, immutable";
   await s3.send(
     new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
       Body: body,
       ContentType: contentType,
+      CacheControl: cacheControl,
+      ACL: acl,
     })
   );
   return `${STORAGE_URL}/${key}`;
@@ -164,13 +179,43 @@ const PRESIGN_EXPIRES = 3600; // 1 hour
 const PRESIGN_UPLOAD_EXPIRES = 600; // 10 minutes for uploads
 
 /**
+ * Decide whether an S3 key holds genuinely private content that must stay
+ * gated behind a presigned URL. Everything else is treated as public so the
+ * browser/CDN can long-cache it (presigning busts cache every request).
+ *
+ * Conservative rule: only `private/`, `vault/`, `secure/` are considered
+ * private. All other prefixes (media/, posts/, designs/, cartoons/,
+ * synthetic/, products/, stores/, brand/, logos/, ai-video-studio/,
+ * ai-voice-studio/, ai-image-studio/, feedback/, story-ad-XXX/, etc.) are
+ * public. Bucket Block-Public-Access must allow public-read ACLs for this
+ * to work (see uploadToS3 docstring).
+ */
+export function isPrivateKey(key: string): boolean {
+  if (!key) return false;
+  // Strip leading slash defensively.
+  const k = key.startsWith("/") ? key.slice(1) : key;
+  return (
+    k.startsWith("private/") ||
+    k.startsWith("vault/") ||
+    k.startsWith("secure/")
+  );
+}
+
+/**
  * Generate a presigned PUT URL for direct browser-to-S3 uploads.
  * Returns the presigned URL and the final public URL after upload.
  */
 export async function getPresignedUploadUrl(
   key: string,
   contentType: string,
-  maxSizeBytes?: number
+  maxSizeBytes?: number,
+  // opts retained for forward compat. NOT used to bake CacheControl/ACL into
+  // the signed PUT — that requires the client to send exact matching
+  // `Cache-Control` / `x-amz-acl` request headers or S3 rejects with 403
+  // SignatureDoesNotMatch, which would silently break mobile direct uploads.
+  // Use a bucket-level default ACL + lifecycle policy to set those for
+  // browser-direct uploads instead.
+  _opts?: { acl?: "private" | "public-read"; cacheControl?: string }
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
   const command = new PutObjectCommand({
     Bucket: BUCKET,
@@ -214,8 +259,15 @@ export async function presignHtmlImages(html: string): Promise<string> {
 }
 
 /**
- * Recursively walk any value and replace S3 URLs with presigned URLs.
- * Works on strings, arrays, plain objects, and nested combinations.
+ * Recursively walk any value and replace S3 URLs with presigned URLs ONLY
+ * for keys under private prefixes (private/, vault/, secure/). Everything
+ * else is returned as a bare public URL so it's cacheable by the browser
+ * and any CDN. See `isPrivateKey`.
+ *
+ * Public-key transformation:
+ *   - Bare key "media/abc.png"  → "https://<bucket-host>/media/abc.png"
+ *   - Already-full S3 URL       → strip query string (drop stale presign)
+ *   - /api/image-proxy?url=...  → strip wrapper, return bare public URL
  */
 export async function presignAllUrls<T>(data: T): Promise<T> {
   if (data === null || data === undefined) return data;
@@ -225,15 +277,28 @@ export async function presignAllUrls<T>(data: T): Promise<T> {
     if (proxyInner) {
       const cleanInner = proxyInner.split("?")[0];
       if (isS3Url(cleanInner) || isS3Key(cleanInner)) {
-        return (await getPresignedUrl(cleanInner)) as T;
+        const innerKey = extractS3Key(cleanInner);
+        if (isPrivateKey(innerKey)) {
+          return (await getPresignedUrl(cleanInner)) as T;
+        }
+        // Public — unwrap proxy + drop signature, return cacheable bare URL.
+        return `${STORAGE_URL}/${innerKey}` as T;
       }
     }
     if (isS3Url(data)) {
-      return (await getPresignedUrl(data)) as T;
+      const key = extractS3Key(data);
+      if (isPrivateKey(key)) {
+        return (await getPresignedUrl(data)) as T;
+      }
+      // Public — return canonical bare URL (no query string).
+      return `${STORAGE_URL}/${key}` as T;
     }
     // Also handle bare S3 keys (e.g. "media/abc.png") stored in mediaMeta
     if (isS3Key(data)) {
-      return (await getPresignedUrl(data)) as T;
+      if (isPrivateKey(data)) {
+        return (await getPresignedUrl(data)) as T;
+      }
+      return `${STORAGE_URL}/${data}` as T;
     }
     return data;
   }
