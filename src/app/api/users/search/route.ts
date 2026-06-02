@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { getBlockedUserIds } from "@/lib/social/blocks";
 
 // GET /api/users/search?q=searchTerm - Search users for @mention autocomplete
 export async function GET(request: NextRequest) {
@@ -24,9 +25,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Drop users the viewer has blocked OR who have blocked the viewer
+    // (mutual invisibility — they can't surface each other via search).
+    const blockedIds = await getBlockedUserIds(session.userId);
+
     const users = await prisma.user.findMany({
       where: {
         deletedAt: null,
+        id: { notIn: blockedIds.length > 0 ? blockedIds : undefined },
         OR: [
           { username: { contains: query } },
           { name: { contains: query } },

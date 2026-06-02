@@ -38,6 +38,25 @@ export async function POST(
       );
     }
 
+    // Block check — either direction. Silent 404 (don't disclose existence of
+    // a block to the would-be follower; same UX as a deleted account).
+    const block = await prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: session.userId, blockedId: targetUserId },
+          { blockerId: targetUserId, blockedId: session.userId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      return NextResponse.json(
+        { success: false, error: { message: "User not found" } },
+        { status: 404 }
+      );
+    }
+
     // Check if already following
     const existingFollow = await prisma.follow.findUnique({
       where: {
