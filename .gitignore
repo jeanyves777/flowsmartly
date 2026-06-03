@@ -63,3 +63,10 @@ docker/flow-ai/models/
 tmp-smoke-test.html
 tmp-smoke-test.png
 .secrets/
+
+# Service account keys (Google Play, Google Cloud, etc.) — never commit
+*-service-account.json
+play-service-account.json
+flowsmartly-*.json
+google-services.json
+GoogleService-Info.plist
