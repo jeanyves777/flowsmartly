@@ -62,6 +62,10 @@ class GrokVideoClient {
       imageUrl?: string;
       /** Progress callback used by SSE routes to keep the browser connection alive. */
       onStatus?: (message: string) => void;
+      /** Called with the upstream request_id the moment the job is created, so
+       *  the caller can persist it and RESUME (poll/pull) after a restart
+       *  instead of losing a job the provider is already rendering + billing. */
+      onJobId?: (requestId: string) => void | Promise<void>;
       timeoutMs?: number;
     } = {}
   ): Promise<GrokVideoResult> {
@@ -71,6 +75,7 @@ class GrokVideoClient {
       resolution = "720p",
       imageUrl,
       onStatus,
+      onJobId,
       timeoutMs,
     } = options;
 
@@ -120,6 +125,9 @@ class GrokVideoClient {
     }
 
     console.log(`[GrokVideo] Job created: ${requestId}, polling for completion...`);
+    // Hand the resumable job id to the caller BEFORE we block on polling, so it
+    // can be persisted (a restart mid-poll can then resume instead of failing).
+    try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
     onStatus?.("Video job started. Waiting for the video provider to finish rendering...");
 
     const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
@@ -127,6 +135,42 @@ class GrokVideoClient {
     const videoBuffer = await this.downloadVideo(result.url);
 
     return { requestId, videoBuffer, duration: result.duration };
+  }
+
+  /**
+   * Single (non-blocking) status check for a previously-created job. Used by
+   * the recovery cron to RESUME a job whose in-process worker died (deploy /
+   * crash) instead of failing a render the provider already finished + billed.
+   */
+  async pollOnce(
+    requestId: string,
+  ): Promise<{ state: "pending" | "done" | "failed"; url?: string; duration?: number; error?: string }> {
+    if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    const response = await fetch(`${XAI_VIDEO_STATUS_URL}/${requestId}`, {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+    if (!response.ok) {
+      return { state: "failed", error: `status ${response.status}` };
+    }
+    const data = await response.json();
+    const status = data.status || data.state;
+    if (status === "done" || status === "completed" || data.video?.url) {
+      const url = data.video?.url;
+      if (!url) return { state: "pending" };
+      return { state: "done", url, duration: data.video?.duration || 0 };
+    }
+    if (status === "expired" || status === "failed" || status === "error") {
+      const rawErr = data.error ?? data.message ?? `Generation ${status}`;
+      const error =
+        typeof rawErr === "string" ? rawErr : rawErr?.message || JSON.stringify(rawErr).slice(0, 300);
+      return { state: "failed", error };
+    }
+    return { state: "pending" };
+  }
+
+  /** Public download wrapper for recovery flows. */
+  async fetchVideoBuffer(url: string): Promise<Buffer> {
+    return this.downloadVideo(url);
   }
 
   /**

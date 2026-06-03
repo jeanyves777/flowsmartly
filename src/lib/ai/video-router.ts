@@ -31,6 +31,9 @@ export interface VideoGenInput {
   characterReferenceUrls?: string[];
   disableAudio?: boolean;
   onStatus?: (message: string) => void;
+  /** Called when the upstream provider job is created, so the caller can
+   *  persist {provider, jobId} and resume/pull it after a restart. */
+  onJobId?: (info: { provider: VideoProvider; jobId: string }) => void | Promise<void>;
 }
 
 export interface VideoGenResult {
@@ -85,6 +88,7 @@ export async function generateVideoForRole(
           resolution: "720p",
           imageUrl: input.referenceImageUrl ?? undefined,
           onStatus: input.onStatus,
+          onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
         if (result.videoBuffer?.length) {
           return { videoBuffer: result.videoBuffer, provider: "grok", model: "grok-imagine-video" };

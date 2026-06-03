@@ -1,102 +1,217 @@
 import { prisma } from "@/lib/db/client";
 import { notifyAgentTaskComplete } from "./notify-task-complete";
+import { saveToMediaLibrary } from "./save-media";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { creditService } from "@/lib/credits";
 
 /**
- * AgentTask reconciliation — the safety net for Flow-AI background jobs.
+ * AgentTask recovery — the safety net for Flow-AI background jobs.
  *
- * Background tasks (image/video gen, builds, imports) run IN-PROCESS via
- * `setImmediate` in the same Node process. A `pm2 reload` (deploy) or a crash
- * kills the worker mid-render, but the `AgentTask` row stays `running` forever
- * — the chat shows "still generating…" indefinitely and the user is never told
- * (this stranded a 15s video on 2026-06-03 across a deploy).
+ * Background tasks run IN-PROCESS (setImmediate). A `pm2 reload` (deploy) or
+ * crash kills the worker mid-render, but the provider (Veo/Grok) keeps
+ * rendering the job AND bills us for it. So the right move on restart is NOT
+ * to mark the task "failed" — it's to RESUME: poll the provider job we already
+ * submitted, pull the finished video, and complete the task (charging only on
+ * real success). We only fail a task when there is no provider handle to
+ * resume (it never actually got submitted) or the provider itself reports
+ * failure/expiry.
  *
- * Two guards:
- *  - reconcileInterruptedTasks(): runs at SERVER STARTUP. Any task still
- *    `running`/`pending` at boot belongs to a now-dead process → fail it +
- *    notify the user to retry. (in-process tasks can't survive a restart.)
- *  - failStaleTasks(): periodic WATCHDOG for genuine hangs (provider never
- *    returns) even without a restart.
- *
- * No credits are refunded here because tasks charge AFTER success — an
- * interrupted/stale task never deducted anything.
+ * Drive this from the recover-tasks cron (node runtime).
  */
 
-// At boot, ignore tasks created in the last 60s (avoids racing a request that
-// is being handed off during a graceful reload). Anything older is orphaned.
-const STARTUP_GRACE_MS = 60_000;
-// Watchdog ceiling — longest legitimate job (site/store builds, long reels)
-// runs well under this; past it, the task is hung.
-const STALE_MINUTES = 45;
+const RESUME_GRACE_MS = 90_000; // ignore very fresh tasks still owned by a live worker
+const HANDLELESS_FAIL_MIN = 15; // running this long with NO provider handle → unrecoverable
+const RESUME_MAX_MIN = 45; // provider still not done after this → give up
 
-interface OrphanRow {
+interface TaskRow {
   id: string;
   userId: string;
   kind: string;
   conversationId: string | null;
+  creditCost: number;
+  output: string | null;
+  createdAt: Date;
 }
 
-async function failTasks(rows: OrphanRow[], error: string, summary: string): Promise<void> {
-  if (rows.length === 0) return;
-  await prisma.agentTask.updateMany({
-    where: { id: { in: rows.map((t) => t.id) }, status: { in: ["running", "pending"] } },
+interface PendingHandle {
+  provider?: string;
+  jobId?: string;
+}
+
+function ageMinutes(t: TaskRow): number {
+  return (Date.now() - new Date(t.createdAt).getTime()) / 60_000;
+}
+
+function deepLinkFor(t: TaskRow): string {
+  return t.conversationId ? `/flow-ai?conversationId=${t.conversationId}&taskId=${t.id}` : "/flow-ai";
+}
+
+function readPending(output: string | null): PendingHandle | null {
+  if (!output) return null;
+  try {
+    const parsed = JSON.parse(output) as { pending?: PendingHandle };
+    return parsed?.pending ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Mark a task failed (only if still running/pending) + notify the user. */
+async function failTask(t: TaskRow, error: string, summary: string): Promise<void> {
+  const res = await prisma.agentTask.updateMany({
+    where: { id: t.id, status: { in: ["running", "pending"] } },
     data: { status: "failed", error, completedAt: new Date() },
   });
-  for (const t of rows) {
+  if (res.count > 0) {
     notifyAgentTaskComplete({
       userId: t.userId,
       taskId: t.id,
       kind: t.kind,
       ok: false,
       summary,
-      deepLink: t.conversationId
-        ? `/flow-ai?conversationId=${t.conversationId}&taskId=${t.id}`
-        : "/flow-ai",
+      deepLink: deepLinkFor(t),
     }).catch(() => {});
   }
 }
 
-/** Startup: fail tasks orphaned by the restart that just happened. */
-export async function reconcileInterruptedTasks(): Promise<number> {
-  try {
-    const cutoff = new Date(Date.now() - STARTUP_GRACE_MS);
-    const orphaned = await prisma.agentTask.findMany({
-      where: { status: { in: ["running", "pending"] }, createdAt: { lt: cutoff } },
-      select: { id: true, userId: true, kind: true, conversationId: true },
-    });
-    await failTasks(
-      orphaned,
-      "Rendering was interrupted by a server restart. Please try again.",
-      "Your request was interrupted — please try again",
-    );
-    if (orphaned.length) {
-      console.log(`[reconcile-tasks] startup: failed ${orphaned.length} interrupted task(s).`);
+type RecoverOutcome = "recovered" | "pending" | "failed" | "no_handle";
+
+/** Resume a grok video job from its persisted request_id. */
+async function recoverGrokVideo(t: TaskRow, jobId: string): Promise<RecoverOutcome> {
+  const status = await grokVideoClient.pollOnce(jobId);
+
+  if (status.state === "pending") {
+    if (ageMinutes(t) > RESUME_MAX_MIN) {
+      await failTask(
+        t,
+        "The video provider did not finish in time. Please try again.",
+        "Your video timed out — please try again",
+      );
+      return "failed";
     }
-    return orphaned.length;
-  } catch (e) {
-    console.error("[reconcile-tasks] startup reconcile failed:", e);
-    return 0;
+    return "pending"; // still rendering — re-check next cron tick
   }
+
+  if (status.state === "failed") {
+    await failTask(
+      t,
+      `The video provider could not finish this render${status.error ? ` (${status.error})` : ""}. Please try again.`,
+      "Your video couldn't be generated — please try again",
+    );
+    return "failed";
+  }
+
+  // done → pull the finished video, persist, charge, complete, notify.
+  const buffer = await grokVideoClient.fetchVideoBuffer(status.url!);
+  const key = `flow-ai/${t.userId}/${t.conversationId || "recovered"}-${t.id}.mp4`;
+  const finalUrl = await uploadToS3(key, buffer, "video/mp4");
+
+  await saveToMediaLibrary({
+    userId: t.userId,
+    url: finalUrl,
+    type: "video",
+    mimeType: "video/mp4",
+    size: buffer.length,
+    tags: ["flow-ai", "video", "recovered"],
+    metadata: { taskId: t.id, recovered: true },
+  }).catch(() => {});
+
+  // Flip to completed FIRST (acts as the lock so a concurrent tick / the charge
+  // can't double-run), only if still running/pending.
+  const claimed = await prisma.agentTask.updateMany({
+    where: { id: t.id, status: { in: ["running", "pending"] } },
+    data: { status: "completed", completedAt: new Date(), output: JSON.stringify({ url: finalUrl, recovered: true }) },
+  });
+  if (claimed.count === 0) return "recovered"; // someone else finished it
+
+  if (t.creditCost > 0) {
+    await creditService
+      .deductCredits({
+        userId: t.userId,
+        amount: t.creditCost,
+        type: "USAGE",
+        description: "Flow-AI agent: video (recovered after restart)",
+        referenceType: "flow_ai_task",
+        referenceId: t.id,
+      })
+      .catch((e) => console.error("[reconcile-tasks] recovered-video charge failed:", e));
+  }
+
+  notifyAgentTaskComplete({
+    userId: t.userId,
+    taskId: t.id,
+    kind: t.kind,
+    ok: true,
+    summary: "Your video is ready",
+    deepLink: deepLinkFor(t),
+    previewImageUrl: finalUrl,
+  }).catch(() => {});
+
+  return "recovered";
 }
 
-/** Watchdog: fail tasks that have been running far longer than any real job. */
-export async function failStaleTasks(): Promise<number> {
+export interface RecoveryResult {
+  scanned: number;
+  recovered: number;
+  failed: number;
+  stillPending: number;
+}
+
+/**
+ * Walk orphaned tasks. Video tasks with a provider handle are RESUMED; tasks
+ * with no handle (or non-video) that have been stuck too long are failed.
+ */
+export async function runTaskRecovery(): Promise<RecoveryResult> {
+  const result: RecoveryResult = { scanned: 0, recovered: 0, failed: 0, stillPending: 0 };
   try {
-    const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000);
-    const stale = await prisma.agentTask.findMany({
+    const cutoff = new Date(Date.now() - RESUME_GRACE_MS);
+    const tasks = (await prisma.agentTask.findMany({
       where: { status: { in: ["running", "pending"] }, createdAt: { lt: cutoff } },
-      select: { id: true, userId: true, kind: true, conversationId: true },
-    });
-    await failTasks(
-      stale,
-      "This task took too long and was stopped. Please try again.",
-      "Your request timed out — please try again",
-    );
-    if (stale.length) {
-      console.log(`[reconcile-tasks] watchdog: failed ${stale.length} stale task(s).`);
+      select: { id: true, userId: true, kind: true, conversationId: true, creditCost: true, output: true, createdAt: true },
+      take: 50,
+    })) as TaskRow[];
+
+    result.scanned = tasks.length;
+
+    for (const t of tasks) {
+      try {
+        const pending = readPending(t.output);
+
+        if (t.kind === "generate_video" && pending?.jobId && pending.provider === "grok") {
+          const outcome = await recoverGrokVideo(t, pending.jobId);
+          if (outcome === "recovered") result.recovered++;
+          else if (outcome === "failed") result.failed++;
+          else result.stillPending++;
+          continue;
+        }
+
+        // No resumable handle (never submitted, or a provider we can't resume
+        // yet, e.g. Veo). Give it a generous grace, then fail so the user isn't
+        // stuck forever.
+        if (ageMinutes(t) >= HANDLELESS_FAIL_MIN) {
+          await failTask(
+            t,
+            "Rendering was interrupted and couldn't be recovered. Please try again.",
+            "Your request was interrupted — please try again",
+          );
+          result.failed++;
+        } else {
+          result.stillPending++;
+        }
+      } catch (e) {
+        console.error(`[reconcile-tasks] recovery error for task ${t.id}:`, e);
+        result.stillPending++;
+      }
     }
-    return stale.length;
+
+    if (result.recovered || result.failed) {
+      console.log(
+        `[reconcile-tasks] recovery: scanned=${result.scanned} recovered=${result.recovered} failed=${result.failed} pending=${result.stillPending}`,
+      );
+    }
   } catch (e) {
-    console.error("[reconcile-tasks] watchdog failed:", e);
-    return 0;
+    console.error("[reconcile-tasks] runTaskRecovery failed:", e);
   }
+  return result;
 }

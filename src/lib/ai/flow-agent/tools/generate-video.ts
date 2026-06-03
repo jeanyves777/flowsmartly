@@ -115,6 +115,14 @@ export const generateVideo: FlowAgentTool = {
             durationSeconds,
             aspectRatio,
             onStatus: (message) => publishTaskEvent({ type: "progress", taskId, message }),
+            // Persist the provider job handle so the recovery cron can RESUME
+            // (poll + pull) this render if the worker dies before it finishes —
+            // we're billed by the provider either way, so never just fail it.
+            onJobId: async ({ provider, jobId }) => {
+              await prisma.agentTask
+                .update({ where: { id: taskId }, data: { output: JSON.stringify({ pending: { provider, jobId } }) } })
+                .catch(() => {});
+            },
           });
           videoBuffer = gen.videoBuffer;
         } finally {
