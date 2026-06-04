@@ -78,10 +78,16 @@ export async function buildAgentSystemPrompt(
             : t.status === "running" || t.status === "pending"
               ? "STILL RUNNING"
               : t.status.toUpperCase();
-      // Deliberately NO raw URL here — the finished asset already renders
-      // inline as a card in the chat. Injecting the presigned URL made the
-      // model paste it back as an ugly link and "re-check" work already done.
-      return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${t.status === "completed" ? " (result already shown to the user inline above)" : ""}`;
+      // Completed tasks: include the result URL so the agent can REUSE the
+      // produced asset (attach the generated video/image to a post, feed it to
+      // edit_image) — but it must pass it to a TOOL, never paste it into chat.
+      const doneRef =
+        t.status === "completed"
+          ? t.resultUrl
+            ? ` — DONE, shown inline above. Media URL to REUSE in tools (e.g. mediaUrl for schedule_social_post, or source for edit_image): ${t.resultUrl}`
+            : " — DONE, shown inline above"
+          : "";
+      return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${doneRef}`;
     });
 
   return [
@@ -105,7 +111,7 @@ export async function buildAgentSystemPrompt(
       ? [
           `# Background jobs in THIS conversation (live status — trust this over your memory)`,
           ...taskLines,
-          `If a job shows DONE, the result is ALREADY READY and ALREADY VISIBLE to the user as a card right above your message. Trust this list over your own memory. Do NOT say "I'll let you know when it's done", do NOT say "let me check the image", and do NOT re-run or re-propose the same work to "verify" it. If they ask "is it done / where is it / did you add the logo", answer from this status: "Done — it's the card above; tap it to view or download." If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
+          `If a job shows DONE, the result is ALREADY READY and ALREADY VISIBLE to the user as a card right above your message. TRUST THIS LIST over your own memory. NEVER say "still processing", "I'll let you know when it's done", "let me wait for it to finish", or "let me check" for a job that shows DONE — that is the #1 reported bug. Do NOT re-run or re-propose work that already shows DONE. To REUSE a finished asset (e.g. the user asks to post the generated video, or edit it), take its "Media URL to REUSE" above and pass it to the tool (mediaUrl / source) — NEVER paste that raw URL into your reply. If they ask "is it done / where is it", answer from this status. If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
           ``,
         ]
       : []),
@@ -164,6 +170,8 @@ export async function buildAgentSystemPrompt(
     `# Hard rules`,
     `- NEVER mention internal model/provider names (OpenAI / xAI / Veo / Gemini / Sora). Refer to media quality as "Premium" or "Standard" only.`,
     `- NEVER act on a mutating tool without a confirmed plan_proposal first. Read-only tools (who_am_i, list_my_features, search_features, get_brand_identity, list_scheduled_posts) are fine to call without confirmation.`,
+    `- ONE plan per action. Call propose_plan exactly ONCE for a given action and then WAIT for the user's Confirm. Do NOT call propose_plan again for the same action, and NEVER re-propose something the user already confirmed and you already executed. Stacking duplicate confirm cards (one CANCELED, one CONFIRMED, for the same post) is a serious bug.`,
+    `- NEVER announce an action as finished before the tool returns. Do not type "Done! posted", "It's live", "Scheduled" — or any success claim — until AFTER the actual tool result comes back, and then report exactly what it returned. The user sees the true status in the action card; your text contradicting that card ("Done!" then "you didn't confirm") destroys trust. Narrate intent ("Posting now…") before, facts only after.`,
     `- If a tool returns \`{ ok: false, error_code }\`, DO NOT crash the conversation. Read the error_code and respond helpfully — "insufficient_credits" → suggest top-up at /credits, "plan_required" → suggest upgrade, "validation_failed" → ask for the missing info.`,
     `- The platform owns these flows directly: image generation, video generation, story ad movies, scheduling, campaigns, automations. Use the tools — do NOT tell the user to "go to Studio AI" or "switch to the Image tab".`,
   ].join("\n");

@@ -61,25 +61,22 @@ function parseBlocks(text: string): Block[] {
       continue;
     }
 
-    // Unordered list — collect consecutive bullet lines
+    // Unordered list — bullet lines (blank lines BETWEEN items are tolerated
+    // so spaced-out lists stay one list).
     if (/^[-*•]\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*•]\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^[-*•]\s+/, ""));
-        i++;
-      }
-      blocks.push({ type: "ul", items });
+      const r = collectListItems(lines, i, /^[-*•]\s+/);
+      blocks.push({ type: "ul", items: r.items });
+      i = r.next;
       continue;
     }
 
-    // Ordered list — consecutive "N." lines
+    // Ordered list — "N." lines. Models often put a blank line between items,
+    // which previously split them into separate <ol>s that each restarted at
+    // 1 (the "1. 1. 1." bug). Collect across blank lines so they number 1,2,3.
     if (/^\d+\.\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^\d+\.\s+/, ""));
-        i++;
-      }
-      blocks.push({ type: "ol", items });
+      const r = collectListItems(lines, i, /^\d+\.\s+/);
+      blocks.push({ type: "ol", items: r.items });
+      i = r.next;
       continue;
     }
 
@@ -98,6 +95,40 @@ function parseBlocks(text: string): Block[] {
     blocks.push({ type: "p", lines: para });
   }
   return blocks;
+}
+
+/**
+ * Collect consecutive list items of one kind, tolerating blank lines BETWEEN
+ * items (models often double-space them). Returns the items + the next line
+ * index to resume from. Keeps spaced lists as ONE list so an ordered list
+ * numbers 1,2,3 instead of restarting at 1 each item.
+ */
+function collectListItems(
+  lines: string[],
+  start: number,
+  marker: RegExp,
+): { items: string[]; next: number } {
+  const items: string[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (marker.test(t)) {
+      items.push(t.replace(marker, ""));
+      i++;
+    } else if (t === "") {
+      // Peek past blank line(s): continue the list only if another item follows.
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === "") j++;
+      if (j < lines.length && marker.test(lines[j].trim())) {
+        i = j;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return { items, next: i };
 }
 
 function renderBlock(block: Block, key: number): React.ReactNode {
