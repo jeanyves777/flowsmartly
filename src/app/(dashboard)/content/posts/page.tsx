@@ -1075,6 +1075,10 @@ export default function ContentPostsPage() {
   // Templates + presets are collapsed by default to declutter the playground.
   const [showProductAdTemplates, setShowProductAdTemplates] = useState(false);
   const [showProductAdPresets, setShowProductAdPresets] = useState(false);
+  // Visible editing conversation (chat trail) for the product ad studio.
+  const [productAdChat, setProductAdChat] = useState<
+    Array<{ id: string; role: "user" | "assistant"; text: string; imageUrl?: string }>
+  >([]);
   const [productAdPrompt, setProductAdPrompt] = useState("");
   const [productAdAspect, setProductAdAspect] = useState<FlowMediaAspect>("1:1");
   const [productAdStyle, setProductAdStyle] = useState("premium");
@@ -1857,6 +1861,14 @@ export default function ContentPostsPage() {
     const prompt = buildProductAdPrompt(editMode);
     const rawBrandIdentity = buildRawBrandIdentity(brandKit);
 
+    // Push the user's turn into the visible chat trail.
+    if (editMode) {
+      setProductAdChat((prev) => [
+        ...prev,
+        { id: `u-${Date.now()}`, role: "user", text: productAdEditPrompt.trim() },
+      ]);
+    }
+
     setIsGeneratingProductAd(true);
     setProductAdStatus(editMode ? "Editing the product ad in place..." : "Building a product ad from your references...");
 
@@ -1911,6 +1923,18 @@ export default function ContentPostsPage() {
       });
       setProductAdStatus(editMode ? "Edited ad saved to the media library." : "Product ad saved to the media library.");
       setProductAdEditPrompt("");
+      // Append the assistant turn to the visible chat trail.
+      setProductAdChat((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          text: editMode
+            ? "Done — here's the updated ad. Happy with it, or want another change?"
+            : "Here's your product ad. Happy with it, or tell me what to change.",
+          imageUrl,
+        },
+      ]);
       toast({
         title: editMode ? "Product ad updated" : "Product ad generated",
         description: "Review it in the studio, then add it to the post when ready.",
@@ -3935,68 +3959,127 @@ export default function ContentPostsPage() {
                 </div>
 
                 {generatedProductAd && (
-                  <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
-                    <div className="flex items-center gap-2 text-sm font-bold">
+                  <div className="flex flex-col overflow-hidden rounded-xl border bg-background/80">
+                    <div className="flex items-center gap-2 border-b px-3 py-2 text-sm font-bold">
                       <WandSparkles className="h-4 w-4 text-brand-500" />
-                      Edit this design
+                      FlowAI editing chat
                     </div>
-                    <textarea
-                      value={productAdEditPrompt}
-                      onChange={(event) => setProductAdEditPrompt(event.target.value)}
-                      className="min-h-[76px] w-full resize-y rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      placeholder="Example: make the product larger, change the background to a luxury studio, add more space for the CTA..."
-                      disabled={isGeneratingProductAd}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleGenerateProductAd(true)}
-                      disabled={isGeneratingProductAd || productAdEditPrompt.trim().length < 6}
-                      className="w-full"
-                    >
-                      {isGeneratingProductAd ? (
-                        <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                    <div className="max-h-72 space-y-2.5 overflow-y-auto px-3 py-2.5">
+                      {productAdChat.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Tell FlowAI what to change — it edits the design above and shows the result right here.
+                        </p>
                       ) : (
-                        <RefreshCw className="mr-2 h-4 w-4" />
+                        productAdChat.map((m) => (
+                          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
+                                m.role === "user" ? "bg-brand-500 text-white" : "bg-muted text-foreground"
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
+                              {m.imageUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedMediaUrl(m.imageUrl!)}
+                                  className="mt-1.5 block overflow-hidden rounded-lg border border-white/20"
+                                >
+                                  <img src={m.imageUrl} alt="Edited ad" className="max-h-40 w-full object-contain" />
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))
                       )}
-                      Apply edit in place
-                    </Button>
+                      {isGeneratingProductAd ? (
+                        <div className="flex justify-start">
+                          <div className="inline-flex items-center gap-2 rounded-2xl bg-muted px-3 py-2 text-xs text-muted-foreground">
+                            <AISpinner className="h-3.5 w-3.5" /> Editing…
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-end gap-2 border-t p-2">
+                      <textarea
+                        value={productAdEditPrompt}
+                        onChange={(event) => setProductAdEditPrompt(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            if (!isGeneratingProductAd && productAdEditPrompt.trim().length >= 6) {
+                              handleGenerateProductAd(true);
+                            }
+                          }
+                        }}
+                        rows={2}
+                        className="min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder="e.g. make the product bigger, luxury studio background, more space for the CTA…"
+                        disabled={isGeneratingProductAd}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={() => handleGenerateProductAd(true)}
+                        disabled={isGeneratingProductAd || productAdEditPrompt.trim().length < 6}
+                        className="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-cyan-500 text-white"
+                      >
+                        {isGeneratingProductAd ? <AISpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
                 )}
 
                 <div className="flex flex-col gap-2 rounded-xl border bg-background/80 p-2.5">
-                  <Button
-                    type="button"
-                    onClick={() => handleGenerateProductAd(false)}
-                    disabled={isGeneratingProductAd}
-                    className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
-                  >
-                    {isGeneratingProductAd ? (
-                      <AISpinner className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    Generate product ad
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddProductAdToPost}
-                    disabled={!generatedProductAd?.url || isGeneratingProductAd}
-                  >
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                    Add to post media
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleOpenProductAdInStudio}
-                    disabled={!generatedProductAd?.url || isGeneratingProductAd}
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Edit in Studio
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => setShowAIPilotModal(false)}>
+                  {!generatedProductAd?.url ? (
+                    <Button
+                      type="button"
+                      onClick={() => handleGenerateProductAd(false)}
+                      disabled={isGeneratingProductAd}
+                      className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
+                    >
+                      {isGeneratingProductAd ? (
+                        <AISpinner className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="mr-2 h-4 w-4" />
+                      )}
+                      Generate product ad
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={handleAddProductAdToPost}
+                        disabled={isGeneratingProductAd}
+                        className="bg-gradient-to-r from-brand-500 to-cyan-500 text-white hover:from-brand-600 hover:to-cyan-600"
+                      >
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                        Add to post media
+                      </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateProductAd(false)}
+                          disabled={isGeneratingProductAd}
+                        >
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          Regenerate
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleOpenProductAdInStudio}
+                          disabled={isGeneratingProductAd}
+                        >
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                          Studio
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowAIPilotModal(false)}>
                     Close studio
                   </Button>
                 </div>
