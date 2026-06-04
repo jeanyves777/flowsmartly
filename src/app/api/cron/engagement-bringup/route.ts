@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setSyntheticConfig } from "@/lib/synthetic/config";
+import { setSyntheticConfig, getSyntheticConfig } from "@/lib/synthetic/config";
 import { createPersonas, personaStats, seedSyntheticFollowGraph } from "@/lib/synthetic/generator";
 import { backfillAvatars } from "@/lib/synthetic/avatars";
 import { seedMediaPool, mediaPoolCounts } from "@/lib/synthetic/media-pool";
@@ -93,14 +93,33 @@ export async function GET(request: NextRequest) {
   const generate = Math.max(0, Math.min(1000, parseInt(sp.get("generate") || "0", 10)));
   const activateParam = sp.get("activate");
   const intensityParam = sp.get("intensity");
+  const freeCapParam = sp.get("freeCap");
+  const paidCapParam = sp.get("paidCap");
 
   const actions: Record<string, unknown> = {};
 
   // Config changes are fast — apply synchronously.
-  if (activateParam !== null || intensityParam !== null) {
-    const patch: { enabled?: boolean; intensity?: number } = {};
+  if (
+    activateParam !== null ||
+    intensityParam !== null ||
+    freeCapParam !== null ||
+    paidCapParam !== null
+  ) {
+    const patch: {
+      enabled?: boolean;
+      intensity?: number;
+      planCaps?: { free: number; paid: number; overrides: Record<string, number> };
+    } = {};
     if (activateParam !== null) patch.enabled = activateParam === "1";
     if (intensityParam !== null) patch.intensity = parseInt(intensityParam, 10);
+    if (freeCapParam !== null || paidCapParam !== null) {
+      const cur = await getSyntheticConfig();
+      patch.planCaps = {
+        free: freeCapParam !== null ? parseInt(freeCapParam, 10) : cur.planCaps.free,
+        paid: paidCapParam !== null ? parseInt(paidCapParam, 10) : cur.planCaps.paid,
+        overrides: cur.planCaps.overrides,
+      };
+    }
     actions.config = await setSyntheticConfig(patch);
   }
 
