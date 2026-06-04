@@ -124,6 +124,9 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_GENERATE_IMAGE_PREMIUM: 18,
   AGENT_GENERATE_VIDEO_STANDARD: 35,
   AGENT_GENERATE_VIDEO_PREMIUM: 65,
+  // Web browsing tools — cheap, mostly network + parse overhead.
+  AI_WEB_SEARCH: 2,                // Per search call (provider hit + result synthesis)
+  AI_WEB_FETCH: 1,                 // Per page fetch + HTML→text strip
 
   // --- AI Video Studio ---
   AI_VIDEO_STUDIO: 60,    // Veo 3.1 Quality per 8s clip (~$0.35 Google cost) — Premium tier
@@ -258,6 +261,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_GENERATE_IMAGE_PREMIUM: "Flow-AI agent: generate image (Premium)",
   AGENT_GENERATE_VIDEO_STANDARD: "Flow-AI agent: generate video (Standard)",
   AGENT_GENERATE_VIDEO_PREMIUM: "Flow-AI agent: generate video (Premium)",
+  AI_WEB_SEARCH: "Flow-AI agent: web search",
+  AI_WEB_FETCH: "Flow-AI agent: web fetch",
   AI_VIDEO_STUDIO: "AI video Premium (Veo Quality)",
   AI_VIDEO_LITE: "AI video Standard (Veo Lite)",
   AI_VIDEO_LITE_NO_AUDIO: "AI video Lite no-audio (narrated full-anim)",

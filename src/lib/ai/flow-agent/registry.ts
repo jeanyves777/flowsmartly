@@ -122,6 +122,8 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listConnectedSocials } = await import("./tools/list-connected-socials");
   const { remember } = await import("./tools/remember");
   const { recall } = await import("./tools/recall");
+  const { webFetch } = await import("./tools/web-fetch");
+  const { detectSearchProvider, buildWebSearchTool } = await import("./tools/web-search");
 
   flowAgentTools.register(whoAmI);
   flowAgentTools.register(listMyFeatures);
@@ -164,4 +166,18 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listConnectedSocials);
   flowAgentTools.register(remember);
   flowAgentTools.register(recall);
+
+  // Web browsing: web_fetch is always available (no provider dependency).
+  // web_search only registers when a search-provider API key is present in
+  // `.env` (Tavily preferred, then Brave, then Serper). If no key is set,
+  // we log a one-time warning and ship the agent with web_fetch only.
+  flowAgentTools.register(webFetch);
+  const provider = detectSearchProvider();
+  if (provider) {
+    flowAgentTools.register(buildWebSearchTool(provider));
+  } else {
+    console.warn(
+      "[flow-agent] web_search NOT registered — no TAVILY_API_KEY / BRAVE_API_KEY / SERPER_API_KEY in env. Set one to enable live web search; agent still has web_fetch for direct URLs.",
+    );
+  }
 }
