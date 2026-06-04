@@ -189,6 +189,11 @@ type BrandKit = {
   logo?: string | null;
   iconLogo?: string | null;
   website?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
 };
 
 const joinBrandList = (items?: string[] | null, fallback = "") =>
@@ -241,6 +246,15 @@ const buildRawBrandIdentity = (brandKit?: BrandKit | null) => ({
   handles: brandKit?.handles || null,
   website: brandKit?.website || null,
   logo: brandKit?.logo || brandKit?.iconLogo || null,
+  // REAL contact info — must be copied EXACTLY onto the ad. Without these the
+  // model invents placeholders ("555-ISLAND", "123 Main St").
+  contact: {
+    phone: brandKit?.phone || null,
+    email: brandKit?.email || null,
+    website: brandKit?.website || null,
+    address:
+      [brandKit?.address, brandKit?.city, brandKit?.state].filter(Boolean).join(", ") || null,
+  },
 });
 
 const buildFlowCreativeEditPrompt = (
@@ -1972,23 +1986,7 @@ export default function ContentPostsPage() {
       flowVideoSpeechMode === "talking_review"
         ? "Review presentation: improve the background into a clean creator-review or lifestyle setting while preserving the presenter's face and the exact product. Add tasteful TikTok/Reels-style review cues such as a short Honest review hook, star rating, comment card, progress bar, or LIVE-style engagement indicators. Keep text readable and do not cover the face or product."
         : null;
-    const rawBrandIdentity = {
-      name: brandKit?.name || null,
-      tagline: brandKit?.tagline || null,
-      description: brandKit?.description || null,
-      industry: brandKit?.industry || null,
-      niche: brandKit?.niche || null,
-      audience: brandKit?.targetAudience || null,
-      voice: brandKit?.voiceTone || null,
-      value: brandKit?.uniqueValue || null,
-      products: brandKit?.products || [],
-      keywords: brandKit?.keywords || [],
-      hashtags: brandKit?.hashtags || [],
-      colors: brandKit?.colors || null,
-      handles: brandKit?.handles || null,
-      website: brandKit?.website || null,
-      logo: brandKit?.logo || brandKit?.iconLogo || null,
-    };
+    const rawBrandIdentity = buildRawBrandIdentity(brandKit);
     const rawVideoPrompt = [
       "Brand identity:",
       JSON.stringify(rawBrandIdentity, null, 2),
