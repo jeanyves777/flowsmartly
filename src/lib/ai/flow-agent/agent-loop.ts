@@ -106,11 +106,26 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   await ensureToolsRegistered();
 
   const tools = flowAgentTools.forPlan(input.plan);
-  const toolDefs = tools.map((t) => ({
+  const clientToolDefs = tools.map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.input_schema as Anthropic.Tool["input_schema"],
   }));
+  // Anthropic NATIVE server-side tools — Anthropic runs these server-side
+  // and bakes results (with citations) into the assistant turn. We don't
+  // dispatch a handler for them; we just iterate past their `server_tool_use`
+  // + `web_search_tool_result` blocks. Always registered: the ANTHROPIC_API_KEY
+  // gates the whole agent, so there's no extra cred to check.
+  const serverToolDefs: Anthropic.WebSearchTool20250305[] = [
+    { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+  ];
+  // Join client tools + server tools into the single `tools` array the
+  // Messages API expects. The discriminated `ToolUnion` covers both —
+  // our plain JSON-Schema client tools satisfy the basic `Tool` arm.
+  const toolDefs = [
+    ...clientToolDefs,
+    ...serverToolDefs,
+  ] as unknown as Anthropic.ToolUnion[];
   const toolByName = new Map(tools.map((t) => [t.name, t] as const));
 
   // Track which plan_proposal IDs the user has confirmed in this turn —
@@ -159,8 +174,10 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     priorMessages.push({ role: "user", content: input.userMessage });
   }
 
+  // SDK 0.100 expanded `MessageParam.role` to include "system"; our local
+  // shape stays "user" | "assistant" since we never emit a system role here.
   const messages: Array<{ role: "user" | "assistant"; content: any }> = priorMessages.map(
-    (m) => ({ role: m.role, content: m.content }),
+    (m) => ({ role: m.role as "user" | "assistant", content: m.content }),
   );
 
   // If the triggering turn carried image attachments, rebuild the LAST
@@ -443,12 +460,65 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       finalText = streamedText;
     }
 
+    // ─── NATIVE server-side tools (web_search_20250305) ────────────────
+    // Anthropic already executed these — DO NOT route them through the
+    // client tool dispatcher. Identify by `type === "server_tool_use"`,
+    // not by `name` (a server_tool_use also has name: "web_search").
+    // Charge per native search so we recover the $0.01 + token surcharge.
+    const serverToolUses = response.content.filter(
+      (b): b is Anthropic.ServerToolUseBlock => b.type === "server_tool_use",
+    );
+    for (const stu of serverToolUses) {
+      const label = `${stu.name} (native)`;
+      toolsUsed.push(label);
+      // Surface to the UI so the user sees the search firing — emits both
+      // start + result events back-to-back since Anthropic already ran it.
+      const stInput = (stu as { input?: unknown }).input ?? {};
+      input.emit({
+        type: "tool_call_start",
+        id: stu.id,
+        name: label,
+        input: stInput,
+      });
+      // Charge — admin sessions bypass inside chargeCredits.
+      if (stu.name === "web_search") {
+        await chargeCredits("AI_WEB_SEARCH", `Flow-AI native ${label}`, "flow_ai_tool", input.conversationId);
+      }
+      input.emit({
+        type: "tool_call_result",
+        id: stu.id,
+        name: label,
+        output: { ok: true, data: { native: true, name: stu.name } },
+        durationMs: 0,
+        creditCost: 0,
+      });
+    }
+
+    // `pause_turn` means the model wants to keep going (typically more
+    // native searches). Re-attach the assistant content verbatim and loop
+    // — DO NOT push any tool_result; server-side results are already baked
+    // into the assistant content.
+    if (response.stop_reason === "pause_turn") {
+      messages.push({ role: "assistant", content: response.content });
+      continue;
+    }
+
     if (response.stop_reason === "end_turn") break;
 
+    // Only CLIENT tool_use blocks need a handler. server_tool_use blocks
+    // were just handled above.
     const toolUseBlocks = response.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
     );
-    if (toolUseBlocks.length === 0) break;
+    if (toolUseBlocks.length === 0) {
+      // No client tool calls and not end_turn/pause_turn — could be a pure
+      // server-tool turn that finished. Keep the assistant content and break
+      // (the loop is exhausted for this turn's purpose).
+      if (serverToolUses.length > 0) {
+        messages.push({ role: "assistant", content: response.content });
+      }
+      break;
+    }
 
     // Persist the assistant turn so the next iteration sees its tool_use blocks.
     messages.push({ role: "assistant", content: response.content });

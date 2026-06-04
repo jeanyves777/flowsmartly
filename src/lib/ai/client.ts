@@ -76,8 +76,23 @@ export interface AgentTool {
   handler: (input: Record<string, unknown>) => Promise<unknown>;
 }
 
+/**
+ * Anthropic-hosted "server-side" tool (e.g. `web_search_20250305`).
+ * The model invokes these and Anthropic executes them on their infra,
+ * returning results inline in the same assistant turn. We never run a
+ * handler for these — we just pass the definition through to the API
+ * and iterate past `server_tool_use` + `web_search_tool_result` blocks.
+ */
+export interface ServerSideTool {
+  // Examples: "web_search_20250305", "web_fetch_20250910"
+  type: string;
+  name: string;
+  // Tool-specific knobs (e.g. `max_uses`). We pass these through verbatim.
+  [key: string]: unknown;
+}
+
 export interface AgentRunResult<T = unknown> {
-  /** Final text the agent returned (last text content block). */
+  /** Final text the agent returned (concatenated text blocks across iterations). */
   text: string;
   /** Parsed JSON if the final text block was valid JSON, else null. */
   json: T | null;
@@ -87,6 +102,13 @@ export interface AgentRunResult<T = unknown> {
   usage: { inputTokens: number; outputTokens: number };
   /** Names of tools that were called, in order — useful for debugging. */
   toolsUsed: string[];
+  /**
+   * Structured citations from any server-side tool that surfaces them
+   * (e.g. native `web_search` attaches citations inside text blocks).
+   * Empty when no server tools fired. Consumers can use this to render
+   * source pills; the answer text itself already contains Markdown links.
+   */
+  citations?: unknown[];
 }
 
 export interface AgentRunOptions extends AIGenerationOptions {
@@ -103,6 +125,13 @@ export interface AgentRunOptions extends AIGenerationOptions {
    *   (they live in `response.content` which we already append).
    */
   thinkingBudget?: number | false;
+  /**
+   * Anthropic-hosted server tools (e.g. native `web_search_20250305`).
+   * Joined with the client `tools` array right before each API call. We
+   * never invoke handlers for these; Anthropic executes them server-side
+   * and bakes the results into the assistant turn we read back.
+   */
+  serverTools?: ServerSideTool[];
 }
 
 export interface AIStreamOptions extends AIGenerationOptions {
@@ -344,9 +373,17 @@ class ClaudeAI {
   /**
    * Manual agentic loop with tool use.
    *
-   * The model can call any of the provided tools; we execute the handler
-   * server-side and feed the result back, then loop until Claude stops
-   * calling tools (`stop_reason === "end_turn"`) or we hit `maxIterations`.
+   * Supports BOTH client-side tools (we execute the handler, push tool_result
+   * blocks back) and Anthropic-hosted SERVER-side tools (e.g. native
+   * `web_search_20250305`). For server-side tools, Anthropic runs the
+   * tool on their infra and bakes the results into the assistant turn we
+   * read back — we do NOT dispatch a handler. Pass them via `options.serverTools`.
+   *
+   * Loop semantics:
+   *  - `end_turn`  → final answer ready, return.
+   *  - `pause_turn`→ model wants to keep going (typically more native searches);
+   *                  re-attach assistant content verbatim and continue.
+   *  - any other  → execute client tool_use blocks, push tool_result, continue.
    *
    * Designed for read-only tools that enrich the prompt with live data
    * (brand kit, recent designs, typography pairings) — keep handlers
@@ -363,6 +400,7 @@ class ClaudeAI {
       model: modelOverride,
       maxIterations = 8,
       thinkingBudget = 2000,
+      serverTools = [],
     } = options;
 
     const model = resolveClaudeModel(modelOverride);
@@ -384,11 +422,21 @@ class ClaudeAI {
     const effectiveTemperature =
       strictParams ? undefined : thinkingRequested ? 1 : temperature;
 
-    const toolDefs = tools.map((t) => ({
+    const clientToolDefs = tools.map((t) => ({
       name: t.name,
       description: t.description,
       input_schema: t.input_schema as Anthropic.Tool["input_schema"],
     }));
+    // Join client tools + Anthropic-hosted server tools (native web_search,
+    // etc.) into the single `tools` array the Messages API expects. Server
+    // tools have no handler — we just pass the definition through. The cast
+    // is necessary because the SDK's discriminated `ToolUnion` covers the
+    // built-in server tools but our `clientToolDefs` are plain JSON-Schema
+    // tools that satisfy the basic `Tool` member of that union.
+    const toolDefs = [
+      ...clientToolDefs,
+      ...serverTools,
+    ] as unknown as Anthropic.ToolUnion[];
 
     const handlerByName = new Map(tools.map((t) => [t.name, t.handler]));
     const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
@@ -398,7 +446,11 @@ class ClaudeAI {
     let totalIn = 0;
     let totalOut = 0;
     const toolsUsed: string[] = [];
-    let lastText = "";
+    // Accumulate text across iterations so a multi-search answer that
+    // emits text → server_tool_use → text → server_tool_use → text returns
+    // the FULL reply, not just the last fragment.
+    let accumulatedText = "";
+    const citations: unknown[] = [];
 
     for (let iter = 0; iter < maxIterations; iter++) {
       let response: Anthropic.Message;
@@ -436,25 +488,86 @@ class ClaudeAI {
       totalIn += response.usage?.input_tokens ?? 0;
       totalOut += response.usage?.output_tokens ?? 0;
 
-      // Capture last text block (will be the final answer when no more tools called)
-      const textBlock = response.content.find((b) => b.type === "text");
-      if (textBlock?.type === "text") lastText = textBlock.text;
+      // Bucket the assistant content blocks into THREE categories:
+      //   1. text             → contributes to final answer (preserve citations)
+      //   2. server_tool_use  → Anthropic already ran them; DO NOTHING but keep
+      //                         them in the assistant content for the next turn
+      //   3. tool_use         → client tools we must execute and feed back
+      //   (web_search_tool_result blocks live inline — also just preserved)
+      const clientToolUses: Anthropic.ToolUseBlock[] = [];
+      let sawServerSideBlock = false;
+      for (const block of response.content) {
+        // CRITICAL: identify by `type`, not by `name`. A server_tool_use also
+        // has `name: "web_search"` — routing it through the client dispatcher
+        // would try to find a handler and 4xx the next turn (litellm #17737).
+        if (block.type === "text") {
+          if (block.text) {
+            accumulatedText += (accumulatedText ? "\n\n" : "") + block.text;
+          }
+          // Native web_search attaches citations on text blocks. Preserve them.
+          const blockCitations = (block as { citations?: unknown[] }).citations;
+          if (Array.isArray(blockCitations) && blockCitations.length > 0) {
+            citations.push(...blockCitations);
+          }
+        } else if (block.type === "tool_use") {
+          clientToolUses.push(block);
+        } else if (block.type === "server_tool_use") {
+          // Anthropic already executed this server-side. Just record it.
+          sawServerSideBlock = true;
+          const blockName = (block as { name?: string }).name ?? "server_tool";
+          toolsUsed.push(`${blockName} (native)`);
+        } else if (block.type === "web_search_tool_result") {
+          // Result block paired with the server_tool_use above. Already in the
+          // assistant content; no action needed.
+          sawServerSideBlock = true;
+        }
+        // Thinking blocks and any other future block types fall through —
+        // they live in `response.content` which we re-attach below as-is.
+      }
 
-      // If the model is done, return
+      // `pause_turn`: the model wants to keep going (typically more native
+      // searches). Re-attach the assistant content verbatim and loop again
+      // WITHOUT pushing any tool_result — server tools have their results
+      // baked into the assistant content already.
+      if (response.stop_reason === "pause_turn") {
+        messages.push({ role: "assistant", content: response.content });
+        continue;
+      }
+
+      // Natural end of the conversation
       if (response.stop_reason === "end_turn") {
-        return this.buildAgentResult<T>(lastText, iter + 1, totalIn, totalOut, toolsUsed);
+        return this.buildAgentResult<T>(
+          accumulatedText,
+          iter + 1,
+          totalIn,
+          totalOut,
+          toolsUsed,
+          citations,
+        );
       }
 
-      // Otherwise, gather tool_use blocks and execute their handlers
-      const toolUseBlocks = response.content.filter(
-        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
-      );
-
-      if (toolUseBlocks.length === 0) {
-        // No tool calls and no end_turn — bail to avoid infinite loop
-        return this.buildAgentResult<T>(lastText, iter + 1, totalIn, totalOut, toolsUsed);
+      // No client tool_use blocks → either pure text reply or pure server-tool
+      // turn. If it was a pure server-tool turn we shouldn't see this (the
+      // model would have paused or kept going), but bail safely if so.
+      if (clientToolUses.length === 0) {
+        if (sawServerSideBlock) {
+          // Defensive: server tools fired but no client tool_use and no
+          // pause_turn/end_turn. Keep the assistant content for next turn.
+          messages.push({ role: "assistant", content: response.content });
+          continue;
+        }
+        return this.buildAgentResult<T>(
+          accumulatedText,
+          iter + 1,
+          totalIn,
+          totalOut,
+          toolsUsed,
+          citations,
+        );
       }
 
+      // Persist the entire assistant content (text + server tool blocks +
+      // client tool_use blocks) so the next turn has the full record.
       messages.push({ role: "assistant", content: response.content });
 
       const toolResults: Array<{
@@ -464,7 +577,7 @@ class ClaudeAI {
         is_error?: boolean;
       }> = [];
 
-      for (const tu of toolUseBlocks) {
+      for (const tu of clientToolUses) {
         toolsUsed.push(tu.name);
         const handler = handlerByName.get(tu.name);
         if (!handler) {
@@ -496,8 +609,15 @@ class ClaudeAI {
       messages.push({ role: "user", content: toolResults });
     }
 
-    // Hit max iterations — return whatever the last text was
-    return this.buildAgentResult<T>(lastText, maxIterations, totalIn, totalOut, toolsUsed);
+    // Hit max iterations — return whatever text we've accumulated
+    return this.buildAgentResult<T>(
+      accumulatedText,
+      maxIterations,
+      totalIn,
+      totalOut,
+      toolsUsed,
+      citations,
+    );
   }
 
   private buildAgentResult<T>(
@@ -506,6 +626,7 @@ class ClaudeAI {
     inputTokens: number,
     outputTokens: number,
     toolsUsed: string[],
+    citations: unknown[] = [],
   ): AgentRunResult<T> {
     let json: T | null = null;
     if (text) {
@@ -522,6 +643,7 @@ class ClaudeAI {
       iterations,
       usage: { inputTokens, outputTokens },
       toolsUsed,
+      citations: citations.length > 0 ? citations : undefined,
     };
   }
 }

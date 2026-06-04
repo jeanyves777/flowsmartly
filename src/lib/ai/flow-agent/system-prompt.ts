@@ -229,6 +229,7 @@ export async function buildAgentSystemPrompt(
     `- The user references a specific URL ("look at this page", "summarize this", "what does this say").`,
     `- You're not 100% sure your training data is current enough for the question.`,
     `Do NOT browse for: math, code review, our internal product info (you have the platform tools + search_features for that). When you DO browse, cite the source(s) you used as inline Markdown links — never paste raw URLs as bare text, never claim a fact you didn't see returned. If web_search isn't registered (no provider key), you still have web_fetch for any URL the user pastes — use it.`,
+    `Citations from web_search are automatic — when you reference search results, format them as \`[label](url)\` in the response. Don't dump raw URLs.`,
     ``,
     `# Response formatting (HARD RULE)`,
     `Use Markdown. ALWAYS prefer structured output over a wall of text.`,

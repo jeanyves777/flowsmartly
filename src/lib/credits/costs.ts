@@ -124,8 +124,11 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_GENERATE_IMAGE_PREMIUM: 18,
   AGENT_GENERATE_VIDEO_STANDARD: 35,
   AGENT_GENERATE_VIDEO_PREMIUM: 65,
-  // Web browsing tools — cheap, mostly network + parse overhead.
-  AI_WEB_SEARCH: 2,                // Per search call (provider hit + result synthesis)
+  // Web browsing tools.
+  // AI_WEB_SEARCH: Anthropic NATIVE web_search_20250305 — they bill
+  // $0.01/search PLUS input tokens for the results returned into context.
+  // 3 credits covers both (1 search + a small token surcharge with margin).
+  AI_WEB_SEARCH: 3,                // Per native search call (server-side, citations included)
   AI_WEB_FETCH: 1,                 // Per page fetch + HTML→text strip
 
   // --- AI Video Studio ---

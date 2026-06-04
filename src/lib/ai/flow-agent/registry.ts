@@ -123,7 +123,12 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { remember } = await import("./tools/remember");
   const { recall } = await import("./tools/recall");
   const { webFetch } = await import("./tools/web-fetch");
-  const { detectSearchProvider, buildWebSearchTool } = await import("./tools/web-search");
+  // NOTE: web_search is now Anthropic's NATIVE server-side tool
+  // (`web_search_20250305`) — registered in agent-loop.ts as a server tool
+  // passed directly to the Messages API. Anthropic executes the search on
+  // their infra and bakes citations into the assistant turn. The custom
+  // Tavily/Brave/Serper handler in ./tools/web-search.ts is intentionally
+  // left on disk as dead code in case we ever need a fallback.
 
   flowAgentTools.register(whoAmI);
   flowAgentTools.register(listMyFeatures);
@@ -167,17 +172,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(remember);
   flowAgentTools.register(recall);
 
-  // Web browsing: web_fetch is always available (no provider dependency).
-  // web_search only registers when a search-provider API key is present in
-  // `.env` (Tavily preferred, then Brave, then Serper). If no key is set,
-  // we log a one-time warning and ship the agent with web_fetch only.
+  // Web browsing:
+  //  - web_fetch    → client tool, always registered (no provider dep)
+  //  - web_search   → Anthropic NATIVE server-side tool, joined at the
+  //                   API call site in agent-loop.ts (no client handler)
   flowAgentTools.register(webFetch);
-  const provider = detectSearchProvider();
-  if (provider) {
-    flowAgentTools.register(buildWebSearchTool(provider));
-  } else {
-    console.warn(
-      "[flow-agent] web_search NOT registered — no TAVILY_API_KEY / BRAVE_API_KEY / SERPER_API_KEY in env. Set one to enable live web search; agent still has web_fetch for direct URLs.",
-    );
-  }
 }
