@@ -45,6 +45,7 @@ import {
   subscribeToTaskStream,
   consumeAgentStreamWithReplay,
   useAgentSender,
+  fetchConversationCards,
   type TaskStreamEvent,
 } from "./use-agent-stream";
 import { RichText, TypingDots } from "./rich-text";
@@ -175,6 +176,12 @@ export function FlowAIShell() {
           if (!cancelled && histJson?.success) {
             const conv = histJson.data ?? histJson.conversation ?? histJson;
             const rawMsgs = conv?.messages ?? histJson.messages ?? [];
+            // Fetch the persisted cards (tool chips + proposals + tasks) and
+            // attach them in the SAME setMessages — so a restored chat shows
+            // the full flow (not text-only) and there's no race with a
+            // separate rehydrate pass.
+            const cards = await fetchConversationCards(initialConversationId);
+            if (cancelled) return;
             setMessages(
               rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; createdAt?: string }) => ({
                 id: m.id,
@@ -183,6 +190,9 @@ export function FlowAIShell() {
                 mediaType: (m.mediaType === "image" || m.mediaType === "video") ? m.mediaType : null,
                 mediaUrl: m.mediaUrl ?? null,
                 createdAt: m.createdAt,
+                toolCalls: cards.toolCallsByMsg.get(m.id),
+                planProposals: cards.proposalsByMsg.get(m.id),
+                agentTasks: cards.tasksByMsg.get(m.id),
               })),
             );
             setConversationTitle(conv?.title || "Conversation");
@@ -683,6 +693,9 @@ export function FlowAIShell() {
         if (json?.success) {
           const conv = json.data ?? json.conversation ?? json;
           const rawMsgs = conv?.messages ?? json.messages ?? [];
+          // Attach persisted cards (chips + proposals + tasks) so the switched-to
+          // conversation shows its full flow, not just text.
+          const cards = await fetchConversationCards(id);
           setMessages(
             rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; createdAt?: string }) => ({
               id: m.id,
@@ -691,6 +704,9 @@ export function FlowAIShell() {
               mediaType: (m.mediaType === "image" || m.mediaType === "video") ? m.mediaType : null,
               mediaUrl: m.mediaUrl ?? null,
               createdAt: m.createdAt,
+              toolCalls: cards.toolCallsByMsg.get(m.id),
+              planProposals: cards.proposalsByMsg.get(m.id),
+              agentTasks: cards.tasksByMsg.get(m.id),
             })),
           );
           setConversationTitle(conv?.title || "Conversation");

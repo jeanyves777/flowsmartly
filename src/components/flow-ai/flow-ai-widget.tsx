@@ -22,6 +22,7 @@ import {
   useAgentSender,
   respondToPlanProposal,
   subscribeToTaskStream,
+  fetchConversationCards,
 } from "./use-agent-stream";
 import { useWebPushAutoSubscribe, requestPushPermission } from "./use-web-push";
 import { RichText, TypingDots } from "./rich-text";
@@ -452,6 +453,10 @@ export function FlowAIWidget() {
         const json = await res.json();
         const conv = json?.data ?? json;
         const rawMsgs: Array<{ id: string; role: string; content: string; mediaUrl?: string | null }> = conv?.messages ?? [];
+        // Fetch persisted cards (tool chips + proposals + tasks) and attach
+        // them in the SAME setMessages so the restored chat shows the full
+        // flow — not just text. Fixes "all cards lost on restore".
+        const cards = await fetchConversationCards(id);
         setMessages(
           rawMsgs
             .filter((m) => m.role === "user" || m.role === "assistant")
@@ -461,10 +466,13 @@ export function FlowAIWidget() {
               content: m.content,
               // Restore attached/produced media so it isn't lost on reopen.
               images: m.mediaUrl ? [m.mediaUrl] : undefined,
+              toolCalls: cards.toolCallsByMsg.get(m.id),
+              planProposals: cards.proposalsByMsg.get(m.id),
+              agentTasks: cards.tasksByMsg.get(m.id),
             })),
         );
-        // Rehydrate plan proposals + tasks for this conversation so cards
-        // render in their persisted state (same endpoints the shell uses).
+        // Re-open live streams for any task still running, + keep proposal
+        // statuses fresh (multi-device). toolCalls are preserved by it.
         rehydrateConversation(id);
       } catch (err) {
         console.error("[FlowAIWidget] load conversation failed:", err);

@@ -236,6 +236,106 @@ export async function respondToPlanProposal(
   }
 }
 
+// ─── Restore helper — rebuild a saved conversation's CARDS ────────────
+
+export interface RestoredConversationCards {
+  /** Tool-call chips keyed by the assistant messageId they belong to. */
+  toolCallsByMsg: Map<string, AgentToolCardData[]>;
+  proposalsByMsg: Map<string, PlanProposalCardData[]>;
+  tasksByMsg: Map<string, AgentTaskCardData[]>;
+  /** Tasks still pending/running — caller should open live streams for these. */
+  liveTaskIds: string[];
+}
+
+/**
+ * Fetch ALL persisted cards (tool-call chips + plan proposals + background
+ * tasks) for a conversation and key them by messageId, so a RESTORED chat
+ * renders the full flow — not just text. Uses `/replay?lastSeq=0`, which
+ * already returns all three sources keyed by messageId. Without this, a
+ * reloaded conversation loses its chips/cards and looks text-only.
+ *
+ * Never throws — returns empty maps on any failure.
+ */
+export async function fetchConversationCards(conversationId: string): Promise<RestoredConversationCards> {
+  const empty: RestoredConversationCards = {
+    toolCallsByMsg: new Map(),
+    proposalsByMsg: new Map(),
+    tasksByMsg: new Map(),
+    liveTaskIds: [],
+  };
+  if (!conversationId) return empty;
+  try {
+    const res = await fetch(
+      `/api/flow-ai/agent/replay?conversationId=${encodeURIComponent(conversationId)}&lastSeq=0&limit=500`,
+    );
+    const json = await res.json().catch(() => null);
+    if (!json?.ok) return empty;
+
+    const toolCallsByMsg = new Map<string, AgentToolCardData[]>();
+    for (const t of (json.toolCalls ?? []) as Array<{
+      id: string;
+      messageId: string;
+      toolName: string;
+      output: unknown;
+      errorCode: string | null;
+      creditCost: number;
+    }>) {
+      if (!t.messageId) continue;
+      const out = t.output as { ok?: boolean } | null;
+      const isError = !!t.errorCode || (!!out && typeof out === "object" && out.ok === false);
+      const card: AgentToolCardData = {
+        id: t.id,
+        name: t.toolName,
+        status: isError ? "error" : "ok",
+        errorCode: t.errorCode ?? undefined,
+        creditCost: t.creditCost ?? 0,
+        output: t.output,
+      };
+      const list = toolCallsByMsg.get(t.messageId) ?? [];
+      list.push(card);
+      toolCallsByMsg.set(t.messageId, list);
+    }
+
+    const proposalsByMsg = new Map<string, PlanProposalCardData[]>();
+    for (const p of (json.proposals ?? []) as Array<{
+      id: string;
+      messageId: string;
+      summary: string;
+      steps: PlanStepData[];
+      totalCreditCost: number;
+      status: PlanProposalCardData["status"];
+    }>) {
+      if (!p.messageId) continue;
+      const list = proposalsByMsg.get(p.messageId) ?? [];
+      list.push({ id: p.id, summary: p.summary, steps: p.steps ?? [], totalCreditCost: p.totalCreditCost ?? 0, status: p.status });
+      proposalsByMsg.set(p.messageId, list);
+    }
+
+    const tasksByMsg = new Map<string, AgentTaskCardData[]>();
+    const liveTaskIds: string[] = [];
+    for (const t of (json.tasks ?? []) as Array<{
+      id: string;
+      messageId: string | null;
+      kind: string;
+      status: AgentTaskCardData["status"];
+      output: AgentTaskCardData["output"];
+      error: string | null;
+      resultRefType: string | null;
+      resultRefId: string | null;
+    }>) {
+      if (!t.messageId) continue;
+      const list = tasksByMsg.get(t.messageId) ?? [];
+      list.push({ id: t.id, kind: t.kind, status: t.status, output: t.output, error: t.error, resultRefType: t.resultRefType, resultRefId: t.resultRefId });
+      tasksByMsg.set(t.messageId, list);
+      if (t.status === "pending" || t.status === "running") liveTaskIds.push(t.id);
+    }
+
+    return { toolCallsByMsg, proposalsByMsg, tasksByMsg, liveTaskIds };
+  } catch {
+    return empty;
+  }
+}
+
 // ─── Reconnect helper — drives /replay on SSE drop ───────────────────
 
 /**
