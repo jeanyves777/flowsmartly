@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/client";
 import { notifyAgentTaskComplete } from "./notify-task-complete";
 import { saveToMediaLibrary } from "./save-media";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 
@@ -102,8 +103,19 @@ async function recoverGrokVideo(t: TaskRow, jobId: string): Promise<RecoverOutco
     return "failed";
   }
 
-  // done → pull the finished video, persist, charge, complete, notify.
-  const buffer = await grokVideoClient.fetchVideoBuffer(status.url!);
+  // done → pull the finished video, brand it, persist, charge, complete, notify.
+  let buffer = await grokVideoClient.fetchVideoBuffer(status.url!);
+  try {
+    const brandKit = await prisma.brandKit.findFirst({
+      where: { userId: t.userId },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+      select: { logo: true, iconLogo: true },
+    });
+    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+    if (logoSource) buffer = await overlayBrandLogoOnVideo(buffer, logoSource);
+  } catch {
+    /* branding is best-effort */
+  }
   const key = `flow-ai/${t.userId}/${t.conversationId || "recovered"}-${t.id}.mp4`;
   const finalUrl = await uploadToS3(key, buffer, "video/mp4");
 

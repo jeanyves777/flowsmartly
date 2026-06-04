@@ -5,6 +5,7 @@ import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { videoRole } from "@/lib/ai/media-models";
 import { generateVideoForRole } from "@/lib/ai/video-router";
+import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import type { FlowAgentTool } from "../registry";
@@ -86,7 +87,23 @@ export const generateVideo: FlowAgentTool = {
     // Language prefix — any rendered text or generated voiceover stays
     // in the user's language. See feedback-ai-respects-user-language.
     const languageTag = await getUserPreferredLanguage(ctx.userId);
-    const enrichedPrompt = withLanguagePrefix(prompt, languageTag);
+
+    // Real brand logo — composited onto the finished video. AI video models
+    // misspell rendered brand text ("FlowSmatly"), so we tell the model NOT to
+    // draw the brand and stamp the real logo afterward (like the image flow).
+    const brandKit = await prisma.brandKit
+      .findFirst({
+        where: { userId: ctx.userId },
+        orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        select: { logo: true, iconLogo: true },
+      })
+      .catch(() => null);
+    const logoSource = brandKit?.iconLogo || brandKit?.logo || null;
+
+    const enrichedPrompt = withLanguagePrefix(
+      `${prompt}\n\nIMPORTANT: Do NOT render the brand name, wordmark, or any logo as on-screen text — AI video often misspells it. The real brand logo is composited on top afterward. Use the brand's colors and style; keep any other on-screen text minimal and avoid the brand name entirely.`,
+      languageTag,
+    );
 
     const taskId = await spawnBackgroundTask({
       userId: ctx.userId,
@@ -127,6 +144,12 @@ export const generateVideo: FlowAgentTool = {
           videoBuffer = gen.videoBuffer;
         } finally {
           clearInterval(heartbeat);
+        }
+
+        // Stamp the real brand logo onto the finished video (best-effort).
+        if (logoSource) {
+          publishTaskEvent({ type: "progress", taskId, progress: 78, message: "Adding your brand logo…" });
+          videoBuffer = await overlayBrandLogoOnVideo(videoBuffer, logoSource);
         }
 
         publishTaskEvent({
