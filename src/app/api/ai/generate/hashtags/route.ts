@@ -7,7 +7,9 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 
 const generateHashtagsSchema = z.object({
-  platforms: z.array(z.enum(["instagram", "twitter", "linkedin", "facebook", "youtube"])).min(1),
+  // Accept any platform id (feed/tiktok/pinterest/threads/whatsapp/…) — the
+  // strict enum 400'd on unsupported selections. See seo-keywords route.
+  platforms: z.array(z.string()).min(1),
   topic: z.string().min(5, "Topic must be at least 5 characters").max(500),
   count: z.number().min(5).max(30).default(15),
   categories: z.array(z.enum(["trending", "niche", "branded", "community"])).default(["trending", "niche"]),

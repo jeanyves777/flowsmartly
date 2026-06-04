@@ -2640,37 +2640,7 @@ export default function ContentPostsPage() {
 
         <Card className="border-border/60 shadow-sm">
           <CardContent className="space-y-4 p-4">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label className="font-semibold">Media</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openCreateModal("image", { target: { type: "contentPost" } })}
-                  className="h-8 gap-1.5 border-cyan-500/30 bg-cyan-500/5 text-xs font-semibold text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
-                >
-                  <ImagePlus className="h-3.5 w-3.5" />
-                  FlowCreative
-                </Button>
-              </div>
-              <MediaUploader
-                value={mediaUrls}
-                onChange={setMediaUrls}
-                multiple
-                maxFiles={50}
-                accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
-                maxSize={100 * 1024 * 1024}
-                filterTypes={["image", "video"]}
-                uploadEndpoint="/api/media"
-                disabled={isPublishing}
-                variant="gallery"
-                placeholder="Add media"
-                libraryTitle="Select Media for Post"
-              />
-            </div>
-
-            {/* AI actions above textarea */}
+            {/* Caption first (primary focus) — AI actions row */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="font-semibold">Caption</Label>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -2703,6 +2673,10 @@ export default function ContentPostsPage() {
                 ].map((action) => {
                   const Icon = action.icon;
                   const isActiveAction = isGeneratingAIPilot && aiMode === action.mode;
+                  // Rewrite/Shorten/Hashtags/SEO operate ON the caption — require
+                  // one so the request can't run empty and fail. "Draft" generates
+                  // from scratch, so it never needs a caption.
+                  const needsCaption = action.mode !== "generate" && !caption.trim();
                   return (
                     <Button
                       key={action.mode}
@@ -2711,7 +2685,8 @@ export default function ContentPostsPage() {
                       size="sm"
                       className="h-7 text-xs"
                       onClick={() => handleAIPilotGenerate(action.mode, action.apply)}
-                      disabled={isGeneratingAIPilot || isGeneratingIdea || isPublishing}
+                      disabled={isGeneratingAIPilot || isGeneratingIdea || isPublishing || needsCaption}
+                      title={needsCaption ? "Write a caption first" : undefined}
                     >
                       {isActiveAction ? (
                         <AISpinner className="mr-1 h-3 w-3 animate-spin" />
@@ -2768,6 +2743,39 @@ export default function ContentPostsPage() {
               <span className="absolute bottom-3 right-3 text-xs text-muted-foreground select-none">
                 {caption.length}/{MAX_CHARS}
               </span>
+            </div>
+
+            {/* Media — below the caption; scrolls so a large library never takes over the page */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="font-semibold">Media</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openCreateModal("image", { target: { type: "contentPost" } })}
+                  className="h-8 gap-1.5 border-cyan-500/30 bg-cyan-500/5 text-xs font-semibold text-cyan-700 hover:bg-cyan-500/10 dark:text-cyan-300"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  FlowCreative
+                </Button>
+              </div>
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-border/40 p-1.5">
+                <MediaUploader
+                  value={mediaUrls}
+                  onChange={setMediaUrls}
+                  multiple
+                  maxFiles={50}
+                  accept="image/png,image/jpeg,image/jpg,image/webp,video/mp4,video/webm"
+                  maxSize={100 * 1024 * 1024}
+                  filterTypes={["image", "video"]}
+                  uploadEndpoint="/api/media"
+                  disabled={isPublishing}
+                  variant="gallery"
+                  placeholder="Add media"
+                  libraryTitle="Select Media for Post"
+                />
+              </div>
             </div>
 
             {/* Schedule Date/Time Picker (shown when Schedule is clicked) */}

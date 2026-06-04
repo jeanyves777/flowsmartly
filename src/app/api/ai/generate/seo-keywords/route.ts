@@ -7,7 +7,12 @@ import { prisma } from "@/lib/db/client";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 
 const seoKeywordSchema = z.object({
-  platforms: z.array(z.enum(["instagram", "twitter", "linkedin", "facebook", "youtube"])).default(["facebook"]),
+  // Accept ANY platform id (feed, tiktok, pinterest, threads, whatsapp, …) —
+  // the previous strict enum 400'd whenever an unsupported platform was
+  // selected (e.g. whatsapp is in the composer's AI list but wasn't in this
+  // enum), which is why SEO "kept failing". SEO keywords don't depend on the
+  // exact platform, so just normalize to strings.
+  platforms: z.array(z.string()).default(["facebook"]),
   caption: z.string().min(10, "Caption must be at least 10 characters").max(2000),
   brandBrief: z.string().max(2500).optional(),
   count: z.number().min(5).max(15).default(10),
@@ -66,7 +71,19 @@ export async function POST(request: NextRequest) {
         "You are a social SEO strategist. Return only valid JSON with search-ready keyword phrases. No explanations.",
     });
 
-    const keywords = normalizeSeoKeywords(response?.keywords || response?.seoKeywords || response?.tags || [], count);
+    let keywords = normalizeSeoKeywords(response?.keywords || response?.seoKeywords || response?.tags || [], count);
+
+    // Fallback: Gemini-flash sometimes returns prose instead of clean JSON, so
+    // generateJSON yields nothing. Retry as plain text + split, so SEO doesn't
+    // hard-fail on a formatting hiccup.
+    if (keywords.length === 0) {
+      const text = await ai.generate(
+        `${prompt}\n\nReturn ONLY a comma-separated list of ${count} keyword phrases. No numbering, no JSON, no extra words.`,
+        { maxTokens: 400, temperature: 0.5, systemPrompt: "Return only a comma-separated list of keyword phrases." },
+      );
+      keywords = normalizeSeoKeywords(text, count);
+    }
+
     if (keywords.length === 0) {
       throw new Error("AI did not return usable SEO keys");
     }
