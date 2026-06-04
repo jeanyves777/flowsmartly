@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/social/account-capacity";
+import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
 
 /**
  * Instagram Business OAuth - Step 2: Handle callback
@@ -8,24 +9,19 @@ import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/soci
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state"); // userId
+  const { userId, mobileRedirect } = decodeConnectState(request.nextUrl.searchParams.get("state"));
   const error = request.nextUrl.searchParams.get("error");
 
   if (error) {
     console.error("Instagram OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=instagram_auth_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "instagram_auth_failed" });
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
-    );
+  if (!code || !userId) {
+    return connectResultRedirect(mobileRedirect, { error: "missing_params" });
   }
 
   try {
-    const userId = state;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/instagram/callback`;
 
     // Exchange code for short-lived access token
@@ -141,9 +137,7 @@ export async function GET(request: NextRequest) {
     console.log("[Instagram Callback] Final:", pages.length, "pages found");
 
     if (pages.length === 0) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_instagram_accounts`
-      );
+      return connectResultRedirect(mobileRedirect, { error: "no_instagram_accounts" });
     }
 
     const user = await prisma.user.findUnique({
@@ -225,22 +219,18 @@ export async function GET(request: NextRequest) {
 
     if (instagramAccountsFound === 0) {
       if (instagramAccountsSkipped > 0) {
-        return NextResponse.redirect(
-          `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=social_account_limit_reached`
-        );
+        return connectResultRedirect(mobileRedirect, { error: "social_account_limit_reached" });
       }
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=no_instagram_accounts`
-      );
+      return connectResultRedirect(mobileRedirect, { error: "no_instagram_accounts" });
     }
 
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=instagram_connected&accounts=${instagramAccountsFound}&skipped=${instagramAccountsSkipped}`
-    );
+    return connectResultRedirect(mobileRedirect, {
+      success: "instagram_connected",
+      accounts: String(instagramAccountsFound),
+      skipped: String(instagramAccountsSkipped),
+    });
   } catch (error) {
     console.error("Instagram OAuth callback error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=instagram_connect_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "instagram_connect_failed" });
   }
 }

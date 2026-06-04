@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  resolveConnectUserId,
+  getMobileConnectRedirect,
+  encodeConnectState,
+} from "@/lib/social/oauth-connect";
 
 /**
  * YouTube OAuth - Step 1: Initiate OAuth flow
@@ -7,14 +11,15 @@ import { getSession } from "@/lib/auth/session";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is logged in
-    const session = await getSession();
-    if (!session) {
+    // Web: session cookie. Mobile: ?token= access token (in-app browser).
+    const userId = await resolveConnectUserId(request);
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+    const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientId = process.env.GOOGLE_CLIENT_ID!;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/youtube/callback`;
@@ -35,7 +40,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set("scope", scopes.join(" "));
     authUrl.searchParams.set("access_type", "offline"); // Get refresh token
     authUrl.searchParams.set("prompt", "consent"); // Force consent screen
-    authUrl.searchParams.set("state", session.userId); // Pass user ID for security
+    authUrl.searchParams.set("state", encodeConnectState({ userId, mobileRedirect })); // Pass user ID for security
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {

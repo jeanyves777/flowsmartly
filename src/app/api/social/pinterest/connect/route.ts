@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  resolveConnectUserId,
+  getMobileConnectRedirect,
+  encodeConnectState,
+} from "@/lib/social/oauth-connect";
 import crypto from "crypto";
 
 /**
@@ -8,16 +12,22 @@ import crypto from "crypto";
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) {
+    // Web: session cookie. Mobile: ?token= access token (in-app browser).
+    const userId = await resolveConnectUserId(request);
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientId = process.env.PINTEREST_APP_ID!;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/pinterest/callback`;
 
-    // CSRF protection
-    const state = `${session.userId}:${crypto.randomBytes(16).toString("hex")}`;
+    // CSRF protection — nonce packed into the OAuth state.
+    const state = encodeConnectState({
+      userId,
+      extra: crypto.randomBytes(16).toString("hex"),
+      mobileRedirect,
+    });
 
     // Pinterest OAuth 2.0 scopes. boards:write is required because POST /v5/pins
     // implicitly writes to a board (the user's default board if no board_id is given) —

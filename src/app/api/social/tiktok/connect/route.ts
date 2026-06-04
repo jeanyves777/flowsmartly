@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  resolveConnectUserId,
+  getMobileConnectRedirect,
+  encodeConnectState,
+} from "@/lib/social/oauth-connect";
 
 /**
  * TikTok OAuth 2.0 - Step 1: Initiate OAuth flow
@@ -7,14 +11,15 @@ import { getSession } from "@/lib/auth/session";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is logged in
-    const session = await getSession();
-    if (!session) {
+    // Web: session cookie. Mobile: ?token= access token (in-app browser).
+    const userId = await resolveConnectUserId(request);
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+    const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientKey = process.env.TIKTOK_CLIENT_KEY!;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/tiktok/callback`;
@@ -26,16 +31,13 @@ export async function GET(request: NextRequest) {
       "video.publish",
     ];
 
-    // Generate CSRF token
-    const csrfState = session.userId;
-
     // Build OAuth URL
     const authUrl = new URL("https://www.tiktok.com/v2/auth/authorize");
     authUrl.searchParams.set("client_key", clientKey);
     authUrl.searchParams.set("scope", scopes.join(","));
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("state", csrfState);
+    authUrl.searchParams.set("state", encodeConnectState({ userId, mobileRedirect }));
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {

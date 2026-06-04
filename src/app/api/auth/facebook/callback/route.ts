@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { createSession, setSessionCookies } from "@/lib/auth/session";
 import { buildMobileRedirect } from "@/lib/auth/mobile-oauth";
+import { createOAuthUser } from "@/lib/auth/oauth-user";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -119,7 +120,26 @@ export async function GET(request: NextRequest) {
       return clearAndRedirect(isMobile ? buildMobileRedirect(redirectBase, { error: "no_account" }) : `${APP_URL}/login?error=no_account_found`);
     }
 
-    // Register mode — store OAuth data in cookie, redirect to register page
+    // Register mode on MOBILE: create the account directly (no web /register
+    // page exists in the app) and hand the JWT pair back via the deep link.
+    if (isMobile) {
+      const newUser = await createOAuthUser({
+        provider: "facebook",
+        oauthId: profile.id,
+        name: profile.name || "",
+        email: hasRealEmail ? profile.email : null,
+        avatar: profile.picture?.data?.url || null,
+      });
+      const userAgent = request.headers.get("user-agent") || undefined;
+      const ipAddress =
+        request.headers.get("x-forwarded-for")?.split(",")[0] ||
+        request.headers.get("x-real-ip") ||
+        undefined;
+      const { accessToken, refreshToken } = await createSession(newUser.id, userAgent, ipAddress);
+      return clearAndRedirect(buildMobileRedirect(redirectBase, { accessToken, refreshToken }));
+    }
+
+    // Register mode (web) — store OAuth data in cookie, redirect to register page
     const oauthData = JSON.stringify({
       provider: "facebook",
       id: profile.id,

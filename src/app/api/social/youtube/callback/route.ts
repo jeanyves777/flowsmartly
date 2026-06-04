@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
 
 /**
  * YouTube OAuth - Step 2: Handle callback from Google
@@ -7,24 +8,19 @@ import { prisma } from "@/lib/db/client";
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state"); // userId
+  const { userId, mobileRedirect } = decodeConnectState(request.nextUrl.searchParams.get("state"));
   const error = request.nextUrl.searchParams.get("error");
 
   if (error) {
     console.error("YouTube OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=youtube_auth_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "youtube_auth_failed" });
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
-    );
+  if (!code || !userId) {
+    return connectResultRedirect(mobileRedirect, { error: "missing_params" });
   }
 
   try {
-    const userId = state;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/youtube/callback`;
 
     // Exchange code for access token
@@ -117,10 +113,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Redirect to social accounts page with success
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=youtube_connected`
-    );
+    // Redirect to social accounts page (or the app) with success
+    return connectResultRedirect(mobileRedirect, { success: "youtube_connected" });
   } catch (error: any) {
     console.error("YouTube OAuth callback error:", error);
 
@@ -135,8 +129,6 @@ export async function GET(request: NextRequest) {
       errorType = "youtube_api_error";
     }
 
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=${errorType}`
-    );
+    return connectResultRedirect(mobileRedirect, { error: errorType });
   }
 }

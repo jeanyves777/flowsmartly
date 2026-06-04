@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/social/account-capacity";
+import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
 
 /**
  * Facebook Pages OAuth - Step 2: Handle callback
@@ -8,24 +9,19 @@ import { canUseSocialAccountSlot, getSocialConnectionCapacity } from "@/lib/soci
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state"); // userId
+  const { userId, mobileRedirect } = decodeConnectState(request.nextUrl.searchParams.get("state"));
   const error = request.nextUrl.searchParams.get("error");
 
   if (error) {
     console.error("Facebook OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=facebook_auth_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "facebook_auth_failed" });
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
-    );
+  if (!code || !userId) {
+    return connectResultRedirect(mobileRedirect, { error: "missing_params" });
   }
 
   try {
-    const userId = state;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/facebook/callback`;
 
     // Exchange code for short-lived access token
@@ -213,9 +209,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (pagesToStore.length === 0) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=social_account_limit_reached`
-      );
+      return connectResultRedirect(mobileRedirect, { error: "social_account_limit_reached" });
     }
 
     // Store each allowed page as a separate social account
@@ -250,10 +244,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Redirect to social accounts page with success
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=facebook_connected&pages=${pagesToStore.length}&skipped=${pages.length - pagesToStore.length}`
-    );
+    // Redirect to social accounts page (or the app) with success
+    return connectResultRedirect(mobileRedirect, {
+      success: "facebook_connected",
+      pages: String(pagesToStore.length),
+      skipped: String(pages.length - pagesToStore.length),
+    });
   } catch (error: any) {
     console.error("Facebook OAuth callback error:", error);
 
@@ -265,8 +261,6 @@ export async function GET(request: NextRequest) {
       errorType = "facebook_auth_denied";
     }
 
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=${errorType}`
-    );
+    return connectResultRedirect(mobileRedirect, { error: errorType });
   }
 }

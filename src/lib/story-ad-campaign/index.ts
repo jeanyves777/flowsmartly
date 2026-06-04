@@ -16,6 +16,7 @@ import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateSoundEffect, generateWithClonedVoice, isElevenLabsEnabled } from "@/lib/voice/elevenlabs-client";
+import { VOICE_CLEANUP_FILTER, AMBIENT_BED_FILTER, AMBIENT_BED_MAX_GAIN_DB } from "@/lib/audio/voice-cleanup";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -2290,9 +2291,13 @@ async function buildSceneMixedAudio(params: {
       });
       const ambPath = path.join(tempDir, `amb-${index}.mp3`);
       await writeFile(ambPath, ambBuf);
-      const gain = clip.soundscape.ambient.gainDb ?? -20;
+      // Keep the room-tone bed FAR under the voice so speech doesn't sound
+      // "recorded in a room": band-limit the bed + cap its loudness when a voice
+      // is present (the AI still chooses WHEN/relative level; this is only a ceiling).
+      const rawGain = clip.soundscape.ambient.gainDb ?? -26;
+      const gain = voicePath ? Math.min(rawGain, AMBIENT_BED_MAX_GAIN_DB) : rawGain;
       // Loop ambient if generated shorter than scene, then trim to scene duration.
-      const filter = `aloop=loop=-1:size=2e9,atrim=duration=${sceneDurationSec.toFixed(2)},asetpts=PTS-STARTPTS,volume=${gain}dB`;
+      const filter = `aloop=loop=-1:size=2e9,atrim=duration=${sceneDurationSec.toFixed(2)},asetpts=PTS-STARTPTS,${AMBIENT_BED_FILTER},volume=${gain}dB`;
       sfxInputs.push({ path: ambPath, filter });
     } catch (e) {
       console.warn(`[StoryAdCampaign] ambient SFX failed scene ${index}:`, e);
@@ -2326,7 +2331,21 @@ async function buildSceneMixedAudio(params: {
   // ---------------------------------------------------------------------------
   if (!sfxInputs.length) {
     if (!voicePath) return null;
-    return { audioPath: voicePath, durationMs: voiceDurationMs };
+    // No SFX layers — still run the voice through the cleanup chain so it sounds
+    // close-mic/clean rather than roomy (filters preserve duration).
+    try {
+      const cleanedPath = path.join(tempDir, `voice-clean-${index}.mp3`);
+      await runFFmpeg([
+        "-i", voicePath,
+        "-af", VOICE_CLEANUP_FILTER,
+        "-c:a", "libmp3lame", "-b:a", "192k",
+        "-y", cleanedPath,
+      ]);
+      return { audioPath: cleanedPath, durationMs: voiceDurationMs };
+    } catch (e) {
+      console.warn(`[StoryAdCampaign] voice cleanup failed scene ${index}, using raw voice:`, e);
+      return { audioPath: voicePath, durationMs: voiceDurationMs };
+    }
   }
 
   const mixedPath = path.join(tempDir, `mix-${index}.mp3`);
@@ -2344,9 +2363,9 @@ async function buildSceneMixedAudio(params: {
     ffArgs.push("-i", sfx.path);
   });
 
-  // Filter graph
+  // Filter graph — clean the voice (close-mic presence + even level) before mixing.
   const filterParts: string[] = [];
-  filterParts.push(`[0:a]volume=1.0[v0]`);
+  filterParts.push(`[0:a]${voicePath ? VOICE_CLEANUP_FILTER : "volume=1.0"}[v0]`);
   const mixLabels = ["[v0]"];
   sfxInputs.forEach((sfx, i) => {
     const inputIdx = i + 1;

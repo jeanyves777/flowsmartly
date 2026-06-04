@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
+
+const WEB_PATH = "/whatsapp";
 
 /**
  * WhatsApp Business OAuth - Step 2: Handle callback
@@ -7,24 +10,19 @@ import { prisma } from "@/lib/db/client";
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state"); // userId
+  const { userId, mobileRedirect } = decodeConnectState(request.nextUrl.searchParams.get("state"));
   const error = request.nextUrl.searchParams.get("error");
 
   if (error) {
     console.error("WhatsApp OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=whatsapp_auth_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "whatsapp_auth_failed" }, WEB_PATH);
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=missing_params`
-    );
+  if (!code || !userId) {
+    return connectResultRedirect(mobileRedirect, { error: "missing_params" }, WEB_PATH);
   }
 
   try {
-    const userId = state;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/whatsapp/callback`;
 
     // Exchange code for access token
@@ -165,19 +163,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (whatsappAccountsFound === 0) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=no_phone_numbers`
-      );
+      return connectResultRedirect(mobileRedirect, { error: "no_phone_numbers" }, WEB_PATH);
     }
 
-    // Redirect to WhatsApp dashboard with success
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?success=whatsapp_connected&accounts=${whatsappAccountsFound}`
+    // Redirect to WhatsApp dashboard (or the app) with success
+    return connectResultRedirect(
+      mobileRedirect,
+      { success: "whatsapp_connected", accounts: String(whatsappAccountsFound) },
+      WEB_PATH,
     );
   } catch (error) {
     console.error("WhatsApp OAuth callback error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/whatsapp?error=connect_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "connect_failed" }, WEB_PATH);
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
 
 /**
  * Twitter/X OAuth 2.0 - Step 2: Handle callback
@@ -7,25 +8,21 @@ import { prisma } from "@/lib/db/client";
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const state = request.nextUrl.searchParams.get("state");
+  const { userId, extra: codeVerifier, mobileRedirect } = decodeConnectState(
+    request.nextUrl.searchParams.get("state"),
+  );
   const error = request.nextUrl.searchParams.get("error");
 
   if (error) {
     console.error("Twitter OAuth error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=twitter_auth_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "twitter_auth_failed" });
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=missing_params`
-    );
+  if (!code || !userId || !codeVerifier) {
+    return connectResultRedirect(mobileRedirect, { error: "missing_params" });
   }
 
   try {
-    // Extract userId and code verifier from state
-    const [userId, codeVerifier] = state.split(":");
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/twitter/callback`;
 
     // Exchange code for access token
@@ -107,14 +104,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Redirect to social accounts page with success
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?success=twitter_connected`
-    );
+    // Redirect to social accounts page (or the app) with success
+    return connectResultRedirect(mobileRedirect, { success: "twitter_connected" });
   } catch (error) {
     console.error("Twitter OAuth callback error:", error);
-    return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/social-accounts?error=twitter_connect_failed`
-    );
+    return connectResultRedirect(mobileRedirect, { error: "twitter_connect_failed" });
   }
 }

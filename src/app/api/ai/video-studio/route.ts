@@ -16,6 +16,7 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { generateVoice } from "@/lib/voice/voice-engine";
+import { VOICE_CLEANUP_FILTER } from "@/lib/audio/voice-cleanup";
 import { nanoid } from "nanoid";
 import sharp from "sharp";
 import os from "os";
@@ -1340,9 +1341,9 @@ function buildNativeAudioDirective(mode: VideoSpeechMode, gender: string, accent
 
   switch (mode) {
     case "talking_review":
-      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible on-camera presenter only. The presenter should sound like a confident ${genderLabel} UGC creator with a ${accentLabel} accent. Mouth movement must match the speech. Do not add a separate narrator or voiceover track.`;
+      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible on-camera presenter only. The presenter should sound like a confident ${genderLabel} UGC creator with a ${accentLabel} accent. Mouth movement must match the speech. Do not add a separate narrator or voiceover track. AUDIO QUALITY: clean, dry, close-mic studio voice with intimate microphone proximity — no room reverb, no echo, no hollow/roomy ambience or background room tone.`;
     case "site_walkthrough":
-      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible presenter explaining the site or offer. The presenter should sound like a helpful ${genderLabel} guide with a ${accentLabel} accent. Do not add a separate narrator or detached voiceover.`;
+      return `NATIVE AUDIO RULE: Generate natural synchronized speech from the visible presenter explaining the site or offer. The presenter should sound like a helpful ${genderLabel} guide with a ${accentLabel} accent. Do not add a separate narrator or detached voiceover. AUDIO QUALITY: clean, dry, close-mic studio voice with intimate microphone proximity — no room reverb, no echo, no hollow/roomy ambience or background room tone.`;
     case "voiceover_presentation":
       return "NATIVE AUDIO RULE: Keep provider-generated speech minimal because FlowAI will add a clean narration track after generation. Prefer natural ambient sound or quiet background motion rather than visible lip-sync speech.";
     case "visual_only":
@@ -1470,6 +1471,8 @@ async function mixVoiceoverOnVideo(
       "-map", "0:v",
       "-map", "1:a",
       "-c:v", "copy",
+      // Clean the narration so it sounds close-mic, not roomy (presence + even level).
+      "-af", VOICE_CLEANUP_FILTER,
       "-c:a", "aac",
       "-b:a", "192k",
     ];

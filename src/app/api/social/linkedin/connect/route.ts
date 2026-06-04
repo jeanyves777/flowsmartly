@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  resolveConnectUserId,
+  getMobileConnectRedirect,
+  encodeConnectState,
+} from "@/lib/social/oauth-connect";
 
 /**
  * LinkedIn OAuth 2.0 - Step 1: Initiate OAuth flow
@@ -7,14 +11,15 @@ import { getSession } from "@/lib/auth/session";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is logged in
-    const session = await getSession();
-    if (!session) {
+    // Web: session cookie. Mobile: ?token= access token (in-app browser).
+    const userId = await resolveConnectUserId(request);
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+    const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientId = process.env.LINKEDIN_CLIENT_ID!;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/linkedin/callback`;
@@ -33,7 +38,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set("client_id", clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scopes.join(" "));
-    authUrl.searchParams.set("state", session.userId);
+    authUrl.searchParams.set("state", encodeConnectState({ userId, mobileRedirect }));
 
     return NextResponse.redirect(authUrl.toString());
   } catch (error) {

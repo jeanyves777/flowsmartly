@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import {
+  resolveConnectUserId,
+  getMobileConnectRedirect,
+  encodeConnectState,
+} from "@/lib/social/oauth-connect";
 import crypto from "crypto";
 
 /**
@@ -8,14 +12,15 @@ import crypto from "crypto";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is logged in
-    const session = await getSession();
-    if (!session) {
+    // Web: session cookie. Mobile: ?token= access token (in-app browser).
+    const userId = await resolveConnectUserId(request);
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+    const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientId = process.env.TWITTER_CLIENT_ID!;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/twitter/callback`;
@@ -27,8 +32,8 @@ export async function GET(request: NextRequest) {
       .update(codeVerifier)
       .digest("base64url");
 
-    // Store code verifier in session/cookie (simplified - use Redis in production)
-    const state = `${session.userId}:${codeVerifier}`;
+    // Pack the PKCE verifier into the OAuth state (round-trips via the provider).
+    const state = encodeConnectState({ userId, extra: codeVerifier, mobileRedirect });
 
     // Twitter OAuth 2.0 scopes
     const scopes = [
