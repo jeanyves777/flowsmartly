@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/client";
 import { notifyAgentTaskComplete } from "./notify-task-complete";
 import { saveToMediaLibrary } from "./save-media";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { veoClient } from "@/lib/ai/veo-client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
@@ -78,33 +79,12 @@ async function failTask(t: TaskRow, error: string, summary: string): Promise<voi
 
 type RecoverOutcome = "recovered" | "pending" | "failed" | "no_handle";
 
-/** Resume a grok video job from its persisted request_id. */
-async function recoverGrokVideo(t: TaskRow, jobId: string): Promise<RecoverOutcome> {
-  const status = await grokVideoClient.pollOnce(jobId);
-
-  if (status.state === "pending") {
-    if (ageMinutes(t) > RESUME_MAX_MIN) {
-      await failTask(
-        t,
-        "The video provider did not finish in time. Please try again.",
-        "Your video timed out — please try again",
-      );
-      return "failed";
-    }
-    return "pending"; // still rendering — re-check next cron tick
-  }
-
-  if (status.state === "failed") {
-    await failTask(
-      t,
-      `The video provider could not finish this render${status.error ? ` (${status.error})` : ""}. Please try again.`,
-      "Your video couldn't be generated — please try again",
-    );
-    return "failed";
-  }
-
-  // done → pull the finished video, brand it, persist, charge, complete, notify.
-  let buffer = await grokVideoClient.fetchVideoBuffer(status.url!);
+/**
+ * Shared "the render finished — bring it home" path: brand, upload, persist,
+ * claim the task (lock), charge once, notify. Used by both provider resumers.
+ */
+async function finalizeRecoveredVideo(t: TaskRow, rawBuffer: Buffer): Promise<RecoverOutcome> {
+  let buffer = rawBuffer;
   try {
     const brandKit = await prisma.brandKit.findFirst({
       where: { userId: t.userId },
@@ -163,6 +143,72 @@ async function recoverGrokVideo(t: TaskRow, jobId: string): Promise<RecoverOutco
   return "recovered";
 }
 
+/** Resume a grok video job from its persisted request_id. */
+async function recoverGrokVideo(t: TaskRow, jobId: string): Promise<RecoverOutcome> {
+  const status = await grokVideoClient.pollOnce(jobId);
+
+  if (status.state === "pending") {
+    if (ageMinutes(t) > RESUME_MAX_MIN) {
+      await failTask(
+        t,
+        "The video provider did not finish in time. Please try again.",
+        "Your video timed out — please try again",
+      );
+      return "failed";
+    }
+    return "pending"; // still rendering — re-check next cron tick
+  }
+
+  if (status.state === "failed") {
+    await failTask(
+      t,
+      `The video provider could not finish this render${status.error ? ` (${status.error})` : ""}. Please try again.`,
+      "Your video couldn't be generated — please try again",
+    );
+    return "failed";
+  }
+
+  // done → pull + finalize.
+  const buffer = await grokVideoClient.fetchVideoBuffer(status.url!);
+  return finalizeRecoveredVideo(t, buffer);
+}
+
+/**
+ * Resume a Veo (premium) video from its persisted operation name. Defensive:
+ * a "done" pulls + finalizes; a transient/unknown poll error is treated like
+ * "still pending" but is age-bounded (RESUME_MAX_MIN) so a handle we can't
+ * re-poll can NEVER strand the task — it fails gracefully with a retry note.
+ */
+async function recoverVeoVideo(t: TaskRow, operationName: string): Promise<RecoverOutcome> {
+  const status = await veoClient.pollOnceByName(operationName);
+
+  if (status.state === "done" && status.uri) {
+    const buffer = await veoClient.fetchVideoByUri(status.uri);
+    return finalizeRecoveredVideo(t, buffer);
+  }
+
+  if (status.state === "failed") {
+    await failTask(
+      t,
+      `The video provider could not finish this render${status.error ? ` (${status.error})` : ""}. Please try again.`,
+      "Your video couldn't be generated — please try again",
+    );
+    return "failed";
+  }
+
+  // "pending" or "unknown" (couldn't re-poll the handle). Keep trying until the
+  // grace window, then fail so the user is never stuck on a stale render.
+  if (ageMinutes(t) > RESUME_MAX_MIN) {
+    await failTask(
+      t,
+      "The video render was interrupted and couldn't be recovered in time. Please try again.",
+      "Your video timed out — please try again",
+    );
+    return "failed";
+  }
+  return "pending";
+}
+
 export interface RecoveryResult {
   scanned: number;
   recovered: number;
@@ -198,9 +244,16 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
           continue;
         }
 
-        // No resumable handle (never submitted, or a provider we can't resume
-        // yet, e.g. Veo). Give it a generous grace, then fail so the user isn't
-        // stuck forever.
+        if (t.kind === "generate_video" && pending?.jobId && pending.provider === "veo3") {
+          const outcome = await recoverVeoVideo(t, pending.jobId);
+          if (outcome === "recovered") result.recovered++;
+          else if (outcome === "failed") result.failed++;
+          else result.stillPending++;
+          continue;
+        }
+
+        // No resumable handle (never submitted, or a provider we can't resume).
+        // Give it a generous grace, then fail so the user isn't stuck forever.
         if (ageMinutes(t) >= HANDLELESS_FAIL_MIN) {
           await failTask(
             t,

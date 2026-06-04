@@ -56,6 +56,22 @@ export interface VeoGenerateOptions {
    * composes audio separately (e.g. narrated reels with TTS + SFX + music layers).
    */
   disableAudio?: boolean;
+  /**
+   * Called once the long-running operation is created, with its resource name.
+   * Lets the caller persist a resumable handle so a background task can be
+   * recovered (polled + pulled) if the worker dies mid-render — we're billed by
+   * the provider either way, so we resume rather than re-render. Best-effort:
+   * if the SDK doesn't expose a name, this never fires and the caller falls back
+   * to its normal orphan handling.
+   */
+  onOperationName?: (operationName: string) => void | Promise<void>;
+}
+
+/** Minimal state of a Veo operation polled by name (recovery path). */
+export interface VeoPollResult {
+  state: "pending" | "done" | "failed" | "unknown";
+  uri?: string;
+  error?: string;
 }
 
 export interface VeoVideoResult {
@@ -133,6 +149,7 @@ class VeoClient {
       fast = false,
       tier,
       disableAudio = false,
+      onOperationName,
     } = options;
 
     const resolvedTier: VeoTier = tier ?? (fast ? "fast" : "quality");
@@ -221,10 +238,53 @@ class VeoClient {
       throw new Error(`Video generation failed: ${msg.substring(0, 200)}`);
     }
 
+    // Hand the operation's resource name to the caller so it can persist a
+    // resumable handle (recovery after a worker restart). Best-effort.
+    const opName = (operation as { name?: unknown })?.name;
+    if (onOperationName && typeof opName === "string" && opName) {
+      try {
+        await onOperationName(opName);
+      } catch {
+        /* persistence is best-effort — never block the render */
+      }
+    }
+
     const { videoBuffer, videoUri } = await this.pollAndDownload(operation);
     const duration = parseInt(durationSeconds, 10) || 8;
 
     return { videoBuffer, duration, videoUri };
+  }
+
+  /**
+   * Poll a Veo operation by its persisted resource name (recovery path).
+   * Never throws — any SDK/transport error returns state "unknown" so the
+   * recovery caller can age the task out gracefully instead of getting stuck.
+   */
+  async pollOnceByName(operationName: string): Promise<VeoPollResult> {
+    if (!this.client) return { state: "unknown", error: "GEMINI_API_KEY not configured" };
+    try {
+      // The SDK polls GET {name}; a minimal { name } operation is enough.
+      const op = (await this.client.operations.getVideosOperation({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        operation: { name: operationName } as any,
+      })) as {
+        done?: boolean;
+        error?: { message?: string } | null;
+        response?: { generatedVideos?: Array<{ video?: { uri?: string | null } }> };
+      };
+      if (!op?.done) return { state: "pending" };
+      if (op.error) return { state: "failed", error: op.error.message || "Veo operation failed" };
+      const uri = op.response?.generatedVideos?.[0]?.video?.uri;
+      if (!uri) return { state: "failed", error: "Completed operation returned no video" };
+      return { state: "done", uri };
+    } catch (e) {
+      return { state: "unknown", error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /** Download a finished Veo video by its URI (recovery path). */
+  async fetchVideoByUri(uri: string): Promise<Buffer> {
+    return this.downloadVideoFile({ uri });
   }
 
   /**

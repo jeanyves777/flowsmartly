@@ -68,6 +68,9 @@ export async function generateVideoForRole(
           referenceImageUrl: input.referenceImageUrl ?? null,
           characterReferenceUrls: input.characterReferenceUrls ?? [],
           disableAudio: input.disableAudio,
+          // Persist a resumable handle (the Veo operation name) so an orphaned
+          // render can be recovered after a restart — same as Grok.
+          onOperationName: (name) => input.onJobId?.({ provider: "veo3", jobId: name }),
         });
         if (result.videoBuffer?.length) {
           return { videoBuffer: result.videoBuffer, provider: "veo3", model: `veo-3.1-${veoTier}` };
