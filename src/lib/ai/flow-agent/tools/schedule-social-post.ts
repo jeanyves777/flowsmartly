@@ -117,6 +117,22 @@ export const scheduleSocialPost: FlowAgentTool = {
           : "image"
         : null;
 
+      // Guard against a FABRICATED / broken media URL. The agent has been seen
+      // inventing a plausible filename (e.g. .../generated-video-15s-premium.mp4)
+      // instead of using the real generated asset URL, which publishes a post
+      // with "Video unavailable". Verify the URL actually resolves first.
+      if (mediaUrl && /^https?:\/\//i.test(mediaUrl)) {
+        const reachable = await mediaUrlIsReachable(mediaUrl);
+        if (!reachable) {
+          return {
+            ok: false,
+            error_code: "validation_failed",
+            message:
+              "That media URL doesn't resolve — it looks invented or expired. Use the EXACT URL of the actual generated asset (the 'Media URL to REUSE' from the completed task) — never make up a filename. If the media isn't ready yet, wait for the task to finish, then post.",
+          };
+        }
+      }
+
       const status = parsedScheduledAt ? "SCHEDULED" : "PUBLISHED";
 
       const post = await prisma.post.create({
@@ -162,3 +178,25 @@ export const scheduleSocialPost: FlowAgentTool = {
     }
   },
 };
+
+/**
+ * Verify a media URL actually resolves before we attach it to a post — catches
+ * fabricated/expired URLs that would publish as "media unavailable". HEAD first;
+ * some CDNs reject HEAD, so fall back to a 1-byte ranged GET. Network failure or
+ * a 4xx/5xx means "don't post this".
+ */
+async function mediaUrlIsReachable(url: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+  try {
+    let res = await fetch(url, { method: "HEAD", signal: controller.signal });
+    if (res.status === 403 || res.status === 405 || res.status === 501) {
+      res = await fetch(url, { method: "GET", headers: { Range: "bytes=0-0" }, signal: controller.signal });
+    }
+    return res.ok || res.status === 206;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
