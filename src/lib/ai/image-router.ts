@@ -4,6 +4,7 @@ import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
 import { flowImageClient } from "./flow-image-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 import { imageChain, IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
+import { isOpenAiImageDown, isOpenAiQuotaError, markOpenAiImageDown, withoutDownOpenAi } from "./openai-image-health";
 
 export type RoutedImageProvider = ImageProvider | "flow";
 
@@ -38,7 +39,8 @@ export function xaiFirstImageProviderOrder(preferred?: ImageProvider | null): Im
   for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);
   }
-  return order;
+  // Skip OpenAI while it's in quota cooldown so we don't waste a call on it.
+  return withoutDownOpenAi(order);
 }
 
 export function xaiFirstImageGenerationProviderOrder(preferred?: ImageProvider | null): RoutedImageProvider[] {
@@ -151,6 +153,7 @@ export async function generateImageXaiFirst(
       throw new Error(`${provider} returned no image`);
     } catch (error) {
       lastError = error;
+      if (provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("generate: insufficient_quota");
       console.warn(
         `[ImageRouter] ${provider} failed${provider !== providerOrder[providerOrder.length - 1] ? ", trying next image provider" : ""}:`,
         error,
@@ -180,7 +183,8 @@ export function referencePreservingEditProviderOrder(
   for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);
   }
-  return order;
+  // Skip OpenAI while it's in quota cooldown (see openai-image-health).
+  return withoutDownOpenAi(order);
 }
 
 export async function editImagesXaiFirst(
@@ -260,6 +264,8 @@ export async function editImagesXaiFirst(
       throw new Error(`Unknown image provider: ${provider}`);
     } catch (error) {
       lastError = error;
+      // Trip the breaker so subsequent ops skip OpenAI and go straight to xAI/Gemini.
+      if (provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("edit: insufficient_quota");
       console.warn(
         `[ImageRouter/Edit] ${provider} failed${provider !== providerOrder[providerOrder.length - 1] ? ", trying next image provider" : ""}:`,
         error,
@@ -288,7 +294,11 @@ export async function generateImageForRole(
   options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
 ): Promise<RoutedImageResult> {
   let lastError: unknown = null;
-  for (const step of imageChain(role)) {
+  const chain = imageChain(role);
+  const hasNonOpenAi = chain.some((s) => s.provider !== "openai");
+  for (const step of chain) {
+    // Skip OpenAI while it's in quota cooldown (as long as another provider exists).
+    if (step.provider === "openai" && hasNonOpenAi && isOpenAiImageDown()) continue;
     try {
       const result = await generateImageWithProvider(step.provider, prompt, width, height, {
         quality: options.quality,
@@ -299,6 +309,7 @@ export async function generateImageForRole(
       throw new Error(`${step.provider} returned no image`);
     } catch (error) {
       lastError = error;
+      if (step.provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("role-generate: insufficient_quota");
       console.warn(
         `[ImageRouter/role:${role}] ${step.provider} (${step.model}) failed, trying next:`,
         error instanceof Error ? error.message : error,
@@ -326,7 +337,11 @@ export async function editImagesForRole(
   if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
 
   let lastError: unknown = null;
-  for (const step of imageChain(role)) {
+  const editChain = imageChain(role);
+  const editHasNonOpenAi = editChain.some((s) => s.provider !== "openai");
+  for (const step of editChain) {
+    // Skip OpenAI while it's in quota cooldown (as long as another provider exists).
+    if (step.provider === "openai" && editHasNonOpenAi && isOpenAiImageDown()) continue;
     // Edit chains only contain edit-capable providers (gemini/openai/xai).
     const model = step.provider === "gemini" ? IMAGE_MODEL_IDS.nanoBanana : step.model;
     try {
@@ -373,6 +388,7 @@ export async function editImagesForRole(
       }
     } catch (error) {
       lastError = error;
+      if (step.provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("role-edit: insufficient_quota");
       console.warn(
         `[ImageRouter/editRole:${role}] ${step.provider} failed, trying next:`,
         error instanceof Error ? error.message : error,
