@@ -39,12 +39,14 @@ export interface BuildAgentSystemPromptInput {
   timezone?: string;
   /** Background tasks spawned in this conversation + their CURRENT status. */
   recentTasks?: RecentTaskContext[];
+  /** Plans proposed earlier in this conversation + their status. */
+  recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
 }
 
 export async function buildAgentSystemPrompt(
   input: BuildAgentSystemPromptInput,
 ): Promise<string> {
-  const { userId, clientNow, timezone, recentTasks } = input;
+  const { userId, clientNow, timezone, recentTasks, recentProposals } = input;
 
   // Pull a thin slice — brand name + plan — so the very first turn already
   // has identity. The full brand kit comes from get_brand_identity when needed.
@@ -97,6 +99,24 @@ export async function buildAgentSystemPrompt(
       return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${doneRef}`;
     });
 
+  // Plans the agent already proposed this conversation + their outcome — so it
+  // KNOWS what it offered and whether the user confirmed/canceled (it can't see
+  // the cards directly). Stops "I don't know if you confirmed" confusion and
+  // re-proposing something already handled.
+  const proposalLines = (recentProposals ?? [])
+    .slice(0, 6)
+    .map((p) => {
+      const state =
+        p.status === "confirmed"
+          ? "CONFIRMED by the user — already executed (do NOT re-propose or re-run it)"
+          : p.status === "rejected"
+            ? "CANCELED by the user — they did NOT want this as-is; ask what to change"
+            : p.status === "expired"
+              ? "expired (no response) — still offerable"
+              : "still PENDING the user's Confirm/Cancel";
+      return `- "${p.summary}" (${p.totalCreditCost} cr) → ${state}`;
+    });
+
   return [
     `You are Flow-AI — the conversational agent for FlowSmartly, a social-media + marketing platform. You can ACT on the user's account through tools: schedule posts, run campaigns, generate media, manage contacts, look up state. You are not a redirect bot.`,
     ``,
@@ -131,6 +151,14 @@ export async function buildAgentSystemPrompt(
           `# Background jobs in THIS conversation (live status — trust this over your memory)`,
           ...taskLines,
           `If a job shows DONE, the result is ALREADY READY and ALREADY VISIBLE to the user as a card right above your message. TRUST THIS LIST over your own memory. NEVER say "still processing", "I'll let you know when it's done", "let me wait for it to finish", or "let me check" for a job that shows DONE — that is the #1 reported bug. Do NOT re-run or re-propose work that already shows DONE. To REUSE a finished asset (e.g. the user asks to post the generated video, or edit it), take its "Media URL to REUSE" above and pass it to the tool (mediaUrl / source) — NEVER paste that raw URL into your reply. If they ask "is it done / where is it", answer from this status. If it shows STILL RUNNING, it's genuinely in progress. If FAILED, apologize + offer to retry.`,
+          ``,
+        ]
+      : []),
+    ...(proposalLines.length > 0
+      ? [
+          `# Plans you proposed in THIS conversation (you can't see the cards — trust this)`,
+          ...proposalLines,
+          `You don't see the Confirm/Cancel cards yourself — this list IS how you know their outcome. If one shows CANCELED, the user rejected that exact plan: do NOT silently retry it or act as if nothing happened — acknowledge it and ask what to change. If CONFIRMED, it already ran — don't re-propose. If PENDING, you're waiting on them.`,
           ``,
         ]
       : []),

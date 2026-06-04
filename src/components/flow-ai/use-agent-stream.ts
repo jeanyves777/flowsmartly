@@ -6,6 +6,7 @@ import type {
   AgentTaskCardData,
   PlanProposalCardData,
   PlanStepData,
+  MessageBlock,
 } from "./agent-cards";
 
 /**
@@ -233,6 +234,43 @@ export async function respondToPlanProposal(
   } catch (err) {
     console.error("[FlowAI] confirm failed:", err);
     return { ok: false };
+  }
+}
+
+// ─── Ordered-block helpers — chronological turn rendering ─────────────
+
+/** Append a streamed text delta to the running block list (mutates). */
+export function blockAppendText(blocks: MessageBlock[], delta: string): void {
+  const last = blocks[blocks.length - 1];
+  if (last && last.type === "text") last.text += delta;
+  else blocks.push({ type: "text", text: delta });
+}
+
+/** Push a tool/proposal/task block in arrival order, de-duplicated (mutates). */
+export function blockPushCard(blocks: MessageBlock[], type: "tool" | "proposal" | "task", id: string): void {
+  if (blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) return;
+  blocks.push({ type, id } as MessageBlock);
+}
+
+/** Parse the persisted ordered blocks from an AIMessage.metadata JSON string. */
+export function parseMessageBlocks(metadata: string | null | undefined): MessageBlock[] | undefined {
+  if (!metadata) return undefined;
+  try {
+    const parsed = JSON.parse(metadata) as { blocks?: unknown };
+    if (!Array.isArray(parsed.blocks)) return undefined;
+    const blocks: MessageBlock[] = [];
+    for (const b of parsed.blocks) {
+      if (!b || typeof b !== "object") continue;
+      const t = (b as { type?: string }).type;
+      if (t === "text" && typeof (b as { text?: string }).text === "string") {
+        blocks.push({ type: "text", text: (b as { text: string }).text });
+      } else if ((t === "tool" || t === "proposal" || t === "task") && typeof (b as { id?: string }).id === "string") {
+        blocks.push({ type: t, id: (b as { id: string }).id });
+      }
+    }
+    return blocks.length ? blocks : undefined;
+  } catch {
+    return undefined;
   }
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
+import { RichText } from "./rich-text";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -243,6 +244,19 @@ export interface AgentTaskCardData {
   resultRefType?: string | null;
   resultRefId?: string | null;
 }
+
+/**
+ * One ordered piece of an assistant turn. The turn is a SEQUENCE of these so
+ * the chat renders chronologically — text, then a tool chip, then more text,
+ * then a proposal card — exactly as it happened, and survives a reload.
+ * `tool`/`proposal`/`task` reference a card by id (looked up from the message's
+ * card arrays); `text` carries its own segment.
+ */
+export type MessageBlock =
+  | { type: "text"; text: string }
+  | { type: "tool"; id: string }
+  | { type: "proposal"; id: string }
+  | { type: "task"; id: string };
 
 // ─── Tool-call chip ────────────────────────────────────────────────────
 
@@ -532,4 +546,102 @@ function humanizeTaskKind(kind: string): string {
     build_store: "Store build",
   };
   return map[kind] ?? kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Ordered turn renderer — text + chips + cards, chronologically ───────
+
+/**
+ * Renders an assistant turn as its ORDERED sequence of blocks, looking each
+ * tool/proposal/task up by id from the message's card arrays. Consecutive
+ * tool chips group into one wrap row. This is what makes the flow read
+ * chronologically (text → chip → text → card) instead of "all text, then all
+ * cards", and it reconstructs faithfully on reload. Falls back to nothing if
+ * `blocks` is empty — callers render the legacy layout in that case.
+ */
+export function MessageBlocks({
+  blocks,
+  toolCalls,
+  planProposals,
+  agentTasks,
+  onPlanResponse,
+  bubbleClassName,
+}: {
+  blocks: MessageBlock[];
+  toolCalls?: AgentToolCardData[];
+  planProposals?: PlanProposalCardData[];
+  agentTasks?: AgentTaskCardData[];
+  onPlanResponse?: (planId: string, confirmed: boolean) => void;
+  /** Tailwind classes for the assistant text bubble (themed per surface). */
+  bubbleClassName?: string;
+}) {
+  const toolMap = new Map((toolCalls ?? []).map((t) => [t.id, t]));
+  const propMap = new Map((planProposals ?? []).map((p) => [p.id, p]));
+  const taskMap = new Map((agentTasks ?? []).map((t) => [t.id, t]));
+
+  const rows: ReactNode[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const b = blocks[i];
+    if (b.type === "text") {
+      const text = b.text;
+      if (text.trim()) {
+        rows.push(
+          <div key={`txt-${i}`} className="flex flex-col items-start gap-1">
+            <div
+              className={cn(
+                "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left border",
+                bubbleClassName ?? "bg-white dark:bg-gray-900 border-border text-foreground",
+              )}
+            >
+              <RichText text={text} />
+            </div>
+            <div className="pl-1 flex items-center gap-3">
+              <CopyTextButton text={text} />
+              <SpeakButton text={text} />
+            </div>
+          </div>,
+        );
+      }
+      i += 1;
+    } else if (b.type === "tool") {
+      // Group consecutive tool chips into one wrap row.
+      const chips: React.ReactNode[] = [];
+      while (i < blocks.length && blocks[i].type === "tool") {
+        const tc = toolMap.get((blocks[i] as { id: string }).id);
+        if (tc) chips.push(<ToolCallChip key={tc.id} call={tc} />);
+        i += 1;
+      }
+      if (chips.length) {
+        rows.push(
+          <div key={`tools-${i}`} className="flex flex-wrap gap-1.5">
+            {chips}
+          </div>,
+        );
+      }
+    } else if (b.type === "proposal") {
+      const p = propMap.get(b.id);
+      if (p) {
+        rows.push(
+          <div key={`prop-${i}`} className="flex flex-col items-start">
+            <PlanProposalCard proposal={p} onResponse={onPlanResponse} />
+          </div>,
+        );
+      }
+      i += 1;
+    } else if (b.type === "task") {
+      const t = taskMap.get(b.id);
+      if (t) {
+        rows.push(
+          <div key={`task-${i}`} className="flex flex-col items-start">
+            <TaskCard task={t} />
+          </div>,
+        );
+      }
+      i += 1;
+    } else {
+      i += 1;
+    }
+  }
+
+  return <div className="flex flex-col items-start gap-2">{rows}</div>;
 }

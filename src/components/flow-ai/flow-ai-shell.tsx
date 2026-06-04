@@ -35,17 +35,22 @@ import {
   TaskCard,
   CopyTextButton,
   SpeakButton,
+  MessageBlocks,
   mediaDownloadHref,
   type AgentToolCardData,
   type PlanProposalCardData,
   type PlanStepData,
   type AgentTaskCardData,
+  type MessageBlock,
 } from "./agent-cards";
 import {
   subscribeToTaskStream,
   consumeAgentStreamWithReplay,
   useAgentSender,
   fetchConversationCards,
+  parseMessageBlocks,
+  blockAppendText,
+  blockPushCard,
   type TaskStreamEvent,
 } from "./use-agent-stream";
 import { RichText, TypingDots } from "./rich-text";
@@ -85,6 +90,8 @@ interface Message {
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
   agentTasks?: AgentTaskCardData[];
+  /** Ordered turn blocks (text + cards). When present, render chronologically. */
+  blocks?: MessageBlock[];
 }
 
 // Agent card types (AgentTaskCardData, AgentToolCardData, PlanStepData,
@@ -183,13 +190,14 @@ export function FlowAIShell() {
             const cards = await fetchConversationCards(initialConversationId);
             if (cancelled) return;
             setMessages(
-              rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; createdAt?: string }) => ({
+              rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; metadata?: string | null; createdAt?: string }) => ({
                 id: m.id,
                 role: m.role,
                 content: m.content,
                 mediaType: (m.mediaType === "image" || m.mediaType === "video") ? m.mediaType : null,
                 mediaUrl: m.mediaUrl ?? null,
                 createdAt: m.createdAt,
+                blocks: parseMessageBlocks(m.metadata),
                 toolCalls: cards.toolCallsByMsg.get(m.id),
                 planProposals: cards.proposalsByMsg.get(m.id),
                 agentTasks: cards.tasksByMsg.get(m.id),
@@ -317,6 +325,8 @@ export function FlowAIShell() {
       const toolCallsById = new Map<string, AgentToolCardData>();
       const proposalsById = new Map<string, PlanProposalCardData>();
       const tasksById = new Map<string, AgentTaskCardData>();
+      // Ordered blocks for chronological rendering (text → chip → text → card).
+      const blocks: MessageBlock[] = [];
 
       const flushMessage = () => {
         setMessages((prev) =>
@@ -325,6 +335,7 @@ export function FlowAIShell() {
               ? {
                   ...m,
                   content: assistantText,
+                  blocks: [...blocks],
                   toolCalls: Array.from(toolCallsById.values()),
                   planProposals: Array.from(proposalsById.values()).map((p) =>
                     resolvedPlansRef.current.has(p.id)
@@ -344,11 +355,11 @@ export function FlowAIShell() {
         },
         onText: (delta) => {
           assistantText += delta;
-          setMessages((prev) =>
-            prev.map((m) => (m.id === pendingMsg.id ? { ...m, content: assistantText } : m)),
-          );
+          blockAppendText(blocks, delta);
+          flushMessage();
         },
         onToolCallStart: (call) => {
+          blockPushCard(blocks, "tool", call.id);
           toolCallsById.set(call.id, call);
           flushMessage();
         },
@@ -357,10 +368,12 @@ export function FlowAIShell() {
           flushMessage();
         },
         onPlanProposal: (proposal) => {
+          blockPushCard(blocks, "proposal", proposal.id);
           proposalsById.set(proposal.id, proposal);
           flushMessage();
         },
         onTaskStarted: (task) => {
+          blockPushCard(blocks, "task", task.id);
           tasksById.set(task.id, task);
           flushMessage();
         },
@@ -697,13 +710,14 @@ export function FlowAIShell() {
           // conversation shows its full flow, not just text.
           const cards = await fetchConversationCards(id);
           setMessages(
-            rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; createdAt?: string }) => ({
+            rawMsgs.map((m: { id: string; role: "user" | "assistant"; content: string; mediaType?: string | null; mediaUrl?: string | null; metadata?: string | null; createdAt?: string }) => ({
               id: m.id,
               role: m.role,
               content: m.content,
               mediaType: (m.mediaType === "image" || m.mediaType === "video") ? m.mediaType : null,
               mediaUrl: m.mediaUrl ?? null,
               createdAt: m.createdAt,
+              blocks: parseMessageBlocks(m.metadata),
               toolCalls: cards.toolCallsByMsg.get(m.id),
               planProposals: cards.proposalsByMsg.get(m.id),
               agentTasks: cards.tasksByMsg.get(m.id),
@@ -1304,48 +1318,59 @@ function MessageView({
         )}
       </div>
       <div className={cn("flex-1 min-w-0", isUser ? "text-right" : "text-left")}>
-        {message.content && (
-          <div
-            className={cn(
-              "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left",
-              isUser
-                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
-                : "bg-white dark:bg-gray-800 border border-border text-foreground",
+        {!isUser && message.blocks && message.blocks.length > 0 ? (
+          // Chronological turn: text + chips + cards in the exact order they
+          // happened (and reconstructed faithfully on reload).
+          <MessageBlocks
+            blocks={message.blocks}
+            toolCalls={message.toolCalls}
+            planProposals={message.planProposals}
+            agentTasks={message.agentTasks}
+            onPlanResponse={onPlanResponse}
+            bubbleClassName="bg-white dark:bg-gray-800 border-border text-foreground"
+          />
+        ) : (
+          <>
+            {message.content && (
+              <div
+                className={cn(
+                  "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left",
+                  isUser
+                    ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
+                    : "bg-white dark:bg-gray-800 border border-border text-foreground",
+                )}
+              >
+                {isUser ? message.content : <RichText text={message.content} />}
+              </div>
             )}
-          >
-            {isUser ? message.content : <RichText text={message.content} />}
-          </div>
-        )}
-        {!isUser && message.content && (
-          <div className="mt-1 pl-1 flex items-center gap-3">
-            <CopyTextButton text={message.content} />
-            <SpeakButton text={message.content} />
-          </div>
-        )}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className={cn("mt-2 flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
-            {message.toolCalls.map((tc) => (
-              <ToolCallChip key={tc.id} call={tc} />
-            ))}
-          </div>
-        )}
-        {message.planProposals && message.planProposals.length > 0 && (
-          <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
-            {message.planProposals.map((p) => (
-              <PlanProposalCard
-                key={p.id}
-                proposal={p}
-                onResponse={onPlanResponse}
-              />
-            ))}
-          </div>
-        )}
-        {message.agentTasks && message.agentTasks.length > 0 && (
-          <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
-            {message.agentTasks.map((t) => (
-              <TaskCard key={t.id} task={t} />
-            ))}
-          </div>
+            {!isUser && message.content && (
+              <div className="mt-1 pl-1 flex items-center gap-3">
+                <CopyTextButton text={message.content} />
+                <SpeakButton text={message.content} />
+              </div>
+            )}
+            {message.toolCalls && message.toolCalls.length > 0 && (
+              <div className={cn("mt-2 flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
+                {message.toolCalls.map((tc) => (
+                  <ToolCallChip key={tc.id} call={tc} />
+                ))}
+              </div>
+            )}
+            {message.planProposals && message.planProposals.length > 0 && (
+              <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+                {message.planProposals.map((p) => (
+                  <PlanProposalCard key={p.id} proposal={p} onResponse={onPlanResponse} />
+                ))}
+              </div>
+            )}
+            {message.agentTasks && message.agentTasks.length > 0 && (
+              <div className={cn("mt-2 flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+                {message.agentTasks.map((t) => (
+                  <TaskCard key={t.id} task={t} />
+                ))}
+              </div>
+            )}
+          </>
         )}
         {message.mediaType === "image" && message.mediaUrl && (
           <MediaCard kind="image" url={message.mediaUrl} alignRight={isUser} />

@@ -25,6 +25,7 @@ export async function GET(
             content: true,
             mediaType: true,
             mediaUrl: true,
+            metadata: true,
             createdAt: true,
           },
         },

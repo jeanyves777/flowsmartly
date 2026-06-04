@@ -73,6 +73,8 @@ export interface AgentRunInput {
   timezone?: string;
   /** Live background-task status for this conversation (agent awareness). */
   recentTasks?: Array<{ id: string; kind: string; status: string; note?: string; resultUrl?: string | null }>;
+  /** Plans proposed earlier in this conversation + status (cancel/confirm awareness). */
+  recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
   /** Aborts the loop when the client disconnects. */
   abortSignal: AbortSignal;
   /** Emit SSE event back to the client. */
@@ -121,6 +123,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     clientNow: input.clientNow,
     timezone: input.timezone,
     recentTasks: input.recentTasks,
+    recentProposals: input.recentProposals,
   });
 
   // Seed Claude with prior conversation. Skip the just-saved user message —

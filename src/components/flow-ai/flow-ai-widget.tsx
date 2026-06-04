@@ -13,9 +13,11 @@ import {
   TaskCard,
   CopyTextButton,
   SpeakButton,
+  MessageBlocks,
   type AgentToolCardData,
   type AgentTaskCardData,
   type PlanProposalCardData,
+  type MessageBlock,
 } from "./agent-cards";
 import {
   consumeAgentStreamWithReplay,
@@ -23,6 +25,9 @@ import {
   respondToPlanProposal,
   subscribeToTaskStream,
   fetchConversationCards,
+  parseMessageBlocks,
+  blockAppendText,
+  blockPushCard,
 } from "./use-agent-stream";
 import { useWebPushAutoSubscribe, requestPushPermission } from "./use-web-push";
 import { RichText, TypingDots } from "./rich-text";
@@ -54,6 +59,8 @@ interface WidgetMessage {
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
   agentTasks?: AgentTaskCardData[];
+  /** Ordered turn blocks (text + cards) for chronological rendering. */
+  blocks?: MessageBlock[];
 }
 
 const STORAGE_KEY = "flow-ai-widget-conversation";
@@ -193,6 +200,7 @@ export function FlowAIWidget() {
       const toolCallsById = new Map<string, AgentToolCardData>();
       const proposalsById = new Map<string, PlanProposalCardData>();
       const tasksById = new Map<string, AgentTaskCardData>();
+      const blocks: MessageBlock[] = [];
       let assistantText = "";
       let resolvedConversationId: string | null = conversationId;
 
@@ -203,6 +211,7 @@ export function FlowAIWidget() {
               ? {
                   ...m,
                   content: assistantText,
+                  blocks: [...blocks],
                   toolCalls: Array.from(toolCallsById.values()),
                   planProposals: Array.from(proposalsById.values()).map((p) =>
                     resolvedPlansRef.current.has(p.id)
@@ -243,11 +252,11 @@ export function FlowAIWidget() {
           },
           onText: (delta) => {
             assistantText += delta;
-            setMessages((prev) =>
-              prev.map((m) => (m.id === pendingMsg.id ? { ...m, content: assistantText } : m)),
-            );
+            blockAppendText(blocks, delta);
+            flushMessage();
           },
           onToolCallStart: (call) => {
+            blockPushCard(blocks, "tool", call.id);
             toolCallsById.set(call.id, call);
             flushMessage();
           },
@@ -256,10 +265,12 @@ export function FlowAIWidget() {
             flushMessage();
           },
           onPlanProposal: (proposal) => {
+            blockPushCard(blocks, "proposal", proposal.id);
             proposalsById.set(proposal.id, proposal);
             flushMessage();
           },
           onTaskStarted: (task) => {
+            blockPushCard(blocks, "task", task.id);
             tasksById.set(task.id, task);
             flushMessage();
             // Subscribe to live progress in case the agent turn ends
@@ -452,7 +463,7 @@ export function FlowAIWidget() {
         const res = await fetch(`/api/ai/assistant/conversations/${id}`);
         const json = await res.json();
         const conv = json?.data ?? json;
-        const rawMsgs: Array<{ id: string; role: string; content: string; mediaUrl?: string | null }> = conv?.messages ?? [];
+        const rawMsgs: Array<{ id: string; role: string; content: string; mediaUrl?: string | null; metadata?: string | null }> = conv?.messages ?? [];
         // Fetch persisted cards (tool chips + proposals + tasks) and attach
         // them in the SAME setMessages so the restored chat shows the full
         // flow — not just text. Fixes "all cards lost on restore".
@@ -466,6 +477,7 @@ export function FlowAIWidget() {
               content: m.content,
               // Restore attached/produced media so it isn't lost on reopen.
               images: m.mediaUrl ? [m.mediaUrl] : undefined,
+              blocks: parseMessageBlocks(m.metadata),
               toolCalls: cards.toolCallsByMsg.get(m.id),
               planProposals: cards.proposalsByMsg.get(m.id),
               agentTasks: cards.tasksByMsg.get(m.id),
@@ -1048,53 +1060,66 @@ function WidgetMessageView({
             ))}
           </div>
         )}
-        {message.content ? (
-          <div
-            className={cn(
-              "inline-block px-3 py-1.5 rounded-2xl text-sm leading-snug break-words max-w-full text-left",
-              isUser
-                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
-                : "bg-white dark:bg-gray-900 border border-border text-foreground",
-            )}
-          >
-            {isUser ? message.content : <RichText text={message.content} />}
-          </div>
+        {!isUser && message.blocks && message.blocks.length > 0 ? (
+          // Chronological turn: text + chips + cards in exact order, restored faithfully.
+          <MessageBlocks
+            blocks={message.blocks}
+            toolCalls={message.toolCalls}
+            planProposals={message.planProposals}
+            agentTasks={message.agentTasks}
+            onPlanResponse={onPlanResponse}
+            bubbleClassName="bg-white dark:bg-gray-900 border-border text-foreground"
+          />
         ) : (
-          !isUser &&
-          // Assistant bubble still empty → show the typing indicator inside
-          // a bubble so it reads as "the AI is composing a reply".
-          (!message.toolCalls?.length && !message.planProposals?.length && !message.agentTasks?.length) && (
-            <div className="inline-flex items-center px-3 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-border">
-              <TypingDots />
-            </div>
-          )
-        )}
-        {!isUser && message.content && (
-          <div className="pl-1 flex items-center gap-3">
-            <CopyTextButton text={message.content} />
-            <SpeakButton text={message.content} />
-          </div>
-        )}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
-            {message.toolCalls.map((tc) => (
-              <ToolCallChip key={tc.id} call={tc} />
-            ))}
-          </div>
-        )}
-        {message.planProposals && message.planProposals.length > 0 && (
-          <div className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
-            {message.planProposals.map((p) => (
-              <PlanProposalCard key={p.id} proposal={p} onResponse={onPlanResponse} />
-            ))}
-          </div>
-        )}
-        {message.agentTasks && message.agentTasks.length > 0 && (
-          <div className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
-            {message.agentTasks.map((t) => (
-              <TaskCard key={t.id} task={t} />
-            ))}
-          </div>
+          <>
+            {message.content ? (
+              <div
+                className={cn(
+                  "inline-block px-3 py-1.5 rounded-2xl text-sm leading-snug break-words max-w-full text-left",
+                  isUser
+                    ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white whitespace-pre-wrap"
+                    : "bg-white dark:bg-gray-900 border border-border text-foreground",
+                )}
+              >
+                {isUser ? message.content : <RichText text={message.content} />}
+              </div>
+            ) : (
+              !isUser &&
+              // Assistant bubble still empty → show the typing indicator.
+              (!message.toolCalls?.length && !message.planProposals?.length && !message.agentTasks?.length) && (
+                <div className="inline-flex items-center px-3 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-border">
+                  <TypingDots />
+                </div>
+              )
+            )}
+            {!isUser && message.content && (
+              <div className="pl-1 flex items-center gap-3">
+                <CopyTextButton text={message.content} />
+                <SpeakButton text={message.content} />
+              </div>
+            )}
+            {message.toolCalls && message.toolCalls.length > 0 && (
+              <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
+                {message.toolCalls.map((tc) => (
+                  <ToolCallChip key={tc.id} call={tc} />
+                ))}
+              </div>
+            )}
+            {message.planProposals && message.planProposals.length > 0 && (
+              <div className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+                {message.planProposals.map((p) => (
+                  <PlanProposalCard key={p.id} proposal={p} onResponse={onPlanResponse} />
+                ))}
+              </div>
+            )}
+            {message.agentTasks && message.agentTasks.length > 0 && (
+              <div className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+                {message.agentTasks.map((t) => (
+                  <TaskCard key={t.id} task={t} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

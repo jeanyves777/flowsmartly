@@ -267,6 +267,22 @@ export async function POST(req: NextRequest) {
     };
   });
 
+  // Recent plan proposals in THIS conversation + their status — so the agent
+  // KNOWS what it already proposed and whether the user confirmed/canceled,
+  // and doesn't re-propose or act confused after a cancel. Pairs with the
+  // chronological cards now persisted in message metadata.
+  const recentProposalRows = await prisma.agentPlanProposal.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: "desc" },
+    take: 6,
+    select: { summary: true, status: true, totalCreditCost: true },
+  });
+  const recentProposals = recentProposalRows.map((p) => ({
+    summary: p.summary,
+    status: p.status,
+    totalCreditCost: p.totalCreditCost,
+  }));
+
   const encoder = new TextEncoder();
   const abortController = new AbortController();
   req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
@@ -307,11 +323,25 @@ export async function POST(req: NextRequest) {
       }> = [];
       const planProposalIds: string[] = [];
       const taskIds: string[] = [];
+      // Ordered block structure for the turn — so a reloaded chat renders
+      // chronologically (text → chip → text → card) instead of flat text.
+      // Each tool/proposal/task block references a row by id; text blocks
+      // carry their own segment. Persisted to AIMessage.metadata.blocks.
+      type Block = { type: "text"; text: string } | { type: "tool" | "proposal" | "task"; id: string };
+      const blocks: Block[] = [];
+      const pushCardBlock = (type: "tool" | "proposal" | "task", id: string) => {
+        if (!blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) blocks.push({ type, id });
+      };
 
       // Wrap emit so we can sniff certain events for persistence.
       const emit = (event: AgentEvent) => {
         if (event.type === "text_delta") {
           assembledText += event.text;
+          const last = blocks[blocks.length - 1];
+          if (last && last.type === "text") last.text += event.text;
+          else blocks.push({ type: "text", text: event.text });
+        } else if (event.type === "tool_call_start") {
+          pushCardBlock("tool", event.id);
         } else if (event.type === "tool_call_result") {
           const okFlag =
             typeof event.output === "object" &&
@@ -325,10 +355,13 @@ export async function POST(req: NextRequest) {
             errorCode: event.errorCode,
             creditCost: event.creditCost,
           });
+          pushCardBlock("tool", event.id); // belt-and-braces if start was missed
         } else if (event.type === "plan_proposal") {
           planProposalIds.push(event.id);
+          pushCardBlock("proposal", event.id);
         } else if (event.type === "task_started") {
           taskIds.push(event.taskId);
+          pushCardBlock("task", event.taskId);
         }
         send(event);
       };
@@ -353,16 +386,20 @@ export async function POST(req: NextRequest) {
           clientNow: body.clientNow,
           timezone: body.timezone,
           recentTasks,
+          recentProposals,
           abortSignal: abortController.signal,
           emit,
           awaitConfirmation: (planId) => awaitConfirmation(planId, conversationId),
         });
 
-        // Persist the final assistant message.
+        // Persist the final assistant message. `blocks` preserves the
+        // chronological order of text + tool/proposal/task cards so a
+        // reloaded chat reconstructs the exact flow.
         const metadata = {
           toolCalls: toolCallSummaries,
           planProposals: planProposalIds,
           taskRefs: taskIds,
+          blocks,
           tokensUsed: result.tokensUsed,
           creditsUsed: result.creditsUsed,
         };
