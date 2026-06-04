@@ -2365,6 +2365,9 @@ export default function ContentPostsPage() {
   );
   const selectedProductAdTemplate = getProductAdTemplate(productAdTemplate);
   const productAdPreviewUrl = generatedProductAd?.url || selectedProductAdTemplate.thumbnail;
+  // Once Generate is clicked (generating or a result exists), the playground
+  // takes over the full modal: inputs hide, visual-left + chat-right.
+  const productAdStudioMode = isGeneratingProductAd || !!generatedProductAd;
   const aiPromptStarters = useMemo(
     () => [
       `Announce a timely offer from ${brandName} for ${brandKit?.targetAudience || "our audience"} and explain why they should act now.`,
@@ -3682,7 +3685,8 @@ export default function ContentPostsPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className={productAdStudioMode ? "" : "grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]"}>
+              {!productAdStudioMode && (
               <div className="space-y-3">
                 <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
                   <div className="flex items-center justify-between gap-3">
@@ -3883,8 +3887,9 @@ export default function ContentPostsPage() {
                   </div>
                 </div>
               </div>
+              )}
 
-              <div className="space-y-3">
+              <div className={productAdStudioMode ? "grid gap-3 lg:grid-cols-2 items-start" : "space-y-3"}>
                 <div className="rounded-xl border bg-background/80 p-2.5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
@@ -3958,6 +3963,7 @@ export default function ContentPostsPage() {
                   ) : null}
                 </div>
 
+                <div className="space-y-3">
                 {generatedProductAd && (
                   <div className="flex flex-col overflow-hidden rounded-xl border bg-background/80">
                     <div className="flex items-center gap-2 border-b px-3 py-2 text-sm font-bold">
@@ -4082,6 +4088,7 @@ export default function ContentPostsPage() {
                   <Button type="button" variant="ghost" size="sm" onClick={() => setShowAIPilotModal(false)}>
                     Close studio
                   </Button>
+                </div>
                 </div>
               </div>
             </div>
