@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { getPresignedUrl } from "@/lib/utils/s3-client";
+import { loadImageBuffer } from "../load-image-buffer";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -118,18 +118,3 @@ ${focus ? `Focus especially on: ${focus}\n` : ""}Transcribe text EXACTLY as writ
     }
   },
 };
-
-async function loadImageBuffer(src: string): Promise<Buffer> {
-  if (src.startsWith("data:")) {
-    const b64 = src.replace(/^data:[^;]+;base64,/, "");
-    if (!b64) throw new Error("Invalid image data URI");
-    return Buffer.from(b64, "base64");
-  }
-  const storageUrl = process.env.NEXT_PUBLIC_STORAGE_URL || "";
-  const looksManaged =
-    src.includes(".amazonaws.com/") || (storageUrl !== "" && src.startsWith(storageUrl)) || !src.startsWith("http");
-  const fetchUrl = looksManaged ? await getPresignedUrl(src) : src;
-  const res = await fetch(fetchUrl);
-  if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
-}

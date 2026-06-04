@@ -7,6 +7,7 @@ import type { CreditCostKey } from "@/lib/credits/costs";
 import { ensureToolsRegistered, flowAgentTools, type FlowAgentTool } from "./registry";
 import { buildAgentSystemPrompt } from "./system-prompt";
 import { nextSeqForConversation } from "./conversation-seq";
+import { loadImageAsVisionBase64 } from "./load-image-buffer";
 import type {
   AgentEvent,
   ToolContext,
@@ -59,7 +60,14 @@ export interface AgentRunInput {
   /** S3 URLs of the uploaded attachments — the agent can pass these as media to tools. */
   attachmentUrls?: string[];
   /** Prior turns to seed Claude's context. Most recent last. */
-  history: Array<{ role: "user" | "assistant"; content: string; metadata?: string | null }>;
+  history: Array<{
+    role: "user" | "assistant";
+    content: string;
+    metadata?: string | null;
+    /** Persisted media on the turn (e.g. an image the user uploaded earlier). */
+    mediaType?: string | null;
+    mediaUrl?: string | null;
+  }>;
   /** Client-supplied wall clock + tz so "Monday at 4pm" resolves correctly. */
   clientNow?: string;
   timezone?: string;
@@ -118,9 +126,29 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // Seed Claude with prior conversation. Skip the just-saved user message —
   // we pass it as the LAST user turn separately so it stays adjacent to
   // the assistant response.
-  const priorMessages: Anthropic.MessageParam[] = input.history
-    .filter((m) => m.content?.trim().length > 0)
-    .map((m) => ({ role: m.role, content: m.content }));
+  //
+  // CRITICAL: annotate any prior user turn that carried an uploaded image
+  // with its persisted URL. The base64 vision is only ever passed on the
+  // upload turn — so after a follow-up turn (or a system reload / pm2 reload
+  // that wipes the in-flight stream) the agent rebuilds context from
+  // text-only history and FORGETS an image was ever shared, then asks the
+  // user to re-upload it. The URL note restores that awareness at zero cost
+  // and tells the agent how to act on the image again.
+  let mostRecentImageUrl: string | null = null;
+  const annotateImageTurn = (content: string, url: string): string =>
+    `${content}\n\n[The user shared an image earlier in this conversation — URL: ${url}. It is still available: read it with read_image, edit it with edit_image, or pass it as referenceImageUrls for a branded design (keeps the real person/product). NEVER ask the user to re-send an image they already shared, and never swap in a different one.]`;
+
+  const filteredHistory = input.history.filter((m) => m.content?.trim().length > 0);
+  const priorMessages: Anthropic.MessageParam[] = filteredHistory.map((m, i) => {
+    const isLast = i === filteredHistory.length - 1;
+    const hasImage = m.role === "user" && m.mediaType === "image" && !!m.mediaUrl;
+    if (hasImage) mostRecentImageUrl = m.mediaUrl as string;
+    // Don't annotate the triggering turn — it's handled by the attachments
+    // block (fresh upload) or the vision re-injection block (prior image)
+    // below. Annotating it would also break the dedup check that follows.
+    const content = hasImage && !isLast ? annotateImageTurn(m.content, m.mediaUrl as string) : m.content;
+    return { role: m.role, content };
+  });
 
   // The triggering user message is the final entry of priorMessages because
   // the caller persisted it before calling us. Confirm and remove tail if dup.
@@ -150,6 +178,33 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         source: { type: "base64", media_type: a.mediaType, data: a.dataBase64 },
       }));
       messages[lastUserIdx] = { role: "user", content: [textPart, ...imageParts] };
+    }
+  } else if (mostRecentImageUrl) {
+    // No fresh upload this turn, but the user shared an image earlier in the
+    // conversation (before a follow-up turn or a system reload). Re-attach
+    // the most recent one as ACTUAL vision so the agent can see it again and
+    // act on it directly ("remove the duplicate logo", "fix the unreadable
+    // white text") instead of asking the user to re-upload. Bounded to a
+    // single image; fetch is best-effort and never throws — on failure the
+    // text URL annotation above still keeps the agent aware of the image.
+    const vision = await loadImageAsVisionBase64(mostRecentImageUrl);
+    if (vision) {
+      const lastUserIdx = messages.length - 1;
+      if (lastUserIdx >= 0 && messages[lastUserIdx].role === "user") {
+        const existing = messages[lastUserIdx].content;
+        const textPart = {
+          type: "text",
+          text:
+            typeof existing === "string"
+              ? `${existing}\n\n[Re-attaching the image the user shared earlier (URL: ${mostRecentImageUrl}) so you can see it. Act on it directly — don't ask the user to re-upload. Use edit_image with this URL to modify it.]`
+              : input.userMessage,
+        };
+        const imagePart = {
+          type: "image",
+          source: { type: "base64", media_type: vision.mediaType, data: vision.base64 },
+        };
+        messages[lastUserIdx] = { role: "user", content: [textPart, imagePart] };
+      }
     }
   }
 

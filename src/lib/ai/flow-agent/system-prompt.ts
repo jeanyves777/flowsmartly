@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { getUserPreferredLanguage, getLanguageLabel, conversationLanguageDirective } from "@/lib/ai/user-language";
+import { loadUserContext, renderAgentMemory } from "@/lib/ai-memory";
 
 /**
  * Build the Flow-AI Agent system prompt.
@@ -47,7 +48,10 @@ export async function buildAgentSystemPrompt(
 
   // Pull a thin slice — brand name + plan — so the very first turn already
   // has identity. The full brand kit comes from get_brand_identity when needed.
-  const [user, brand, language] = await Promise.all([
+  // `memoryCtx` is the agent's own data-awareness layer: pinned facts/patterns
+  // + recent work, surfaced every turn so the agent recalls what it already
+  // knows instead of re-asking (and survives the 40-message history cap).
+  const [user, brand, language, memoryCtx] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, username: true, plan: true, aiCredits: true },
@@ -58,7 +62,10 @@ export async function buildAgentSystemPrompt(
       select: { name: true, industry: true, voiceTone: true },
     }),
     getUserPreferredLanguage(userId),
+    loadUserContext(userId, { recentLimit: 8 }).catch(() => null),
   ]);
+
+  const memoryBlock = memoryCtx ? renderAgentMemory(memoryCtx) : "";
 
   const now = clientNow ?? new Date().toISOString();
   const tz = timezone ?? "UTC";
@@ -100,6 +107,18 @@ export async function buildAgentSystemPrompt(
     brand
       ? `Their brand: ${brand.name}${brand.industry ? ` (${brand.industry})` : ""}${brand.voiceTone ? `, voice: ${brand.voiceTone}` : ""}. For anything brand-anchored, call get_brand_identity first.`
       : `No brand kit configured yet — if a task needs brand context, suggest they set one up at /brand-kit.`,
+    ``,
+    // ─── Data-awareness "thinking" — the agent's own memory ───────────────
+    `# What you already know (your memory — think with this BEFORE acting)`,
+    `You keep a persistent memory of this user across ALL conversations: durable facts, their preferences, patterns you've noticed, and recent work. This is your own data-awareness — not a guess. ALWAYS reason over it before asking the user for something or proposing a plan:`,
+    memoryBlock
+      ? memoryBlock
+      : `(Nothing logged yet — you'll build this up as you learn about them.)`,
+    ``,
+    `How to use your memory (HARD RULE — this makes you faster and stops you re-asking):`,
+    `- BEFORE asking the user something, check the facts above and call \`recall\` (free) to search your full memory for it. Only ask if you genuinely don't have it.`,
+    `- The MOMENT you learn something durable — a standing preference ("always Premium"), a recurring pattern ("Friday promo"), a relationship ("Daniel = partner"), a confirmed brand detail — call \`remember\` (free) to log it. Pin core facts. Next time it's already in this list.`,
+    `- This memory persists even across a system reload or a brand-new conversation. Trust it, keep it current, and use it to deliver faster with fewer questions.`,
     ``,
     conversationLanguageDirective(language),
     `When you call content-producing tools (schedule_social_post, generate_image, generate_video, etc.), write the prompts/captions in the language that content should be in (default ${languageLabel}, or whatever language the user is working in / asked for). The tools embed your text verbatim in the user's content — wrong language = embarrassed user.`,

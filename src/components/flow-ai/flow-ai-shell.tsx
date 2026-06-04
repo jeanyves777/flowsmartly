@@ -22,6 +22,7 @@ import {
   FolderOpen,
   Mic,
   AudioLines,
+  Upload,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -137,8 +138,12 @@ export function FlowAIShell() {
   const mode: Mode = "text";
   const tier: Tier = "standard";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  // Image attachments for the next agent message (paperclip upload).
-  const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name: string }>>([]);
+  // Image attachments for the next agent message. `dataUrl` = a device
+  // upload (base64); `url` = a pick from the user's own media library.
+  const [attachments, setAttachments] = useState<Array<{ dataUrl?: string; url?: string; name: string }>>([]);
+  // Attach drop-up menu (Upload a file / Your media library) + library modal.
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const threadRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -254,6 +259,18 @@ export function FlowAIShell() {
     [attachments.length, toast],
   );
 
+  // Add an image the user picked from their OWN media library (already
+  // hosted — keep the URL; the server fetches it for vision on send).
+  const handleLibraryPick = useCallback((url: string) => {
+    setAttachments((prev) =>
+      prev.length >= 4 || prev.some((a) => a.url === url)
+        ? prev
+        : [...prev, { url, name: url.split("/").pop() || "library image" }],
+    );
+    setLibraryOpen(false);
+    setAttachMenuOpen(false);
+  }, []);
+
   // ─── Agent-mode (text) ────────────────────────────────────────────
   // Text-mode chat goes through the new tool-using agent endpoint via
   // the shared resumable consumer — same parser + auto-replay-on-drop
@@ -265,14 +282,14 @@ export function FlowAIShell() {
       trimmed: string,
       _userMsg: Message,
       pendingMsg: Message,
-      atts?: Array<{ dataUrl: string; name: string }>,
+      atts?: Array<{ dataUrl?: string; url?: string; name: string }>,
       viaVoice = false,
       onReplyComplete?: (replyText: string) => void,
     ) => {
       const res = await sendAgent({
         message: trimmed,
         conversationId,
-        attachments: atts?.map((a) => ({ dataUrl: a.dataUrl, name: a.name })),
+        attachments: atts?.map((a) => ({ dataUrl: a.dataUrl, url: a.url, name: a.name })),
       });
       if (!res.ok || !res.body) {
         let errMsg = "Agent failed to start";
@@ -397,7 +414,7 @@ export function FlowAIShell() {
           trimmed ||
           `[${pendingAttachments.length} image${pendingAttachments.length > 1 ? "s" : ""} attached]`,
         mediaType: pendingAttachments.length > 0 ? "image" : undefined,
-        mediaUrl: pendingAttachments[0]?.dataUrl ?? undefined,
+        mediaUrl: pendingAttachments[0]?.dataUrl ?? pendingAttachments[0]?.url ?? undefined,
         createdAt: new Date().toISOString(),
       };
       const pendingMsg: Message = {
@@ -714,6 +731,9 @@ export function FlowAIShell() {
 
   const currentCost = COST_BY_MODE[mode];
   const tierAvailable = mode !== "text";
+  // Drives the state-based trailing control: something to send → Send;
+  // otherwise → mic + voice (mobile/ChatGPT pattern, saves composer space).
+  const canSend = input.trim().length > 0 || attachments.length > 0;
 
   return (
     <motion.div
@@ -868,7 +888,7 @@ export function FlowAIShell() {
                 {attachments.map((a, i) => (
                   <div key={i} className="relative h-14 w-14 rounded-lg overflow-hidden border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
+                    <img src={a.dataUrl || a.url} alt={a.name} className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
@@ -920,16 +940,45 @@ export function FlowAIShell() {
             )}
 
             <div className="flex items-end gap-2 rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm focus-within:border-blue-500 focus-within:shadow-md transition-all px-2 py-1.5">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending || attachments.length >= 4}
-                className="h-9 w-9 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Attach image"
-                title="Attach an image"
-              >
-                <Paperclip className="h-4 w-4" />
-              </button>
+              {/* Attach: one + that opens a drop-up (Upload / Your library) so
+                  both device files AND the user's own media library are
+                  reachable without cluttering the composer. */}
+              <div className="relative flex-shrink-0">
+                {attachMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setAttachMenuOpen(false)} />
+                    <div className="absolute bottom-11 left-0 z-20 w-48 rounded-xl border border-border bg-white dark:bg-gray-900 shadow-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => { setAttachMenuOpen(false); fileInputRef.current?.click(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Upload className="h-4 w-4 text-muted-foreground" /> Upload a file
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAttachMenuOpen(false); setLibraryOpen(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors border-t border-border"
+                      >
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" /> Your media library
+                      </button>
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAttachMenuOpen((o) => !o)}
+                  disabled={sending || attachments.length >= 4}
+                  className={cn(
+                    "h-9 w-9 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed",
+                    attachMenuOpen && "text-blue-600 bg-blue-50 dark:bg-blue-950/30",
+                  )}
+                  aria-label="Attach a file or media"
+                  title="Attach a file or media"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+              </div>
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -945,49 +994,70 @@ export function FlowAIShell() {
                 className="flex-1 bg-transparent border-0 outline-none focus:ring-0 resize-none py-2 px-2 text-sm leading-relaxed max-h-40"
                 disabled={sending}
               />
-              {voice.supported && (
+              {/* State-driven trailing control (mobile/ChatGPT pattern):
+                  nothing to send → mic + voice-orb; text or an attachment →
+                  a single Send. Never all three — saves space. */}
+              {canSend ? (
                 <button
                   type="button"
-                  onClick={voice.toggle}
+                  onClick={() => send(input)}
                   disabled={sending}
-                  className={cn(
-                    "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-                    voice.listening
-                      ? "border-red-500 bg-red-500 text-white animate-pulse"
-                      : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
-                  )}
-                  aria-label={voice.listening ? "Stop listening" : "Talk to Flow-AI"}
-                  title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
+                  className="h-9 w-9 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-blue-500/20"
+                  aria-label="Send"
                 >
-                  <Mic className="h-4 w-4" />
+                  {sending ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
                 </button>
-              )}
-              {conversation.supported && (
-                <button
-                  type="button"
-                  onClick={conversation.toggle}
-                  disabled={sending}
-                  className={cn(
-                    "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-                    conversation.active
-                      ? "border-blue-500 bg-blue-500 text-white"
-                      : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
+              ) : (
+                <>
+                  {voice.supported && (
+                    <button
+                      type="button"
+                      onClick={voice.toggle}
+                      disabled={sending}
+                      className={cn(
+                        "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                        voice.listening
+                          ? "border-red-500 bg-red-500 text-white animate-pulse"
+                          : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
+                      )}
+                      aria-label={voice.listening ? "Stop listening" : "Talk to Flow-AI"}
+                      title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
                   )}
-                  aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
-                  title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
-                >
-                  <AudioLines className="h-4 w-4" />
-                </button>
+                  {conversation.supported && (
+                    <button
+                      type="button"
+                      onClick={conversation.toggle}
+                      disabled={sending}
+                      className={cn(
+                        "h-9 w-9 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                        conversation.active
+                          ? "border-blue-500 bg-blue-500 text-white"
+                          : "border-border bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground",
+                      )}
+                      aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
+                      title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
+                    >
+                      <AudioLines className="h-4 w-4" />
+                    </button>
+                  )}
+                  {/* No mic/voice support → keep a Send so the user can still
+                      submit (e.g. after attaching from the library). */}
+                  {!voice.supported && !conversation.supported && (
+                    <button
+                      type="button"
+                      onClick={() => send(input)}
+                      disabled={sending}
+                      className="h-9 w-9 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center flex-shrink-0 disabled:opacity-40 shadow-sm shadow-blue-500/20"
+                      aria-label="Send"
+                    >
+                      {sending ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
+                    </button>
+                  )}
+                </>
               )}
-              <button
-                type="button"
-                onClick={() => send(input)}
-                disabled={sending || (!input.trim() && attachments.length === 0)}
-                className="h-9 w-9 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-blue-500/20"
-                aria-label="Send"
-              >
-                {sending ? <AISpinner size={16} /> : <Send className="h-4 w-4" />}
-              </button>
             </div>
 
             <p className="text-[10px] text-muted-foreground/80 mt-1.5 text-center">
@@ -996,6 +1066,15 @@ export function FlowAIShell() {
           </div>
         </div>
       </div>
+
+      {/* The user's own media library — picking an image attaches its URL. */}
+      <MediaLibraryPicker
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={(url) => handleLibraryPick(url)}
+        filterTypes={["image"]}
+        title="Attach from your library"
+      />
     </motion.div>
   );
 }

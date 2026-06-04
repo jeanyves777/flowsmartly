@@ -6,7 +6,34 @@ import { awaitConfirmation } from "@/lib/ai/flow-agent/job-state";
 import { ai, HAIKU_MODEL } from "@/lib/ai/client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
+import { loadImageAsVisionBase64 } from "@/lib/ai/flow-agent/load-image-buffer";
+import { recordAiMemory } from "@/lib/ai-memory";
 import { nanoid } from "nanoid";
+
+/**
+ * Tools that are pure lookups / introspection — an agent turn that only
+ * called these did nothing worth remembering. We auto-capture a memory
+ * highlight only when the agent took a real ACTION (created/scheduled/
+ * generated something) so cross-conversation memory stays signal, not noise.
+ */
+const INTROSPECTION_TOOLS = new Set<string>([
+  "who_am_i",
+  "list_my_features",
+  "search_features",
+  "get_brand_identity",
+  "list_scheduled_posts",
+  "get_calendar",
+  "list_campaigns",
+  "list_automations",
+  "get_credits_history",
+  "list_voices",
+  "list_connected_socials",
+  "recall",
+  "read_image",
+  "analyze_url",
+  "propose_plan",
+  "remember",
+]);
 import type { AgentEvent } from "@/lib/ai/flow-agent/tool-context";
 
 /**
@@ -61,7 +88,10 @@ export async function POST(req: NextRequest) {
     message?: string;
     timezone?: string;
     clientNow?: string;
-    attachments?: Array<{ dataUrl?: string; name?: string }>;
+    // `dataUrl` = a base64 upload from the device file picker.
+    // `url`     = an already-hosted image the user picked from their media
+    //             library (no re-upload needed — fetched server-side for vision).
+    attachments?: Array<{ dataUrl?: string; url?: string; name?: string }>;
   };
   try {
     body = await req.json();
@@ -74,36 +104,47 @@ export async function POST(req: NextRequest) {
 
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
-  // Parse image attachments (base64 data URLs from the composer's file
-  // picker). Cap at 4 images, 5 MB each, to keep the model request sane.
-  const attachments: Array<{ mediaType: string; dataBase64: string; url?: string }> = [];
+  // Split incoming attachments into device base64 uploads vs already-hosted
+  // media-library picks. Cap at 4 total. Both feed Claude vision; only base64
+  // uploads need an S3 upload (library picks are already hosted).
+  const base64Items: Array<{ mediaType: string; dataBase64: string }> = [];
+  const libraryUrls: string[] = [];
   if (Array.isArray(body.attachments)) {
     for (const a of body.attachments.slice(0, 4)) {
-      if (typeof a?.dataUrl !== "string") continue;
-      const m = a.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/);
-      if (!m) continue;
-      const dataBase64 = m[2];
-      // ~5 MB raw → ~6.7 MB base64
-      if (dataBase64.length > 7_000_000) continue;
-      attachments.push({ mediaType: m[1] === "image/jpg" ? "image/jpeg" : m[1], dataBase64 });
+      if (typeof a?.dataUrl === "string") {
+        const m = a.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/);
+        if (!m) continue;
+        const dataBase64 = m[2];
+        // ~5 MB raw → ~6.7 MB base64
+        if (dataBase64.length > 7_000_000) continue;
+        base64Items.push({ mediaType: m[1] === "image/jpg" ? "image/jpeg" : m[1], dataBase64 });
+      } else if (typeof a?.url === "string" && /^https?:\/\//.test(a.url)) {
+        libraryUrls.push(a.url);
+      }
     }
   }
 
-  // Upload each attachment to S3 + the media library so the agent can
-  // (a) reference a real URL when the user wants it IN a post/design, and
-  // (b) the image persists + shows in /media. Vision still gets the
-  // base64 so the model can actually SEE it. Best-effort per image.
-  for (const att of attachments) {
+  // Vision blocks fed to the model + the hosted URLs the agent can reuse in
+  // tools (mediaUrl / referenceImageUrls). Kept as two parallel arrays — the
+  // agent loop reads `attachments` for vision and `attachmentUrls` for usage.
+  const attachments: Array<{ mediaType: string; dataBase64: string }> = [];
+  const attachmentUrls: string[] = [];
+
+  // Device uploads: store to S3 + the media library so they persist + show in
+  // /media, and the agent gets a real URL. Vision still gets the base64.
+  for (const item of base64Items) {
+    attachments.push({ mediaType: item.mediaType, dataBase64: item.dataBase64 });
     try {
-      const ext = att.mediaType.includes("png") ? "png" : att.mediaType.includes("webp") ? "webp" : att.mediaType.includes("gif") ? "gif" : "jpg";
-      const buf = Buffer.from(att.dataBase64, "base64");
+      const ext = item.mediaType.includes("png") ? "png" : item.mediaType.includes("webp") ? "webp" : item.mediaType.includes("gif") ? "gif" : "jpg";
+      const buf = Buffer.from(item.dataBase64, "base64");
       const key = `flow-ai/${session.userId}/upload-${nanoid(8)}.${ext}`;
-      att.url = await uploadToS3(key, buf, att.mediaType);
+      const url = await uploadToS3(key, buf, item.mediaType);
+      attachmentUrls.push(url);
       await saveToMediaLibrary({
         userId: session.userId,
-        url: att.url,
+        url,
         type: "image",
-        mimeType: att.mediaType,
+        mimeType: item.mediaType,
         size: buf.length,
         tags: ["flow-ai", "upload"],
       }).catch(() => {});
@@ -111,10 +152,17 @@ export async function POST(req: NextRequest) {
       console.error("[flow-ai/agent] attachment upload failed (vision still works):", e);
     }
   }
-  const attachmentUrls = attachments.map((a) => a.url).filter((u): u is string => !!u);
+
+  // Media-library picks: already hosted — just expose the URL to the agent and
+  // fetch it server-side into base64 so the model can SEE it too. No re-save.
+  for (const url of libraryUrls.slice(0, Math.max(0, 4 - attachments.length))) {
+    attachmentUrls.push(url);
+    const vision = await loadImageAsVisionBase64(url);
+    if (vision) attachments.push({ mediaType: vision.mediaType, dataBase64: vision.base64 });
+  }
 
   // A message OR at least one attachment is required.
-  if (!message && attachments.length === 0) {
+  if (!message && attachments.length === 0 && attachmentUrls.length === 0) {
     return new Response(JSON.stringify({ error: "message or an attachment is required" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
@@ -151,7 +199,8 @@ export async function POST(req: NextRequest) {
   // Persist the user turn immediately so it survives a client disconnect.
   // Note: attachment images aren't persisted to the message row (they're
   // transient vision input); a marker keeps the thread readable on reload.
-  const persistedContent = message || (attachments.length > 0 ? `[sent ${attachments.length} image${attachments.length > 1 ? "s" : ""}]` : "");
+  const imageCount = Math.max(attachments.length, attachmentUrls.length);
+  const persistedContent = message || (imageCount > 0 ? `[sent ${imageCount} image${imageCount > 1 ? "s" : ""}]` : "");
   const userMsg = await prisma.aIMessage.create({
     data: {
       conversationId,
@@ -177,7 +226,11 @@ export async function POST(req: NextRequest) {
     where: { conversationId, id: { not: assistantMsg.id } },
     orderBy: { createdAt: "asc" },
     take: 40,
-    select: { role: true, content: true, metadata: true },
+    // mediaType/mediaUrl are required so the agent retains awareness of
+    // images shared on earlier turns — without them a follow-up turn (or a
+    // post-reload rebuild) forgets the image existed (see agent-loop image
+    // re-injection).
+    select: { role: true, content: true, metadata: true, mediaType: true, mediaUrl: true },
   });
 
   const user = await prisma.user.findUnique({
@@ -294,6 +347,8 @@ export async function POST(req: NextRequest) {
             role: m.role as "user" | "assistant",
             content: m.content,
             metadata: m.metadata,
+            mediaType: m.mediaType,
+            mediaUrl: m.mediaUrl,
           })),
           clientNow: body.clientNow,
           timezone: body.timezone,
@@ -323,6 +378,27 @@ export async function POST(req: NextRequest) {
           where: { id: conversationId },
           data: { updatedAt: new Date() },
         });
+
+        // Auto-capture a cross-conversation memory highlight when the agent
+        // took a REAL action this turn (not just lookups). This builds the
+        // user's data-awareness layer automatically — so even if the agent
+        // didn't explicitly call `remember`, future turns/conversations know
+        // what was done here. Fire-and-forget; never blocks the stream.
+        const actionTools = toolCallSummaries.filter(
+          (t) => t.ok && !INTROSPECTION_TOOLS.has(t.name),
+        );
+        if (actionTools.length > 0 || taskIds.length > 0) {
+          const did = Array.from(new Set(actionTools.map((t) => t.name))).join(", ");
+          const ask = (message || "(image-led request)").replace(/\s+/g, " ").slice(0, 140);
+          recordAiMemory({
+            userId: session.userId,
+            kind: "chat-highlight",
+            summary: `Asked: "${ask}"${did ? ` → did: ${did}` : taskIds.length ? " → started a background job" : ""}`,
+            content: { conversationId, tools: did, taskCount: taskIds.length },
+            referenceType: "AIConversation",
+            referenceId: conversationId,
+          });
+        }
 
         // Auto-title a brand-new conversation from the first user message
         // (or its attachments). Fire-and-forget so it never delays the

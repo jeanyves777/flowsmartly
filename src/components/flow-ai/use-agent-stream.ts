@@ -191,8 +191,12 @@ export function subscribeToTaskStream(
 export interface AgentSendInput {
   message: string;
   conversationId: string | null;
-  /** Optional image attachments as base64 data URLs (data:image/...;base64,...). */
-  attachments?: Array<{ dataUrl: string; name?: string }>;
+  /**
+   * Optional image attachments. `dataUrl` = a base64 upload from the device
+   * file picker; `url` = an already-hosted image picked from the user's media
+   * library (the server fetches it for vision — no re-upload).
+   */
+  attachments?: Array<{ dataUrl?: string; url?: string; name?: string }>;
 }
 
 export function useAgentSender() {

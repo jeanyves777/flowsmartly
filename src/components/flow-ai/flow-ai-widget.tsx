@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft, Mic, AudioLines } from "lucide-react";
+import { Send, X, Maximize2, Plus, Paperclip, MessageSquare, ChevronLeft, Mic, AudioLines, Upload, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import {
   ToolCallChip,
   PlanProposalCard,
@@ -77,9 +78,13 @@ export function FlowAIWidget() {
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
-  // Pending image attachments (base64 data URLs) shown as chips above the
-  // composer until the next send. Restored from the old widget's upload.
-  const [attachments, setAttachments] = useState<Array<{ dataUrl: string; name: string }>>([]);
+  // Pending image attachments shown as chips above the composer until the
+  // next send. `dataUrl` = a device upload (base64); `url` = a pick from the
+  // user's own media library (already hosted).
+  const [attachments, setAttachments] = useState<Array<{ dataUrl?: string; url?: string; name: string }>>([]);
+  // Attach drop-up menu (Upload a file / Your media library) + library modal.
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   // Conversation history panel (toggle back to a previous conversation).
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conversations, setConversations] = useState<Array<{ id: string; title: string | null; updatedAt: string; messageCount: number }>>([]);
@@ -175,7 +180,7 @@ export function FlowAIWidget() {
         id: `tmp-u-${Date.now()}`,
         role: "user",
         content: trimmed,
-        images: pendingAttachments.map((a) => a.dataUrl),
+        images: pendingAttachments.map((a) => a.dataUrl || a.url).filter((s): s is string => !!s),
       };
       const pendingMsg: WidgetMessage = {
         id: `tmp-a-${Date.now()}`,
@@ -214,7 +219,7 @@ export function FlowAIWidget() {
         const res = await send({
           message: trimmed,
           conversationId,
-          attachments: pendingAttachments.map((a) => ({ dataUrl: a.dataUrl, name: a.name })),
+          attachments: pendingAttachments.map((a) => ({ dataUrl: a.dataUrl, url: a.url, name: a.name })),
         });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
@@ -349,6 +354,18 @@ export function FlowAIWidget() {
       reader.readAsDataURL(file);
     });
   }, [attachments.length]);
+
+  // Add an image the user picked from their OWN media library (already
+  // hosted — we keep the URL; the server fetches it for vision on send).
+  const handleLibraryPick = useCallback((url: string) => {
+    setAttachments((prev) =>
+      prev.length >= 4 || prev.some((a) => a.url === url)
+        ? prev
+        : [...prev, { url, name: url.split("/").pop() || "library image" }],
+    );
+    setLibraryOpen(false);
+    setAttachMenuOpen(false);
+  }, []);
 
   const handlePlanResponse = useCallback(
     async (planId: string, confirmed: boolean) => {
@@ -539,6 +556,10 @@ export function FlowAIWidget() {
     [panelSize.width, panelSize.height],
   );
 
+  // Drives the state-based trailing control: something to send → Send;
+  // otherwise → mic + voice (mobile/ChatGPT pattern, saves composer space).
+  const canSend = input.trim().length > 0 || attachments.length > 0;
+
   return (
     <>
       {/* Bubble */}
@@ -726,7 +747,7 @@ export function FlowAIWidget() {
                   {attachments.map((a, i) => (
                     <div key={i} className="relative h-12 w-12 rounded-lg overflow-hidden border border-border group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.dataUrl} alt={a.name} className="h-full w-full object-cover" />
+                      <img src={a.dataUrl || a.url} alt={a.name} className="h-full w-full object-cover" />
                       <button
                         type="button"
                         onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
@@ -792,16 +813,45 @@ export function FlowAIWidget() {
                     e.target.value = "";
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={sending || attachments.length >= 4}
-                  className="h-9 w-9 rounded-xl border border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  aria-label="Attach image"
-                  title="Attach image"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
+                {/* Attach: a single + that opens a drop-up (Upload / Library)
+                    so device files AND the user's own media library are both
+                    reachable without cluttering the composer. */}
+                <div className="relative flex-shrink-0">
+                  {attachMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setAttachMenuOpen(false)} />
+                      <div className="absolute bottom-11 left-0 z-20 w-44 rounded-xl border border-border bg-white dark:bg-gray-900 shadow-lg overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => { setAttachMenuOpen(false); fileInputRef.current?.click(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                        >
+                          <Upload className="h-4 w-4 text-muted-foreground" /> Upload a file
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAttachMenuOpen(false); setLibraryOpen(true); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors border-t border-border"
+                        >
+                          <FolderOpen className="h-4 w-4 text-muted-foreground" /> Your media library
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAttachMenuOpen((o) => !o)}
+                    disabled={sending || attachments.length >= 4}
+                    className={cn(
+                      "h-9 w-9 rounded-xl border border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+                      attachMenuOpen && "bg-muted text-foreground",
+                    )}
+                    aria-label="Attach a file or media"
+                    title="Attach a file or media"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </button>
+                </div>
                 <textarea
                   ref={composerRef}
                   value={input}
@@ -817,48 +867,68 @@ export function FlowAIWidget() {
                   disabled={sending}
                   className="flex-1 resize-none rounded-xl border border-border bg-white dark:bg-gray-900 px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 max-h-28 overflow-y-auto disabled:opacity-50"
                 />
-                {voice.supported && (
+                {/* Trailing control is state-driven (ChatGPT/mobile-style):
+                    nothing to send → mic + voice-orb; text or an attachment →
+                    a single Send. Never all three at once — saves space. */}
+                {canSend ? (
                   <button
-                    type="button"
-                    onClick={voice.toggle}
+                    type="submit"
                     disabled={sending}
-                    className={cn(
-                      "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
-                      voice.listening
-                        ? "border-red-500 bg-red-500 text-white animate-pulse"
-                        : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                    aria-label={voice.listening ? "Stop listening" : "Speak"}
-                    title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
+                    className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    aria-label="Send"
                   >
-                    <Mic className="h-4 w-4" />
+                    <Send className="h-4 w-4" />
                   </button>
-                )}
-                {conversation.supported && (
-                  <button
-                    type="button"
-                    onClick={conversation.toggle}
-                    disabled={sending}
-                    className={cn(
-                      "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
-                      conversation.active
-                        ? "border-blue-500 bg-blue-500 text-white"
-                        : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
+                ) : (
+                  <>
+                    {voice.supported && (
+                      <button
+                        type="button"
+                        onClick={voice.toggle}
+                        disabled={sending}
+                        className={cn(
+                          "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                          voice.listening
+                            ? "border-red-500 bg-red-500 text-white animate-pulse"
+                            : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
+                        )}
+                        aria-label={voice.listening ? "Stop listening" : "Speak"}
+                        title={voice.listening ? "Listening… tap to stop" : "Dictate (push to talk)"}
+                      >
+                        <Mic className="h-4 w-4" />
+                      </button>
                     )}
-                    aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
-                    title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
-                  >
-                    <AudioLines className="h-4 w-4" />
-                  </button>
+                    {conversation.supported && (
+                      <button
+                        type="button"
+                        onClick={conversation.toggle}
+                        disabled={sending}
+                        className={cn(
+                          "h-9 w-9 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
+                          conversation.active
+                            ? "border-blue-500 bg-blue-500 text-white"
+                            : "border-border bg-white dark:bg-gray-900 hover:bg-muted text-muted-foreground hover:text-foreground",
+                        )}
+                        aria-label={conversation.active ? "End voice conversation" : "Start voice conversation"}
+                        title={conversation.active ? "End voice conversation" : "Voice conversation (hands-free)"}
+                      >
+                        <AudioLines className="h-4 w-4" />
+                      </button>
+                    )}
+                    {/* No mic/voice support → always show Send so the user can
+                        still submit (e.g. after attaching from the library). */}
+                    {!voice.supported && !conversation.supported && (
+                      <button
+                        type="submit"
+                        disabled={sending}
+                        className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 disabled:opacity-40 transition-colors flex-shrink-0"
+                        aria-label="Send"
+                      >
+                        <Send className="h-4 w-4" />
+                      </button>
+                    )}
+                  </>
                 )}
-                <button
-                  type="submit"
-                  disabled={(!input.trim() && attachments.length === 0) || sending}
-                  className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  aria-label="Send"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
               </form>
               <p className="mt-1.5 text-[10px] text-muted-foreground/70 text-center">
                 Powered by Flow-AI · Charges credits when you confirm actions
@@ -867,6 +937,15 @@ export function FlowAIWidget() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* The user's own media library — picking an image attaches its URL. */}
+      <MediaLibraryPicker
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={(url) => handleLibraryPick(url)}
+        filterTypes={["image"]}
+        title="Attach from your library"
+      />
     </>
   );
 }

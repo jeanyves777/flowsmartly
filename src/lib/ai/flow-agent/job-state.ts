@@ -31,6 +31,7 @@ const CONFIRM_CHANNEL = channel("confirm");
 interface PendingConfirmation {
   resolve: (confirmed: boolean) => void;
   timeout: NodeJS.Timeout;
+  poll: NodeJS.Timeout;
   conversationId: string;
 }
 
@@ -42,6 +43,16 @@ const pendingConfirmations = new Map<string, PendingConfirmation>();
  * tells them "you didn't confirm — let me know if you still want this."
  */
 const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * DB-poll backstop interval. The confirm route flips
+ * AgentPlanProposal.status in the DB BEFORE it signals the loop, and the DB
+ * is the source of truth. Polling it lets the loop resolve correctly within
+ * a few seconds even when the in-process / Redis wake-up signal is missed —
+ * multi-device confirm, a transient Redis hiccup, or worker churn — instead
+ * of hanging to the 10-min timeout and wrongly telling the user they declined.
+ */
+const CONFIRMATION_POLL_MS = 5 * 1000;
 
 // When Redis is enabled, every worker listens for confirm messages and
 // resolves any LOCAL pending promise that matches. The worker that
@@ -74,16 +85,42 @@ export function awaitConfirmation(
   const existing = pendingConfirmations.get(planId);
   if (existing) {
     clearTimeout(existing.timeout);
+    clearInterval(existing.poll);
     existing.resolve(false);
     pendingConfirmations.delete(planId);
   }
 
   return new Promise<boolean>((resolve) => {
-    const timeout = setTimeout(() => {
+    let settled = false;
+    const finish = (confirmed: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      clearInterval(poll);
       pendingConfirmations.delete(planId);
-      resolve(false);
-    }, CONFIRMATION_TIMEOUT_MS);
-    pendingConfirmations.set(planId, { resolve, timeout, conversationId });
+      resolve(confirmed);
+    };
+
+    const timeout = setTimeout(() => finish(false), CONFIRMATION_TIMEOUT_MS);
+
+    // Backstop: read the source-of-truth row even if no wake-up signal
+    // arrives. Resolves the loop within ~5s of a confirm/reject that the
+    // event bus missed. Never throws — a transient DB error just retries
+    // on the next tick; the 10-min timeout still guards the worst case.
+    const poll = setInterval(() => {
+      void prisma.agentPlanProposal
+        .findUnique({ where: { id: planId }, select: { status: true } })
+        .then((row) => {
+          if (!row) return; // not persisted yet / unknown — keep waiting
+          if (row.status === "confirmed") finish(true);
+          else if (row.status === "rejected" || row.status === "expired") finish(false);
+        })
+        .catch(() => {
+          /* transient DB error — keep waiting */
+        });
+    }, CONFIRMATION_POLL_MS);
+
+    pendingConfirmations.set(planId, { resolve: finish, timeout, poll, conversationId });
   });
 }
 

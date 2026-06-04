@@ -7,7 +7,9 @@ export type AiMemoryKind =
   | "media-analysis"
   | "chat-highlight"
   | "user-preference"
-  | "post-publish";
+  | "post-publish"
+  /** A durable fact/pattern the agent identified and logged about the user/brand. */
+  | "agent-note";
 
 export interface RecordAiMemoryInput {
   userId: string;
@@ -53,6 +55,101 @@ export function recordAiMemory(input: RecordAiMemoryInput): void {
         err instanceof Error ? err.message : err,
       );
     });
+}
+
+/**
+ * Awaited variant of recordAiMemory — used by the Flow-AI `remember` tool
+ * which needs to confirm the save landed (and return its id) rather than
+ * fire-and-forget. Never throws: returns null on failure so a memory write
+ * can't break the agent loop (see feedback-no-stuck-ai-chat).
+ */
+export async function saveUserMemory(input: RecordAiMemoryInput): Promise<{ id: string } | null> {
+  try {
+    const autoPin = input.pinned ?? input.kind === "brand-snapshot";
+    const row = await prisma.userAiMemory.create({
+      data: {
+        userId: input.userId,
+        kind: input.kind,
+        summary: input.summary.slice(0, 240),
+        content: JSON.stringify(input.content ?? {}),
+        mediaUrl: input.mediaUrl ?? null,
+        mediaType: input.mediaType ?? null,
+        referenceType: input.referenceType ?? null,
+        referenceId: input.referenceId ?? null,
+        pinned: autoPin,
+      },
+      select: { id: true },
+    });
+    return row;
+  } catch (err) {
+    console.warn("[ai-memory] saveUserMemory failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+export interface MemoryMatch {
+  id: string;
+  kind: string;
+  summary: string;
+  content: string;
+  mediaUrl: string | null;
+  referenceType: string | null;
+  referenceId: string | null;
+  pinned: boolean;
+  createdAt: string;
+}
+
+/**
+ * Keyword search over a user's memory log — powers the Flow-AI `recall`
+ * tool so the agent can look up older facts/work/patterns not already in
+ * the per-turn loadUserContext slice (e.g. "what did we decide about the
+ * logo placement", "the customer's name from last week").
+ *
+ * Dialect-safe: we fetch a bounded recent window and rank in JS by token
+ * overlap rather than relying on Prisma `mode: "insensitive"` (Postgres-only,
+ * absent on the local SQLite). Cheap — a user's memory log is small and the
+ * window is capped. Never throws.
+ */
+export async function searchUserMemories(
+  userId: string,
+  query: string,
+  limit = 8,
+): Promise<MemoryMatch[]> {
+  try {
+    const q = (query ?? "").trim().toLowerCase();
+    const rows = await prisma.userAiMemory.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        kind: true,
+        summary: true,
+        content: true,
+        mediaUrl: true,
+        referenceType: true,
+        referenceId: true,
+        pinned: true,
+        createdAt: true,
+      },
+    });
+    const tokens = q.split(/\s+/).filter((t) => t.length > 1);
+    const scored = rows
+      .map((r) => {
+        const hay = `${r.summary} ${r.content} ${r.kind}`.toLowerCase();
+        // No query → return most recent. Otherwise score by token hits.
+        const score = tokens.length === 0 ? 1 : tokens.reduce((s, t) => (hay.includes(t) ? s + 1 : s), 0);
+        return { r, score };
+      })
+      .filter((x) => x.score > 0)
+      // Pinned + more-recent break ties, but token score leads.
+      .sort((a, b) => b.score - a.score || (b.r.pinned ? 1 : 0) - (a.r.pinned ? 1 : 0))
+      .slice(0, Math.max(1, Math.min(limit, 25)));
+    return scored.map(({ r }) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  } catch (err) {
+    console.warn("[ai-memory] searchUserMemories failed:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 export interface UserContextSnapshot {
@@ -230,6 +327,31 @@ export function renderContextForPrompt(ctx: UserContextSnapshot): string {
   if (ctx.recentMemories.length) {
     parts.push(
       `Recent work:\n${ctx.recentMemories.map((m) => `- [${m.kind}] ${m.summary}`).join("\n")}`,
+    );
+  }
+  return parts.join("\n\n");
+}
+
+/**
+ * Render ONLY the memory log (pinned facts/patterns + recent work) for the
+ * Flow-AI agent's system prompt. Brand identity is rendered separately by
+ * the agent prompt, so we skip it here to avoid duplication / token waste.
+ * Returns "" when there's nothing worth injecting.
+ */
+export function renderAgentMemory(ctx: UserContextSnapshot): string {
+  const parts: string[] = [];
+  if (ctx.pinnedMemories.length) {
+    parts.push(
+      `Known facts & patterns (pinned — these persist across all conversations):\n${ctx.pinnedMemories
+        .map((m) => `- [${m.kind}] ${m.summary}`)
+        .join("\n")}`,
+    );
+  }
+  if (ctx.recentMemories.length) {
+    parts.push(
+      `Recent work & highlights (most recent first):\n${ctx.recentMemories
+        .map((m) => `- [${m.kind}] ${m.summary}`)
+        .join("\n")}`,
     );
   }
   return parts.join("\n\n");
