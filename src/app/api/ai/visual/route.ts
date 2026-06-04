@@ -1294,6 +1294,7 @@ TEXT ZONE — the left 45%:
 6. NEGATIVE SPACE:
    - Margins of at least 5% on all four edges. Nothing should crowd the canvas edges.
    - Generous space between the headline block and the supporting copy. Resist filling every pixel.
+   - RESERVE one of the two TOP corners as clear, low-detail space (sky, soft gradient, plain wall, or empty background — roughly 22% of the width and ~18% of the height) with NO text and no critical subject in it. The user's real brand logo is overlaid in that reserved corner AFTER generation, so it must never end up on top of any text or the focal subject. Keep headline and body text clear of at least one top corner.
 
 7. COLOUR DISCIPLINE:
    - Use the user's brand palette (or the picked palette) — primary as the dominant hue, accent for the small details (icons, dividers, CTA), neutral for body text. Maximum 3 colours total + white/black for text contrast.

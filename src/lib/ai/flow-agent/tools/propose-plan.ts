@@ -114,31 +114,38 @@ export const proposePlan: FlowAgentTool = {
       const confirmed = await ctx.awaitConfirmation(planId);
 
       // Reconcile DB status. If a parallel /confirm call already updated
-      // the row, leave it alone — that's the authoritative answer.
+      // the row, leave it alone — that's the authoritative answer. We also
+      // read it back to tell an explicit CANCEL ("rejected") apart from a
+      // walk-away TIMEOUT ("expired") so the agent can respond correctly.
       const current = await prisma.agentPlanProposal.findUnique({
         where: { id: planId },
         select: { status: true },
       });
+      let finalStatus = current?.status ?? (confirmed ? "confirmed" : "expired");
       if (current?.status === "pending") {
+        finalStatus = confirmed ? "confirmed" : "expired";
         await prisma.agentPlanProposal.update({
           where: { id: planId },
-          data: {
-            status: confirmed ? "confirmed" : "expired",
-            resolvedAt: new Date(),
-          },
+          data: { status: finalStatus, resolvedAt: new Date() },
         });
       }
+
+      const canceled = !confirmed && finalStatus === "rejected";
 
       return {
         ok: true,
         data: {
           planId,
           confirmed,
+          canceled,
+          status: finalStatus,
           summary,
           totalCreditCost,
           guidance: confirmed
             ? `User confirmed. You may now call the mutating tools listed in the steps. Pass planId="${planId}" to each of them as their \`planId\` argument.`
-            : `User declined or timed out. Acknowledge briefly and ask what they'd like to do instead.`,
+            : canceled
+              ? `The user CANCELED this plan (clicked Cancel) — they did NOT approve it. Do NOT run any of these steps. Respond NOW in a short message: acknowledge the cancel, then ask what they'd like to change or what would work better, and re-propose once you know. A cancel means "let's adjust", not "stop" — never go silent.`
+              : `The plan card timed out — the user didn't respond. Do NOT run the steps. Briefly let them know it's still ready whenever they are, and offer to proceed.`,
         },
       };
     } catch (e) {

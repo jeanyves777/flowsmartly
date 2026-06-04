@@ -30,7 +30,7 @@ import { saveToMediaLibrary } from "../save-media";
 export const editImage: FlowAgentTool = {
   name: "edit_image",
   description:
-    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or composite the user's real brand logo onto it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for an edit instruction ('make the sky sunset', 'remove the text', 'add a coffee cup'). Set `addBrandLogo: true` to overlay the user's actual BrandKit logo (never an AI-drawn one). At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. A logo-only composite (no prompt) is free; an AI edit costs the image tier price — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
+    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or composite the user's real brand logo onto it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for the edit instruction — when the user asked for SEVERAL changes, put ALL of them in one prompt as a numbered list ('1) remove the duplicate logo on the right, 2) darken the background behind the text so it's readable, 3) keep the WATCH OUT headline and all contact details crisp'); this tool applies every change in a single pass, so never call it with just one change when the user asked for more. Set `addBrandLogo: true` to overlay the user's actual BrandKit logo (never an AI-drawn one) — it's auto-placed in a clear corner that avoids covering text. At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. A logo-only composite (no prompt) is free; an AI edit costs the image tier price — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
   input_schema: {
     type: "object",
     properties: {
@@ -125,9 +125,10 @@ export const editImage: FlowAgentTool = {
             : "";
           const enrichedPrompt = withLanguagePrefix(
             [
+              "Apply ALL of the following changes to this image in a SINGLE edit — do not skip, reorder away, or only partially apply any of them:",
               prompt,
               brandLine,
-              "Preserve the subject and composition of the original; apply only the requested change. Do NOT add any logo or brand mark — we composite the real one after.",
+              "Preserve the subject, identity, and overall composition of the original except where a change above requires otherwise. Keep every intended piece of text crisp and fully legible (improve contrast/background behind text if readability was requested). Do NOT add any logo or brand mark — we composite the real one after.",
             ]
               .filter(Boolean)
               .join(" "),
