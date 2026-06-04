@@ -1072,6 +1072,9 @@ export default function ContentPostsPage() {
   const [aiDetailsOpen, setAiDetailsOpen] = useState(false);
   const [productAdTemplate, setProductAdTemplate] = useState<ProductAdTemplateId>("floating_product");
   const [productAdPreset, setProductAdPreset] = useState<ProductAdPresetId>("premium_mockup");
+  // Templates + presets are collapsed by default to declutter the playground.
+  const [showProductAdTemplates, setShowProductAdTemplates] = useState(false);
+  const [showProductAdPresets, setShowProductAdPresets] = useState(false);
   const [productAdPrompt, setProductAdPrompt] = useState("");
   const [productAdAspect, setProductAdAspect] = useState<FlowMediaAspect>("1:1");
   const [productAdStyle, setProductAdStyle] = useState("premium");
@@ -3684,10 +3687,21 @@ export default function ContentPostsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    <PenSquare className="h-3.5 w-3.5 text-brand-500" />
-                    Visual ad templates
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductAdTemplates((v) => !v)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background/80 px-2.5 py-2 text-left transition hover:border-brand-500/40"
+                  >
+                    <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      <PenSquare className="h-3.5 w-3.5 text-brand-500" />
+                      Visual ad templates
+                      <span className="rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-semibold normal-case text-brand-600 dark:text-brand-300">
+                        {getProductAdTemplate(productAdTemplate).title}
+                      </span>
+                    </span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showProductAdTemplates ? "rotate-180" : ""}`} />
+                  </button>
+                  {showProductAdTemplates && (
                   <div className="grid max-h-[320px] grid-cols-2 items-start gap-2 overflow-y-auto pr-1 lg:grid-cols-3">
                     {PRODUCT_AD_TEMPLATES.map((template) => {
                       const isActive = productAdTemplate === template.id;
@@ -3727,13 +3741,25 @@ export default function ContentPostsPage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 rounded-xl border bg-background/80 p-2.5">
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <SlidersHorizontal className="h-4 w-4 text-cyan-600" />
-                    Preset instruction
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductAdPresets((v) => !v)}
+                    className="flex w-full items-center justify-between gap-2 text-left"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-bold">
+                      <SlidersHorizontal className="h-4 w-4 text-cyan-600" />
+                      Preset instruction
+                      <span className="rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-cyan-700 dark:text-cyan-300">
+                        {getProductAdPreset(productAdPreset).label}
+                      </span>
+                    </span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showProductAdPresets ? "rotate-180" : ""}`} />
+                  </button>
+                  {showProductAdPresets && (
                   <div className="grid gap-2 sm:grid-cols-5">
                     {PRODUCT_AD_PRESETS.map((preset) => {
                       const isActive = productAdPreset === preset.id;
@@ -3754,6 +3780,7 @@ export default function ContentPostsPage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
