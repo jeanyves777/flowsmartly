@@ -27,6 +27,68 @@ export async function GET(request: NextRequest) {
   }
 
   const sp = request.nextUrl.searchParams;
+
+  // ── Diagnostic (?diag=1): how much engagement is actually reaching REAL users
+  // today, vs the synthetic ecosystem. Answers "is it working / why don't I see it". ──
+  if (sp.get("diag") === "1") {
+    const { prisma } = await import("@/lib/db/client");
+    const ds = new Date();
+    ds.setUTCHours(0, 0, 0, 0);
+    const [realUsers, realPosts21d, syntheticPosts, socialRows] = await Promise.all([
+      prisma.user.count({ where: { isSynthetic: false, deletedAt: null } }),
+      prisma.post.count({
+        where: {
+          status: "PUBLISHED",
+          deletedAt: null,
+          user: { isSynthetic: false },
+          createdAt: { gte: new Date(Date.now() - 21 * 864e5) },
+        },
+      }),
+      prisma.post.count({ where: { status: "PUBLISHED", deletedAt: null, user: { isSynthetic: true } } }),
+      prisma.syntheticActivityLog.groupBy({
+        by: ["targetUserId"],
+        where: {
+          createdAt: { gte: ds },
+          targetUserId: { not: null },
+          action: { in: ["like", "comment", "reply", "share", "follow"] },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+    const ids = socialRows.map((r) => r.targetUserId).filter(Boolean) as string[];
+    const realTargets = await prisma.user.findMany({
+      where: { id: { in: ids }, isSynthetic: false },
+      select: { id: true, username: true, name: true, plan: true },
+    });
+    const realMap = new Map(realTargets.map((u) => [u.id, u]));
+    let realActions = 0;
+    let synthActions = 0;
+    const perReal: Array<{ username: string; name: string; plan: string; count: number }> = [];
+    for (const r of socialRows) {
+      const u = r.targetUserId ? realMap.get(r.targetUserId) : undefined;
+      if (u) {
+        realActions += r._count._all;
+        perReal.push({ username: u.username, name: u.name, plan: u.plan, count: r._count._all });
+      } else {
+        synthActions += r._count._all;
+      }
+    }
+    perReal.sort((a, b) => b.count - a.count);
+    const todayTotal = await prisma.syntheticActivityLog.count({ where: { createdAt: { gte: ds } } });
+    return NextResponse.json({
+      success: true,
+      diag: {
+        realUsers,
+        realPosts21d,
+        syntheticPosts,
+        todayTotalActions: todayTotal,
+        todaySocialReal: realActions,
+        todaySocialSynthetic: synthActions,
+        realRecipientsEngagedToday: perReal.length,
+        topRealRecipients: perReal.slice(0, 12),
+      },
+    });
+  }
   const seed = Math.max(0, Math.min(40, parseInt(sp.get("seed") || "0", 10)));
   const generate = Math.max(0, Math.min(1000, parseInt(sp.get("generate") || "0", 10)));
   const activateParam = sp.get("activate");
