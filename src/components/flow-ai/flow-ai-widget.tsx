@@ -434,7 +434,7 @@ export function FlowAIWidget() {
         const res = await fetch(`/api/ai/assistant/conversations/${id}`);
         const json = await res.json();
         const conv = json?.data ?? json;
-        const rawMsgs: Array<{ id: string; role: string; content: string }> = conv?.messages ?? [];
+        const rawMsgs: Array<{ id: string; role: string; content: string; mediaUrl?: string | null }> = conv?.messages ?? [];
         setMessages(
           rawMsgs
             .filter((m) => m.role === "user" || m.role === "assistant")
@@ -442,6 +442,8 @@ export function FlowAIWidget() {
               id: m.id,
               role: m.role as "user" | "assistant",
               content: m.content,
+              // Restore attached/produced media so it isn't lost on reopen.
+              images: m.mediaUrl ? [m.mediaUrl] : undefined,
             })),
         );
         // Rehydrate plan proposals + tasks for this conversation so cards
