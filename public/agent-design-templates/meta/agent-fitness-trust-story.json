@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-fitness-trust-story.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-trust-story.png",
-  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 18 of 100."
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 18 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22d7184e00819385bf5c235a28cf86.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T14:06:06.584Z"
 }

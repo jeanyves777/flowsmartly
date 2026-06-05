@@ -62,5 +62,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-medical_clinic-event-invite.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-event-invite.png",
-  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 11 of 100."
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 11 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22c7bdf2a881939befb04159c2416e.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T12:59:33.579Z"
 }

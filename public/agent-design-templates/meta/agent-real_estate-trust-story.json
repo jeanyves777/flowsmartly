@@ -61,5 +61,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-real_estate-trust-story.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-trust-story.png",
-  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 6 of 100."
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 6 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22a9a4c17c8193bab1689377aac816.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T10:50:41.903Z"
 }

@@ -61,5 +61,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-fitness-event-invite.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-event-invite.png",
-  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 19 of 100."
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 19 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22d9c263248193b80912b603308ad3.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T14:17:32.970Z"
 }

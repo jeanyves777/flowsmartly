@@ -61,5 +61,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-medical_clinic-launch-offer.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-launch-offer.png",
-  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 9 of 100."
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 9 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22ae628234819387ffa81151444a59.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T11:11:32.937Z"
 }

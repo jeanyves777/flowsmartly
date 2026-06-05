@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T10:43:53.183Z",
+  "generatedAt": "2026-06-05T14:28:45.177Z",
   "count": 100,
-  "codexImagegenCount": 4,
+  "codexImagegenCount": 20,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -131,8 +131,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:48:17.316Z"
     },
     {
       "id": "agent-real_estate-trust-story",
@@ -158,8 +158,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:50:41.903Z"
     },
     {
       "id": "agent-real_estate-event-invite",
@@ -185,8 +185,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:53:11.088Z"
     },
     {
       "id": "agent-real_estate-premium-showcase",
@@ -212,8 +212,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:57:46.183Z"
     },
     {
       "id": "agent-medical_clinic-launch-offer",
@@ -239,8 +239,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T11:11:32.937Z"
     },
     {
       "id": "agent-medical_clinic-trust-story",
@@ -266,8 +266,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T11:16:06.661Z"
     },
     {
       "id": "agent-medical_clinic-event-invite",
@@ -293,8 +293,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T12:59:33.579Z"
     },
     {
       "id": "agent-medical_clinic-premium-showcase",
@@ -320,8 +320,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:06:24.670Z"
     },
     {
       "id": "agent-dental-launch-offer",
@@ -346,8 +346,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:12:24.960Z"
     },
     {
       "id": "agent-dental-trust-story",
@@ -372,8 +372,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:20:37.520Z"
     },
     {
       "id": "agent-dental-event-invite",
@@ -398,8 +398,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:28:02.241Z"
     },
     {
       "id": "agent-dental-premium-showcase",
@@ -424,8 +424,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:41:06.346Z"
     },
     {
       "id": "agent-fitness-launch-offer",
@@ -450,8 +450,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T13:54:45.671Z"
     },
     {
       "id": "agent-fitness-trust-story",
@@ -476,8 +476,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T14:06:06.584Z"
     },
     {
       "id": "agent-fitness-event-invite",
@@ -502,8 +502,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T14:17:32.970Z"
     },
     {
       "id": "agent-fitness-premium-showcase",
@@ -528,8 +528,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T14:28:45.154Z"
     },
     {
       "id": "agent-beauty_salon-launch-offer",

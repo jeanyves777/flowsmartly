@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-fitness-premium-showcase.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-premium-showcase.png",
-  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 20 of 100."
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 20 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22dc98b2ac8193bbec85e9b79f4ca3.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T14:28:45.154Z"
 }

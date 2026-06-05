@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-dental-trust-story.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-dental-trust-story.png",
-  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 14 of 100."
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 14 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22cca098ac819380f88bcb2a492451.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T13:20:37.520Z"
 }

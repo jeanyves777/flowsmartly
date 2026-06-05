@@ -34,7 +34,7 @@ import {
 export const createBrandedDesign: FlowAgentTool = {
   name: "create_branded_design",
   description:
-    "Create a polished, ON-BRAND image via the platform's FlowCreative engine (the SAME engine the Studio Create modal uses) — use this for ANY branded or marketing visual: ads, flyers, birthday/holiday cards, announcements, product images, social posts. It automatically applies the user's brand colors, composites their REAL logo, and — when reference photos are supplied — PRESERVES the real person's/product's identity (never invents a lookalike). If the user uploaded a photo of a person/product, you MUST pass its URL in referenceImageUrls — otherwise the engine generates a stranger. Tiers differ in engine quality (Premium = sharper text/detail); always ask which they want and read the exact live prices from list_my_features (admin-set, from the DB) — never hardcode. Keep the prompt focused on the user's actual request; don't pile on brand-tone adjectives (the engine applies the brand separately). Pass `planId` from a confirmed propose_plan. Runs in the background and notifies when ready.",
+    "Create a polished, ON-BRAND image via the platform's FlowCreative engine (the SAME engine the Studio Create modal uses) — use this for ANY branded or marketing visual: ads, flyers, birthday/holiday cards, announcements, product images, social posts. It automatically applies the user's brand colors, composites their REAL logo, and — when reference photos are supplied — PRESERVES the real person's/product's identity (never invents a lookalike). If the user uploaded a photo of a person/product, you MUST pass its URL in referenceImageUrls — otherwise the engine generates a stranger. ALWAYS confirm the FORMAT/SIZE before generating if the user hasn't said: square (social post, 1080×1080), portrait (flyer/story, 1080×1920), or landscape (1920×1080) — a 'flyer' or 'poster' is almost always PORTRAIT, a feed post is square; ask in the same breath as the tier rather than assuming. Tiers differ in engine quality (Premium = sharper text/detail); always ask which they want and read the exact live prices from list_my_features (admin-set, from the DB) — never hardcode. Keep the prompt focused on the user's actual request; don't pile on brand-tone adjectives (the engine applies the brand separately). Pass `planId` from a confirmed propose_plan. Runs in the background and notifies when ready.",
   input_schema: {
     type: "object",
     properties: {
@@ -54,7 +54,7 @@ export const createBrandedDesign: FlowAgentTool = {
       },
       orientation: {
         type: "string",
-        description: "'square' (1080x1080, default), 'portrait'/'story' (1080x1920), or 'landscape'/'wide' (1920x1080).",
+        description: "'square' (1080x1080, default for a feed post), 'portrait'/'story' (1080x1920 — use this for FLYERS, posters, and stories), or 'landscape'/'wide' (1920x1080). Set this from what the user confirmed; default a 'flyer'/'poster' to portrait, a feed post to square.",
       },
       style: { type: "string", description: "Visual style: 'modern' (default), 'photorealistic', 'minimalist', 'vintage', 'illustration', 'elegant', etc." },
       ctaText: { type: "string", description: "Optional call-to-action button text. Omit for cards/announcements with no button." },
@@ -165,7 +165,7 @@ export const createBrandedDesign: FlowAgentTool = {
     // Same policy scaffolding the Create modal uses so quality matches the
     // product page. Logo lock + anti-invention + exact-reference handling.
     const logoPolicy = hasBrandLogo
-      ? "Logo lock: do NOT draw any logo, wordmark, emblem, seal, crest, mascot, badge, or monogram. FlowSmartly composites the REAL brand logo after generation — leave that area natural, no placeholder box/frame/watermark."
+      ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, badge, or monogram — the user's REAL brand logo is composited on afterward. RESERVE A CALM CORNER for it: keep one top corner (top-left OR top-right) free of headlines, body text, faces, and key graphics — that corner must stay quiet background only, about 26% of the width and 16% of the height, so the logo sits cleanly with breathing room and never overlaps text. Do NOT add a placeholder box, frame, label, or watermark there — just leave it uncluttered."
       : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
     const exactReferencePolicy = referenceImageUrls.length
       ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
@@ -228,7 +228,11 @@ export const createBrandedDesign: FlowAgentTool = {
       brandColors: colors,
       brandLogo,
       brandName: brandKit?.name || null,
-      showBrandName: !!brandKit?.name,
+      // When a logo exists, the composited logo IS the brand mark — do NOT also
+      // tell the engine to render the brand NAME as text, or it draws a wordmark
+      // header that the logo then overlaps (the recurring collision). Name-as-text
+      // only when there's no logo to carry the brand.
+      showBrandName: hasBrandLogo ? false : !!brandKit?.name,
       showSocialIcons: true,
       socialHandles: handles,
       contactInfo,

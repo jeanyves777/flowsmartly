@@ -61,5 +61,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-real_estate-premium-showcase.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-premium-showcase.png",
-  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 8 of 100."
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 8 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22ab57ece88193a0168270ba11d9e2.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T10:57:46.183Z"
 }
