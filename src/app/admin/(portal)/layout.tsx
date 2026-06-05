@@ -122,6 +122,7 @@ const serviceItems: NavItem[] = [
 // Marketing section
 const marketingItems: NavItem[] = [
   { href: "/admin/feedback", icon: Bug, label: "Feedback Reports", permission: "VIEW_CONTENT" },
+  { href: "/admin/ai-feedback", icon: Sparkles, label: "AI Chat Feedback", permission: "VIEW_CONTENT" },
   { href: "/admin/demo-requests", icon: Calendar, label: "Demo Requests", permission: "VIEW_CONTENT" },
   { href: "/admin/campaigns", icon: Megaphone, label: "Campaigns", permission: "VIEW_CONTENT" },
   { href: "/admin/ads", icon: Megaphone, label: "Ad Review", permission: "MODERATE_CONTENT" },

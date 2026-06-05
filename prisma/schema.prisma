@@ -150,6 +150,7 @@ model User {
   websiteBlogPosts      WebsiteBlogPost[]
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
+  aiFeedback            AIFeedback[]                    @relation("AIFeedback_user")
   syntheticPersona      SyntheticPersona?
   blocksInitiated       UserBlock[]                     @relation("UserBlocks_blocker")
   blocksReceived        UserBlock[]                     @relation("UserBlocks_blocked")
@@ -245,6 +246,33 @@ model FeedbackReport {
   @@index([status])
   @@index([priority])
   @@index([createdAt])
+}
+
+// AI chat thumbs-up / thumbs-down feedback captured from the mobile Flow-AI chat
+// (and any future surface). Each row pins a single AI turn the user rated, plus
+// a snapshot of the surrounding context so the team can review and tune Flow-AI
+// responses. Sentiment is kept as a string (not enum) to dodge migration churn.
+model AIFeedback {
+  id             String    @id @default(cuid())
+  userId         String
+  conversationId String?
+  messageId      String // client-side message UUID
+  sentiment      String // "POSITIVE" | "NEGATIVE"
+  category       String? // free-form ID — see route validation for common values
+  comment        String?
+  snapshot       String // JSON-stringified per-message context from the client
+  reviewed       Boolean   @default(false)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime  @default(now())
+
+  user User @relation("AIFeedback_user", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt])
+  @@index([sentiment, reviewed, createdAt])
+  @@index([conversationId])
 }
 
 model Session {
@@ -2861,6 +2889,29 @@ model AgentToolCall {
   @@index([conversationId, seq])
   @@index([conversationId, createdAt])
   @@index([taskId])
+}
+
+// ============================================
+// AgentFeedback — thumbs up/down on a Flow-AI reply. Captures a snapshot of
+// the whole conversation flow so we can review good/bad responses.
+// ============================================
+model AgentFeedback {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String?
+  messageId      String? // the assistant AIMessage being rated
+  rating         String // "up" | "down"
+  note           String? // optional user comment (future)
+  snapshot       String   @default("[]") // JSON: the conversation flow at report time
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One feedback row per user per message — re-clicking flips/updates it.
+  @@unique([userId, messageId])
+  @@index([rating, createdAt])
+  @@index([userId])
 }
 
 // ============================================
