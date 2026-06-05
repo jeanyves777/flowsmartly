@@ -669,6 +669,20 @@ function sanitizeBrandIdentityForPrompt(value: unknown, hasRealLogo: boolean): R
   return sanitized;
 }
 
+/**
+ * Swap printed-object artifact nouns ("flyer", "poster", "brochure"…) for the
+ * neutral "design" in the user's prompt. Naming the output as one of these
+ * triggers a strong "printed sheet photographed on a surface" prior in xAI /
+ * Imagen / Nano Banana (Gemini 2.5 Flash Image) — they render a flyer lying on
+ * a table instead of a full-frame graphic. See feedback_no_text_rules_in_image_prompts.
+ */
+function sanitizeArtifactNouns(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\bbusiness cards?\b/gi, "design")
+    .replace(/\b(flyers?|fliers?|posters?|postcards?|leaflets?|brochures?|pamphlets?|billboards?)\b/gi, "design");
+}
+
 function buildRawBrandPrompt(params: PipelineParams): string {
   const brandIdentity = sanitizeBrandIdentityForPrompt(params.brandIdentity || {}, Boolean(params.brandLogo));
   const fallbackBrand = compactPromptValue({
@@ -715,7 +729,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
       : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
-    params.prompt,
+    sanitizeArtifactNouns(params.prompt),
   ]
     .filter((line) => line !== null)
     .join("\n");
