@@ -139,6 +139,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     timezone: input.timezone,
     recentTasks: input.recentTasks,
     recentProposals: input.recentProposals,
+    userMessage: input.userMessage,
   });
 
   // Seed Claude with prior conversation. Skip the just-saved user message —

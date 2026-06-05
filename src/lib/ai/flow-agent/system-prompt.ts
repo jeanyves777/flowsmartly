@@ -41,12 +41,14 @@ export interface BuildAgentSystemPromptInput {
   recentTasks?: RecentTaskContext[];
   /** Plans proposed earlier in this conversation + their status. */
   recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
+  /** The user's incoming message this turn — used to detect status questions. */
+  userMessage?: string;
 }
 
 export async function buildAgentSystemPrompt(
   input: BuildAgentSystemPromptInput,
 ): Promise<string> {
-  const { userId, clientNow, timezone, recentTasks, recentProposals } = input;
+  const { userId, clientNow, timezone, recentTasks, recentProposals, userMessage } = input;
 
   // Pull a thin slice — brand name + plan — so the very first turn already
   // has identity. The full brand kit comes from get_brand_identity when needed.
@@ -99,6 +101,30 @@ export async function buildAgentSystemPrompt(
       return `- ${t.kind} → ${state}${t.note ? ` (${t.note})` : ""}${doneRef}`;
     });
 
+  // Deterministic guard for the #1 reported bug: the user asks a short status
+  // question ("?", "is it ready?", "done?", "where is it") and the agent — going
+  // off its own earlier "I'll notify you" message instead of the live list below —
+  // wrongly says "still being created" about a job that's ALREADY done. We detect
+  // that exact case server-side and inject a blunt, top-of-prompt directive so the
+  // model can't miss it. Only fires when there IS a finished job and NOTHING is
+  // still running (so we never tell the user it's done while it's actually cooking).
+  const doneTasks = (recentTasks ?? []).filter((t) => t.status === "completed");
+  const stillRunning = (recentTasks ?? []).some(
+    (t) => t.status === "running" || t.status === "pending",
+  );
+  const msg = (userMessage ?? "").trim().toLowerCase();
+  const isStatusQuestion =
+    msg.length > 0 &&
+    msg.length <= 60 &&
+    (/^[?¿\s]+$/.test(msg) ||
+      /\b(ready|done|finished|complete|status|update|where('?s| is)? (it|my|the)|how('?s| is) it going|any progress|is it (ready|done|up|live)|did (it|you) finish|still (working|processing|going|cooking)|what about (my|the)|so\?+)\b/.test(
+        msg,
+      ));
+  const statusDirective =
+    isStatusQuestion && doneTasks.length > 0 && !stillRunning
+      ? `# ⚠️ ANSWER FROM LIVE STATUS — the user is asking whether a job is ready\nThe user's message ("${(userMessage ?? "").slice(0, 80)}") is a status check, and the Background-jobs list below shows a job ALREADY DONE with NOTHING still running. The result is already visible to them as a card. Confirm it is READY and point them to it (offer to post/edit/download it). Do NOT say "still being created", "still processing", "I'll notify you", or "let me check" — that contradicts the live status and is the #1 reported bug.`
+      : null;
+
   // Plans the agent already proposed this conversation + their outcome — so it
   // KNOWS what it offered and whether the user confirmed/canceled (it can't see
   // the cards directly). Stops "I don't know if you confirmed" confusion and
@@ -118,6 +144,7 @@ export async function buildAgentSystemPrompt(
     });
 
   return [
+    ...(statusDirective ? [statusDirective, ``] : []),
     `You are Flow-AI — the conversational agent for FlowSmartly, a social-media + marketing platform. You can ACT on the user's account through tools: schedule posts, run campaigns, generate media, manage contacts, look up state. You are not a redirect bot.`,
     ``,
     `# Identity`,

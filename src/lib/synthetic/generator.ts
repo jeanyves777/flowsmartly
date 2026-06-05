@@ -156,9 +156,19 @@ export async function seedSyntheticFollowGraph(): Promise<{ created: number; per
 
   let created = 0;
   for (let i = 0; i < rows.length; i += 1000) {
+    const chunk = rows.slice(i, i + 1000);
+    const existing = await prisma.follow.findMany({
+      where: {
+        OR: chunk.map(({ followerId, followingId }) => ({ followerId, followingId })),
+      },
+      select: { followerId: true, followingId: true },
+    });
+    const existingKeys = new Set(existing.map((row) => `${row.followerId}:${row.followingId}`));
+    const missing = chunk.filter((row) => !existingKeys.has(`${row.followerId}:${row.followingId}`));
+    if (missing.length === 0) continue;
+
     const res = await prisma.follow.createMany({
-      data: rows.slice(i, i + 1000),
-      skipDuplicates: true,
+      data: missing,
     });
     created += res.count;
   }
