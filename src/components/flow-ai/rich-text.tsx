@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { CreditCard, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -172,16 +173,102 @@ function renderBlock(block: Block, key: number): React.ReactNode {
   }
 }
 
+// Internal app routes the agent commonly points users to. Rendered as a
+// clickable chip/button instead of a plain "/credits" string — the user asked
+// for "any system info link rendered in a nice clickable card not plain link".
+// Whitelisted so we never linkify "and/or", "24/7", a date "12/25", etc.
+const INTERNAL_ROUTE_SEGMENTS = [
+  "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+  "settings", "brand-kit", "studio", "websites", "ecommerce", "content", "flow-ai",
+  "tools", "media", "designs", "account", "contacts", "campaigns", "automations",
+  "analytics", "posts", "calendar", "earnings", "payouts", "dashboard", "store",
+] as const;
+
+// Routes that should read as a primary call-to-action (money / plan), so the
+// "out of credits" reply shows an inviting button, not a bland link.
+const PRIMARY_ROUTE_SEGMENTS = new Set([
+  "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+]);
+
+const ROUTE_LABELS: Record<string, string> = {
+  credits: "Add credits",
+  billing: "Billing",
+  subscription: "Manage plan",
+  subscriptions: "Manage plan",
+  pricing: "View plans",
+  plans: "View plans",
+  upgrade: "Upgrade plan",
+  settings: "Settings",
+  "brand-kit": "Brand Kit",
+  studio: "Studio",
+  websites: "Websites",
+  ecommerce: "Store",
+  store: "Store",
+  content: "Content",
+  "flow-ai": "Flow-AI",
+  tools: "Tools",
+  media: "Media",
+  designs: "Designs",
+  account: "Account",
+  contacts: "Contacts",
+  campaigns: "Campaigns",
+  automations: "Automations",
+  analytics: "Analytics",
+  posts: "Posts",
+  calendar: "Calendar",
+  earnings: "Earnings",
+  payouts: "Payouts",
+  dashboard: "Dashboard",
+};
+
+const INTERNAL_PATH_SOURCE =
+  `\\/(?:${INTERNAL_ROUTE_SEGMENTS.join("|")})(?:\\/[A-Za-z0-9_\\-]+)*\\/?`;
+
+function humanizeSegment(seg: string): string {
+  return seg
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+/** Render an internal app path as a clickable chip — primary CTA for money/plan routes. */
+function renderInternalPath(rawPath: string, key: number): React.ReactNode {
+  const path = rawPath.replace(/\/$/, "") || rawPath;
+  const seg = path.split("/")[1]?.toLowerCase() ?? "";
+  const primary = PRIMARY_ROUTE_SEGMENTS.has(seg);
+  const label = ROUTE_LABELS[seg] ?? humanizeSegment(seg);
+  return (
+    <a
+      key={key}
+      href={safeHref(path)}
+      className={cn(
+        "inline-flex items-center gap-1 align-middle no-underline transition-colors",
+        primary
+          ? "px-2.5 py-1 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white text-xs font-semibold hover:opacity-90 shadow-sm"
+          : "px-2 py-0.5 rounded-md bg-muted text-foreground text-xs font-medium hover:bg-muted/70",
+      )}
+    >
+      {primary ? <CreditCard className="h-3.5 w-3.5" /> : null}
+      {label}
+      {primary ? <ArrowUpRight className="h-3 w-3 opacity-80" /> : null}
+    </a>
+  );
+}
+
 /**
  * Inline tokenizer — handles bold, italic, inline code, markdown links,
- * and bare URLs. Returns an array of React nodes.
+ * bare URLs, and internal app paths (rendered as clickable chips). Returns
+ * an array of React nodes.
  */
 function renderInline(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   // Order matters: code first (so we don't format inside it), then links,
-  // then bold, then italic, then bare urls.
-  const pattern =
-    /(`[^`]+`)|(\[[^\]]+\]\([^)]+\))|(\*\*[^*]+\*\*)|(\*[^*]+\*)|(_[^_]+_)|(https?:\/\/[^\s)]+)/g;
+  // then bold, then italic, then bare urls, then internal paths LAST (so a
+  // full https URL containing "/credits" is consumed as a URL, not split).
+  const pattern = new RegExp(
+    `(\`[^\`]+\`)|(\\[[^\\]]+\\]\\([^)]+\\))|(\\*\\*[^*]+\\*\\*)|(\\*[^*]+\\*)|(_[^_]+_)|(https?:\\/\\/[^\\s)]+)|(${INTERNAL_PATH_SOURCE})`,
+    "g",
+  );
   let lastIndex = 0;
   let m: RegExpExecArray | null;
   let k = 0;
@@ -199,20 +286,28 @@ function renderInline(text: string): React.ReactNode[] {
     } else if (token.startsWith("[")) {
       const lm = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (lm) {
-        nodes.push(
-          <a key={k++} href={safeHref(lm[2])} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline underline-offset-2">
-            {lm[1]}
-          </a>,
-        );
+        const href = lm[2];
+        // A markdown link to an internal route → render the nice chip too.
+        if (href.startsWith("/") && INTERNAL_ROUTE_SEGMENTS.includes(href.split("/")[1]?.toLowerCase() as (typeof INTERNAL_ROUTE_SEGMENTS)[number])) {
+          nodes.push(renderInternalPath(href, k++));
+        } else {
+          nodes.push(
+            <a key={k++} href={safeHref(href)} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline underline-offset-2">
+              {lm[1]}
+            </a>,
+          );
+        }
       } else {
         nodes.push(token);
       }
     } else if (token.startsWith("**")) {
-      nodes.push(<strong key={k++}>{token.slice(2, -2)}</strong>);
+      nodes.push(<strong key={k++}>{renderInline(token.slice(2, -2))}</strong>);
     } else if (token.startsWith("*")) {
-      nodes.push(<em key={k++}>{token.slice(1, -1)}</em>);
+      nodes.push(<em key={k++}>{renderInline(token.slice(1, -1))}</em>);
     } else if (token.startsWith("_")) {
-      nodes.push(<em key={k++}>{token.slice(1, -1)}</em>);
+      nodes.push(<em key={k++}>{renderInline(token.slice(1, -1))}</em>);
+    } else if (token.startsWith("/")) {
+      nodes.push(renderInternalPath(token, k++));
     } else if (token.startsWith("http")) {
       // If the model slipped a raw asset URL into its reply (it shouldn't —
       // finished media renders as a card), show it as an inline thumbnail
