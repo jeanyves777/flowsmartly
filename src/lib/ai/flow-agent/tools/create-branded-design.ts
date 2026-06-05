@@ -172,8 +172,15 @@ export const createBrandedDesign: FlowAgentTool = {
       : null;
     // Real, factual brand elements the design MUST show (not tone — these are
     // required content). The user explicitly wants the brand name + contact on it.
+    //
+    // CRITICAL: only force the brand NAME as a big top header when there is NO
+    // logo. When a logo exists we composite the REAL logo (top, via the safe-area
+    // pass) and the logo IS the brand mark — forcing the AI to ALSO render a large
+    // "Brand Name" wordmark at the top makes that text collide with the composited
+    // logo (the recurring overlap bug). With a logo, let the headline be the user's
+    // message, not a duplicate wordmark.
     const brandDisplayPolicy = [
-      brandKit?.name ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.` : null,
+      !hasBrandLogo && brandKit?.name ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.` : null,
       contactLine ? `Include these REAL contact details in small, legible text near the bottom (copy them exactly, do not invent any): ${contactLine}.` : null,
     ]
       .filter(Boolean)
@@ -230,7 +237,10 @@ export const createBrandedDesign: FlowAgentTool = {
       templateImageUrl: agentTemplate?.imageUrl || null,
       agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
       compositeReferenceSubject: false,
-      logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
+      // No fixed logoPlacement — mirror the Studio Create modal: let the server
+      // run its vision safe-area pass (analyzeLogoPlacement) so the real logo
+      // lands in a CLEAR corner instead of being slammed top-left on top of the
+      // headline. A hardcoded {x,y} disables that pass and causes the overlap.
       ctaText,
     };
 

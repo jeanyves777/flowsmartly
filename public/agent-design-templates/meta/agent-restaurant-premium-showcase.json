@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-restaurant-premium-showcase.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-premium-showcase.png",
-  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 4 of 100."
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 4 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22a81311e8819392c3ae2947bd27f0.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T10:43:53.145Z"
 }

@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-restaurant-launch-offer.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-launch-offer.png",
-  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 1 of 100."
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 1 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22a66afc648193a1c0768558f49224.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T10:38:24.935Z"
 }

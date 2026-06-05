@@ -1,6 +1,7 @@
 {
-  "generatedAt": "2026-06-05T05:05:48.539Z",
+  "generatedAt": "2026-06-05T10:43:53.183Z",
   "count": 100,
+  "codexImagegenCount": 4,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -24,7 +25,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:38:24.935Z"
     },
     {
       "id": "agent-restaurant-trust-story",
@@ -48,7 +51,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:40:15.127Z"
     },
     {
       "id": "agent-restaurant-event-invite",
@@ -72,7 +77,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:41:47.609Z"
     },
     {
       "id": "agent-restaurant-premium-showcase",
@@ -96,7 +103,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T10:43:53.145Z"
     },
     {
       "id": "agent-real_estate-launch-offer",
@@ -121,7 +130,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-real_estate-trust-story",
@@ -146,7 +157,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-real_estate-event-invite",
@@ -171,7 +184,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-real_estate-premium-showcase",
@@ -196,7 +211,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-medical_clinic-launch-offer",
@@ -221,7 +238,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-medical_clinic-trust-story",
@@ -246,7 +265,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-medical_clinic-event-invite",
@@ -271,7 +292,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-medical_clinic-premium-showcase",
@@ -296,7 +319,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-dental-launch-offer",
@@ -320,7 +345,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-dental-trust-story",
@@ -344,7 +371,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-dental-event-invite",
@@ -368,7 +397,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-dental-premium-showcase",
@@ -392,7 +423,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fitness-launch-offer",
@@ -416,7 +449,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fitness-trust-story",
@@ -440,7 +475,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fitness-event-invite",
@@ -464,7 +501,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fitness-premium-showcase",
@@ -488,7 +527,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-beauty_salon-launch-offer",
@@ -513,7 +554,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-beauty_salon-trust-story",
@@ -538,7 +581,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-beauty_salon-event-invite",
@@ -563,7 +608,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-beauty_salon-premium-showcase",
@@ -588,7 +635,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-law_firm-launch-offer",
@@ -613,7 +662,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-law_firm-trust-story",
@@ -638,7 +689,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-law_firm-event-invite",
@@ -663,7 +716,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-law_firm-premium-showcase",
@@ -688,7 +743,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-tax_accounting-launch-offer",
@@ -713,7 +770,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-tax_accounting-trust-story",
@@ -738,7 +797,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-tax_accounting-event-invite",
@@ -763,7 +824,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-tax_accounting-premium-showcase",
@@ -788,7 +851,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-ecommerce-launch-offer",
@@ -812,7 +877,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-ecommerce-trust-story",
@@ -836,7 +903,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-ecommerce-event-invite",
@@ -860,7 +929,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-ecommerce-premium-showcase",
@@ -884,7 +955,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fashion-launch-offer",
@@ -908,7 +981,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fashion-trust-story",
@@ -932,7 +1007,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fashion-event-invite",
@@ -956,7 +1033,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-fashion-premium-showcase",
@@ -980,7 +1059,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-church_ministry-launch-offer",
@@ -1005,7 +1086,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-church_ministry-trust-story",
@@ -1030,7 +1113,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-church_ministry-event-invite",
@@ -1054,7 +1139,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-church_ministry-premium-showcase",
@@ -1079,7 +1166,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-education-launch-offer",
@@ -1103,7 +1192,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-education-trust-story",
@@ -1127,7 +1218,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-education-event-invite",
@@ -1151,7 +1244,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-education-premium-showcase",
@@ -1175,7 +1270,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-saas-launch-offer",
@@ -1199,7 +1296,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-saas-trust-story",
@@ -1223,7 +1322,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-saas-event-invite",
@@ -1247,7 +1348,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-saas-premium-showcase",
@@ -1271,7 +1374,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-automotive-launch-offer",
@@ -1295,7 +1400,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-automotive-trust-story",
@@ -1319,7 +1426,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-automotive-event-invite",
@@ -1343,7 +1452,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-automotive-premium-showcase",
@@ -1367,7 +1478,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-home_services-launch-offer",
@@ -1392,7 +1505,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-home_services-trust-story",
@@ -1417,7 +1532,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-home_services-event-invite",
@@ -1442,7 +1559,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-home_services-premium-showcase",
@@ -1467,7 +1586,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-construction-launch-offer",
@@ -1491,7 +1612,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-construction-trust-story",
@@ -1515,7 +1638,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-construction-event-invite",
@@ -1539,7 +1664,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-construction-premium-showcase",
@@ -1563,7 +1690,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-nonprofit-launch-offer",
@@ -1587,7 +1716,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-nonprofit-trust-story",
@@ -1611,7 +1742,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-nonprofit-event-invite",
@@ -1635,7 +1768,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-nonprofit-premium-showcase",
@@ -1659,7 +1794,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-event_planning-launch-offer",
@@ -1684,7 +1821,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-event_planning-trust-story",
@@ -1709,7 +1848,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-event_planning-event-invite",
@@ -1733,7 +1874,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-event_planning-premium-showcase",
@@ -1758,7 +1901,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-travel_hospitality-launch-offer",
@@ -1783,7 +1928,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-travel_hospitality-trust-story",
@@ -1808,7 +1955,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-travel_hospitality-event-invite",
@@ -1833,7 +1982,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-travel_hospitality-premium-showcase",
@@ -1858,7 +2009,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-photography-launch-offer",
@@ -1882,7 +2035,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-photography-trust-story",
@@ -1905,7 +2060,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-photography-event-invite",
@@ -1928,7 +2085,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-photography-premium-showcase",
@@ -1952,7 +2111,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-financial_services-launch-offer",
@@ -1977,7 +2138,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-financial_services-trust-story",
@@ -2002,7 +2165,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-financial_services-event-invite",
@@ -2027,7 +2192,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-financial_services-premium-showcase",
@@ -2052,7 +2219,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-pet_care-launch-offer",
@@ -2077,7 +2246,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-pet_care-trust-story",
@@ -2102,7 +2273,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-pet_care-event-invite",
@@ -2127,7 +2300,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-pet_care-premium-showcase",
@@ -2152,7 +2327,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-logistics-launch-offer",
@@ -2176,7 +2353,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-logistics-trust-story",
@@ -2200,7 +2379,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-logistics-event-invite",
@@ -2224,7 +2405,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-logistics-premium-showcase",
@@ -2248,7 +2431,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-music_entertainment-launch-offer",
@@ -2273,7 +2458,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-music_entertainment-trust-story",
@@ -2298,7 +2485,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-music_entertainment-event-invite",
@@ -2323,7 +2512,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-music_entertainment-premium-showcase",
@@ -2348,7 +2539,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-professional_services-launch-offer",
@@ -2373,7 +2566,9 @@
         "high-contrast",
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-professional_services-trust-story",
@@ -2398,7 +2593,9 @@
         "warm",
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-professional_services-event-invite",
@@ -2423,7 +2620,9 @@
         "date-focused",
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     },
     {
       "id": "agent-professional_services-premium-showcase",
@@ -2448,7 +2647,9 @@
         "brand",
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
-      ]
+      ],
+      "assetSource": "legacy",
+      "importedAt": null
     }
   ]
 }
