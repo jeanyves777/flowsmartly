@@ -655,6 +655,7 @@ export function TemplateOptionsCard({
   onPick?: (choice: { id: string; name: string } | null) => void;
 }) {
   const [chosen, setChosen] = useState<string | "none" | null>(null);
+  const [preview, setPreview] = useState<string | null>(null); // lightbox URL
   const pick = (t: TemplateOption | null) => {
     if (chosen) return; // one choice per card
     setChosen(t ? t.id : "none");
@@ -662,41 +663,60 @@ export function TemplateOptionsCard({
   };
   return (
     <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 p-3 shadow-sm">
-      <div className="text-xs font-semibold text-foreground mb-2">Pick a look — or design from your idea</div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="text-xs font-semibold text-foreground mb-0.5">Pick a look — or design from your idea</div>
+      <div className="text-[10px] text-muted-foreground mb-2">Tap a thumbnail to preview, then Select.</div>
+      <div className="grid grid-cols-2 gap-2.5">
         {templates.map((t) => {
           const isChosen = chosen === t.id;
           const dimmed = chosen && !isChosen;
           return (
-            <button
+            <div
               key={t.id}
-              type="button"
-              onClick={() => pick(t)}
-              disabled={!!chosen}
               className={cn(
-                "group relative overflow-hidden rounded-lg border text-left transition-all",
-                isChosen ? "border-sky-500 ring-2 ring-sky-400" : "border-border hover:border-sky-300",
+                "overflow-hidden rounded-lg border transition-all",
+                isChosen ? "border-sky-500 ring-2 ring-sky-400" : "border-border",
                 dimmed && "opacity-50",
               )}
             >
-              <div className="aspect-[3/4] w-full bg-muted overflow-hidden">
+              {/* Tap thumbnail → preview (does NOT select) */}
+              <button
+                type="button"
+                onClick={() => t.thumbnailUrl && setPreview(t.thumbnailUrl)}
+                className="group relative block w-full"
+                aria-label={`Preview ${t.name}`}
+              >
+                <div className="aspect-[3/4] w-full bg-muted overflow-hidden">
+                  {t.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.thumbnailUrl} alt={t.name} referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">{t.name}</div>
+                  )}
+                </div>
                 {t.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.thumbnailUrl} alt={t.name} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">{t.name}</div>
-                )}
-              </div>
-              <div className="px-1.5 py-1">
+                  <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <Maximize2 className="h-2.5 w-2.5" /> Preview
+                  </span>
+                ) : null}
+              </button>
+              <div className="px-1.5 pt-1">
                 <div className="truncate text-[11px] font-medium text-foreground">{t.name}</div>
                 {t.industry ? <div className="truncate text-[10px] text-muted-foreground">{t.industry}</div> : null}
               </div>
-              {isChosen ? (
-                <div className="absolute right-1 top-1 rounded-full bg-sky-500 p-0.5 text-white">
-                  <Check className="h-3 w-3" />
-                </div>
-              ) : null}
-            </button>
+              <button
+                type="button"
+                onClick={() => pick(t)}
+                disabled={!!chosen}
+                className={cn(
+                  "mt-1 mb-1.5 mx-1.5 w-[calc(100%-0.75rem)] rounded-md px-2 py-1 text-[11px] font-semibold transition-colors inline-flex items-center justify-center gap-1",
+                  isChosen
+                    ? "bg-sky-500 text-white"
+                    : "bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/50 dark:text-sky-300 dark:hover:bg-sky-900/50",
+                )}
+              >
+                {isChosen ? (<><Check className="h-3 w-3" /> Selected</>) : "Select"}
+              </button>
+            </div>
           );
         })}
       </div>
@@ -705,13 +725,14 @@ export function TemplateOptionsCard({
         onClick={() => pick(null)}
         disabled={!!chosen}
         className={cn(
-          "mt-2 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-sky-300 hover:text-foreground",
+          "mt-2.5 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-sky-300 hover:text-foreground",
           chosen === "none" && "border-sky-500 text-foreground ring-2 ring-sky-400",
           chosen && chosen !== "none" && "opacity-50",
         )}
       >
         No template — design from my prompt only
       </button>
+      {preview ? <MediaLightbox url={preview} onClose={() => setPreview(null)} /> : null}
     </div>
   );
 }

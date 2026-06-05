@@ -92,7 +92,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listScheduledPosts } = await import("./tools/list-scheduled-posts");
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
-  const { listAgentDesignTemplates } = await import("./tools/list-agent-design-templates");
   const { presentDesignTemplates } = await import("./tools/present-design-templates");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
   const { editImage } = await import("./tools/edit-image");
@@ -141,7 +140,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listScheduledPosts);
   flowAgentTools.register(cancelScheduledPost);
   flowAgentTools.register(generateImage);
-  flowAgentTools.register(listAgentDesignTemplates);
+  // NOTE: list_agent_design_templates (text-only lookup) is intentionally NOT
+  // registered — the agent must use present_design_templates so the user gets
+  // the clickable VISUAL picker instead of a plain text list.
   flowAgentTools.register(presentDesignTemplates);
   flowAgentTools.register(createBrandedDesign);
   flowAgentTools.register(editImage);

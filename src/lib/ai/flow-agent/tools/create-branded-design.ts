@@ -60,7 +60,7 @@ export const createBrandedDesign: FlowAgentTool = {
       ctaText: { type: "string", description: "Optional call-to-action button text. Omit for cards/announcements with no button." },
       templateId: {
         type: "string",
-        description: "Optional id from list_agent_design_templates. If omitted, FlowAI chooses the closest agent design template from the user's brand industry and prompt.",
+        description: "Optional template id the user picked from the present_design_templates card. If omitted, FlowAI chooses the closest agent design template from the user's brand industry and prompt.",
       },
     },
     required: ["planId", "prompt"],
@@ -127,7 +127,7 @@ export const createBrandedDesign: FlowAgentTool = {
       return {
         ok: false,
         error_code: "not_found",
-        message: `Agent design template "${requestedTemplateId}" was not found. Call list_agent_design_templates to get a valid template id.`,
+        message: `Agent design template "${requestedTemplateId}" was not found. Call present_design_templates to show the user valid template options.`,
       };
     }
 
