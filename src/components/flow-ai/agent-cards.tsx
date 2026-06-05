@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
@@ -141,6 +141,82 @@ export function SpeakButton({ text, className }: { text: string; className?: str
         </>
       )}
     </button>
+  );
+}
+
+/**
+ * Thumbs up / down on a Flow-AI reply — shown next to Copy/Play. Reports a
+ * good/bad response to /api/flow-ai/feedback with a snapshot for review.
+ * Optimistic; re-clicking updates the rating (the endpoint upserts per message).
+ */
+export function FeedbackButtons({
+  messageId,
+  conversationId,
+  content,
+  className,
+}: {
+  messageId?: string;
+  conversationId?: string | null;
+  content: string;
+  className?: string;
+}) {
+  const [sent, setSent] = useState<null | "POSITIVE" | "NEGATIVE">(null);
+  const [busy, setBusy] = useState(false);
+  if (!messageId) return null;
+
+  const submit = async (sentiment: "POSITIVE" | "NEGATIVE") => {
+    if (busy) return;
+    const prev = sent;
+    setSent(sentiment); // optimistic
+    setBusy(true);
+    try {
+      const res = await fetch("/api/flow-ai/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sentiment,
+          messageId,
+          conversationId: conversationId ?? undefined,
+          snapshot: { messageContent: (content || "").slice(0, 8000), ratedAt: new Date().toISOString() },
+        }),
+      });
+      if (!res.ok) setSent(prev); // revert on failure
+    } catch {
+      setSent(prev);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className={cn("inline-flex items-center gap-1.5", className)}>
+      <button
+        type="button"
+        onClick={() => submit("POSITIVE")}
+        disabled={busy}
+        aria-label="Good response"
+        title="Good response"
+        className={cn(
+          "inline-flex items-center transition-colors",
+          sent === "POSITIVE" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <ThumbsUp className={cn("h-3.5 w-3.5", sent === "POSITIVE" && "fill-current")} />
+      </button>
+      <button
+        type="button"
+        onClick={() => submit("NEGATIVE")}
+        disabled={busy}
+        aria-label="Bad response"
+        title="Bad response"
+        className={cn(
+          "inline-flex items-center transition-colors",
+          sent === "NEGATIVE" ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <ThumbsDown className={cn("h-3.5 w-3.5", sent === "NEGATIVE" && "fill-current")} />
+      </button>
+    </span>
   );
 }
 

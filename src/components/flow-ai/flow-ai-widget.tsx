@@ -13,6 +13,7 @@ import {
   TaskCard,
   CopyTextButton,
   SpeakButton,
+  FeedbackButtons,
   MessageBlocks,
   type AgentToolCardData,
   type AgentTaskCardData,
@@ -747,6 +748,7 @@ export function FlowAIWidget() {
                   <WidgetMessageView
                     key={m.id}
                     message={m}
+                    conversationId={conversationId}
                     onPlanResponse={handlePlanResponse}
                   />
                 ))
@@ -1024,9 +1026,11 @@ function startTaskSubscription(
 
 function WidgetMessageView({
   message,
+  conversationId,
   onPlanResponse,
 }: {
   message: WidgetMessage;
+  conversationId?: string | null;
   onPlanResponse: (planId: string, confirmed: boolean) => void;
 }) {
   const isUser = message.role === "user";
@@ -1096,6 +1100,11 @@ function WidgetMessageView({
               <div className="pl-1 flex items-center gap-3">
                 <CopyTextButton text={message.content} />
                 <SpeakButton text={message.content} />
+                <FeedbackButtons
+                  messageId={message.id}
+                  conversationId={conversationId}
+                  content={message.content}
+                />
               </div>
             )}
             {message.toolCalls && message.toolCalls.length > 0 && (

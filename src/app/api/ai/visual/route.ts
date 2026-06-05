@@ -381,6 +381,7 @@ export async function runVisualForUser(
       tier: tierInput,
       promptMode,
       brandIdentity,
+      agentDesignTemplate,
       channels,
       qualityCheck,
       qualityCheckEnabled,
@@ -441,7 +442,13 @@ export async function runVisualForUser(
         size,
         style: style || null,
         status: "GENERATING",
-        metadata: JSON.stringify({ brandColors: brandColors || null }),
+        metadata: JSON.stringify({
+          brandColors: brandColors || null,
+          agentDesignTemplate:
+            agentDesignTemplate && typeof agentDesignTemplate === "object" && !Array.isArray(agentDesignTemplate)
+              ? agentDesignTemplate
+              : null,
+        }),
       },
     });
 

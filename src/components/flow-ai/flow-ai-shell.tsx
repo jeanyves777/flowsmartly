@@ -35,6 +35,7 @@ import {
   TaskCard,
   CopyTextButton,
   SpeakButton,
+  FeedbackButtons,
   MessageBlocks,
   mediaDownloadHref,
   type AgentToolCardData,
@@ -885,7 +886,7 @@ export function FlowAIShell() {
               <FlowAIEmptyState mode={mode} onSuggest={(q) => send(q)} />
             ) : (
               messages.map((m) => (
-                <MessageView key={m.id} message={m} onPlanResponse={respondToPlan} />
+                <MessageView key={m.id} message={m} conversationId={conversationId} onPlanResponse={respondToPlan} />
               ))
             )}
             {sending && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
@@ -1295,9 +1296,11 @@ function PendingAssistant({ mode, tier, status }: { mode: Mode; tier: Tier; stat
 
 function MessageView({
   message,
+  conversationId,
   onPlanResponse,
 }: {
   message: Message;
+  conversationId?: string | null;
   onPlanResponse?: (planId: string, confirmed: boolean) => void;
 }) {
   const isUser = message.role === "user";
@@ -1347,6 +1350,11 @@ function MessageView({
               <div className="mt-1 pl-1 flex items-center gap-3">
                 <CopyTextButton text={message.content} />
                 <SpeakButton text={message.content} />
+                <FeedbackButtons
+                  messageId={message.id}
+                  conversationId={conversationId}
+                  content={message.content}
+                />
               </div>
             )}
             {message.toolCalls && message.toolCalls.length > 0 && (

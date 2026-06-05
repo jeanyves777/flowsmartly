@@ -5,6 +5,14 @@ import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-lang
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
+import {
+  buildAgentDesignTemplatePrompt,
+  chooseAgentDesignTemplate,
+  getAgentDesignTemplateById,
+  serializeAgentDesignTemplateForTool,
+  type AgentDesignChannel,
+  type AgentDesignTemplate,
+} from "../design-templates";
 
 /**
  * create_branded_design — the agent's PRIMARY image tool for anything
@@ -50,6 +58,10 @@ export const createBrandedDesign: FlowAgentTool = {
       },
       style: { type: "string", description: "Visual style: 'modern' (default), 'photorealistic', 'minimalist', 'vintage', 'illustration', 'elegant', etc." },
       ctaText: { type: "string", description: "Optional call-to-action button text. Omit for cards/announcements with no button." },
+      templateId: {
+        type: "string",
+        description: "Optional id from list_agent_design_templates. If omitted, FlowAI chooses the closest agent design template from the user's brand industry and prompt.",
+      },
     },
     required: ["planId", "prompt"],
   },
@@ -98,6 +110,26 @@ export const createBrandedDesign: FlowAgentTool = {
     const handles = parseJson<Record<string, string> | null>(brandKit?.handles, null);
     const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
     const hasBrandLogo = Boolean(brandLogo);
+    const requestedTemplateId = typeof input.templateId === "string" && input.templateId.trim()
+      ? input.templateId.trim()
+      : null;
+    const autoTemplate = chooseAgentDesignTemplate({
+      industry: brandKit?.industry || brandKit?.niche || null,
+      query: [promptText, input.style, input.ctaText].filter((item) => typeof item === "string" && item.trim()).join(" "),
+      channel: orientationToTemplateChannel(input.orientation, promptText),
+      limit: 1,
+    });
+    const agentTemplate = requestedTemplateId
+      ? getAgentDesignTemplateById(requestedTemplateId)
+      : autoTemplate;
+
+    if (requestedTemplateId && !agentTemplate) {
+      return {
+        ok: false,
+        error_code: "not_found",
+        message: `Agent design template "${requestedTemplateId}" was not found. Call list_agent_design_templates to get a valid template id.`,
+      };
+    }
 
     const contactInfo = brandKit
       ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
@@ -126,6 +158,7 @@ export const createBrandedDesign: FlowAgentTool = {
           phone: brandKit.phone || null,
           address: brandKit.address || null,
           hasLogo: hasBrandLogo,
+          agentDesignTemplate: agentTemplate ? compactAgentTemplateForPrompt(agentTemplate) : null,
         }
       : null;
 
@@ -149,7 +182,15 @@ export const createBrandedDesign: FlowAgentTool = {
       "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
 
     const imagePrompt = withLanguagePrefix(
-      [promptText, exactReferencePolicy, brandDisplayPolicy || null, logoPolicy, antiInventionPolicy, "Keep the final visual sharp, high-resolution, and readable."]
+      [
+        promptText,
+        agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate) : null,
+        exactReferencePolicy,
+        brandDisplayPolicy || null,
+        logoPolicy,
+        antiInventionPolicy,
+        "Keep the final visual sharp, high-resolution, and readable.",
+      ]
         .filter(Boolean)
         .join("\n\n"),
       languageTag,
@@ -187,6 +228,7 @@ export const createBrandedDesign: FlowAgentTool = {
       referenceImageUrl: referenceImageUrls[0] || null,
       referenceImageUrls,
       templateImageUrl: null,
+      agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
       compositeReferenceSubject: false,
       logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
       ctaText,
@@ -197,7 +239,7 @@ export const createBrandedDesign: FlowAgentTool = {
       conversationId: ctx.conversationId,
       messageId: ctx.messageId,
       kind: "create_branded_design",
-      input: { tier, references: referenceImageUrls.length },
+      input: { tier, references: referenceImageUrls.length, agentTemplateId: agentTemplate?.id || null },
       creditCost: cost,
       worker: async (taskId) => {
         publishTaskEvent({
@@ -261,8 +303,16 @@ export const createBrandedDesign: FlowAgentTool = {
         taskId,
         tier,
         creditCostQuoted: cost,
+        agentTemplate: agentTemplate
+          ? {
+              id: agentTemplate.id,
+              name: agentTemplate.name,
+              industry: agentTemplate.industryLabel,
+              metaTags: agentTemplate.metaTags,
+            }
+          : null,
         usedReferencePhoto: referenceImageUrls.length > 0,
-        userMessage: `Started a ${tier} branded design via FlowCreative${referenceImageUrls.length ? ` using the uploaded photo (real face preserved)` : ""}. Runs in the background; the user gets the image inline + a notification. Tell them you'll let them know when it's ready.`,
+        userMessage: `Started a ${tier} branded design via FlowCreative${agentTemplate ? ` using the ${agentTemplate.name} agent template` : ""}${referenceImageUrls.length ? ` using the uploaded photo (real face preserved)` : ""}. Runs in the background; the user gets the image inline + a notification. Tell them you'll let them know when it's ready.`,
       },
     };
   },
@@ -273,6 +323,29 @@ function orientationToSize(orientation: unknown): string {
   if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
   if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
   return "1080x1080";
+}
+
+function orientationToTemplateChannel(orientation: unknown, prompt: string): AgentDesignChannel {
+  const normalizedOrientation = typeof orientation === "string" ? orientation.toLowerCase() : "";
+  const normalizedPrompt = prompt.toLowerCase();
+  if (normalizedOrientation === "landscape" || normalizedOrientation === "wide" || normalizedOrientation === "16:9") return "ad";
+  if (/\b(event|open house|webinar|workshop|conference|service|concert|invite|invitation|rsvp)\b/.test(normalizedPrompt)) return "poster";
+  if (normalizedOrientation === "portrait" || normalizedOrientation === "story" || normalizedOrientation === "reel" || normalizedOrientation === "9:16") return "flyer";
+  return "social_post";
+}
+
+function compactAgentTemplateForPrompt(template: AgentDesignTemplate) {
+  return {
+    id: template.id,
+    name: template.name,
+    industry: template.industryLabel,
+    useCase: template.useCase,
+    metaTags: template.metaTags.slice(0, 12),
+    layout: template.layout,
+    imageDirection: template.imageDirection,
+    copySlots: template.copySlots,
+    ctaStyle: template.ctaStyle,
+  };
 }
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
