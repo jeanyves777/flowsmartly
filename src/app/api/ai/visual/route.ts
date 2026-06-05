@@ -1670,6 +1670,22 @@ RULES:
     ? await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)))
     : [];
 
+  // Logo placement edits: when the instruction is about the LOGO, hand the
+  // REAL brand logo to the model as a reference image so it can add/move/remove
+  // the actual logo per the instruction. A fixed composite can't follow "put it
+  // at the bottom / remove the old one"; the model placing the real pixels can.
+  let logoEditClause = "";
+  if (/\blogos?\b/i.test(prompt) && params.brandLogo) {
+    try {
+      const logoBuf = await resolveImageToBuffer(params.brandLogo);
+      editReferenceBuffers.push(logoBuf);
+      logoEditClause =
+        " IMPORTANT LOGO HANDLING: the LAST reference image provided is the brand's REAL logo. When the instruction asks to add, move, reposition, or replace the logo, composite THAT exact logo (use its real pixels — do NOT redraw, recolor, restyle, or invent a logo) at the requested position, and REMOVE any other/old logo already in the design so only this one remains. This overrides any rule about preserving the existing logo as-is.";
+    } catch {
+      /* logo unavailable — proceed without it */
+    }
+  }
+
   // Role-aware edit: the global model policy picks the provider+model ladder
   // (Nano Banana → OpenAI → xAI for standard; gpt-image for premium). Image 1
   // is always the canvas; references follow.
@@ -1682,7 +1698,7 @@ RULES:
   console.log(`[Visual/Edit] Role edit (tier=${params.tier}, intent=${editIntentForRole}, refs=${editReferenceBuffers.length})`);
   const edited = await editImagesForRole(
     imageEditRole(params.tier),
-    editPrompt,
+    editPrompt + logoEditClause,
     [editBuffer, ...editReferenceBuffers],
     width,
     height,

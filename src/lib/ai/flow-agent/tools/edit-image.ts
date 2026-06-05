@@ -30,7 +30,7 @@ import { saveToMediaLibrary } from "../save-media";
 export const editImage: FlowAgentTool = {
   name: "edit_image",
   description:
-    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or composite the user's real brand logo onto it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for the edit instruction — when the user asked for SEVERAL changes, put ALL of them in one prompt as a numbered list ('1) remove the duplicate logo on the right, 2) darken the background behind the text so it's readable, 3) keep the WATCH OUT headline and all contact details crisp'); this tool applies every change in a single pass, so never call it with just one change when the user asked for more. Set `addBrandLogo: true` to overlay the user's actual BrandKit logo (never an AI-drawn one) — it's auto-placed in a clear corner that avoids covering text. At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. A logo-only composite (no prompt) is free; an AI edit costs the image tier price — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
+    "Edit an EXISTING image (one you generated, or one the user uploaded) and/or place the user's real brand logo on it. Pass `imageUrl` (the source — use the URL from a prior generate_image result or an uploaded attachment). Use `prompt` for the edit instruction — when the user asked for SEVERAL changes, put ALL of them in one prompt as a numbered list ('1) remove the duplicate logo on the right, 2) darken the background behind the text so it's readable, 3) keep the WATCH OUT headline crisp'); this tool applies every change in a single pass, so never call it with just one change when the user asked for more. Set `addBrandLogo: true` to place the user's ACTUAL BrandKit logo: the real logo image is handed to the AI editor as a reference and composited at `logoPosition`, removing any existing/old logo (use this for 'add/move/remove the logo' — it follows placement like 'put it at the bottom'). At least one of `prompt` or `addBrandLogo` is required. Runs in the background and notifies when ready. Pass `planId` from a confirmed propose_plan. Any edit, including placing the logo, costs the image tier price — read the exact live prices from list_my_features (admin-set, from the DB); never hardcode them.",
   input_schema: {
     type: "object",
     properties: {
@@ -66,8 +66,11 @@ export const editImage: FlowAgentTool = {
     }
 
     const tier = input.tier === "premium" ? "premium" : "standard";
-    // Only an AI edit costs credits; a pure logo composite is local + free.
-    const cost = prompt
+    // The logo is now placed by the AI editor (the REAL logo is fed in as a
+    // reference image with a placement instruction — context-aware, follows
+    // "move to bottom / remove the old one", unlike a fixed overlay). So any
+    // logo op, like any prompt edit, is a paid AI edit.
+    const cost = (prompt || addBrandLogo)
       ? await getDynamicCreditCost(tier === "premium" ? "AGENT_GENERATE_IMAGE_PREMIUM" : "AGENT_GENERATE_IMAGE_STANDARD")
       : 0;
 
@@ -117,54 +120,55 @@ export const editImage: FlowAgentTool = {
         let buffer = await loadImageBuffer(imageUrl);
         let format: "png" | "jpeg" = "png";
 
-        // (a) AI edit, if a prompt was given.
-        if (prompt) {
+        // Load the REAL brand logo (if we're adding/placing one) so we can hand
+        // it to the editor as a reference image — the model places the exact
+        // logo with full context instead of a dumb fixed overlay.
+        let logoBuf: Buffer | null = null;
+        if (logoSource) {
+          try {
+            logoBuf = await loadImageBuffer(logoSource);
+          } catch {
+            logoBuf = null;
+          }
+        }
+
+        // Single AI edit: applies the user's changes AND, when a logo is
+        // requested, composites the REAL logo (passed as image 2) at the asked
+        // position — removing any existing one. This is what fixes "move the
+        // logo to the bottom / remove the old logo" (the old fixed overlay
+        // ignored placement language and left the original logo in place).
+        if (prompt || logoBuf) {
           publishTaskEvent({ type: "progress", taskId, progress: 35, message: "Editing image…" });
           const brandLine = brandKit
             ? `Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description.slice(0, 120)}` : ""}.`
             : "";
+          const positionWord = hasExplicitPosition
+            ? String(input.logoPosition).replace(/-/g, " ")
+            : "a clear corner that does not cover the headline, body text, contact details, or the main subject";
+          const logoInstruction = logoBuf
+            ? `The SECOND image provided is the brand's REAL logo. Place that exact logo onto the design at ${positionWord}. If any logo already appears anywhere else in the design, REMOVE it so only this one remains. Use the logo's exact pixels — do NOT redraw, recolor, restyle, distort, or invent a logo, and do not add a placeholder box.`
+            : "Do NOT add or draw any logo or brand mark.";
           const enrichedPrompt = withLanguagePrefix(
             [
-              "Apply ALL of the following changes to this image in a SINGLE edit — do not skip, reorder away, or only partially apply any of them:",
-              prompt,
+              prompt
+                ? `Apply ALL of the following changes to the design (image 1) in a SINGLE edit — apply each one, do not skip or only partially apply: ${prompt}`
+                : "",
+              logoInstruction,
               brandLine,
-              "Preserve the subject, identity, and overall composition of the original except where a change above requires otherwise. Keep every intended piece of text crisp and fully legible (improve contrast/background behind text if readability was requested). Do NOT add any logo or brand mark — we composite the real one after.",
+              "Preserve the subject, identity, and overall composition of image 1 except where a change above requires otherwise. Keep every piece of text crisp and fully legible (improve contrast/background behind text if readability was requested).",
             ]
               .filter(Boolean)
               .join(" "),
             languageTag,
           );
-          const result = await editImagesForRole(imageEditRole(tier), enrichedPrompt, [buffer], 1024, 1024, {
+          const editBuffers = logoBuf ? [buffer, logoBuf] : [buffer];
+          const result = await editImagesForRole(imageEditRole(tier), enrichedPrompt, editBuffers, 1024, 1024, {
             quality: tier === "premium" ? "high" : "medium",
             intent: "identity",
           });
           if (!result.base64) throw new Error("Image editor returned no image");
           buffer = Buffer.from(result.base64, "base64");
           format = result.format === "png" ? "png" : "jpeg";
-        }
-
-        // (b) Composite the real brand logo, if requested.
-        if (logoSource) {
-          publishTaskEvent({ type: "progress", taskId, progress: 70, message: "Adding your logo…" });
-          // When the caller didn't pin a position, run the same vision
-          // safe-area pass the FlowCreative pipeline uses so the logo lands
-          // in a clear corner and never covers the headline/body text.
-          let logoPlacement = placement;
-          if (!hasExplicitPosition) {
-            try {
-              const safe = await analyzeLogoPlacement(buffer);
-              logoPlacement = { x: safe.x, y: safe.y, sizePercent: safe.sizePercent };
-            } catch {
-              /* keep default placement on vision failure */
-            }
-          }
-          buffer = await compositeBrandLogoOnImageBuffer({
-            imageBuffer: buffer,
-            logoSource,
-            placement: logoPlacement,
-            smartBackdrop: true,
-          });
-          format = "png"; // compositor outputs PNG
         }
 
         publishTaskEvent({ type: "progress", taskId, progress: 88, message: "Uploading…" });
