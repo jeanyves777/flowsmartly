@@ -372,6 +372,9 @@ function buildTemplate(industry: IndustrySeed, blueprint: Blueprint, position: n
       `Catalog position: ${position + 1} of 100.`,
     ].join(" "),
     avoid: blueprint.avoid,
+    imageUrl: `/agent-design-templates/images/${id}.png`,
+    thumbnailUrl: `/agent-design-templates/thumbs/${id}.png`,
+    metaUrl: `/agent-design-templates/meta/${id}.json`,
   };
 }
 

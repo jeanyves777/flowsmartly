@@ -1,0 +1,64 @@
+{
+  "id": "agent-saas-launch-offer",
+  "name": "SaaS Launch Offer",
+  "industry": "saas",
+  "industryLabel": "SaaS",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "operators",
+    "founders",
+    "teams"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EEF2FF",
+    "accent": "#14B8A6",
+    "background": "#0F172A",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-saas-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-saas-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: time saved, automation, integration, trial offer. Primary audience: operators, founders, teams. Catalog position: 49 of 100."
+}

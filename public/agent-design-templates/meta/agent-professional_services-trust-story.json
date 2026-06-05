@@ -1,0 +1,65 @@
+{
+  "id": "agent-professional_services-trust-story",
+  "name": "Professional Services Trust Story",
+  "industry": "professional_services",
+  "industryLabel": "Professional Services",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "business owners",
+    "executives",
+    "local companies"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#334155",
+    "secondary": "#F1F5F9",
+    "accent": "#0EA5E9",
+    "background": "#FFFFFF",
+    "text": "#0F172A"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "consulting",
+    "agency",
+    "professional-services",
+    "b2b",
+    "strategy"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "professional_services",
+    "consulting",
+    "agency",
+    "professional-services",
+    "b2b",
+    "strategy",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-professional_services-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-professional_services-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: audit offer, case result, implementation timeline. Primary audience: business owners, executives, local companies. Catalog position: 98 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-music_entertainment-launch-offer",
+  "name": "Music and Entertainment Launch Offer",
+  "industry": "music_entertainment",
+  "industryLabel": "Music and Entertainment",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "fans",
+    "eventgoers",
+    "local community"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#6D28D9",
+    "secondary": "#111827",
+    "accent": "#EC4899",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "music_entertainment",
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-music_entertainment-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-music_entertainment-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: date, lineup, ticket link, limited seating. Primary audience: fans, eventgoers, local community. Catalog position: 93 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-nonprofit-event-invite",
+  "name": "Nonprofit Event Invite",
+  "industry": "nonprofit",
+  "industryLabel": "Nonprofit",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "donors",
+    "volunteers",
+    "community partners"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#047857",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#14352C"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-nonprofit-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-nonprofit-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: impact metric, donation goal, event date. Primary audience: donors, volunteers, community partners. Catalog position: 67 of 100."
+}

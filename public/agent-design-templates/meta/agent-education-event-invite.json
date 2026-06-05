@@ -1,0 +1,65 @@
+{
+  "id": "agent-education-event-invite",
+  "name": "Education Event Invite",
+  "industry": "education",
+  "industryLabel": "Education",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "students",
+    "parents",
+    "career learners"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1D4ED8",
+    "secondary": "#DBEAFE",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#10213F"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-education-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-education-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: enrollment window, outcomes, class schedule. Primary audience: students, parents, career learners. Catalog position: 47 of 100."
+}

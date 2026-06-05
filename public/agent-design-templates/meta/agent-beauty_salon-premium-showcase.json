@@ -1,0 +1,65 @@
+{
+  "id": "agent-beauty_salon-premium-showcase",
+  "name": "Beauty Salon Premium Showcase",
+  "industry": "beauty_salon",
+  "industryLabel": "Beauty Salon",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "style-conscious clients",
+    "bridal clients",
+    "repeat customers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#BE185D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#3B1728"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "beauty_salon",
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-beauty_salon-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-beauty_salon-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: before-and-after results, stylist expertise, booking offer. Primary audience: style-conscious clients, bridal clients, repeat customers. Catalog position: 24 of 100."
+}

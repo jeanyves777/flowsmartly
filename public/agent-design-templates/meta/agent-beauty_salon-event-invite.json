@@ -1,0 +1,66 @@
+{
+  "id": "agent-beauty_salon-event-invite",
+  "name": "Beauty Salon Event Invite",
+  "industry": "beauty_salon",
+  "industryLabel": "Beauty Salon",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "style-conscious clients",
+    "bridal clients",
+    "repeat customers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#BE185D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#3B1728"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "beauty_salon",
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-beauty_salon-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-beauty_salon-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: before-and-after results, stylist expertise, booking offer. Primary audience: style-conscious clients, bridal clients, repeat customers. Catalog position: 23 of 100."
+}

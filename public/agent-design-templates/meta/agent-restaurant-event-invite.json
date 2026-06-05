@@ -1,0 +1,65 @@
+{
+  "id": "agent-restaurant-event-invite",
+  "name": "Restaurant Event Invite",
+  "industry": "restaurant",
+  "industryLabel": "Restaurant",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "local diners",
+    "families",
+    "date-night customers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#B8322A",
+    "secondary": "#F5E6CF",
+    "accent": "#F2A65A",
+    "background": "#2B1712",
+    "text": "#FFF8EE"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-restaurant-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 3 of 100."
+}

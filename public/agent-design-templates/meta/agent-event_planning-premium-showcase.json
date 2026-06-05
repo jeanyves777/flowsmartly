@@ -1,0 +1,65 @@
+{
+  "id": "agent-event_planning-premium-showcase",
+  "name": "Event Planning Premium Showcase",
+  "industry": "event_planning",
+  "industryLabel": "Event Planning",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "hosts",
+    "couples",
+    "corporate teams"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#9D174D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#371827"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "event_planning",
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-event_planning-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-event_planning-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: package offer, date availability, planning experience. Primary audience: hosts, couples, corporate teams. Catalog position: 72 of 100."
+}

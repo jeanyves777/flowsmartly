@@ -1,0 +1,64 @@
+{
+  "id": "agent-logistics-trust-story",
+  "name": "Logistics Trust Story",
+  "industry": "logistics",
+  "industryLabel": "Logistics",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "business owners",
+    "operations teams",
+    "retailers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1F2937",
+    "secondary": "#E5E7EB",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-logistics-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-logistics-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: on-time delivery, coverage area, quote offer. Primary audience: business owners, operations teams, retailers. Catalog position: 90 of 100."
+}

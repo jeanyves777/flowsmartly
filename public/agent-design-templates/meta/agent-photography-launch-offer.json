@@ -1,0 +1,64 @@
+{
+  "id": "agent-photography-launch-offer",
+  "name": "Photography Launch Offer",
+  "industry": "photography",
+  "industryLabel": "Photography",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "families",
+    "couples",
+    "brands"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F9FAFB",
+    "accent": "#C084FC",
+    "background": "#FFFFFF",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-photography-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-photography-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: session slots, portfolio style, package offer. Primary audience: families, couples, brands. Catalog position: 77 of 100."
+}

@@ -1,0 +1,66 @@
+{
+  "id": "agent-pet_care-event-invite",
+  "name": "Pet Care Event Invite",
+  "industry": "pet_care",
+  "industryLabel": "Pet Care",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "pet owners",
+    "families",
+    "new clients"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#EA580C",
+    "secondary": "#FFEDD5",
+    "accent": "#22C55E",
+    "background": "#FFF7ED",
+    "text": "#332015"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "pet_care",
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-pet_care-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-pet_care-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: appointment offer, service menu, trust badges. Primary audience: pet owners, families, new clients. Catalog position: 87 of 100."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "agent-dental-trust-story",
+  "name": "Dental Trust Story",
+  "industry": "dental",
+  "industryLabel": "Dental",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "families",
+    "new patients",
+    "cosmetic clients"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EFF6FF",
+    "accent": "#22C55E",
+    "background": "#FFFFFF",
+    "text": "#172033"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-dental-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-dental-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 14 of 100."
+}

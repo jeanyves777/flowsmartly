@@ -1,0 +1,64 @@
+{
+  "id": "agent-logistics-launch-offer",
+  "name": "Logistics Launch Offer",
+  "industry": "logistics",
+  "industryLabel": "Logistics",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "business owners",
+    "operations teams",
+    "retailers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1F2937",
+    "secondary": "#E5E7EB",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-logistics-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-logistics-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: on-time delivery, coverage area, quote offer. Primary audience: business owners, operations teams, retailers. Catalog position: 89 of 100."
+}

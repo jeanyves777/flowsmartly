@@ -1,0 +1,66 @@
+{
+  "id": "agent-law_firm-event-invite",
+  "name": "Law Firm Event Invite",
+  "industry": "law_firm",
+  "industryLabel": "Law Firm",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "clients seeking counsel",
+    "business owners",
+    "families"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1E3A5F",
+    "secondary": "#EEF2F7",
+    "accent": "#B0894F",
+    "background": "#111827",
+    "text": "#F8FAFC"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "law_firm",
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-law_firm-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-law_firm-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 27 of 100."
+}

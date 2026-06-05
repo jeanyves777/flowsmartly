@@ -1,0 +1,64 @@
+{
+  "id": "agent-ecommerce-launch-offer",
+  "name": "E-Commerce Launch Offer",
+  "industry": "ecommerce",
+  "industryLabel": "E-Commerce",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "online shoppers",
+    "deal seekers",
+    "returning customers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#7C3AED",
+    "secondary": "#F5F3FF",
+    "accent": "#F97316",
+    "background": "#FFFFFF",
+    "text": "#1F1736"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-ecommerce-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 33 of 100."
+}

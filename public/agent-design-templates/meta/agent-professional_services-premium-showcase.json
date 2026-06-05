@@ -1,0 +1,65 @@
+{
+  "id": "agent-professional_services-premium-showcase",
+  "name": "Professional Services Premium Showcase",
+  "industry": "professional_services",
+  "industryLabel": "Professional Services",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "business owners",
+    "executives",
+    "local companies"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#334155",
+    "secondary": "#F1F5F9",
+    "accent": "#0EA5E9",
+    "background": "#FFFFFF",
+    "text": "#0F172A"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "consulting",
+    "agency",
+    "professional-services",
+    "b2b",
+    "strategy"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "professional_services",
+    "consulting",
+    "agency",
+    "professional-services",
+    "b2b",
+    "strategy",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-professional_services-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-professional_services-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: audit offer, case result, implementation timeline. Primary audience: business owners, executives, local companies. Catalog position: 100 of 100."
+}

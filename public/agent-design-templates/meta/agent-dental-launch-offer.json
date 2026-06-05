@@ -1,0 +1,64 @@
+{
+  "id": "agent-dental-launch-offer",
+  "name": "Dental Launch Offer",
+  "industry": "dental",
+  "industryLabel": "Dental",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "families",
+    "new patients",
+    "cosmetic clients"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EFF6FF",
+    "accent": "#22C55E",
+    "background": "#FFFFFF",
+    "text": "#172033"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-dental-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-dental-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 13 of 100."
+}

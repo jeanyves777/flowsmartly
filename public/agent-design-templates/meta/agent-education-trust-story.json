@@ -1,0 +1,64 @@
+{
+  "id": "agent-education-trust-story",
+  "name": "Education Trust Story",
+  "industry": "education",
+  "industryLabel": "Education",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "students",
+    "parents",
+    "career learners"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1D4ED8",
+    "secondary": "#DBEAFE",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#10213F"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-education-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-education-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: enrollment window, outcomes, class schedule. Primary audience: students, parents, career learners. Catalog position: 46 of 100."
+}

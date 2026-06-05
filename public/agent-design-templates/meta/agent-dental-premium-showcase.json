@@ -1,0 +1,64 @@
+{
+  "id": "agent-dental-premium-showcase",
+  "name": "Dental Premium Showcase",
+  "industry": "dental",
+  "industryLabel": "Dental",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "families",
+    "new patients",
+    "cosmetic clients"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EFF6FF",
+    "accent": "#22C55E",
+    "background": "#FFFFFF",
+    "text": "#172033"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-dental-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-dental-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 16 of 100."
+}

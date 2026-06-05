@@ -1,0 +1,64 @@
+{
+  "id": "agent-saas-premium-showcase",
+  "name": "SaaS Premium Showcase",
+  "industry": "saas",
+  "industryLabel": "SaaS",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "operators",
+    "founders",
+    "teams"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EEF2FF",
+    "accent": "#14B8A6",
+    "background": "#0F172A",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-saas-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-saas-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: time saved, automation, integration, trial offer. Primary audience: operators, founders, teams. Catalog position: 52 of 100."
+}

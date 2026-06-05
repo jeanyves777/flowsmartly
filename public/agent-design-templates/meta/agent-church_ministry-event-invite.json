@@ -1,0 +1,65 @@
+{
+  "id": "agent-church_ministry-event-invite",
+  "name": "Church and Ministry Event Invite",
+  "industry": "church_ministry",
+  "industryLabel": "Church and Ministry",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "members",
+    "families",
+    "local community"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#5B21B6",
+    "secondary": "#F5F3FF",
+    "accent": "#FBBF24",
+    "background": "#1E1635",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "church",
+    "ministry",
+    "worship",
+    "community",
+    "event"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "church_ministry",
+    "church",
+    "ministry",
+    "worship",
+    "community",
+    "event",
+    "event-invite",
+    "poster",
+    "portrait",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-church_ministry-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-church_ministry-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: service time, scripture theme, special guest, address. Primary audience: members, families, local community. Catalog position: 43 of 100."
+}

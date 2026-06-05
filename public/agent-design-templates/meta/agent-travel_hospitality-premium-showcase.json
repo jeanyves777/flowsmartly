@@ -1,0 +1,65 @@
+{
+  "id": "agent-travel_hospitality-premium-showcase",
+  "name": "Travel and Hospitality Premium Showcase",
+  "industry": "travel_hospitality",
+  "industryLabel": "Travel and Hospitality",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "travelers",
+    "families",
+    "weekend explorers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0369A1",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#123044"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "travel_hospitality",
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-travel_hospitality-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-travel_hospitality-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: package deal, guest rating, seasonal dates. Primary audience: travelers, families, weekend explorers. Catalog position: 76 of 100."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "agent-automotive-launch-offer",
+  "name": "Automotive Launch Offer",
+  "industry": "automotive",
+  "industryLabel": "Automotive",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "drivers",
+    "fleet owners",
+    "car shoppers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#DC2626",
+    "secondary": "#E5E7EB",
+    "accent": "#FACC15",
+    "background": "#111827",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-automotive-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-automotive-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: inspection offer, financing, certified technicians. Primary audience: drivers, fleet owners, car shoppers. Catalog position: 53 of 100."
+}

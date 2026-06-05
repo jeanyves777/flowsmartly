@@ -1,0 +1,65 @@
+{
+  "id": "agent-law_firm-trust-story",
+  "name": "Law Firm Trust Story",
+  "industry": "law_firm",
+  "industryLabel": "Law Firm",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "clients seeking counsel",
+    "business owners",
+    "families"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1E3A5F",
+    "secondary": "#EEF2F7",
+    "accent": "#B0894F",
+    "background": "#111827",
+    "text": "#F8FAFC"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "law_firm",
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-law_firm-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-law_firm-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 26 of 100."
+}

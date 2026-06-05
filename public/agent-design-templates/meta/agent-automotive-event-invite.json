@@ -1,0 +1,65 @@
+{
+  "id": "agent-automotive-event-invite",
+  "name": "Automotive Event Invite",
+  "industry": "automotive",
+  "industryLabel": "Automotive",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "drivers",
+    "fleet owners",
+    "car shoppers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#DC2626",
+    "secondary": "#E5E7EB",
+    "accent": "#FACC15",
+    "background": "#111827",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-automotive-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-automotive-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: inspection offer, financing, certified technicians. Primary audience: drivers, fleet owners, car shoppers. Catalog position: 55 of 100."
+}

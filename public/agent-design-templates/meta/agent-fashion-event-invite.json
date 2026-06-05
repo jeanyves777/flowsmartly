@@ -1,0 +1,65 @@
+{
+  "id": "agent-fashion-event-invite",
+  "name": "Fashion Event Invite",
+  "industry": "fashion",
+  "industryLabel": "Fashion",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "trend-aware shoppers",
+    "boutique customers",
+    "gift buyers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F3F4F6",
+    "accent": "#E11D48",
+    "background": "#FAFAFA",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fashion-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fashion-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: new arrivals, limited drop, styling bundle. Primary audience: trend-aware shoppers, boutique customers, gift buyers. Catalog position: 39 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-home_services-premium-showcase",
+  "name": "Home Services Premium Showcase",
+  "industry": "home_services",
+  "industryLabel": "Home Services",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "homeowners",
+    "property managers",
+    "busy families"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0EA5E9",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#132638"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "home_services",
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-home_services-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-home_services-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: same-day service, licensed team, estimate offer. Primary audience: homeowners, property managers, busy families. Catalog position: 60 of 100."
+}

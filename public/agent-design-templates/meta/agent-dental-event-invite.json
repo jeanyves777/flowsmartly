@@ -1,0 +1,65 @@
+{
+  "id": "agent-dental-event-invite",
+  "name": "Dental Event Invite",
+  "industry": "dental",
+  "industryLabel": "Dental",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "families",
+    "new patients",
+    "cosmetic clients"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EFF6FF",
+    "accent": "#22C55E",
+    "background": "#FFFFFF",
+    "text": "#172033"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "dental",
+    "dentist",
+    "smile",
+    "appointment",
+    "cosmetic-dentistry",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-dental-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-dental-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: new patient offers, whitening results, insurance acceptance. Primary audience: families, new patients, cosmetic clients. Catalog position: 15 of 100."
+}

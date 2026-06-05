@@ -1,0 +1,65 @@
+{
+  "id": "agent-beauty_salon-launch-offer",
+  "name": "Beauty Salon Launch Offer",
+  "industry": "beauty_salon",
+  "industryLabel": "Beauty Salon",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "style-conscious clients",
+    "bridal clients",
+    "repeat customers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#BE185D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#3B1728"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "beauty_salon",
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-beauty_salon-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-beauty_salon-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: before-and-after results, stylist expertise, booking offer. Primary audience: style-conscious clients, bridal clients, repeat customers. Catalog position: 21 of 100."
+}

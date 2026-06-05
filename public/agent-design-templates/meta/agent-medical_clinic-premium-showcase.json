@@ -1,0 +1,65 @@
+{
+  "id": "agent-medical_clinic-premium-showcase",
+  "name": "Medical Clinic Premium Showcase",
+  "industry": "medical_clinic",
+  "industryLabel": "Medical Clinic",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "patients",
+    "families",
+    "caregivers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0E7490",
+    "secondary": "#E0F7FA",
+    "accent": "#34D399",
+    "background": "#F7FCFC",
+    "text": "#11313A"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "medical_clinic",
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-medical_clinic-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 12 of 100."
+}

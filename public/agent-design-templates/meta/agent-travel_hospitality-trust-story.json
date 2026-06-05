@@ -1,0 +1,65 @@
+{
+  "id": "agent-travel_hospitality-trust-story",
+  "name": "Travel and Hospitality Trust Story",
+  "industry": "travel_hospitality",
+  "industryLabel": "Travel and Hospitality",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "travelers",
+    "families",
+    "weekend explorers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0369A1",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#123044"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "travel_hospitality",
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-travel_hospitality-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-travel_hospitality-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: package deal, guest rating, seasonal dates. Primary audience: travelers, families, weekend explorers. Catalog position: 74 of 100."
+}

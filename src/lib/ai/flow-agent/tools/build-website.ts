@@ -64,7 +64,7 @@ export const buildWebsite: FlowAgentTool = {
         return {
           ok: false,
           error_code: "plan_required",
-          message: "Website hosting needs a paid plan or purchased credits. Suggest upgrading at /settings/subscription or buying credits at /credits.",
+          message: "Website hosting needs a paid plan or purchased credits. Suggest upgrading at /settings/upgrade or buying credits at /buy-credits.",
         };
       }
 

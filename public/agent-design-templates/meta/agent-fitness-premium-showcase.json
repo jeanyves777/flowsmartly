@@ -1,0 +1,64 @@
+{
+  "id": "agent-fitness-premium-showcase",
+  "name": "Fitness Premium Showcase",
+  "industry": "fitness",
+  "industryLabel": "Fitness",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "active adults",
+    "beginners",
+    "performance clients"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#EF4444",
+    "secondary": "#111827",
+    "accent": "#FACC15",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fitness-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 20 of 100."
+}

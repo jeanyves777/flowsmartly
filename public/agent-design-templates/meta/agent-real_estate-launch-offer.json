@@ -1,0 +1,65 @@
+{
+  "id": "agent-real_estate-launch-offer",
+  "name": "Real Estate Launch Offer",
+  "industry": "real_estate",
+  "industryLabel": "Real Estate",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "home buyers",
+    "sellers",
+    "investors"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#174E7A",
+    "secondary": "#E8F2F7",
+    "accent": "#D7A44A",
+    "background": "#10263A",
+    "text": "#F8FBFC"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "real_estate",
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-real_estate-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 5 of 100."
+}

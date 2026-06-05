@@ -1,0 +1,64 @@
+{
+  "id": "agent-fashion-premium-showcase",
+  "name": "Fashion Premium Showcase",
+  "industry": "fashion",
+  "industryLabel": "Fashion",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "trend-aware shoppers",
+    "boutique customers",
+    "gift buyers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F3F4F6",
+    "accent": "#E11D48",
+    "background": "#FAFAFA",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fashion-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fashion-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: new arrivals, limited drop, styling bundle. Primary audience: trend-aware shoppers, boutique customers, gift buyers. Catalog position: 40 of 100."
+}

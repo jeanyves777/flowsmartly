@@ -1,0 +1,65 @@
+{
+  "id": "agent-pet_care-trust-story",
+  "name": "Pet Care Trust Story",
+  "industry": "pet_care",
+  "industryLabel": "Pet Care",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "pet owners",
+    "families",
+    "new clients"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#EA580C",
+    "secondary": "#FFEDD5",
+    "accent": "#22C55E",
+    "background": "#FFF7ED",
+    "text": "#332015"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "pet_care",
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-pet_care-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-pet_care-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: appointment offer, service menu, trust badges. Primary audience: pet owners, families, new clients. Catalog position: 86 of 100."
+}

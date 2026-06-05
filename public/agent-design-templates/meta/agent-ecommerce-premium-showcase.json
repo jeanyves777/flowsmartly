@@ -1,0 +1,64 @@
+{
+  "id": "agent-ecommerce-premium-showcase",
+  "name": "E-Commerce Premium Showcase",
+  "industry": "ecommerce",
+  "industryLabel": "E-Commerce",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "online shoppers",
+    "deal seekers",
+    "returning customers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#7C3AED",
+    "secondary": "#F5F3FF",
+    "accent": "#F97316",
+    "background": "#FFFFFF",
+    "text": "#1F1736"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-ecommerce-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 36 of 100."
+}

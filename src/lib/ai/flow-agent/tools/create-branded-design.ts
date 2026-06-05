@@ -94,7 +94,7 @@ export const createBrandedDesign: FlowAgentTool = {
         return {
           ok: false,
           error_code: "insufficient_credits",
-          message: `A ${tier} branded design costs ${cost} credits (purchased credits only). User has ${purchased}. Suggest /credits.`,
+          message: `A ${tier} branded design costs ${cost} credits (purchased credits only). User has ${purchased}. Suggest /buy-credits.`,
           meta: { need: cost, have: purchased, tier },
         };
       }
@@ -227,7 +227,7 @@ export const createBrandedDesign: FlowAgentTool = {
       contactInfo,
       referenceImageUrl: referenceImageUrls[0] || null,
       referenceImageUrls,
-      templateImageUrl: null,
+      templateImageUrl: agentTemplate?.imageUrl || null,
       agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
       compositeReferenceSubject: false,
       logoPlacement: { x: 0.03, y: 0.03, sizePercent: 12 },
@@ -345,6 +345,8 @@ function compactAgentTemplateForPrompt(template: AgentDesignTemplate) {
     imageDirection: template.imageDirection,
     copySlots: template.copySlots,
     ctaStyle: template.ctaStyle,
+    imageUrl: template.imageUrl,
+    thumbnailUrl: template.thumbnailUrl,
   };
 }
 

@@ -1,0 +1,65 @@
+{
+  "id": "agent-tax_accounting-premium-showcase",
+  "name": "Tax and Accounting Premium Showcase",
+  "industry": "tax_accounting",
+  "industryLabel": "Tax and Accounting",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "small businesses",
+    "families",
+    "self-employed clients"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0F766E",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#12312D"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "tax_accounting",
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-tax_accounting-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-tax_accounting-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: refund help, bookkeeping cleanup, deadline reminders. Primary audience: small businesses, families, self-employed clients. Catalog position: 32 of 100."
+}

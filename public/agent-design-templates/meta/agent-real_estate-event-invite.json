@@ -1,0 +1,66 @@
+{
+  "id": "agent-real_estate-event-invite",
+  "name": "Real Estate Event Invite",
+  "industry": "real_estate",
+  "industryLabel": "Real Estate",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "home buyers",
+    "sellers",
+    "investors"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#174E7A",
+    "secondary": "#E8F2F7",
+    "accent": "#D7A44A",
+    "background": "#10263A",
+    "text": "#F8FBFC"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "real_estate",
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-real_estate-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 7 of 100."
+}

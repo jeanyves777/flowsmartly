@@ -1,0 +1,64 @@
+{
+  "id": "agent-construction-premium-showcase",
+  "name": "Construction Premium Showcase",
+  "industry": "construction",
+  "industryLabel": "Construction",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "homeowners",
+    "developers",
+    "commercial clients"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#A16207",
+    "secondary": "#FEF3C7",
+    "accent": "#2563EB",
+    "background": "#1F2937",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-construction-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-construction-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: licensed and insured, project timeline, estimate. Primary audience: homeowners, developers, commercial clients. Catalog position: 64 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-real_estate-trust-story",
+  "name": "Real Estate Trust Story",
+  "industry": "real_estate",
+  "industryLabel": "Real Estate",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "home buyers",
+    "sellers",
+    "investors"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#174E7A",
+    "secondary": "#E8F2F7",
+    "accent": "#D7A44A",
+    "background": "#10263A",
+    "text": "#F8FBFC"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "real_estate",
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-real_estate-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 6 of 100."
+}

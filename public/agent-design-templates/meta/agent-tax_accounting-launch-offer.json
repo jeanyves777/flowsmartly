@@ -1,0 +1,65 @@
+{
+  "id": "agent-tax_accounting-launch-offer",
+  "name": "Tax and Accounting Launch Offer",
+  "industry": "tax_accounting",
+  "industryLabel": "Tax and Accounting",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "small businesses",
+    "families",
+    "self-employed clients"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0F766E",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#12312D"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "tax_accounting",
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-tax_accounting-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-tax_accounting-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: refund help, bookkeeping cleanup, deadline reminders. Primary audience: small businesses, families, self-employed clients. Catalog position: 29 of 100."
+}

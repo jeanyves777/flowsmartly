@@ -1,0 +1,64 @@
+{
+  "id": "agent-fitness-trust-story",
+  "name": "Fitness Trust Story",
+  "industry": "fitness",
+  "industryLabel": "Fitness",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "active adults",
+    "beginners",
+    "performance clients"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#EF4444",
+    "secondary": "#111827",
+    "accent": "#FACC15",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fitness-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 18 of 100."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "agent-automotive-trust-story",
+  "name": "Automotive Trust Story",
+  "industry": "automotive",
+  "industryLabel": "Automotive",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "drivers",
+    "fleet owners",
+    "car shoppers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#DC2626",
+    "secondary": "#E5E7EB",
+    "accent": "#FACC15",
+    "background": "#111827",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-automotive-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-automotive-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: inspection offer, financing, certified technicians. Primary audience: drivers, fleet owners, car shoppers. Catalog position: 54 of 100."
+}

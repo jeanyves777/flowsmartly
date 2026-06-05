@@ -1,0 +1,64 @@
+{
+  "id": "agent-restaurant-trust-story",
+  "name": "Restaurant Trust Story",
+  "industry": "restaurant",
+  "industryLabel": "Restaurant",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "local diners",
+    "families",
+    "date-night customers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#B8322A",
+    "secondary": "#F5E6CF",
+    "accent": "#F2A65A",
+    "background": "#2B1712",
+    "text": "#FFF8EE"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-restaurant-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 2 of 100."
+}

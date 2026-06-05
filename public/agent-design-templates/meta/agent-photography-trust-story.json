@@ -1,0 +1,63 @@
+{
+  "id": "agent-photography-trust-story",
+  "name": "Photography Trust Story",
+  "industry": "photography",
+  "industryLabel": "Photography",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "families",
+    "couples",
+    "brands"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F9FAFB",
+    "accent": "#C084FC",
+    "background": "#FFFFFF",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking",
+    "trust-story",
+    "flyer",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-photography-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-photography-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: session slots, portfolio style, package offer. Primary audience: families, couples, brands. Catalog position: 78 of 100."
+}

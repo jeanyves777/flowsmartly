@@ -1,0 +1,66 @@
+{
+  "id": "agent-travel_hospitality-event-invite",
+  "name": "Travel and Hospitality Event Invite",
+  "industry": "travel_hospitality",
+  "industryLabel": "Travel and Hospitality",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "travelers",
+    "families",
+    "weekend explorers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0369A1",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#123044"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "travel_hospitality",
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-travel_hospitality-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-travel_hospitality-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: package deal, guest rating, seasonal dates. Primary audience: travelers, families, weekend explorers. Catalog position: 75 of 100."
+}

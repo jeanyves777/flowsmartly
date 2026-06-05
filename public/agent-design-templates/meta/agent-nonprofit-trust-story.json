@@ -1,0 +1,64 @@
+{
+  "id": "agent-nonprofit-trust-story",
+  "name": "Nonprofit Trust Story",
+  "industry": "nonprofit",
+  "industryLabel": "Nonprofit",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "donors",
+    "volunteers",
+    "community partners"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#047857",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#14352C"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-nonprofit-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-nonprofit-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: impact metric, donation goal, event date. Primary audience: donors, volunteers, community partners. Catalog position: 66 of 100."
+}

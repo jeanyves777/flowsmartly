@@ -1,0 +1,64 @@
+{
+  "id": "agent-nonprofit-premium-showcase",
+  "name": "Nonprofit Premium Showcase",
+  "industry": "nonprofit",
+  "industryLabel": "Nonprofit",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "donors",
+    "volunteers",
+    "community partners"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#047857",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#14352C"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-nonprofit-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-nonprofit-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: impact metric, donation goal, event date. Primary audience: donors, volunteers, community partners. Catalog position: 68 of 100."
+}

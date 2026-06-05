@@ -1,0 +1,65 @@
+{
+  "id": "agent-event_planning-event-invite",
+  "name": "Event Planning Event Invite",
+  "industry": "event_planning",
+  "industryLabel": "Event Planning",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "hosts",
+    "couples",
+    "corporate teams"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#9D174D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#371827"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "event_planning",
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration",
+    "event-invite",
+    "poster",
+    "portrait",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-event_planning-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-event_planning-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: package offer, date availability, planning experience. Primary audience: hosts, couples, corporate teams. Catalog position: 71 of 100."
+}

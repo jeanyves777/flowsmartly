@@ -1,0 +1,64 @@
+{
+  "id": "agent-saas-trust-story",
+  "name": "SaaS Trust Story",
+  "industry": "saas",
+  "industryLabel": "SaaS",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "operators",
+    "founders",
+    "teams"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#2563EB",
+    "secondary": "#EEF2FF",
+    "accent": "#14B8A6",
+    "background": "#0F172A",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "saas",
+    "software",
+    "dashboard",
+    "automation",
+    "startup",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-saas-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-saas-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: time saved, automation, integration, trial offer. Primary audience: operators, founders, teams. Catalog position: 50 of 100."
+}

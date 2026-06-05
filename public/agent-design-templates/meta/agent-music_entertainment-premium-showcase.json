@@ -1,0 +1,65 @@
+{
+  "id": "agent-music_entertainment-premium-showcase",
+  "name": "Music and Entertainment Premium Showcase",
+  "industry": "music_entertainment",
+  "industryLabel": "Music and Entertainment",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "fans",
+    "eventgoers",
+    "local community"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#6D28D9",
+    "secondary": "#111827",
+    "accent": "#EC4899",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "music_entertainment",
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-music_entertainment-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-music_entertainment-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: date, lineup, ticket link, limited seating. Primary audience: fans, eventgoers, local community. Catalog position: 96 of 100."
+}

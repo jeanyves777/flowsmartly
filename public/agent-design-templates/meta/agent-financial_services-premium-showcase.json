@@ -1,0 +1,65 @@
+{
+  "id": "agent-financial_services-premium-showcase",
+  "name": "Financial Services Premium Showcase",
+  "industry": "financial_services",
+  "industryLabel": "Financial Services",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "families",
+    "business owners",
+    "professionals"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#14532D",
+    "secondary": "#ECFDF5",
+    "accent": "#D4AF37",
+    "background": "#F8FAFC",
+    "text": "#14301F"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "financial_services",
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-financial_services-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-financial_services-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: consultation, protection, savings or planning outcome. Primary audience: families, business owners, professionals. Catalog position: 84 of 100."
+}

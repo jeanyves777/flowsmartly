@@ -1,0 +1,65 @@
+{
+  "id": "agent-travel_hospitality-launch-offer",
+  "name": "Travel and Hospitality Launch Offer",
+  "industry": "travel_hospitality",
+  "industryLabel": "Travel and Hospitality",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "travelers",
+    "families",
+    "weekend explorers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0369A1",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#123044"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "travel_hospitality",
+    "travel",
+    "hotel",
+    "tourism",
+    "hospitality",
+    "booking",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-travel_hospitality-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-travel_hospitality-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: package deal, guest rating, seasonal dates. Primary audience: travelers, families, weekend explorers. Catalog position: 73 of 100."
+}

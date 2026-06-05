@@ -1,0 +1,64 @@
+{
+  "id": "agent-photography-premium-showcase",
+  "name": "Photography Premium Showcase",
+  "industry": "photography",
+  "industryLabel": "Photography",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "families",
+    "couples",
+    "brands"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F9FAFB",
+    "accent": "#C084FC",
+    "background": "#FFFFFF",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-photography-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-photography-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: session slots, portfolio style, package offer. Primary audience: families, couples, brands. Catalog position: 80 of 100."
+}

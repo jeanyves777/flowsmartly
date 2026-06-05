@@ -1,0 +1,64 @@
+{
+  "id": "agent-fitness-launch-offer",
+  "name": "Fitness Launch Offer",
+  "industry": "fitness",
+  "industryLabel": "Fitness",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "active adults",
+    "beginners",
+    "performance clients"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#EF4444",
+    "secondary": "#111827",
+    "accent": "#FACC15",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fitness-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 17 of 100."
+}

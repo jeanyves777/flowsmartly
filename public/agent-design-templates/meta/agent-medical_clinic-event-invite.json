@@ -1,0 +1,66 @@
+{
+  "id": "agent-medical_clinic-event-invite",
+  "name": "Medical Clinic Event Invite",
+  "industry": "medical_clinic",
+  "industryLabel": "Medical Clinic",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "patients",
+    "families",
+    "caregivers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0E7490",
+    "secondary": "#E0F7FA",
+    "accent": "#34D399",
+    "background": "#F7FCFC",
+    "text": "#11313A"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "medical_clinic",
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-medical_clinic-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 11 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-home_services-trust-story",
+  "name": "Home Services Trust Story",
+  "industry": "home_services",
+  "industryLabel": "Home Services",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "homeowners",
+    "property managers",
+    "busy families"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0EA5E9",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#132638"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "home_services",
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-home_services-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-home_services-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: same-day service, licensed team, estimate offer. Primary audience: homeowners, property managers, busy families. Catalog position: 58 of 100."
+}

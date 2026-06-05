@@ -1,0 +1,64 @@
+{
+  "id": "agent-fashion-trust-story",
+  "name": "Fashion Trust Story",
+  "industry": "fashion",
+  "industryLabel": "Fashion",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "trend-aware shoppers",
+    "boutique customers",
+    "gift buyers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F3F4F6",
+    "accent": "#E11D48",
+    "background": "#FAFAFA",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "fashion",
+    "apparel",
+    "boutique",
+    "style",
+    "collection",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fashion-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fashion-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new arrivals, limited drop, styling bundle. Primary audience: trend-aware shoppers, boutique customers, gift buyers. Catalog position: 38 of 100."
+}

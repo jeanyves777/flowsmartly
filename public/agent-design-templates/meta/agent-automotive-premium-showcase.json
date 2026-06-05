@@ -1,0 +1,64 @@
+{
+  "id": "agent-automotive-premium-showcase",
+  "name": "Automotive Premium Showcase",
+  "industry": "automotive",
+  "industryLabel": "Automotive",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "drivers",
+    "fleet owners",
+    "car shoppers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#DC2626",
+    "secondary": "#E5E7EB",
+    "accent": "#FACC15",
+    "background": "#111827",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "automotive",
+    "car",
+    "repair",
+    "dealership",
+    "service",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-automotive-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-automotive-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: inspection offer, financing, certified technicians. Primary audience: drivers, fleet owners, car shoppers. Catalog position: 56 of 100."
+}

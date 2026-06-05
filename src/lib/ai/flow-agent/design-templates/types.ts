@@ -44,6 +44,9 @@ export interface AgentDesignTemplate {
   metaTags: string[];
   promptGuidance: string;
   avoid: string[];
+  imageUrl: string;
+  thumbnailUrl: string;
+  metaUrl: string;
 }
 
 export interface AgentDesignTemplateSearchInput {

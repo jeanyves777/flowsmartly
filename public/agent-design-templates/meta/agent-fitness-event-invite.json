@@ -1,0 +1,65 @@
+{
+  "id": "agent-fitness-event-invite",
+  "name": "Fitness Event Invite",
+  "industry": "fitness",
+  "industryLabel": "Fitness",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "active adults",
+    "beginners",
+    "performance clients"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#EF4444",
+    "secondary": "#111827",
+    "accent": "#FACC15",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "fitness",
+    "gym",
+    "training",
+    "wellness",
+    "membership",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-fitness-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-fitness-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: transformation results, class schedule, membership offer. Primary audience: active adults, beginners, performance clients. Catalog position: 19 of 100."
+}

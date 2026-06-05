@@ -1,0 +1,65 @@
+{
+  "id": "agent-event_planning-launch-offer",
+  "name": "Event Planning Launch Offer",
+  "industry": "event_planning",
+  "industryLabel": "Event Planning",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "hosts",
+    "couples",
+    "corporate teams"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#9D174D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#371827"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "event_planning",
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-event_planning-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-event_planning-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: package offer, date availability, planning experience. Primary audience: hosts, couples, corporate teams. Catalog position: 69 of 100."
+}

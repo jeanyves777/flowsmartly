@@ -1,0 +1,64 @@
+{
+  "id": "agent-construction-launch-offer",
+  "name": "Construction Launch Offer",
+  "industry": "construction",
+  "industryLabel": "Construction",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "homeowners",
+    "developers",
+    "commercial clients"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#A16207",
+    "secondary": "#FEF3C7",
+    "accent": "#2563EB",
+    "background": "#1F2937",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-construction-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-construction-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: licensed and insured, project timeline, estimate. Primary audience: homeowners, developers, commercial clients. Catalog position: 61 of 100."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "agent-photography-event-invite",
+  "name": "Photography Event Invite",
+  "industry": "photography",
+  "industryLabel": "Photography",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "families",
+    "couples",
+    "brands"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#111827",
+    "secondary": "#F9FAFB",
+    "accent": "#C084FC",
+    "background": "#FFFFFF",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "photography",
+    "portrait",
+    "wedding",
+    "studio",
+    "booking",
+    "event-invite",
+    "poster",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-photography-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-photography-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: session slots, portfolio style, package offer. Primary audience: families, couples, brands. Catalog position: 79 of 100."
+}

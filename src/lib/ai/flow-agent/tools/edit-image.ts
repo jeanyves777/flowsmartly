@@ -99,7 +99,7 @@ export const editImage: FlowAgentTool = {
         return {
           ok: false,
           error_code: "insufficient_credits",
-          message: `Need ${cost} credits for a ${tier} image edit. User has ${user?.aiCredits ?? 0}. Suggest /credits to top up.`,
+          message: `Need ${cost} credits for a ${tier} image edit. User has ${user?.aiCredits ?? 0}. Suggest /buy-credits to top up.`,
           meta: { need: cost, have: user?.aiCredits ?? 0 },
         };
       }

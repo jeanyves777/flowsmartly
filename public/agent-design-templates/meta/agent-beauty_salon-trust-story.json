@@ -1,0 +1,65 @@
+{
+  "id": "agent-beauty_salon-trust-story",
+  "name": "Beauty Salon Trust Story",
+  "industry": "beauty_salon",
+  "industryLabel": "Beauty Salon",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "style-conscious clients",
+    "bridal clients",
+    "repeat customers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#BE185D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#3B1728"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "beauty_salon",
+    "beauty",
+    "salon",
+    "hair",
+    "spa",
+    "makeup",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-beauty_salon-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-beauty_salon-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: before-and-after results, stylist expertise, booking offer. Primary audience: style-conscious clients, bridal clients, repeat customers. Catalog position: 22 of 100."
+}

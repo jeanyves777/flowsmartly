@@ -1,0 +1,65 @@
+{
+  "id": "agent-pet_care-launch-offer",
+  "name": "Pet Care Launch Offer",
+  "industry": "pet_care",
+  "industryLabel": "Pet Care",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "pet owners",
+    "families",
+    "new clients"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#EA580C",
+    "secondary": "#FFEDD5",
+    "accent": "#22C55E",
+    "background": "#FFF7ED",
+    "text": "#332015"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "pet_care",
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-pet_care-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-pet_care-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: appointment offer, service menu, trust badges. Primary audience: pet owners, families, new clients. Catalog position: 85 of 100."
+}

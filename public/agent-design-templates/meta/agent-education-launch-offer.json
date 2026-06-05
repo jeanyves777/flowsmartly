@@ -1,0 +1,64 @@
+{
+  "id": "agent-education-launch-offer",
+  "name": "Education Launch Offer",
+  "industry": "education",
+  "industryLabel": "Education",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "students",
+    "parents",
+    "career learners"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1D4ED8",
+    "secondary": "#DBEAFE",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#10213F"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-education-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-education-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: enrollment window, outcomes, class schedule. Primary audience: students, parents, career learners. Catalog position: 45 of 100."
+}

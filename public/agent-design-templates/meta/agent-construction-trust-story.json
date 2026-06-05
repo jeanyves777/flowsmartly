@@ -1,0 +1,64 @@
+{
+  "id": "agent-construction-trust-story",
+  "name": "Construction Trust Story",
+  "industry": "construction",
+  "industryLabel": "Construction",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "homeowners",
+    "developers",
+    "commercial clients"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#A16207",
+    "secondary": "#FEF3C7",
+    "accent": "#2563EB",
+    "background": "#1F2937",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "construction",
+    "contractor",
+    "renovation",
+    "builder",
+    "project",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-construction-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-construction-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: licensed and insured, project timeline, estimate. Primary audience: homeowners, developers, commercial clients. Catalog position: 62 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-medical_clinic-launch-offer",
+  "name": "Medical Clinic Launch Offer",
+  "industry": "medical_clinic",
+  "industryLabel": "Medical Clinic",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "patients",
+    "families",
+    "caregivers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#0E7490",
+    "secondary": "#E0F7FA",
+    "accent": "#34D399",
+    "background": "#F7FCFC",
+    "text": "#11313A"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "medical_clinic",
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-medical_clinic-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 9 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-pet_care-premium-showcase",
+  "name": "Pet Care Premium Showcase",
+  "industry": "pet_care",
+  "industryLabel": "Pet Care",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "pet owners",
+    "families",
+    "new clients"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#EA580C",
+    "secondary": "#FFEDD5",
+    "accent": "#22C55E",
+    "background": "#FFF7ED",
+    "text": "#332015"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "pet_care",
+    "pet-care",
+    "grooming",
+    "veterinary",
+    "dog",
+    "cat",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-pet_care-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-pet_care-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: appointment offer, service menu, trust badges. Primary audience: pet owners, families, new clients. Catalog position: 88 of 100."
+}

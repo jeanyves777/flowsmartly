@@ -1,0 +1,65 @@
+{
+  "id": "agent-law_firm-premium-showcase",
+  "name": "Law Firm Premium Showcase",
+  "industry": "law_firm",
+  "industryLabel": "Law Firm",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "clients seeking counsel",
+    "business owners",
+    "families"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1E3A5F",
+    "secondary": "#EEF2F7",
+    "accent": "#B0894F",
+    "background": "#111827",
+    "text": "#F8FAFC"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "law_firm",
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-law_firm-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-law_firm-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 28 of 100."
+}

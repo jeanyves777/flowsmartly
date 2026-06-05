@@ -1,0 +1,65 @@
+{
+  "id": "agent-real_estate-premium-showcase",
+  "name": "Real Estate Premium Showcase",
+  "industry": "real_estate",
+  "industryLabel": "Real Estate",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "home buyers",
+    "sellers",
+    "investors"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#174E7A",
+    "secondary": "#E8F2F7",
+    "accent": "#D7A44A",
+    "background": "#10263A",
+    "text": "#F8FBFC"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "real_estate",
+    "real-estate",
+    "realtor",
+    "property",
+    "open-house",
+    "home",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-real_estate-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-real_estate-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: sold results, neighborhood expertise, appointment availability. Primary audience: home buyers, sellers, investors. Catalog position: 8 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-event_planning-trust-story",
+  "name": "Event Planning Trust Story",
+  "industry": "event_planning",
+  "industryLabel": "Event Planning",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "hosts",
+    "couples",
+    "corporate teams"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#9D174D",
+    "secondary": "#FCE7F3",
+    "accent": "#D4AF37",
+    "background": "#FFF7FB",
+    "text": "#371827"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "event_planning",
+    "event",
+    "party",
+    "wedding",
+    "planning",
+    "celebration",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-event_planning-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-event_planning-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: package offer, date availability, planning experience. Primary audience: hosts, couples, corporate teams. Catalog position: 70 of 100."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "agent-ecommerce-trust-story",
+  "name": "E-Commerce Trust Story",
+  "industry": "ecommerce",
+  "industryLabel": "E-Commerce",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "online shoppers",
+    "deal seekers",
+    "returning customers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#7C3AED",
+    "secondary": "#F5F3FF",
+    "accent": "#F97316",
+    "background": "#FFFFFF",
+    "text": "#1F1736"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "ecommerce",
+    "online-store",
+    "product",
+    "sale",
+    "shopping",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-ecommerce-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 34 of 100."
+}

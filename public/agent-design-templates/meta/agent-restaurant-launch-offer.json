@@ -1,0 +1,64 @@
+{
+  "id": "agent-restaurant-launch-offer",
+  "name": "Restaurant Launch Offer",
+  "industry": "restaurant",
+  "industryLabel": "Restaurant",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "local diners",
+    "families",
+    "date-night customers"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#B8322A",
+    "secondary": "#F5E6CF",
+    "accent": "#F2A65A",
+    "background": "#2B1712",
+    "text": "#FFF8EE"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-restaurant-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 1 of 100."
+}

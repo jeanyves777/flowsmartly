@@ -156,6 +156,9 @@ export function serializeAgentDesignTemplateForTool(template: AgentDesignTemplat
     copySlots: template.copySlots,
     ctaStyle: template.ctaStyle,
     promptGuidance: template.promptGuidance,
+    imageUrl: template.imageUrl,
+    thumbnailUrl: template.thumbnailUrl,
+    metaUrl: template.metaUrl,
   };
 }
 

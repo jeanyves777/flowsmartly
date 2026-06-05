@@ -1,0 +1,65 @@
+{
+  "id": "agent-medical_clinic-trust-story",
+  "name": "Medical Clinic Trust Story",
+  "industry": "medical_clinic",
+  "industryLabel": "Medical Clinic",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "patients",
+    "families",
+    "caregivers"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0E7490",
+    "secondary": "#E0F7FA",
+    "accent": "#34D399",
+    "background": "#F7FCFC",
+    "text": "#11313A"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "medical_clinic",
+    "healthcare",
+    "clinic",
+    "medical",
+    "wellness",
+    "appointment",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-medical_clinic-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-medical_clinic-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: licensed care, same-week appointments, patient outcomes. Primary audience: patients, families, caregivers. Catalog position: 10 of 100."
+}

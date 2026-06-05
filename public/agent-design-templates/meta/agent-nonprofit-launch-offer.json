@@ -1,0 +1,64 @@
+{
+  "id": "agent-nonprofit-launch-offer",
+  "name": "Nonprofit Launch Offer",
+  "industry": "nonprofit",
+  "industryLabel": "Nonprofit",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "donors",
+    "volunteers",
+    "community partners"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#047857",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#14352C"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "nonprofit",
+    "fundraiser",
+    "community",
+    "donation",
+    "impact",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-nonprofit-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-nonprofit-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: impact metric, donation goal, event date. Primary audience: donors, volunteers, community partners. Catalog position: 65 of 100."
+}

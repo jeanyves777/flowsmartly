@@ -1,0 +1,65 @@
+{
+  "id": "agent-financial_services-trust-story",
+  "name": "Financial Services Trust Story",
+  "industry": "financial_services",
+  "industryLabel": "Financial Services",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "families",
+    "business owners",
+    "professionals"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#14532D",
+    "secondary": "#ECFDF5",
+    "accent": "#D4AF37",
+    "background": "#F8FAFC",
+    "text": "#14301F"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "financial_services",
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-financial_services-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-financial_services-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: consultation, protection, savings or planning outcome. Primary audience: families, business owners, professionals. Catalog position: 82 of 100."
+}

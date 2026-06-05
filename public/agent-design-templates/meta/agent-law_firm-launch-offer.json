@@ -1,0 +1,65 @@
+{
+  "id": "agent-law_firm-launch-offer",
+  "name": "Law Firm Launch Offer",
+  "industry": "law_firm",
+  "industryLabel": "Law Firm",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "clients seeking counsel",
+    "business owners",
+    "families"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1E3A5F",
+    "secondary": "#EEF2F7",
+    "accent": "#B0894F",
+    "background": "#111827",
+    "text": "#F8FAFC"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "law_firm",
+    "law",
+    "attorney",
+    "legal",
+    "consultation",
+    "professional-services",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-law_firm-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-law_firm-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 25 of 100."
+}

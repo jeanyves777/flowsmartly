@@ -1,0 +1,65 @@
+{
+  "id": "agent-financial_services-launch-offer",
+  "name": "Financial Services Launch Offer",
+  "industry": "financial_services",
+  "industryLabel": "Financial Services",
+  "useCase": "Launch, opening, seasonal offer, or new-service announcement",
+  "audience": [
+    "families",
+    "business owners",
+    "professionals"
+  ],
+  "format": {
+    "channel": "social_post",
+    "orientation": "square",
+    "width": 1080,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#14532D",
+    "secondary": "#ECFDF5",
+    "accent": "#D4AF37",
+    "background": "#F8FAFC",
+    "text": "#14301F"
+  },
+  "copySlots": [
+    "eyebrow",
+    "headline",
+    "subhead",
+    "proof badge",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor"
+  ],
+  "styleTags": [
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion"
+  ],
+  "metaTags": [
+    "financial_services",
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor",
+    "launch-offer",
+    "social_post",
+    "square",
+    "bold",
+    "promotional",
+    "high-contrast",
+    "conversion",
+    "launch-opening-seasonal-offer-or-new-service-announcement"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-financial_services-launch-offer.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-financial_services-launch-offer.png",
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: consultation, protection, savings or planning outcome. Primary audience: families, business owners, professionals. Catalog position: 81 of 100."
+}

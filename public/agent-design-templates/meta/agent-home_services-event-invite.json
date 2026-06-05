@@ -1,0 +1,66 @@
+{
+  "id": "agent-home_services-event-invite",
+  "name": "Home Services Event Invite",
+  "industry": "home_services",
+  "industryLabel": "Home Services",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "homeowners",
+    "property managers",
+    "busy families"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0EA5E9",
+    "secondary": "#E0F2FE",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#132638"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "home_services",
+    "home-services",
+    "cleaning",
+    "plumbing",
+    "hvac",
+    "repair",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-home_services-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-home_services-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: same-day service, licensed team, estimate offer. Primary audience: homeowners, property managers, busy families. Catalog position: 59 of 100."
+}

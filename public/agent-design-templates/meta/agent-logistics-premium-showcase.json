@@ -1,0 +1,64 @@
+{
+  "id": "agent-logistics-premium-showcase",
+  "name": "Logistics Premium Showcase",
+  "industry": "logistics",
+  "industryLabel": "Logistics",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "business owners",
+    "operations teams",
+    "retailers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1F2937",
+    "secondary": "#E5E7EB",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-logistics-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-logistics-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: on-time delivery, coverage area, quote offer. Primary audience: business owners, operations teams, retailers. Catalog position: 92 of 100."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "agent-logistics-event-invite",
+  "name": "Logistics Event Invite",
+  "industry": "logistics",
+  "industryLabel": "Logistics",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "business owners",
+    "operations teams",
+    "retailers"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#1F2937",
+    "secondary": "#E5E7EB",
+    "accent": "#F97316",
+    "background": "#F8FAFC",
+    "text": "#111827"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "logistics",
+    "delivery",
+    "transport",
+    "shipping",
+    "warehouse",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-logistics-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-logistics-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: on-time delivery, coverage area, quote offer. Primary audience: business owners, operations teams, retailers. Catalog position: 91 of 100."
+}

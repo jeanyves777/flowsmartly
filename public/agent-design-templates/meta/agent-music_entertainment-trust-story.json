@@ -1,0 +1,65 @@
+{
+  "id": "agent-music_entertainment-trust-story",
+  "name": "Music and Entertainment Trust Story",
+  "industry": "music_entertainment",
+  "industryLabel": "Music and Entertainment",
+  "useCase": "Credibility, testimonial, expert positioning, or community trust message",
+  "audience": [
+    "fans",
+    "eventgoers",
+    "local community"
+  ],
+  "format": {
+    "channel": "flyer",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#6D28D9",
+    "secondary": "#111827",
+    "accent": "#EC4899",
+    "background": "#050505",
+    "text": "#FFFFFF"
+  },
+  "copySlots": [
+    "brand header",
+    "trust headline",
+    "short story",
+    "three proof points",
+    "cta",
+    "contact footer"
+  ],
+  "industryTags": [
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife"
+  ],
+  "styleTags": [
+    "credible",
+    "editorial",
+    "warm",
+    "premium"
+  ],
+  "metaTags": [
+    "music_entertainment",
+    "music",
+    "entertainment",
+    "concert",
+    "artist",
+    "nightlife",
+    "trust-story",
+    "flyer",
+    "portrait",
+    "credible",
+    "editorial",
+    "warm",
+    "premium",
+    "credibility-testimonial-expert-positioning-or-community-trust-message"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-music_entertainment-trust-story.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-music_entertainment-trust-story.png",
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: date, lineup, ticket link, limited seating. Primary audience: fans, eventgoers, local community. Catalog position: 94 of 100."
+}

@@ -1,0 +1,66 @@
+{
+  "id": "agent-tax_accounting-event-invite",
+  "name": "Tax and Accounting Event Invite",
+  "industry": "tax_accounting",
+  "industryLabel": "Tax and Accounting",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "small businesses",
+    "families",
+    "self-employed clients"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#0F766E",
+    "secondary": "#ECFDF5",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#12312D"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "tax_accounting",
+    "tax",
+    "accounting",
+    "bookkeeping",
+    "finance",
+    "consultation",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-tax_accounting-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-tax_accounting-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: refund help, bookkeeping cleanup, deadline reminders. Primary audience: small businesses, families, self-employed clients. Catalog position: 31 of 100."
+}

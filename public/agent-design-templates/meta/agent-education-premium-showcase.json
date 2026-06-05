@@ -1,0 +1,64 @@
+{
+  "id": "agent-education-premium-showcase",
+  "name": "Education Premium Showcase",
+  "industry": "education",
+  "industryLabel": "Education",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "students",
+    "parents",
+    "career learners"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#1D4ED8",
+    "secondary": "#DBEAFE",
+    "accent": "#F59E0B",
+    "background": "#F8FAFC",
+    "text": "#10213F"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "education",
+    "school",
+    "course",
+    "training",
+    "students",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-education-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-education-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: enrollment window, outcomes, class schedule. Primary audience: students, parents, career learners. Catalog position: 48 of 100."
+}

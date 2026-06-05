@@ -178,7 +178,7 @@ function renderBlock(block: Block, key: number): React.ReactNode {
 // for "any system info link rendered in a nice clickable card not plain link".
 // Whitelisted so we never linkify "and/or", "24/7", a date "12/25", etc.
 const INTERNAL_ROUTE_SEGMENTS = [
-  "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+  "buy-credits", "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
   "settings", "brand-kit", "studio", "websites", "ecommerce", "content", "flow-ai",
   "tools", "media", "designs", "account", "contacts", "campaigns", "automations",
   "analytics", "posts", "calendar", "earnings", "payouts", "dashboard", "store",
@@ -187,11 +187,18 @@ const INTERNAL_ROUTE_SEGMENTS = [
 // Routes that should read as a primary call-to-action (money / plan), so the
 // "out of credits" reply shows an inviting button, not a bland link.
 const PRIMARY_ROUTE_SEGMENTS = new Set([
-  "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+  "buy-credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
 ]);
 
+// Bare paths the agent sometimes emits that 404 → rewrite to the real page.
+const ROUTE_ALIASES: Record<string, string> = {
+  "/credits": "/buy-credits",
+  "/upgrade": "/settings/upgrade",
+};
+
 const ROUTE_LABELS: Record<string, string> = {
-  credits: "Add credits",
+  "buy-credits": "Add credits",
+  credits: "Credits",
   billing: "Billing",
   subscription: "Manage plan",
   subscriptions: "Manage plan",
@@ -233,10 +240,13 @@ function humanizeSegment(seg: string): string {
 
 /** Render an internal app path as a clickable chip — primary CTA for money/plan routes. */
 function renderInternalPath(rawPath: string, key: number): React.ReactNode {
-  const path = rawPath.replace(/\/$/, "") || rawPath;
+  let path = rawPath.replace(/\/$/, "") || rawPath;
+  // Rewrite bare aliases (e.g. /credits → /buy-credits) so the link never 404s.
+  if (ROUTE_ALIASES[path]) path = ROUTE_ALIASES[path];
   const seg = path.split("/")[1]?.toLowerCase() ?? "";
-  const primary = PRIMARY_ROUTE_SEGMENTS.has(seg);
-  const label = ROUTE_LABELS[seg] ?? humanizeSegment(seg);
+  const isCreditsHistory = path === "/credits/history";
+  const primary = PRIMARY_ROUTE_SEGMENTS.has(seg) && !isCreditsHistory;
+  const label = isCreditsHistory ? "Credits history" : ROUTE_LABELS[seg] ?? humanizeSegment(seg);
   return (
     <a
       key={key}

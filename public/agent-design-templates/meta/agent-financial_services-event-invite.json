@@ -1,0 +1,66 @@
+{
+  "id": "agent-financial_services-event-invite",
+  "name": "Financial Services Event Invite",
+  "industry": "financial_services",
+  "industryLabel": "Financial Services",
+  "useCase": "Event, webinar, workshop, service day, appointment drive, or open house",
+  "audience": [
+    "families",
+    "business owners",
+    "professionals"
+  ],
+  "format": {
+    "channel": "poster",
+    "orientation": "portrait",
+    "width": 1080,
+    "height": 1350
+  },
+  "palette": {
+    "primary": "#14532D",
+    "secondary": "#ECFDF5",
+    "accent": "#D4AF37",
+    "background": "#F8FAFC",
+    "text": "#14301F"
+  },
+  "copySlots": [
+    "event type",
+    "event title",
+    "date",
+    "time",
+    "location",
+    "reason to attend",
+    "rsvp cta"
+  ],
+  "industryTags": [
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor"
+  ],
+  "styleTags": [
+    "event",
+    "structured",
+    "date-focused",
+    "invitation"
+  ],
+  "metaTags": [
+    "financial_services",
+    "finance",
+    "insurance",
+    "wealth",
+    "loan",
+    "advisor",
+    "event-invite",
+    "poster",
+    "portrait",
+    "event",
+    "structured",
+    "date-focused",
+    "invitation",
+    "event-webinar-workshop-service-day-appointment-drive-or-open-house"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-financial_services-event-invite.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-financial_services-event-invite.png",
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: consultation, protection, savings or planning outcome. Primary audience: families, business owners, professionals. Catalog position: 83 of 100."
+}

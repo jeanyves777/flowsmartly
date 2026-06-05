@@ -1,0 +1,64 @@
+{
+  "id": "agent-restaurant-premium-showcase",
+  "name": "Restaurant Premium Showcase",
+  "industry": "restaurant",
+  "industryLabel": "Restaurant",
+  "useCase": "Hero brand creative, product or service spotlight, retargeting ad, or website hero",
+  "audience": [
+    "local diners",
+    "families",
+    "date-night customers"
+  ],
+  "format": {
+    "channel": "ad",
+    "orientation": "landscape",
+    "width": 1920,
+    "height": 1080
+  },
+  "palette": {
+    "primary": "#B8322A",
+    "secondary": "#F5E6CF",
+    "accent": "#F2A65A",
+    "background": "#2B1712",
+    "text": "#FFF8EE"
+  },
+  "copySlots": [
+    "small industry label",
+    "hero headline",
+    "supporting sentence",
+    "metric card",
+    "cta",
+    "contact strip"
+  ],
+  "industryTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality"
+  ],
+  "styleTags": [
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad"
+  ],
+  "metaTags": [
+    "restaurant",
+    "food",
+    "dining",
+    "menu",
+    "hospitality",
+    "premium-showcase",
+    "ad",
+    "landscape",
+    "premium",
+    "hero",
+    "brand",
+    "paid-ad",
+    "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
+  ],
+  "imageUrl": "/agent-design-templates/images/agent-restaurant-premium-showcase.png",
+  "thumbnailUrl": "/agent-design-templates/thumbs/agent-restaurant-premium-showcase.png",
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: reviews, signature menu items, limited-time specials. Primary audience: local diners, families, date-night customers. Catalog position: 4 of 100."
+}
