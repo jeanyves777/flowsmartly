@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T17:05:03.723Z",
+  "generatedAt": "2026-06-05T17:45:53.063Z",
   "count": 100,
-  "codexImagegenCount": 30,
+  "codexImagegenCount": 32,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -825,8 +825,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T17:20:10.601Z"
     },
     {
       "id": "agent-tax_accounting-premium-showcase",
@@ -852,8 +852,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T17:45:53.049Z"
     },
     {
       "id": "agent-ecommerce-launch-offer",

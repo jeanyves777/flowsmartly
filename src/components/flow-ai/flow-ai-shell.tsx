@@ -401,6 +401,12 @@ export function FlowAIShell() {
             flushMessage();
           }
         },
+        onTemplateOptions: (requestId, templates) => {
+          if (!blocks.some((b) => b.type === "templates" && b.requestId === requestId)) {
+            blocks.push({ type: "templates", requestId, templates });
+          }
+          flushMessage();
+        },
         onError: (message) => {
           assistantText = assistantText
             ? `${assistantText}\n\n_⚠️ ${message}_`
@@ -499,6 +505,19 @@ export function FlowAIShell() {
   // wakes up server-side; its next text_delta arrives on the same SSE stream
   // if the stream is still open, otherwise the user will see results when they
   // come back via the persisted tool-call audit + AgentTask rehydration.
+  // User clicked a design-template card (or "No template"). Send the choice as a
+  // normal message so the agent generates with/without that template.
+  const handlePickTemplate = useCallback(
+    (choice: { id: string; name: string } | null) => {
+      void send(
+        choice
+          ? `Use the "${choice.name}" template for the design (templateId: ${choice.id}).`
+          : "Design from my prompt only — no template.",
+      );
+    },
+    [send],
+  );
+
   const respondToPlan = useCallback(
     async (planId: string, confirmed: boolean) => {
       if (!conversationId) return;
@@ -895,7 +914,7 @@ export function FlowAIShell() {
               <FlowAIEmptyState mode={mode} onSuggest={(q) => send(q)} />
             ) : (
               messages.map((m) => (
-                <MessageView key={m.id} message={m} conversationId={conversationId} onPlanResponse={respondToPlan} />
+                <MessageView key={m.id} message={m} conversationId={conversationId} onPlanResponse={respondToPlan} onPickTemplate={handlePickTemplate} />
               ))
             )}
             {sending && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
@@ -1307,10 +1326,12 @@ function MessageView({
   message,
   conversationId,
   onPlanResponse,
+  onPickTemplate,
 }: {
   message: Message;
   conversationId?: string | null;
   onPlanResponse?: (planId: string, confirmed: boolean) => void;
+  onPickTemplate?: (choice: { id: string; name: string } | null) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -1339,6 +1360,7 @@ function MessageView({
             planProposals={message.planProposals}
             agentTasks={message.agentTasks}
             onPlanResponse={onPlanResponse}
+            onPickTemplate={onPickTemplate}
             bubbleClassName="bg-white dark:bg-gray-800 border-border text-foreground"
           />
         ) : (

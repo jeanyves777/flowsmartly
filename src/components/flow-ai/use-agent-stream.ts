@@ -7,6 +7,7 @@ import type {
   PlanProposalCardData,
   PlanStepData,
   MessageBlock,
+  TemplateOption,
 } from "./agent-cards";
 
 /**
@@ -36,6 +37,7 @@ export interface AgentStreamHandlers {
   onTaskProgress?: (taskId: string, progress: number | undefined, message: string | undefined) => void;
   onTaskCompleted?: (task: AgentTaskCardData) => void;
   onTaskFailed?: (taskId: string, error: string | undefined) => void;
+  onTemplateOptions?: (requestId: string, templates: TemplateOption[]) => void;
   onError?: (message: string, recoverable: boolean) => void;
   onDone?: () => void;
 }
@@ -122,6 +124,16 @@ export async function consumeAgentStream(
           handlers.onTaskFailed?.(
             payload.taskId,
             typeof payload.error === "string" ? payload.error : undefined,
+          );
+        } else if (type === "template_options" && Array.isArray(payload.templates)) {
+          handlers.onTemplateOptions?.(
+            String(payload.requestId ?? ""),
+            (payload.templates as Record<string, unknown>[]).map((x) => ({
+              id: String(x.id ?? ""),
+              name: String(x.name ?? x.id ?? ""),
+              industry: typeof x.industry === "string" ? x.industry : null,
+              thumbnailUrl: typeof x.thumbnailUrl === "string" ? x.thumbnailUrl : null,
+            })),
           );
         } else if (type === "error" && typeof payload.message === "string") {
           handlers.onError?.(payload.message, payload.recoverable === true);
@@ -266,6 +278,20 @@ export function parseMessageBlocks(metadata: string | null | undefined): Message
         blocks.push({ type: "text", text: (b as { text: string }).text });
       } else if ((t === "tool" || t === "proposal" || t === "task") && typeof (b as { id?: string }).id === "string") {
         blocks.push({ type: t, id: (b as { id: string }).id });
+      } else if (t === "templates" && Array.isArray((b as { templates?: unknown }).templates)) {
+        const raw = (b as { templates: unknown[] }).templates;
+        const templates: TemplateOption[] = raw
+          .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+          .map((x) => ({
+            id: String(x.id ?? ""),
+            name: String(x.name ?? x.id ?? ""),
+            industry: typeof x.industry === "string" ? x.industry : null,
+            thumbnailUrl: typeof x.thumbnailUrl === "string" ? x.thumbnailUrl : null,
+          }))
+          .filter((x) => x.id);
+        if (templates.length) {
+          blocks.push({ type: "templates", requestId: String((b as { requestId?: unknown }).requestId ?? ""), templates });
+        }
       }
     }
     return blocks.length ? blocks : undefined;

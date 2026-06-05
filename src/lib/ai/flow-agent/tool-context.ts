@@ -17,6 +17,14 @@ import type { CreditCostKey } from "@/lib/credits/costs";
  * implemented in agent-loop.ts.
  */
 
+/** A design template offered to the user as a clickable chat card. */
+export interface TemplateOptionData {
+  id: string;
+  name: string;
+  industry?: string | null;
+  thumbnailUrl?: string | null;
+}
+
 export type AgentEvent =
   | { type: "start"; conversationId: string; messageId: string }
   | { type: "thinking"; text: string }
@@ -28,6 +36,7 @@ export type AgentEvent =
   | { type: "task_progress"; taskId: string; progress: number; message: string }
   | { type: "task_completed"; taskId: string; resultRefType?: string; resultRefId?: string; output?: unknown }
   | { type: "task_failed"; taskId: string; error: string }
+  | { type: "template_options"; requestId: string; templates: TemplateOptionData[] }
   | { type: "credits_charged"; amount: number; costKey: CreditCostKey; balanceAfter: number | null }
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "done"; tokensUsed: number; creditsUsed: number; iterations: number };

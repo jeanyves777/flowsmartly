@@ -313,6 +313,12 @@ export function FlowAIWidget() {
             taskStreamsRef.current.get(taskId)?.abort();
             taskStreamsRef.current.delete(taskId);
           },
+          onTemplateOptions: (requestId, templates) => {
+            if (!blocks.some((b) => b.type === "templates" && b.requestId === requestId)) {
+              blocks.push({ type: "templates", requestId, templates });
+            }
+            flushMessage();
+          },
           onError: (message) => {
             assistantText = assistantText
               ? `${assistantText}\n\n⚠️ ${message}`
@@ -386,6 +392,19 @@ export function FlowAIWidget() {
     setLibraryOpen(false);
     setAttachMenuOpen(false);
   }, []);
+
+  // User clicked a design-template card (or "No template"). Send their choice
+  // as a normal message so the agent proceeds to generate with/without it.
+  const handlePickTemplate = useCallback(
+    (choice: { id: string; name: string } | null) => {
+      void handleSend(
+        choice
+          ? `Use the "${choice.name}" template for the design (templateId: ${choice.id}).`
+          : "Design from my prompt only — no template.",
+      );
+    },
+    [handleSend],
+  );
 
   const handlePlanResponse = useCallback(
     async (planId: string, confirmed: boolean) => {
@@ -757,6 +776,7 @@ export function FlowAIWidget() {
                     message={m}
                     conversationId={conversationId}
                     onPlanResponse={handlePlanResponse}
+                    onPickTemplate={handlePickTemplate}
                   />
                 ))
               )}
@@ -1044,10 +1064,12 @@ function WidgetMessageView({
   message,
   conversationId,
   onPlanResponse,
+  onPickTemplate,
 }: {
   message: WidgetMessage;
   conversationId?: string | null;
   onPlanResponse: (planId: string, confirmed: boolean) => void;
+  onPickTemplate?: (choice: { id: string; name: string } | null) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -1088,6 +1110,7 @@ function WidgetMessageView({
             planProposals={message.planProposals}
             agentTasks={message.agentTasks}
             onPlanResponse={onPlanResponse}
+            onPickTemplate={onPickTemplate}
             bubbleClassName="bg-white dark:bg-gray-900 border-border text-foreground"
           />
         ) : (

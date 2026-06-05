@@ -328,11 +328,19 @@ export interface AgentTaskCardData {
  * `tool`/`proposal`/`task` reference a card by id (looked up from the message's
  * card arrays); `text` carries its own segment.
  */
+export interface TemplateOption {
+  id: string;
+  name: string;
+  industry?: string | null;
+  thumbnailUrl?: string | null;
+}
+
 export type MessageBlock =
   | { type: "text"; text: string }
   | { type: "tool"; id: string }
   | { type: "proposal"; id: string }
-  | { type: "task"; id: string };
+  | { type: "task"; id: string }
+  | { type: "templates"; requestId: string; templates: TemplateOption[] };
 
 // ─── Tool-call chip ────────────────────────────────────────────────────
 
@@ -634,12 +642,87 @@ function humanizeTaskKind(kind: string): string {
  * cards", and it reconstructs faithfully on reload. Falls back to nothing if
  * `blocks` is empty — callers render the legacy layout in that case.
  */
+/**
+ * TemplateOptionsCard — clickable design-template thumbnails the agent offers
+ * BEFORE generating a branded design. The user clicks one (or "No template")
+ * and the choice is sent as the next chat message so the agent proceeds.
+ */
+export function TemplateOptionsCard({
+  templates,
+  onPick,
+}: {
+  templates: TemplateOption[];
+  onPick?: (choice: { id: string; name: string } | null) => void;
+}) {
+  const [chosen, setChosen] = useState<string | "none" | null>(null);
+  const pick = (t: TemplateOption | null) => {
+    if (chosen) return; // one choice per card
+    setChosen(t ? t.id : "none");
+    onPick?.(t ? { id: t.id, name: t.name } : null);
+  };
+  return (
+    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 p-3 shadow-sm">
+      <div className="text-xs font-semibold text-foreground mb-2">Pick a look — or design from your idea</div>
+      <div className="grid grid-cols-2 gap-2">
+        {templates.map((t) => {
+          const isChosen = chosen === t.id;
+          const dimmed = chosen && !isChosen;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => pick(t)}
+              disabled={!!chosen}
+              className={cn(
+                "group relative overflow-hidden rounded-lg border text-left transition-all",
+                isChosen ? "border-sky-500 ring-2 ring-sky-400" : "border-border hover:border-sky-300",
+                dimmed && "opacity-50",
+              )}
+            >
+              <div className="aspect-[3/4] w-full bg-muted overflow-hidden">
+                {t.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.thumbnailUrl} alt={t.name} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">{t.name}</div>
+                )}
+              </div>
+              <div className="px-1.5 py-1">
+                <div className="truncate text-[11px] font-medium text-foreground">{t.name}</div>
+                {t.industry ? <div className="truncate text-[10px] text-muted-foreground">{t.industry}</div> : null}
+              </div>
+              {isChosen ? (
+                <div className="absolute right-1 top-1 rounded-full bg-sky-500 p-0.5 text-white">
+                  <Check className="h-3 w-3" />
+                </div>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => pick(null)}
+        disabled={!!chosen}
+        className={cn(
+          "mt-2 w-full rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-sky-300 hover:text-foreground",
+          chosen === "none" && "border-sky-500 text-foreground ring-2 ring-sky-400",
+          chosen && chosen !== "none" && "opacity-50",
+        )}
+      >
+        No template — design from my prompt only
+      </button>
+    </div>
+  );
+}
+
 export function MessageBlocks({
   blocks,
   toolCalls,
   planProposals,
   agentTasks,
   onPlanResponse,
+  onPickTemplate,
   bubbleClassName,
 }: {
   blocks: MessageBlock[];
@@ -647,6 +730,8 @@ export function MessageBlocks({
   planProposals?: PlanProposalCardData[];
   agentTasks?: AgentTaskCardData[];
   onPlanResponse?: (planId: string, confirmed: boolean) => void;
+  /** Called when the user clicks a template card (or "No template" → null). */
+  onPickTemplate?: (choice: { id: string; name: string } | null) => void;
   /** Tailwind classes for the assistant text bubble (themed per surface). */
   bubbleClassName?: string;
 }) {
@@ -710,6 +795,15 @@ export function MessageBlocks({
         rows.push(
           <div key={`task-${i}`} className="flex flex-col items-start">
             <TaskCard task={t} />
+          </div>,
+        );
+      }
+      i += 1;
+    } else if (b.type === "templates") {
+      if (b.templates?.length) {
+        rows.push(
+          <div key={`tpl-${i}`} className="flex flex-col items-start">
+            <TemplateOptionsCard templates={b.templates} onPick={onPickTemplate} />
           </div>,
         );
       }

@@ -327,7 +327,10 @@ export async function POST(req: NextRequest) {
       // chronologically (text → chip → text → card) instead of flat text.
       // Each tool/proposal/task block references a row by id; text blocks
       // carry their own segment. Persisted to AIMessage.metadata.blocks.
-      type Block = { type: "text"; text: string } | { type: "tool" | "proposal" | "task"; id: string };
+      type Block =
+        | { type: "text"; text: string }
+        | { type: "tool" | "proposal" | "task"; id: string }
+        | { type: "templates"; requestId: string; templates: unknown[] };
       const blocks: Block[] = [];
       const pushCardBlock = (type: "tool" | "proposal" | "task", id: string) => {
         if (!blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) blocks.push({ type, id });
@@ -362,6 +365,11 @@ export async function POST(req: NextRequest) {
         } else if (event.type === "task_started") {
           taskIds.push(event.taskId);
           pushCardBlock("task", event.taskId);
+        } else if (event.type === "template_options") {
+          // Self-contained so a reloaded chat re-renders the picker from metadata.
+          if (!blocks.some((b) => b.type === "templates" && (b as { requestId?: string }).requestId === event.requestId)) {
+            blocks.push({ type: "templates", requestId: event.requestId, templates: event.templates });
+          }
         }
         send(event);
       };
