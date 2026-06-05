@@ -2892,29 +2892,6 @@ model AgentToolCall {
 }
 
 // ============================================
-// AgentFeedback — thumbs up/down on a Flow-AI reply. Captures a snapshot of
-// the whole conversation flow so we can review good/bad responses.
-// ============================================
-model AgentFeedback {
-  id             String   @id @default(cuid())
-  userId         String
-  conversationId String?
-  messageId      String? // the assistant AIMessage being rated
-  rating         String // "up" | "down"
-  note           String? // optional user comment (future)
-  snapshot       String   @default("[]") // JSON: the conversation flow at report time
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // One feedback row per user per message — re-clicking flips/updates it.
-  @@unique([userId, messageId])
-  @@index([rating, createdAt])
-  @@index([userId])
-}
-
-// ============================================
 // AgentPlanProposal — persistent state for propose_plan
 // ============================================
 // Every Confirm/Cancel card the agent shows lives here. Status is the
