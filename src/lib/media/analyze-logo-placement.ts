@@ -29,9 +29,12 @@ export interface LogoPlacement {
   reason?: string;
 }
 
+// Logo kept SMALL (15% of width) so it tucks into a corner without dominating
+// or covering the headline. top-right x leaves a ~15% logo flush near the right
+// edge with a small margin.
 const CORNER_TO_PLACEMENT: Record<LogoCorner, { x: number; y: number; sizePercent: number }> = {
-  "top-left": { x: 0.03, y: 0.03, sizePercent: 22 },
-  "top-right": { x: 0.65, y: 0.03, sizePercent: 22 },
+  "top-left": { x: 0.04, y: 0.035, sizePercent: 15 },
+  "top-right": { x: 0.81, y: 0.035, sizePercent: 15 },
 };
 
 async function shrinkForVision(buffer: Buffer): Promise<{ base64: string; mediaType: "image/jpeg" }> {
@@ -85,7 +88,7 @@ export async function analyzeLogoPlacement(
     return FALLBACK;
   }
 
-  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a small brand logo (about 22% of the image width, top-left of logo positioned 3-12% from the chosen edges).
+  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a SMALL brand logo (about 15% of the image width, positioned 3-5% from the chosen edges).
 
 The logo MUST NOT overlap with ANY of the following in the chosen corner area:
 - ANY text, anywhere, of any kind (headline, body copy, captions, contact info, brand names, wordmarks, decorative typography, callouts, labels, numbers, dates, hex codes, watermarks)

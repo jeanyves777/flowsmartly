@@ -369,6 +369,7 @@ export async function runVisualForUser(
       referenceImageUrls,
       logoSizePercent,
       logoPlacement,
+      logoReferenceUrl,
       ctaText,
       editImageUrl,
       editRegion,
@@ -469,6 +470,7 @@ export async function runVisualForUser(
         : [],
       logoSizePercent: logoSizePercent || null,
       logoPlacement: normalizeLogoPlacement(logoPlacement),
+      logoReferenceUrl: typeof logoReferenceUrl === "string" && logoReferenceUrl.trim() ? logoReferenceUrl.trim() : null,
       compositeReferenceSubject: compositeReferenceSubject === true,
       ctaText: ctaText || null,
       editImageUrl: editImageUrl || null,
@@ -616,6 +618,14 @@ interface PipelineParams {
   logoSizePercent?: number | null;
   logoPlacement?: LogoPlacement | null;
   compositeReferenceSubject?: boolean;
+  /**
+   * When set, the REAL brand logo is handed to the image model as a reference
+   * DURING generation (so the model lays the design's text out AROUND the logo)
+   * instead of being blindly composited on top afterward. This is the text-safe
+   * way to let the AI place the logo — a post-generation edit would re-render and
+   * garble the headline/body text. When set, the post-gen composite is skipped.
+   */
+  logoReferenceUrl?: string | null;
   ctaText?: string | null;
   editImageUrl?: string | null;
   editIntent?: EditIntent;
@@ -718,7 +728,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     params.channels ? `Channels: ${params.channels}` : null,
     params.style ? `Style preference: ${params.style}` : null,
     params.templateImageUrl
-      ? "Selected design template image is attached separately. Use it as the primary layout, composition, and visual style inspiration only. Replace its text, logo, people, products, and brand with the user's prompt, real brand kit, and uploaded source assets."
+      ? "A design template image is attached for INSPIRATION ONLY — it shows a general layout/style DIRECTION, it is NOT to be copied. Do NOT reproduce its exact text, photos, colors, logo, people, or products. Treat it as a loose mood reference for composition and feel, then create an ORIGINAL design driven by the user's prompt, their real brand kit (colors, contact), and any uploaded source assets. The final piece should look like the user's brand, not like the template."
       : null,
     params.referenceImageUrls?.length
       ? `Reference assets: ${params.referenceImageUrls.length + (params.referenceImageUrl ? 1 : 0)} uploaded images. Treat them as exact product/person/site sources, not loose inspiration.`
@@ -731,9 +741,11 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "",
     "Brand identity:",
     JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand, null, 2),
-    params.brandLogo
-      ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and may be composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template. Do not draw a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator; let the design and background remain natural anywhere a logo may later sit."
-      : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
+    params.logoReferenceUrl
+      ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly in the header / a top corner at a tasteful size with generous clear margin, and arrange ALL headline, subhead, body, and contact text so that NOTHING overlaps, touches, or crowds the logo — leave a calm clear zone around it. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
+      : params.brandLogo
+        ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and may be composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template. Do not draw a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator; let the design and background remain natural anywhere a logo may later sit."
+        : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
     sanitizeArtifactNouns(params.prompt),
@@ -993,7 +1005,11 @@ async function runRawBrandPipeline(params: PipelineParams) {
         params.templateImageUrl,
         params.referenceImageUrl,
         ...(params.referenceImageUrls || []),
-      ], 4);
+        // The brand logo handed in as a GENERATION reference (not a post-composite)
+        // so the model lays text out around it. Appended LAST so it's the final
+        // reference the prompt's logo clause refers to.
+        params.logoReferenceUrl || null,
+      ], 5);
 
   if (referenceUrls.length > 0) {
     const refBuffers = await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)));
@@ -1043,7 +1059,10 @@ async function runRawBrandPipeline(params: PipelineParams) {
     }
   }
 
-  if (params.brandLogo) {
+  // Skip the blind post-composite when the logo was handed to the model as a
+  // GENERATION reference — the model already laid the design out around it, so
+  // overlaying again would double the logo. Only composite in the legacy path.
+  if (params.brandLogo && !params.logoReferenceUrl) {
     try {
       console.log(`[Visual] Compositing real brand logo after raw brand generation on ${finalSize.width}x${finalSize.height}`);
       const placement = await resolveLogoPlacement(finalBase64, params);

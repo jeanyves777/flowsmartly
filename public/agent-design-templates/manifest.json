@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T15:08:31.836Z",
+  "generatedAt": "2026-06-05T16:35:55.057Z",
   "count": 100,
-  "codexImagegenCount": 23,
+  "codexImagegenCount": 28,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -636,8 +636,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T15:22:28.876Z"
     },
     {
       "id": "agent-law_firm-launch-offer",
@@ -663,8 +663,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T15:46:27.792Z"
     },
     {
       "id": "agent-law_firm-trust-story",
@@ -690,8 +690,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T16:03:11.665Z"
     },
     {
       "id": "agent-law_firm-event-invite",
@@ -717,8 +717,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T16:20:08.517Z"
     },
     {
       "id": "agent-law_firm-premium-showcase",
@@ -744,8 +744,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T16:35:55.046Z"
     },
     {
       "id": "agent-tax_accounting-launch-offer",

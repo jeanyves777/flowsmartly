@@ -62,5 +62,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-law_firm-event-invite.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-law_firm-event-invite.png",
-  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 27 of 100."
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: case experience, free consultation, client confidentiality. Primary audience: clients seeking counsel, business owners, families. Catalog position: 27 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a22f661a10c8193807d5f0254a62409.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T16:20:08.517Z"
 }

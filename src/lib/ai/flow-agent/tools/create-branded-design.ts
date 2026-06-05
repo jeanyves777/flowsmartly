@@ -165,7 +165,7 @@ export const createBrandedDesign: FlowAgentTool = {
     // Same policy scaffolding the Create modal uses so quality matches the
     // product page. Logo lock + anti-invention + exact-reference handling.
     const logoPolicy = hasBrandLogo
-      ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, badge, or monogram — the user's REAL brand logo is composited on afterward. RESERVE A CALM CORNER for it: keep one top corner (top-left OR top-right) free of headlines, body text, faces, and key graphics — that corner must stay quiet background only, about 26% of the width and 16% of the height, so the logo sits cleanly with breathing room and never overlaps text. Do NOT add a placeholder box, frame, label, or watermark there — just leave it uncluttered."
+      ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, or monogram — the user's REAL logo is composited on afterward, SMALL, in one TOP corner. RESERVE a calm clear corner for it: keep the TOP-LEFT and TOP-RIGHT corners (about the top 16% of the height) free of headline text, faces, and key graphics — quiet background only — so the small logo drops in cleanly without covering anything. Do NOT add a placeholder box, frame, label, or watermark; just keep those corners uncluttered, and do NOT spell out the brand name as a wordmark."
       : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
     const exactReferencePolicy = referenceImageUrls.length
       ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
@@ -226,6 +226,10 @@ export const createBrandedDesign: FlowAgentTool = {
       heroType: "product",
       textMode: "creative",
       brandColors: colors,
+      // Composite the REAL logo (always faithful + correct size). Placement is
+      // improved separately: showBrandName is off (no wordmark to collide with),
+      // the prompt reserves a calm corner, the logo is small, and the vision
+      // safe-area pass picks the clearest corner — see analyzeLogoPlacement.
       brandLogo,
       brandName: brandKit?.name || null,
       // When a logo exists, the composited logo IS the brand mark — do NOT also
