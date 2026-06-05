@@ -167,6 +167,18 @@ export function resolveConfirmation(
 
 export interface TaskProgressEvent {
   type: "progress" | "completed" | "failed";
+  /**
+   * On completion/failure, a short assistant chat message announcing the
+   * result ("✅ your flyer's ready — want to post/edit/export it?"). The chat
+   * UI renders it as a NEW assistant bubble so the agent actually tells the
+   * user it finished instead of leaving the stale "being created" text.
+   */
+  assistantMessage?: string;
+  /** The persisted AIMessage id for that announcement (dedupe on the client). */
+  assistantMessageId?: string;
+  /** Media to show on the announcement bubble (the finished asset). */
+  assistantMediaUrl?: string;
+  assistantMediaType?: string;
   taskId: string;
   /** 0-100 for progress, or whatever the task wants to emit. */
   progress?: number;
@@ -320,12 +332,28 @@ export async function spawnBackgroundTask(
         },
       });
 
+      // The agent COMMUNICATES the result: persist a fresh assistant message
+      // announcing completion (so it shows on reload + the next turn knows it
+      // already told the user) and ride it on the completed event so the live
+      // chat appends a real "it's ready" bubble instead of sitting on the stale
+      // "being created" text.
+      const announcement = await persistTaskAnnouncement({
+        conversationId: input.conversationId,
+        kind: input.kind,
+        ok: true,
+        output: result.output,
+      });
+
       publishTaskEvent({
         type: "completed",
         taskId: task.id,
         output: result.output,
         resultRefType: result.resultRefType,
         resultRefId: result.resultRefId,
+        assistantMessage: announcement?.content,
+        assistantMessageId: announcement?.id,
+        assistantMediaUrl: announcement?.mediaUrl,
+        assistantMediaType: announcement?.mediaType,
       });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
@@ -342,9 +370,101 @@ export async function spawnBackgroundTask(
       } catch {
         /* swallow secondary failure */
       }
-      publishTaskEvent({ type: "failed", taskId: task.id, error: errMsg });
+      const announcement = await persistTaskAnnouncement({
+        conversationId: input.conversationId,
+        kind: input.kind,
+        ok: false,
+        error: errMsg,
+      });
+      publishTaskEvent({
+        type: "failed",
+        taskId: task.id,
+        error: errMsg,
+        assistantMessage: announcement?.content,
+        assistantMessageId: announcement?.id,
+      });
     }
   });
 
   return task.id;
+}
+
+// ─── TASK COMPLETION ANNOUNCEMENT ──────────────────────────────────────
+// The agent communicating the result of a background job: when a task
+// finishes we persist a fresh assistant message so the chat reflects "it's
+// ready" (on reload AND live) instead of stalling on the "being created" text.
+
+/** Human nouns + media kind per task kind, for the announcement copy. */
+function taskKindMeta(kind: string): { noun: string; media: "image" | "video" | null; next: string } {
+  switch (kind) {
+    case "create_branded_design":
+    case "generate_image":
+    case "edit_image":
+      return { noun: "design", media: "image", next: "schedule it as a post, make an edit, or export it for print" };
+    case "generate_video":
+    case "start_story_ad_campaign":
+      return { noun: "video", media: "video", next: "post it, add narration, or tweak a scene" };
+    case "generate_narration":
+      return { noun: "narration", media: null, next: "use it on a video or regenerate it" };
+    case "build_website":
+      return { noun: "website", media: null, next: "review and edit it" };
+    case "build_store":
+      return { noun: "store", media: null, next: "review it and add products" };
+    case "create_proposal":
+      return { noun: "proposal", media: null, next: "review and send it" };
+    case "create_pitch":
+      return { noun: "pitch", media: null, next: "review it on the Pitch Board" };
+    case "import_contacts_csv":
+      return { noun: "contact import", media: null, next: "review your contacts" };
+    default:
+      return { noun: kind.replace(/_/g, " "), media: null, next: "tell me what you'd like to do next" };
+  }
+}
+
+/**
+ * Build + persist the assistant announcement for a finished task. Returns the
+ * row so the caller can ride it on the completed/failed event for live render.
+ * Best-effort: a persistence failure never breaks the task.
+ */
+async function persistTaskAnnouncement(args: {
+  conversationId: string;
+  kind: string;
+  ok: boolean;
+  output?: unknown;
+  error?: string;
+}): Promise<{ id: string; content: string; mediaUrl?: string; mediaType?: string } | null> {
+  try {
+    const meta = taskKindMeta(args.kind);
+    const resultUrl =
+      args.output && typeof args.output === "object" && typeof (args.output as { url?: unknown }).url === "string"
+        ? (args.output as { url: string }).url
+        : undefined;
+
+    void resultUrl; // the finished asset already renders in the task card above
+    const content = args.ok
+      ? `✅ Your ${meta.noun} is ready — it's the card above. Want me to ${meta.next}? Just tell me.`
+      : `⚠️ Your ${meta.noun} couldn't be finished${args.error ? `: ${args.error.slice(0, 160)}` : ""}. Want me to try again?`;
+
+    // Text-only: the media already shows in the task card, so don't attach it
+    // here (that would render the asset twice on reload).
+    const row = await prisma.aIMessage.create({
+      data: {
+        conversationId: args.conversationId,
+        role: "assistant",
+        content,
+        metadata: JSON.stringify({ autoCompletion: true, kind: args.kind, ok: args.ok }),
+      },
+      select: { id: true },
+    });
+
+    // Keep the conversation's updatedAt fresh so it sorts to the top.
+    await prisma.aIConversation
+      .update({ where: { id: args.conversationId }, data: { updatedAt: new Date() } })
+      .catch(() => {});
+
+    return { id: row.id, content };
+  } catch (e) {
+    console.error("[flow-agent] persistTaskAnnouncement failed:", e);
+    return null;
+  }
 }

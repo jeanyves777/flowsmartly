@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T16:35:55.057Z",
+  "generatedAt": "2026-06-05T17:05:03.723Z",
   "count": 100,
-  "codexImagegenCount": 28,
+  "codexImagegenCount": 30,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -771,8 +771,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T16:53:13.330Z"
     },
     {
       "id": "agent-tax_accounting-trust-story",
@@ -798,8 +798,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T17:05:03.713Z"
     },
     {
       "id": "agent-tax_accounting-event-invite",

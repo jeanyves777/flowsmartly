@@ -632,6 +632,15 @@ export function FlowAIShell() {
         for (const taskId of liveTaskIds) {
           if (cancelled) break;
           subscribeToTaskStream(taskId, (event) => {
+            // Agent announces the finished job as a fresh assistant bubble.
+            if ((event.type === "completed" || event.type === "failed") && event.assistantMessage) {
+              const annId = event.assistantMessageId || `task-done-${taskId}`;
+              setMessages((prev) =>
+                prev.some((m) => m.id === annId)
+                  ? prev
+                  : [...prev, { id: annId, role: "assistant", content: event.assistantMessage as string }],
+              );
+            }
             setMessages((prev) =>
               prev.map((m) => {
                 if (!m.agentTasks) return m;

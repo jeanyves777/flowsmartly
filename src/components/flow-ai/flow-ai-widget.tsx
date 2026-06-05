@@ -83,6 +83,13 @@ export function FlowAIWidget() {
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<WidgetMessage[]>([]);
+  // Append the agent's "✅ it's ready" announcement when a background task
+  // finishes (deduped by id, so re-delivery / reload never doubles it).
+  const appendCompletionMessage = useCallback((msg: { id: string; content: string }) => {
+    setMessages((prev) =>
+      prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }],
+    );
+  }, []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -277,7 +284,7 @@ export function FlowAIWidget() {
             // Subscribe to live progress in case the agent turn ends
             // before the task does (likely — that's the whole point of
             // background tasks).
-            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current);
+            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage);
           },
           onTaskProgress: (taskId, progress, message) => {
             const existing = tasksById.get(taskId);
@@ -979,10 +986,19 @@ function startTaskSubscription(
   tasksById: Map<string, AgentTaskCardData>,
   flush: () => void,
   registry: Map<string, AbortController>,
+  appendAssistantMessage?: (msg: { id: string; content: string }) => void,
 ) {
   // Don't double-subscribe.
   if (registry.has(taskId)) return;
   const controller = subscribeToTaskStream(taskId, (event) => {
+    // When a job finishes the agent ANNOUNCES it as a fresh assistant bubble
+    // ("✅ your design is ready…") so the chat doesn't sit on "being created".
+    if ((event.type === "completed" || event.type === "failed") && event.assistantMessage) {
+      appendAssistantMessage?.({
+        id: event.assistantMessageId || `task-done-${taskId}`,
+        content: event.assistantMessage,
+      });
+    }
     const current = tasksById.get(taskId);
     if (!current) return;
     let next: AgentTaskCardData = current;

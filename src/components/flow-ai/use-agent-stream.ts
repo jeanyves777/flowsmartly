@@ -144,8 +144,8 @@ export async function consumeAgentStream(
 export type TaskStreamEvent =
   | { type: "snapshot"; status: AgentTaskCardData["status"]; output: { url?: string } | null; error: string | null; resultRefType: string | null; resultRefId: string | null }
   | { type: "progress"; progress?: number; message?: string }
-  | { type: "completed"; output?: { url?: string }; resultRefType?: string; resultRefId?: string }
-  | { type: "failed"; error?: string }
+  | { type: "completed"; output?: { url?: string }; resultRefType?: string; resultRefId?: string; assistantMessage?: string; assistantMessageId?: string; assistantMediaUrl?: string; assistantMediaType?: string }
+  | { type: "failed"; error?: string; assistantMessage?: string; assistantMessageId?: string }
   | { type: "done" };
 
 export function subscribeToTaskStream(
