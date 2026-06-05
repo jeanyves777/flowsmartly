@@ -349,7 +349,7 @@ export function renderAgentMemory(ctx: UserContextSnapshot): string {
   }
   if (ctx.recentMemories.length) {
     parts.push(
-      `Recent work & highlights (most recent first):\n${ctx.recentMemories
+      `Recent work from EARLIER conversations (context only — most recent first). NONE of this was made in the CURRENT chat and there is NO card for it here. If the user asks for any of it again, actually create it anew via propose_plan → the tool; NEVER tell them it's "ready / done / above" based on this list:\n${ctx.recentMemories
         .map((m) => `- [${m.kind}] ${m.summary}`)
         .join("\n")}`,
     );

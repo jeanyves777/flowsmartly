@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T14:28:45.177Z",
+  "generatedAt": "2026-06-05T15:08:31.836Z",
   "count": 100,
-  "codexImagegenCount": 20,
+  "codexImagegenCount": 23,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -555,8 +555,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T14:41:41.034Z"
     },
     {
       "id": "agent-beauty_salon-trust-story",
@@ -582,8 +582,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T14:53:30.481Z"
     },
     {
       "id": "agent-beauty_salon-event-invite",
@@ -609,8 +609,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T15:08:31.823Z"
     },
     {
       "id": "agent-beauty_salon-premium-showcase",
