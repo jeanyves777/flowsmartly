@@ -43,6 +43,10 @@ export const editImage: FlowAgentTool = {
         type: "string",
         description: "Where to place the logo: 'top-left' (default), 'top-right', 'bottom-left', 'bottom-right', 'center'.",
       },
+      secondAttempt: {
+        type: "boolean",
+        description: "Set TRUE when this is a REPEAT edit of an image the user already had edited (they asked again / weren't satisfied with the first edit). Routes the edit to xAI (Grok), which is stronger at editing — especially fixing text/contact. Use it on the 2nd+ edit pass of the same design.",
+      },
     },
     required: ["planId", "imageUrl"],
   },
@@ -80,10 +84,37 @@ export const editImage: FlowAgentTool = {
       prisma.brandKit.findFirst({
         where: { userId: ctx.userId },
         orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-        select: { name: true, description: true, logo: true, iconLogo: true },
+        select: {
+          name: true,
+          description: true,
+          logo: true,
+          iconLogo: true,
+          email: true,
+          phone: true,
+          website: true,
+          address: true,
+        },
       }),
       getUserPreferredLanguage(ctx.userId),
     ]);
+
+    // When an edit is about CONTACT / ADDRESS / spelling text, the AI must
+    // render the EXACT brand-kit values — image models garble emails/URLs when
+    // left to "remember" them. Inject the authoritative strings so a "fix the
+    // address" edit corrects to the right, correctly-spelled text.
+    const contactEditClause = (() => {
+      if (!brandKit) return "";
+      const wantsContactFix = /\b(address|addres|contact|email|e-?mail|phone|number|tel|website|web ?site|url|link|\.com|gmail|spell|spelling|mis-?spell|typo|wrong text|fix the text|correct the text)\b/i.test(prompt);
+      if (!wantsContactFix) return "";
+      const parts = [
+        brandKit.phone ? `Phone: ${brandKit.phone}` : null,
+        brandKit.email ? `Email: ${brandKit.email}` : null,
+        brandKit.website ? `Website: ${brandKit.website}` : null,
+        brandKit.address ? `Address: ${brandKit.address}` : null,
+      ].filter(Boolean);
+      if (parts.length === 0) return "";
+      return ` AUTHORITATIVE CONTACT VALUES — render these EXACTLY, character-for-character, and FIX any garbled/misspelled version currently in the image (e.g. correct "gmailol.com"→the real email, "https:/ww"→the real website, a misspelled city/street→the real address). Do NOT invent or alter any character of these: ${parts.join("  |  ")}. Render only the values listed here; if a value isn't listed, leave that item as-is.`;
+    })();
     const logoSource = addBrandLogo ? brandKit?.iconLogo || brandKit?.logo || null : null;
     if (addBrandLogo && !logoSource) {
       return {
@@ -166,6 +197,7 @@ export const editImage: FlowAgentTool = {
               prompt
                 ? `Apply ALL of the following changes to the design (image 1) in a SINGLE edit — apply each one, do not skip or only partially apply: ${prompt}`
                 : "",
+              contactEditClause,
               logoInstruction,
               brandLine,
               "Preserve the subject, identity, and overall composition of image 1 except where a change above requires otherwise. Keep every piece of text crisp and fully legible (improve contrast/background behind text if readability was requested).",
@@ -184,6 +216,8 @@ export const editImage: FlowAgentTool = {
             {
               quality: tier === "premium" ? "high" : "medium",
               intent: "identity",
+              // Repeat edit → escalate to xAI (Grok), which is stronger at edits.
+              preferProvider: input.secondAttempt === true ? "xai" : undefined,
             },
           );
           if (!result.base64) throw new Error("Image editor returned no image");

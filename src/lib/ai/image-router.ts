@@ -330,14 +330,25 @@ export async function editImagesForRole(
   imageBuffers: Buffer[],
   width: number,
   height: number,
-  options: { quality?: "low" | "medium" | "high"; intent?: ImageEditIntent } = {},
+  options: { quality?: "low" | "medium" | "high"; intent?: ImageEditIntent; preferProvider?: ImageProvider } = {},
 ): Promise<RoutedImageResult> {
   void options.intent;
   const sourceBuffers = imageBuffers.filter(Boolean).slice(0, 5);
   if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
 
   let lastError: unknown = null;
-  const editChain = imageChain(role);
+  let editChain = imageChain(role);
+  // Allow a caller to push a specific provider to the FRONT of the edit chain —
+  // used to escalate a repeat edit to xAI (Grok), which is strong at editing.
+  if (options.preferProvider) {
+    const pref = options.preferProvider;
+    editChain = [...editChain].sort((a, b) => (a.provider === pref ? -1 : 0) - (b.provider === pref ? -1 : 0));
+    // Ensure the preferred provider is present even if the role's chain omits it.
+    if (!editChain.some((s) => s.provider === pref)) {
+      const fallbackModel = pref === "xai" ? IMAGE_MODEL_IDS.xaiBase : pref === "openai" ? IMAGE_MODEL_IDS.gptImage1 : IMAGE_MODEL_IDS.nanoBanana;
+      editChain = [{ provider: pref, model: fallbackModel }, ...editChain];
+    }
+  }
   const editHasNonOpenAi = editChain.some((s) => s.provider !== "openai");
   for (const step of editChain) {
     // Skip OpenAI while it's in quota cooldown (as long as another provider exists).
