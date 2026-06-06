@@ -301,74 +301,80 @@ export const createBrandedDesign: FlowAgentTool = {
         // duplicate the headline — if the vision check spots that, auto-run a
         // single xAI corrective edit (Grok is stronger at edits) with the exact
         // values. Best-effort: never block delivery on a QA/edit failure.
-        try {
-          const expected = {
-            brandName: brandKit?.name && !hasBrandLogo ? brandKit.name : null,
-            phone: brandKit?.phone || null,
-            email: brandKit?.email || null,
-            website: brandKit?.website || null,
-            address: brandKit?.address || null,
-          };
-          if (expected.phone || expected.email || expected.website || expected.address || expected.brandName) {
+        // TIME-BOUNDED so a slow vision/xAI call can NEVER hang the design:
+        // if the QA+fix doesn't finish within the cap, we deliver the original.
+        const expected = {
+          brandName: brandKit?.name && !hasBrandLogo ? brandKit.name : null,
+          phone: brandKit?.phone || null,
+          email: brandKit?.email || null,
+          website: brandKit?.website || null,
+          address: brandKit?.address || null,
+        };
+        if (expected.phone || expected.email || expected.website || expected.address || expected.brandName) {
+          const runQa = async (): Promise<string | null> => {
             publishTaskEvent({ type: "progress", taskId, progress: 80, message: "Proofreading the text…" });
             const designBuf = await loadImageBuffer(url);
             const verdict = await verifyDesignText(designBuf, expected);
-            if (!verdict.ok) {
-              publishTaskEvent({ type: "progress", taskId, progress: 88, message: "Fixing garbled text…" });
-              const fixParts = [
-                expected.phone ? `Phone: ${expected.phone}` : null,
-                expected.email ? `Email: ${expected.email}` : null,
-                expected.website ? `Website: ${expected.website}` : null,
-                expected.address ? `Address: ${expected.address}` : null,
-                expected.brandName ? `Brand name: ${expected.brandName}` : null,
-              ].filter(Boolean);
-              const fixPrompt = withLanguagePrefix(
-                [
-                  "Fix ONLY the garbled/misspelled text in this design — do not change the artwork, layout, photos, colors, or logo.",
-                  verdict.headlineDuplicated
-                    ? "The headline is duplicated/stacked/ghosted — render it EXACTLY ONCE as a single clean line, removing any repeated copy."
-                    : "",
-                  fixParts.length
-                    ? `Render these values EXACTLY, character-for-character (correct any garbled version currently shown, e.g. a wrong email/website/phone/city): ${fixParts.join("  |  ")}.`
-                    : "",
-                  "Keep every other pixel identical and the same canvas size/aspect ratio.",
-                ]
-                  .filter(Boolean)
-                  .join(" "),
-                languageTag,
-              );
-              const [vw, vh] = size.split("x").map((n) => parseInt(n, 10));
-              const edited = await editImagesForRole(imageEditRole(tier), fixPrompt, [designBuf], vw || 1080, vh || 1080, {
-                quality: "high",
-                intent: "identity",
-                preferProvider: "xai", // xAI/Grok is strongest at text edits
-              });
-              if (edited.base64) {
-                let fixedBuf: Buffer = Buffer.from(edited.base64, "base64");
-                // Conform back to the source canvas if aspect matches.
-                try {
-                  const sharpMod = (await import("sharp")).default;
-                  const m = await sharpMod(fixedBuf).metadata();
-                  if (vw && vh && m.width && m.height && (m.width !== vw || m.height !== vh)) {
-                    if (Math.abs(m.width / m.height - vw / vh) / (vw / vh) < 0.06) {
-                      fixedBuf = (await sharpMod(fixedBuf).resize(vw, vh, { fit: "cover", position: "centre" }).toBuffer()) as Buffer;
-                    }
-                  }
-                } catch {
-                  /* keep edited output */
+            if (verdict.ok) return null;
+            publishTaskEvent({ type: "progress", taskId, progress: 88, message: "Fixing the text…" });
+            const fixParts = [
+              expected.phone ? `Phone: ${expected.phone}` : null,
+              expected.email ? `Email: ${expected.email}` : null,
+              expected.website ? `Website: ${expected.website}` : null,
+              expected.address ? `Address: ${expected.address}` : null,
+              expected.brandName ? `Brand name: ${expected.brandName}` : null,
+            ].filter(Boolean);
+            const fixPrompt = withLanguagePrefix(
+              [
+                "Fix ONLY the garbled/misspelled text in this design — do not change the artwork, layout, photos, colors, or logo.",
+                verdict.headlineDuplicated
+                  ? "The headline is duplicated/stacked/ghosted — render it EXACTLY ONCE as a single clean line, removing any repeated copy."
+                  : "",
+                fixParts.length
+                  ? `Render these values EXACTLY, character-for-character (correct any garbled version currently shown, e.g. a wrong email/website/phone/city): ${fixParts.join("  |  ")}.`
+                  : "",
+                "Keep every other pixel identical and the same canvas size/aspect ratio.",
+              ]
+                .filter(Boolean)
+                .join(" "),
+              languageTag,
+            );
+            const [vw, vh] = size.split("x").map((n) => parseInt(n, 10));
+            const edited = await editImagesForRole(imageEditRole(tier), fixPrompt, [designBuf], vw || 1080, vh || 1080, {
+              quality: "high",
+              intent: "identity",
+              preferProvider: "xai", // xAI/Grok is strongest at text edits
+            });
+            if (!edited.base64) return null;
+            let fixedBuf: Buffer = Buffer.from(edited.base64, "base64");
+            try {
+              const sharpMod = (await import("sharp")).default;
+              const m = await sharpMod(fixedBuf).metadata();
+              if (vw && vh && m.width && m.height && (m.width !== vw || m.height !== vh)) {
+                if (Math.abs(m.width / m.height - vw / vh) / (vw / vh) < 0.06) {
+                  fixedBuf = (await sharpMod(fixedBuf).resize(vw, vh, { fit: "cover", position: "centre" }).toBuffer()) as Buffer;
                 }
-                const key = `flow-ai/${ctx.userId}/${ctx.conversationId}-design-fixed-${taskId}.png`;
-                const fixedUrl = await uploadToS3(key, fixedBuf, "image/png");
-                url = fixedUrl;
-                if (designId) {
-                  await prisma.design.update({ where: { id: designId }, data: { imageUrl: fixedUrl } }).catch(() => {});
-                }
-                console.log(`[create_branded_design] QA auto-corrected text via xAI (${verdict.summary ?? "issues found"})`);
               }
+            } catch {
+              /* keep edited output */
             }
+            const key = `flow-ai/${ctx.userId}/${ctx.conversationId}-design-fixed-${taskId}.png`;
+            const fixedUrl = await uploadToS3(key, fixedBuf, "image/png");
+            if (designId) {
+              await prisma.design.update({ where: { id: designId }, data: { imageUrl: fixedUrl } }).catch(() => {});
+            }
+            console.log(`[create_branded_design] QA auto-corrected text via xAI (${verdict.summary ?? "issues found"})`);
+            return fixedUrl;
+          };
+          try {
+            const QA_TIMEOUT_MS = 45_000;
+            const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), QA_TIMEOUT_MS));
+            const corrected = await Promise.race([runQa(), timeout]);
+            if (corrected) url = corrected;
+            else console.warn("[create_branded_design] QA skipped/timed out — delivering the design as-is");
+          } catch (qaErr) {
+            console.warn("[create_branded_design] vision QA / auto-fix skipped:", qaErr instanceof Error ? qaErr.message : qaErr);
           }
-        } catch (qaErr) {
-          console.warn("[create_branded_design] vision QA / auto-fix skipped:", qaErr instanceof Error ? qaErr.message : qaErr);
         }
 
         await notifyAgentTaskComplete({
