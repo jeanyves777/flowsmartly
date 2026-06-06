@@ -335,12 +335,18 @@ export interface TemplateOption {
   thumbnailUrl?: string | null;
 }
 
+export interface QuestionOption {
+  label: string;
+  sublabel?: string | null;
+}
+
 export type MessageBlock =
   | { type: "text"; text: string }
   | { type: "tool"; id: string }
   | { type: "proposal"; id: string }
   | { type: "task"; id: string }
-  | { type: "templates"; requestId: string; templates: TemplateOption[] };
+  | { type: "templates"; requestId: string; templates: TemplateOption[] }
+  | { type: "question"; requestId: string; question: string; options: QuestionOption[]; allowOther?: boolean };
 
 // ─── Tool-call chip ────────────────────────────────────────────────────
 
@@ -737,6 +743,85 @@ export function TemplateOptionsCard({
   );
 }
 
+/**
+ * QuestionOptionsCard — the agent's clarifying question rendered as tappable
+ * choices (numbered, with optional sublabels) + Skip, instead of plain text the
+ * user must type. Tapping an option sends it as the user's next message.
+ */
+export function QuestionOptionsCard({
+  question,
+  options,
+  allowOther,
+  onPick,
+}: {
+  question: string;
+  options: QuestionOption[];
+  allowOther?: boolean;
+  onPick?: (text: string) => void;
+}) {
+  const [chosen, setChosen] = useState<string | null>(null);
+  const pick = (text: string) => {
+    if (chosen) return;
+    setChosen(text);
+    onPick?.(text);
+  };
+  return (
+    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 text-sm font-semibold text-foreground border-b border-border">{question}</div>
+      <div className="divide-y divide-border">
+        {options.map((o, i) => {
+          const isChosen = chosen === o.label;
+          const dimmed = chosen && !isChosen;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => pick(o.label)}
+              disabled={!!chosen}
+              className={cn(
+                "group flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors",
+                isChosen ? "bg-sky-50 dark:bg-sky-950/40" : "hover:bg-muted/60",
+                dimmed && "opacity-50",
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">{o.label}</span>
+                {o.sublabel ? <span className="block text-xs text-muted-foreground">{o.sublabel}</span> : null}
+              </span>
+              <span className="flex-shrink-0">
+                {isChosen ? (
+                  <Check className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                ) : (
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-border text-[11px] text-muted-foreground group-hover:border-sky-300">
+                    {i + 1}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+        {allowOther !== false ? (
+          <div className="px-4 py-2.5 text-xs text-muted-foreground">…or just type your own answer below 👇</div>
+        ) : null}
+      </div>
+      <div className="px-3 py-2 border-t border-border">
+        <button
+          type="button"
+          onClick={() => pick("skip")}
+          disabled={!!chosen}
+          className={cn(
+            "rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-sky-300",
+            chosen === "skip" && "border-sky-500 text-foreground",
+            chosen && chosen !== "skip" && "opacity-50",
+          )}
+        >
+          Skip
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MessageBlocks({
   blocks,
   toolCalls,
@@ -744,6 +829,7 @@ export function MessageBlocks({
   agentTasks,
   onPlanResponse,
   onPickTemplate,
+  onPickOption,
   bubbleClassName,
 }: {
   blocks: MessageBlock[];
@@ -753,6 +839,8 @@ export function MessageBlocks({
   onPlanResponse?: (planId: string, confirmed: boolean) => void;
   /** Called when the user clicks a template card (or "No template" → null). */
   onPickTemplate?: (choice: { id: string; name: string } | null) => void;
+  /** Called when the user taps a question-card option (sends the option text). */
+  onPickOption?: (text: string) => void;
   /** Tailwind classes for the assistant text bubble (themed per surface). */
   bubbleClassName?: string;
 }) {
@@ -825,6 +913,15 @@ export function MessageBlocks({
         rows.push(
           <div key={`tpl-${i}`} className="flex flex-col items-start">
             <TemplateOptionsCard templates={b.templates} onPick={onPickTemplate} />
+          </div>,
+        );
+      }
+      i += 1;
+    } else if (b.type === "question") {
+      if (b.options?.length) {
+        rows.push(
+          <div key={`q-${i}`} className="flex flex-col items-start">
+            <QuestionOptionsCard question={b.question} options={b.options} allowOther={b.allowOther} onPick={onPickOption} />
           </div>,
         );
       }

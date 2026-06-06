@@ -330,7 +330,8 @@ export async function POST(req: NextRequest) {
       type Block =
         | { type: "text"; text: string }
         | { type: "tool" | "proposal" | "task"; id: string }
-        | { type: "templates"; requestId: string; templates: unknown[] };
+        | { type: "templates"; requestId: string; templates: unknown[] }
+        | { type: "question"; requestId: string; question: string; options: unknown[]; allowOther?: boolean };
       const blocks: Block[] = [];
       const pushCardBlock = (type: "tool" | "proposal" | "task", id: string) => {
         if (!blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) blocks.push({ type, id });
@@ -369,6 +370,10 @@ export async function POST(req: NextRequest) {
           // Self-contained so a reloaded chat re-renders the picker from metadata.
           if (!blocks.some((b) => b.type === "templates" && (b as { requestId?: string }).requestId === event.requestId)) {
             blocks.push({ type: "templates", requestId: event.requestId, templates: event.templates });
+          }
+        } else if (event.type === "question_options") {
+          if (!blocks.some((b) => b.type === "question" && (b as { requestId?: string }).requestId === event.requestId)) {
+            blocks.push({ type: "question", requestId: event.requestId, question: event.question, options: event.options, allowOther: event.allowOther });
           }
         }
         send(event);

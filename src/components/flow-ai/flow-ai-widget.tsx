@@ -319,6 +319,12 @@ export function FlowAIWidget() {
             }
             flushMessage();
           },
+          onQuestionOptions: (requestId, question, options, allowOther) => {
+            if (!blocks.some((b) => b.type === "question" && b.requestId === requestId)) {
+              blocks.push({ type: "question", requestId, question, options, allowOther });
+            }
+            flushMessage();
+          },
           onError: (message) => {
             assistantText = assistantText
               ? `${assistantText}\n\n⚠️ ${message}`
@@ -405,6 +411,9 @@ export function FlowAIWidget() {
     },
     [handleSend],
   );
+
+  // User tapped a question-card option → send it as their answer.
+  const handlePickOption = useCallback((text: string) => void handleSend(text), [handleSend]);
 
   const handlePlanResponse = useCallback(
     async (planId: string, confirmed: boolean) => {
@@ -777,6 +786,7 @@ export function FlowAIWidget() {
                     conversationId={conversationId}
                     onPlanResponse={handlePlanResponse}
                     onPickTemplate={handlePickTemplate}
+                    onPickOption={handlePickOption}
                   />
                 ))
               )}
@@ -1065,11 +1075,13 @@ function WidgetMessageView({
   conversationId,
   onPlanResponse,
   onPickTemplate,
+  onPickOption,
 }: {
   message: WidgetMessage;
   conversationId?: string | null;
   onPlanResponse: (planId: string, confirmed: boolean) => void;
   onPickTemplate?: (choice: { id: string; name: string } | null) => void;
+  onPickOption?: (text: string) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -1111,6 +1123,7 @@ function WidgetMessageView({
             agentTasks={message.agentTasks}
             onPlanResponse={onPlanResponse}
             onPickTemplate={onPickTemplate}
+            onPickOption={onPickOption}
             bubbleClassName="bg-white dark:bg-gray-900 border-border text-foreground"
           />
         ) : (

@@ -8,6 +8,7 @@ import type {
   PlanStepData,
   MessageBlock,
   TemplateOption,
+  QuestionOption,
 } from "./agent-cards";
 
 /**
@@ -38,6 +39,7 @@ export interface AgentStreamHandlers {
   onTaskCompleted?: (task: AgentTaskCardData) => void;
   onTaskFailed?: (taskId: string, error: string | undefined) => void;
   onTemplateOptions?: (requestId: string, templates: TemplateOption[]) => void;
+  onQuestionOptions?: (requestId: string, question: string, options: QuestionOption[], allowOther: boolean) => void;
   onError?: (message: string, recoverable: boolean) => void;
   onDone?: () => void;
 }
@@ -134,6 +136,16 @@ export async function consumeAgentStream(
               industry: typeof x.industry === "string" ? x.industry : null,
               thumbnailUrl: typeof x.thumbnailUrl === "string" ? x.thumbnailUrl : null,
             })),
+          );
+        } else if (type === "question_options" && Array.isArray(payload.options)) {
+          handlers.onQuestionOptions?.(
+            String(payload.requestId ?? ""),
+            String(payload.question ?? ""),
+            (payload.options as Record<string, unknown>[]).map((x) => ({
+              label: String(x.label ?? ""),
+              sublabel: typeof x.sublabel === "string" ? x.sublabel : null,
+            })).filter((o) => o.label),
+            payload.allowOther !== false,
           );
         } else if (type === "error" && typeof payload.message === "string") {
           handlers.onError?.(payload.message, payload.recoverable === true);
@@ -291,6 +303,21 @@ export function parseMessageBlocks(metadata: string | null | undefined): Message
           .filter((x) => x.id);
         if (templates.length) {
           blocks.push({ type: "templates", requestId: String((b as { requestId?: unknown }).requestId ?? ""), templates });
+        }
+      } else if (t === "question" && Array.isArray((b as { options?: unknown }).options)) {
+        const raw = (b as { options: unknown[] }).options;
+        const options: QuestionOption[] = raw
+          .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+          .map((x) => ({ label: String(x.label ?? ""), sublabel: typeof x.sublabel === "string" ? x.sublabel : null }))
+          .filter((x) => x.label);
+        if (options.length) {
+          blocks.push({
+            type: "question",
+            requestId: String((b as { requestId?: unknown }).requestId ?? ""),
+            question: String((b as { question?: unknown }).question ?? ""),
+            options,
+            allowOther: (b as { allowOther?: unknown }).allowOther !== false,
+          });
         }
       }
     }

@@ -407,6 +407,12 @@ export function FlowAIShell() {
           }
           flushMessage();
         },
+        onQuestionOptions: (requestId, question, options, allowOther) => {
+          if (!blocks.some((b) => b.type === "question" && b.requestId === requestId)) {
+            blocks.push({ type: "question", requestId, question, options, allowOther });
+          }
+          flushMessage();
+        },
         onError: (message) => {
           assistantText = assistantText
             ? `${assistantText}\n\n_⚠️ ${message}_`
@@ -517,6 +523,9 @@ export function FlowAIShell() {
     },
     [send],
   );
+
+  // User tapped a question-card option → send it as their answer.
+  const handlePickOption = useCallback((text: string) => void send(text), [send]);
 
   const respondToPlan = useCallback(
     async (planId: string, confirmed: boolean) => {
@@ -914,7 +923,7 @@ export function FlowAIShell() {
               <FlowAIEmptyState mode={mode} onSuggest={(q) => send(q)} />
             ) : (
               messages.map((m) => (
-                <MessageView key={m.id} message={m} conversationId={conversationId} onPlanResponse={respondToPlan} onPickTemplate={handlePickTemplate} />
+                <MessageView key={m.id} message={m} conversationId={conversationId} onPlanResponse={respondToPlan} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
               ))
             )}
             {sending && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
@@ -1327,11 +1336,13 @@ function MessageView({
   conversationId,
   onPlanResponse,
   onPickTemplate,
+  onPickOption,
 }: {
   message: Message;
   conversationId?: string | null;
   onPlanResponse?: (planId: string, confirmed: boolean) => void;
   onPickTemplate?: (choice: { id: string; name: string } | null) => void;
+  onPickOption?: (text: string) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -1361,6 +1372,7 @@ function MessageView({
             agentTasks={message.agentTasks}
             onPlanResponse={onPlanResponse}
             onPickTemplate={onPickTemplate}
+            onPickOption={onPickOption}
             bubbleClassName="bg-white dark:bg-gray-800 border-border text-foreground"
           />
         ) : (
