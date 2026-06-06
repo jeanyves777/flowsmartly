@@ -309,6 +309,27 @@ const ROUTE_LABELS: Record<string, string> = {
 const INTERNAL_PATH_SOURCE =
   `\\/(?:${INTERNAL_ROUTE_SEGMENTS.join("|")})(?:\\/[A-Za-z0-9_\\-]+)*\\/?`;
 
+/**
+ * Given a string that might be an internal route — a relative path
+ * ("/buy-credits"), an absolute URL to our own app
+ * ("https://flowsmartly.com/buy-credits"), or a markdown link's text — return
+ * the clean internal path if it maps to a whitelisted route, else null. This is
+ * why a `[/buy-credits](https://flowsmartly.com/buy-credits)` markdown link now
+ * renders as the "Add credits" chip instead of a raw underlined link.
+ */
+function extractInternalPath(value: string | undefined | null): string | null {
+  if (!value) return null;
+  let path = value.trim();
+  // Strip OUR origin only (never chip external links that happen to have /credits).
+  const abs = path.match(/^https?:\/\/(?:www\.)?(?:flowsmartly\.com|localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?|187\.77\.29\.88)(\/[^\s]*)$/i);
+  if (abs) path = abs[1];
+  if (!path.startsWith("/")) return null;
+  path = path.replace(/[?#].*$/, ""); // drop query/hash
+  const seg = path.split("/")[1]?.toLowerCase();
+  if (seg && (INTERNAL_ROUTE_SEGMENTS as readonly string[]).includes(seg)) return path;
+  return null;
+}
+
 function humanizeSegment(seg: string): string {
   return seg
     .split("-")
@@ -375,9 +396,12 @@ function renderInline(text: string): React.ReactNode[] {
       const lm = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (lm) {
         const href = lm[2];
-        // A markdown link to an internal route → render the nice chip too.
-        if (href.startsWith("/") && INTERNAL_ROUTE_SEGMENTS.includes(href.split("/")[1]?.toLowerCase() as (typeof INTERNAL_ROUTE_SEGMENTS)[number])) {
-          nodes.push(renderInternalPath(href, k++));
+        // A markdown link to an internal route → render the nice chip. Check the
+        // href AND the link text, and accept absolute URLs to our own app (the
+        // agent often writes [/buy-credits](https://flowsmartly.com/buy-credits)).
+        const internalPath = extractInternalPath(href) ?? extractInternalPath(lm[1]);
+        if (internalPath) {
+          nodes.push(renderInternalPath(internalPath, k++));
         } else {
           nodes.push(
             <a key={k++} href={safeHref(href)} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline underline-offset-2">
@@ -397,6 +421,13 @@ function renderInline(text: string): React.ReactNode[] {
     } else if (token.startsWith("/")) {
       nodes.push(renderInternalPath(token, k++));
     } else if (token.startsWith("http")) {
+      // A bare absolute URL to one of our own routes → chip it too.
+      const internalFromUrl = extractInternalPath(token);
+      if (internalFromUrl) {
+        nodes.push(renderInternalPath(internalFromUrl, k++));
+        lastIndex = m.index + token.length;
+        continue;
+      }
       // If the model slipped a raw asset URL into its reply (it shouldn't —
       // finished media renders as a card), show it as an inline thumbnail
       // instead of a giant presigned-URL link wall.
