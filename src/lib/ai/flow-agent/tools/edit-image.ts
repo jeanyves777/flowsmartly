@@ -120,6 +120,19 @@ export const editImage: FlowAgentTool = {
         let buffer = await loadImageBuffer(imageUrl);
         let format: "png" | "jpeg" = "png";
 
+        // Capture the SOURCE dimensions so the edit preserves the design's exact
+        // shape — an edit must never silently change the canvas size/aspect.
+        const sharpMod = (await import("sharp")).default;
+        let srcW = 0;
+        let srcH = 0;
+        try {
+          const meta = await sharpMod(buffer).metadata();
+          srcW = meta.width ?? 0;
+          srcH = meta.height ?? 0;
+        } catch {
+          /* fall back to defaults below */
+        }
+
         // Load the REAL brand logo (if we're adding/placing one) so we can hand
         // it to the editor as a reference image — the model places the exact
         // logo with full context instead of a dumb fixed overlay.
@@ -162,13 +175,44 @@ export const editImage: FlowAgentTool = {
             languageTag,
           );
           const editBuffers = logoBuf ? [buffer, logoBuf] : [buffer];
-          const result = await editImagesForRole(imageEditRole(tier), enrichedPrompt, editBuffers, 1024, 1024, {
-            quality: tier === "premium" ? "high" : "medium",
-            intent: "identity",
-          });
+          const result = await editImagesForRole(
+            imageEditRole(tier),
+            enrichedPrompt,
+            editBuffers,
+            srcW || 1024,
+            srcH || 1024,
+            {
+              quality: tier === "premium" ? "high" : "medium",
+              intent: "identity",
+            },
+          );
           if (!result.base64) throw new Error("Image editor returned no image");
           buffer = Buffer.from(result.base64, "base64");
           format = result.format === "png" ? "png" : "jpeg";
+
+          // Conform back to the source canvas: if the editor returned a
+          // near-identical aspect ratio but slightly different pixels (Nano
+          // Banana often returns ~1024px), snap it to the exact source size so
+          // the design keeps its shape. Skip when the aspect genuinely differs
+          // (don't crop/distort content the model intentionally reshaped).
+          if (srcW > 0 && srcH > 0) {
+            try {
+              const outMeta = await sharpMod(buffer).metadata();
+              const ow = outMeta.width ?? 0;
+              const oh = outMeta.height ?? 0;
+              if (ow > 0 && oh > 0 && (ow !== srcW || oh !== srcH)) {
+                const srcAR = srcW / srcH;
+                const outAR = ow / oh;
+                if (Math.abs(outAR - srcAR) / srcAR < 0.06) {
+                  buffer = await sharpMod(buffer)
+                    .resize(srcW, srcH, { fit: "cover", position: "centre" })
+                    .toBuffer();
+                }
+              }
+            } catch {
+              /* keep the editor's output as-is on any sharp failure */
+            }
+          }
         }
 
         publishTaskEvent({ type: "progress", taskId, progress: 88, message: "Uploading…" });

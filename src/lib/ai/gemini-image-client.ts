@@ -52,7 +52,6 @@ class GeminiImageClient {
     options: { aspectRatio?: GeminiAspectRatio } = {}
   ): Promise<string | null> {
     const { aspectRatio = "1:1" } = options;
-    void aspectRatio; // Gemini doesn't take aspect ratio for edit
 
     if (!this.client) {
       throw new Error("GEMINI_API_KEY is not configured");
@@ -60,6 +59,11 @@ class GeminiImageClient {
 
     const maxRetries = 2;
     let lastError: unknown;
+
+    // Tell Nano Banana to do a SURGICAL edit on the same canvas. Without this it
+    // tends to recrop/resize the canvas and re-render untouched regions (the
+    // source of most "edit broke the design" reports).
+    const editPrompt = `${prompt}\n\n[You are EDITING the provided image — not generating a new one. Output exactly ONE image at the SAME ${aspectRatio} aspect ratio and the same pixel dimensions as the input: do NOT crop, zoom, letterbox, pad, rotate, or change the canvas size. Apply ONLY the requested change and keep every other pixel — all existing text, faces, layout, colors — identical to the input.]`;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -71,7 +75,7 @@ class GeminiImageClient {
             {
               role: "user",
               parts: [
-                { text: prompt },
+                { text: editPrompt },
                 { inlineData: { mimeType: "image/png", data: imageBase64 } },
               ],
             },
@@ -125,7 +129,6 @@ class GeminiImageClient {
     options: { aspectRatio?: GeminiAspectRatio } = {}
   ): Promise<string | null> {
     const { aspectRatio = "1:1" } = options;
-    void aspectRatio;
 
     if (!this.client) {
       throw new Error("GEMINI_API_KEY is not configured");
@@ -146,6 +149,10 @@ class GeminiImageClient {
     const maxRetries = 2;
     let lastError: unknown;
 
+    // FIRST image is the canvas being edited; the rest are references (logo,
+    // product, person). Same surgical-edit framing as the single-image path.
+    const editPrompt = `${prompt}\n\n[You are EDITING the FIRST image (the canvas). Any additional images are REFERENCES to use, not canvases. Output exactly ONE image at the SAME ${aspectRatio} aspect ratio and the same pixel dimensions as the FIRST image: do NOT crop, zoom, letterbox, pad, or change its canvas size. Apply ONLY the requested change and keep every other pixel of the first image — all existing text, faces, layout, colors — identical.]`;
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await this.client.models.generateContent({
@@ -154,7 +161,7 @@ class GeminiImageClient {
             {
               role: "user",
               parts: [
-                { text: prompt },
+                { text: editPrompt },
                 ...images.map((data) => ({
                   inlineData: { mimeType: "image/png", data },
                 })),
