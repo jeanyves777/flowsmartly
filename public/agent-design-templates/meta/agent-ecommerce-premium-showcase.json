@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-ecommerce-premium-showcase.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-premium-showcase.png",
-  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 36 of 100."
+  "promptGuidance": "Use the full width with confident negative space and a product-grade advertising finish. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 36 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a23387853c88193865d3aa74d9dd917.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T21:02:01.412Z"
 }

@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-fashion-trust-story.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-fashion-trust-story.png",
-  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new arrivals, limited drop, styling bundle. Primary audience: trend-aware shoppers, boutique customers, gift buyers. Catalog position: 38 of 100."
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: new arrivals, limited drop, styling bundle. Primary audience: trend-aware shoppers, boutique customers, gift buyers. Catalog position: 38 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a2340e710288193ac32eec1f9431d13.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T21:38:41.019Z"
 }

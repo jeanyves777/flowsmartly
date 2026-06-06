@@ -61,5 +61,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-ecommerce-event-invite.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-event-invite.png",
-  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 35 of 100."
+  "promptGuidance": "Make the date and action impossible to miss while still feeling tailored to the industry. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 35 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a2334f12a148193ba0c362ff8cc9dba.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T20:48:21.500Z"
 }

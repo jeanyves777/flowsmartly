@@ -39,7 +39,19 @@ type Block =
   | { type: "p"; lines: string[] }
   | { type: "ul"; items: string[] }
   | { type: "ol"; items: string[] }
-  | { type: "h"; level: number; text: string };
+  | { type: "h"; level: number; text: string }
+  | { type: "table"; headers: string[]; rows: string[][] };
+
+/** Split a markdown table row "| a | b |" into trimmed cells. */
+function splitTableRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+const TABLE_ROW = /^\|.*\|$/;
+const TABLE_SEP = /^\|[\s:|-]+\|$/;
 
 function parseBlocks(text: string): Block[] {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -81,6 +93,25 @@ function parseBlocks(text: string): Block[] {
       continue;
     }
 
+    // Markdown table — a header row "| a | b |" immediately followed by a
+    // separator "|---|---|". Render it as a real styled table instead of
+    // dumping the raw pipes as text (the "poor table display" bug).
+    if (TABLE_ROW.test(trimmed) && i + 1 < lines.length) {
+      const sep = lines[i + 1].trim();
+      if (TABLE_SEP.test(sep) && sep.includes("-")) {
+        const headers = splitTableRow(trimmed);
+        let j = i + 2;
+        const rows: string[][] = [];
+        while (j < lines.length && TABLE_ROW.test(lines[j].trim()) && !TABLE_SEP.test(lines[j].trim())) {
+          rows.push(splitTableRow(lines[j].trim()));
+          j++;
+        }
+        blocks.push({ type: "table", headers, rows });
+        i = j;
+        continue;
+      }
+    }
+
     // Paragraph — collect consecutive non-blank, non-special lines
     const para: string[] = [];
     while (
@@ -88,7 +119,8 @@ function parseBlocks(text: string): Block[] {
       lines[i].trim() !== "" &&
       !/^(#{1,3})\s+/.test(lines[i].trim()) &&
       !/^[-*•]\s+/.test(lines[i].trim()) &&
-      !/^\d+\.\s+/.test(lines[i].trim())
+      !/^\d+\.\s+/.test(lines[i].trim()) &&
+      !TABLE_ROW.test(lines[i].trim())
     ) {
       para.push(lines[i].trim());
       i++;
@@ -150,6 +182,52 @@ function renderBlock(block: Block, key: number): React.ReactNode {
             <li key={j}>{renderInline(it)}</li>
           ))}
         </ul>
+      );
+    case "table":
+      return (
+        <div key={key} className="my-1.5 w-full overflow-x-auto rounded-lg border border-border">
+          <table className="w-full border-collapse text-xs">
+            {block.headers.length > 0 && (
+              <thead>
+                <tr className="bg-muted/60">
+                  {block.headers.map((h, j) => (
+                    <th
+                      key={j}
+                      className={cn(
+                        "px-2.5 py-1.5 font-semibold text-foreground border-b border-border",
+                        j > 0 ? "border-l" : "",
+                        j === block.headers.length - 1 ? "text-right" : "text-left",
+                      )}
+                    >
+                      {renderInline(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {block.rows.map((row, ri) => {
+                const isTotal = /total/i.test(row[0] ?? "");
+                return (
+                  <tr key={ri} className={cn(ri % 2 ? "bg-muted/20" : "", isTotal && "font-semibold bg-sky-50/60 dark:bg-sky-950/30")}>
+                    {row.map((c, ci) => (
+                      <td
+                        key={ci}
+                        className={cn(
+                          "px-2.5 py-1.5 text-foreground border-t border-border align-top",
+                          ci > 0 ? "border-l" : "",
+                          ci === row.length - 1 ? "text-right whitespace-nowrap" : "text-left",
+                        )}
+                      >
+                        {renderInline(c)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       );
     case "ol":
       return (

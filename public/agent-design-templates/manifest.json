@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-05T17:45:53.063Z",
+  "generatedAt": "2026-06-05T21:38:41.032Z",
   "count": 100,
-  "codexImagegenCount": 32,
+  "codexImagegenCount": 38,
   "templates": [
     {
       "id": "agent-restaurant-launch-offer",
@@ -878,8 +878,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T20:17:44.394Z"
     },
     {
       "id": "agent-ecommerce-trust-story",
@@ -904,8 +904,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T20:32:48.528Z"
     },
     {
       "id": "agent-ecommerce-event-invite",
@@ -930,8 +930,8 @@
         "invitation",
         "event-webinar-workshop-service-day-appointment-drive-or-open-house"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T20:48:21.500Z"
     },
     {
       "id": "agent-ecommerce-premium-showcase",
@@ -956,8 +956,8 @@
         "paid-ad",
         "hero-brand-creative-product-or-service-spotlight-retargeting-ad-or-website-hero"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T21:02:01.412Z"
     },
     {
       "id": "agent-fashion-launch-offer",
@@ -982,8 +982,8 @@
         "conversion",
         "launch-opening-seasonal-offer-or-new-service-announcement"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T21:16:51.578Z"
     },
     {
       "id": "agent-fashion-trust-story",
@@ -1008,8 +1008,8 @@
         "premium",
         "credibility-testimonial-expert-positioning-or-community-trust-message"
       ],
-      "assetSource": "legacy",
-      "importedAt": null
+      "assetSource": "codex-imagegen",
+      "importedAt": "2026-06-05T21:38:41.019Z"
     },
     {
       "id": "agent-fashion-event-invite",

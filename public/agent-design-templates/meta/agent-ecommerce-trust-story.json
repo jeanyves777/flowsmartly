@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-ecommerce-trust-story.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-trust-story.png",
-  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 34 of 100."
+  "promptGuidance": "Use restraint, spacing, and proof to make the business feel established and dependable. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 34 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a23315fcebc8193a806b70d407e79aa.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T20:32:48.528Z"
 }

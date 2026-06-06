@@ -60,5 +60,11 @@
   ],
   "imageUrl": "/agent-design-templates/images/agent-ecommerce-launch-offer.png",
   "thumbnailUrl": "/agent-design-templates/thumbs/agent-ecommerce-launch-offer.png",
-  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 33 of 100."
+  "promptGuidance": "Make the design feel like a strong first impression for a business that wants immediate action. Industry proof cues to use only when provided by the user or brand kit: discount, best sellers, shipping offer, customer rating. Primary audience: online shoppers, deal seekers, returning customers. Catalog position: 33 of 100.",
+  "assetSource": "codex-imagegen",
+  "assetKind": "ai-generated-raster-template",
+  "generatedBy": "Codex built-in image generator",
+  "generatedSourcePath": "C:\\Users\\koffi\\.codex\\generated_images\\019e9569-2768-7161-ad44-5ca586ecdc74\\ig_0a27c76835e3e1a7016a232da2f1c4819383285d5d71691e3a.png",
+  "sourcePrompt": "",
+  "importedAt": "2026-06-05T20:17:44.394Z"
 }
