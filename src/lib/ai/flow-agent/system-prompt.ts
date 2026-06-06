@@ -75,6 +75,27 @@ export async function buildAgentSystemPrompt(
   const tz = timezone ?? "UTC";
   const languageLabel = getLanguageLabel(language);
 
+  // Server-computed weekday→date map for the next 8 days, in the user's tz.
+  // LLMs miscompute day-of-week (it once scheduled "Sunday June 8" when June 8
+  // was a Monday). Giving it the exact mapping removes the guesswork.
+  let dateReference = "";
+  try {
+    const base = new Date(now);
+    if (!isNaN(base.getTime())) {
+      const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" });
+      const iso = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+      const lines: string[] = [];
+      for (let d = 0; d < 8; d++) {
+        const dt = new Date(base.getTime() + d * 86_400_000);
+        const label = d === 0 ? "TODAY" : d === 1 ? "tomorrow" : "";
+        lines.push(`- ${fmt.format(dt)} (${iso.format(dt)})${label ? ` ← ${label}` : ""}`);
+      }
+      dateReference = lines.join("\n");
+    }
+  } catch {
+    /* fall back to no reference */
+  }
+
   // Live awareness of background jobs in this conversation. Without this
   // the agent forgets a job it kicked off and tells the user "I'll let
   // you know" even after the image already finished (the 2026-05-28 bug).
@@ -172,6 +193,13 @@ export async function buildAgentSystemPrompt(
     ``,
     `# Time`,
     `The user's current time is ${now} in timezone ${tz}. When they say "Monday at 4pm", interpret it in THAT timezone, then send absolute ISO strings to tools. Never ask "what timezone" — you already know.`,
+    ...(dateReference
+      ? [
+          `Date reference — the exact dates of the next 8 days IN THE USER'S TIMEZONE. Do NOT compute weekdays yourself; map the user's words to a row here:`,
+          dateReference,
+          `Scheduling rules (HARD): When the user names a day ("Saturday", "this weekend", "tomorrow"), use the MATCHING date from the list above — never a different day. "This weekend" = the upcoming Saturday and/or Sunday rows. Schedule the NUMBER of posts the user asked for (one "Saturday post" = ONE post dated that Saturday — do NOT spread it across Sunday + Monday or add extra days). Echo the resolved "[Weekday], [Month Day]" in your propose_plan so the user can catch a wrong date BEFORE confirming.`,
+        ]
+      : []),
     ``,
     ...(taskLines.length > 0
       ? [
