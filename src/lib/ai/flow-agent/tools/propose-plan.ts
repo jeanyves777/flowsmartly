@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { nextSeqForConversation } from "../conversation-seq";
+import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
 import type { FlowAgentTool } from "../registry";
 import type { PlanStep } from "../tool-context";
 
@@ -43,10 +44,15 @@ export const proposePlan: FlowAgentTool = {
       },
       totalCreditCost: {
         type: "number",
-        description: "Total credit cost for all the steps combined. The user sees this in the card.",
+        description: "Fallback total credit cost (used only if costKeys is omitted). PREFER costKeys — do not guess this number.",
+      },
+      costKeys: {
+        type: "array",
+        items: { type: "string" },
+        description: "The credit-cost KEY of each PAID step (the tool sums their LIVE admin-set prices for an ACCURATE total — pass these instead of guessing totalCreditCost). Common keys: AI_VISUAL_DESIGN (a branded design via create_branded_design), AGENT_GENERATE_IMAGE_STANDARD / AGENT_GENERATE_IMAGE_PREMIUM (plain generate_image or edit_image, by tier), AGENT_SCHEDULE_POST (schedule/post a social post), AGENT_GENERATE_VIDEO_STANDARD / AGENT_GENERATE_VIDEO_PREMIUM (video). Example — a branded image post = [\"AI_VISUAL_DESIGN\", \"AGENT_SCHEDULE_POST\"]. Omit free steps (writing a caption). For a Premium branded design, list AI_VISUAL_DESIGN once per the premium multiplier if you know it; otherwise the tool uses the Standard price.",
       },
     },
-    required: ["summary", "steps", "totalCreditCost"],
+    required: ["summary", "steps"],
   },
   plans: null,
   costKey: "AGENT_PROPOSE_PLAN",
@@ -54,8 +60,31 @@ export const proposePlan: FlowAgentTool = {
   handler: async (input, ctx) => {
     try {
       const summary = typeof input.summary === "string" ? input.summary : "";
-      const totalCreditCost =
-        typeof input.totalCreditCost === "number" ? Math.max(0, Math.round(input.totalCreditCost)) : 0;
+      // ACCURATE cost: sum the LIVE admin-set price of each paid step's cost key
+      // (the same getDynamicCreditCost the tools charge), so the card never
+      // under/over-quotes from an agent guess. Fall back to the agent's number
+      // only when no valid keys were given.
+      let computedFromKeys = 0;
+      let haveKeys = false;
+      if (Array.isArray(input.costKeys)) {
+        for (const k of input.costKeys) {
+          if (typeof k !== "string") continue;
+          try {
+            const c = await getDynamicCreditCost(k as CreditCostKey);
+            if (typeof c === "number" && Number.isFinite(c)) {
+              computedFromKeys += c;
+              haveKeys = true;
+            }
+          } catch {
+            /* unknown key — skip */
+          }
+        }
+      }
+      const totalCreditCost = haveKeys
+        ? Math.max(0, Math.round(computedFromKeys))
+        : typeof input.totalCreditCost === "number"
+          ? Math.max(0, Math.round(input.totalCreditCost))
+          : 0;
       const rawSteps = Array.isArray(input.steps) ? input.steps : [];
       if (!summary || rawSteps.length === 0) {
         return {
