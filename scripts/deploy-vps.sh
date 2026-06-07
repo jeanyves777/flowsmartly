@@ -25,6 +25,8 @@ VOICE_SERVICES="${VOICE_SERVICES:-supertonic-tts whisper-stt}"
 BUILD_OK="${APP_DIR}/BUILD_OK"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/flow-ai}"  # checked after reload
 HEALTH_RETRIES="${HEALTH_RETRIES:-10}"                     # attempts, ~2s apart
+# Bigger V8 heap for the build — this box has OOM'd `next build` at the default.
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
 # --- make node/npm/pm2/npx reachable in a non-interactive SSH shell -----------
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -77,7 +79,7 @@ log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086
 pm2 stop ${VOICE_SERVICES} >/dev/null 2>&1 || true
 
-log "Building (next build --no-lint)"
+log "Building (next build --no-lint, NODE_OPTIONS=${NODE_OPTIONS})"
 rm -f "$BUILD_OK"
 npx next build --no-lint
 
