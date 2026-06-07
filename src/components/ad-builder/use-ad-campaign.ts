@@ -30,16 +30,28 @@ export interface CreateCampaignInput {
   destinationUrl?: string;
 }
 
-async function postJson<T>(url: string, body?: unknown): Promise<ApiEnvelope<T>> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  return (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<T>;
+async function postJson<T>(url: string, body?: unknown, timeoutMs?: number): Promise<ApiEnvelope<T>> {
+  const ctrl = timeoutMs ? new AbortController() : undefined;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : undefined;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl?.signal,
+    });
+    return (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<T>;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function isAbort(e: unknown): boolean {
+  return e instanceof DOMException ? e.name === "AbortError" : e instanceof Error && e.name === "AbortError";
 }
 
 function errMessage(e: ApiEnvelope<unknown> | unknown, fallback: string): string {
+  if (isAbort(e)) return "Timed out — the image service didn't respond. Try again.";
   if (e && typeof e === "object" && "error" in e) {
     const er = (e as ApiEnvelope<unknown>).error;
     if (er?.code === "INSUFFICIENT_CREDITS") {
@@ -153,6 +165,8 @@ export function useAdCampaign() {
       try {
         const json = await postJson<{ state: CampaignState }>(
           `/api/ai/story-ad-campaign/${id}/characters/${characterId}/preview`,
+          undefined,
+          150_000, // image gen should take ~30s; bail at 150s so it can't spin forever
         );
         if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Character generation failed"));
         setState(json.data.state);
@@ -188,6 +202,7 @@ export function useAdCampaign() {
         const json = await postJson<{ state: CampaignState }>(
           `/api/ai/story-ad-campaign/${id}/characters/${characterId}/upload-image`,
           { url },
+          150_000,
         );
         if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Couldn't set the image"));
         setState(json.data.state);
