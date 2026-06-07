@@ -9,7 +9,9 @@ import {
   Film,
   Minus,
   Plus,
+  RefreshCw,
   Sparkles,
+  Trash2,
   Type,
   User,
   Users,
@@ -69,6 +71,10 @@ const KIND_ICON: Record<NodeKind, typeof Type> = {
 
 const PROMPT_ID = "__prompt";
 const OUTPUT_ID = "__output";
+
+function isVideoUrl(url?: string | null): boolean {
+  return !!url && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+}
 
 export function AdBuilderCanvas() {
   const camp = useAdCampaign();
@@ -181,6 +187,10 @@ export function AdBuilderCanvas() {
   const selectedChar =
     selected?.kind === "character" && state
       ? state.characters.find((c) => c.id === selected.refId) ?? null
+      : null;
+  const selectedClip =
+    selected?.kind === "clip" && state
+      ? state.clips.find((c) => c.id === selected.refId) ?? null
       : null;
 
   const wirePath = useCallback(
@@ -351,8 +361,12 @@ export function AdBuilderCanvas() {
                 <div className="px-3 py-2.5 text-[11px] leading-relaxed">
                   {n.subtitle && <div className="mb-1.5 line-clamp-2 text-muted-foreground">{n.subtitle}</div>}
                   {n.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={n.thumb} alt="" className="h-24 w-full rounded-md object-cover" />
+                    isVideoUrl(n.thumb) ? (
+                      <video src={n.thumb} muted playsInline className="h-24 w-full rounded-md object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={n.thumb} alt="" className="h-24 w-full rounded-md object-cover" />
+                    )
                   ) : (
                     <div className="flex h-20 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">
                       {n.status === "generating" ? "generating…" : n.kind === "prompt" ? "your brief" : "not generated"}
@@ -451,13 +465,50 @@ export function AdBuilderCanvas() {
             </>
           )}
 
-          {selected.kind === "clip" && (
+          {selected.kind === "clip" && selectedClip && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene</label>
-              <p className="rounded-lg border border-border bg-muted px-3 py-2 text-[12px] text-foreground">{selected.subtitle || "—"}</p>
-              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-                Status: {selected.status}. Per-scene render + retry is the next wiring step; use “Generate all” to (re)plan scenes from the cast.
-              </p>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene prompt</label>
+              <textarea
+                key={`scene-${selectedClip.id}`}
+                defaultValue={selectedClip.sceneAction}
+                onBlur={(e) => camp.updateClip(selectedClip.id, { sceneAction: e.target.value })}
+                rows={4}
+                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+              />
+
+              {/* preview */}
+              {selectedClip.videoUrl ? (
+                <video src={selectedClip.videoUrl} controls playsInline className="mt-3 w-full rounded-lg border border-border" />
+              ) : selectedClip.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedClip.imageUrl} alt="" className="mt-3 w-full rounded-lg border border-border" />
+              ) : null}
+
+              <Button
+                onClick={() => camp.renderClip(selectedClip.id)}
+                disabled={selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED"}
+                className="mt-3 w-full gap-1.5"
+              >
+                {selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED" ? (
+                  <AISpinner size={14} className="text-current" />
+                ) : selectedClip.videoUrl ? (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {selectedClip.videoUrl ? "Regenerate scene" : "Generate scene"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => { camp.removeClip(selectedClip.id); setSelectedId(null); }}
+                className="mt-2 w-full gap-1.5 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove scene
+              </Button>
+
+              {selectedClip.error && <p className="mt-2 text-[10px] text-destructive">{selectedClip.error}</p>}
+              <p className="mt-2 text-[10px] text-muted-foreground">Status: {selectedClip.status}</p>
             </>
           )}
 
@@ -474,6 +525,16 @@ export function AdBuilderCanvas() {
               <Button variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="mt-3 w-full gap-1.5">
                 <Clapperboard className="h-3.5 w-3.5" /> Plan scenes
               </Button>
+              <Button
+                onClick={() => camp.renderAllScenes()}
+                disabled={!!busy || !campaignId || !(state?.clips?.length)}
+                className="mt-2 w-full gap-1.5"
+              >
+                <Film className="h-3.5 w-3.5" /> Render all scenes
+              </Button>
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                Each scene renders a real video clip and charges credits — this can take a few minutes per scene.
+              </p>
             </>
           )}
         </div>
