@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Ad Builder — bottom-sheet inspector (mockup)</title>
+<style>
+  :root{
+    --bg:#ffffff; --muted:#f1f5f9; --muted2:#f8fafc; --border:#e2e8f0;
+    --fg:#0f172a; --sub:#64748b; --brand:#0ea5e9; --brand2:#0284c7;
+    --teal:#14b8a6; --violet:#8b5cf6; --emerald:#10b981;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);overflow:hidden}
+  /* top bar */
+  .top{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--border);background:#fff;z-index:30}
+  .ic{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:var(--muted);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--sub)}
+  .brand{font-weight:800;font-size:15px;background:linear-gradient(90deg,#38bdf8,#0284c7);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .spacer{flex:1}
+  .gen{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--brand),var(--brand2));border:none;border-radius:10px;padding:8px 14px}
+  /* canvas */
+  #canvas{position:fixed;inset:52px 0 0 0;background:
+    radial-gradient(#cbd5e1 1px,transparent 1px) 0 0/22px 22px,#fbfdff;overflow:hidden}
+  .node{position:absolute;width:170px;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  .node .h{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .node .b{padding:9px 11px;font-size:11px;color:var(--sub);line-height:1.45}
+  .node .thumb{height:70px;border-radius:8px;margin-top:6px;background:var(--muted)}
+  .node .cta{border-top:1px solid var(--border);padding:7px 9px}
+  .node .cta button{width:100%;border:1px solid var(--border);background:var(--muted2);border-radius:8px;padding:6px;font-size:11px;font-weight:600;color:var(--fg);display:flex;align-items:center;justify-content:center;gap:5px}
+  .badge{margin-left:auto;font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px}
+  /* sheet */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.18);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top-left-radius:20px;border-top-right-radius:20px;
+    box-shadow:0 -12px 40px rgba(15,23,42,.18);transform:translateY(105%);transition:transform .26s cubic-bezier(.32,.72,0,1);z-index:50;max-height:72%;display:flex;flex-direction:column}
+  .sheet.on{transform:translateY(0)}
+  .grip{width:38px;height:4px;border-radius:99px;background:#cbd5e1;margin:9px auto 4px}
+  .sheet .head{display:flex;align-items:center;gap:8px;padding:4px 16px 10px}
+  .chip{font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;text-transform:capitalize}
+  .sheet .head .x{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--muted);color:var(--sub);font-size:15px;display:flex;align-items:center;justify-content:center}
+  .sheet .body{padding:0 16px 8px;overflow-y:auto}
+  .lbl{font-size:11px;font-weight:700;color:var(--sub);margin:10px 0 5px}
+  .field{width:100%;border:1px solid var(--border);border-radius:12px;background:var(--muted2);padding:11px 12px;font:inherit;font-size:14px;color:var(--fg)}
+  textarea.field{resize:none;min-height:74px}
+  /* chat-style action bar: options on the RIGHT */
+  .bar{display:flex;align-items:center;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--border);background:#fff}
+  .bar .hint{font-size:11px;color:var(--sub);flex:1;line-height:1.3}
+  .bar .opts{display:flex;gap:8px}
+  .btn{display:flex;align-items:center;gap:6px;border-radius:11px;padding:9px 13px;font-size:13px;font-weight:700;border:1px solid var(--border);background:var(--muted2);color:var(--fg)}
+  .btn.primary{border:none;color:#fff;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+  .btn.ghost{background:#fff}
+  .btn.danger{color:#dc2626;background:#fff;border-color:#fecaca}
+  .iconbtn{width:42px;justify-content:center}
+  .sheetlabel{position:fixed;left:0;right:0;bottom:8px;text-align:center;font-size:11px;color:var(--sub);z-index:20}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="ic">←</div>
+    <div class="brand">FlowSmartly</div>
+    <div class="spacer"></div>
+    <button class="gen">✦ Generate all</button>
+  </div>
+
+  <div id="canvas">
+    <div class="node" style="left:20px;top:30px" data-kind="prompt" data-title="Campaign brief"
+         data-sub="A 20s reel for our glow serum — a woman's night skincare routine, cinematic."
+         data-color="#14b8a6" data-badge="brief">
+      <div class="h"><span class="dot" style="background:var(--teal)"></span>Campaign brief<span class="badge" style="background:#ccfbf1;color:#0f766e">brief</span></div>
+      <div class="b">A 20s reel for our glow serum — a woman's night skincare routine…</div>
+    </div>
+
+    <div class="node" style="left:120px;top:210px" data-kind="character" data-title="Victoria Chen"
+         data-sub="Senior Attorney — composed, mid-40s, charcoal suit." data-color="#0ea5e9" data-badge="anchor">
+      <div class="h"><span class="dot" style="background:var(--brand)"></span>Victoria Chen<span class="badge" style="background:#e0f2fe;color:#0369a1">anchor</span></div>
+      <div class="b">Senior Attorney<div class="thumb" style="background:linear-gradient(160deg,#dbeafe,#bfdbfe)"></div></div>
+      <div class="cta"><button>✦ Generate image</button></div>
+    </div>
+
+    <div class="node" style="left:30px;top:430px" data-kind="scene" data-title="Scene 1 · Hook"
+         data-sub="Victoria sits at her vanity, warm bulb light." data-color="#8b5cf6">
+      <div class="h"><span class="dot" style="background:var(--violet)"></span>Scene 1</div>
+      <div class="b"><span style="color:#0ea5e9;font-weight:700">👤 Victoria Chen</span><br>Sits at her vanity…<div class="thumb"></div></div>
+      <div class="cta"><button>✦ Generate scene</button></div>
+    </div>
+  </div>
+
+  <div class="sheetlabel">Tap any card → editor opens at the bottom (chat-style)</div>
+
+  <!-- bottom sheet -->
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet">
+    <div class="grip"></div>
+    <div class="head">
+      <span class="chip" id="chip">character</span>
+      <span style="font-size:12px;color:var(--sub)">node</span>
+      <div class="x" id="close">✕</div>
+    </div>
+    <div class="body">
+      <div class="lbl" id="lbl1">Title</div>
+      <input class="field" id="f1" value="Victoria Chen" />
+      <div class="lbl" id="lbl2">Prompt</div>
+      <textarea class="field" id="f2">Senior Attorney — composed, mid-40s, charcoal suit.</textarea>
+    </div>
+    <!-- chat-style action bar: options on the RIGHT -->
+    <div class="bar">
+      <div class="hint" id="hint">Generate from this, upload your own, or remove.</div>
+      <div class="opts" id="opts"></div>
+    </div>
+  </div>
+
+<script>
+  const sheet=document.getElementById('sheet'), scrim=document.getElementById('scrim');
+  const chip=document.getElementById('chip'), f1=document.getElementById('f1'), f2=document.getElementById('f2');
+  const lbl2=document.getElementById('lbl2'), opts=document.getElementById('opts'), hint=document.getElementById('hint');
+  const COLORS={prompt:'#14b8a6',character:'#0ea5e9',scene:'#8b5cf6'};
+  function optionSet(kind){
+    if(kind==='prompt') return [['primary','✦ Generate all']];
+    if(kind==='character') return [['ghost iconbtn','⤴'],['danger iconbtn','🗑'],['primary','✦ Generate']];
+    if(kind==='scene') return [['ghost iconbtn','🗑'],['ghost','✎ Edit'],['primary','✦ Generate']];
+    return [['primary','✦ Generate']];
+  }
+  function open(node){
+    const k=node.dataset.kind;
+    chip.textContent=k; chip.style.background='#eef6ff'; chip.style.color=COLORS[k];
+    f1.value=node.dataset.title; f2.value=node.dataset.sub;
+    lbl2.textContent = k==='prompt'?'Campaign brief':k==='scene'?'Scene prompt':'Appearance';
+    hint.textContent = k==='prompt'?'Describe your ad, then generate everything.'
+      : k==='character'?'Generate the turnaround sheet, upload your own photo, or remove.'
+      : 'Generate the clip, edit the prompt, preview, or remove.';
+    opts.innerHTML='';
+    optionSet(k).forEach(([cls,txt])=>{const b=document.createElement('button');b.className='btn '+cls;b.textContent=txt;opts.appendChild(b);});
+    sheet.classList.add('on'); scrim.classList.add('on');
+  }
+  function close(){sheet.classList.remove('on');scrim.classList.remove('on');}
+  document.querySelectorAll('.node').forEach(n=>n.addEventListener('click',()=>open(n)));
+  scrim.addEventListener('click',close);
+  document.getElementById('close').addEventListener('click',close);
+</script>
+</body>
+</html>
