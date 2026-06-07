@@ -7,7 +7,6 @@ import {
   Clapperboard,
   Download,
   Film,
-  Loader2,
   Minus,
   Plus,
   Sparkles,
@@ -16,13 +15,14 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { cn } from "@/lib/utils/cn";
 import { useAdCampaign } from "./use-ad-campaign";
 
 // ---------------------------------------------------------------------------
 // Node-canvas Ad Builder — wired to the real story-ad-campaign pipeline via
-// useAdCampaign(). Nodes are DERIVED from live campaign state (cast, clips),
-// so generating a character produces a real turnaround sheet, etc.
+// useAdCampaign(). Styled with the app's theme tokens (respects light/dark) and
+// the shared AISpinner for loading states.
 // ---------------------------------------------------------------------------
 const NODE_W = 220;
 const PORT_DY = 24;
@@ -32,7 +32,7 @@ type NodeStatus = "idle" | "generating" | "ready" | "failed";
 
 interface CanvasNode {
   id: string;
-  refId: string | null; // character id / clip id this node maps to
+  refId: string | null;
   kind: NodeKind;
   x: number;
   y: number;
@@ -47,11 +47,18 @@ interface Edge {
   to: string;
 }
 
-const KIND_COLOR: Record<NodeKind, string> = {
-  prompt: "#5eead4",
-  character: "#38bdf8",
-  clip: "#a78bfa",
-  output: "#34d399",
+// Node-type accent classes built on theme tokens where possible.
+const KIND_ACCENT: Record<NodeKind, string> = {
+  prompt: "text-teal-500",
+  character: "text-brand-500",
+  clip: "text-violet-500",
+  output: "text-emerald-500",
+};
+const KIND_BADGE: Record<NodeKind, string> = {
+  prompt: "bg-teal-500/15 text-teal-600 dark:text-teal-300",
+  character: "bg-brand-500/15 text-brand-600 dark:text-brand-300",
+  clip: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+  output: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
 };
 const KIND_ICON: Record<NodeKind, typeof Type> = {
   prompt: Type,
@@ -77,7 +84,6 @@ export function AdBuilderCanvas() {
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
 
-  // ---- derive the graph from live campaign state ----
   const { nodes, edges } = useMemo<{ nodes: CanvasNode[]; edges: Edge[] }>(() => {
     const ns: CanvasNode[] = [];
     const es: Edge[] = [];
@@ -156,7 +162,6 @@ export function AdBuilderCanvas() {
       else chars.forEach((c) => es.push({ from: `char-${c.id}`, to: OUTPUT_ID }));
     }
 
-    // apply drag overrides
     for (const n of ns) {
       const o = overrides[n.id];
       if (o) {
@@ -193,7 +198,6 @@ export function AdBuilderCanvas() {
     [nodeById],
   );
 
-  // ---- interactions ----
   const onNodePointerDown = (e: React.PointerEvent<HTMLDivElement>, n: CanvasNode) => {
     e.stopPropagation();
     setSelectedId(n.id);
@@ -224,7 +228,6 @@ export function AdBuilderCanvas() {
   };
   const zoomBy = (delta: number) => setScale((s) => Math.min(1.6, Math.max(0.5, +(s + delta).toFixed(2))));
 
-  // ---- orchestration ----
   const ensureCampaign = useCallback(async (): Promise<string | null> => {
     if (campaignId) return campaignId;
     if (brief.trim().length < 12) {
@@ -247,44 +250,38 @@ export function AdBuilderCanvas() {
     await camp.planScenes(id);
   }, [ensureCampaign, camp]);
 
-  const busyLabel = busy;
   const shownError = localError || error;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#071a2b] text-[#e6f4fd]">
+    <div className="relative h-full w-full overflow-hidden bg-background text-foreground">
       {/* top bar */}
-      <div className="absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-sky-400/20 bg-[#0a2236]/90 px-4 backdrop-blur">
+      <div className="absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/90 px-4 backdrop-blur">
         <Link
           href="/dashboard"
           title="Back to dashboard"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-sky-400/20 bg-sky-400/10 text-slate-200 hover:bg-sky-400/20"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <span className="bg-gradient-to-r from-sky-400 to-sky-600 bg-clip-text text-base font-extrabold tracking-tight text-transparent">
+        <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-base font-extrabold tracking-tight text-transparent">
           FlowSmartly
         </span>
-        <span className="hidden text-xs text-slate-400 sm:inline">Studio › Ad Builder</span>
-        {busyLabel && (
-          <span className="flex items-center gap-1.5 text-xs text-sky-300">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {busyLabel}
+        <span className="hidden text-xs text-muted-foreground sm:inline">Studio › Ad Builder</span>
+        {busy && (
+          <span className="flex items-center gap-1.5 text-xs text-brand-500">
+            <AISpinner size={14} /> {busy}
           </span>
         )}
         <div className="flex-1" />
-        <Button
-          size="sm"
-          onClick={onGenerateAll}
-          disabled={!!busy}
-          className="gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]"
-        >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+        <Button size="sm" onClick={onGenerateAll} disabled={!!busy} className="gap-1.5">
+          {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
           Generate all
         </Button>
       </div>
 
       {/* error toast */}
       {shownError && (
-        <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg border border-red-400/30 bg-red-500/15 px-4 py-2 text-xs text-red-200">
+        <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
           {shownError}
           <button className="ml-3 underline" onClick={() => { setLocalError(null); camp.clearError(); }}>
             dismiss
@@ -294,8 +291,7 @@ export function AdBuilderCanvas() {
 
       {/* canvas */}
       <div
-        className="absolute inset-y-0 left-0 right-0 top-14 cursor-grab touch-none overflow-hidden"
-        style={{ background: "radial-gradient(1200px 700px at 70% -10%, #0c3350 0%, rgba(8,30,48,0) 55%), #071a2b" }}
+        className="absolute inset-y-0 left-0 right-0 top-14 cursor-grab touch-none overflow-hidden bg-muted/20"
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
@@ -305,9 +301,13 @@ export function AdBuilderCanvas() {
           className="absolute left-0 top-0 origin-top-left"
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, width: 4000, height: 2600 }}
         >
+          {/* dot grid (themed via currentColor) */}
           <div
-            className="absolute inset-0"
-            style={{ backgroundImage: "radial-gradient(rgba(86,170,216,.16) 1px, transparent 1px)", backgroundSize: "26px 26px" }}
+            className="absolute inset-0 text-muted-foreground/25"
+            style={{
+              backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+            }}
           />
           <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
             <defs>
@@ -319,15 +319,12 @@ export function AdBuilderCanvas() {
             {edges.map((e, i) => {
               const d = wirePath(e);
               if (!d) return null;
-              return (
-                <path key={i} d={d} fill="none" stroke="url(#adb-wire)" strokeWidth={2.5} style={{ filter: "drop-shadow(0 1px 3px rgba(2,132,199,.4))" }} />
-              );
+              return <path key={i} d={d} fill="none" stroke="url(#adb-wire)" strokeWidth={2.5} />;
             })}
           </svg>
 
           {nodes.map((n) => {
             const Icon = KIND_ICON[n.kind];
-            const color = KIND_COLOR[n.kind];
             const isSel = n.id === selectedId;
             return (
               <div
@@ -336,54 +333,51 @@ export function AdBuilderCanvas() {
                 onPointerMove={onNodePointerMove}
                 onPointerUp={onNodePointerUp}
                 className={cn(
-                  "absolute cursor-grab touch-none select-none rounded-2xl border bg-gradient-to-b from-[#12384f] to-[#0f2c43] shadow-[0_18px_40px_rgba(0,0,0,.45)] transition-colors",
-                  isSel ? "border-sky-400/70 ring-2 ring-sky-400/30" : "border-sky-400/20 hover:border-sky-400/50",
+                  "absolute cursor-grab touch-none select-none rounded-2xl border bg-card text-card-foreground shadow-lg transition-colors",
+                  isSel ? "border-brand-400 ring-2 ring-brand-400/30" : "border-border hover:border-brand-400/50",
                 )}
                 style={{ left: n.x, top: n.y, width: NODE_W }}
               >
-                <div className="flex items-center gap-2 border-b border-sky-400/10 px-3 py-2 text-xs font-bold">
-                  <Icon className="h-3.5 w-3.5" style={{ color }} />
+                <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-bold">
+                  <Icon className={cn("h-3.5 w-3.5", KIND_ACCENT[n.kind])} />
                   <span className="truncate">{n.title}</span>
-                  {n.status === "generating" && <Loader2 className="h-3 w-3 animate-spin text-sky-300" />}
+                  {n.status === "generating" && <AISpinner size={12} className="text-brand-500" />}
                   {n.badge && (
-                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold text-[#04141f]" style={{ background: color }}>
+                    <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold", KIND_BADGE[n.kind])}>
                       {n.badge}
                     </span>
                   )}
                 </div>
-                <div className="px-3 py-2.5 text-[11px] leading-relaxed text-slate-400">
-                  {n.subtitle && <div className="mb-1.5 line-clamp-2 text-slate-300">{n.subtitle}</div>}
+                <div className="px-3 py-2.5 text-[11px] leading-relaxed">
+                  {n.subtitle && <div className="mb-1.5 line-clamp-2 text-muted-foreground">{n.subtitle}</div>}
                   {n.thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={n.thumb} alt="" className="h-24 w-full rounded-md object-cover" />
                   ) : (
-                    <div
-                      className="flex h-20 items-center justify-center rounded-md text-[10px] text-slate-500"
-                      style={{ background: "linear-gradient(160deg,#10324a,#0a2740)" }}
-                    >
+                    <div className="flex h-20 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">
                       {n.status === "generating" ? "generating…" : n.kind === "prompt" ? "your brief" : "not generated"}
                     </div>
                   )}
                 </div>
                 {n.kind !== "prompt" && (
-                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]" style={{ left: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }} />
+                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] border-brand-400 bg-card" style={{ left: -6, top: PORT_DY - 6 }} />
                 )}
                 {n.kind !== "output" && (
-                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]" style={{ right: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }} />
+                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] border-brand-400 bg-card" style={{ right: -6, top: PORT_DY - 6 }} />
                 )}
               </div>
             );
           })}
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-sky-400/20 bg-[#091c2c]/80 px-3 py-1.5 text-[11px] text-slate-400">
+        <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-border bg-card/80 px-3 py-1.5 text-[11px] text-muted-foreground">
           {campaignId ? "Click a node to edit · drag to rearrange" : "Write a brief in the panel, then ‘Generate all’"}
         </div>
         <div className="absolute bottom-4 right-4 flex gap-1.5">
-          <button onClick={() => zoomBy(-0.1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/20 bg-[#091c2c]/90 text-slate-100">
+          <button onClick={() => zoomBy(-0.1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-muted">
             <Minus className="h-4 w-4" />
           </button>
-          <button onClick={() => zoomBy(0.1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/20 bg-[#091c2c]/90 text-slate-100">
+          <button onClick={() => zoomBy(0.1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-muted">
             <Plus className="h-4 w-4" />
           </button>
         </div>
@@ -391,29 +385,30 @@ export function AdBuilderCanvas() {
 
       {/* inspector */}
       {selected && (
-        <div className="absolute bottom-0 right-0 top-14 z-10 w-72 overflow-y-auto border-l border-sky-400/20 bg-[#0a2236]/95 p-4 backdrop-blur">
+        <div className="absolute bottom-0 right-0 top-14 z-10 w-72 overflow-y-auto border-l border-border bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-[#04141f]" style={{ background: KIND_COLOR[selected.kind] }}>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold capitalize", KIND_BADGE[selected.kind])}>
               {selected.kind}
             </span>
           </div>
 
           {selected.kind === "prompt" && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Campaign brief</label>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Campaign brief</label>
               <textarea
                 value={brief || state?.brief || ""}
                 onChange={(e) => setBrief(e.target.value)}
                 onBlur={() => campaignId && brief && camp.patchState({ brief })}
                 rows={6}
                 placeholder="e.g. A 20s reel for our glow serum — a woman's night skincare routine, cinematic."
-                className="w-full resize-none rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
               />
-              <Button onClick={onGenerateAll} disabled={!!busy} className="mt-3 w-full gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]">
-                <Sparkles className="h-3.5 w-3.5" /> {campaignId ? "Regenerate" : "Generate all"}
+              <Button onClick={onGenerateAll} disabled={!!busy} className="mt-3 w-full gap-1.5">
+                {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {campaignId ? "Regenerate" : "Generate all"}
               </Button>
               {campaignId && (
-                <Button variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="mt-2 w-full gap-1.5 border-sky-400/20 bg-sky-400/10 text-slate-100">
+                <Button variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="mt-2 w-full gap-1.5">
                   <Users className="h-3.5 w-3.5" /> Plan cast
                 </Button>
               )}
@@ -422,45 +417,45 @@ export function AdBuilderCanvas() {
 
           {selected.kind === "character" && selectedChar && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Name</label>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Name</label>
               <input
                 key={`name-${selectedChar.id}`}
                 defaultValue={selectedChar.name}
                 onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { name: e.target.value })}
-                className="mb-3 w-full rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+                className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
               />
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Role</label>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Role</label>
               <input
                 key={`role-${selectedChar.id}`}
                 defaultValue={selectedChar.role}
                 onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { role: e.target.value })}
-                className="mb-3 w-full rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+                className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
               />
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Appearance</label>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Appearance</label>
               <textarea
                 key={`desc-${selectedChar.id}`}
                 defaultValue={selectedChar.visualDescription}
                 onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { visualDescription: e.target.value })}
                 rows={5}
-                className="w-full resize-none rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
               />
               <Button
                 onClick={() => camp.generateCharacter(selectedChar.id)}
                 disabled={selectedChar.previewStatus === "generating"}
-                className="mt-3 w-full gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]"
+                className="mt-3 w-full gap-1.5"
               >
-                {selectedChar.previewStatus === "generating" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {selectedChar.previewStatus === "generating" ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
                 Generate turnaround sheet
               </Button>
-              {selectedChar.previewError && <p className="mt-2 text-[10px] text-red-300">{selectedChar.previewError}</p>}
+              {selectedChar.previewError && <p className="mt-2 text-[10px] text-destructive">{selectedChar.previewError}</p>}
             </>
           )}
 
           {selected.kind === "clip" && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Scene</label>
-              <p className="rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-[12px] text-slate-300">{selected.subtitle || "—"}</p>
-              <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene</label>
+              <p className="rounded-lg border border-border bg-muted px-3 py-2 text-[12px] text-foreground">{selected.subtitle || "—"}</p>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
                 Status: {selected.status}. Per-scene render + retry is the next wiring step; use “Generate all” to (re)plan scenes from the cast.
               </p>
             </>
@@ -468,16 +463,15 @@ export function AdBuilderCanvas() {
 
           {selected.kind === "output" && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Final reel</label>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Final reel</label>
               {state?.finalVideoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-sky-300 underline">
+                <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 underline">
                   Open rendered reel
                 </a>
               ) : (
-                <p className="text-[11px] text-slate-400">Plan scenes and render clips, then stitch the final reel.</p>
+                <p className="text-[11px] text-muted-foreground">Plan scenes and render clips, then stitch the final reel.</p>
               )}
-              <Button variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="mt-3 w-full gap-1.5 border-sky-400/20 bg-sky-400/10 text-slate-100">
+              <Button variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="mt-3 w-full gap-1.5">
                 <Clapperboard className="h-3.5 w-3.5" /> Plan scenes
               </Button>
             </>
@@ -488,7 +482,6 @@ export function AdBuilderCanvas() {
   );
 }
 
-// Save edits to one character by patching the whole characters array.
 function saveCharacter(
   camp: ReturnType<typeof useAdCampaign>,
   state: ReturnType<typeof useAdCampaign>["state"],
