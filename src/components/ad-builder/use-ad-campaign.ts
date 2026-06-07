@@ -195,6 +195,78 @@ export function useAdCampaign() {
     [campaignId],
   );
 
+  /** Render (or re-render) a single scene clip. Reloads state afterward since the
+   *  retry endpoint returns just the clip result, not the whole campaign. */
+  const renderClip = useCallback(
+    async (clipId: string, id = campaignId): Promise<void> => {
+      if (!id) return;
+      setError(null);
+      setState((s) =>
+        s
+          ? { ...s, clips: s.clips.map((c) => (c.id === clipId ? { ...c, status: "RENDERING", error: null } : c)) }
+          : s,
+      );
+      try {
+        const json = await postJson<{ result: unknown }>(
+          `/api/ai/story-ad-campaign/${id}/clips/${clipId}/retry`,
+        );
+        if (!json.success) throw new Error(errMessage(json, "Scene render failed"));
+        await load(id);
+      } catch (e) {
+        setError(errMessage(e, "Scene render failed"));
+        setState((s) =>
+          s ? { ...s, clips: s.clips.map((c) => (c.id === clipId ? { ...c, status: "FAILED" } : c)) } : s,
+        );
+      }
+    },
+    [campaignId, load],
+  );
+
+  /** Edit a scene's action/prompt, persist, and rebuild the render prompt from it. */
+  const updateClip = useCallback(
+    async (clipId: string, patch: { sceneAction?: string }): Promise<void> => {
+      if (!campaignId) return;
+      let nextClips: CampaignState["clips"] | null = null;
+      setState((s) => {
+        if (!s) return s;
+        nextClips = s.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c));
+        return { ...s, clips: nextClips };
+      });
+      if (!nextClips) return;
+      const json = await postJsonPatch(`/api/ai/story-ad-campaign/${campaignId}`, {
+        state: { clips: nextClips },
+        rebuildPrompts: true,
+      });
+      if (json.success && json.data?.state) setState(json.data.state);
+    },
+    [campaignId],
+  );
+
+  /** Remove a scene clip (free state edit). */
+  const removeClip = useCallback(
+    async (clipId: string): Promise<void> => {
+      if (!campaignId) return;
+      const json = await postJson<{ state: CampaignState }>(
+        `/api/ai/story-ad-campaign/${campaignId}/clips/manage`,
+        { action: "remove", clipId },
+      );
+      if (json.success && json.data?.state) setState(json.data.state);
+    },
+    [campaignId],
+  );
+
+  /** Render every planned scene, in order. */
+  const renderAllScenes = useCallback(
+    async (id = campaignId): Promise<void> => {
+      if (!id) return;
+      const clips = state?.clips ?? [];
+      for (const cl of clips) {
+        await renderClip(cl.id, id);
+      }
+    },
+    [campaignId, state, renderClip],
+  );
+
   return {
     campaignId,
     state,
@@ -206,6 +278,10 @@ export function useAdCampaign() {
     planCast,
     generateCharacter,
     planScenes,
+    renderClip,
+    updateClip,
+    removeClip,
+    renderAllScenes,
     clearError: useCallback(() => setError(null), []),
   };
 }
