@@ -27,6 +27,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          # Connect timeout — bumped from the 30s default; the runner has intermittently
+          # hit "dial tcp :22: i/o timeout" reaching the VPS within 30s.
+          timeout: 120s
           command_timeout: 30m
           script: |
             set -e
