@@ -4,102 +4,182 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Clapperboard,
   Download,
   Film,
-  ImageIcon,
+  Loader2,
   Minus,
-  Music,
-  Play,
   Plus,
   Sparkles,
   Type,
   User,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+import { useAdCampaign } from "./use-ad-campaign";
 
 // ---------------------------------------------------------------------------
-// Node model. This is the UI shell — demo data + interactions only. Wiring each
-// node to the story-ad-campaign generation pipeline is the next slice.
+// Node-canvas Ad Builder — wired to the real story-ad-campaign pipeline via
+// useAdCampaign(). Nodes are DERIVED from live campaign state (cast, clips),
+// so generating a character produces a real turnaround sheet, etc.
 // ---------------------------------------------------------------------------
-type NodeKind = "prompt" | "character" | "scene" | "video" | "music" | "output";
+const NODE_W = 220;
+const PORT_DY = 24;
 
-interface AdNode {
+type NodeKind = "prompt" | "character" | "clip" | "output";
+type NodeStatus = "idle" | "generating" | "ready" | "failed";
+
+interface CanvasNode {
   id: string;
+  refId: string | null; // character id / clip id this node maps to
   kind: NodeKind;
   x: number;
   y: number;
   title: string;
   subtitle: string;
   badge?: string;
-  /** editable free text shown in the inspector (prompt / description) */
-  text: string;
+  status: NodeStatus;
+  thumb?: string | null;
 }
-
-interface AdEdge {
+interface Edge {
   from: string;
   to: string;
 }
 
-const NODE_W = 212;
-const PORT_DY = 24; // port vertical offset from the node's top (mid-header)
-
-const KIND_META: Record<
-  NodeKind,
-  { label: string; color: string; icon: typeof Type }
-> = {
-  prompt: { label: "Prompt", color: "#5eead4", icon: Type },
-  character: { label: "Character", color: "#38bdf8", icon: User },
-  scene: { label: "Scene", color: "#38bdf8", icon: ImageIcon },
-  video: { label: "Video", color: "#a78bfa", icon: Film },
-  music: { label: "Music", color: "#fbbf24", icon: Music },
-  output: { label: "Final reel", color: "#34d399", icon: Download },
+const KIND_COLOR: Record<NodeKind, string> = {
+  prompt: "#5eead4",
+  character: "#38bdf8",
+  clip: "#a78bfa",
+  output: "#34d399",
+};
+const KIND_ICON: Record<NodeKind, typeof Type> = {
+  prompt: Type,
+  character: User,
+  clip: Film,
+  output: Download,
 };
 
-const PALETTE: NodeKind[] = ["prompt", "character", "scene", "video", "music", "output"];
-
-const DEMO_NODES: AdNode[] = [
-  { id: "prompt", kind: "prompt", x: 40, y: 250, title: "Prompt", subtitle: "Campaign brief", badge: "brief", text: "A young woman at her vanity at night, soft mirror bulbs, doing her skincare. Cinematic, photoreal." },
-  { id: "character", kind: "character", x: 320, y: 180, title: "Character sheet", subtitle: "Maya — front · ¾ · profile", badge: "anchor", text: "Locks identity across every shot. Derived from the first image; fed into Veo referenceImages." },
-  { id: "scene1", kind: "scene", x: 620, y: 70, title: "Scene · Hook", subtitle: "Wide — sits at vanity", text: "Wide establishing shot, sits down at the vanity, warm bulb light." },
-  { id: "scene2", kind: "scene", x: 620, y: 320, title: "Scene · Reveal", subtitle: "Close-up — applies serum", text: "Close-up on hands applying the serum, glossy skin, shallow depth of field." },
-  { id: "video1", kind: "video", x: 920, y: 70, title: "Video · clip 1", subtitle: "8s · push-in", badge: "Veo", text: "Animate scene 1 — slow push-in, native audio." },
-  { id: "video2", kind: "video", x: 920, y: 320, title: "Video · clip 2", subtitle: "8s · slow zoom", badge: "Veo", text: "Animate scene 2 — gentle zoom, ambient room tone." },
-  { id: "output", kind: "output", x: 1220, y: 200, title: "Final reel", subtitle: "Stitched · captions · music", badge: "9:16", text: "Concatenate clips, add captions and a music bed, export 9:16." },
-];
-
-const DEMO_EDGES: AdEdge[] = [
-  { from: "prompt", to: "character" },
-  { from: "character", to: "scene1" },
-  { from: "character", to: "scene2" },
-  { from: "scene1", to: "video1" },
-  { from: "scene2", to: "video2" },
-  { from: "video1", to: "output" },
-  { from: "video2", to: "output" },
-];
+const PROMPT_ID = "__prompt";
+const OUTPUT_ID = "__output";
 
 export function AdBuilderCanvas() {
-  const [nodes, setNodes] = useState<AdNode[]>(DEMO_NODES);
-  const [edges] = useState<AdEdge[]>(DEMO_EDGES);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const camp = useAdCampaign();
+  const { state, campaignId, busy, error } = camp;
+
+  const [brief, setBrief] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(PROMPT_ID);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({});
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
-  const idSeq = useRef(0);
+
+  // ---- derive the graph from live campaign state ----
+  const { nodes, edges } = useMemo<{ nodes: CanvasNode[]; edges: Edge[] }>(() => {
+    const ns: CanvasNode[] = [];
+    const es: Edge[] = [];
+    const effBrief = state?.brief || brief;
+    ns.push({
+      id: PROMPT_ID,
+      refId: null,
+      kind: "prompt",
+      x: 40,
+      y: 260,
+      title: "Campaign brief",
+      subtitle: effBrief ? effBrief.slice(0, 64) : "Describe the ad you want",
+      badge: "brief",
+      status: effBrief ? "ready" : "idle",
+    });
+
+    const chars = state?.characters ?? [];
+    chars.forEach((c, i) => {
+      const id = `char-${c.id}`;
+      ns.push({
+        id,
+        refId: c.id,
+        kind: "character",
+        x: 340,
+        y: 70 + i * 170,
+        title: c.name || `Character ${i + 1}`,
+        subtitle: c.role || "",
+        badge: "anchor",
+        status: (c.previewStatus as NodeStatus) || "idle",
+        thumb: c.characterSheetUrl || c.referenceImageUrl || null,
+      });
+      es.push({ from: PROMPT_ID, to: id });
+    });
+
+    const clips = state?.clips ?? [];
+    clips.forEach((cl, i) => {
+      const id = `clip-${cl.id}`;
+      const status: NodeStatus =
+        cl.status === "READY"
+          ? "ready"
+          : cl.status === "RENDERING" || cl.status === "QUEUED"
+            ? "generating"
+            : cl.status === "FAILED"
+              ? "failed"
+              : "idle";
+      ns.push({
+        id,
+        refId: cl.id,
+        kind: "clip",
+        x: 680,
+        y: 70 + i * 170,
+        title: `Scene ${cl.index ?? i + 1}`,
+        subtitle: cl.sceneAction || cl.act || "",
+        badge: cl.videoUrl ? "clip" : undefined,
+        status,
+        thumb: cl.videoUrl || cl.imageUrl || null,
+      });
+      const src = chars.length ? `char-${chars[i % chars.length].id}` : PROMPT_ID;
+      es.push({ from: src, to: id });
+    });
+
+    if (state) {
+      ns.push({
+        id: OUTPUT_ID,
+        refId: null,
+        kind: "output",
+        x: 1010,
+        y: 220,
+        title: "Final reel",
+        subtitle: state.finalVideoUrl ? "Ready to publish" : "Stitch · captions · music",
+        badge: state.aspectRatio,
+        status: state.finalVideoUrl ? "ready" : "idle",
+        thumb: state.finalVideoUrl || state.finalVideoThumbnailUrl || null,
+      });
+      if (clips.length) clips.forEach((cl) => es.push({ from: `clip-${cl.id}`, to: OUTPUT_ID }));
+      else chars.forEach((c) => es.push({ from: `char-${c.id}`, to: OUTPUT_ID }));
+    }
+
+    // apply drag overrides
+    for (const n of ns) {
+      const o = overrides[n.id];
+      if (o) {
+        n.x = o.x;
+        n.y = o.y;
+      }
+    }
+    return { nodes: ns, edges: es };
+  }, [state, brief, overrides]);
 
   const nodeById = useMemo(() => {
-    const m = new Map<string, AdNode>();
+    const m = new Map<string, CanvasNode>();
     for (const n of nodes) m.set(n.id, n);
     return m;
   }, [nodes]);
-
   const selected = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const selectedChar =
+    selected?.kind === "character" && state
+      ? state.characters.find((c) => c.id === selected.refId) ?? null
+      : null;
 
-  // ---- connectors (port-to-port bezier in world coords) ----
   const wirePath = useCallback(
-    (e: AdEdge): string | null => {
+    (e: Edge): string | null => {
       const a = nodeById.get(e.from);
       const b = nodeById.get(e.to);
       if (!a || !b) return null;
@@ -113,8 +193,8 @@ export function AdBuilderCanvas() {
     [nodeById],
   );
 
-  // ---- node drag ----
-  const onNodePointerDown = (e: React.PointerEvent<HTMLDivElement>, n: AdNode) => {
+  // ---- interactions ----
+  const onNodePointerDown = (e: React.PointerEvent<HTMLDivElement>, n: CanvasNode) => {
     e.stopPropagation();
     setSelectedId(n.id);
     dragNode.current = { id: n.id, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y };
@@ -125,13 +205,11 @@ export function AdBuilderCanvas() {
     if (!d) return;
     const nx = d.ox + (e.clientX - d.sx) / scale;
     const ny = d.oy + (e.clientY - d.sy) / scale;
-    setNodes((prev) => prev.map((p) => (p.id === d.id ? { ...p, x: nx, y: ny } : p)));
+    setOverrides((p) => ({ ...p, [d.id]: { x: nx, y: ny } }));
   };
   const onNodePointerUp = () => {
     dragNode.current = null;
   };
-
-  // ---- canvas pan ----
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     setSelectedId(null);
     dragPan.current = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y };
@@ -144,33 +222,33 @@ export function AdBuilderCanvas() {
   const onStagePointerUp = () => {
     dragPan.current = null;
   };
+  const zoomBy = (delta: number) => setScale((s) => Math.min(1.6, Math.max(0.5, +(s + delta).toFixed(2))));
 
-  const zoomBy = (delta: number) =>
-    setScale((s) => Math.min(1.6, Math.max(0.5, +(s + delta).toFixed(2))));
+  // ---- orchestration ----
+  const ensureCampaign = useCallback(async (): Promise<string | null> => {
+    if (campaignId) return campaignId;
+    if (brief.trim().length < 12) {
+      setLocalError("Add a brief first — a sentence about the ad you want.");
+      return null;
+    }
+    setLocalError(null);
+    return camp.create({ brief: brief.trim() });
+  }, [campaignId, brief, camp]);
 
-  const addNode = (kind: NodeKind) => {
-    idSeq.current += 1;
-    const id = `${kind}-${idSeq.current}`;
-    const meta = KIND_META[kind];
-    setNodes((prev) => [
-      ...prev,
-      {
-        id,
-        kind,
-        x: (-pan.x + 360) / scale,
-        y: (-pan.y + 220) / scale,
-        title: meta.label,
-        subtitle: "New node",
-        text: "",
-      },
-    ]);
-    setSelectedId(id);
-  };
+  const onGenerateAll = useCallback(async () => {
+    const id = await ensureCampaign();
+    if (!id) return;
+    const planned = await camp.planCast(4, id);
+    if (planned) {
+      for (const c of planned.characters) {
+        await camp.generateCharacter(c.id, id);
+      }
+    }
+    await camp.planScenes(id);
+  }, [ensureCampaign, camp]);
 
-  const updateSelected = (patch: Partial<AdNode>) => {
-    if (!selectedId) return;
-    setNodes((prev) => prev.map((p) => (p.id === selectedId ? { ...p, ...patch } : p)));
-  };
+  const busyLabel = busy;
+  const shownError = localError || error;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#071a2b] text-[#e6f4fd]">
@@ -186,42 +264,38 @@ export function AdBuilderCanvas() {
         <span className="bg-gradient-to-r from-sky-400 to-sky-600 bg-clip-text text-base font-extrabold tracking-tight text-transparent">
           FlowSmartly
         </span>
-        <span className="text-xs text-slate-400">Studio › Ad Builder</span>
+        <span className="hidden text-xs text-slate-400 sm:inline">Studio › Ad Builder</span>
+        {busyLabel && (
+          <span className="flex items-center gap-1.5 text-xs text-sky-300">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {busyLabel}
+          </span>
+        )}
         <div className="flex-1" />
-        <Button variant="outline" size="sm" className="gap-1.5 border-sky-400/20 bg-sky-400/10 text-slate-100 hover:bg-sky-400/20">
-          <Play className="h-3.5 w-3.5" /> Preview reel
-        </Button>
-        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]">
-          <Sparkles className="h-3.5 w-3.5" /> Generate all
+        <Button
+          size="sm"
+          onClick={onGenerateAll}
+          disabled={!!busy}
+          className="gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Generate all
         </Button>
       </div>
 
-      {/* left palette */}
-      <div className="absolute bottom-0 left-0 top-14 z-10 flex w-[78px] flex-col items-center gap-2 border-r border-sky-400/20 bg-[#091c2c]/90 py-3">
-        {PALETTE.map((kind) => {
-          const meta = KIND_META[kind];
-          const Icon = meta.icon;
-          return (
-            <button
-              key={kind}
-              onClick={() => addNode(kind)}
-              title={`Add ${meta.label} node`}
-              className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-2xl border border-transparent bg-sky-400/5 text-[9px] text-slate-400 transition hover:border-sky-400/20 hover:bg-sky-400/15 hover:text-slate-100"
-            >
-              <Icon className="h-[18px] w-[18px]" style={{ color: meta.color }} />
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* error toast */}
+      {shownError && (
+        <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg border border-red-400/30 bg-red-500/15 px-4 py-2 text-xs text-red-200">
+          {shownError}
+          <button className="ml-3 underline" onClick={() => { setLocalError(null); camp.clearError(); }}>
+            dismiss
+          </button>
+        </div>
+      )}
 
-      {/* canvas stage */}
+      {/* canvas */}
       <div
-        className="absolute inset-y-0 left-[78px] right-0 top-14 cursor-grab touch-none overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(1200px 700px at 70% -10%, #0c3350 0%, rgba(8,30,48,0) 55%), #071a2b",
-        }}
+        className="absolute inset-y-0 left-0 right-0 top-14 cursor-grab touch-none overflow-hidden"
+        style={{ background: "radial-gradient(1200px 700px at 70% -10%, #0c3350 0%, rgba(8,30,48,0) 55%), #071a2b" }}
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
@@ -231,16 +305,10 @@ export function AdBuilderCanvas() {
           className="absolute left-0 top-0 origin-top-left"
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, width: 4000, height: 2600 }}
         >
-          {/* dot grid */}
           <div
             className="absolute inset-0"
-            style={{
-              backgroundImage: "radial-gradient(rgba(86,170,216,.16) 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
+            style={{ backgroundImage: "radial-gradient(rgba(86,170,216,.16) 1px, transparent 1px)", backgroundSize: "26px 26px" }}
           />
-
-          {/* wires */}
           <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
             <defs>
               <linearGradient id="adb-wire" x1="0" y1="0" x2="1" y2="0">
@@ -252,22 +320,14 @@ export function AdBuilderCanvas() {
               const d = wirePath(e);
               if (!d) return null;
               return (
-                <path
-                  key={i}
-                  d={d}
-                  fill="none"
-                  stroke="url(#adb-wire)"
-                  strokeWidth={2.5}
-                  style={{ filter: "drop-shadow(0 1px 3px rgba(2,132,199,.4))" }}
-                />
+                <path key={i} d={d} fill="none" stroke="url(#adb-wire)" strokeWidth={2.5} style={{ filter: "drop-shadow(0 1px 3px rgba(2,132,199,.4))" }} />
               );
             })}
           </svg>
 
-          {/* nodes */}
           {nodes.map((n) => {
-            const meta = KIND_META[n.kind];
-            const Icon = meta.icon;
+            const Icon = KIND_ICON[n.kind];
+            const color = KIND_COLOR[n.kind];
             const isSel = n.id === selectedId;
             return (
               <div
@@ -281,71 +341,44 @@ export function AdBuilderCanvas() {
                 )}
                 style={{ left: n.x, top: n.y, width: NODE_W }}
               >
-                {/* header */}
                 <div className="flex items-center gap-2 border-b border-sky-400/10 px-3 py-2 text-xs font-bold">
-                  <Icon className="h-3.5 w-3.5" style={{ color: meta.color }} />
+                  <Icon className="h-3.5 w-3.5" style={{ color }} />
                   <span className="truncate">{n.title}</span>
+                  {n.status === "generating" && <Loader2 className="h-3 w-3 animate-spin text-sky-300" />}
                   {n.badge && (
-                    <span
-                      className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold text-[#04141f]"
-                      style={{ background: meta.color }}
-                    >
+                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold text-[#04141f]" style={{ background: color }}>
                       {n.badge}
                     </span>
                   )}
                 </div>
-                {/* body */}
                 <div className="px-3 py-2.5 text-[11px] leading-relaxed text-slate-400">
-                  <div className="mb-1.5 font-medium text-slate-300">{n.subtitle}</div>
-                  {n.kind === "character" ? (
-                    <div className="grid grid-cols-3 gap-1">
-                      {[0, 1, 2].map((i) => (
-                        <div key={i} className="h-12 rounded-md bg-gradient-to-br from-[#1b4763] to-[#2a6f8f]" />
-                      ))}
-                    </div>
-                  ) : n.kind === "scene" || n.kind === "video" || n.kind === "output" ? (
-                    <div
-                      className="flex h-20 items-center justify-center rounded-md text-lg"
-                      style={{
-                        background:
-                          n.kind === "video"
-                            ? "linear-gradient(160deg,#2a2350,#4a3e8f)"
-                            : n.kind === "output"
-                              ? "linear-gradient(160deg,#10324a,#0a2740)"
-                              : "linear-gradient(160deg,#173a54,#2b6e8d)",
-                      }}
-                    >
-                      {n.kind === "output" ? "▶" : ""}
-                    </div>
+                  {n.subtitle && <div className="mb-1.5 line-clamp-2 text-slate-300">{n.subtitle}</div>}
+                  {n.thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={n.thumb} alt="" className="h-24 w-full rounded-md object-cover" />
                   ) : (
-                    <p className="line-clamp-3">{n.text}</p>
+                    <div
+                      className="flex h-20 items-center justify-center rounded-md text-[10px] text-slate-500"
+                      style={{ background: "linear-gradient(160deg,#10324a,#0a2740)" }}
+                    >
+                      {n.status === "generating" ? "generating…" : n.kind === "prompt" ? "your brief" : "not generated"}
+                    </div>
                   )}
                 </div>
-
-                {/* ports */}
                 {n.kind !== "prompt" && (
-                  <span
-                    className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]"
-                    style={{ left: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }}
-                  />
+                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]" style={{ left: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }} />
                 )}
                 {n.kind !== "output" && (
-                  <span
-                    className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]"
-                    style={{ right: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }}
-                  />
+                  <span className="absolute h-3 w-3 rounded-full border-[2.5px] bg-[#0f2c43]" style={{ right: -6, top: PORT_DY - 6, borderColor: "#38bdf8" }} />
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* hint */}
         <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-sky-400/20 bg-[#091c2c]/80 px-3 py-1.5 text-[11px] text-slate-400">
-          Drag nodes · drag canvas to pan · click a node to edit
+          {campaignId ? "Click a node to edit · drag to rearrange" : "Write a brief in the panel, then ‘Generate all’"}
         </div>
-
-        {/* zoom */}
         <div className="absolute bottom-4 right-4 flex gap-1.5">
           <button onClick={() => zoomBy(-0.1)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/20 bg-[#091c2c]/90 text-slate-100">
             <Minus className="h-4 w-4" />
@@ -356,44 +389,113 @@ export function AdBuilderCanvas() {
         </div>
       </div>
 
-      {/* right inspector */}
+      {/* inspector */}
       {selected && (
-        <div className="absolute bottom-0 right-0 top-14 z-10 w-72 border-l border-sky-400/20 bg-[#0a2236]/95 p-4 backdrop-blur">
+        <div className="absolute bottom-0 right-0 top-14 z-10 w-72 overflow-y-auto border-l border-sky-400/20 bg-[#0a2236]/95 p-4 backdrop-blur">
           <div className="mb-3 flex items-center gap-2">
-            <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold text-[#04141f]"
-              style={{ background: KIND_META[selected.kind].color }}
-            >
-              {KIND_META[selected.kind].label}
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-[#04141f]" style={{ background: KIND_COLOR[selected.kind] }}>
+              {selected.kind}
             </span>
-            <span className="text-xs text-slate-400">node</span>
           </div>
 
-          <label className="mb-1 block text-[11px] font-semibold text-slate-300">Title</label>
-          <input
-            value={selected.title}
-            onChange={(e) => updateSelected({ title: e.target.value })}
-            className="mb-3 w-full rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
-          />
+          {selected.kind === "prompt" && (
+            <>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Campaign brief</label>
+              <textarea
+                value={brief || state?.brief || ""}
+                onChange={(e) => setBrief(e.target.value)}
+                onBlur={() => campaignId && brief && camp.patchState({ brief })}
+                rows={6}
+                placeholder="e.g. A 20s reel for our glow serum — a woman's night skincare routine, cinematic."
+                className="w-full resize-none rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+              />
+              <Button onClick={onGenerateAll} disabled={!!busy} className="mt-3 w-full gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]">
+                <Sparkles className="h-3.5 w-3.5" /> {campaignId ? "Regenerate" : "Generate all"}
+              </Button>
+              {campaignId && (
+                <Button variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="mt-2 w-full gap-1.5 border-sky-400/20 bg-sky-400/10 text-slate-100">
+                  <Users className="h-3.5 w-3.5" /> Plan cast
+                </Button>
+              )}
+            </>
+          )}
 
-          <label className="mb-1 block text-[11px] font-semibold text-slate-300">
-            {selected.kind === "prompt" ? "Brief" : selected.kind === "video" ? "Direction" : "Description"}
-          </label>
-          <textarea
-            value={selected.text}
-            onChange={(e) => updateSelected({ text: e.target.value })}
-            rows={6}
-            className="w-full resize-none rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
-          />
+          {selected.kind === "character" && selectedChar && (
+            <>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Name</label>
+              <input
+                key={`name-${selectedChar.id}`}
+                defaultValue={selectedChar.name}
+                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { name: e.target.value })}
+                className="mb-3 w-full rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+              />
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Role</label>
+              <input
+                key={`role-${selectedChar.id}`}
+                defaultValue={selectedChar.role}
+                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { role: e.target.value })}
+                className="mb-3 w-full rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+              />
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Appearance</label>
+              <textarea
+                key={`desc-${selectedChar.id}`}
+                defaultValue={selectedChar.visualDescription}
+                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { visualDescription: e.target.value })}
+                rows={5}
+                className="w-full resize-none rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400/60"
+              />
+              <Button
+                onClick={() => camp.generateCharacter(selectedChar.id)}
+                disabled={selectedChar.previewStatus === "generating"}
+                className="mt-3 w-full gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]"
+              >
+                {selectedChar.previewStatus === "generating" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                Generate turnaround sheet
+              </Button>
+              {selectedChar.previewError && <p className="mt-2 text-[10px] text-red-300">{selectedChar.previewError}</p>}
+            </>
+          )}
 
-          <Button className="mt-4 w-full gap-1.5 bg-gradient-to-r from-sky-500 to-sky-600 text-[#04141f]">
-            <Sparkles className="h-3.5 w-3.5" /> Generate this node
-          </Button>
-          <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
-            UI preview — node generation wires to the story-ad-campaign pipeline next.
-          </p>
+          {selected.kind === "clip" && (
+            <>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Scene</label>
+              <p className="rounded-lg border border-sky-400/20 bg-[#0e2c44] px-3 py-2 text-[12px] text-slate-300">{selected.subtitle || "—"}</p>
+              <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
+                Status: {selected.status}. Per-scene render + retry is the next wiring step; use “Generate all” to (re)plan scenes from the cast.
+              </p>
+            </>
+          )}
+
+          {selected.kind === "output" && (
+            <>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-300">Final reel</label>
+              {state?.finalVideoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-sky-300 underline">
+                  Open rendered reel
+                </a>
+              ) : (
+                <p className="text-[11px] text-slate-400">Plan scenes and render clips, then stitch the final reel.</p>
+              )}
+              <Button variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="mt-3 w-full gap-1.5 border-sky-400/20 bg-sky-400/10 text-slate-100">
+                <Clapperboard className="h-3.5 w-3.5" /> Plan scenes
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+// Save edits to one character by patching the whole characters array.
+function saveCharacter(
+  camp: ReturnType<typeof useAdCampaign>,
+  state: ReturnType<typeof useAdCampaign>["state"],
+  characterId: string,
+  patch: { name?: string; role?: string; visualDescription?: string },
+) {
+  if (!state) return;
+  const characters = state.characters.map((c) => (c.id === characterId ? { ...c, ...patch } : c));
+  void camp.patchState({ characters });
 }
