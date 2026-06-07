@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Clapperboard,
@@ -95,6 +96,24 @@ export function AdBuilderCanvas() {
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Restore a workspace from the URL (?c=<id>) on first mount, so a refresh keeps the work.
+  useEffect(() => {
+    const cid = searchParams.get("c");
+    if (cid) void camp.load(cid);
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Each campaign gets its own URL (?c=<id>) so refresh/share restores that workspace.
+  useEffect(() => {
+    if (campaignId && searchParams.get("c") !== campaignId) {
+      router.replace(`/ad-builder?c=${campaignId}`, { scroll: false });
+    }
+  }, [campaignId, searchParams, router]);
 
   const { nodes, edges } = useMemo<{ nodes: CanvasNode[]; edges: Edge[] }>(() => {
     const ns: CanvasNode[] = [];
