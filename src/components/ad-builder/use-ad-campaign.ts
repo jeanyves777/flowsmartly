@@ -173,6 +173,34 @@ export function useAdCampaign() {
     [campaignId],
   );
 
+  /** Set a character's reference from an uploaded/library image URL. The server
+   *  re-hosts it and derives the turnaround sheet from it (best-effort). */
+  const setCharacterImage = useCallback(
+    async (characterId: string, url: string, id = campaignId): Promise<void> => {
+      if (!id) return;
+      setError(null);
+      setState((s) =>
+        s
+          ? { ...s, characters: s.characters.map((c) => (c.id === characterId ? { ...c, previewStatus: "generating", previewError: null } : c)) }
+          : s,
+      );
+      try {
+        const json = await postJson<{ state: CampaignState }>(
+          `/api/ai/story-ad-campaign/${id}/characters/${characterId}/upload-image`,
+          { url },
+        );
+        if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Couldn't set the image"));
+        setState(json.data.state);
+      } catch (e) {
+        setError(errMessage(e, "Couldn't set the image"));
+        setState((s) =>
+          s ? { ...s, characters: s.characters.map((c) => (c.id === characterId ? { ...c, previewStatus: "failed" } : c)) } : s,
+        );
+      }
+    },
+    [campaignId],
+  );
+
   const planScenes = useCallback(
     async (id = campaignId): Promise<CampaignState | null> => {
       if (!id) return null;
@@ -277,6 +305,7 @@ export function useAdCampaign() {
     patchState,
     planCast,
     generateCharacter,
+    setCharacterImage,
     planScenes,
     renderClip,
     updateClip,
