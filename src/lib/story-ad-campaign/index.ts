@@ -10,7 +10,7 @@ import { TRANSACTION_TYPES, creditService } from "@/lib/credits";
 import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { generateImageXaiFirst, generateImageForRole } from "@/lib/ai/image-router";
+import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -618,6 +618,9 @@ function buildCharacterSheetPrompt(
 
   return `Character model TURNAROUND SHEET for an ad campaign — the reference used to lock visual continuity across every shot.
 
+IDENTITY (critical)
+- Recreate the EXACT person shown in the provided reference image: identical face, skin tone, hair, build, and wardrobe. This is a turnaround of THAT person — do NOT invent a new face. The description below is only to disambiguate details the photo doesn't show.
+
 CHARACTER (the SAME person in every pose — identical face, hair, build, wardrobe, palette)
 - Name: ${character.name}
 - Role: ${character.role}
@@ -667,39 +670,51 @@ export async function generateCharacterPreviewImage(
   state: CampaignState,
   brand: BrandSnapshot,
   campaignId: string,
+  opts: { baseImageUrl?: string | null } = {},
 ): Promise<{ portraitUrl: string; sheetUrl: string | null }> {
   if (!state.style) throw new Error("Campaign style must be selected first");
   // For narrated style, characters should match the chosen sub-style (3d illustrations vs cinematic stills).
   const effectiveStyle: CampaignStyle =
     state.style === "narrated" ? state.narratedSubStyle || "cinematic" : state.style;
 
-  const portraitPrompt = buildCharacterImagePrompt(character, effectiveStyle, brand);
-  const sheetPrompt = buildCharacterSheetPrompt(character, effectiveStyle, brand);
-
-  // Portrait (1024x1280) is required; sheet (1536x1024 landscape) is best-effort.
-  const [portraitResult, sheetResult] = await Promise.all([
-    generateImageXaiFirst(portraitPrompt, 1024, 1280, { quality: "high", transparent: false }),
-    generateImageXaiFirst(sheetPrompt, 1536, 1024, { quality: "high", transparent: false }).catch(
-      (err) => {
-        console.warn(
-          `[StoryAdCampaign] Character sheet generation failed for ${character.name}; falling back to portrait-only anchor: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return null;
-      },
-    ),
-  ]);
-
-  const portraitUrl = await uploadCharacterImage(portraitResult, campaignId, character, "portrait");
-  let sheetUrl: string | null = null;
-  if (sheetResult?.base64) {
-    try {
-      sheetUrl = await uploadCharacterImage(sheetResult, campaignId, character, "sheet");
-    } catch (err) {
-      console.warn(
-        `[StoryAdCampaign] Character sheet upload failed for ${character.name}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+  // 1. Base portrait = THE ANCHOR. Everything else is derived from it so the character
+  //    stays the same person. Use the user's uploaded/picked image when provided
+  //    (`baseImageUrl`), otherwise generate the first image from the prompt.
+  let portraitUrl: string;
+  let portraitBuffer: Buffer;
+  if (opts.baseImageUrl) {
+    portraitBuffer = await downloadToBuffer(opts.baseImageUrl);
+    portraitUrl = opts.baseImageUrl;
+  } else {
+    const portraitPrompt = buildCharacterImagePrompt(character, effectiveStyle, brand);
+    const portraitResult = await generateImageXaiFirst(portraitPrompt, 1024, 1280, {
+      quality: "high",
+      transparent: false,
+    });
+    if (!portraitResult.base64) throw new Error("Image provider returned no image");
+    portraitBuffer = Buffer.from(portraitResult.base64, "base64");
+    portraitUrl = await uploadCharacterImage(portraitResult, campaignId, character, "portrait");
   }
+
+  // 2. Turnaround sheet DERIVED FROM the portrait via identity-preserving image-to-image
+  //    — so the multi-angle views are unmistakably the SAME person, not an independent
+  //    re-roll of the description. Best-effort: on failure we keep the portrait-only anchor.
+  let sheetUrl: string | null = null;
+  try {
+    const sheetPrompt = buildCharacterSheetPrompt(character, effectiveStyle, brand);
+    const sheetResult = await editImagesXaiFirst(sheetPrompt, [portraitBuffer], 1536, 1024, {
+      intent: "identity",
+      quality: "high",
+    });
+    if (sheetResult.base64) {
+      sheetUrl = await uploadCharacterImage(sheetResult, campaignId, character, "sheet");
+    }
+  } catch (err) {
+    console.warn(
+      `[StoryAdCampaign] Character sheet generation failed for ${character.name}; portrait-only anchor: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   return { portraitUrl, sheetUrl };
 }
 
