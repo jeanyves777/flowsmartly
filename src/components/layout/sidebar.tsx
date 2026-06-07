@@ -118,6 +118,7 @@ const contentNavigation = [
 const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
   { name: "Story Ad Campaign", href: "/story-ad-movie", icon: Clapperboard },
+  { name: "Ad Builder", href: "/ad-builder", icon: Video },
   { name: "Video Editor", href: "/video-editor", icon: Clapperboard },
   // { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Voice Studio", href: "/voice-studio", icon: Mic },

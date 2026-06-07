@@ -24,6 +24,16 @@
   .btn{font-size:13px;font-weight:600;color:var(--ink);background:rgba(56,189,248,.10);border:1px solid var(--line);padding:8px 14px;border-radius:10px;cursor:pointer}
   .btn.primary{background:linear-gradient(90deg,var(--brand-500),var(--brand-600));border-color:transparent;color:#04141f}
   .btn:hover{filter:brightness(1.08)}
+  .backbtn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:rgba(56,189,248,.10);color:var(--ink);text-decoration:none;font-size:16px}
+  .backbtn:hover{background:rgba(56,189,248,.2)}
+  /* ---- inspector ---- */
+  .inspector{position:fixed;top:54px;right:0;bottom:0;width:288px;background:rgba(10,34,54,.97);border-left:1px solid var(--line);padding:16px;z-index:16;backdrop-filter:blur(8px)}
+  .inspector .tag{display:inline-block;font-size:10px;font-weight:800;color:#04141f;padding:2px 8px;border-radius:999px}
+  .inspector label{display:block;font-size:11px;font-weight:600;color:#cfe6f4;margin:12px 0 5px}
+  .inspector input,.inspector textarea{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:9px;color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;outline:none}
+  .inspector textarea{resize:none;height:120px}
+  .inspector .gen{margin-top:14px;width:100%;justify-content:center}
+  .inspector .note{margin-top:12px;font-size:10px;color:#6f9fbb;line-height:1.5}
   /* ---- left palette ---- */
   .palette{position:fixed;top:54px;left:0;bottom:0;width:74px;background:rgba(9,28,44,.9);border-right:1px solid var(--line);
     display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 0;z-index:15}
@@ -63,6 +73,7 @@
 </head>
 <body>
   <div class="topbar">
+    <a href="#" class="backbtn" title="Back to dashboard">←</a>
     <span class="brand">FlowSmartly</span>
     <span class="crumb">Studio › Ad Builder · "Glow serum — night routine"</span>
     <span class="spacer"></span>
@@ -136,8 +147,20 @@
     </div>
   </div>
 
-  <div class="hint">Drag nodes to rearrange · drag canvas to pan · this is a non-functional design mockup</div>
+  <div class="hint">Drag nodes · drag canvas to pan · click a node to edit · non-functional design mockup</div>
   <div class="zoom"><button id="zo">−</button><button id="zi">+</button></div>
+
+  <!-- click-to-inspect panel -->
+  <div class="inspector" id="inspector">
+    <span class="tag" id="insTag" style="background:var(--img)">Character</span>
+    <span style="font-size:12px;color:var(--muted);margin-left:6px">node</span>
+    <label>Title</label>
+    <input id="insTitle" value="Character sheet" />
+    <label id="insDescLbl">Description</label>
+    <textarea id="insDesc">Locks identity across every shot. Derived from the first image; fed into Veo referenceImages.</textarea>
+    <button class="btn primary gen">✦ Generate this node</button>
+    <div class="note">UI preview — node generation wires to the story-ad-campaign pipeline next.</div>
+  </div>
 
 <script>
   // edges by node id (out -> in)
@@ -160,20 +183,38 @@
       path.setAttribute('d',d); path.setAttribute('class','wire'); svg.appendChild(path);
     }
   }
-  // node drag
+  // inspector metadata per node + colors
+  const META={
+    n_prompt:{tag:'Prompt',color:'#5eead4',lbl:'Brief',title:'Prompt',desc:'A young woman at her vanity at night, soft mirror bulbs, doing her skincare. Cinematic, photoreal.'},
+    n_char:{tag:'Character',color:'#38bdf8',lbl:'Description',title:'Character sheet',desc:'Locks identity across every shot. Derived from the first image; fed into Veo referenceImages.'},
+    n_s1:{tag:'Scene',color:'#38bdf8',lbl:'Description',title:'Scene · Hook',desc:'Wide establishing shot, sits down at the vanity, warm bulb light.'},
+    n_s2:{tag:'Scene',color:'#38bdf8',lbl:'Description',title:'Scene · Reveal',desc:'Close-up on hands applying the serum, glossy skin, shallow depth of field.'},
+    n_v1:{tag:'Video',color:'#a78bfa',lbl:'Direction',title:'Video · clip 1',desc:'Animate scene 1 — slow push-in, native audio.'},
+    n_v2:{tag:'Video',color:'#a78bfa',lbl:'Direction',title:'Video · clip 2',desc:'Animate scene 2 — gentle zoom, ambient room tone.'},
+    n_out:{tag:'Final reel',color:'#34d399',lbl:'Description',title:'Final reel',desc:'Concatenate clips, add captions and a music bed, export 9:16.'}
+  };
+  function selectNode(n){
+    document.querySelectorAll('.node').forEach(x=>x.style.boxShadow='0 18px 40px rgba(0,0,0,.45)');
+    n.style.boxShadow='0 0 0 2px rgba(56,189,248,.5),0 18px 40px rgba(0,0,0,.45)';
+    const m=META[n.id]; if(!m)return;
+    insTag.textContent=m.tag; insTag.style.background=m.color;
+    insTitle.value=m.title; insDescLbl.textContent=m.lbl; insDesc.value=m.desc;
+  }
+  // node drag + click-to-select
   let drag=null;
   document.querySelectorAll('.node').forEach(n=>{
     n.addEventListener('pointerdown',e=>{
       if(e.target.classList.contains('port'))return;
-      drag={n,sx:e.clientX,sy:e.clientY,ox:n.offsetLeft,oy:n.offsetTop};
+      drag={n,sx:e.clientX,sy:e.clientY,ox:n.offsetLeft,oy:n.offsetTop,moved:false};
       n.setPointerCapture(e.pointerId); n.style.cursor='grabbing'; e.stopPropagation();
     });
     n.addEventListener('pointermove',e=>{
       if(!drag||drag.n!==n)return;
+      if(Math.abs(e.clientX-drag.sx)+Math.abs(e.clientY-drag.sy)>3)drag.moved=true;
       n.style.left=(drag.ox+(e.clientX-drag.sx)/scale)+'px';
       n.style.top=(drag.oy+(e.clientY-drag.sy)/scale)+'px'; draw();
     });
-    n.addEventListener('pointerup',()=>{if(drag){drag.n.style.cursor='grab';drag=null;}});
+    n.addEventListener('pointerup',()=>{if(drag){if(!drag.moved)selectNode(drag.n);drag.n.style.cursor='grab';drag=null;}});
   });
   // pan
   let pan=null;

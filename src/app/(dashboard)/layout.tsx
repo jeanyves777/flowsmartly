@@ -282,6 +282,7 @@ export default function DashboardLayout({
   const isFullscreenPage =
     pathname === "/studio" ||
     pathname.startsWith("/studio/") ||
+    pathname === "/ad-builder" ||
     pathname === "/flow-ai" ||
     pathname.startsWith("/flow-ai/");
   if (isFullscreenPage) {
