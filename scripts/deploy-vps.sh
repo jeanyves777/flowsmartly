@@ -23,6 +23,8 @@ PM2_APP="${PM2_APP:-flowsmartly}"
 DEPLOY_REF="${DEPLOY_REF:-origin/main}"      # what to deploy
 VOICE_SERVICES="${VOICE_SERVICES:-supertonic-tts whisper-stt}"
 BUILD_OK="${APP_DIR}/BUILD_OK"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/flow-ai}"  # checked after reload
+HEALTH_RETRIES="${HEALTH_RETRIES:-10}"                     # attempts, ~2s apart
 
 # --- make node/npm/pm2/npx reachable in a non-interactive SSH shell -----------
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -87,6 +89,23 @@ log "BUILD_OK written: $(tail -n1 "$BUILD_OK")"
 # --- 7. zero-downtime reload --------------------------------------------------
 log "pm2 reload ${PM2_APP} (graceful, zero-downtime)"
 pm2 reload "${PM2_APP}"
+
+# --- 8. health check — fail the deploy (red CI -> GitHub email) on a bad boot -
+log "Health check: ${HEALTH_URL}"
+healthy=false
+for i in $(seq 1 "$HEALTH_RETRIES"); do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)"
+  if [ "$code" = "200" ]; then
+    echo "  attempt ${i}: ${code} ✓"; healthy=true; break
+  fi
+  echo "  attempt ${i}: ${code} — retrying in 2s…"; sleep 2
+done
+if [ "$healthy" != true ]; then
+  echo "FATAL: ${HEALTH_URL} never returned 200 after ${HEALTH_RETRIES} attempts."
+  echo "Recent pm2 logs for ${PM2_APP}:"
+  pm2 logs "${PM2_APP}" --lines 30 --nostream 2>/dev/null || true
+  exit 1
+fi
 
 # voice services restored by the EXIT trap; persist the process list
 pm2 save >/dev/null 2>&1 || true
