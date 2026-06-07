@@ -29,7 +29,7 @@ import { useAdCampaign } from "./use-ad-campaign";
 // useAdCampaign(). Styled with the app's theme tokens (respects light/dark) and
 // the shared AISpinner for loading states.
 // ---------------------------------------------------------------------------
-const NODE_W = 220;
+const NODE_W = 300;
 const PORT_DY = 24;
 
 type NodeKind = "prompt" | "character" | "clip" | "output";
@@ -94,6 +94,7 @@ export function AdBuilderCanvas() {
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const { nodes, edges } = useMemo<{ nodes: CanvasNode[]; edges: Edge[] }>(() => {
     const ns: CanvasNode[] = [];
@@ -118,8 +119,8 @@ export function AdBuilderCanvas() {
         id,
         refId: c.id,
         kind: "character",
-        x: 340,
-        y: 70 + i * 170,
+        x: 380,
+        y: 90 + i * 240,
         title: c.name || `Character ${i + 1}`,
         subtitle: c.role || "",
         badge: "anchor",
@@ -149,8 +150,8 @@ export function AdBuilderCanvas() {
         refId: cl.id,
         kind: "clip",
         // Lay scenes out left-to-right so the sequential chain reads cleanly.
-        x: 620 + i * 250,
-        y: 110,
+        x: 760 + i * 360,
+        y: 130,
         title: `Scene ${cl.index ?? i + 1}`,
         subtitle: cl.sceneAction || cl.act || "",
         subject: subject || undefined,
@@ -170,13 +171,13 @@ export function AdBuilderCanvas() {
 
     if (state) {
       // Final reel sits at the end of the scene chain.
-      const outX = clips.length ? 620 + clips.length * 250 : 1010;
+      const outX = clips.length ? 760 + clips.length * 360 : 1100;
       ns.push({
         id: OUTPUT_ID,
         refId: null,
         kind: "output",
         x: outX,
-        y: 110,
+        y: 130,
         title: "Final reel",
         subtitle: state.finalVideoUrl ? "Ready to publish" : "Stitch · captions · music",
         badge: state.aspectRatio,
@@ -285,6 +286,12 @@ export function AdBuilderCanvas() {
 
   const shownError = localError || error;
 
+  // Horizontal scroller: how far the content extends, and the current scroll position.
+  const contentRight = useMemo(() => nodes.reduce((m, n) => Math.max(m, n.x + NODE_W), 1200), [nodes]);
+  const stageW = stageRef.current?.clientWidth ?? 0;
+  const maxScroll = Math.max(0, contentRight * scale - stageW + 160);
+  const scrollVal = maxScroll > 0 ? Math.min(1000, Math.max(0, Math.round((-pan.x / maxScroll) * 1000))) : 0;
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-background text-foreground">
       {/* top bar */}
@@ -324,6 +331,7 @@ export function AdBuilderCanvas() {
 
       {/* canvas */}
       <div
+        ref={stageRef}
         className="absolute inset-y-0 left-0 right-0 top-14 cursor-grab touch-none overflow-hidden bg-muted/20"
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
@@ -390,13 +398,13 @@ export function AdBuilderCanvas() {
                   {n.subtitle && <div className="mb-1.5 line-clamp-2 text-muted-foreground">{n.subtitle}</div>}
                   {n.thumb ? (
                     isVideoUrl(n.thumb) ? (
-                      <video src={n.thumb} muted playsInline className="h-24 w-full rounded-md object-cover" />
+                      <video src={n.thumb} muted playsInline className="h-44 w-full rounded-lg object-cover" />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={n.thumb} alt="" className="h-24 w-full rounded-md object-cover" />
+                      <img src={n.thumb} alt="" className="h-44 w-full rounded-lg object-cover" />
                     )
                   ) : (
-                    <div className="flex h-20 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">
+                    <div className="flex h-36 items-center justify-center rounded-lg bg-muted text-[11px] text-muted-foreground">
                       {n.status === "generating" ? "generating…" : n.kind === "prompt" ? "your brief" : "not generated"}
                     </div>
                   )}
@@ -450,6 +458,24 @@ export function AdBuilderCanvas() {
             <Plus className="h-4 w-4" />
           </button>
         </div>
+
+        {/* manual horizontal scroller — appears when the flow extends past the viewport */}
+        {maxScroll > 0 && (
+          <div className="absolute bottom-4 left-1/2 z-10 w-[46%] max-w-md -translate-x-1/2 rounded-full border border-border bg-card/90 px-3 py-2 shadow-sm backdrop-blur">
+            <input
+              type="range"
+              min={0}
+              max={1000}
+              value={scrollVal}
+              onChange={(e) => {
+                const t = Number(e.target.value) / 1000;
+                setPan((p) => ({ ...p, x: -t * maxScroll }));
+              }}
+              aria-label="Scroll the canvas horizontally"
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-brand-500"
+            />
+          </div>
+        )}
       </div>
 
       {/* inspector — bottom sheet (chat-style) on every screen size */}
