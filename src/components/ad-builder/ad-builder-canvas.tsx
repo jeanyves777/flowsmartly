@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -22,7 +23,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AILoaderOverlay } from "@/components/shared/ai-loader-overlay";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { confirmDialog } from "@/components/shared/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { useAdCampaign } from "./use-ad-campaign";
 
@@ -95,6 +99,9 @@ export function AdBuilderCanvas() {
   const [pickerForChar, setPickerForChar] = useState<string | null>(null);
   // Full-size preview lightbox (character sheet or scene clip), opened from a node.
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  // Long-running staged job → drives the shared full-screen AI loader overlay.
+  const [job, setJob] = useState<{ step: string; sub?: string; progress?: number } | null>(null);
+  const { toast } = useToast();
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
@@ -296,17 +303,124 @@ export function AdBuilderCanvas() {
     return camp.create({ brief: brief.trim() });
   }, [campaignId, brief, camp]);
 
-  const onGenerateAll = useCallback(async () => {
+  // Show a live cost + balance confirmation before a paid step. Returns true to proceed.
+  const confirmCost = useCallback(
+    async (id: string, label: string): Promise<boolean> => {
+      const est = await camp.estimateCost(id);
+      if (!est) return true; // estimate unavailable → let the server-side credit check gate it
+      if (!est.hasEnoughCredits) {
+        const buy = await confirmDialog({
+          title: "Not enough credits",
+          description: `${label} needs ${est.total} credits, but you have ${est.availableCredits}. Add credits to continue.`,
+          confirmText: "Buy credits",
+          cancelText: "Cancel",
+        });
+        if (buy) router.push("/buy-credits");
+        return false;
+      }
+      return confirmDialog({
+        title: `${label}?`,
+        description: `This will use about ${est.total} credits · you have ${est.availableCredits}.`,
+        confirmText: "Generate",
+        cancelText: "Cancel",
+      });
+    },
+    [camp, router],
+  );
+
+  // STAGE 1 — cast + character turnaround sheets. Resumable: only fills in
+  // characters that don't have an image yet.
+  const onGenerateCharacters = useCallback(async () => {
     const id = await ensureCampaign();
     if (!id) return;
-    const planned = await camp.planCast(4, id);
-    if (planned) {
-      for (const c of planned.characters) {
-        await camp.generateCharacter(c.id, id);
+    setJob({ step: "Casting the characters…" });
+    try {
+      let chars = camp.state?.characters ?? [];
+      if (!chars.length) {
+        const planned = await camp.planCast(4, id);
+        if (!planned) throw new Error(camp.error || "Couldn't plan the cast.");
+        chars = planned.characters;
       }
+      const todo = chars.filter((c) => !(c.characterSheetUrl || c.referenceImageUrl));
+      for (let i = 0; i < todo.length; i++) {
+        setJob({
+          step: "Generating characters…",
+          sub: `${todo[i].name || "Character"} (${i + 1}/${todo.length})`,
+          progress: Math.round((i / Math.max(1, todo.length)) * 100),
+        });
+        await camp.generateCharacter(todo[i].id, id);
+      }
+      toast({ title: "Characters ready", description: `${chars.length} character sheet${chars.length === 1 ? "" : "s"} generated.` });
+    } catch (e) {
+      toast({ title: "Character generation failed", description: (e as Error)?.message || String(e), variant: "destructive" });
+    } finally {
+      setJob(null);
     }
-    await camp.planScenes(id);
-  }, [ensureCampaign, camp]);
+  }, [ensureCampaign, camp, toast]);
+
+  // STAGE 2 — plan the screenplay (if needed) then render every scene clip.
+  // Cost-confirmed up front; resumable (skips clips already rendered).
+  const onGenerateScenes = useCallback(async () => {
+    const id = await ensureCampaign();
+    if (!id) return;
+    if (!camp.state?.characters?.length) {
+      toast({ title: "Generate characters first", description: "Scenes are built around your cast.", variant: "destructive" });
+      return;
+    }
+    if (!(await confirmCost(id, "Generate all scenes"))) return;
+    setJob({ step: "Writing the screenplay…" });
+    try {
+      const planned = camp.state?.clips?.length ? camp.state : await camp.planScenes(id);
+      if (!planned) throw new Error(camp.error || "Couldn't plan the scenes.");
+      const clips = planned.clips ?? [];
+      const pending = clips.filter((c) => !(c.status === "READY" && c.videoUrl));
+      let done = clips.length - pending.length;
+      for (const cl of pending) {
+        setJob({
+          step: "Rendering scenes…",
+          sub: `Scene ${cl.index} of ${clips.length}`,
+          progress: Math.round((done / Math.max(1, clips.length)) * 100),
+        });
+        await camp.renderClip(cl.id, id);
+        done += 1;
+      }
+      toast({ title: "Scenes rendered", description: `${clips.length} scene${clips.length === 1 ? "" : "s"} ready. Hit "Final video" to stitch them together.` });
+    } catch (e) {
+      toast({ title: "Scene generation failed", description: (e as Error)?.message || String(e), variant: "destructive" });
+    } finally {
+      setJob(null);
+    }
+  }, [ensureCampaign, camp, confirmCost, toast]);
+
+  // STAGE 3 — stitch the rendered scenes into the final reel.
+  const onGenerateFinal = useCallback(async () => {
+    if (!campaignId) {
+      toast({ title: "Nothing to stitch yet", description: "Generate scenes first.", variant: "destructive" });
+      return;
+    }
+    const ready = (camp.state?.clips ?? []).filter((c) => c.status === "READY" && c.videoUrl).length;
+    if (!ready) {
+      toast({ title: "Render scenes first", description: "Stitching combines your rendered scene clips.", variant: "destructive" });
+      return;
+    }
+    const go = await confirmDialog({
+      title: "Generate the final video?",
+      description: `This stitches your ${ready} rendered scene${ready === 1 ? "" : "s"} into one reel with captions.`,
+      confirmText: "Stitch it",
+      cancelText: "Cancel",
+    });
+    if (!go) return;
+    setJob({ step: "Stitching the final reel…", sub: "Combining scenes · captions · music" });
+    try {
+      const res = await camp.finalize(campaignId);
+      if (!res) throw new Error(camp.error || "Couldn't stitch the final video.");
+      toast({ title: "Final video ready", description: "Your reel is stitched — open the Final reel node to download." });
+    } catch (e) {
+      toast({ title: "Final video failed", description: (e as Error)?.message || String(e), variant: "destructive" });
+    } finally {
+      setJob(null);
+    }
+  }, [campaignId, camp, toast]);
 
   const shownError = localError || error;
 
@@ -327,20 +441,41 @@ export function AdBuilderCanvas() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-base font-extrabold tracking-tight text-transparent">
-          FlowSmartly
-        </span>
+        <Image src="/logo.png" alt="FlowSmartly" width={140} height={35} className="h-7 w-auto" priority unoptimized />
         <span className="hidden text-xs text-muted-foreground sm:inline">Studio › Ad Builder</span>
-        {busy && (
+        {busy && !job && (
           <span className="flex items-center gap-1.5 text-xs text-brand-500">
             <AISpinner size={14} /> {busy}
           </span>
         )}
         <div className="flex-1" />
-        <Button size="sm" onClick={onGenerateAll} disabled={!!busy} className="gap-1.5">
-          {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Generate all
-        </Button>
+        {/* Staged generation: characters → scenes → final video. */}
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="outline" onClick={onGenerateCharacters} disabled={!!job} className="gap-1.5">
+            {job?.step?.toLowerCase().includes("character") || job?.step?.toLowerCase().includes("cast") ? (
+              <AISpinner size={14} className="text-current" />
+            ) : (
+              <Users className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">Characters</span>
+          </Button>
+          <Button size="sm" variant="outline" onClick={onGenerateScenes} disabled={!!job} className="gap-1.5">
+            {job?.step?.toLowerCase().includes("scene") || job?.step?.toLowerCase().includes("screenplay") ? (
+              <AISpinner size={14} className="text-current" />
+            ) : (
+              <Clapperboard className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">Scenes</span>
+          </Button>
+          <Button size="sm" onClick={onGenerateFinal} disabled={!!job} className="gap-1.5">
+            {job?.step?.toLowerCase().includes("stitch") ? (
+              <AISpinner size={14} className="text-current" />
+            ) : (
+              <Film className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">Final video</span>
+          </Button>
+        </div>
       </div>
 
       {/* error toast */}
@@ -623,15 +758,10 @@ export function AdBuilderCanvas() {
           >
             {selected.kind === "prompt" && (
               <>
-                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Describe your ad, then generate.</p>
-                {campaignId && (
-                  <Button size="sm" variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="shrink-0 gap-1.5">
-                    <Users className="h-3.5 w-3.5" /> Cast
-                  </Button>
-                )}
-                <Button size="sm" onClick={onGenerateAll} disabled={!!busy} className="shrink-0 gap-1.5">
-                  {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {campaignId ? "Regenerate" : "Generate all"}
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Describe your ad, then generate the cast.</p>
+                <Button size="sm" onClick={onGenerateCharacters} disabled={!!job} className="shrink-0 gap-1.5">
+                  {job ? <AISpinner size={14} className="text-current" /> : <Users className="h-3.5 w-3.5" />}
+                  {camp.state?.characters?.length ? "Regenerate cast" : "Generate characters"}
                 </Button>
               </>
             )}
@@ -692,23 +822,26 @@ export function AdBuilderCanvas() {
 
             {selected.kind === "output" && (
               <>
-                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Plan + render, then stitch.</p>
-                <Button size="sm" variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="shrink-0 gap-1.5">
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Generate scenes, then stitch the reel.</p>
+                <Button size="sm" variant="outline" onClick={onGenerateScenes} disabled={!!job || !campaignId} className="shrink-0 gap-1.5">
                   <Clapperboard className="h-3.5 w-3.5" /> Scenes
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => camp.renderAllScenes()}
-                  disabled={!!busy || !campaignId || !(state?.clips?.length)}
+                  onClick={onGenerateFinal}
+                  disabled={!!job || !campaignId || !(state?.clips?.some((c) => c.status === "READY" && c.videoUrl))}
                   className="shrink-0 gap-1.5"
                 >
-                  <Film className="h-3.5 w-3.5" /> Render
+                  <Film className="h-3.5 w-3.5" /> Final video
                 </Button>
               </>
             )}
           </div>
         </div>
       )}
+
+      {/* shared full-screen AI loader for long staged jobs (characters / scenes / stitch) */}
+      <AILoaderOverlay open={!!job} currentStep={job?.step ?? ""} subtitle={job?.sub} progress={job?.progress} zIndex={70} />
 
       {/* full-size preview lightbox — opened by the Preview button on any node thumb */}
       {preview && (

@@ -298,16 +298,64 @@ export function useAdCampaign() {
     [campaignId],
   );
 
-  /** Render every planned scene, in order. */
+  /** Render every planned scene, in order — skipping ones already rendered so a
+   *  user who steps away and returns just finishes the remaining clips. */
   const renderAllScenes = useCallback(
     async (id = campaignId): Promise<void> => {
       if (!id) return;
       const clips = state?.clips ?? [];
       for (const cl of clips) {
+        if (cl.status === "READY" && cl.videoUrl) continue;
         await renderClip(cl.id, id);
       }
     },
     [campaignId, state, renderClip],
+  );
+
+  /** Live cost + balance for rendering the campaign in its current state. */
+  const estimateCost = useCallback(
+    async (
+      id = campaignId,
+    ): Promise<{ total: number; availableCredits: number; hasEnoughCredits: boolean } | null> => {
+      if (!id) return null;
+      try {
+        const res = await fetch(`/api/ai/story-ad-campaign/${id}/estimate-cost`);
+        const json = (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<{
+          total: number;
+          availableCredits: number;
+          hasEnoughCredits: boolean;
+        }>;
+        if (json.success && json.data) return json.data;
+      } catch {
+        /* fall through — caller treats null as "couldn't estimate" */
+      }
+      return null;
+    },
+    [campaignId],
+  );
+
+  /** Stitch all rendered scenes into the final reel (+ caption). */
+  const finalize = useCallback(
+    async (id = campaignId): Promise<CampaignState | null> => {
+      if (!id) return null;
+      setBusy("Stitching the final reel…");
+      setError(null);
+      try {
+        const json = await postJson<{ state?: CampaignState }>(
+          `/api/ai/story-ad-campaign/${id}/finalize`,
+          undefined,
+          600_000, // ffmpeg concat of several clips can take a few minutes
+        );
+        if (!json.success) throw new Error(errMessage(json, "Failed to stitch the final video"));
+        return await load(id);
+      } catch (e) {
+        setError(errMessage(e, "Failed to stitch the final video"));
+        return null;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [campaignId, load],
   );
 
   return {
@@ -326,6 +374,8 @@ export function useAdCampaign() {
     updateClip,
     removeClip,
     renderAllScenes,
+    estimateCost,
+    finalize,
     clearError: useCallback(() => setError(null), []),
   };
 }
