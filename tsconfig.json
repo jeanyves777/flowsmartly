@@ -41,6 +41,8 @@
     "generated-stores",
     "generated-sites",
     "stores-output",
-    "sites-output"
+    "sites-output",
+    "backups",
+    "tmp"
   ]
 }
