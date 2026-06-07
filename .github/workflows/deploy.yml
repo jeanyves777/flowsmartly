@@ -1,9 +1,11 @@
-name: Deploy to VPS
+name: Deploy to VPS (manual fallback)
 
-# Fires on every push/merge to main, plus a manual "Run workflow" button.
+# PRIMARY deploy is now PULL-BASED: the VPS runs scripts/poll-deploy.sh on a cron
+# (~every minute) and deploys itself when origin/main advances — GitHub never SSHes
+# in, so a blocked runner IP can never break a deploy. This workflow is kept only as
+# a MANUAL fallback (Actions → Run workflow); it can still hit the SSH timeout if the
+# runner's IP is blocked, so prefer the pull path.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
