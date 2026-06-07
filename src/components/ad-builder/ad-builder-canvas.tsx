@@ -148,8 +148,9 @@ export function AdBuilderCanvas() {
         id,
         refId: cl.id,
         kind: "clip",
-        x: 680,
-        y: 70 + i * 170,
+        // Lay scenes out left-to-right so the sequential chain reads cleanly.
+        x: 620 + i * 250,
+        y: 110,
         title: `Scene ${cl.index ?? i + 1}`,
         subtitle: cl.sceneAction || cl.act || "",
         subject: subject || undefined,
@@ -157,25 +158,37 @@ export function AdBuilderCanvas() {
         status,
         thumb: cl.videoUrl || cl.imageUrl || null,
       });
-      const src = chars.length ? `char-${chars[i % chars.length].id}` : PROMPT_ID;
-      es.push({ from: src, to: id });
+      // Sequential flow: only the FIRST scene references the locked-in cast; each
+      // later scene continues from the previous scene's last frame.
+      if (i === 0) {
+        if (chars.length) chars.forEach((c) => es.push({ from: `char-${c.id}`, to: id }));
+        else es.push({ from: PROMPT_ID, to: id });
+      } else {
+        es.push({ from: `clip-${clips[i - 1].id}`, to: id });
+      }
     });
 
     if (state) {
+      // Final reel sits at the end of the scene chain.
+      const outX = clips.length ? 620 + clips.length * 250 : 1010;
       ns.push({
         id: OUTPUT_ID,
         refId: null,
         kind: "output",
-        x: 1010,
-        y: 220,
+        x: outX,
+        y: 110,
         title: "Final reel",
         subtitle: state.finalVideoUrl ? "Ready to publish" : "Stitch · captions · music",
         badge: state.aspectRatio,
         status: state.finalVideoUrl ? "ready" : "idle",
         thumb: state.finalVideoUrl || state.finalVideoThumbnailUrl || null,
       });
-      if (clips.length) clips.forEach((cl) => es.push({ from: `clip-${cl.id}`, to: OUTPUT_ID }));
-      else chars.forEach((c) => es.push({ from: `char-${c.id}`, to: OUTPUT_ID }));
+      // Only the LAST scene feeds the final reel — the chain culminates here.
+      if (clips.length) {
+        es.push({ from: `clip-${clips[clips.length - 1].id}`, to: OUTPUT_ID });
+      } else {
+        chars.forEach((c) => es.push({ from: `char-${c.id}`, to: OUTPUT_ID }));
+      }
     }
 
     for (const n of ns) {
