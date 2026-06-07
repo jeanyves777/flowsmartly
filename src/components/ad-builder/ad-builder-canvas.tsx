@@ -7,6 +7,7 @@ import {
   Clapperboard,
   Download,
   Film,
+  ImagePlus,
   Minus,
   Plus,
   RefreshCw,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 import { useAdCampaign } from "./use-ad-campaign";
 
@@ -40,6 +42,7 @@ interface CanvasNode {
   y: number;
   title: string;
   subtitle: string;
+  subject?: string;
   badge?: string;
   status: NodeStatus;
   thumb?: string | null;
@@ -86,6 +89,7 @@ export function AdBuilderCanvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({});
   const [localError, setLocalError] = useState<string | null>(null);
+  const [pickerForChar, setPickerForChar] = useState<string | null>(null);
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
@@ -135,6 +139,10 @@ export function AdBuilderCanvas() {
             : cl.status === "FAILED"
               ? "failed"
               : "idle";
+      const subject = (cl.characterIds || [])
+        .map((cid) => chars.find((c) => c.id === cid)?.name)
+        .filter(Boolean)
+        .join(", ");
       ns.push({
         id,
         refId: cl.id,
@@ -143,6 +151,7 @@ export function AdBuilderCanvas() {
         y: 70 + i * 170,
         title: `Scene ${cl.index ?? i + 1}`,
         subtitle: cl.sceneAction || cl.act || "",
+        subject: subject || undefined,
         badge: cl.videoUrl ? "clip" : undefined,
         status,
         thumb: cl.videoUrl || cl.imageUrl || null,
@@ -359,6 +368,11 @@ export function AdBuilderCanvas() {
                   )}
                 </div>
                 <div className="px-3 py-2.5 text-[11px] leading-relaxed">
+                  {n.subject && (
+                    <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-brand-500">
+                      <User className="h-3 w-3" /> {n.subject}
+                    </div>
+                  )}
                   {n.subtitle && <div className="mb-1.5 line-clamp-2 text-muted-foreground">{n.subtitle}</div>}
                   {n.thumb ? (
                     isVideoUrl(n.thumb) ? (
@@ -373,6 +387,33 @@ export function AdBuilderCanvas() {
                     </div>
                   )}
                 </div>
+
+                {/* on-card generate / regenerate */}
+                {(n.kind === "character" || n.kind === "clip") && n.refId && (
+                  <div className="border-t border-border px-2.5 py-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={n.status === "generating"}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (n.kind === "character" && n.refId) camp.generateCharacter(n.refId);
+                        else if (n.kind === "clip" && n.refId) camp.renderClip(n.refId);
+                      }}
+                      className="h-7 w-full gap-1.5 text-[11px]"
+                    >
+                      {n.status === "generating" ? (
+                        <AISpinner size={12} className="text-current" />
+                      ) : n.thumb ? (
+                        <RefreshCw className="h-3 w-3" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      {n.thumb ? "Regenerate" : n.kind === "character" ? "Generate image" : "Generate scene"}
+                    </Button>
+                  </div>
+                )}
                 {n.kind !== "prompt" && (
                   <span className="absolute h-3 w-3 rounded-full border-[2.5px] border-brand-400 bg-card" style={{ left: -6, top: PORT_DY - 6 }} />
                 )}
@@ -461,6 +502,17 @@ export function AdBuilderCanvas() {
                 {selectedChar.previewStatus === "generating" ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
                 Generate turnaround sheet
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setPickerForChar(selectedChar.id)}
+                disabled={selectedChar.previewStatus === "generating"}
+                className="mt-2 w-full gap-1.5"
+              >
+                <ImagePlus className="h-3.5 w-3.5" /> Upload / choose photo
+              </Button>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Use your own photo — we derive the turnaround sheet from it.
+              </p>
               {selectedChar.previewError && <p className="mt-2 text-[10px] text-destructive">{selectedChar.previewError}</p>}
             </>
           )}
@@ -539,6 +591,19 @@ export function AdBuilderCanvas() {
           )}
         </div>
       )}
+
+      {/* upload / library picker for a character's own photo */}
+      <MediaLibraryPicker
+        open={!!pickerForChar}
+        onClose={() => setPickerForChar(null)}
+        title="Choose a character photo"
+        filterTypes={["image"]}
+        onSelect={(url) => {
+          const cid = pickerForChar;
+          setPickerForChar(null);
+          if (cid) void camp.setCharacterImage(cid, url);
+        }}
+      />
     </div>
   );
 }
