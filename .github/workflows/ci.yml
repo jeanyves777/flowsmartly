@@ -23,7 +23,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # The lockfile is resolved with legacy peer-deps (the Claude Agent SDK declares a
+        # zod@^4 peer while the app pins zod@^3); match that so `npm ci` doesn't ERESOLVE.
+        run: npm ci --legacy-peer-deps
 
       - name: Generate Prisma client
         run: npx prisma generate
