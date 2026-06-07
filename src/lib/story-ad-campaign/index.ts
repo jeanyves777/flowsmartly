@@ -643,7 +643,7 @@ HARD RULES
 }
 
 async function uploadCharacterImage(
-  result: { base64?: string; format: string },
+  result: { base64?: string | null; format: string },
   campaignId: string,
   character: CampaignCharacter,
   suffix: string,
