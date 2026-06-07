@@ -27,6 +27,36 @@ function pick<T>(value: unknown, allowed: T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+/** Snap an arbitrary seconds value to the nearest supported campaign duration. */
+function snapDuration(seconds: number): CampaignDurationSeconds {
+  return ALLOWED_DURATIONS.reduce(
+    (best, d) => (Math.abs(d - seconds) < Math.abs(best - seconds) ? d : best),
+    ALLOWED_DURATIONS[0],
+  );
+}
+
+/**
+ * Read the requested length out of the brief ("a 30 second video", "30s",
+ * "1 minute", "two-minute reel") so we don't render a 120s / 15-clip film when
+ * the user clearly asked for a short one. Returns null when nothing is stated.
+ */
+function parseDurationFromBrief(brief: string): CampaignDurationSeconds | null {
+  const text = brief.toLowerCase();
+  const words: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, half: 0.5, "half a": 0.5,
+  };
+  // seconds: "30 second", "30s", "30-sec", "45 secs"
+  let m = text.match(/(\d{1,3})\s*-?\s*(?:seconds?|secs?|s)\b/);
+  if (m) return snapDuration(parseInt(m[1], 10));
+  // minutes (numeric): "1 minute", "2 min", "1.5 minutes"
+  m = text.match(/(\d{1,2}(?:\.\d)?)\s*-?\s*(?:minutes?|mins?|m)\b/);
+  if (m) return snapDuration(Math.round(parseFloat(m[1]) * 60));
+  // minutes (worded): "two minute", "half a minute"
+  m = text.match(/\b(one|two|three|four|five|half a|half)\s*-?\s*(?:minutes?|mins?)\b/);
+  if (m) return snapDuration(Math.round((words[m[1]] ?? 1) * 60));
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session) {
@@ -38,14 +68,18 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const base = emptyCampaignState();
+  const briefText = String(body.brief || "").trim().slice(0, 1200);
+  // Honor a duration stated in the brief ("a 30 second video"); otherwise default
+  // to a short 30s ad rather than the old 120s (which produced 15 clips).
+  const defaultDuration = parseDurationFromBrief(briefText) ?? 30;
   const state = {
     ...base,
     style: pick(body.style, ALLOWED_STYLES, "cinematic"),
-    brief: String(body.brief || "").trim().slice(0, 1200),
+    brief: briefText,
     goal: String(body.goal || base.goal).trim().slice(0, 400),
     destinationUrl: String(body.destinationUrl || "").trim().slice(0, 240),
     aspectRatio: pick(body.aspectRatio, ALLOWED_ASPECTS, base.aspectRatio),
-    durationSeconds: pick(body.durationSeconds, ALLOWED_DURATIONS, base.durationSeconds),
+    durationSeconds: pick(body.durationSeconds, ALLOWED_DURATIONS, defaultDuration),
     clipLength: pick(body.clipLength, ALLOWED_CLIP_LENGTHS, base.clipLength),
     platforms: Array.isArray(body.platforms)
       ? (body.platforms as unknown[]).filter((p): p is string => typeof p === "string").slice(0, 6)
