@@ -60,13 +60,19 @@ export async function POST(
 
   try {
     const brand = await getBrandSnapshot(session.userId);
-    const imageUrl = await generateCharacterPreviewImage(character, current.state, brand, id);
+    const { portraitUrl, sheetUrl } = await generateCharacterPreviewImage(
+      character,
+      current.state,
+      brand,
+      id,
+    );
 
     const next = generatingChars.map((c) =>
       c.id === characterId
         ? {
             ...c,
-            referenceImageUrl: imageUrl,
+            referenceImageUrl: portraitUrl,
+            characterSheetUrl: sheetUrl,
             previewStatus: "ready" as const,
             previewError: null,
             // any edit invalidates approval — regenerating image counts as edit
@@ -85,7 +91,7 @@ export async function POST(
       campaignTitle: current.state.brief?.slice(0, 60) || "Campaign",
       characterName: character.name,
       characterRole: character.role,
-      imageUrl,
+      imageUrl: portraitUrl,
     });
 
     return NextResponse.json({ success: true, data: { state: merged, creditsRemaining: charge.remaining } });
