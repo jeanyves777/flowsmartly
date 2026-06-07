@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>FlowSmartly Studio — Node Canvas (mockup)</title>
+<style>
+  :root{
+    --bg:#071a2b; --bg2:#0a2236; --panel:#0e2c44;
+    --line:rgba(56,189,248,.22); --ink:#e6f4fd; --muted:#8fb6cf;
+    --brand-400:#38bdf8; --brand-500:#0ea5e9; --brand-600:#0284c7;
+    --node:#0f2c43; --node-head:#12384f; --port:#38bdf8;
+    --ok:#34d399; --warn:#fbbf24; --vid:#a78bfa; --img:#38bdf8; --txt:#5eead4;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);overflow:hidden;background:var(--bg)}
+  /* ---- top bar ---- */
+  .topbar{position:fixed;top:0;left:0;right:0;height:54px;display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:linear-gradient(180deg,rgba(10,34,54,.96),rgba(10,34,54,.8));backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);z-index:20}
+  .brand{font-weight:800;letter-spacing:-.02em;font-size:16px;background:linear-gradient(90deg,var(--brand-400),var(--brand-600));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .crumb{font-size:12px;color:var(--muted)}
+  .spacer{flex:1}
+  .btn{font-size:13px;font-weight:600;color:var(--ink);background:rgba(56,189,248,.10);border:1px solid var(--line);padding:8px 14px;border-radius:10px;cursor:pointer}
+  .btn.primary{background:linear-gradient(90deg,var(--brand-500),var(--brand-600));border-color:transparent;color:#04141f}
+  .btn:hover{filter:brightness(1.08)}
+  /* ---- left palette ---- */
+  .palette{position:fixed;top:54px;left:0;bottom:0;width:74px;background:rgba(9,28,44,.9);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 0;z-index:15}
+  .tool{width:54px;height:54px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    font-size:9px;color:var(--muted);background:rgba(56,189,248,.05);border:1px solid transparent;cursor:grab}
+  .tool:hover{border-color:var(--line);color:var(--ink);background:rgba(56,189,248,.12)}
+  .tool .ic{font-size:18px}
+  /* ---- canvas ---- */
+  #stage{position:fixed;inset:54px 0 0 74px;overflow:hidden;
+    background:
+      radial-gradient(1200px 700px at 70% -10%,#0c3350 0%,rgba(8,30,48,0) 55%),
+      var(--bg);
+    cursor:grab}
+  #world{position:absolute;left:0;top:0;width:4000px;height:2600px;transform-origin:0 0}
+  .grid{position:absolute;inset:0;background-image:radial-gradient(rgba(86,170,216,.16) 1px,transparent 1px);background-size:26px 26px}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .wire{fill:none;stroke:url(#wgrad);stroke-width:2.5;filter:drop-shadow(0 1px 3px rgba(2,132,199,.4))}
+  .wire.dim{stroke:rgba(120,170,200,.35)}
+  /* ---- nodes ---- */
+  .node{position:absolute;width:208px;background:linear-gradient(180deg,var(--node-head),var(--node));border:1px solid var(--line);
+    border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.45);user-select:none;cursor:grab}
+  .node:hover{border-color:rgba(56,189,248,.5)}
+  .node .head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(56,189,248,.14);font-size:12px;font-weight:700}
+  .node .dotc{width:9px;height:9px;border-radius:50%}
+  .node .body{padding:11px 12px;font-size:11.5px;color:var(--muted);line-height:1.5}
+  .thumb{width:100%;height:96px;border-radius:9px;margin-top:8px;background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.06)}
+  .sheet{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}
+  .sheet div{height:64px;border-radius:7px;background:linear-gradient(160deg,#1b4763,#2a6f8f)}
+  .pill{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:9px}
+  .port{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--node);border:2.5px solid var(--port);top:50%;transform:translateY(-50%)}
+  .port.in{left:-7px}.port.out{right:-7px}
+  .badge{font-size:9px;color:#04141f;font-weight:800;background:var(--brand-400);padding:2px 7px;border-radius:999px;margin-left:auto}
+  .hint{position:fixed;left:88px;bottom:16px;font-size:11px;color:var(--muted);background:rgba(9,28,44,.8);border:1px solid var(--line);padding:7px 12px;border-radius:10px;z-index:15}
+  .zoom{position:fixed;right:16px;bottom:16px;display:flex;gap:6px;z-index:15}
+  .zoom button{width:34px;height:34px;border-radius:9px;background:rgba(9,28,44,.9);border:1px solid var(--line);color:var(--ink);font-size:16px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">FlowSmartly</span>
+    <span class="crumb">Studio › Ad Builder · "Glow serum — night routine"</span>
+    <span class="spacer"></span>
+    <button class="btn">Preview reel</button>
+    <button class="btn primary">▸ Generate all</button>
+  </div>
+
+  <div class="palette">
+    <div class="tool"><span class="ic">✎</span>Prompt</div>
+    <div class="tool"><span class="ic">🧍</span>Character</div>
+    <div class="tool"><span class="ic">🖼️</span>Scene</div>
+    <div class="tool"><span class="ic">🎬</span>Video</div>
+    <div class="tool"><span class="ic">🎵</span>Music</div>
+    <div class="tool"><span class="ic">⬇</span>Output</div>
+  </div>
+
+  <div id="stage">
+    <div id="world">
+      <div class="grid"></div>
+      <svg class="wires" id="wires">
+        <defs>
+          <linearGradient id="wgrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/>
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <!-- nodes: data-x/data-y set position; ports drawn by JS -->
+      <div class="node" id="n_prompt" style="left:60px;top:240px">
+        <div class="head"><span class="dotc" style="background:var(--txt)"></span>Prompt</div>
+        <div class="body">"A young woman at her vanity at night, soft mirror bulbs, doing her skincare. Cinematic, photoreal."<span class="pill" style="background:rgba(94,234,212,.15);color:var(--txt)">brief</span></div>
+        <div class="port out" data-node="n_prompt"></div>
+      </div>
+
+      <div class="node" id="n_char" style="left:340px;top:170px">
+        <div class="head"><span class="dotc" style="background:var(--img)"></span>Character sheet <span class="badge">anchor</span></div>
+        <div class="body">Maya — turnaround (front · ¾ · profile). Locks identity across every shot.
+          <div class="sheet"><div></div><div></div><div></div></div>
+        </div>
+        <div class="port in" data-node="n_char"></div>
+        <div class="port out" data-node="n_char"></div>
+      </div>
+
+      <div class="node" id="n_s1" style="left:640px;top:60px">
+        <div class="head"><span class="dotc" style="background:var(--img)"></span>Scene · Hook</div>
+        <div class="body">Wide — sits down at vanity.<div class="thumb" style="background:linear-gradient(160deg,#173a54,#2b6e8d)"></div></div>
+        <div class="port in" data-node="n_s1"></div><div class="port out" data-node="n_s1"></div>
+      </div>
+      <div class="node" id="n_s2" style="left:640px;top:300px">
+        <div class="head"><span class="dotc" style="background:var(--img)"></span>Scene · Reveal</div>
+        <div class="body">Close-up — applies serum.<div class="thumb" style="background:linear-gradient(160deg,#1d2f57,#3a5e8f)"></div></div>
+        <div class="port in" data-node="n_s2"></div><div class="port out" data-node="n_s2"></div>
+      </div>
+
+      <div class="node" id="n_v1" style="left:940px;top:60px">
+        <div class="head"><span class="dotc" style="background:var(--vid)"></span>Video · clip 1 <span class="badge" style="background:var(--vid)">Veo</span></div>
+        <div class="body">8s · push-in · native audio.<div class="thumb" style="background:linear-gradient(160deg,#2a2350,#4a3e8f)"></div></div>
+        <div class="port in" data-node="n_v1"></div><div class="port out" data-node="n_v1"></div>
+      </div>
+      <div class="node" id="n_v2" style="left:940px;top:300px">
+        <div class="head"><span class="dotc" style="background:var(--vid)"></span>Video · clip 2 <span class="badge" style="background:var(--vid)">Veo</span></div>
+        <div class="body">8s · slow zoom.<div class="thumb" style="background:linear-gradient(160deg,#241f4d,#473b8c)"></div></div>
+        <div class="port in" data-node="n_v2"></div><div class="port out" data-node="n_v2"></div>
+      </div>
+
+      <div class="node" id="n_out" style="left:1240px;top:180px">
+        <div class="head"><span class="dotc" style="background:var(--ok)"></span>Final reel <span class="badge" style="background:var(--ok)">9:16</span></div>
+        <div class="body">Stitched · captions · music bed.<div class="thumb" style="background:linear-gradient(160deg,#10324a,#0a2740);display:flex;align-items:center;justify-content:center;font-size:26px">▶</div></div>
+        <div class="port in" data-node="n_out"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">Drag nodes to rearrange · drag canvas to pan · this is a non-functional design mockup</div>
+  <div class="zoom"><button id="zo">−</button><button id="zi">+</button></div>
+
+<script>
+  // edges by node id (out -> in)
+  const edges=[["n_prompt","n_char"],["n_char","n_s1"],["n_char","n_s2"],
+    ["n_s1","n_v1"],["n_s2","n_v2"],["n_v1","n_out"],["n_v2","n_out"]];
+  const world=document.getElementById('world'), stage=document.getElementById('stage'), svg=document.getElementById('wires');
+  let scale=1, panX=0, panY=0;
+  function apply(){world.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`;}
+  function portPos(nodeId,kind){
+    const n=document.getElementById(nodeId); const p=n.querySelector('.port.'+kind);
+    const x=n.offsetLeft+p.offsetLeft+6.5, y=n.offsetTop+p.offsetTop+6.5; return {x,y};
+  }
+  function draw(){
+    svg.querySelectorAll('path').forEach(e=>e.remove());
+    for(const [a,b] of edges){
+      const s=portPos(a,'out'), t=portPos(b,'in');
+      const dx=Math.max(40,Math.abs(t.x-s.x)*0.5);
+      const d=`M${s.x},${s.y} C${s.x+dx},${s.y} ${t.x-dx},${t.y} ${t.x},${t.y}`;
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',d); path.setAttribute('class','wire'); svg.appendChild(path);
+    }
+  }
+  // node drag
+  let drag=null;
+  document.querySelectorAll('.node').forEach(n=>{
+    n.addEventListener('pointerdown',e=>{
+      if(e.target.classList.contains('port'))return;
+      drag={n,sx:e.clientX,sy:e.clientY,ox:n.offsetLeft,oy:n.offsetTop};
+      n.setPointerCapture(e.pointerId); n.style.cursor='grabbing'; e.stopPropagation();
+    });
+    n.addEventListener('pointermove',e=>{
+      if(!drag||drag.n!==n)return;
+      n.style.left=(drag.ox+(e.clientX-drag.sx)/scale)+'px';
+      n.style.top=(drag.oy+(e.clientY-drag.sy)/scale)+'px'; draw();
+    });
+    n.addEventListener('pointerup',()=>{if(drag){drag.n.style.cursor='grab';drag=null;}});
+  });
+  // pan
+  let pan=null;
+  stage.addEventListener('pointerdown',e=>{if(e.target===stage||e.target.classList.contains('grid')){pan={sx:e.clientX,sy:e.clientY,px:panX,py:panY};stage.style.cursor='grabbing';}});
+  stage.addEventListener('pointermove',e=>{if(!pan)return;panX=pan.px+(e.clientX-pan.sx);panY=pan.py+(e.clientY-pan.sy);apply();});
+  window.addEventListener('pointerup',()=>{if(pan){pan=null;stage.style.cursor='grab';}});
+  // zoom
+  document.getElementById('zi').onclick=()=>{scale=Math.min(1.6,scale+0.1);apply();};
+  document.getElementById('zo').onclick=()=>{scale=Math.max(0.5,scale-0.1);apply();};
+  stage.addEventListener('wheel',e=>{e.preventDefault();scale=Math.min(1.6,Math.max(0.5,scale-Math.sign(e.deltaY)*0.08));apply();},{passive:false});
+  apply(); draw();
+</script>
+</body>
+</html>
