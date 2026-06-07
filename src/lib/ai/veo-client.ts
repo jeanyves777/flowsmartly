@@ -194,9 +194,15 @@ class VeoClient {
       config.resolution = resolution;
     }
 
-    // Veo Lite also rejects negativePrompt ("negativePrompt isn't supported by this model")
-    // — Quality + Fast accept it. Only attach the field for non-Lite tiers.
-    if (negativePrompt && resolvedTier !== "lite") {
+    // negativePrompt is rejected in two cases:
+    //   1. Veo Lite — "negativePrompt isn't supported by this model".
+    //   2. ANY tier when conditioning on images (referenceImages OR a first-frame
+    //      image) — Veo 3.1 returns 400 "Negative prompt is not supported in your
+    //      use case." This builder almost always anchors on a character reference,
+    //      so attaching it there made every Veo render fail and fall back to xAI.
+    // Only attach it for non-Lite, text-only (no image conditioning) generations.
+    const usesImageConditioning = referenceImages.length > 0 || !!firstFrameImage;
+    if (negativePrompt && resolvedTier !== "lite" && !usesImageConditioning) {
       config.negativePrompt = negativePrompt;
     }
 

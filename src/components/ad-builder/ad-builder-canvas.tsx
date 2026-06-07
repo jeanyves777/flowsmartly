@@ -9,6 +9,7 @@ import {
   Download,
   Film,
   ImagePlus,
+  Maximize2,
   Minus,
   Plus,
   RefreshCw,
@@ -92,6 +93,8 @@ export function AdBuilderCanvas() {
   const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({});
   const [localError, setLocalError] = useState<string | null>(null);
   const [pickerForChar, setPickerForChar] = useState<string | null>(null);
+  // Full-size preview lightbox (character sheet or scene clip), opened from a node.
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   const dragPan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
@@ -178,14 +181,16 @@ export function AdBuilderCanvas() {
         status,
         thumb: cl.videoUrl || cl.imageUrl || null,
       });
-      // Sequential flow: only the FIRST scene references the locked-in cast; each
-      // later scene continues from the previous scene's last frame.
-      if (i === 0) {
-        if (chars.length) chars.forEach((c) => es.push({ from: `char-${c.id}`, to: id }));
-        else es.push({ from: PROMPT_ID, to: id });
-      } else {
-        es.push({ from: `clip-${clips[i - 1].id}`, to: id });
+      // Character edges reflect ONLY the cast actually written into THIS scene
+      // (cl.characterIds) — a character the scene never mentions is never wired to
+      // it. Plus a continuity edge so each later scene visibly flows from the prior.
+      const castIds = (cl.characterIds || []).filter((cid) => chars.some((c) => c.id === cid));
+      if (castIds.length) {
+        castIds.forEach((cid) => es.push({ from: `char-${cid}`, to: id }));
+      } else if (i === 0) {
+        es.push({ from: PROMPT_ID, to: id });
       }
+      if (i > 0) es.push({ from: `clip-${clips[i - 1].id}`, to: id });
     });
 
     if (state) {
@@ -416,15 +421,31 @@ export function AdBuilderCanvas() {
                   )}
                   {n.subtitle && <div className="mb-1.5 line-clamp-2 text-muted-foreground">{n.subtitle}</div>}
                   {n.thumb ? (
-                    isVideoUrl(n.thumb) ? (
-                      <video src={n.thumb} muted playsInline className="h-44 w-full rounded-lg object-cover" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={n.thumb} alt="" className="h-44 w-full rounded-lg object-cover" />
-                    )
-                  ) : (
+                    <div className="relative">
+                      {isVideoUrl(n.thumb) ? (
+                        <video src={n.thumb} muted playsInline className="h-44 w-full rounded-lg object-cover" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={n.thumb} alt="" className="h-44 w-full rounded-lg object-cover" />
+                      )}
+                      {/* preview: open the sheet/clip full-size */}
+                      <button
+                        type="button"
+                        title="Preview larger"
+                        aria-label="Preview larger"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreview({ url: n.thumb!, title: n.title });
+                        }}
+                        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/85 text-foreground shadow-sm backdrop-blur hover:bg-card"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : n.kind === "prompt" ? null : (
                     <div className="flex h-36 items-center justify-center rounded-lg bg-muted text-[11px] text-muted-foreground">
-                      {n.status === "generating" ? "generating…" : n.kind === "prompt" ? "your brief" : "not generated"}
+                      {n.status === "generating" ? "generating…" : "not generated"}
                     </div>
                   )}
                 </div>
@@ -684,6 +705,33 @@ export function AdBuilderCanvas() {
                   <Film className="h-3.5 w-3.5" /> Render
                 </Button>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* full-size preview lightbox — opened by the Preview button on any node thumb */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setPreview(null)}
+        >
+          <div className="relative flex max-h-[92vh] max-w-[92vw] flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
+              <span className="truncate">{preview.title}</span>
+              <button
+                onClick={() => setPreview(null)}
+                aria-label="Close preview"
+                className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {isVideoUrl(preview.url) ? (
+              <video src={preview.url} controls autoPlay playsInline className="max-h-[85vh] max-w-[92vw] rounded-xl" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview.url} alt={preview.title} className="max-h-[85vh] max-w-[92vw] rounded-xl object-contain" />
             )}
           </div>
         </div>
