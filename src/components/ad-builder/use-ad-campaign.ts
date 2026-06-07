@@ -1,0 +1,223 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import type {
+  CampaignAspectRatio,
+  CampaignProvider,
+  CampaignState,
+  CampaignStyle,
+} from "@/lib/story-ad-campaign/types";
+
+// ---------------------------------------------------------------------------
+// Phase 1 data layer for the node-canvas Ad Builder. Talks to the SAME
+// story-ad-campaign endpoints the working wizard uses, so the canvas drives the
+// real pipeline (incl. the multi-angle character turnaround-sheet consistency).
+// UI components (Phase 2+) consume this hook; no generation logic lives here.
+// ---------------------------------------------------------------------------
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: { message?: string; code?: string; required?: number; available?: number };
+}
+
+export interface CreateCampaignInput {
+  brief: string;
+  style?: CampaignStyle;
+  aspectRatio?: CampaignAspectRatio;
+  provider?: CampaignProvider;
+  goal?: string;
+  destinationUrl?: string;
+}
+
+async function postJson<T>(url: string, body?: unknown): Promise<ApiEnvelope<T>> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<T>;
+}
+
+function errMessage(e: ApiEnvelope<unknown> | unknown, fallback: string): string {
+  if (e && typeof e === "object" && "error" in e) {
+    const er = (e as ApiEnvelope<unknown>).error;
+    if (er?.code === "INSUFFICIENT_CREDITS") {
+      return er.message || "Not enough credits.";
+    }
+    if (er?.message) return er.message;
+  }
+  if (e instanceof Error) return e.message;
+  return fallback;
+}
+
+export function useAdCampaign() {
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [state, setState] = useState<CampaignState | null>(null);
+  /** human-readable label of the in-flight op, or null when idle */
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (id: string): Promise<CampaignState | null> => {
+    const res = await fetch(`/api/ai/story-ad-campaign/${id}`);
+    const json = (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<{
+      state: CampaignState;
+    }>;
+    if (json.success && json.data?.state) {
+      setState(json.data.state);
+      setCampaignId(id);
+      return json.data.state;
+    }
+    return null;
+  }, []);
+
+  const create = useCallback(
+    async (input: CreateCampaignInput): Promise<string | null> => {
+      setBusy("Creating campaign…");
+      setError(null);
+      try {
+        const json = await postJson<{ campaignId: string }>("/api/ai/story-ad-campaign", {
+          brief: input.brief,
+          style: input.style ?? "cinematic",
+          aspectRatio: input.aspectRatio ?? "9:16",
+          provider: input.provider ?? "veo3",
+          goal: input.goal,
+          destinationUrl: input.destinationUrl,
+        });
+        if (!json.success || !json.data?.campaignId) {
+          throw new Error(errMessage(json, "Failed to create campaign"));
+        }
+        await load(json.data.campaignId);
+        return json.data.campaignId;
+      } catch (e) {
+        setError(errMessage(e, "Failed to create campaign"));
+        return null;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [load],
+  );
+
+  /** Save edits to the brief / top-level campaign fields. */
+  const patchState = useCallback(
+    async (patch: Partial<CampaignState>): Promise<void> => {
+      if (!campaignId) return;
+      // optimistic
+      setState((s) => (s ? { ...s, ...patch } : s));
+      const json = await postJsonPatch(`/api/ai/story-ad-campaign/${campaignId}`, { state: patch });
+      if (json.success && json.data?.state) setState(json.data.state);
+    },
+    [campaignId],
+  );
+
+  const planCast = useCallback(
+    async (count = 4, id = campaignId): Promise<CampaignState | null> => {
+      if (!id) return null;
+      setBusy("Planning the cast…");
+      setError(null);
+      try {
+        const json = await postJson<{ state: CampaignState }>(
+          `/api/ai/story-ad-campaign/${id}/characters`,
+          { count },
+        );
+        if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Failed to plan cast"));
+        setState(json.data.state);
+        return json.data.state;
+      } catch (e) {
+        setError(errMessage(e, "Failed to plan cast"));
+        return null;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [campaignId],
+  );
+
+  /** Generate a character's turnaround sheet (the consistency anchor). */
+  const generateCharacter = useCallback(
+    async (characterId: string, id = campaignId): Promise<void> => {
+      if (!id) return;
+      setError(null);
+      // optimistic status so the node spins immediately
+      setState((s) =>
+        s
+          ? {
+              ...s,
+              characters: s.characters.map((c) =>
+                c.id === characterId ? { ...c, previewStatus: "generating", previewError: null } : c,
+              ),
+            }
+          : s,
+      );
+      try {
+        const json = await postJson<{ state: CampaignState }>(
+          `/api/ai/story-ad-campaign/${id}/characters/${characterId}/preview`,
+        );
+        if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Character generation failed"));
+        setState(json.data.state);
+      } catch (e) {
+        setError(errMessage(e, "Character generation failed"));
+        setState((s) =>
+          s
+            ? {
+                ...s,
+                characters: s.characters.map((c) =>
+                  c.id === characterId ? { ...c, previewStatus: "failed" } : c,
+                ),
+              }
+            : s,
+        );
+      }
+    },
+    [campaignId],
+  );
+
+  const planScenes = useCallback(
+    async (id = campaignId): Promise<CampaignState | null> => {
+      if (!id) return null;
+      setBusy("Planning scenes…");
+      setError(null);
+      try {
+        const json = await postJson<{ state: CampaignState }>(
+          `/api/ai/story-ad-campaign/${id}/scenes`,
+        );
+        if (!json.success || !json.data?.state) throw new Error(errMessage(json, "Failed to plan scenes"));
+        setState(json.data.state);
+        return json.data.state;
+      } catch (e) {
+        setError(errMessage(e, "Failed to plan scenes"));
+        return null;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [campaignId],
+  );
+
+  return {
+    campaignId,
+    state,
+    busy,
+    error,
+    create,
+    load,
+    patchState,
+    planCast,
+    generateCharacter,
+    planScenes,
+    clearError: useCallback(() => setError(null), []),
+  };
+}
+
+async function postJsonPatch(
+  url: string,
+  body: unknown,
+): Promise<ApiEnvelope<{ state: CampaignState }>> {
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<{ state: CampaignState }>;
+}

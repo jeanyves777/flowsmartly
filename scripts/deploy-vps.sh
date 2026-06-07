@@ -25,6 +25,8 @@ VOICE_SERVICES="${VOICE_SERVICES:-supertonic-tts whisper-stt}"
 BUILD_OK="${APP_DIR}/BUILD_OK"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/flow-ai}"  # checked after reload
 HEALTH_RETRIES="${HEALTH_RETRIES:-10}"                     # attempts, ~2s apart
+# Where Nginx serves the branded maintenance page from when the app upstream is down.
+MAINT_DIR="${MAINT_DIR:-/var/www/flowsmartly-maintenance}"
 # Bigger V8 heap for the build — this box has OOM'd `next build` at the default.
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
@@ -55,6 +57,17 @@ log "Hard-reset working tree to ${DEPLOY_REF}"
 git reset --hard "${DEPLOY_REF}"
 NEW_LOCK_HASH="$(git hash-object package-lock.json 2>/dev/null || echo none)"
 echo "Now at: $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
+
+# --- 1b. refresh the branded maintenance page Nginx falls back to when the app is
+#         unreachable (crash / OOM during build / reload blip). Best-effort: a failure
+#         here must never abort a deploy. Requires the one-time Nginx config in
+#         deploy/nginx-maintenance.conf.
+if [ -f "${APP_DIR}/public/maintenance.html" ]; then
+  log "Refreshing maintenance page -> ${MAINT_DIR}"
+  mkdir -p "${MAINT_DIR}" 2>/dev/null \
+    && cp -f "${APP_DIR}/public/maintenance.html" "${MAINT_DIR}/maintenance.html" 2>/dev/null \
+    || echo "WARN: could not install maintenance page to ${MAINT_DIR} (continuing)"
+fi
 
 # --- 2. patch Prisma provider for prod (sqlite -> postgresql) ------------------
 log "Patching Prisma provider -> postgresql"

@@ -10,7 +10,7 @@ import { TRANSACTION_TYPES, creditService } from "@/lib/credits";
 import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { generateImageXaiFirst, generateImageForRole } from "@/lib/ai/image-router";
+import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -598,30 +598,124 @@ HARD RULES
 - The character must read as authentic to the ${style === "3d" ? "3D animation" : "live-action cinematic"} world.`;
 }
 
+/**
+ * Multi-angle character TURNAROUND SHEET — the same person rendered three times
+ * (front, three-quarter, profile) plus a face close-up, on one neutral seamless
+ * backdrop with identical wardrobe + lighting. This is the cast anchor we feed into
+ * Veo Quality's `referenceImages`: seeing the character from multiple angles lets the
+ * video model hold the SAME identity across wide / close / over-shoulder / profile
+ * shots — which is exactly where a single front portrait drifts. Landscape framing.
+ */
+function buildCharacterSheetPrompt(
+  character: CampaignCharacter,
+  style: CampaignStyle,
+  brand: BrandSnapshot,
+): string {
+  const styleBlock =
+    style === "3d"
+      ? "Premium Pixar / Disney-grade 3D animation render. Stylized but expressive character rig, soft global illumination, subsurface scattering on skin, polished CGI surfaces, cinematic 3D lighting."
+      : "Photoreal cinematic look. ARRI Alexa, naturalistic studio lighting, photoreal skin texture, real production wardrobe. NOT 3D animation, NOT illustration — a real human photograph aesthetic.";
+
+  return `Character model TURNAROUND SHEET for an ad campaign — the reference used to lock visual continuity across every shot.
+
+IDENTITY (critical)
+- Recreate the EXACT person shown in the provided reference image: identical face, skin tone, hair, build, and wardrobe. This is a turnaround of THAT person — do NOT invent a new face. The description below is only to disambiguate details the photo doesn't show.
+
+CHARACTER (the SAME person in every pose — identical face, hair, build, wardrobe, palette)
+- Name: ${character.name}
+- Role: ${character.role}
+- Description: ${character.visualDescription}
+
+STYLE
+${styleBlock}
+
+LAYOUT (one image, landscape)
+- A clean character-reference sheet: the SAME character shown in THREE full-body poses left-to-right — front view, three-quarter view, and side profile — all standing, neutral confident posture.
+- Plus ONE head-and-shoulders face close-up in a corner.
+- Even, flat studio lighting; plain seamless light-grey backdrop; consistent scale across poses.
+- Absolutely identical clothing, hairstyle, and proportions in every pose — this is a turnaround of one person, not different people.
+
+HARD RULES
+- No text, no labels, no captions, no measurement lines, no grid, no watermark, no UI, no logo.
+- No other people. No props beyond what the character wears.
+- Brand context (tonal only — do NOT draw the logo): ${brand.name}${brand.industry ? ` (${brand.industry})` : ""}.
+- The character must read as authentic to the ${style === "3d" ? "3D animation" : "live-action cinematic"} world.`;
+}
+
+async function uploadCharacterImage(
+  result: { base64?: string | null; format: string },
+  campaignId: string,
+  character: CampaignCharacter,
+  suffix: string,
+): Promise<string> {
+  if (!result.base64) throw new Error("Image provider returned no image");
+  const buffer = Buffer.from(result.base64, "base64");
+  const ext = result.format === "jpeg" ? "jpg" : result.format;
+  const safe = character.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30) || "character";
+  const key = `story-ad-campaigns/${campaignId}/characters/${safe}-${suffix}-${nanoid(6)}.${ext}`;
+  const contentType = result.format === "jpeg" ? "image/jpeg" : `image/${result.format}`;
+  return uploadToS3(key, buffer, contentType);
+}
+
+/**
+ * Generate the character anchor images:
+ *  - `portraitUrl`  — single clean three-quarter portrait (used as the Veo-Lite
+ *    first-frame anchor and shown in the UI / saved to the library).
+ *  - `sheetUrl`     — multi-angle turnaround sheet fed into Veo Quality
+ *    `referenceImages` for the strongest cross-shot consistency. Best-effort: if the
+ *    sheet generation fails we still return the portrait so the flow never breaks.
+ */
 export async function generateCharacterPreviewImage(
   character: CampaignCharacter,
   state: CampaignState,
   brand: BrandSnapshot,
   campaignId: string,
-): Promise<string> {
+  opts: { baseImageUrl?: string | null } = {},
+): Promise<{ portraitUrl: string; sheetUrl: string | null }> {
   if (!state.style) throw new Error("Campaign style must be selected first");
   // For narrated style, characters should match the chosen sub-style (3d illustrations vs cinematic stills).
   const effectiveStyle: CampaignStyle =
     state.style === "narrated" ? state.narratedSubStyle || "cinematic" : state.style;
-  const prompt = buildCharacterImagePrompt(character, effectiveStyle, brand);
-  const result = await generateImageXaiFirst(prompt, 1024, 1280, {
-    quality: "high",
-    transparent: false,
-  });
-  if (!result.base64) {
-    throw new Error("Image provider returned no image");
+
+  // 1. Base portrait = THE ANCHOR. Everything else is derived from it so the character
+  //    stays the same person. Use the user's uploaded/picked image when provided
+  //    (`baseImageUrl`), otherwise generate the first image from the prompt.
+  let portraitUrl: string;
+  let portraitBuffer: Buffer;
+  if (opts.baseImageUrl) {
+    portraitBuffer = await downloadToBuffer(opts.baseImageUrl);
+    portraitUrl = opts.baseImageUrl;
+  } else {
+    const portraitPrompt = buildCharacterImagePrompt(character, effectiveStyle, brand);
+    const portraitResult = await generateImageXaiFirst(portraitPrompt, 1024, 1280, {
+      quality: "high",
+      transparent: false,
+    });
+    if (!portraitResult.base64) throw new Error("Image provider returned no image");
+    portraitBuffer = Buffer.from(portraitResult.base64, "base64");
+    portraitUrl = await uploadCharacterImage(portraitResult, campaignId, character, "portrait");
   }
-  const buffer = Buffer.from(result.base64, "base64");
-  const ext = result.format === "jpeg" ? "jpg" : result.format;
-  const safe = character.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30) || "character";
-  const key = `story-ad-campaigns/${campaignId}/characters/${safe}-${nanoid(6)}.${ext}`;
-  const contentType = result.format === "jpeg" ? "image/jpeg" : `image/${result.format}`;
-  return uploadToS3(key, buffer, contentType);
+
+  // 2. Turnaround sheet DERIVED FROM the portrait via identity-preserving image-to-image
+  //    — so the multi-angle views are unmistakably the SAME person, not an independent
+  //    re-roll of the description. Best-effort: on failure we keep the portrait-only anchor.
+  let sheetUrl: string | null = null;
+  try {
+    const sheetPrompt = buildCharacterSheetPrompt(character, effectiveStyle, brand);
+    const sheetResult = await editImagesXaiFirst(sheetPrompt, [portraitBuffer], 1536, 1024, {
+      intent: "identity",
+      quality: "high",
+    });
+    if (sheetResult.base64) {
+      sheetUrl = await uploadCharacterImage(sheetResult, campaignId, character, "sheet");
+    }
+  } catch (err) {
+    console.warn(
+      `[StoryAdCampaign] Character sheet generation failed for ${character.name}; portrait-only anchor: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  return { portraitUrl, sheetUrl };
 }
 
 // =============================================================
@@ -1556,16 +1650,26 @@ function collectClipReferenceImages(clip: CampaignClipSlot, state: CampaignState
   const urls: string[] = [];
   for (const id of clip.characterIds || []) {
     const character = state.characters.find((c) => c.id === id);
-    if (character?.referenceImageUrl) urls.push(character.referenceImageUrl);
+    // Prefer the multi-angle turnaround sheet (strongest identity lock); fall back to
+    // the single portrait for characters whose sheet is missing (e.g. user-uploaded image).
+    const anchor = character?.characterSheetUrl || character?.referenceImageUrl;
+    if (anchor) urls.push(anchor);
     if (urls.length >= 3) break;
   }
   return urls;
 }
 
-/** Single-image picker, used for providers that only accept ONE reference (xAI). */
+/**
+ * Single-image picker for providers that use ONE reference as the FIRST VIDEO FRAME
+ * (Veo Lite image-to-video, xAI). This MUST be the clean portrait — never the
+ * turnaround sheet — otherwise the clip would literally open on a character grid.
+ */
 function pickClipReferenceImage(clip: CampaignClipSlot, state: CampaignState): string | null {
-  const list = collectClipReferenceImages(clip, state);
-  return list[0] || null;
+  for (const id of clip.characterIds || []) {
+    const character = state.characters.find((c) => c.id === id);
+    if (character?.referenceImageUrl) return character.referenceImageUrl;
+  }
+  return null;
 }
 
 /**

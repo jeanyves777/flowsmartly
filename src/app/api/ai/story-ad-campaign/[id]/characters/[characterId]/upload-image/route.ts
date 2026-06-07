@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 import {
+  generateCharacterPreviewImage,
+  getBrandSnapshot,
   getCampaign,
   saveCharacterPreviewToLibrary,
   updateCampaignState,
@@ -88,12 +90,32 @@ export async function POST(
     );
   }
 
+  // Derive a multi-angle turnaround sheet FROM the uploaded photo (identity-preserving)
+  // so uploaded characters get the SAME cross-shot consistency as generated ones — all
+  // angles are still produced by our system, anchored to the user's image. Best-effort:
+  // a sheet failure (or no style selected yet) just leaves the single portrait as anchor.
+  let characterSheetUrl: string | null = null;
+  if (current.state.style) {
+    try {
+      const brand = await getBrandSnapshot(session.userId);
+      const derived = await generateCharacterPreviewImage(character, current.state, brand, id, {
+        baseImageUrl: referenceImageUrl,
+      });
+      characterSheetUrl = derived.sheetUrl;
+    } catch (error) {
+      console.warn(
+        `[StoryAdCampaign] Sheet from uploaded image failed for ${character.name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   // Persist the new portrait on the character. Editing the image always invalidates approval.
   const nextCharacters = current.state.characters.map((c) =>
     c.id === characterId
       ? {
           ...c,
           referenceImageUrl,
+          characterSheetUrl,
           previewStatus: "ready" as const,
           previewError: null,
           approved: false,

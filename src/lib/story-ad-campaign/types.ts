@@ -98,6 +98,15 @@ export interface CampaignCharacter {
     delivery: string;
   };
   referenceImageUrl?: string | null;
+  /**
+   * Multi-angle turnaround sheet (front / three-quarter / profile + face close-up,
+   * one image, neutral seamless backdrop). Generated alongside `referenceImageUrl`
+   * and fed into Veo Quality's `referenceImages` as the cast anchor — multiple angles
+   * give the video model far stronger cross-shot identity lock than a single front
+   * portrait. The single `referenceImageUrl` is still kept for the Veo-Lite first-frame
+   * path (which must NOT open on a grid).
+   */
+  characterSheetUrl?: string | null;
   previewStatus?: "idle" | "generating" | "ready" | "failed";
   previewError?: string | null;
   approved?: boolean;
