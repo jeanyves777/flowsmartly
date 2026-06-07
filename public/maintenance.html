@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <!-- Auto-reload: when the app comes back, this page quietly redirects to the real site. -->
+  <meta http-equiv="refresh" content="30" />
+  <title>FlowSmartly — We'll be right back</title>
+  <style>
+    :root {
+      --brand-400: #38bdf8;
+      --brand-500: #0ea5e9;
+      --brand-600: #0284c7;
+      --brand-700: #0369a1;
+      --ink: #0c4a6e;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #e2f3fc;
+      background: radial-gradient(1200px 600px at 50% -10%, #0b3a55 0%, #082f49 45%, #061f33 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; text-align: center; -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      width: 100%; max-width: 520px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(56, 189, 248, 0.18);
+      border-radius: 20px;
+      padding: 48px 36px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(6px);
+    }
+    .wordmark {
+      font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--brand-400), var(--brand-600));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      margin-bottom: 28px;
+    }
+    .spinner {
+      width: 46px; height: 46px; margin: 0 auto 28px;
+      border: 4px solid rgba(56, 189, 248, 0.18);
+      border-top-color: var(--brand-500);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 26px; line-height: 1.25; margin: 0 0 12px; color: #f0f9ff; }
+    p { font-size: 15px; line-height: 1.6; margin: 0 auto; max-width: 40ch; color: #b9dcec; }
+    .eta {
+      margin-top: 26px; display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600; color: #cdeafa;
+      background: rgba(14, 165, 233, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 9px 16px; border-radius: 999px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-400); animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+    .foot { margin-top: 30px; font-size: 12px; color: #7fb4cd; }
+    @media (prefers-reduced-motion: reduce) {
+      .spinner, .dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="wordmark">FlowSmartly</div>
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>We&rsquo;ll be right back</h1>
+    <p>FlowSmartly is rolling out a quick upgrade. Your account and data are safe &mdash; nothing is lost. This page will refresh on its own the moment we&rsquo;re back.</p>
+    <div class="eta"><span class="dot" aria-hidden="true"></span> Estimated back within ~30 minutes</div>
+    <div class="foot">Thanks for your patience. &mdash; The FlowSmartly team</div>
+  </main>
+</body>
+</html>
