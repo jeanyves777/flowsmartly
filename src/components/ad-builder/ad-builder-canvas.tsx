@@ -16,6 +16,7 @@ import {
   Type,
   User,
   Users,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
@@ -438,157 +439,195 @@ export function AdBuilderCanvas() {
         </div>
       </div>
 
-      {/* inspector */}
+      {/* inspector — bottom sheet (chat-style) on every screen size */}
       {selected && (
-        <div className="absolute bottom-0 right-0 top-14 z-10 w-72 overflow-y-auto border-l border-border bg-card p-4">
-          <div className="mb-3 flex items-center gap-2">
+        <div className="absolute inset-x-0 bottom-0 z-30 mx-auto flex max-h-[70%] w-full flex-col rounded-t-2xl border-t border-border bg-card shadow-[0_-12px_40px_rgba(0,0,0,.18)] sm:max-w-2xl sm:rounded-t-3xl">
+          {/* grip + header */}
+          <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/30" />
+          <div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold capitalize", KIND_BADGE[selected.kind])}>
               {selected.kind}
             </span>
+            <span className="text-[11px] text-muted-foreground">node</span>
+            <button
+              onClick={() => setSelectedId(null)}
+              aria-label="Close"
+              className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {selected.kind === "prompt" && (
-            <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Campaign brief</label>
-              <textarea
-                value={brief || state?.brief || ""}
-                onChange={(e) => setBrief(e.target.value)}
-                onBlur={() => campaignId && brief && camp.patchState({ brief })}
-                rows={6}
-                placeholder="e.g. A 20s reel for our glow serum — a woman's night skincare routine, cinematic."
-                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
-              />
-              <Button onClick={onGenerateAll} disabled={!!busy} className="mt-3 w-full gap-1.5">
-                {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {campaignId ? "Regenerate" : "Generate all"}
-              </Button>
-              {campaignId && (
-                <Button variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="mt-2 w-full gap-1.5">
-                  <Users className="h-3.5 w-3.5" /> Plan cast
-                </Button>
-              )}
-            </>
-          )}
+          {/* body — scrollable fields */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+            {selected.kind === "prompt" && (
+              <>
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Campaign brief</label>
+                <textarea
+                  value={brief || state?.brief || ""}
+                  onChange={(e) => setBrief(e.target.value)}
+                  onBlur={() => campaignId && brief && camp.patchState({ brief })}
+                  rows={4}
+                  placeholder="e.g. A 20s reel for our glow serum — a woman's night skincare routine, cinematic."
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+              </>
+            )}
 
-          {selected.kind === "character" && selectedChar && (
-            <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Name</label>
-              <input
-                key={`name-${selectedChar.id}`}
-                defaultValue={selectedChar.name}
-                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { name: e.target.value })}
-                className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
-              />
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Role</label>
-              <input
-                key={`role-${selectedChar.id}`}
-                defaultValue={selectedChar.role}
-                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { role: e.target.value })}
-                className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
-              />
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Appearance</label>
-              <textarea
-                key={`desc-${selectedChar.id}`}
-                defaultValue={selectedChar.visualDescription}
-                onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { visualDescription: e.target.value })}
-                rows={5}
-                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
-              />
-              <Button
-                onClick={() => camp.generateCharacter(selectedChar.id)}
-                disabled={selectedChar.previewStatus === "generating"}
-                className="mt-3 w-full gap-1.5"
-              >
-                {selectedChar.previewStatus === "generating" ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
-                Generate turnaround sheet
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setPickerForChar(selectedChar.id)}
-                disabled={selectedChar.previewStatus === "generating"}
-                className="mt-2 w-full gap-1.5"
-              >
-                <ImagePlus className="h-3.5 w-3.5" /> Upload / choose photo
-              </Button>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Use your own photo — we derive the turnaround sheet from it.
-              </p>
-              {selectedChar.previewError && <p className="mt-2 text-[10px] text-destructive">{selectedChar.previewError}</p>}
-            </>
-          )}
+            {selected.kind === "character" && selectedChar && (
+              <>
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Name</label>
+                <input
+                  key={`name-${selectedChar.id}`}
+                  defaultValue={selectedChar.name}
+                  onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { name: e.target.value })}
+                  className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Role</label>
+                <input
+                  key={`role-${selectedChar.id}`}
+                  defaultValue={selectedChar.role}
+                  onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { role: e.target.value })}
+                  className="mb-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Appearance</label>
+                <textarea
+                  key={`desc-${selectedChar.id}`}
+                  defaultValue={selectedChar.visualDescription}
+                  onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { visualDescription: e.target.value })}
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+                {selectedChar.previewError && <p className="mt-2 text-[10px] text-destructive">{selectedChar.previewError}</p>}
+              </>
+            )}
 
-          {selected.kind === "clip" && selectedClip && (
-            <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene prompt</label>
-              <textarea
-                key={`scene-${selectedClip.id}`}
-                defaultValue={selectedClip.sceneAction}
-                onBlur={(e) => camp.updateClip(selectedClip.id, { sceneAction: e.target.value })}
-                rows={4}
-                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
-              />
+            {selected.kind === "clip" && selectedClip && (
+              <>
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene prompt</label>
+                <textarea
+                  key={`scene-${selectedClip.id}`}
+                  defaultValue={selectedClip.sceneAction}
+                  onBlur={(e) => camp.updateClip(selectedClip.id, { sceneAction: e.target.value })}
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+                {selectedClip.videoUrl ? (
+                  <video src={selectedClip.videoUrl} controls playsInline className="mt-3 max-h-56 w-full rounded-lg border border-border" />
+                ) : selectedClip.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedClip.imageUrl} alt="" className="mt-3 max-h-56 w-full rounded-lg border border-border object-contain" />
+                ) : null}
+                {selectedClip.error && <p className="mt-2 text-[10px] text-destructive">{selectedClip.error}</p>}
+                <p className="mt-2 text-[10px] text-muted-foreground">Status: {selectedClip.status}</p>
+              </>
+            )}
 
-              {/* preview */}
-              {selectedClip.videoUrl ? (
-                <video src={selectedClip.videoUrl} controls playsInline className="mt-3 w-full rounded-lg border border-border" />
-              ) : selectedClip.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={selectedClip.imageUrl} alt="" className="mt-3 w-full rounded-lg border border-border" />
-              ) : null}
-
-              <Button
-                onClick={() => camp.renderClip(selectedClip.id)}
-                disabled={selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED"}
-                className="mt-3 w-full gap-1.5"
-              >
-                {selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED" ? (
-                  <AISpinner size={14} className="text-current" />
-                ) : selectedClip.videoUrl ? (
-                  <RefreshCw className="h-3.5 w-3.5" />
+            {selected.kind === "output" && (
+              <>
+                <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Final reel</label>
+                {state?.finalVideoUrl ? (
+                  <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 underline">
+                    Open rendered reel
+                  </a>
                 ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <p className="text-[11px] text-muted-foreground">Plan scenes and render clips, then stitch the final reel. Each scene is a real video clip and charges credits.</p>
                 )}
-                {selectedClip.videoUrl ? "Regenerate scene" : "Generate scene"}
-              </Button>
+              </>
+            )}
+          </div>
 
-              <Button
-                variant="outline"
-                onClick={() => { camp.removeClip(selectedClip.id); setSelectedId(null); }}
-                className="mt-2 w-full gap-1.5 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Remove scene
-              </Button>
+          {/* action bar — chat-style, options on the right */}
+          <div
+            className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2.5"
+            style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
+          >
+            {selected.kind === "prompt" && (
+              <>
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Describe your ad, then generate.</p>
+                {campaignId && (
+                  <Button size="sm" variant="outline" onClick={() => camp.planCast(4)} disabled={!!busy} className="shrink-0 gap-1.5">
+                    <Users className="h-3.5 w-3.5" /> Cast
+                  </Button>
+                )}
+                <Button size="sm" onClick={onGenerateAll} disabled={!!busy} className="shrink-0 gap-1.5">
+                  {busy ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {campaignId ? "Regenerate" : "Generate all"}
+                </Button>
+              </>
+            )}
 
-              {selectedClip.error && <p className="mt-2 text-[10px] text-destructive">{selectedClip.error}</p>}
-              <p className="mt-2 text-[10px] text-muted-foreground">Status: {selectedClip.status}</p>
-            </>
-          )}
+            {selected.kind === "character" && selectedChar && (
+              <>
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Generate, or upload your own photo.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPickerForChar(selectedChar.id)}
+                  disabled={selectedChar.previewStatus === "generating"}
+                  className="shrink-0 gap-1.5"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" /> Upload
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => camp.generateCharacter(selectedChar.id)}
+                  disabled={selectedChar.previewStatus === "generating"}
+                  className="shrink-0 gap-1.5"
+                >
+                  {selectedChar.previewStatus === "generating" ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  Generate
+                </Button>
+              </>
+            )}
 
-          {selected.kind === "output" && (
-            <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Final reel</label>
-              {state?.finalVideoUrl ? (
-                <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 underline">
-                  Open rendered reel
-                </a>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">Plan scenes and render clips, then stitch the final reel.</p>
-              )}
-              <Button variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="mt-3 w-full gap-1.5">
-                <Clapperboard className="h-3.5 w-3.5" /> Plan scenes
-              </Button>
-              <Button
-                onClick={() => camp.renderAllScenes()}
-                disabled={!!busy || !campaignId || !(state?.clips?.length)}
-                className="mt-2 w-full gap-1.5"
-              >
-                <Film className="h-3.5 w-3.5" /> Render all scenes
-              </Button>
-              <p className="mt-2 text-[10px] text-muted-foreground">
-                Each scene renders a real video clip and charges credits — this can take a few minutes per scene.
-              </p>
-            </>
-          )}
+            {selected.kind === "clip" && selectedClip && (
+              <>
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Generate, edit, or remove.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { camp.removeClip(selectedClip.id); setSelectedId(null); }}
+                  aria-label="Remove scene"
+                  className="shrink-0 gap-1.5 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => camp.renderClip(selectedClip.id)}
+                  disabled={selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED"}
+                  className="shrink-0 gap-1.5"
+                >
+                  {selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED" ? (
+                    <AISpinner size={14} className="text-current" />
+                  ) : selectedClip.videoUrl ? (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  {selectedClip.videoUrl ? "Regenerate" : "Generate"}
+                </Button>
+              </>
+            )}
+
+            {selected.kind === "output" && (
+              <>
+                <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Plan + render, then stitch.</p>
+                <Button size="sm" variant="outline" onClick={() => camp.planScenes()} disabled={!!busy || !campaignId} className="shrink-0 gap-1.5">
+                  <Clapperboard className="h-3.5 w-3.5" /> Scenes
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => camp.renderAllScenes()}
+                  disabled={!!busy || !campaignId || !(state?.clips?.length)}
+                  className="shrink-0 gap-1.5"
+                >
+                  <Film className="h-3.5 w-3.5" /> Render
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
