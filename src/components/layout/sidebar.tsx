@@ -117,8 +117,7 @@ const contentNavigation = [
 // AI Creatives
 const aiCreativesNavigation = [
   { name: "Image Studio", href: "/studio", icon: Palette },
-  { name: "Story Ad Campaign", href: "/story-ad-movie", icon: Clapperboard },
-  { name: "Ad Builder", href: "/ad-builder", icon: Video },
+  { name: "Story Ad Campaign", href: "/ad-builder", icon: Clapperboard },
   { name: "Video Editor", href: "/video-editor", icon: Clapperboard },
   // { name: "Video Studio", href: "/video-studio", icon: Video },
   { name: "Voice Studio", href: "/voice-studio", icon: Mic },
@@ -194,8 +193,8 @@ export function Sidebar({ isCollapsed, onToggle, userPlan = "FREE", isAgent = fa
     "voice-studio": ["/voice-studio"],
     "logo-generator": ["/logo-generator"],
     "media-library": ["/media"],
-    "story-ad-movie": ["/story-ad-movie"],
-    "cartoon-maker": ["/story-ad-movie", "/cartoon-maker"],
+    "story-ad-movie": ["/ad-builder", "/story-ad-movie"],
+    "cartoon-maker": ["/ad-builder", "/story-ad-movie", "/cartoon-maker"],
     "flow-ai": ["/flow-ai"],
     "bg-remover": ["/tools/background-remover"],
     "contacts": ["/contacts"],
