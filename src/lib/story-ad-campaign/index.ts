@@ -975,6 +975,7 @@ CONTINUITY RULES:
 - If a clip ends mid-conversation, clip N+1 continues that conversation.
 - Characters remember what was said earlier; they don't suddenly know things they haven't learned.
 - LOCK THE SETTING: pick ONE primary location for the film and keep EVERY clip in that SAME place — same room/set, same background, same furniture and props, same time-of-day. Only change location if the brief explicitly describes moving somewhere else. Describe the location consistently in every clip's sceneAction (same place, restated) so the background stays identical clip to clip — just like the cast stays identical.
+- ONE MESSAGE CAN SPAN MULTIPLE CLIPS — combine clips into a continuous take: a single thought, sentence, or moment may run across 2+ consecutive clips. When it does, those clips share the EXACT SAME shotType, cameraMovement, framing, distance, and background — they are ONE unbroken shot simply split into ${state.clipLength}s pieces, NOT separate scenes. Do NOT cut to a new angle or restage the camera every clip. Only change the shot/framing when the story genuinely advances to a new beat. Prefer FEWER distinct camera setups: it looks far more natural to let a line finish across two same-shot clips than to jump views every ${state.clipLength}s.
 - Within ONE scene from the brief (e.g. "at war"), give it MULTIPLE consecutive clips so it feels lived-in, not a flash card.
 
 For each clip output:
@@ -3498,7 +3499,7 @@ async function runFinalAssembly(input: {
       where: { id: input.campaignId },
       data: { progress: 94, currentStep: "Stitching final reel..." },
     });
-    const stitchedUrl = await concatClipsIntoReel(input.campaignId, input.clips);
+    const stitchedUrl = await concatClipsIntoReel(input.campaignId, input.clips, input.state.aspectRatio);
 
     const brand = await getBrandSnapshot(input.userId);
     if (brand.logo) {
@@ -3778,9 +3779,32 @@ export async function finalizeCampaign(input: {
   return { finalVideoUrl: merged.finalVideoUrl ?? null };
 }
 
+function reelDims(a: CampaignAspectRatio): { w: number; h: number } {
+  if (a === "9:16") return { w: 1080, h: 1920 };
+  if (a === "1:1") return { w: 1080, h: 1080 };
+  return { w: 1920, h: 1080 };
+}
+
+async function probeVideoDurationSec(filePath: string, fallback: number): Promise<number> {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      filePath,
+    ]);
+    const sec = Number.parseFloat(String(stdout).trim());
+    if (Number.isFinite(sec) && sec > 0) return sec;
+  } catch {
+    /* ffprobe missing/failed — use fallback */
+  }
+  return fallback;
+}
+
 async function concatClipsIntoReel(
   campaignId: string,
   clips: CampaignClipSlot[],
+  aspectRatio: CampaignAspectRatio = "9:16",
 ): Promise<string> {
   const ready = clips.filter((c) => c.videoUrl && c.status === "READY");
   if (!ready.length) throw new Error("No ready clips to concatenate");
@@ -3789,6 +3813,7 @@ async function concatClipsIntoReel(
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "story-ad-campaign-"));
   const outputPath = path.join(tempDir, "reel.mp4");
   const listPath = path.join(tempDir, "concat.txt");
+  const { w, h } = reelDims(aspectRatio);
 
   try {
     const clipPaths: string[] = [];
@@ -3798,34 +3823,79 @@ async function concatClipsIntoReel(
       await writeFile(clipPath, buffer);
       clipPaths.push(clipPath);
     }
+    const n = clipPaths.length;
+    const inputs = clipPaths.flatMap((p) => ["-i", p]);
 
-    const list = clipPaths
-      .map((p) => `file '${p.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`)
-      .join("\n");
-    await writeFile(listPath, list);
+    // Per-segment normalization: identical frame + resampled audio so each clip's
+    // own A/V stays locked (fixes the "voice arrives late" drift from copy-concat).
+    const vNorm = (i: number) =>
+      `[${i}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:-1:-1:color=black,setsar=1,fps=30,format=yuv420p[v${i}]`;
+    const aNorm = (i: number) =>
+      `[${i}:a]aresample=async=1:first_pts=0,aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`;
 
+    // ATTEMPT 1 — smooth crossfade transitions (xfade video + acrossfade audio).
     try {
+      const durs: number[] = [];
+      for (const p of clipPaths) durs.push(await probeVideoDurationSec(p, 8));
+      const minDur = Math.min(...durs);
+      const xf = Math.max(0.2, Math.min(0.5, minDur * 0.25));
+
+      const parts: string[] = [];
+      for (let i = 0; i < n; i++) parts.push(vNorm(i));
+      for (let i = 0; i < n; i++) parts.push(aNorm(i));
+      let vlabel = "v0";
+      let alabel = "a0";
+      let offset = durs[0] - xf;
+      for (let k = 1; k < n; k++) {
+        const nv = `vx${k}`;
+        const na = `ax${k}`;
+        parts.push(`[${vlabel}][v${k}]xfade=transition=fade:duration=${xf.toFixed(3)}:offset=${offset.toFixed(3)}[${nv}]`);
+        parts.push(`[${alabel}][a${k}]acrossfade=d=${xf.toFixed(3)}[${na}]`);
+        vlabel = nv;
+        alabel = na;
+        offset += durs[k] - xf;
+      }
       await runFFmpeg([
-        "-f", "concat",
-        "-safe", "0",
-        "-i", listPath,
-        "-c", "copy",
+        ...inputs,
+        "-filter_complex", parts.join(";"),
+        "-map", `[${vlabel}]`,
+        "-map", `[${alabel}]`,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
         "-y", outputPath,
       ]);
-    } catch {
-      await runFFmpeg([
-        "-f", "concat",
-        "-safe", "0",
-        "-i", listPath,
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "20",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-movflags", "+faststart",
-        "-y", outputPath,
-      ]);
+    } catch (xfErr) {
+      console.warn("[StoryAdCampaign] xfade concat failed, falling back to hard-cut synced concat:", xfErr instanceof Error ? xfErr.message : xfErr);
+      // ATTEMPT 2 — synced hard-cut concat (re-encode via the concat filter so each
+      // segment is re-timed and audio stays in sync). No crossfades.
+      try {
+        const parts: string[] = [];
+        for (let i = 0; i < n; i++) parts.push(vNorm(i));
+        for (let i = 0; i < n; i++) parts.push(aNorm(i));
+        const pairs = Array.from({ length: n }, (_, i) => `[v${i}][a${i}]`).join("");
+        parts.push(`${pairs}concat=n=${n}:v=1:a=1[v][a]`);
+        await runFFmpeg([
+          ...inputs,
+          "-filter_complex", parts.join(";"),
+          "-map", "[v]", "-map", "[a]",
+          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k",
+          "-movflags", "+faststart",
+          "-y", outputPath,
+        ]);
+      } catch (reErr) {
+        console.warn("[StoryAdCampaign] filter concat failed, last-resort copy concat:", reErr instanceof Error ? reErr.message : reErr);
+        // ATTEMPT 3 — last resort: demuxer copy (fast, but may drift).
+        const list = clipPaths
+          .map((p) => `file '${p.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`)
+          .join("\n");
+        await writeFile(listPath, list);
+        await runFFmpeg([
+          "-f", "concat", "-safe", "0", "-i", listPath,
+          "-c", "copy", "-movflags", "+faststart", "-y", outputPath,
+        ]);
+      }
     }
 
     const finalBuffer = await readFile(outputPath);
