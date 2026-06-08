@@ -28,6 +28,15 @@ export interface CreateCampaignInput {
   provider?: CampaignProvider;
   goal?: string;
   destinationUrl?: string;
+  durationSeconds?: number;
+}
+
+export interface CostEstimate {
+  total: number;
+  availableCredits: number;
+  hasEnoughCredits: boolean;
+  breakdown?: { video: number; images: number; voice: number; soundEffects: number; music: number; caption: number };
+  qualityLabel?: string;
 }
 
 async function postJson<T>(url: string, body?: unknown, timeoutMs?: number): Promise<ApiEnvelope<T>> {
@@ -95,6 +104,7 @@ export function useAdCampaign() {
           provider: input.provider ?? "veo3",
           goal: input.goal,
           destinationUrl: input.destinationUrl,
+          ...(input.durationSeconds ? { durationSeconds: input.durationSeconds } : {}),
         });
         if (!json.success || !json.data?.campaignId) {
           throw new Error(errMessage(json, "Failed to create campaign"));
@@ -314,17 +324,11 @@ export function useAdCampaign() {
 
   /** Live cost + balance for rendering the campaign in its current state. */
   const estimateCost = useCallback(
-    async (
-      id = campaignId,
-    ): Promise<{ total: number; availableCredits: number; hasEnoughCredits: boolean } | null> => {
+    async (id = campaignId): Promise<CostEstimate | null> => {
       if (!id) return null;
       try {
         const res = await fetch(`/api/ai/story-ad-campaign/${id}/estimate-cost`);
-        const json = (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<{
-          total: number;
-          availableCredits: number;
-          hasEnoughCredits: boolean;
-        }>;
+        const json = (await res.json().catch(() => ({ success: false }))) as ApiEnvelope<CostEstimate>;
         if (json.success && json.data) return json.data;
       } catch {
         /* fall through — caller treats null as "couldn't estimate" */
