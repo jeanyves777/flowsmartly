@@ -291,8 +291,10 @@ export function AdBuilderCanvas() {
         id,
         refId: cl.id,
         kind: "clip",
-        x: 1400 + i * 360,
-        y: 130,
+        // Zig-zag two-row layout packs scenes tighter and reads as a flow;
+        // the user can still drag any card and the wires re-route.
+        x: 1400 + i * 330,
+        y: 110 + (i % 2) * 250,
         title: `Scene ${cl.index ?? i + 1}`,
         subtitle: cl.sceneAction || cl.act || "",
         subject: subject || undefined,
@@ -306,7 +308,7 @@ export function AdBuilderCanvas() {
     });
 
     if (state) {
-      const outX = clips.length ? 1400 + clips.length * 360 : 1400;
+      const outX = clips.length ? 1400 + clips.length * 330 + 60 : 1400;
       ns.push({
         id: OUTPUT_ID,
         refId: null,
@@ -348,17 +350,24 @@ export function AdBuilderCanvas() {
       ? state.clips.find((c) => c.id === selected.refId) ?? null
       : null;
 
+  // Smart connector: pick which side of each card the wire attaches to based on
+  // where the two cards sit relative to each other, so a card the user drags
+  // anywhere still connects cleanly (exit the side that faces the target).
   const wirePath = useCallback(
     (e: Edge): string | null => {
       const a = nodeById.get(e.from);
       const b = nodeById.get(e.to);
       if (!a || !b) return null;
-      const sx = a.x + NODE_W;
+      const aCenter = a.x + NODE_W / 2;
+      const bCenter = b.x + NODE_W / 2;
+      const forward = bCenter >= aCenter; // target is to the right (normal flow)
+      const sx = forward ? a.x + NODE_W : a.x; // exit right when forward, else left
+      const tx = forward ? b.x : b.x + NODE_W; // enter the facing side
       const sy = a.y + PORT_DY;
-      const tx = b.x;
       const ty = b.y + PORT_DY;
-      const dx = Math.max(40, Math.abs(tx - sx) * 0.5);
-      return `M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}`;
+      const dir = forward ? 1 : -1;
+      const dx = Math.max(48, Math.abs(tx - sx) * 0.45);
+      return `M${sx},${sy} C${sx + dir * dx},${sy} ${tx - dir * dx},${ty} ${tx},${ty}`;
     },
     [nodeById],
   );
@@ -688,8 +697,14 @@ export function AdBuilderCanvas() {
                   {/* media thumb + preview button (characters, scenes, final) */}
                   {n.thumb ? (
                     <div className="relative">
-                      {isVideoUrl(n.thumb) ? (
-                        <video src={n.thumb} muted playsInline className="h-44 w-full rounded-lg object-cover" />
+                      {isVideoUrl(n.thumb) || n.kind === "output" ? (
+                        <video
+                          src={n.thumb}
+                          playsInline
+                          muted={n.kind !== "output"}
+                          controls={n.kind === "output"}
+                          className="h-44 w-full rounded-lg bg-black object-contain"
+                        />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={n.thumb} alt="" className="h-44 w-full rounded-lg object-cover" />
@@ -980,9 +995,24 @@ export function AdBuilderCanvas() {
               <>
                 <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Final reel</label>
                 {state?.finalVideoUrl ? (
-                  <a href={state.finalVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 underline">
-                    Open rendered reel
-                  </a>
+                  <>
+                    <video
+                      src={state.finalVideoUrl}
+                      controls
+                      playsInline
+                      className="w-full rounded-lg border border-border bg-black"
+                      style={{ maxHeight: "48vh" }}
+                    />
+                    <a
+                      href={state.finalVideoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      download
+                      className="mt-2 inline-block text-xs text-brand-500 underline"
+                    >
+                      Download / open in new tab
+                    </a>
+                  </>
                 ) : (
                   <p className="text-[11px] text-muted-foreground">{readyClipCount} of {clips.length} scenes rendered. Stitch combines them into one reel with captions.</p>
                 )}
