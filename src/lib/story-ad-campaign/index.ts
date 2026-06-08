@@ -462,26 +462,41 @@ Return strict JSON only:
   ]
 }`;
 
-  const result = await ai.generateJSON<{ storyOutline?: string; characters: PlannedCharacter[] }>(prompt, {
-    maxTokens: 2000,
-    temperature: 0.7,
-    systemPrompt:
-      "You are a screenwriter who DRAMATIZES THE USER'S BRIEF LITERALLY. The story outline must open on the first scene described in the brief and follow the user's sequence in order — you do not invent generic alternatives or skip ahead to the brand. Characters are REAL HUMANS — brands are never characters. Return valid JSON only.",
-  });
+  // Self-heal: if the model returns only non-human personifications ("The System",
+  // a mascot, a brand-named avatar), retry with an escalating correction instead of
+  // bouncing the error back to the user, who then has to manually regenerate.
+  let result: { storyOutline?: string; characters?: PlannedCharacter[] } | null = null;
+  let filtered: PlannedCharacter[] = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const retryNudge =
+      attempt === 0
+        ? ""
+        : `\n\n🚨 RETRY ${attempt} — your previous response was REJECTED because it contained NON-HUMAN entities (e.g. "The System", "The App", a brand mascot, a glowing orb) or named a character after the brand. EVERY character MUST be a REAL HUMAN PERSON: a human first name, a real age, a human body and face. Zero abstractions, zero product/system personifications, zero mascots/holograms/orbs/avatars. Recast the story with real people only.`;
+    result = await ai.generateJSON<{ storyOutline?: string; characters: PlannedCharacter[] }>(prompt + retryNudge, {
+      maxTokens: 2000,
+      temperature: attempt === 0 ? 0.7 : 0.85,
+      systemPrompt:
+        "You are a screenwriter who DRAMATIZES THE USER'S BRIEF LITERALLY. The story outline must open on the first scene described in the brief and follow the user's sequence in order — you do not invent generic alternatives or skip ahead to the brand. Characters are REAL HUMANS — brands, products, apps, and systems are NEVER characters. Return valid JSON only.",
+    });
 
-  const raw = Array.isArray(result?.characters) ? result.characters : [];
-  // Strip the narrator if the AI sneaks it in despite the rule (e.g. a "character"
-  // named "Narrator" with no real visual description). Same idea for any voice-of-god
-  // construct in narrated mode.
-  const noNarrator = state.style === "narrated"
-    ? raw.filter((c) => {
-        const name = String(c?.name || "").toLowerCase();
-        const role = String(c?.role || "").toLowerCase();
-        return !/\bnarrator|voice.?over|voice of god|the voice\b/.test(`${name} ${role}`);
-      })
-    : raw;
-  const filtered = noNarrator.filter((c) => isRealHumanCharacter(c, brand));
-  if (!filtered.length && raw.length) {
+    const raw = Array.isArray(result?.characters) ? result.characters : [];
+    // Strip the narrator if the AI sneaks it in despite the rule (e.g. a "character"
+    // named "Narrator" with no real visual description). Same idea for any voice-of-god
+    // construct in narrated mode.
+    const noNarrator =
+      state.style === "narrated"
+        ? raw.filter((c) => {
+            const name = String(c?.name || "").toLowerCase();
+            const role = String(c?.role || "").toLowerCase();
+            return !/\bnarrator|voice.?over|voice of god|the voice\b/.test(`${name} ${role}`);
+          })
+        : raw;
+    filtered = noNarrator.filter((c) => isRealHumanCharacter(c, brand));
+    if (filtered.length) break;
+    console.warn(`[StoryAdCampaign] character catalog attempt ${attempt + 1} returned no real humans — retrying`);
+  }
+
+  if (!filtered.length) {
     throw new Error(
       "AI returned only non-human personifications (e.g. 'The System'). Regenerate the catalog — characters must be real humans.",
     );
