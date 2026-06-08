@@ -633,6 +633,7 @@ export function AdBuilderCanvas() {
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
         onPointerLeave={onStagePointerUp}
+        onWheel={(e) => setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }))}
       >
         <div
           className="absolute left-0 top-0 origin-top-left"

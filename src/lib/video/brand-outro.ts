@@ -62,9 +62,17 @@ async function loadLogoBuffer(src: string): Promise<Buffer | null> {
  */
 export async function buildBrandOutroClip(opts: BrandOutroOptions): Promise<Buffer | null> {
   const ffmpegPath = findFFmpegPath();
-  if (!ffmpegPath) return null;
-  const logoBuf = await loadLogoBuffer(opts.logoSource);
-  if (!logoBuf) return null;
+  if (!ffmpegPath) {
+    console.warn("[brand-outro] no ffmpeg on PATH");
+    return null;
+  }
+  // Prefer a caller-supplied buffer (fetched via the app's robust downloader);
+  // fall back to our own loader for the logoSource string.
+  const logoBuf = (opts.logoBuffer && opts.logoBuffer.length ? opts.logoBuffer : null) || (await loadLogoBuffer(opts.logoSource));
+  if (!logoBuf) {
+    console.warn("[brand-outro] could not load logo from:", String(opts.logoSource).slice(0, 120));
+    return null;
+  }
 
   const { w, h } = targetDims(opts.aspectRatio);
   const dur = Math.min(6, Math.max(2, opts.durationSec ?? 3));
@@ -128,6 +136,8 @@ export interface BrandOutroOptions {
   musicBuffer?: Buffer | null;
   /** File extension for the music buffer (default "wav"). */
   musicExt?: string;
+  /** Pre-fetched logo bytes (preferred over re-loading logoSource). */
+  logoBuffer?: Buffer | null;
 }
 
 /**

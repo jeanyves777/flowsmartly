@@ -3949,32 +3949,51 @@ async function renderOutroSceneClip(input: {
   brand: BrandSnapshot;
   aspectRatio: CampaignAspectRatio;
 }): Promise<string | null> {
-  if (!input.brand.logo) return null;
+  if (!input.brand.logo) {
+    console.warn("[StoryAdCampaign] outro: brand has no logo");
+    return null;
+  }
 
-  // Best-effort music sting (Lyria). Silent outro card if unavailable.
+  // Fetch the logo with the app's robust downloader (same one the corner-logo
+  // overlay uses) rather than the outro module's limited loader.
+  let logoBuffer: Buffer | null = null;
+  try {
+    logoBuffer = await downloadToBuffer(input.brand.logo);
+  } catch (e) {
+    console.warn("[StoryAdCampaign] outro: logo download failed for", String(input.brand.logo).slice(0, 120), e instanceof Error ? e.message : e);
+  }
+
+  // Best-effort music sting (Lyria), time-boxed so it can't hang the render.
   let musicBuffer: Buffer | null = null;
   let musicExt = "wav";
   if (isLyriaEnabled()) {
     try {
-      const m = await generateMusicClip({
-        prompt: `A short, uplifting brand outro music sting for ${input.brand.industry || "a modern business"} — warm, confident, cinematic, resolves cleanly in about 3 seconds. Instrumental only, no vocals.`,
-      });
+      const m = await Promise.race([
+        generateMusicClip({
+          prompt: `A short, uplifting brand outro music sting for ${input.brand.industry || "a modern business"} — warm, confident, cinematic, resolves cleanly in about 3 seconds. Instrumental only, no vocals.`,
+        }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Lyria timed out")), 45_000)),
+      ]);
       musicBuffer = m.audioBuffer;
       musicExt = /mp3|mpeg/i.test(m.mimeType) ? "mp3" : "wav";
     } catch (e) {
-      console.warn("[StoryAdCampaign] outro music gen failed, silent outro:", e);
+      console.warn("[StoryAdCampaign] outro music gen failed, silent outro:", e instanceof Error ? e.message : e);
     }
   }
 
   const buf = await buildBrandOutroClip({
     logoSource: input.brand.logo,
+    logoBuffer,
     aspectRatio: outroAspect(input.aspectRatio),
     brandColor: input.brand.primaryColor,
     durationSec: 3,
     musicBuffer,
     musicExt,
   });
-  if (!buf) return null;
+  if (!buf) {
+    console.warn("[StoryAdCampaign] outro: buildBrandOutroClip returned null (logo bytes:", logoBuffer?.length ?? 0, ")");
+    return null;
+  }
 
   const key = `story-ad-campaigns/${input.campaignId}/outro-${nanoid(8)}.mp4`;
   return uploadToS3(key, buf, "video/mp4");
