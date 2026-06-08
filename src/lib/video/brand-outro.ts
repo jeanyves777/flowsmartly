@@ -60,6 +60,10 @@ export interface BrandOutroOptions {
   brandColor?: string | null;
   /** Outro length in seconds. Default 2.6. */
   durationSec?: number;
+  /** Optional music played over the outro segment (e.g. a Lyria sting). */
+  musicBuffer?: Buffer | null;
+  /** File extension for the music buffer (default "wav"). */
+  musicExt?: string;
 }
 
 /**
@@ -86,14 +90,16 @@ export async function addBrandOutro(contentBuffer: Buffer, opts: BrandOutroOptio
   const tmpDir = path.join(os.tmpdir(), `fs-outro-${randomUUID()}`);
   const inPath = path.join(tmpDir, "in.mp4");
   const logoPath = path.join(tmpDir, "logo.png");
+  const musicPath = path.join(tmpDir, `music.${(opts.musicExt || "wav").replace(/[^a-z0-9]/gi, "") || "wav"}`);
   const outPath = path.join(tmpDir, "out.mp4");
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
     fs.writeFileSync(inPath, contentBuffer);
     fs.writeFileSync(logoPath, logoBuf);
+    const hasMusic = !!(opts.musicBuffer && opts.musicBuffer.length);
+    if (hasMusic) fs.writeFileSync(musicPath, opts.musicBuffer as Buffer);
 
-    // Inputs: 0 = content, 1 = generated color card, 2 = looped logo.
-    const filter =
+    const videoFilter =
       // Normalize content to the target frame.
       `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:-1:-1:color=black,setsar=1,fps=30[v0];` +
       // Animate the logo: scale into a box, fade in, fade out near the end.
@@ -104,22 +110,54 @@ export async function addBrandOutro(contentBuffer: Buffer, opts: BrandOutroOptio
       // Concatenate content → outro (video only).
       `[v0][v1]concat=n=2:v=1:a=0[v]`;
 
-    await execFileAsync(
-      ffmpegPath,
-      [
-        "-i", inPath,
-        "-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`,
-        "-loop", "1", "-t", String(dur), "-i", logoPath,
-        "-filter_complex", filter,
-        "-map", "[v]",
-        "-map", "0:a?", // carry the content's audio (if any); outro stays silent
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "128k",
-        "-movflags", "+faststart",
-        "-y", outPath,
-      ],
-      { timeout: 240000, maxBuffer: 1024 * 1024 * 16 },
-    );
+    // With music: keep the content's own audio, then play the music over the
+    // outro segment (content audio + outro music, concatenated). If the content
+    // has no audio stream this graph errors and we fall back to the original.
+    const audioFilter = hasMusic
+      ? `;[0:a]aformat=sample_rates=44100:channel_layouts=stereo[ac];` +
+        `[3:a]atrim=0:${dur.toFixed(2)},asetpts=PTS-STARTPTS,` +
+        `afade=in:st=0:d=0.5,afade=out:st=${(dur - 0.7).toFixed(2)}:d=0.7,volume=0.7,` +
+        `aformat=sample_rates=44100:channel_layouts=stereo[am];` +
+        `[ac][am]concat=n=2:v=0:a=1[aout]`
+      : "";
+
+    const args = [
+      "-i", inPath,
+      "-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`,
+      "-loop", "1", "-t", String(dur), "-i", logoPath,
+      ...(hasMusic ? ["-i", musicPath] : []),
+      "-filter_complex", videoFilter + audioFilter,
+      "-map", "[v]",
+      ...(hasMusic ? ["-map", "[aout]"] : ["-map", "0:a?"]),
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "160k",
+      "-movflags", "+faststart",
+      "-y", outPath,
+    ];
+
+    try {
+      await execFileAsync(ffmpegPath, args, { timeout: 240000, maxBuffer: 1024 * 1024 * 16 });
+    } catch (err) {
+      // Music graph can fail if the content has no audio stream — retry the
+      // silent-outro path so we still get the branded end-card.
+      if (hasMusic) {
+        const silentArgs = [
+          "-i", inPath,
+          "-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`,
+          "-loop", "1", "-t", String(dur), "-i", logoPath,
+          "-filter_complex", videoFilter,
+          "-map", "[v]",
+          "-map", "0:a?",
+          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "128k",
+          "-movflags", "+faststart",
+          "-y", outPath,
+        ];
+        await execFileAsync(ffmpegPath, silentArgs, { timeout: 240000, maxBuffer: 1024 * 1024 * 16 });
+      } else {
+        throw err;
+      }
+    }
 
     return fs.readFileSync(outPath);
   } catch (err) {

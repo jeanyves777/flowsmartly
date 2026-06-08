@@ -12,6 +12,7 @@ import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
+import { addBrandOutro } from "@/lib/video/brand-outro";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
@@ -61,6 +62,7 @@ interface BrandSnapshot {
   website?: string | null;
   logo?: string | null;
   uniqueValue?: string | null;
+  primaryColor?: string | null;
   personality: string[];
   products: string[];
 }
@@ -179,6 +181,14 @@ export async function getBrandSnapshot(userId: string): Promise<BrandSnapshot> {
     };
   }
 
+  let primaryColor: string | null = null;
+  try {
+    const c = JSON.parse(brand.colors || "{}");
+    if (typeof c?.primary === "string") primaryColor = c.primary;
+  } catch {
+    /* ignore malformed colors json */
+  }
+
   return {
     name: brand.name,
     tagline: brand.tagline,
@@ -189,6 +199,7 @@ export async function getBrandSnapshot(userId: string): Promise<BrandSnapshot> {
     website: brand.website,
     logo: brand.logo,
     uniqueValue: brand.uniqueValue,
+    primaryColor,
     personality: parseArray(brand.personality),
     products: parseArray(brand.products),
   };
@@ -905,6 +916,9 @@ export async function planSceneGrid(
   const targetWordsPerClip = Math.round(state.clipLength * wordsPerSecond * targetCoverage);
   const minWordsPerClip = Math.round(state.clipLength * wordsPerSecond * minCoverage);
   const targetSecondsPerClip = Math.round(state.clipLength * targetCoverage);
+  // HARD ceiling: dialogue longer than ~90% of the clip gets cut off when the
+  // clip ends at exactly clipLength seconds. Never exceed this.
+  const maxWordsPerClip = Math.round(state.clipLength * wordsPerSecond * 0.9);
   const totalWords = Math.round(totalSeconds * wordsPerSecond * targetCoverage);
 
   const lastTwo = Math.max(1, Math.min(2, Math.floor(clipCount * 0.15)));
@@ -945,7 +959,7 @@ CONTINUITY RULES:
 - Treat the whole film as ONE scene flow. Dialogue across clip boundaries must connect — clip N+1 picks up from clip N.
 - If a clip ends mid-conversation, clip N+1 continues that conversation.
 - Characters remember what was said earlier; they don't suddenly know things they haven't learned.
-- Re-use the same locations and characters across consecutive clips when the conversation continues.
+- LOCK THE SETTING: pick ONE primary location for the film and keep EVERY clip in that SAME place — same room/set, same background, same furniture and props, same time-of-day. Only change location if the brief explicitly describes moving somewhere else. Describe the location consistently in every clip's sceneAction (same place, restated) so the background stays identical clip to clip — just like the cast stays identical.
 - Within ONE scene from the brief (e.g. "at war"), give it MULTIPLE consecutive clips so it feels lived-in, not a flash card.
 
 For each clip output:
@@ -957,10 +971,15 @@ For each clip output:
 - characterIds: array of character ids visible on-camera (1 to 3). [] for pure environment/product shots.
 - dialogue: array of spoken lines in order. Characters TALK TO EACH OTHER on camera. Each line: { "characterId": "...", "line": "...", "emotion": "..." }. For a silent visual moment use dialogue: [].
 
-DURATION-FILL RULE:
-- Every ${state.clipLength}-second clip with dialogue must contain AT LEAST ${minWordsPerClip} words (≈${Math.round(state.clipLength * minCoverage)}s) and target ~${targetWordsPerClip} words (≈${targetSecondsPerClip}s).
+DURATION-FILL RULE (each clip is EXACTLY ${state.clipLength}s — speech must FIT, not overflow):
+- Every ${state.clipLength}-second clip with dialogue contains AT LEAST ${minWordsPerClip} words, targets ~${targetWordsPerClip} words, and NEVER EXCEEDS ${maxWordsPerClip} words. Going over ${maxWordsPerClip} words means the line gets CUT OFF when the clip ends — the #1 thing to avoid. Count the words; if a line is too long, shorten it or split the thought across clips.
+- Each clip's dialogue must be a COMPLETE thought that finishes naturally within the ${state.clipLength}s — end on a finished sentence, never mid-word or mid-phrase. The viewer should never feel a line was chopped.
+- Make clip-to-clip transitions seamless: end each clip on a natural pause/beat and have the next clip pick up smoothly, so the cut feels intentional, not abrupt.
 - If one character speaks a short line, ADD a reply to fill the time. Real conversations have back-and-forth.
 - Silent visual beats (dialogue: []) are allowed but limited to 2 per film, never adjacent — useful for action-heavy scenes from the brief (e.g. a combat moment) where dialogue would feel forced.
+
+ENDING RULE (the LAST clip must CLOSE the film):
+- The final clip must deliver a satisfying, complete ending — the resolution + the brand beat + a clear closing line/CTA — fully spoken within its ${state.clipLength}s. It must NOT trail off, cut mid-sentence, or feel like the story just stopped. End on a confident, finished note.
 
 HARD RULES:
 - The BRIEF is the law. Follow its scene order literally.
@@ -1449,7 +1468,7 @@ age that the reference shows. The wardrobe + environment can change per scene ac
 Match the surrounding clips on:
 - Exact same visual style and color grade as ${visualLanguage}
 - Exact same characters (same face, hair, build, wardrobe family) — see character reference portraits below
-- Same world / time-of-day / weather / setting unless the scene action explicitly says we cut elsewhere
+- ENVIRONMENT LOCK (as strict as the character lock): the SAME physical location/set across every clip — identical background, walls, wall color, furniture, props, decor, and lighting setup. The room/place must look the SAME in this clip as in all the others. Do NOT relocate, redecorate, change the backdrop, or swap time-of-day/weather unless THIS clip's scene action explicitly says they move to a new place. Treat the background like a recurring set the way a TV show reuses the same set.
 - Same lens character (anamorphic feel, same depth-of-field language, same shot composition density)
 - Treat this clip as a single shot inside a longer film, not a standalone ad
 - DO NOT introduce new on-camera characters who weren't in the listed roster. Crowds + passersby stay generic, blurred, out-of-focus.`;
@@ -3486,6 +3505,25 @@ async function runFinalAssembly(input: {
       finalVideoUrl = stitchedUrl;
     }
 
+    // Append an animated brand-logo OUTRO (the user's real logo on a brand-color
+    // end-card, with a short music sting) as the final "scene" of the reel.
+    if (finalVideoUrl && brand.logo) {
+      try {
+        await prisma.cartoonVideo.update({
+          where: { id: input.campaignId },
+          data: { progress: 97, currentStep: "Adding brand outro..." },
+        });
+        finalVideoUrl = await appendBrandOutro({
+          campaignId: input.campaignId,
+          videoUrl: finalVideoUrl,
+          brand,
+          aspectRatio: input.state.aspectRatio,
+        });
+      } catch (e) {
+        console.warn("[StoryAdCampaign] brand outro append failed, shipping without it:", e);
+      }
+    }
+
     try {
       await prisma.cartoonVideo.update({
         where: { id: input.campaignId },
@@ -3781,6 +3819,54 @@ async function concatClipsIntoReel(
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+// =============================================================
+// Brand OUTRO — animated logo end-card (+ music sting) as the final scene
+// =============================================================
+
+/** CampaignAspectRatio → the brand-outro Aspect (same string values). */
+function outroAspect(a: CampaignAspectRatio): "16:9" | "9:16" | "1:1" {
+  return a === "9:16" || a === "1:1" ? a : "16:9";
+}
+
+async function appendBrandOutro(input: {
+  campaignId: string;
+  videoUrl: string;
+  brand: BrandSnapshot;
+  aspectRatio: CampaignAspectRatio;
+}): Promise<string> {
+  if (!input.brand.logo) return input.videoUrl;
+  const videoBuf = await downloadToBuffer(input.videoUrl);
+
+  // Best-effort music sting for the outro (Lyria). Silent outro if unavailable.
+  let musicBuffer: Buffer | null = null;
+  let musicExt = "wav";
+  if (isLyriaEnabled()) {
+    try {
+      const m = await generateMusicClip({
+        prompt: `A short, uplifting brand outro music sting for ${input.brand.industry || "a modern business"} — warm, confident, cinematic, resolves cleanly in about 3 seconds. Instrumental only, no vocals.`,
+      });
+      musicBuffer = m.audioBuffer;
+      musicExt = /mp3|mpeg/i.test(m.mimeType) ? "mp3" : "wav";
+    } catch (e) {
+      console.warn("[StoryAdCampaign] outro music gen failed, silent outro:", e);
+    }
+  }
+
+  const outBuf = await addBrandOutro(videoBuf, {
+    logoSource: input.brand.logo,
+    aspectRatio: outroAspect(input.aspectRatio),
+    brandColor: input.brand.primaryColor,
+    durationSec: 3,
+    musicBuffer,
+    musicExt,
+  });
+  // addBrandOutro returns the SAME buffer on any failure → nothing to upload.
+  if (outBuf === videoBuf) return input.videoUrl;
+
+  const key = `story-ad-campaigns/${input.campaignId}/final-outro-${nanoid(8)}.mp4`;
+  return uploadToS3(key, outBuf, "video/mp4");
 }
 
 // =============================================================
