@@ -24,12 +24,13 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { FlowActionSpinner } from "@/components/shared/ai-generation-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { useAdCampaign } from "./use-ad-campaign";
 import type { CostEstimate } from "./use-ad-campaign";
+import type { CampaignStyle } from "@/lib/story-ad-campaign/types";
 
 // ---------------------------------------------------------------------------
 // Node-canvas Ad Builder — a guided, INLINE, card-by-card pipeline:
@@ -94,6 +95,14 @@ const OUTPUT_ID = "__output";
 // Supported ad lengths (must be a subset of the API's ALLOWED_DURATIONS).
 const LENGTHS = [30, 60, 90] as const;
 
+// Visual style is an explicit pick (the API's ALLOWED_STYLES) so the render
+// engine honors it instead of guessing from the brief text.
+const STYLES: { v: CampaignStyle; label: string; hint: string }[] = [
+  { v: "cinematic", label: "Cinematic", hint: "live-action" },
+  { v: "3d", label: "3D", hint: "animated" },
+  { v: "narrated", label: "Narrated", hint: "stills + VO" },
+];
+
 function isVideoUrl(url?: string | null): boolean {
   return !!url && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
 }
@@ -111,6 +120,9 @@ export function AdBuilderCanvas() {
 
   const [brief, setBrief] = useState("");
   const [lengthSec, setLengthSec] = useState<number>(30);
+  // Visual style is an EXPLICIT choice (not inferred from the brief text), so a
+  // "3d movie" brief actually renders 3D — not photoreal cinematic.
+  const [style, setStyle] = useState<CampaignStyle>("cinematic");
   const [selectedId, setSelectedId] = useState<string | null>(PROMPT_ID);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -124,6 +136,13 @@ export function AdBuilderCanvas() {
   const [cost, setCost] = useState<CostEstimate | null>(null);
   const [costLoading, setCostLoading] = useState(false);
   const [costApproved, setCostApproved] = useState(false);
+  // Edit buffer for prompt fields (character appearance / scene action). Kept in a
+  // ref so generate/render handlers can FLUSH the latest typed value before running
+  // — otherwise an onBlur save races the generate call and the old prompt is used.
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const editsRef = useRef(edits);
+  editsRef.current = edits;
+  const setEdit = (key: string, val: string) => setEdits((p) => ({ ...p, [key]: val }));
   const { toast } = useToast();
 
   const dragNode = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -138,7 +157,11 @@ export function AdBuilderCanvas() {
     const cid = searchParams.get("c");
     if (cid) {
       void camp.load(cid).then((s) => {
-        if (s) setCostApproved(s.characters.length > 0); // returning to an in-progress build
+        if (s) {
+          setCostApproved(s.characters.length > 0); // returning to an in-progress build
+          if (s.style) setStyle(s.style);
+          if (s.durationSeconds) setLengthSec(s.durationSeconds);
+        }
       });
     }
     // run once on mount
@@ -152,14 +175,18 @@ export function AdBuilderCanvas() {
     }
   }, [campaignId, searchParams, router]);
 
+  // Depend on the STABLE estimateCost callback, not the whole `camp` object
+  // (which is a fresh literal every render and would re-fire the effect forever
+  // → the "Pricing…" flicker).
+  const estimateCost = camp.estimateCost;
   const refreshCost = useCallback(
     async (id: string) => {
       setCostLoading(true);
-      const c = await camp.estimateCost(id);
+      const c = await estimateCost(id);
       setCost(c);
       setCostLoading(false);
     },
-    [camp],
+    [estimateCost],
   );
 
   // Pull a fresh estimate whenever the campaign id or its clip plan changes
@@ -374,8 +401,42 @@ export function AdBuilderCanvas() {
       return null;
     }
     setLocalError(null);
-    return camp.create({ brief: brief.trim(), durationSeconds: lengthSec });
-  }, [campaignId, brief, lengthSec, camp]);
+    return camp.create({ brief: brief.trim(), durationSeconds: lengthSec, style });
+  }, [campaignId, brief, lengthSec, style, camp]);
+
+  // Persist the latest typed prompt BEFORE generating, so an edit isn't lost to a
+  // race with the (async) onBlur save — the cause of "it used the old prompt".
+  const flushCharEdit = useCallback(
+    async (charId: string) => {
+      const buf = editsRef.current[`char-desc-${charId}`];
+      if (buf == null || !camp.state) return;
+      const cur = camp.state.characters.find((c) => c.id === charId)?.visualDescription ?? "";
+      if (buf !== cur) {
+        await camp.patchState({
+          characters: camp.state.characters.map((c) => (c.id === charId ? { ...c, visualDescription: buf } : c)),
+        });
+      }
+    },
+    [camp],
+  );
+  const flushClipEdit = useCallback(
+    async (clipId: string) => {
+      const buf = editsRef.current[`clip-${clipId}`];
+      if (buf == null || !camp.state) return;
+      const cur = camp.state.clips.find((c) => c.id === clipId)?.sceneAction ?? "";
+      if (buf !== cur) await camp.updateClip(clipId, { sceneAction: buf });
+    },
+    [camp],
+  );
+  // Render a single clip after flushing any pending edit to its scene prompt.
+  const onRenderClip = useCallback(
+    async (clipId: string) => {
+      if (!campaignId) return;
+      await flushClipEdit(clipId);
+      await camp.renderClip(clipId, campaignId);
+    },
+    [campaignId, camp, flushClipEdit],
+  );
 
   // STEP 1 → create the campaign + price it. Cost card then shows for approval.
   const onEstimate = useCallback(async () => {
@@ -417,9 +478,10 @@ export function AdBuilderCanvas() {
     async (charId: string) => {
       const id = campaignId;
       if (!id) return;
+      await flushCharEdit(charId);
       await camp.generateCharacter(charId, id);
     },
-    [campaignId, camp],
+    [campaignId, camp, flushCharEdit],
   );
 
   // STEP 3b → generate every character image still missing one (resumable).
@@ -435,6 +497,7 @@ export function AdBuilderCanvas() {
           note: `${todo[i].name || "Character"} (${i + 1}/${todo.length})`,
           progress: Math.round((i / Math.max(1, todo.length)) * 100),
         });
+        await flushCharEdit(todo[i].id);
         await camp.generateCharacter(todo[i].id, id);
       }
       toast({ title: "Characters ready", description: "Now write the scene script." });
@@ -442,7 +505,7 @@ export function AdBuilderCanvas() {
     } finally {
       setStage(null);
     }
-  }, [campaignId, chars, camp, toast]);
+  }, [campaignId, chars, camp, toast, flushCharEdit]);
 
   // STEP 4 → write the screenplay (one scene per ~8s, based on the chosen length).
   const onGenerateScript = useCallback(async () => {
@@ -469,6 +532,8 @@ export function AdBuilderCanvas() {
     const pending = clips.filter((c) => !(c.status === "READY" && c.videoUrl));
     setStage({ kind: "scenes", note: "Rendering scenes…" });
     try {
+      // Persist any edited scene prompts first so the render uses the latest text.
+      for (const cl of clips) await flushClipEdit(cl.id);
       let done = clips.length - pending.length;
       for (const cl of pending) {
         setStage({
@@ -484,7 +549,7 @@ export function AdBuilderCanvas() {
     } finally {
       setStage(null);
     }
-  }, [campaignId, clips, camp, toast]);
+  }, [campaignId, clips, camp, toast, flushClipEdit]);
 
   // STEP 6 → stitch the rendered scenes into the final reel.
   const onGenerateFinal = useCallback(async () => {
@@ -533,7 +598,7 @@ export function AdBuilderCanvas() {
         <span className="hidden text-xs text-muted-foreground sm:inline">Studio › Ad Builder</span>
         {stage && (
           <span className="flex items-center gap-1.5 text-xs text-brand-500">
-            <AISpinner size={14} /> {stage.note}
+            <FlowActionSpinner size={14} /> {stage.note}
             {typeof stage.progress === "number" ? ` · ${stage.progress}%` : ""}
           </span>
         )}
@@ -604,7 +669,7 @@ export function AdBuilderCanvas() {
                 <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-bold">
                   <Icon className={cn("h-3.5 w-3.5", KIND_ACCENT[n.kind])} />
                   <span className="truncate">{n.title}</span>
-                  {busy && <AISpinner size={12} className="text-brand-500" />}
+                  {busy && <FlowActionSpinner size={12} className="text-brand-500" />}
                   {n.badge && (
                     <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold", KIND_BADGE[n.kind])}>
                       {n.badge}
@@ -670,7 +735,7 @@ export function AdBuilderCanvas() {
                           onClick={(e) => { e.stopPropagation(); void onGenerateScript(); }}
                           className="h-8 w-full gap-1.5 text-[11px]"
                         >
-                          {stage?.kind === "script" ? <AISpinner size={12} className="text-current" /> : <ScrollText className="h-3.5 w-3.5" />}
+                          {stage?.kind === "script" ? <FlowActionSpinner size={12} className="text-current" /> : <ScrollText className="h-3.5 w-3.5" />}
                           Generate scene script
                         </Button>
                       ) : (
@@ -681,7 +746,7 @@ export function AdBuilderCanvas() {
                           onClick={(e) => { e.stopPropagation(); void onGenerateAllScenes(); }}
                           className="h-8 w-full gap-1.5 text-[11px]"
                         >
-                          {stage?.kind === "scenes" ? <AISpinner size={12} className="text-current" /> : <Clapperboard className="h-3.5 w-3.5" />}
+                          {stage?.kind === "scenes" ? <FlowActionSpinner size={12} className="text-current" /> : <Clapperboard className="h-3.5 w-3.5" />}
                           {readyClipCount === 0 ? "Generate all video scenes" : allScenesReady ? "Re-render all scenes" : `Render remaining (${clips.length - readyClipCount})`}
                         </Button>
                       )}
@@ -703,12 +768,12 @@ export function AdBuilderCanvas() {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (n.kind === "character" && n.refId) void onGenerateCharacter(n.refId);
-                        else if (n.kind === "clip" && n.refId) void camp.renderClip(n.refId);
+                        else if (n.kind === "clip" && n.refId) void onRenderClip(n.refId);
                       }}
                       className="h-7 w-full gap-1.5 text-[11px]"
                     >
                       {n.status === "generating" ? (
-                        <AISpinner size={12} className="text-current" />
+                        <FlowActionSpinner size={12} className="text-current" />
                       ) : n.thumb ? (
                         <RefreshCw className="h-3 w-3" />
                       ) : (
@@ -729,7 +794,7 @@ export function AdBuilderCanvas() {
                       onClick={(e) => { e.stopPropagation(); void onGenerateFinal(); }}
                       className="h-7 w-full gap-1.5 text-[11px]"
                     >
-                      {stage?.kind === "final" ? <AISpinner size={12} className="text-current" /> : <Film className="h-3 w-3" />}
+                      {stage?.kind === "final" ? <FlowActionSpinner size={12} className="text-current" /> : <Film className="h-3 w-3" />}
                       {state?.finalVideoUrl ? "Re-stitch final video" : "Generate final video"}
                     </Button>
                   </div>
@@ -806,6 +871,24 @@ export function AdBuilderCanvas() {
                   placeholder="e.g. A 30-second reel for our glow serum — a woman's calming night skincare routine, cinematic."
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
                 />
+                <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Type — choose the visual style</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {STYLES.map((s) => (
+                    <button
+                      key={s.v}
+                      disabled={!!campaignId}
+                      onClick={() => setStyle(s.v)}
+                      className={cn(
+                        "rounded-lg border px-2 py-1.5 text-center text-xs font-semibold transition-colors",
+                        style === s.v ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300" : "border-border text-muted-foreground hover:border-brand-400/50",
+                        campaignId && "opacity-60",
+                      )}
+                    >
+                      {s.label}
+                      <span className="mt-0.5 block text-[9px] font-normal opacity-70">{s.hint}</span>
+                    </button>
+                  ))}
+                </div>
                 <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Video length</label>
                 <div className="flex gap-1.5">
                   {LENGTHS.map((l) => (
@@ -851,8 +934,9 @@ export function AdBuilderCanvas() {
                 <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Appearance prompt — review before generating</label>
                 <textarea
                   key={`desc-${selectedChar.id}`}
-                  defaultValue={selectedChar.visualDescription}
-                  onBlur={(e) => saveCharacter(camp, state, selectedChar.id, { visualDescription: e.target.value })}
+                  value={edits[`char-desc-${selectedChar.id}`] ?? selectedChar.visualDescription ?? ""}
+                  onChange={(e) => setEdit(`char-desc-${selectedChar.id}`, e.target.value)}
+                  onBlur={() => void flushCharEdit(selectedChar.id)}
                   rows={4}
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
                 />
@@ -875,8 +959,9 @@ export function AdBuilderCanvas() {
                 <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Scene prompt — review / edit</label>
                 <textarea
                   key={`scene-${selectedClip.id}`}
-                  defaultValue={selectedClip.sceneAction}
-                  onBlur={(e) => camp.updateClip(selectedClip.id, { sceneAction: e.target.value })}
+                  value={edits[`clip-${selectedClip.id}`] ?? selectedClip.sceneAction ?? ""}
+                  onChange={(e) => setEdit(`clip-${selectedClip.id}`, e.target.value)}
+                  onBlur={() => void flushClipEdit(selectedClip.id)}
                   rows={4}
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-brand-500"
                 />
@@ -914,7 +999,7 @@ export function AdBuilderCanvas() {
               <>
                 <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Brief + length → estimate.</p>
                 <Button size="sm" onClick={onEstimate} disabled={!!stage} className="shrink-0 gap-1.5">
-                  {stage?.kind === "create" ? <AISpinner size={14} className="text-current" /> : <Coins className="h-3.5 w-3.5" />}
+                  {stage?.kind === "create" ? <FlowActionSpinner size={14} className="text-current" /> : <Coins className="h-3.5 w-3.5" />}
                   {campaignId ? "Re-estimate" : "Estimate cost"}
                 </Button>
               </>
@@ -931,7 +1016,7 @@ export function AdBuilderCanvas() {
                   </Button>
                 ) : (
                   <Button size="sm" onClick={onApproveCost} disabled={!!stage || !cost} className="shrink-0 gap-1.5">
-                    {stage?.kind === "cast" ? <AISpinner size={14} className="text-current" /> : <Check className="h-3.5 w-3.5" />}
+                    {stage?.kind === "cast" ? <FlowActionSpinner size={14} className="text-current" /> : <Check className="h-3.5 w-3.5" />}
                     Approve & cast
                   </Button>
                 )}
@@ -956,7 +1041,7 @@ export function AdBuilderCanvas() {
                   disabled={selectedChar.previewStatus === "generating"}
                   className="shrink-0 gap-1.5"
                 >
-                  {selectedChar.previewStatus === "generating" ? <AISpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {selectedChar.previewStatus === "generating" ? <FlowActionSpinner size={14} className="text-current" /> : <Sparkles className="h-3.5 w-3.5" />}
                   Generate
                 </Button>
               </>
@@ -967,12 +1052,12 @@ export function AdBuilderCanvas() {
                 <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Write the script, then render scenes.</p>
                 {!scenesPlanned ? (
                   <Button size="sm" onClick={onGenerateScript} disabled={!allCharsHaveImages || !!stage} className="shrink-0 gap-1.5">
-                    {stage?.kind === "script" ? <AISpinner size={14} className="text-current" /> : <ScrollText className="h-3.5 w-3.5" />}
+                    {stage?.kind === "script" ? <FlowActionSpinner size={14} className="text-current" /> : <ScrollText className="h-3.5 w-3.5" />}
                     Generate script
                   </Button>
                 ) : (
                   <Button size="sm" onClick={onGenerateAllScenes} disabled={!!stage} className="shrink-0 gap-1.5">
-                    {stage?.kind === "scenes" ? <AISpinner size={14} className="text-current" /> : <Clapperboard className="h-3.5 w-3.5" />}
+                    {stage?.kind === "scenes" ? <FlowActionSpinner size={14} className="text-current" /> : <Clapperboard className="h-3.5 w-3.5" />}
                     Render all scenes
                   </Button>
                 )}
@@ -993,12 +1078,12 @@ export function AdBuilderCanvas() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => camp.renderClip(selectedClip.id)}
+                  onClick={() => void onRenderClip(selectedClip.id)}
                   disabled={selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED"}
                   className="shrink-0 gap-1.5"
                 >
                   {selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED" ? (
-                    <AISpinner size={14} className="text-current" />
+                    <FlowActionSpinner size={14} className="text-current" />
                   ) : selectedClip.videoUrl ? (
                     <RefreshCw className="h-3.5 w-3.5" />
                   ) : (
@@ -1013,7 +1098,7 @@ export function AdBuilderCanvas() {
               <>
                 <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Stitch the rendered scenes.</p>
                 <Button size="sm" onClick={onGenerateFinal} disabled={readyClipCount === 0 || !!stage} className="shrink-0 gap-1.5">
-                  {stage?.kind === "final" ? <AISpinner size={14} className="text-current" /> : <Film className="h-3.5 w-3.5" />}
+                  {stage?.kind === "final" ? <FlowActionSpinner size={14} className="text-current" /> : <Film className="h-3.5 w-3.5" />}
                   Final video
                 </Button>
               </>
@@ -1090,7 +1175,7 @@ function CostCardBody({
     <div className="mt-1 space-y-2">
       {loading && !cost ? (
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <AISpinner size={12} /> Pricing…
+          <FlowActionSpinner size={12} /> Pricing…
         </div>
       ) : cost ? (
         <>
@@ -1151,7 +1236,7 @@ function CostBreakdown({ cost, loading }: { cost: CostEstimate | null; loading: 
   if (loading && !cost) {
     return (
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <AISpinner size={14} /> Checking pricing…
+        <FlowActionSpinner size={14} /> Checking pricing…
       </div>
     );
   }
