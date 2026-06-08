@@ -171,6 +171,8 @@ export interface CampaignClipSlot {
   status: "PENDING" | "QUEUED" | "RENDERING" | "READY" | "FAILED";
   videoUrl?: string | null;
   error?: string | null;
+  /** Brand outro end-card scene (logo + music). Rendered locally (ffmpeg), no Veo cost. */
+  isOutro?: boolean;
   /** User reviewed this rendered clip and approved it for the final compose. */
   approved?: boolean;
   /** Narrated style: what the narrator says over this scene */

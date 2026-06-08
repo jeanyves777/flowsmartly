@@ -23,11 +23,13 @@ export async function POST(
     return NextResponse.json({ success: false, error: { message: "Clip not found" } }, { status: 404 });
   }
 
-  // Charge credits per retry (same as a normal clip render)
+  // Charge credits per retry (same as a normal clip render). The brand OUTRO
+  // scene renders locally (ffmpeg) with no provider cost, so it's always free.
   const isAdmin = !!session.adminId;
+  const isOutro = clip.isOutro === true;
   const cost = creditsPerClip(current.state.clipLength);
 
-  if (!isAdmin) {
+  if (!isAdmin && !isOutro) {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { aiCredits: true },
@@ -66,8 +68,8 @@ export async function POST(
   try {
     const result = await retrySingleClip({ campaignId: id, userId: session.userId, clipId });
 
-    // Refund if the retry itself failed
-    if (result.status === "FAILED" && !isAdmin) {
+    // Refund if the retry itself failed (outro was never charged → never refunded)
+    if (result.status === "FAILED" && !isAdmin && !isOutro) {
       const user = await prisma.user.findUnique({
         where: { id: session.userId },
         select: { aiCredits: true },

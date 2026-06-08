@@ -295,7 +295,7 @@ export function AdBuilderCanvas() {
         // the user can still drag any card and the wires re-route.
         x: 1400 + i * 330,
         y: 110 + (i % 2) * 250,
-        title: `Scene ${cl.index ?? i + 1}`,
+        title: cl.isOutro ? "Brand outro" : `Scene ${cl.index ?? i + 1}`,
         subtitle: cl.sceneAction || cl.act || "",
         subject: subject || undefined,
         badge: cl.videoUrl ? "clip" : undefined,

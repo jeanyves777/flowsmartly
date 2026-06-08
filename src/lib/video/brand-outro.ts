@@ -54,6 +54,70 @@ async function loadLogoBuffer(src: string): Promise<Buffer | null> {
   }
 }
 
+/**
+ * Build a STANDALONE brand-outro clip (color card + animated logo + optional
+ * music) — not appended to anything. Used as a real "outro scene" in a reel so
+ * it shows as its own card and flows through the normal concat/transitions.
+ * Returns null on any failure (no ffmpeg, no logo) so callers can skip it.
+ */
+export async function buildBrandOutroClip(opts: BrandOutroOptions): Promise<Buffer | null> {
+  const ffmpegPath = findFFmpegPath();
+  if (!ffmpegPath) return null;
+  const logoBuf = await loadLogoBuffer(opts.logoSource);
+  if (!logoBuf) return null;
+
+  const { w, h } = targetDims(opts.aspectRatio);
+  const dur = Math.min(6, Math.max(2, opts.durationSec ?? 3));
+  const bg = toFfmpegColor(opts.brandColor);
+  const logoW = Math.round(w * 0.55);
+  const logoH = Math.round(h * 0.45);
+  const hasMusic = !!(opts.musicBuffer && opts.musicBuffer.length);
+
+  const tmpDir = path.join(os.tmpdir(), `fs-outroclip-${randomUUID()}`);
+  const logoPath = path.join(tmpDir, "logo.png");
+  const musicPath = path.join(tmpDir, `music.${(opts.musicExt || "wav").replace(/[^a-z0-9]/gi, "") || "wav"}`);
+  const outPath = path.join(tmpDir, "outro.mp4");
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(logoPath, logoBuf);
+    if (hasMusic) fs.writeFileSync(musicPath, opts.musicBuffer as Buffer);
+
+    const videoFilter =
+      `[1:v]scale=w='min(${logoW},iw)':h='min(${logoH},ih)':force_original_aspect_ratio=decrease,format=rgba,` +
+      `fade=in:st=0:d=0.7:alpha=1,fade=out:st=${(dur - 0.6).toFixed(2)}:d=0.6:alpha=1[logo];` +
+      `[0:v][logo]overlay=x=(W-w)/2:y='(H-h)/2 + 36*(1-min(t/0.7,1))':format=auto,setsar=1,fps=30[v]`;
+
+    const args = [
+      "-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`,
+      "-loop", "1", "-t", String(dur), "-i", logoPath,
+      ...(hasMusic ? ["-i", musicPath] : ["-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo"]),
+      "-filter_complex",
+      hasMusic
+        ? `${videoFilter};[2:a]atrim=0:${dur.toFixed(2)},asetpts=PTS-STARTPTS,afade=in:st=0:d=0.5,afade=out:st=${(dur - 0.7).toFixed(2)}:d=0.7,volume=0.8,aformat=sample_rates=48000:channel_layouts=stereo[a]`
+        : videoFilter,
+      "-map", "[v]",
+      "-map", hasMusic ? "[a]" : "2:a",
+      "-t", String(dur),
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "160k",
+      "-movflags", "+faststart",
+      "-y", outPath,
+    ];
+    await execFileAsync(ffmpegPath, args, { timeout: 180000, maxBuffer: 1024 * 1024 * 16 });
+    return fs.readFileSync(outPath);
+  } catch (err) {
+    console.warn("[brand-outro] standalone clip failed:", err instanceof Error ? err.message : err);
+    return null;
+  } finally {
+    try {
+      for (const f of fs.readdirSync(tmpDir)) fs.unlinkSync(path.join(tmpDir, f));
+      fs.rmdirSync(tmpDir);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export interface BrandOutroOptions {
   logoSource: string;
   aspectRatio: Aspect;

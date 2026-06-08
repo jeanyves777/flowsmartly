@@ -12,7 +12,7 @@ import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
-import { addBrandOutro } from "@/lib/video/brand-outro";
+import { buildBrandOutroClip } from "@/lib/video/brand-outro";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
@@ -1076,6 +1076,27 @@ Return strict JSON with exactly ${clipCount} clips:
     };
     slot.prompt = buildClipPrompt(slot, state, brand);
     clips.push(slot);
+  }
+
+  // Append a real OUTRO scene (brand logo end-card + music) when the brand has a
+  // logo — it shows as its own scene card and renders locally (no Veo cost).
+  if (brand.logo) {
+    clips.push({
+      id: nanoid(8),
+      index: clips.length + 1,
+      act: "CTA",
+      shotType: "MEDIUM",
+      cameraMovement: "STATIC",
+      sceneAction: `Brand outro — the ${brand.name} logo on a branded end card with a short music sting.`,
+      moodLighting: "Clean branded end-card.",
+      characterIds: [],
+      dialogue: [],
+      prompt: "",
+      status: "PENDING",
+      videoUrl: null,
+      error: null,
+      isOutro: true,
+    });
   }
 
   return { clips };
@@ -3148,22 +3169,41 @@ export async function retrySingleClip(input: {
   const idx = state.clips.findIndex((c) => c.id === input.clipId);
   if (idx === -1) throw new Error("Clip not found");
 
-  if (state.provider === "veo3" && !veoClient.isAvailable()) {
-    throw new Error("Veo 3 is not configured. Switch provider.");
-  }
-  if (state.provider === "xai" && !grokVideoClient.isAvailable()) {
-    throw new Error("xAI video is not configured. Switch provider.");
+  const isOutroClip = state.clips[idx]?.isOutro === true;
+
+  // The outro scene renders locally (ffmpeg end-card), so it doesn't need a
+  // video provider — skip the Veo/xAI availability gate for it.
+  if (!isOutroClip) {
+    if (state.provider === "veo3" && !veoClient.isAvailable()) {
+      throw new Error("Veo 3 is not configured. Switch provider.");
+    }
+    if (state.provider === "xai" && !grokVideoClient.isAvailable()) {
+      throw new Error("xAI video is not configured. Switch provider.");
+    }
   }
 
   const clips = [...state.clips];
   // Re-build the prompt from the (possibly edited) scene action before rendering, so a
   // user who tweaked the script gets a fresh clip matching the new text.
   const brand = await getBrandSnapshot(input.userId);
-  clips[idx] = { ...clips[idx], prompt: buildClipPrompt(clips[idx], state, brand), status: "RENDERING", error: null, approved: false };
+  clips[idx] = {
+    ...clips[idx],
+    prompt: isOutroClip ? "" : buildClipPrompt(clips[idx], state, brand),
+    status: "RENDERING",
+    error: null,
+    approved: false,
+  };
   await updateCampaignState(input.campaignId, input.userId, { clips });
 
   try {
     const clip = clips[idx];
+    if (isOutroClip) {
+      const url = await renderOutroSceneClip({ campaignId: input.campaignId, brand, aspectRatio: state.aspectRatio });
+      if (!url) throw new Error("Couldn't build the brand outro (no logo or ffmpeg).");
+      clips[idx] = { ...clips[idx], status: "READY", videoUrl: url, error: null };
+      await updateCampaignState(input.campaignId, input.userId, { clips });
+      return { status: "READY", videoUrl: url };
+    }
     if (state.style === "narrated" && clip.mediaType === "image") {
       // Narrated still scene → regenerate the illustration.
       const imageUrl = await generateNarratedSceneImage(clip, state, brand);
@@ -3521,24 +3561,8 @@ async function runFinalAssembly(input: {
       finalVideoUrl = stitchedUrl;
     }
 
-    // Append an animated brand-logo OUTRO (the user's real logo on a brand-color
-    // end-card, with a short music sting) as the final "scene" of the reel.
-    if (finalVideoUrl && brand.logo) {
-      try {
-        await prisma.cartoonVideo.update({
-          where: { id: input.campaignId },
-          data: { progress: 97, currentStep: "Adding brand outro..." },
-        });
-        finalVideoUrl = await appendBrandOutro({
-          campaignId: input.campaignId,
-          videoUrl: finalVideoUrl,
-          brand,
-          aspectRatio: input.state.aspectRatio,
-        });
-      } catch (e) {
-        console.warn("[StoryAdCampaign] brand outro append failed, shipping without it:", e);
-      }
-    }
+    // The brand outro is now a real scene clip (rendered + concatenated like any
+    // other), so there's no separate stitch-time append step here.
 
     try {
       await prisma.cartoonVideo.update({
@@ -3915,16 +3939,19 @@ function outroAspect(a: CampaignAspectRatio): "16:9" | "9:16" | "1:1" {
   return a === "9:16" || a === "1:1" ? a : "16:9";
 }
 
-async function appendBrandOutro(input: {
+/**
+ * Render the OUTRO scene as a standalone clip (brand logo end-card + Lyria music
+ * sting). Returns the uploaded mp4 URL, or null if it can't be built (no logo /
+ * no ffmpeg) so the caller can mark the clip failed.
+ */
+async function renderOutroSceneClip(input: {
   campaignId: string;
-  videoUrl: string;
   brand: BrandSnapshot;
   aspectRatio: CampaignAspectRatio;
-}): Promise<string> {
-  if (!input.brand.logo) return input.videoUrl;
-  const videoBuf = await downloadToBuffer(input.videoUrl);
+}): Promise<string | null> {
+  if (!input.brand.logo) return null;
 
-  // Best-effort music sting for the outro (Lyria). Silent outro if unavailable.
+  // Best-effort music sting (Lyria). Silent outro card if unavailable.
   let musicBuffer: Buffer | null = null;
   let musicExt = "wav";
   if (isLyriaEnabled()) {
@@ -3939,7 +3966,7 @@ async function appendBrandOutro(input: {
     }
   }
 
-  const outBuf = await addBrandOutro(videoBuf, {
+  const buf = await buildBrandOutroClip({
     logoSource: input.brand.logo,
     aspectRatio: outroAspect(input.aspectRatio),
     brandColor: input.brand.primaryColor,
@@ -3947,11 +3974,10 @@ async function appendBrandOutro(input: {
     musicBuffer,
     musicExt,
   });
-  // addBrandOutro returns the SAME buffer on any failure → nothing to upload.
-  if (outBuf === videoBuf) return input.videoUrl;
+  if (!buf) return null;
 
-  const key = `story-ad-campaigns/${input.campaignId}/final-outro-${nanoid(8)}.mp4`;
-  return uploadToS3(key, outBuf, "video/mp4");
+  const key = `story-ad-campaigns/${input.campaignId}/outro-${nanoid(8)}.mp4`;
+  return uploadToS3(key, buf, "video/mp4");
 }
 
 // =============================================================
@@ -4122,7 +4148,10 @@ export interface CampaignRenderCost {
  */
 export function estimateCampaignRenderCost(state: CampaignState): CampaignRenderCost {
   const C = DEFAULT_CREDIT_COSTS;
-  const clipCount = state.clips.length || clipsForDuration(state.durationSeconds, state.clipLength);
+  // The brand outro renders locally (no provider cost), so it doesn't count toward
+  // the paid clip total.
+  const paidClips = state.clips.filter((c) => !c.isOutro);
+  const clipCount = paidClips.length || clipsForDuration(state.durationSeconds, state.clipLength);
 
   let videoCredits = 0;
   let imageCredits = 0;
