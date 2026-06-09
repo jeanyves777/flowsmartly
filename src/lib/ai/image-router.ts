@@ -25,16 +25,17 @@ export function getGptImageSize(width: number, height: number): "1024x1024" | "1
 }
 
 export function xaiFirstImageProviderOrder(preferred?: ImageProvider | null): ImageProvider[] {
-  // Premium tier = Google (Gemini) primary (~4x cheaper than OpenAI high), with
-  // OpenAI as the fallback — NEVER xAI, so a Premium request never silently
-  // drops to the Standard engine. (OpenAI-preferred kept as a mirror case.)
-  // Every other case keeps the xAI-first chain.
+  // Provider tier policy (set by the user):
+  //   • STANDARD / default → Google "Nano Banana" (Gemini) PRIMARY, OpenAI then
+  //     xAI as fallbacks. (name kept for back-compat; no longer xAI-first.)
+  //   • PREMIUM            → OpenAI gpt-image PRIMARY (preferred === "openai"),
+  //     Gemini as the fallback — never xAI, so Premium can't drop to Standard.
   const base: Array<ImageProvider | null | undefined> =
-    preferred === "gemini"
-      ? ["gemini", "openai"]
-      : preferred === "openai"
-        ? ["openai", "gemini"]
-        : ["xai", preferred, "openai", "gemini"];
+    preferred === "openai"
+      ? ["openai", "gemini"]
+      : preferred === "gemini"
+        ? ["gemini", "openai"]
+        : ["gemini", preferred, "openai", "xai"];
   const order: ImageProvider[] = [];
   for (const provider of base) {
     if (provider && !order.includes(provider)) order.push(provider);
