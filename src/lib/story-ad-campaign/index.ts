@@ -14,7 +14,7 @@ import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from 
 import { generateMusicClip, isLyriaEnabled } from "@/lib/ai/lyria-client";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
-import { uploadToS3 } from "@/lib/utils/s3-client";
+import { uploadToS3, isS3Url, downloadS3ObjectToBuffer } from "@/lib/utils/s3-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateSoundEffect, generateWithClonedVoice, isElevenLabsEnabled } from "@/lib/voice/elevenlabs-client";
 import { VOICE_CLEANUP_FILTER, AMBIENT_BED_FILTER, AMBIENT_BED_MAX_GAIN_DB } from "@/lib/audio/voice-cleanup";
@@ -3515,6 +3515,15 @@ function runFFmpeg(args: string[], timeoutMs = 900000): Promise<void> {
 }
 
 async function downloadToBuffer(url: string): Promise<Buffer> {
+  // For our own S3 objects, fetch by key via the authenticated client — a stored
+  // presigned URL can be expired (403) even though the object is still public.
+  if (isS3Url(url)) {
+    try {
+      return await downloadS3ObjectToBuffer(url);
+    } catch {
+      /* fall through to a plain fetch (e.g. CDN-fronted) */
+    }
+  }
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Download failed (${response.status}) for ${url}`);
   return Buffer.from(await response.arrayBuffer());

@@ -117,7 +117,7 @@ function isS3Key(str: string): boolean {
  * https://flowsmartly-media.s3.us-east-2.amazonaws.com/media/abc.png.
  * This lets presign / key-extraction recognize both.
  */
-function isS3Url(url: string): boolean {
+export function isS3Url(url: string): boolean {
   if (!url) return false;
   const cleanUrl = url.split("?")[0];
   if (cleanUrl.startsWith(STORAGE_URL)) return true;
@@ -126,6 +126,19 @@ function isS3Url(url: string): boolean {
   // Path style: https://s3.{region}.amazonaws.com/{bucket}/{key}
   if (new RegExp(`^https://s3\\.[a-z0-9-]+\\.amazonaws\\.com/${BUCKET}/`).test(cleanUrl)) return true;
   return false;
+}
+
+/**
+ * Download one of OUR S3 objects to a Buffer using the authenticated client
+ * (by key). Use this instead of fetch() for stored S3 URLs — a saved presigned
+ * URL can expire (403) even though the object itself is still there/public.
+ */
+export async function downloadS3ObjectToBuffer(keyOrUrl: string): Promise<Buffer> {
+  const key = extractS3Key(keyOrUrl);
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`S3 object has no body: ${key}`);
+  const bytes = await (res.Body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+  return Buffer.from(bytes);
 }
 
 /**
