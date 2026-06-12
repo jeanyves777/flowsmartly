@@ -5,7 +5,7 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { creditsPerClip, getCampaign, retrySingleClip } from "@/lib/story-ad-campaign";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; clipId: string }> },
 ) {
   const session = await getSession();
@@ -13,6 +13,9 @@ export async function POST(
     return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
   }
   const { id, clipId } = await params;
+  const body = (await request.json().catch(() => ({}))) as { lengthSec?: number };
+  const lengthSec =
+    typeof body.lengthSec === "number" && body.lengthSec > 8 ? Math.min(15, Math.round(body.lengthSec)) : undefined;
 
   const current = await getCampaign(id, session.userId);
   if (!current) {
@@ -66,7 +69,7 @@ export async function POST(
   }
 
   try {
-    const result = await retrySingleClip({ campaignId: id, userId: session.userId, clipId });
+    const result = await retrySingleClip({ campaignId: id, userId: session.userId, clipId, lengthSec });
 
     // Refund if the retry itself failed (outro was never charged → never refunded)
     if (result.status === "FAILED" && !isAdmin && !isOutro) {

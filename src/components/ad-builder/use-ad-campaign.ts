@@ -251,7 +251,7 @@ export function useAdCampaign() {
   /** Render (or re-render) a single scene clip. Reloads state afterward since the
    *  retry endpoint returns just the clip result, not the whole campaign. */
   const renderClip = useCallback(
-    async (clipId: string, id = campaignId): Promise<void> => {
+    async (clipId: string, id = campaignId, opts?: { lengthSec?: number }): Promise<void> => {
       if (!id) return;
       setError(null);
       setState((s) =>
@@ -262,6 +262,7 @@ export function useAdCampaign() {
       try {
         const json = await postJson<{ result: unknown }>(
           `/api/ai/story-ad-campaign/${id}/clips/${clipId}/retry`,
+          opts?.lengthSec ? { lengthSec: opts.lengthSec } : undefined,
         );
         if (!json.success) throw new Error(errMessage(json, "Scene render failed"));
         await load(id);
@@ -274,6 +275,16 @@ export function useAdCampaign() {
     },
     [campaignId, load],
   );
+
+  /** Insert a new blank scene (free) before the outro; user fills + generates it. */
+  const addScene = useCallback(async (id = campaignId): Promise<void> => {
+    if (!id) return;
+    const json = await postJson<{ state: CampaignState }>(
+      `/api/ai/story-ad-campaign/${id}/clips/manage`,
+      { action: "add_blank" },
+    );
+    if (json.success && json.data?.state) setState(json.data.state);
+  }, [campaignId]);
 
   /** Edit a scene's action/prompt, persist, and rebuild the render prompt from it. */
   const updateClip = useCallback(
@@ -377,6 +388,7 @@ export function useAdCampaign() {
     renderClip,
     updateClip,
     removeClip,
+    addScene,
     renderAllScenes,
     estimateCost,
     finalize,

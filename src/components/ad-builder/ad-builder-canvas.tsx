@@ -11,9 +11,11 @@ import {
   Coins,
   Download,
   Film,
+  FolderOpen,
   ImagePlus,
   Maximize2,
   Minus,
+  Pencil,
   Plus,
   RefreshCw,
   ScrollText,
@@ -124,6 +126,10 @@ export function AdBuilderCanvas() {
   // "3d movie" brief actually renders 3D — not photoreal cinematic.
   const [style, setStyle] = useState<CampaignStyle>("cinematic");
   const [selectedId, setSelectedId] = useState<string | null>(PROMPT_ID);
+  // Inspector is opened EXPLICITLY (Edit button), not on every click — so a plain
+  // click/drag just selects the card. detailId drives the bottom-sheet.
+  const [detailId, setDetailId] = useState<string | null>(PROMPT_ID);
+  const openDetail = (id: string) => { setSelectedId(id); setDetailId(id); };
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>({});
@@ -142,6 +148,8 @@ export function AdBuilderCanvas() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const editsRef = useRef(edits);
   editsRef.current = edits;
+  // Per-scene length choice in the detail panel (8s default; 15s renders via xAI).
+  const [sceneLen, setSceneLen] = useState(8);
   const setEdit = (key: string, val: string) => setEdits((p) => ({ ...p, [key]: val }));
   const { toast } = useToast();
 
@@ -340,7 +348,7 @@ export function AdBuilderCanvas() {
     for (const n of nodes) m.set(n.id, n);
     return m;
   }, [nodes]);
-  const selected = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const selected = detailId ? nodeById.get(detailId) ?? null : null;
   const selectedChar =
     selected?.kind === "character" && state
       ? state.characters.find((c) => c.id === selected.refId) ?? null
@@ -349,6 +357,15 @@ export function AdBuilderCanvas() {
     selected?.kind === "clip" && state
       ? state.clips.find((c) => c.id === selected.refId) ?? null
       : null;
+  // When a different scene's detail opens, sync the length picker to its override.
+  const selectedClipId = selectedClip?.id;
+  useEffect(() => {
+    if (selectedClipId) {
+      const cl = state?.clips.find((c) => c.id === selectedClipId);
+      setSceneLen(cl?.lengthOverrideSec || 8);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClipId]);
 
   // Smart connector: pick which side of each card the wire attaches to based on
   // where the two cards sit relative to each other, so a card the user drags
@@ -438,11 +455,12 @@ export function AdBuilderCanvas() {
     [camp],
   );
   // Render a single clip after flushing any pending edit to its scene prompt.
+  // A lengthSec > 8 routes THIS scene through xAI for a longer beat.
   const onRenderClip = useCallback(
-    async (clipId: string) => {
+    async (clipId: string, lengthSec?: number) => {
       if (!campaignId) return;
       await flushClipEdit(clipId);
-      await camp.renderClip(clipId, campaignId);
+      await camp.renderClip(clipId, campaignId, lengthSec && lengthSec > 8 ? { lengthSec } : undefined);
     },
     [campaignId, camp, flushClipEdit],
   );
@@ -612,7 +630,12 @@ export function AdBuilderCanvas() {
           </span>
         )}
         <div className="flex-1" />
-        <span className="hidden text-[11px] text-muted-foreground md:inline">Follow the cards left → right</span>
+        <Link
+          href="/ad-builder/campaign"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          <FolderOpen className="h-3.5 w-3.5" /> My campaigns
+        </Link>
       </div>
 
       {/* error toast (inline strip) */}
@@ -679,12 +702,24 @@ export function AdBuilderCanvas() {
                 <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-bold">
                   <Icon className={cn("h-3.5 w-3.5", KIND_ACCENT[n.kind])} />
                   <span className="truncate">{n.title}</span>
-                  {busy && <FlowActionSpinner size={12} className="text-brand-500" />}
-                  {n.badge && (
-                    <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-extrabold", KIND_BADGE[n.kind])}>
-                      {n.badge}
-                    </span>
-                  )}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {busy && <FlowActionSpinner size={12} className="text-brand-500" />}
+                    {n.badge && (
+                      <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-extrabold", KIND_BADGE[n.kind])}>
+                        {n.badge}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      title="Edit / details"
+                      aria-label="Edit details"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); openDetail(n.id); }}
+                      className="flex h-5 w-5 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="px-3 py-2.5 text-[11px] leading-relaxed">
@@ -867,7 +902,7 @@ export function AdBuilderCanvas() {
             </span>
             <span className="text-[11px] text-muted-foreground">node</span>
             <button
-              onClick={() => setSelectedId(null)}
+              onClick={() => setDetailId(null)}
               aria-label="Close"
               className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground"
             >
@@ -989,6 +1024,31 @@ export function AdBuilderCanvas() {
                 ) : null}
                 {selectedClip.error && <p className="mt-2 text-[10px] text-destructive">{selectedClip.error}</p>}
                 <p className="mt-2 text-[10px] text-muted-foreground">Status: {selectedClip.status}</p>
+
+                {!selectedClip.isOutro && (
+                  <>
+                    <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Scene length</label>
+                    <div className="flex gap-1.5">
+                      {[8, 15].map((l) => (
+                        <button
+                          key={l}
+                          onClick={() => setSceneLen(l)}
+                          className={cn(
+                            "flex-1 rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors",
+                            sceneLen === l ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300" : "border-border text-muted-foreground hover:border-brand-400/50",
+                          )}
+                        >
+                          {l}s{l === 15 ? <span className="ml-1 text-[9px] font-normal opacity-70">longer</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {sceneLen > 8
+                        ? "15s renders just THIS scene via xAI so a line has room to land."
+                        : "Default 8s (matches the other scenes)."}
+                    </p>
+                  </>
+                )}
               </>
             )}
 
@@ -1081,6 +1141,11 @@ export function AdBuilderCanvas() {
             {selected.kind === "script" && (
               <>
                 <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Write the script, then render scenes.</p>
+                {scenesPlanned && (
+                  <Button size="sm" variant="outline" onClick={() => void camp.addScene()} disabled={!!stage} className="shrink-0 gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> Scene
+                  </Button>
+                )}
                 {!scenesPlanned ? (
                   <Button size="sm" onClick={onGenerateScript} disabled={!allCharsHaveImages || !!stage} className="shrink-0 gap-1.5">
                     {stage?.kind === "script" ? <FlowActionSpinner size={14} className="text-current" /> : <ScrollText className="h-3.5 w-3.5" />}
@@ -1101,7 +1166,7 @@ export function AdBuilderCanvas() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => { camp.removeClip(selectedClip.id); setSelectedId(null); }}
+                  onClick={() => { camp.removeClip(selectedClip.id); setDetailId(null); }}
                   aria-label="Remove scene"
                   className="shrink-0 gap-1.5 text-destructive hover:text-destructive"
                 >
@@ -1109,7 +1174,7 @@ export function AdBuilderCanvas() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => void onRenderClip(selectedClip.id)}
+                  onClick={() => void onRenderClip(selectedClip.id, sceneLen)}
                   disabled={selectedClip.status === "RENDERING" || selectedClip.status === "QUEUED"}
                   className="shrink-0 gap-1.5"
                 >
@@ -1120,7 +1185,7 @@ export function AdBuilderCanvas() {
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
                   )}
-                  {selectedClip.videoUrl ? "Regenerate" : "Generate"}
+                  {selectedClip.videoUrl ? "Regenerate" : "Generate"}{sceneLen > 8 ? " · 15s" : ""}
                 </Button>
               </>
             )}

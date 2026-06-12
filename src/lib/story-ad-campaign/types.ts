@@ -173,6 +173,8 @@ export interface CampaignClipSlot {
   error?: string | null;
   /** Brand outro end-card scene (logo + music). Rendered locally (ffmpeg), no Veo cost. */
   isOutro?: boolean;
+  /** Per-scene length override (seconds). >8 forces the xAI renderer (Grok does up to 15s). */
+  lengthOverrideSec?: number;
   /** User reviewed this rendered clip and approved it for the final compose. */
   approved?: boolean;
   /** Narrated style: what the narrator says over this scene */

@@ -4,6 +4,7 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 import {
   addAndRenderClip,
+  addBlankClip,
   getCampaign,
   refundStoryAdCampaignUsage,
   removeClip,
@@ -62,6 +63,11 @@ export async function POST(
       case "remove": {
         if (!body.clipId) return badRequest("clipId required");
         const state = await removeClip({ campaignId: id, userId: session.userId, clipId: body.clipId });
+        return NextResponse.json({ success: true, data: { state } });
+      }
+      case "add_blank": {
+        // Insert an empty scene (no render → free). User fills + generates it.
+        const state = await addBlankClip({ campaignId: id, userId: session.userId });
         return NextResponse.json({ success: true, data: { state } });
       }
       case "reorder": {

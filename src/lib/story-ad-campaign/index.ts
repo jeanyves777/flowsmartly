@@ -1849,13 +1849,19 @@ function augmentPromptForXai(clip: CampaignClipSlot, state: CampaignState, hasIm
 async function renderClipViaXai(
   clip: CampaignClipSlot,
   state: CampaignState,
+  durationOverride?: number,
 ): Promise<string> {
   // Grok Imagine Video supports 1–15s.
+  // - Per-scene override → exactly what the user picked for THIS scene (up to 15s).
   // - Cheap tier  → ALWAYS uses xAI's full 15s window so the user gets what they paid for,
   //                 regardless of stale state.clipLength values on older rows.
   // - Fallback    → 8s so the clip matches the surrounding Veo clips in concat.
   const isCheapPrimary = state.provider === "cheap";
-  const duration = isCheapPrimary ? 15 : Math.min(8, Math.max(1, state.clipLength));
+  const duration = durationOverride
+    ? Math.min(15, Math.max(1, Math.round(durationOverride)))
+    : isCheapPrimary
+      ? 15
+      : Math.min(8, Math.max(1, state.clipLength));
 
   // xAI's `image` parameter is its only character-anchor mechanism (it acts as the
   // first frame of image-to-video). The augmentPromptForXai() addendum tells xAI to
@@ -3075,6 +3081,37 @@ export async function removeClip(input: {
   return updateCampaignState(input.campaignId, input.userId, { clips: reindexClips(remaining) });
 }
 
+/** Insert a new BLANK scene (no render, free) before the brand outro. The user
+ *  fills in its prompt and generates it like any scene. */
+export async function addBlankClip(input: {
+  campaignId: string;
+  userId: string;
+}): Promise<CampaignState> {
+  const current = await getCampaign(input.campaignId, input.userId);
+  if (!current) throw new Error("Campaign not found");
+  const clips = [...current.state.clips];
+  const blank: CampaignClipSlot = {
+    id: nanoid(8),
+    index: 0,
+    act: "TRANSFORM",
+    shotType: "MEDIUM",
+    cameraMovement: "STATIC",
+    sceneAction: "",
+    moodLighting: "Match the established look + setting.",
+    characterIds: [],
+    dialogue: [],
+    prompt: "",
+    status: "PENDING",
+    videoUrl: null,
+    error: null,
+  };
+  // Keep the brand outro last — insert the new scene right before it.
+  const outroIdx = clips.findIndex((c) => c.isOutro);
+  if (outroIdx >= 0) clips.splice(outroIdx, 0, blank);
+  else clips.push(blank);
+  return updateCampaignState(input.campaignId, input.userId, { clips: reindexClips(clips) });
+}
+
 /** Reorder clips to match the given ordered list of clip ids. Re-indexes. */
 export async function reorderClips(input: {
   campaignId: string;
@@ -3161,6 +3198,8 @@ export async function retrySingleClip(input: {
   campaignId: string;
   userId: string;
   clipId: string;
+  /** Per-scene length override (s). >8 routes this single scene through xAI (Grok). */
+  lengthSec?: number;
 }): Promise<{ status: "READY" | "FAILED"; videoUrl?: string; error?: string }> {
   const current = await getCampaign(input.campaignId, input.userId);
   if (!current) throw new Error("Campaign not found");
@@ -3201,6 +3240,15 @@ export async function retrySingleClip(input: {
       const url = await renderOutroSceneClip({ campaignId: input.campaignId, brand, aspectRatio: state.aspectRatio });
       if (!url) throw new Error("Couldn't build the brand outro (no logo or ffmpeg).");
       clips[idx] = { ...clips[idx], status: "READY", videoUrl: url, error: null };
+      await updateCampaignState(input.campaignId, input.userId, { clips });
+      return { status: "READY", videoUrl: url };
+    }
+    // Per-scene length override → render THIS scene via xAI (Grok does up to 15s),
+    // even if the campaign's default provider is Veo (8s cap).
+    if (input.lengthSec && input.lengthSec > 0) {
+      if (!grokVideoClient.isAvailable()) throw new Error("xAI video is not configured (needed for a longer scene).");
+      const url = await renderClipViaXai(clip, state, input.lengthSec);
+      clips[idx] = { ...clips[idx], status: "READY", videoUrl: url, error: null, lengthOverrideSec: Math.min(15, Math.round(input.lengthSec)) };
       await updateCampaignState(input.campaignId, input.userId, { clips });
       return { status: "READY", videoUrl: url };
     }
