@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
-import { generateImageWithProvider } from "@/lib/ai/image-router";
+import { generateImageForRole } from "@/lib/ai/image-router";
+import { imageGenerateRole } from "@/lib/ai/media-models";
 import type { ImageProvider } from "@/lib/ai/design-image-pipeline";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
@@ -35,41 +36,29 @@ export interface GenerateMediaResult {
   balanceAfter: number | null;
 }
 
-function providerOrderForTier(tier: "premium" | "standard"): ImageProvider[] {
-  if (tier === "premium") return ["openai", "gemini", "xai"];
-  return ["xai", "gemini", "openai"];
-}
-
 async function tryGenerate(
   prompt: string,
   width: number,
   height: number,
   tier: "premium" | "standard",
 ): Promise<{ buffer: Buffer; provider: ImageProvider }> {
-  const order = providerOrderForTier(tier);
-  let lastError: unknown;
-  for (const provider of order) {
-    try {
-      const result = await generateImageWithProvider(
-        provider,
-        prompt,
-        width,
-        height,
-        { quality: tier === "premium" ? "high" : "medium" },
-      );
-      if (!result.base64) throw new Error(`${provider} returned no image`);
-      return { buffer: Buffer.from(result.base64, "base64"), provider };
-    } catch (err) {
-      lastError = err;
-      console.warn(
-        `[automation-media] ${provider} failed for tier=${tier}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
-  }
-  throw new Error(
-    lastError instanceof Error ? lastError.message : "All providers failed",
+  // Route through the GLOBAL media-model policy: Standard → Nano Banana
+  // (gemini-2.5-flash-image, the design/text engine) first; Premium → OpenAI
+  // gpt-image. The router walks the chain, falls through on failure, and now
+  // rejects blank/black frames (see image-quality-guard) so a dead generation
+  // never reaches the logo compositor.
+  const result = await generateImageForRole(
+    imageGenerateRole(tier),
+    prompt,
+    width,
+    height,
+    { quality: tier === "premium" ? "high" : "medium" },
   );
+  if (!result.base64) throw new Error("Image generation returned no image");
+  // design_generate / premium chains never include the "flow" provider; map
+  // defensively so the metadata type stays ImageProvider.
+  const provider = (result.provider === "flow" ? "gemini" : result.provider) as ImageProvider;
+  return { buffer: Buffer.from(result.base64, "base64"), provider };
 }
 
 const ICON_FOR: Record<string, string> = {
