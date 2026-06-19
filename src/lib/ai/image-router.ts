@@ -5,6 +5,7 @@ import { flowImageClient } from "./flow-image-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
 import { imageChain, IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
 import { isOpenAiImageDown, isOpenAiQuotaError, markOpenAiImageDown, withoutDownOpenAi } from "./openai-image-health";
+import { isBlankImageBase64 } from "@/lib/media/image-quality-guard";
 
 export type RoutedImageProvider = ImageProvider | "flow";
 
@@ -150,8 +151,12 @@ export async function generateImageXaiFirst(
         quality: options.quality,
         transparent: options.transparent && provider === "openai",
       });
-      if (result.base64) return result;
-      throw new Error(`${provider} returned no image`);
+      if (!result.base64) throw new Error(`${provider} returned no image`);
+      const blankCheck = await isBlankImageBase64(result.base64);
+      if (blankCheck.blank) {
+        throw new Error(`${provider} returned a blank/black image — ${blankCheck.reason}`);
+      }
+      return result;
     } catch (error) {
       lastError = error;
       if (provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("generate: insufficient_quota");
@@ -306,8 +311,12 @@ export async function generateImageForRole(
         transparent: options.transparent && step.provider === "openai",
         model: step.model,
       });
-      if (result.base64) return result;
-      throw new Error(`${step.provider} returned no image`);
+      if (!result.base64) throw new Error(`${step.provider} returned no image`);
+      const blankCheck = await isBlankImageBase64(result.base64);
+      if (blankCheck.blank) {
+        throw new Error(`${step.provider} (${step.model}) returned a blank/black image — ${blankCheck.reason}`);
+      }
+      return result;
     } catch (error) {
       lastError = error;
       if (step.provider === "openai" && isOpenAiQuotaError(error)) markOpenAiImageDown("role-generate: insufficient_quota");

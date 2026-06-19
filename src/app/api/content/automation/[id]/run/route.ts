@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageForRole } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { soraClient } from "@/lib/ai/sora-client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
@@ -307,7 +307,7 @@ export async function POST(
 
         if (automation.mediaType === "image") {
           console.log("[AutomationRun] Generating image with shared image router...");
-          const generatedImage = await generateImageXaiFirst(mediaPrompt, 1536, 1024, { quality: "medium" });
+          const generatedImage = await generateImageForRole("design_generate", mediaPrompt, 1536, 1024, { quality: "medium" });
           const base64Image = generatedImage.base64;
 
           if (base64Image) {
