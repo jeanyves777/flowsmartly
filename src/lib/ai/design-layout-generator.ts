@@ -9,6 +9,7 @@
 
 import { ai } from "@/lib/ai/client";
 import { buildStudioTools } from "@/lib/ai/studio-tools";
+import { currentDateDirective } from "@/lib/ai/date-context";
 import { POPULAR_FONTS } from "@/components/studio/utils/font-loader";
 import type { AIDesignLayout, AITextElement, AIShapeElement, AIDividerElement, AIImagePlaceholder } from "./design-layout-types";
 
@@ -201,7 +202,9 @@ IMAGE PROMPT GUIDELINES:
 • Background example: "Modern city skyline at sunset, warm golden tones, bokeh lights, cinematic atmosphere. No text or words in the image."
 • NEVER add "on a white background" or "on a plain background" to hero imagePrompts — the server handles transparency.
 
-ELEMENT IDs: Use "el-1", "el-2", etc. sequentially.`;
+ELEMENT IDs: Use "el-1", "el-2", etc. sequentially.
+
+${currentDateDirective()}`;
 }
 
 function buildUserPrompt(params: LayoutGeneratorParams): string {
@@ -224,6 +227,8 @@ function buildUserPrompt(params: LayoutGeneratorParams): string {
   const styleHint = STYLE_HINTS[style || "modern"] || STYLE_HINTS.modern;
 
   let userPrompt = `Design a COMPLETE, publication-ready ${category.replace(/_/g, " ")} for a ${formatDesc} canvas.
+
+${currentDateDirective()}
 
 STYLE: ${style || "modern"} — ${styleHint}
 

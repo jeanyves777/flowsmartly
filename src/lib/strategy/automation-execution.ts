@@ -1,4 +1,5 @@
 import { geminiText } from "@/lib/ai/gemini-text-client";
+import { currentDateContext } from "@/lib/ai/date-context";
 
 type Jsonish = string | null | undefined;
 
@@ -293,6 +294,8 @@ export async function generateAutomationAsset(input: AutomationExecutionInput): 
   const platforms = input.platforms?.length ? input.platforms : ["feed"];
   const prompt = `You are the FlowSmartly Automation Hub. Turn this strategy automation into one executable marketing asset for the next scheduled run.
 
+${currentDateContext()}
+
 --- BRAND ---
 ${formatBrandContext(input.brand)}
 
@@ -436,6 +439,8 @@ function fallbackBlogContent(input: AutomationExecutionInput) {
 export async function generateAutomationBlogPost(input: AutomationExecutionInput): Promise<AutomationGeneratedBlogPost> {
   const fallback = fallbackBlogContent(input);
   const prompt = `You are the FlowSmartly website blog automation writer. Turn this strategy item into one complete blog article for the user's website blog.
+
+${currentDateContext()}
 
 --- BRAND ---
 ${formatBrandContext(input.brand)}

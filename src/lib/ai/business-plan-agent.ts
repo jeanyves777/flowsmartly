@@ -1,6 +1,7 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
+import { currentDateContext } from "@/lib/ai/date-context";
 import type { AgentTool } from "./client";
 
 /**
@@ -69,22 +70,24 @@ export interface BusinessPlanResult {
 
 // Industry priors — ballpark figures to anchor the agent rather than have
 // it invent exact market-size numbers. Not meant to be authoritative.
+// Year is derived dynamically so the "(20XX)" anchor never rots.
+const BENCHMARK_YEAR = new Date().getFullYear();
 const INDUSTRY_BENCHMARKS: Record<
   string,
   { globalMarketUSD: string; cagr: string; topSegments: string[] }
 > = {
-  saas: { globalMarketUSD: "≈$250B (2026)", cagr: "13% CAGR", topSegments: ["CRM", "Collaboration", "Analytics", "Security"] },
-  ecommerce: { globalMarketUSD: "≈$6.3T (2026)", cagr: "9% CAGR", topSegments: ["Fashion", "Electronics", "Home", "Health"] },
-  fintech: { globalMarketUSD: "≈$320B (2026)", cagr: "17% CAGR", topSegments: ["Payments", "Lending", "WealthTech", "InsurTech"] },
-  healthtech: { globalMarketUSD: "≈$640B (2026)", cagr: "18% CAGR", topSegments: ["Telehealth", "Devices", "Records", "Wellness"] },
-  edtech: { globalMarketUSD: "≈$400B (2026)", cagr: "14% CAGR", topSegments: ["K-12", "Higher Ed", "Corporate", "Tutoring"] },
-  marketing: { globalMarketUSD: "≈$780B (2026)", cagr: "8% CAGR", topSegments: ["Digital Ads", "Content", "Social", "SEO"] },
-  food: { globalMarketUSD: "≈$9T (2026)", cagr: "5% CAGR", topSegments: ["Restaurants", "CPG", "Delivery", "Specialty"] },
-  fashion: { globalMarketUSD: "≈$1.9T (2026)", cagr: "4% CAGR", topSegments: ["Apparel", "Luxury", "Footwear", "Accessories"] },
-  fitness: { globalMarketUSD: "≈$100B (2026)", cagr: "9% CAGR", topSegments: ["Gyms", "Apps", "Equipment", "Nutrition"] },
-  real_estate: { globalMarketUSD: "≈$4.1T (2026)", cagr: "3% CAGR", topSegments: ["Residential", "Commercial", "PropTech", "Rentals"] },
-  consulting: { globalMarketUSD: "≈$700B (2026)", cagr: "6% CAGR", topSegments: ["Management", "IT", "Strategy", "HR"] },
-  media: { globalMarketUSD: "≈$2.8T (2026)", cagr: "7% CAGR", topSegments: ["Streaming", "Publishing", "Gaming", "Podcasts"] },
+  saas: { globalMarketUSD: `≈$250B (${BENCHMARK_YEAR})`, cagr: "13% CAGR", topSegments: ["CRM", "Collaboration", "Analytics", "Security"] },
+  ecommerce: { globalMarketUSD: `≈$6.3T (${BENCHMARK_YEAR})`, cagr: "9% CAGR", topSegments: ["Fashion", "Electronics", "Home", "Health"] },
+  fintech: { globalMarketUSD: `≈$320B (${BENCHMARK_YEAR})`, cagr: "17% CAGR", topSegments: ["Payments", "Lending", "WealthTech", "InsurTech"] },
+  healthtech: { globalMarketUSD: `≈$640B (${BENCHMARK_YEAR})`, cagr: "18% CAGR", topSegments: ["Telehealth", "Devices", "Records", "Wellness"] },
+  edtech: { globalMarketUSD: `≈$400B (${BENCHMARK_YEAR})`, cagr: "14% CAGR", topSegments: ["K-12", "Higher Ed", "Corporate", "Tutoring"] },
+  marketing: { globalMarketUSD: `≈$780B (${BENCHMARK_YEAR})`, cagr: "8% CAGR", topSegments: ["Digital Ads", "Content", "Social", "SEO"] },
+  food: { globalMarketUSD: `≈$9T (${BENCHMARK_YEAR})`, cagr: "5% CAGR", topSegments: ["Restaurants", "CPG", "Delivery", "Specialty"] },
+  fashion: { globalMarketUSD: `≈$1.9T (${BENCHMARK_YEAR})`, cagr: "4% CAGR", topSegments: ["Apparel", "Luxury", "Footwear", "Accessories"] },
+  fitness: { globalMarketUSD: `≈$100B (${BENCHMARK_YEAR})`, cagr: "9% CAGR", topSegments: ["Gyms", "Apps", "Equipment", "Nutrition"] },
+  real_estate: { globalMarketUSD: `≈$4.1T (${BENCHMARK_YEAR})`, cagr: "3% CAGR", topSegments: ["Residential", "Commercial", "PropTech", "Rentals"] },
+  consulting: { globalMarketUSD: `≈$700B (${BENCHMARK_YEAR})`, cagr: "6% CAGR", topSegments: ["Management", "IT", "Strategy", "HR"] },
+  media: { globalMarketUSD: `≈$2.8T (${BENCHMARK_YEAR})`, cagr: "7% CAGR", topSegments: ["Streaming", "Publishing", "Gaming", "Podcasts"] },
   other: { globalMarketUSD: "varies by vertical", cagr: "varies", topSegments: ["Varies by sub-segment"] },
 };
 
@@ -161,6 +164,8 @@ function buildTools(ctx: { userId: string }): AgentTool[] {
 
 function buildSystemPrompt(input: BusinessPlanInput): string {
   return `You are a senior business strategist generating a comprehensive, investor-grade business plan for a real founder.
+
+${currentDateContext()}
 
 TOOLS (call these BEFORE writing the plan):
 1. get_brand_identity — pull the founder's live brand. If configured:false, STOP and return an error JSON: {"error": "BRAND_NOT_CONFIGURED"}.

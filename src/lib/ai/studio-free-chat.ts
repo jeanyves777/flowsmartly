@@ -1,5 +1,6 @@
 import type { CardSpec, ChatState, ChatTurn, DispatchEnvelope, RunChatTurnOpts, RunChatTurnResult } from "./studio-chat-agent";
 import { geminiText } from "@/lib/ai/gemini-text-client";
+import { currentDateDirective } from "@/lib/ai/date-context";
 
 type StudioSize = {
   name: string;
@@ -232,6 +233,7 @@ function buildGenerationPrompt(state: ChatState, fallbackMessage: string, refere
   const brief = state.briefContext || state.designText || state.prompt || state.originalRequest || fallbackMessage;
   return [
     "Create a finished marketing design for FlowSmartly Studio.",
+    currentDateDirective(),
     "User brief:",
     brief,
     state.originalRequest && state.originalRequest !== brief ? `Original request: ${state.originalRequest}` : null,

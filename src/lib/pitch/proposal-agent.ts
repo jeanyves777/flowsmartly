@@ -1,5 +1,6 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { currentDateContext } from "@/lib/ai/date-context";
 import type { AgentTool } from "@/lib/ai/client";
 import type { ProposalDeckPlan } from "./proposal-deck-types";
 import type { ProposalClientProfile } from "./client-profile";
@@ -304,6 +305,8 @@ function systemPrompt(input: ServiceProposalInput): string {
     : "Layout preference: none specified.";
 
   return `You are FlowSmartly's Service Proposal Agent.
+
+${currentDateContext()}
 
 Your job: write a polished, specific, client-ready proposal for the user, using their actual brand, their actual offering, and real facts about the prospect.
 

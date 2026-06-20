@@ -222,12 +222,11 @@ export async function editImagesXaiFirst(
         if (!xaiClient.isAvailable()) throw new Error("xAI provider is not configured.");
         const aspectRatio = sizeToAspectRatio(width, height);
         const base64s = sourceBuffers.map((buffer) => buffer.toString("base64"));
-        return {
-          base64: await xaiClient.editImages(prompt, base64s, { aspectRatio }),
-          model: XAI_IMAGE_MODEL,
-          provider,
-          format: "jpeg",
-        };
+        const base64 = await xaiClient.editImages(prompt, base64s, { aspectRatio });
+        if (base64 && !(await isBlankImageBase64(base64)).blank) {
+          return { base64, model: XAI_IMAGE_MODEL, provider, format: "jpeg" };
+        }
+        throw new Error("xai returned no usable image (empty or blank/black)");
       }
 
       if (provider === "openai") {
@@ -246,25 +245,22 @@ export async function editImagesXaiFirst(
               size,
               quality: options.quality || "high",
             });
-        return {
-          base64,
-          model: OPENAI_IMAGE_EDIT_MODEL,
-          provider,
-          format: "png",
-        };
+        if (base64 && !(await isBlankImageBase64(base64)).blank) {
+          return { base64, model: OPENAI_IMAGE_EDIT_MODEL, provider, format: "png" };
+        }
+        throw new Error("openai returned no usable image (empty or blank/black)");
       }
 
       if (provider === "gemini") {
         if (!geminiImageClient.isAvailable()) throw new Error("Gemini provider is not configured.");
         const pngBuffers = sourceBuffers.map((buffer) => buffer.toString("base64"));
-        return {
-          base64: await geminiImageClient.editImages(prompt, pngBuffers, {
-            aspectRatio: sizeToAspectRatioGemini(width, height),
-          }),
-          model: "gemini-2.5-flash-image",
-          provider,
-          format: "png",
-        };
+        const base64 = await geminiImageClient.editImages(prompt, pngBuffers, {
+          aspectRatio: sizeToAspectRatioGemini(width, height),
+        });
+        if (base64 && !(await isBlankImageBase64(base64)).blank) {
+          return { base64, model: "gemini-2.5-flash-image", provider, format: "png" };
+        }
+        throw new Error("gemini returned no usable image (empty or blank/black)");
       }
 
       throw new Error(`Unknown image provider: ${provider}`);
@@ -373,8 +369,8 @@ export async function editImagesForRole(
           sourceBuffers.map((b) => b.toString("base64")),
           { aspectRatio: sizeToAspectRatio(width, height) },
         );
-        if (base64) return { base64, model, provider: "xai", format: "jpeg" };
-        throw new Error("xai returned no image");
+        if (base64 && !(await isBlankImageBase64(base64)).blank) return { base64, model, provider: "xai", format: "jpeg" };
+        throw new Error("xai returned no usable image (empty or blank/black)");
       }
       if (step.provider === "openai") {
         const size = getGptImageSize(width, height);
@@ -394,8 +390,8 @@ export async function editImagesForRole(
                 quality: options.quality || "high",
                 model,
               });
-        if (base64) return { base64, model, provider: "openai", format: "png" };
-        throw new Error("openai returned no image");
+        if (base64 && !(await isBlankImageBase64(base64)).blank) return { base64, model, provider: "openai", format: "png" };
+        throw new Error("openai returned no usable image (empty or blank/black)");
       }
       if (step.provider === "gemini") {
         if (!geminiImageClient.isAvailable()) throw new Error("Gemini provider is not configured.");
@@ -404,8 +400,8 @@ export async function editImagesForRole(
           sourceBuffers.map((b) => b.toString("base64")),
           { aspectRatio: sizeToAspectRatioGemini(width, height) },
         );
-        if (base64) return { base64, model, provider: "gemini", format: "png" };
-        throw new Error("gemini returned no image");
+        if (base64 && !(await isBlankImageBase64(base64)).blank) return { base64, model, provider: "gemini", format: "png" };
+        throw new Error("gemini returned no usable image (empty or blank/black)");
       }
     } catch (error) {
       lastError = error;

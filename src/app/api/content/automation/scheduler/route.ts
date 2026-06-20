@@ -4,8 +4,7 @@ import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
 import { generateBrandedImage } from "@/lib/media/branded-image";
-import { grokVideoClient } from "@/lib/ai/grok-video-client";
-import { soraClient } from "@/lib/ai/sora-client";
+import { generateVideoForRole } from "@/lib/ai/video-router";
 import { uploadToS3, getPresignedUrl } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
 import {
@@ -425,28 +424,19 @@ async function runScheduler(request: NextRequest) {
                 postMediaType = "image";
               }
             } else if (automation.mediaType === "video") {
+              // Central video router: role-based provider ladder + black-frame
+              // guard (a dead/black clip is rejected and falls through).
               let videoBuffer: Buffer | null = null;
               try {
-                if (grokVideoClient.isAvailable()) {
-                  const result = await grokVideoClient.generateVideo(mediaPrompt, {
-                    duration: 8,
-                    aspectRatio: "16:9",
-                    resolution: "720p",
-                    timeoutMs: 900000,
-                  });
-                  videoBuffer = result.videoBuffer;
-                }
-              } catch (videoError) {
-                console.warn(`[Scheduler] xAI video failed for ${automation.id}, trying Sora fallback:`, videoError);
-              }
-
-              if (!videoBuffer) {
-                const result = await soraClient.generateVideoBuffer(mediaPrompt, {
-                  model: "sora-2",
-                  seconds: "8",
-                  size: "1280x720",
+                const v = await generateVideoForRole("video_standard", {
+                  prompt: mediaPrompt,
+                  durationSeconds: 8,
+                  aspectRatio: "16:9",
+                  resolution: "720p",
                 });
-                videoBuffer = result.videoBuffer;
+                videoBuffer = v.videoBuffer;
+              } catch (videoError) {
+                console.warn(`[Scheduler] Video generation failed for ${automation.id}:`, videoError);
               }
 
               if (videoBuffer) {

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { HAIKU_MODEL } from "./client";
+import { currentDateDirective } from "@/lib/ai/date-context";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -227,6 +228,8 @@ export async function designTemplateAsHtml(
 
   const userPrompt = [
     `Topic: ${query}`,
+    ``,
+    currentDateDirective(),
     ``,
     `Viewport: ${width}px × ${height}px (this MUST be the body dimensions).`,
     ``,

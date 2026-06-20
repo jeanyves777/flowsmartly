@@ -1,6 +1,7 @@
 import { veoClient } from "./veo-client";
 import { grokVideoClient } from "./grok-video-client";
 import { videoChain, type VideoRole, type VideoProvider } from "./media-models";
+import { isBlankVideoBuffer } from "@/lib/media/video-quality-guard";
 
 /**
  * Video router — the single entry point for text-to-video generation. Walks
@@ -73,9 +74,13 @@ export async function generateVideoForRole(
           onOperationName: (name) => input.onJobId?.({ provider: "veo3", jobId: name }),
         });
         if (result.videoBuffer?.length) {
-          return { videoBuffer: result.videoBuffer, provider: "veo3", model: `veo-3.1-${veoTier}` };
+          const vcheck = await isBlankVideoBuffer(result.videoBuffer);
+          if (!vcheck.blank) {
+            return { videoBuffer: result.videoBuffer, provider: "veo3", model: `veo-3.1-${veoTier}` };
+          }
+          console.warn(`[VideoRouter] Veo returned a blank/black video (${vcheck.reason}); trying next`);
         }
-        throw new Error("Veo returned no video");
+        throw new Error("Veo returned no usable video (empty or blank/black)");
       } catch (error) {
         lastError = error;
         console.warn("[VideoRouter] Veo failed, trying next:", error instanceof Error ? error.message : error);
@@ -94,9 +99,13 @@ export async function generateVideoForRole(
           onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
         if (result.videoBuffer?.length) {
-          return { videoBuffer: result.videoBuffer, provider: "grok", model: "grok-imagine-video" };
+          const vcheck = await isBlankVideoBuffer(result.videoBuffer);
+          if (!vcheck.blank) {
+            return { videoBuffer: result.videoBuffer, provider: "grok", model: "grok-imagine-video" };
+          }
+          console.warn(`[VideoRouter] Grok returned a blank/black video (${vcheck.reason}); trying next`);
         }
-        throw new Error("Grok returned no video");
+        throw new Error("Grok returned no usable video (empty or blank/black)");
       } catch (error) {
         lastError = error;
         console.warn("[VideoRouter] Grok failed, trying next:", error instanceof Error ? error.message : error);

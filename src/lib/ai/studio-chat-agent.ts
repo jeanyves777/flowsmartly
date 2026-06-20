@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { currentDateDirective } from "@/lib/ai/date-context";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -792,7 +793,7 @@ export async function runChatTurn(opts: RunChatTurnOpts): Promise<RunChatTurnRes
       const params: Record<string, unknown> = {
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2048,
-        system: SYSTEM_PROMPT + stateLine,
+        system: SYSTEM_PROMPT + `\n\n${currentDateDirective()}` + stateLine,
         tools: toolDefs,
         messages: apiMessages as Anthropic.MessageParam[],
       };
