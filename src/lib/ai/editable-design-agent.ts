@@ -18,6 +18,7 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import sharp from "sharp";
+import { currentDateDirective } from "@/lib/ai/date-context";
 import {
   ImageStore,
   resolveToBuffer,
@@ -668,7 +669,9 @@ CREATIVITY — DON'T BE CLICHÉ:
 - The user's reference photo is the focal element — the design supports it, doesn't compete with religious / topical iconography.
 - If the user's brand / brief specifically calls for an icon (e.g. they mention "cross" in the copy), then yes use it. Otherwise: pick from a wider visual vocabulary.
 
-You have 30 turns. Spend them on layers, not on chasing perfection. A design with 12 well-placed layers ships better than 6 endlessly re-critiqued.`;
+You have 30 turns. Spend them on layers, not on chasing perfection. A design with 12 well-placed layers ships better than 6 endlessly re-critiqued.
+
+${currentDateDirective()}`;
 }
 
 function buildUserMessage(brief: EditableDesignBrief, refHandle: string | null, logoHandle: string | null, store: ImageStore): string {

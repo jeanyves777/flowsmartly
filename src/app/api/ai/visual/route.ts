@@ -8,6 +8,7 @@ import {
   type ImageEditIntent,
 } from "@/lib/ai/image-router";
 import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
+import { currentDateDirective } from "@/lib/ai/date-context";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { readFile, writeFile, mkdir, unlink } from "fs/promises";
@@ -347,19 +348,6 @@ export interface VisualUserContext {
    * must not be double-charged. The Design / MediaFile rows are still created.
    */
   skipCredits?: boolean;
-}
-
-/**
- * Shared "today's date" directive injected into every prompt builder so designs
- * never hallucinate the year (the recurring "Father's Day 2024" badge bug — the
- * model fills year placeholders from its training data unless told the real
- * date).
- */
-function currentDateDirective(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const formatted = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  return `Today's date is ${formatted} (current year ${year}). Any year shown in the design — event dates, "20XX" badges, copyright lines, seasonal references — MUST be ${year} or a future date the user explicitly provided. NEVER print a past year (e.g. 2023, 2024) unless the user asked for it.`;
 }
 
 /**

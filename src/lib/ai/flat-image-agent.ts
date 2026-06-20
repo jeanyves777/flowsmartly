@@ -20,6 +20,7 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import sharp from "sharp";
+import { currentDateDirective } from "@/lib/ai/date-context";
 import {
   ImageStore,
   resolveToBuffer,
@@ -276,7 +277,9 @@ CREATIVITY — DON'T BE CLICHÉ:
 - Alternate between: gradients, sun-rays / radial accents, abstract geometric shapes, color blocks with diagonal cuts, ribbon banners, ornamental dot patterns, asymmetric layouts (try text-right + photo-left for variety), bold color-on-color, photo-as-bg with text-overlay panel.
 - Only use a topical icon if the brief explicitly mentions it. Otherwise pick from a wider palette.
 
-Innovate. Be specific. The compose_design prompt is the whole game now — make it sing.`;
+Innovate. Be specific. The compose_design prompt is the whole game now — make it sing.
+
+${currentDateDirective()}`;
 }
 
 function buildUserMessage(brief: FlatImageBrief, refHandle: string | null, logoHandle: string | null, store: ImageStore): string {

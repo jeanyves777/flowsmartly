@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { generateVideoForRole } from "@/lib/ai/video-router";
 
 const bodySchema = z.object({
   storeName: z.string().min(1).max(200),
@@ -41,28 +41,18 @@ export async function POST(request: NextRequest) {
 
     const prompt = `A professional, cinematic promotional video for an e-commerce store called "${storeName}" in the ${industry} industry. Smooth camera movement, premium product showcase, modern brand aesthetic, warm professional lighting. Clean, aspirational, suitable for a hero banner. No text overlays.`;
 
+    // Central video router: role-based provider ladder + black-frame guard.
     let videoBuffer: Buffer | null = null;
     try {
-      if (grokVideoClient.isAvailable()) {
-        const result = await grokVideoClient.generateVideo(prompt, {
-          duration: 8,
-          aspectRatio: "16:9",
-          resolution: "720p",
-          timeoutMs: 900000,
-        });
-        videoBuffer = result.videoBuffer;
-      }
-    } catch (error) {
-      console.warn("[HeroVideo] xAI video generation failed, using Sora fallback:", error);
-    }
-
-    if (!videoBuffer) {
-      const { soraClient } = await import("@/lib/ai/sora-client");
-      const result = await soraClient.generateVideoBuffer(prompt, {
-        seconds: "8",
-        size: "1280x720",
+      const v = await generateVideoForRole("video_standard", {
+        prompt,
+        durationSeconds: 8,
+        aspectRatio: "16:9",
+        resolution: "720p",
       });
-      videoBuffer = result.videoBuffer;
+      videoBuffer = v.videoBuffer;
+    } catch (error) {
+      console.warn("[HeroVideo] Video generation failed:", error);
     }
 
     if (!videoBuffer) {
