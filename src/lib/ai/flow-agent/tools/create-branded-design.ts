@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { runVisualForUser } from "@/app/api/ai/visual/route";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import { verifyDesignText } from "@/lib/media/verify-design-text";
 import { editImagesForRole } from "@/lib/ai/image-router";
@@ -11,27 +10,27 @@ import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
 import {
-  buildAgentDesignTemplatePrompt,
   chooseAgentDesignTemplate,
   getAgentDesignTemplateById,
-  serializeAgentDesignTemplateForTool,
   type AgentDesignChannel,
-  type AgentDesignTemplate,
 } from "../design-templates";
+import {
+  generateBrandedImage,
+  orientationToSize,
+  type BrandedOrientation,
+} from "@/lib/media/branded-image";
 
 /**
  * create_branded_design — the agent's PRIMARY image tool for anything
  * branded or marketing-grade: ads, flyers, birthday/holiday cards,
- * announcements, product shots, social creatives. It drives the SAME
- * robust FlowCreative pipeline the Studio's Create modal uses
- * (`/api/ai/visual` → runVisualForUser): brand-aware prompt, real brand
- * colors + logo composite, reference-photo IDENTITY PRESERVATION, and (on
- * Premium) the quality-review loop that regenerates until the design
- * passes and the uploaded person's real face is kept.
+ * announcements, product shots, social creatives.
  *
- * This is NOT a reimplementation — it reuses the production visual engine
- * so we don't re-tune generation. Use plain generate_image only for raw,
- * unbranded concept art.
+ * Generation is centralized in `generateBrandedImage` (src/lib/media), which
+ * every branded-image surface (this tool, content-automation, the scheduler)
+ * shares — same FlowCreative engine, prompt, provider policy, logo composite,
+ * and date handling. This tool adds the agent-specific bits on top: template
+ * choice for the inline response, background task + notification, and a vision
+ * QA self-check that proofreads the rendered contact text.
  *
  * Tier → cost: Standard = AI_VISUAL_DESIGN (15), Premium = 3× (45, quality
  * loop). The pipeline charges credits itself; this tool does not.
@@ -105,16 +104,18 @@ export const createBrandedDesign: FlowAgentTool = {
       }
     }
 
+    // Brand kit is needed here for the vision QA self-check (exact contact
+    // values) and to choose the template shown in the inline response. The
+    // heavy brand-context assembly + generation lives in generateBrandedImage.
     const brandKit = await prisma.brandKit.findFirst({
       where: { userId: ctx.userId },
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
     });
     const languageTag = await getUserPreferredLanguage(ctx.userId);
+    const hasBrandLogo = Boolean(brandKit?.logo || brandKit?.iconLogo);
 
-    const colors = parseJson<Record<string, string> | null>(brandKit?.colors, null);
-    const handles = parseJson<Record<string, string> | null>(brandKit?.handles, null);
-    const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
-    const hasBrandLogo = Boolean(brandLogo);
+    // Choose the agent design template synchronously so the inline tool
+    // response can show it; its id is passed to the engine for deterministic use.
     const requestedTemplateId = typeof input.templateId === "string" && input.templateId.trim()
       ? input.templateId.trim()
       : null;
@@ -136,126 +137,9 @@ export const createBrandedDesign: FlowAgentTool = {
       };
     }
 
-    const contactInfo = brandKit
-      ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
-      : null;
-    const contactLine = [brandKit?.phone, brandKit?.email, brandKit?.website, brandKit?.address]
-      .filter((v): v is string => !!v && v.trim().length > 0)
-      .join("  ·  ");
-
-    const brandIdentity = brandKit
-      ? {
-          name: brandKit.name || null,
-          tagline: brandKit.tagline || null,
-          description: brandKit.description || null,
-          industry: brandKit.industry || null,
-          niche: brandKit.niche || null,
-          audience: brandKit.targetAudience || null,
-          voice: brandKit.voiceTone || null,
-          value: brandKit.uniqueValue || null,
-          products: parseJson<unknown[]>(brandKit.products, []),
-          keywords: parseJson<unknown[]>(brandKit.keywords, []),
-          hashtags: parseJson<unknown[]>(brandKit.hashtags, []),
-          colors,
-          handles,
-          website: brandKit.website || null,
-          email: brandKit.email || null,
-          phone: brandKit.phone || null,
-          address: brandKit.address || null,
-          hasLogo: hasBrandLogo,
-          agentDesignTemplate: agentTemplate ? compactAgentTemplateForPrompt(agentTemplate) : null,
-        }
-      : null;
-
-    // Same policy scaffolding the Create modal uses so quality matches the
-    // product page. Logo lock + anti-invention + exact-reference handling.
-    const logoPolicy = hasBrandLogo
-      ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, or monogram — the user's REAL logo is composited on afterward, SMALL, in one TOP corner. RESERVE a calm clear corner for it: keep the TOP-LEFT and TOP-RIGHT corners (about the top 16% of the height) free of headline text, faces, and key graphics — quiet background only — so the small logo drops in cleanly without covering anything. Do NOT add a placeholder box, frame, label, or watermark; just keep those corners uncluttered, and do NOT spell out the brand name as a wordmark."
-      : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
-    const exactReferencePolicy = referenceImageUrls.length
-      ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
-      : null;
-    // Real, factual brand elements the design MUST show (not tone — these are
-    // required content). The user explicitly wants the brand name + contact on it.
-    //
-    // CRITICAL: only force the brand NAME as a big top header when there is NO
-    // logo. When a logo exists we composite the REAL logo (top, via the safe-area
-    // pass) and the logo IS the brand mark — forcing the AI to ALSO render a large
-    // "Brand Name" wordmark at the top makes that text collide with the composited
-    // logo (the recurring overlap bug). With a logo, let the headline be the user's
-    // message, not a duplicate wordmark.
-    const brandDisplayPolicy = [
-      !hasBrandLogo && brandKit?.name ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.` : null,
-      contactLine ? `Include these REAL contact details in small, legible text near the bottom (copy them exactly, do not invent any): ${contactLine}.` : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
-    const antiInventionPolicy =
-      "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
-
-    const imagePrompt = withLanguagePrefix(
-      [
-        promptText,
-        agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate) : null,
-        exactReferencePolicy,
-        brandDisplayPolicy || null,
-        logoPolicy,
-        antiInventionPolicy,
-        "Keep the final visual sharp, high-resolution, and readable.",
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      languageTag,
-    );
-
-    const size = orientationToSize(input.orientation);
-    const provider = tier === "premium" ? "openai" : "xai";
-    const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
+    const orientation = typeof input.orientation === "string" ? (input.orientation as BrandedOrientation) : undefined;
+    const size = orientationToSize(orientation);
     const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
-
-    // Mirror the Studio Create modal's /api/ai/visual body EXACTLY — same
-    // raw_brand pipeline, provider-by-tier, reference handling, and logo
-    // overlay that already produces great designs there. Don't add knobs
-    // FlowCreative wasn't built with; it's already tuned.
-    const visualBody = {
-      prompt: imagePrompt,
-      category: "social_post",
-      size,
-      style,
-      provider,
-      strictProvider: true,
-      tier,
-      promptMode: "raw_brand",
-      brandIdentity,
-      channels: "selected social channels",
-      heroType: "product",
-      textMode: "creative",
-      brandColors: colors,
-      // Composite the REAL logo (always faithful + correct size). Placement is
-      // improved separately: showBrandName is off (no wordmark to collide with),
-      // the prompt reserves a calm corner, the logo is small, and the vision
-      // safe-area pass picks the clearest corner — see analyzeLogoPlacement.
-      brandLogo,
-      brandName: brandKit?.name || null,
-      // When a logo exists, the composited logo IS the brand mark — do NOT also
-      // tell the engine to render the brand NAME as text, or it draws a wordmark
-      // header that the logo then overlaps (the recurring collision). Name-as-text
-      // only when there's no logo to carry the brand.
-      showBrandName: hasBrandLogo ? false : !!brandKit?.name,
-      showSocialIcons: true,
-      socialHandles: handles,
-      contactInfo,
-      referenceImageUrl: referenceImageUrls[0] || null,
-      referenceImageUrls,
-      templateImageUrl: agentTemplate?.imageUrl || null,
-      agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
-      compositeReferenceSubject: false,
-      // No fixed logoPlacement — mirror the Studio Create modal: let the server
-      // run its vision safe-area pass (analyzeLogoPlacement) so the real logo
-      // lands in a CLEAR corner instead of being slammed top-left on top of the
-      // headline. A hardcoded {x,y} disables that pass and causes the overlap.
-      ctaText,
-    };
 
     const taskId = await spawnBackgroundTask({
       userId: ctx.userId,
@@ -272,14 +156,20 @@ export const createBrandedDesign: FlowAgentTool = {
           message: "Designing your branded image…",
         });
 
-        const result = await runVisualForUser(visualBody, { userId: ctx.userId, isAdmin: ctx.isAdmin });
-        const resBody = result.body as {
-          success?: boolean;
-          data?: { design?: { id?: string; imageUrl?: string } };
-          error?: { message?: string };
-        };
-        if (result.status !== 200 || !resBody.success || !resBody.data?.design?.imageUrl) {
-          const msg = resBody.error?.message || "The design could not be generated.";
+        const design = await generateBrandedImage({
+          userId: ctx.userId,
+          isAdmin: ctx.isAdmin,
+          prompt: promptText,
+          orientation,
+          tier,
+          style: typeof input.style === "string" ? input.style : undefined,
+          referenceImageUrls,
+          ctaText,
+          templateId: agentTemplate?.id ?? null,
+        });
+
+        if (!design.ok || !design.imageUrl) {
+          const msg = design.error || "The design could not be generated.";
           await notifyAgentTaskComplete({
             userId: ctx.userId,
             taskId,
@@ -292,8 +182,8 @@ export const createBrandedDesign: FlowAgentTool = {
           throw new Error(msg);
         }
 
-        let url = resBody.data.design.imageUrl;
-        const designId = resBody.data.design.id;
+        let url = design.imageUrl;
+        const designId = design.designId;
 
         // ── Vision QA self-check ───────────────────────────────────────────
         // Proofread the rendered contact text + headline against the EXACT
@@ -423,13 +313,6 @@ export const createBrandedDesign: FlowAgentTool = {
   },
 };
 
-function orientationToSize(orientation: unknown): string {
-  const o = typeof orientation === "string" ? orientation.toLowerCase() : "";
-  if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
-  if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
-  return "1080x1080";
-}
-
 function orientationToTemplateChannel(orientation: unknown, prompt: string): AgentDesignChannel {
   const normalizedOrientation = typeof orientation === "string" ? orientation.toLowerCase() : "";
   const normalizedPrompt = prompt.toLowerCase();
@@ -437,29 +320,4 @@ function orientationToTemplateChannel(orientation: unknown, prompt: string): Age
   if (/\b(event|open house|webinar|workshop|conference|service|concert|invite|invitation|rsvp)\b/.test(normalizedPrompt)) return "poster";
   if (normalizedOrientation === "portrait" || normalizedOrientation === "story" || normalizedOrientation === "reel" || normalizedOrientation === "9:16") return "flyer";
   return "social_post";
-}
-
-function compactAgentTemplateForPrompt(template: AgentDesignTemplate) {
-  return {
-    id: template.id,
-    name: template.name,
-    industry: template.industryLabel,
-    useCase: template.useCase,
-    metaTags: template.metaTags.slice(0, 12),
-    layout: template.layout,
-    imageDirection: template.imageDirection,
-    copySlots: template.copySlots,
-    ctaStyle: template.ctaStyle,
-    imageUrl: template.imageUrl,
-    thumbnailUrl: template.thumbnailUrl,
-  };
-}
-
-function parseJson<T>(raw: string | null | undefined, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
 }

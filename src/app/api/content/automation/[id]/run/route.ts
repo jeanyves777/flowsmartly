@@ -4,11 +4,10 @@ import { getSession } from "@/lib/auth/session";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
-import { generateImageForRole } from "@/lib/ai/image-router";
+import { generateBrandedImage } from "@/lib/media/branded-image";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { soraClient } from "@/lib/ai/sora-client";
-import { uploadToS3 } from "@/lib/utils/s3-client";
-import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
+import { uploadToS3, getPresignedUrl } from "@/lib/utils/s3-client";
 import {
   isBlogAutomationPlatform,
   runBlogAutomationPublication,
@@ -306,30 +305,28 @@ export async function POST(
           `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Do not draw a visible logo placeholder, blank logo box, white reserved rectangle, dashed frame, label, or logo-space indicator. Let the layout and background remain natural.`;
 
         if (automation.mediaType === "image") {
-          console.log("[AutomationRun] Generating image with shared image router...");
-          const generatedImage = await generateImageForRole("design_generate", mediaPrompt, 1536, 1024, { quality: "medium" });
-          const base64Image = generatedImage.base64;
-
-          if (base64Image) {
-            let imageBuffer: Buffer = Buffer.from(base64Image, "base64");
-            const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
-            if (brandLogo) {
-              try {
-                imageBuffer = await compositeBrandLogoOnImageBuffer({
-                  imageBuffer,
-                  logoSource: brandLogo,
-                  placement: { x: 0.03, y: 0.03, sizePercent: 14 },
-                });
-              } catch (logoError) {
-                console.warn(`[AutomationRun] Logo compositing failed for ${automation.id}:`, logoError);
-              }
-            }
+          console.log("[AutomationRun] Generating image via shared FlowCreative engine...");
+          // Same central engine as the Studio Create modal + Flow-AI, then
+          // re-key into the automation namespace so Post.mediaUrl keeps its
+          // S3-key storage contract (downstream presigns the key on read).
+          const design = await generateBrandedImage({
+            userId: session.userId,
+            prompt: captionExcerpt || mediaPrompt,
+            orientation: "landscape",
+            tier: "standard",
+            skipCredits: true,
+          });
+          if (design.ok && design.imageUrl) {
+            const res = await fetch(await getPresignedUrl(design.imageUrl));
+            const imageBuffer = Buffer.from(await res.arrayBuffer());
             const s3Key = `automation/${automation.id}/${Date.now()}.png`;
             await uploadToS3(s3Key, imageBuffer, "image/png");
             mediaUrl = s3Key;
             mediaMeta = JSON.stringify([s3Key]);
             postMediaType = "image";
             console.log(`[AutomationRun] Image uploaded: ${s3Key}`);
+          } else {
+            console.warn(`[AutomationRun] Image generation failed for ${automation.id}: ${design.error}`);
           }
         } else if (automation.mediaType === "video") {
           console.log("[AutomationRun] Generating video with xAI primary...");

@@ -340,7 +340,36 @@ export interface VisualUserContext {
   userId: string;
   isAdmin: boolean;
   adminId?: string | null;
+  /**
+   * When true, the engine does NOT run its own credit gate or deduction — the
+   * CALLER is responsible for billing. Used by the content-automation /
+   * scheduler paths, which charge per-occurrence with their own bookkeeping and
+   * must not be double-charged. The Design / MediaFile rows are still created.
+   */
+  skipCredits?: boolean;
 }
+
+/**
+ * Shared "today's date" directive injected into every prompt builder so designs
+ * never hallucinate the year (the recurring "Father's Day 2024" badge bug — the
+ * model fills year placeholders from its training data unless told the real
+ * date).
+ */
+function currentDateDirective(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const formatted = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return `Today's date is ${formatted} (current year ${year}). Any year shown in the design — event dates, "20XX" badges, copyright lines, seasonal references — MUST be ${year} or a future date the user explicitly provided. NEVER print a past year (e.g. 2023, 2024) unless the user asked for it.`;
+}
+
+/**
+ * Shared anti-"card-on-a-surface" composition rule. Image models — especially
+ * xAI grok-imagine and template-edit passes — love to render the design as a
+ * rounded translucent card floating on a separate blurry background. This
+ * forbids that on EVERY generation path (both prompt builders).
+ */
+const NO_NESTING_RULE =
+  "ABSOLUTELY NO NESTING / NO CARD-ON-A-SURFACE: the design must NOT appear as a card, flyer, poster, panel, or rounded translucent sheet placed ON TOP of another background. There is exactly ONE layer — the design itself — filling every pixel edge to edge. No outer background, no margins, no rounded corners on the overall image, no drop shadow beneath a floating panel, no 'poster on a wall' or 'flyer on a desk' mockup effect.";
 
 /**
  * Core visual-design generation shared by the /api/ai/visual route AND the
@@ -407,7 +436,7 @@ export async function runVisualForUser(
         })
       : null;
 
-    if (!isAdmin) {
+    if (!isAdmin && !ctx.skipCredits) {
       if (!currentUser) {
         return {
           status: 403,
@@ -512,8 +541,8 @@ export async function runVisualForUser(
       },
     });
 
-    // Deduct credits
-    if (!isAdmin) {
+    // Deduct credits (unless the caller bills itself — see ctx.skipCredits).
+    if (!isAdmin && !ctx.skipCredits) {
       await prisma.$transaction([
         prisma.user.update({
           where: { id: session.userId },
@@ -584,8 +613,8 @@ export async function runVisualForUser(
             status: updatedDesign.status,
             createdAt: updatedDesign.createdAt.toISOString(),
           },
-          creditsUsed: isAdmin ? 0 : creditCost,
-          creditsRemaining: isAdmin ? 999 : (currentUser?.aiCredits || 0) - creditCost,
+          creditsUsed: isAdmin || ctx.skipCredits ? 0 : creditCost,
+          creditsRemaining: isAdmin || ctx.skipCredits ? (currentUser?.aiCredits ?? 0) : (currentUser?.aiCredits || 0) - creditCost,
           qualityCheck: qualityCheckRequested,
           qualityReview: result.qualityReviews?.at(-1) || null,
         }),
@@ -721,9 +750,11 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the composition (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
     "- BRAND & CONTACT DETAILS (REQUIRED): weave the brand name + tagline into a designed header lockup, and present the contact details — phone, email, website, address, and social handles — as a STYLED footer bar (a colored/branded strip with small matching icons and dividers between items), visually designed in, never plain floating text. CRITICAL: use ONLY the EXACT contact values provided in the brand context above — copy them character-for-character. NEVER invent, guess, or use placeholder contact info (no '555-...', no 'info@example', no '123 Main St', no fake @handle). If a contact value is not provided, simply omit that item. Leave clean space where the real logo will be composited.",
     "- FINISH: rich, layered, intentional, editorial and advertising-grade. Avoid flat, empty, generic, or stock-template looks.",
+    `- ${NO_NESTING_RULE}`,
     "",
     "Marketing image context",
     `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,
+    currentDateDirective(),
     `Use case: ${String(params.category).replace(/_/g, " ")}`,
     params.channels ? `Channels: ${params.channels}` : null,
     params.style ? `Style preference: ${params.style}` : null,
@@ -1247,6 +1278,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
     : "";
 
   designPrompt += `\n\nCRITICAL RULES:
+- ${currentDateDirective()}
 - This IS the final design — NOT a mockup, NOT inside a frame/phone/browser. The image fills the canvas edge-to-edge.
 - ABSOLUTELY NO NESTING: The design must NOT appear as a card, flyer, or poster placed ON TOP of another background. There is only ONE layer — the design itself, filling every pixel of the output image. No outer margins, no surrounding space, no drop shadow on the overall image.${antiMockupExtra}
 - NO AI BRANDING: Do NOT add any AI provider logos (xAI, Grok, OpenAI, Google, Gemini, DALL-E, etc.), watermarks, or AI-generated badges. This is the user's design — it must contain ONLY the user's brand elements.
