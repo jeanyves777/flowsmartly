@@ -3,12 +3,11 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
 import { generateAutomationAsset } from "@/lib/strategy/automation-execution";
-import { generateImageForRole } from "@/lib/ai/image-router";
+import { generateBrandedImage } from "@/lib/media/branded-image";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { soraClient } from "@/lib/ai/sora-client";
-import { uploadToS3 } from "@/lib/utils/s3-client";
+import { uploadToS3, getPresignedUrl } from "@/lib/utils/s3-client";
 import { isCronAuthorized } from "@/lib/cron/auth";
-import { compositeBrandLogoOnImageBuffer } from "@/lib/media/brand-logo-compositor";
 import {
   shouldPublishAsBlogAutomation,
   runBlogAutomationPublication,
@@ -405,23 +404,20 @@ async function runScheduler(request: NextRequest) {
               `Create a social media visual for: ${captionExcerpt}${automation.mediaStyle ? `. Style: ${automation.mediaStyle}` : ""}. Do not fabricate logos or real-person faces. Do not draw a visible logo placeholder, blank logo box, white reserved rectangle, dashed frame, label, or logo-space indicator. Let the layout and background remain natural.`;
 
             if (automation.mediaType === "image") {
-              const generatedImage = await generateImageForRole("design_generate", mediaPrompt, 1536, 1024, { quality: "medium" });
-              const base64Image = generatedImage.base64;
-
-              if (base64Image) {
-                let imageBuffer: Buffer = Buffer.from(base64Image, "base64");
-                const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
-                if (brandLogo) {
-                  try {
-                    imageBuffer = await compositeBrandLogoOnImageBuffer({
-                      imageBuffer,
-                      logoSource: brandLogo,
-                      placement: { x: 0.03, y: 0.03, sizePercent: 14 },
-                    });
-                  } catch (logoError) {
-                    console.warn(`[Scheduler] Logo compositing failed for ${automation.id}:`, logoError);
-                  }
-                }
+              // Generate via the shared FlowCreative engine (full brand layout,
+              // real logo composite, correct current year), then re-key into the
+              // automation namespace so Post.mediaUrl keeps its S3-key storage
+              // contract (downstream presigns the key on read).
+              const design = await generateBrandedImage({
+                userId: automation.userId,
+                prompt: captionExcerpt || mediaPrompt,
+                orientation: "landscape",
+                tier: "standard",
+                skipCredits: true,
+              });
+              if (design.ok && design.imageUrl) {
+                const res = await fetch(await getPresignedUrl(design.imageUrl));
+                const imageBuffer = Buffer.from(await res.arrayBuffer());
                 const s3Key = `automation/${automation.id}/${Date.now()}.png`;
                 await uploadToS3(s3Key, imageBuffer, "image/png");
                 mediaUrl = s3Key;
