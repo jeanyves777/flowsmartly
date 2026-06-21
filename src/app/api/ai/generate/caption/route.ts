@@ -5,6 +5,7 @@ import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 const generateCaptionSchema = z.object({
   platforms: z.array(z.enum(["instagram", "twitter", "linkedin", "facebook", "youtube"])).min(1),
@@ -126,10 +127,14 @@ export async function POST(request: NextRequest) {
       includeEmojis,
     });
 
+    // Per feedback-ai-respects-user-language: lock output to the user's preferred language.
+    const language = await getUserPreferredLanguage(session.userId);
     const content = await ai.generate(prompt, {
       maxTokens: 1024,
       temperature: 0.8,
-      systemPrompt: `You are an expert social media caption writer and content strategist.
+      systemPrompt: `${languageDirective(language)}
+
+You are an expert social media caption writer and content strategist.
 You craft compelling captions that enhance visual content and drive engagement.
 You understand how to write captions that complement images and videos while capturing attention.
 Always return ONLY the caption content, nothing else - no explanations, no quotation marks, no labels.`,

@@ -18,6 +18,7 @@ import {
   xaiFirstImageProviderOrder,
   type RoutedImageResult,
 } from "./image-router";
+import { isBlankImageBase64 } from "@/lib/media/image-quality-guard";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveToFile, saveToFileLocal } from "@/lib/utils/file-storage";
 import { randomUUID } from "crypto";
@@ -170,11 +171,16 @@ async function generateSingleImage(
           ? `${candidatePrompt} Isolated subject on a plain white background. No background scene, no environment, no text, no decorations, no design elements.`
           : `${candidatePrompt} Isolated subject centered on a solid bright green (#00FF00) chroma key background. The background must be a single flat solid green color with no variation, no shadows, no gradients. No background scene, no environment, no text, no decorations, no design elements.`;
       }
-      generated = await generateImageWithProvider(candidate, candidatePrompt, width, height, {
+      const result = await generateImageWithProvider(candidate, candidatePrompt, width, height, {
         quality: "medium",
         transparent: needsTransparency && candidate === "openai",
       });
-      if (generated.base64) break;
+      // Reject blank/black frames so a dead provider result falls through to the
+      // next provider instead of being saved/composited.
+      if (result.base64 && !(await isBlankImageBase64(result.base64)).blank) {
+        generated = result;
+        break;
+      }
     } catch (error) {
       lastError = error;
       console.warn(`[DesignImagePipeline] ${candidate} image generation failed, trying fallback:`, error);

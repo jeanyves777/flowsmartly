@@ -1,9 +1,11 @@
 import { geminiText } from "@/lib/ai/gemini-text-client";
 import { currentDateContext } from "@/lib/ai/date-context";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 type Jsonish = string | null | undefined;
 
 export interface AutomationExecutionBrand {
+  userId?: string | null;
   name?: string | null;
   tagline?: string | null;
   description?: string | null;
@@ -292,9 +294,13 @@ function buildMediaPrompt(input: AutomationExecutionInput, caption: string, gene
 
 export async function generateAutomationAsset(input: AutomationExecutionInput): Promise<AutomationGeneratedAsset> {
   const platforms = input.platforms?.length ? input.platforms : ["feed"];
+  // Per feedback-ai-respects-user-language: lock output to the user's preferred language.
+  const languageLine = input.brand?.userId
+    ? `${languageDirective(await getUserPreferredLanguage(input.brand.userId))}\n\n`
+    : "";
   const prompt = `You are the FlowSmartly Automation Hub. Turn this strategy automation into one executable marketing asset for the next scheduled run.
 
-${currentDateContext()}
+${languageLine}${currentDateContext()}
 
 --- BRAND ---
 ${formatBrandContext(input.brand)}
@@ -438,9 +444,13 @@ function fallbackBlogContent(input: AutomationExecutionInput) {
 
 export async function generateAutomationBlogPost(input: AutomationExecutionInput): Promise<AutomationGeneratedBlogPost> {
   const fallback = fallbackBlogContent(input);
+  // Per feedback-ai-respects-user-language: lock output to the user's preferred language.
+  const languageLine = input.brand?.userId
+    ? `${languageDirective(await getUserPreferredLanguage(input.brand.userId))}\n\n`
+    : "";
   const prompt = `You are the FlowSmartly website blog automation writer. Turn this strategy item into one complete blog article for the user's website blog.
 
-${currentDateContext()}
+${languageLine}${currentDateContext()}
 
 --- BRAND ---
 ${formatBrandContext(input.brand)}

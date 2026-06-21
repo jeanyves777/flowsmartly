@@ -5,6 +5,7 @@ import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { geminiText as ai } from "@/lib/ai/gemini-text-client";
 import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 const generateHashtagsSchema = z.object({
   // Accept any platform id (feed/tiktok/pinterest/threads/whatsapp/…) — the
@@ -76,10 +77,14 @@ export async function POST(request: NextRequest) {
       categories,
     });
 
+    // Per feedback-ai-respects-user-language: lock output to the user's preferred language.
+    const language = await getUserPreferredLanguage(session.userId);
     const response = await ai.generateJSON<{ hashtags?: string[]; tags?: string[] }>(prompt, {
       maxTokens: 1024,
       temperature: 0.7,
-      systemPrompt: `You are an expert social media hashtag strategist.
+      systemPrompt: `${languageDirective(language)}
+
+You are an expert social media hashtag strategist.
 You understand hashtag trends, engagement patterns, and how to maximize reach.
 You know which hashtags drive real engagement vs vanity hashtags.
 Always return valid JSON with an array of hashtags.`,
@@ -92,7 +97,7 @@ Always return valid JSON with an array of hashtags.`,
         maxTokens: 512,
         temperature: 0.6,
         systemPrompt:
-          "You are an expert social media hashtag strategist. Return only relevant hashtags separated by spaces, no explanations.",
+          `${languageDirective(language)} You are an expert social media hashtag strategist. Return only relevant hashtags separated by spaces, no explanations.`,
       });
       hashtags = normalizeHashtags(fallbackText, actualCount);
     }
