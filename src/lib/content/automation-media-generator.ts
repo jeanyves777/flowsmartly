@@ -120,13 +120,30 @@ export async function generateAutomationMedia(
     }
   }
 
-  // Build the creative brief for the shared engine (it applies the brand kit,
-  // colors, logo, and contact details itself — we only pass the message/intent).
-  const briefParts: string[] = [subject];
-  if (automation.aiTone) briefParts.push(`Tone: ${automation.aiTone}.`);
-  if (occurrenceYear && occurrenceYear !== new Date().getFullYear()) {
-    briefParts.push(`This is for the ${occurrenceYear} occurrence — use ${occurrenceYear} for any year shown.`);
+  // Resolve the EXACT event date for holiday automations so the model never
+  // invents one (the "June 16" Father's-Day bug — Father's Day 2026 is the 21st).
+  let eventDateStr: string | null = null;
+  if (automation.calendarSourceType === "HOLIDAY" && automation.calendarSourceId && occurrenceYear) {
+    const h = getHolidayById(automation.calendarSourceId);
+    if (h) {
+      const dt = getHolidayDate(h, occurrenceYear);
+      eventDateStr = new Date(occurrenceYear, dt.month - 1, dt.day).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
   }
+
+  // The DESIGN gets a SHORT, occasion-focused brief — NOT the full post copy.
+  // Cramming a whole paragraph onto the image is what garbled the text
+  // ("bookesepheeming"); the detailed message stays in the post caption. The
+  // engine applies the brand kit, colors, logo, and contact details itself.
+  const occasion = automation.calendarSourceLabel || automation.name || subject.slice(0, 70);
+  const briefParts: string[] = [`A polished, on-brand social graphic for ${occasion}.`];
+  if (eventDateStr) briefParts.push(`Date: ${eventDateStr}.`);
+  else if (occurrenceYear && occurrenceYear !== new Date().getFullYear()) briefParts.push(`Year: ${occurrenceYear}.`);
+  if (automation.aiTone) briefParts.push(`Tone: ${automation.aiTone}.`);
   const brief = briefParts.join(" ");
 
   const design = await generateBrandedImage({
@@ -135,6 +152,9 @@ export async function generateAutomationMedia(
     orientation: aspect,
     tier,
     style: style === "3d" ? "3d" : "modern",
+    // Full-bleed brand design — skip ticket/invite/card templates (their layouts
+    // are what produced the card-on-a-surface). QA + regenerate stays ON.
+    skipTemplate: true,
     // This function runs its OWN credit gate + deduction below; tell the engine
     // not to charge again.
     skipCredits: true,

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { runVisualForUser } from "@/app/api/ai/visual/route";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
+import { getPresignedUrl } from "@/lib/utils/s3-client";
+import { verifyDesignText } from "@/lib/media/verify-design-text";
 import {
   buildAgentDesignTemplatePrompt,
   chooseAgentDesignTemplate,
@@ -56,6 +58,23 @@ export interface GenerateBrandedImageInput {
   skipCredits?: boolean;
   /** Run the premium quality-review regeneration loop (3x cost when engine bills). */
   qualityCheck?: boolean;
+  /**
+   * Skip agent-template selection entirely → a clean full-bleed brand design
+   * driven only by the brief + brand kit. Use for automation/social posts where
+   * specific ticket/invite/card template layouts produce a card-on-a-surface.
+   */
+  skipTemplate?: boolean;
+  /**
+   * Feed the chosen template's IMAGE as a generation reference. Default false —
+   * feeding it makes the engine clone the template's (often card) layout. The
+   * template's TEXT guidance is still used when a template is selected.
+   */
+  useTemplateImage?: boolean;
+  /**
+   * Run the post-gen vision QA that rejects card-on-a-surface / garbled-text
+   * output and regenerates once without a template. Default ON.
+   */
+  qaRegenerate?: boolean;
 }
 
 export interface GenerateBrandedImageResult {
@@ -93,14 +112,20 @@ export async function generateBrandedImage(
 
   const requestedTemplateId =
     typeof input.templateId === "string" && input.templateId.trim() ? input.templateId.trim() : null;
-  const autoTemplate = chooseAgentDesignTemplate({
-    industry: brandKit?.industry || brandKit?.niche || null,
-    query: [promptText, input.style, input.ctaText].filter((i) => typeof i === "string" && i.trim()).join(" "),
-    channel: orientationToTemplateChannel(input.orientation, promptText),
-    limit: 1,
-  });
-  const agentTemplate = requestedTemplateId ? getAgentDesignTemplateById(requestedTemplateId) : autoTemplate;
-  if (requestedTemplateId && !agentTemplate) {
+  const autoTemplate = input.skipTemplate
+    ? null
+    : chooseAgentDesignTemplate({
+        industry: brandKit?.industry || brandKit?.niche || null,
+        query: [promptText, input.style, input.ctaText].filter((i) => typeof i === "string" && i.trim()).join(" "),
+        channel: orientationToTemplateChannel(input.orientation, promptText),
+        limit: 1,
+      });
+  const agentTemplate = input.skipTemplate
+    ? null
+    : requestedTemplateId
+      ? getAgentDesignTemplateById(requestedTemplateId)
+      : autoTemplate;
+  if (requestedTemplateId && !input.skipTemplate && !agentTemplate) {
     return {
       ok: false,
       error: `Agent design template "${requestedTemplateId}" was not found.`,
@@ -115,7 +140,7 @@ export async function generateBrandedImage(
     .filter((v): v is string => !!v && v.trim().length > 0)
     .join("  ·  ");
 
-  const brandIdentity = brandKit
+  const brandIdentityBase = brandKit
     ? {
         name: brandKit.name || null,
         tagline: brandKit.tagline || null,
@@ -135,7 +160,6 @@ export async function generateBrandedImage(
         phone: brandKit.phone || null,
         address: brandKit.address || null,
         hasLogo: hasBrandLogo,
-        agentDesignTemplate: agentTemplate ? compactAgentTemplateForPrompt(agentTemplate) : null,
       }
     : null;
 
@@ -160,91 +184,112 @@ export async function generateBrandedImage(
   const antiInventionPolicy =
     "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
 
-  const imagePrompt = withLanguagePrefix(
-    [
-      promptText,
-      agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate) : null,
-      exactReferencePolicy,
-      brandDisplayPolicy || null,
-      logoPolicy,
-      antiInventionPolicy,
-      "Keep the final visual sharp, high-resolution, and readable.",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    languageTag,
-  );
-
   const size = input.size && /^\d+x\d+$/.test(input.size) ? input.size : orientationToSize(input.orientation);
   const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
   const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
 
-  // Mirror the Studio Create modal's /api/ai/visual body — same raw_brand
-  // pipeline, reference handling, and logo overlay. The provider is chosen by
-  // the role-based media-model policy inside the engine (Nano Banana for
-  // Standard), so we deliberately do NOT pass a provider/strictProvider knob.
-  const visualBody = {
-    prompt: imagePrompt,
-    category: input.category || "social_post",
-    size,
-    style,
-    tier,
-    promptMode: "raw_brand",
-    brandIdentity,
-    channels: "selected social channels",
-    heroType: "product",
-    textMode: "creative",
-    brandColors: colors,
-    brandLogo,
-    brandName: brandKit?.name || null,
-    showBrandName: hasBrandLogo ? false : !!brandKit?.name,
-    showSocialIcons: true,
-    socialHandles: handles,
-    contactInfo,
-    referenceImageUrl: referenceImageUrls[0] || null,
-    referenceImageUrls,
-    templateImageUrl: agentTemplate?.imageUrl || null,
-    agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
-    compositeReferenceSubject: false,
-    qualityCheckEnabled: input.qualityCheck === true,
-    ctaText,
-  };
-
-  const result = await runVisualForUser(visualBody, {
-    userId: input.userId,
-    isAdmin: input.isAdmin === true,
-    adminId: input.adminId ?? null,
-    skipCredits: input.skipCredits === true,
-  });
-
-  const resBody = result.body as {
-    success?: boolean;
-    data?: { design?: { id?: string; imageUrl?: string }; creditsUsed?: number };
-    error?: { message?: string; code?: string };
-  };
-  if (result.status !== 200 || !resBody.success || !resBody.data?.design?.imageUrl) {
-    return {
-      ok: false,
-      error: resBody.error?.message || "The design could not be generated.",
-      errorCode: resBody.error?.code,
+  // One generation attempt. `template` may be null → a clean full-bleed brand
+  // design with no card/ticket layout. The template IMAGE is never fed as a
+  // generation reference by default (feeding it made the engine clone card
+  // layouts); only its TEXT guidance is used. `bill=false` skips engine credits
+  // (used for the QA regeneration so it's never double-charged).
+  const runAttempt = async (template: AgentDesignTemplate | null, bill: boolean) => {
+    const imagePrompt = withLanguagePrefix(
+      [
+        promptText,
+        template ? buildAgentDesignTemplatePrompt(template) : null,
+        exactReferencePolicy,
+        brandDisplayPolicy || null,
+        logoPolicy,
+        antiInventionPolicy,
+        "Keep the final visual sharp, high-resolution, and readable.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      languageTag,
+    );
+    const brandIdentity = brandIdentityBase
+      ? { ...brandIdentityBase, agentDesignTemplate: template ? compactAgentTemplateForPrompt(template) : null }
+      : null;
+    const visualBody = {
+      prompt: imagePrompt,
+      category: input.category || "social_post",
+      size,
+      style,
+      tier,
+      promptMode: "raw_brand",
+      brandIdentity,
+      channels: "selected social channels",
+      heroType: "product",
+      textMode: "creative",
+      brandColors: colors,
+      brandLogo,
+      brandName: brandKit?.name || null,
+      showBrandName: hasBrandLogo ? false : !!brandKit?.name,
+      showSocialIcons: true,
+      socialHandles: handles,
+      contactInfo,
+      referenceImageUrl: referenceImageUrls[0] || null,
+      referenceImageUrls,
+      templateImageUrl: (input.useTemplateImage && template?.imageUrl) || null,
+      agentDesignTemplate: template ? serializeAgentDesignTemplateForTool(template) : null,
+      compositeReferenceSubject: false,
+      qualityCheckEnabled: input.qualityCheck === true,
+      ctaText,
     };
-  }
+    const result = await runVisualForUser(visualBody, {
+      userId: input.userId,
+      isAdmin: input.isAdmin === true,
+      adminId: input.adminId ?? null,
+      skipCredits: input.skipCredits === true || !bill,
+    });
+    const rb = result.body as {
+      success?: boolean;
+      data?: { design?: { id?: string; imageUrl?: string }; creditsUsed?: number };
+      error?: { message?: string; code?: string };
+    };
+    if (result.status !== 200 || !rb.success || !rb.data?.design?.imageUrl) {
+      return { ok: false as const, error: rb.error?.message || "The design could not be generated.", errorCode: rb.error?.code };
+    }
+    // Return the STABLE stored Design URL (never the response's expiring presigned one).
+    const designId = rb.data.design.id;
+    let imageUrl = rb.data.design.imageUrl;
+    if (designId) {
+      const row = await prisma.design.findUnique({ where: { id: designId }, select: { imageUrl: true } });
+      if (row?.imageUrl) imageUrl = row.imageUrl;
+    }
+    return { ok: true as const, imageUrl, designId, creditsUsed: rb.data.creditsUsed };
+  };
 
-  // The engine response presigns the URL (short-lived). Callers persist this on
-  // posts that fire later / show in the media library, so return the STABLE
-  // stored URL from the Design row instead — never an expiring presigned link.
-  const designId = resBody.data.design.id;
-  let imageUrl = resBody.data.design.imageUrl;
-  if (designId) {
-    const row = await prisma.design.findUnique({ where: { id: designId }, select: { imageUrl: true } });
-    if (row?.imageUrl) imageUrl = row.imageUrl;
+  let attempt = await runAttempt(agentTemplate, true);
+  if (!attempt.ok) return { ok: false, error: attempt.error, errorCode: attempt.errorCode };
+
+  // ── Post-gen QA — the structural safety net. Prompt rules alone don't stop
+  // the model rendering a card-on-a-surface or garbling paragraph text, so we
+  // vision-check the result and, if it failed, regenerate ONCE with NO template
+  // (clean full-bleed). The retry is unbilled so it never double-charges.
+  if (input.qaRegenerate !== false && attempt.ok && attempt.imageUrl) {
+    try {
+      const res = await fetch(await getPresignedUrl(attempt.imageUrl));
+      const buf = Buffer.from(await res.arrayBuffer());
+      const verdict = await verifyDesignText(buf, {}, { checkDesignQuality: true });
+      if (verdict.cardOnSurface || verdict.garbledText) {
+        console.warn(
+          `[branded-image] QA rejected design (card=${verdict.cardOnSurface} garbled=${verdict.garbledText}) — regenerating without template`,
+        );
+        const retry = await runAttempt(null, false);
+        if (retry.ok) attempt = retry;
+      }
+    } catch (qaErr) {
+      console.warn("[branded-image] QA check skipped:", qaErr instanceof Error ? qaErr.message : qaErr);
+    }
   }
 
   return {
     ok: true,
-    imageUrl,
-    designId,
-    creditsUsed: resBody.data.creditsUsed,
+    imageUrl: attempt.imageUrl,
+    designId: attempt.designId,
+    creditsUsed: attempt.creditsUsed,
     agentTemplate: agentTemplate
       ? {
           id: agentTemplate.id,
