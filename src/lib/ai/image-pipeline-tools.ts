@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { generateImageWithProvider, xaiFirstImageProviderOrder } from "./image-router";
+import { isBlankImageBase64 } from "@/lib/media/image-quality-guard";
 import { removeBackground, isRembgAvailable } from "@/lib/image-tools/background-remover";
 import { saveToFile, saveToFileLocal } from "@/lib/utils/file-storage";
 import { randomUUID } from "crypto";
@@ -91,7 +92,9 @@ export function buildImagePipelineTools(ctx: ImagePipelineToolContext): AgentToo
               quality: "medium",
               transparent: needsTransparency && candidate === "openai",
             });
-            if (!result.base64) throw new Error(`${candidate} returned no image`);
+            if (!result.base64 || (await isBlankImageBase64(result.base64)).blank) {
+              throw new Error(`${candidate} returned no usable image (empty or blank/black)`);
+            }
             base64 = result.base64;
             format = result.format;
             provider = candidate;
