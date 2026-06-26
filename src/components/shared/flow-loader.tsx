@@ -61,7 +61,7 @@ export function FlowLoader({
         </defs>
       </svg>
       {showMark && (
-        <span className="absolute grid place-items-center overflow-hidden rounded-[5px] bg-white" style={{ width: size * 0.5, height: size * 0.5, padding: Math.max(1, size * 0.05) }}>
+        <span className="absolute grid place-items-center overflow-hidden rounded-[4px] bg-white" style={{ width: size * 0.58, height: size * 0.58, padding: Math.max(1, size * 0.07) }}>
           <Image src="/icon.png" alt="" width={size} height={size} className="h-full w-full object-contain" unoptimized />
         </span>
       )}
