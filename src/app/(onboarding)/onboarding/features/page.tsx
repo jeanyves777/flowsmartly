@@ -117,7 +117,7 @@ export default function FeaturesPage() {
       const data = await res.json();
       if (data.success) {
         toast({ title: "Features activated!", description: `${data.data.activatedCount} features enabled.` });
-        router.push("/dashboard");
+        router.push("/home");
       } else {
         toast({ title: "Error", description: data.error?.message || "Failed to save", variant: "destructive" });
       }

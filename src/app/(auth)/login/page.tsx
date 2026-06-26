@@ -125,8 +125,8 @@ function LoginPageContent() {
         description: `Logged in as ${data.data.user.name}`,
       });
 
-      // Redirect to intended page or dashboard
-      router.push(redirectTo || "/dashboard");
+      // Redirect to intended page or the agent home
+      router.push(redirectTo || "/home");
     } catch {
       toast({
         title: "Error",

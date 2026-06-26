@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       }
 
       await setSessionCookies(accessToken, refreshToken);
-      return clearAndRedirect(`${APP_URL}/feed`);
+      return clearAndRedirect(`${APP_URL}/home`);
     }
 
     // No account found
