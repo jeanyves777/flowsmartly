@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly — Agent Home v2 (brand-unified)</title>
+<style>
+  /* ===== Real FlowSmartly tokens (globals.css HSL) — light + dark ===== */
+  :root{
+    --background:0 0% 100%;        --foreground:240 10% 3.9%;
+    --card:0 0% 100%;             --panel:240 4.8% 97.5%;   --elevated:0 0% 100%;
+    --muted:240 4.8% 95.9%;       --muted-foreground:240 3.8% 46.1%;
+    --border:240 5.9% 90%;        --input:240 5.9% 90%;
+    --primary:199 89% 48%;        --primary-foreground:0 0% 100%;
+    --ring:199 89% 48%;
+    --brand:#0ea5e9; --brand2:#8b5cf6; --gold:#eccb93;
+    --grad:linear-gradient(100deg,#0ea5e9,#8b5cf6);
+    --loader:linear-gradient(135deg,#3b82f6,#8b5cf6 50%,#f59e0b);
+    --ok:160 84% 39%; --warn:38 92% 50%; --bad:0 84% 60%;
+    --shadow:0 12px 40px rgba(15,23,42,.10);
+    --radius:14px;
+    color-scheme:light;
+  }
+  html.dark{
+    --background:240 10% 3.9%;     --foreground:0 0% 98%;
+    --card:240 8% 6.5%;            --panel:240 7% 9%;        --elevated:240 7% 11%;
+    --muted:240 3.7% 15.9%;        --muted-foreground:240 5% 64.9%;
+    --border:240 3.7% 16%;         --input:240 3.7% 18%;
+    --primary:199 89% 48%;         --primary-foreground:0 0% 100%;
+    --ring:199 89% 55%;
+    --shadow:0 14px 46px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif; font-size:14px;
+    color:hsl(var(--foreground));
+    background:
+      radial-gradient(1100px 600px at 82% -10%, hsl(var(--primary)/.12), transparent 60%),
+      radial-gradient(900px 600px at -5% 110%, hsl(262 83% 58%/.10), transparent 55%),
+      hsl(var(--background));
+    display:grid; grid-template-columns:84px 1fr; grid-template-rows:56px 1fr; height:100vh; overflow:hidden;
+    transition:background .25s,color .25s;
+  }
+  body.rtl{direction:rtl; grid-template-columns:1fr 84px}
+  body.rtl .rail{grid-column:2/3; border-right:none; border-left:1px solid hsl(var(--border))}
+  body.rtl .main{grid-column:1/2}
+  .t-muted{color:hsl(var(--muted-foreground))}
+
+  /* ===== top bar ===== */
+  .topbar{grid-column:1/3; display:flex; align-items:center; gap:12px; padding:0 18px;
+    border-bottom:1px solid hsl(var(--border)); background:hsl(var(--background)/.72); backdrop-filter:blur(10px); z-index:5}
+  body.rtl .topbar{grid-column:1/3}
+  .brand{display:flex; align-items:center; gap:10px}
+  .brand .mk{width:30px;height:30px;border-radius:9px;overflow:hidden;flex:none;box-shadow:0 4px 14px hsl(var(--primary)/.35);background:#fff;display:grid;place-items:center}
+  .brand .mk img{width:100%;height:100%;object-fit:contain}
+  .brand .wm{font-weight:800;letter-spacing:-.2px;font-size:16px}
+  .brand .wm .s{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brandchip{margin-inline-start:6px;display:flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid hsl(var(--border));
+    border-radius:999px;background:hsl(var(--panel));color:hsl(var(--muted-foreground));font-size:12.5px;cursor:pointer}
+  .brandchip b{color:hsl(var(--foreground))}
+  .spacer{flex:1}
+  .credits{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12.5px;
+    background:linear-gradient(120deg,hsl(var(--primary)/.14),hsl(262 83% 58%/.14));border:1px solid hsl(var(--border))}
+  .credits b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  .iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--panel));
+    display:grid;place-items:center;cursor:pointer;color:hsl(var(--muted-foreground));position:relative;transition:.15s}
+  .iconbtn:hover{color:hsl(var(--foreground));border-color:hsl(var(--primary)/.6)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+  svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+  /* language menu */
+  .menu{position:absolute;top:46px;inset-inline-end:0;min-width:210px;max-height:340px;overflow:auto;background:hsl(var(--elevated));
+    border:1px solid hsl(var(--border));border-radius:12px;box-shadow:var(--shadow);padding:6px;display:none;z-index:30}
+  .menu.open{display:block}
+  .menu .mi{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+  .menu .mi:hover{background:hsl(var(--muted))}
+  .menu .mi .code{margin-inline-start:auto;font-size:10.5px;color:hsl(var(--muted-foreground));text-transform:uppercase}
+  .menu .mi.on{background:hsl(var(--primary)/.12);color:hsl(var(--primary))}
+
+  /* ===== workspace rail ===== */
+  .rail{grid-row:2/3; border-right:1px solid hsl(var(--border)); background:hsl(var(--card)/.5);
+    display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:3px}
+  .rail .item{width:66px; padding:10px 0; border-radius:13px; display:flex; flex-direction:column; align-items:center; gap:6px;
+    color:hsl(var(--muted-foreground)); cursor:pointer; transition:.15s; position:relative}
+  .rail .item:hover{color:hsl(var(--foreground)); background:hsl(var(--muted))}
+  .rail .item.active{color:hsl(var(--foreground)); background:linear-gradient(135deg,hsl(var(--primary)/.22),hsl(262 83% 58%/.16))}
+  .rail .item.active::before{content:"";position:absolute;inset-inline-start:-1px;top:16px;bottom:16px;width:3px;border-radius:3px;background:var(--grad)}
+  .rail .item span{font-size:10px;letter-spacing:.2px}
+  .rail svg.i{width:21px;height:21px}
+  .rail .sep{height:1px;width:44px;background:hsl(var(--border));margin:7px 0}
+
+  /* ===== main ===== */
+  .main{grid-row:2/3; overflow:hidden; display:flex; flex-direction:column; position:relative}
+  .convo{flex:1; overflow-y:auto; padding:26px clamp(16px,6vw,110px) 150px}
+  .convo::-webkit-scrollbar{width:10px} .convo::-webkit-scrollbar-thumb{background:hsl(var(--border));border-radius:8px}
+
+  .hero{max-width:780px;margin:7vh auto 0}
+  .hero h1{font-size:31px;margin:0 0 8px;font-weight:800;letter-spacing:-.5px;line-height:1.12}
+  .hero h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .sub{color:hsl(var(--muted-foreground));margin:0 0 22px;font-size:15px;line-height:1.55}
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{padding:9px 13px;border:1px solid hsl(var(--border));border-radius:11px;background:hsl(var(--panel));color:hsl(var(--foreground));
+    cursor:pointer;font-size:13px;display:flex;gap:8px;align-items:center;transition:.15s}
+  .chip:hover{border-color:hsl(var(--primary)/.6);transform:translateY(-1px)}
+  .chip svg.i{width:15px;height:15px;color:hsl(var(--primary))}
+  .seed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:11px;margin-top:26px}
+  .seed{border:1px solid hsl(var(--border));border-radius:13px;padding:14px;background:hsl(var(--panel));cursor:pointer;transition:.15s}
+  .seed:hover{border-color:hsl(var(--primary)/.6);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .seed .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;margin-bottom:9px;
+    background:linear-gradient(135deg,hsl(var(--primary)/.18),hsl(262 83% 58%/.18));color:hsl(var(--primary))}
+  .seed .t{font-weight:650;margin-bottom:3px;font-size:13px}
+  .seed .d{color:hsl(var(--muted-foreground));font-size:11.5px;line-height:1.45}
+
+  /* messages */
+  .msg{max-width:840px;margin:0 auto 20px;display:flex;gap:13px}
+  .msg .who{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;overflow:hidden}
+  .msg.user .who{background:linear-gradient(135deg,#ec4899,#8b5cf6)}
+  .msg.ai .who{background:#fff;padding:4px}
+  .msg.ai .who img{width:100%;height:100%;object-fit:contain}
+  .msg .body{flex:1;min-width:0}
+  .msg.user{flex-direction:row-reverse}
+  .msg.user .bubble{background:hsl(var(--primary)/.12);border:1px solid hsl(var(--primary)/.25);border-radius:13px;padding:10px 14px;display:inline-block}
+  .think{font-size:12.5px;color:hsl(var(--muted-foreground));display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer}
+  .think .sp{width:14px;height:14px;flex:none}
+  .aitext{line-height:1.62}
+  .aitext b{font-weight:700}
+
+  /* generic card */
+  .card{border:1px solid hsl(var(--border));border-radius:var(--radius);background:hsl(var(--card));
+    margin-top:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .card .hd{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid hsl(var(--border));font-size:12.5px;color:hsl(var(--muted-foreground))}
+  .card .hd svg.i{width:16px;height:16px;color:hsl(var(--primary))}
+  .card .hd .tag{margin-inline-start:auto;font-size:10.5px;padding:2px 9px;border-radius:999px;border:1px solid hsl(var(--border))}
+  .card .bd{padding:14px}
+  .row{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+  .btn{padding:9px 15px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--panel));color:hsl(var(--foreground));
+    cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:hsl(var(--primary)/.6)}
+  .btn.primary{background:var(--grad);border:none;color:#fff;box-shadow:0 6px 18px hsl(var(--primary)/.35)}
+  .btn.ghost{background:transparent;color:hsl(var(--muted-foreground))}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 10px;border-radius:999px}
+  .badge.ok{background:hsl(var(--ok)/.14);color:hsl(var(--ok));border:1px solid hsl(var(--ok)/.3)}
+
+  /* plan card */
+  .plan .step{display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+  .plan .step .n{width:20px;height:20px;border-radius:6px;background:hsl(var(--muted));border:1px solid hsl(var(--border));display:grid;place-items:center;font-size:11px;flex:none;color:hsl(var(--primary));font-weight:700}
+  .plan .cost{margin-top:8px;color:hsl(var(--muted-foreground));font-size:12px}
+  .progress{height:7px;border-radius:6px;background:hsl(var(--muted));overflow:hidden;margin:12px 0 8px}
+  .progress > i{display:block;height:100%;width:0;background:var(--grad);transition:width .5s}
+
+  /* editable canvas artifact */
+  .canvas-wrap{display:grid;grid-template-columns:1fr 244px}
+  body.rtl .canvas-wrap{grid-template-columns:244px 1fr}
+  .stage{padding:20px;display:grid;place-items:center;background:
+    radial-gradient(360px 220px at 30% 0%, hsl(var(--primary)/.16), transparent 70%), hsl(var(--background))}
+  .poster{width:300px;height:300px;border-radius:16px;position:relative;overflow:hidden;color:#fff;direction:ltr;
+    box-shadow:0 20px 50px rgba(0,0,0,.45);background:linear-gradient(160deg,#0b2447,#0a1b3a)}
+  .poster .pbg{position:absolute;inset:0;background:
+    radial-gradient(180px 180px at 82% 80%, var(--acc,#0ea5e9) 0%, transparent 62%),
+    radial-gradient(150px 150px at 16% 18%, rgba(255,255,255,.08), transparent 60%)}
+  .poster .pin{position:absolute;inset:0;padding:24px;display:flex;flex-direction:column}
+  .poster .eyebrow{font-size:9px;letter-spacing:2.5px;color:rgba(255,255,255,.7);text-transform:uppercase}
+  .poster .ph{font-size:27px;font-weight:800;line-height:1.05;margin-top:auto;letter-spacing:-.5px}
+  .poster .psub{font-size:11px;color:rgba(255,255,255,.8);margin-top:8px;line-height:1.4;max-width:80%}
+  .poster .pcta{margin-top:14px;align-self:flex-start;background:var(--acc,#0ea5e9);color:#06121f;font-weight:800;font-size:10px;padding:7px 13px;border-radius:999px}
+  .poster .pfoot{position:absolute;left:24px;right:24px;bottom:12px;font-size:8px;color:rgba(255,255,255,.62);
+    border-top:1px solid rgba(255,255,255,.18);padding-top:6px;display:flex;gap:8px}
+  .editor{border-inline-start:1px solid hsl(var(--border));padding:14px;background:hsl(var(--panel))}
+  .tabs{display:flex;gap:4px;margin-bottom:12px;background:hsl(var(--muted));padding:3px;border-radius:9px}
+  .tabs .tb{flex:1;text-align:center;font-size:11.5px;padding:6px;border-radius:7px;cursor:pointer;color:hsl(var(--muted-foreground))}
+  .tabs .tb.on{background:hsl(var(--elevated));color:hsl(var(--foreground));box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:11px;color:hsl(var(--muted-foreground));margin-bottom:4px}
+  .field input{width:100%;background:hsl(var(--input)/.4);border:1px solid hsl(var(--border));border-radius:8px;color:hsl(var(--foreground));
+    padding:7px 9px;font-size:12.5px;font-family:inherit}
+  .field input:focus{outline:none;border-color:hsl(var(--primary))}
+  .swatches{display:flex;gap:7px;margin-bottom:6px}
+  .sw{width:24px;height:24px;border-radius:7px;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:hsl(var(--foreground))}
+  .mini{font-size:10.5px;color:hsl(var(--muted-foreground));margin:6px 0;line-height:1.45}
+
+  /* pipeline flow card */
+  .flow{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px}
+  .node{flex:none;width:152px;border:1px solid hsl(var(--border));border-radius:11px;background:hsl(var(--panel));overflow:hidden}
+  .node .thumb{height:74px;background:linear-gradient(135deg,hsl(var(--muted)),hsl(var(--elevated)));display:grid;place-items:center;color:hsl(var(--muted-foreground));font-size:20px}
+  .node .meta{padding:8px 9px}
+  .node .meta .nm{font-size:11.5px;font-weight:600;margin-bottom:5px}
+  .st{font-size:10px;padding:2px 7px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .st.ready{background:hsl(var(--ok)/.14);color:hsl(var(--ok))}
+  .st.run{background:hsl(var(--warn)/.16);color:hsl(var(--warn))}
+  .st.queue{background:hsl(var(--muted-foreground)/.14);color:hsl(var(--muted-foreground))}
+  .st .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .st.run .d{animation:pulse 1s infinite}
+  .arrow{flex:none;align-self:center;color:hsl(var(--muted-foreground))}
+
+  /* composer */
+  .composer{position:absolute;left:0;right:0;bottom:0;padding:14px clamp(16px,6vw,110px) 18px;
+    background:linear-gradient(180deg,transparent,hsl(var(--background)) 34%)}
+  .cbox{max-width:840px;margin:0 auto;border:1px solid hsl(var(--border));border-radius:16px;background:hsl(var(--elevated));
+    box-shadow:var(--shadow)}
+  .cbox .topline{display:flex;align-items:center;gap:8px;padding:9px 12px 0}
+  .cmodel{font-size:11.5px;color:hsl(var(--muted-foreground));display:flex;align-items:center;gap:6px;
+    border:1px solid hsl(var(--border));border-radius:999px;padding:3px 9px;cursor:pointer}
+  .cmodel b{color:hsl(var(--foreground))}
+  .cbox .inrow{display:flex;align-items:flex-end;gap:10px;padding:8px 12px 12px}
+  .cbox textarea{flex:1;background:transparent;border:none;resize:none;color:hsl(var(--foreground));font-family:inherit;font-size:14.5px;
+    max-height:120px;min-height:24px;line-height:1.5;outline:none}
+  .send{width:38px;height:38px;border-radius:11px;border:none;background:var(--grad);color:#fff;cursor:pointer;display:grid;place-items:center}
+  .hint{max-width:840px;margin:8px auto 0;color:hsl(var(--muted-foreground));font-size:11px;text-align:center}
+  .kbd{font-size:10px;border:1px solid hsl(var(--border));border-radius:5px;padding:1px 5px;color:hsl(var(--muted-foreground))}
+
+  /* slide-in workspace panel */
+  .wspanel{position:absolute;top:0;inset-inline-end:0;bottom:0;width:min(440px,46vw);background:hsl(var(--card));
+    border-inline-start:1px solid hsl(var(--border));box-shadow:var(--shadow);transform:translateX(100%);transition:.28s;z-index:20;display:flex;flex-direction:column}
+  body.rtl .wspanel{transform:translateX(-100%)}
+  .wspanel.open{transform:none}
+  .wspanel .wh{display:flex;align-items:center;gap:10px;padding:15px 16px;border-bottom:1px solid hsl(var(--border))}
+  .wspanel .wh b{font-size:15px}
+  .wspanel .wh .x{margin-inline-start:auto;cursor:pointer;color:hsl(var(--muted-foreground));font-size:18px}
+  .wspanel .wc{padding:16px;overflow:auto;color:hsl(var(--muted-foreground));font-size:13px;line-height:1.6}
+  .wspanel .wc .pillrow{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+  .pill{font-size:10.5px;color:hsl(var(--muted-foreground));border:1px solid hsl(var(--border));border-radius:999px;padding:3px 9px}
+
+  /* ===== unified loader (PageLoader replica) ===== */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  @keyframes glow{0%,100%{box-shadow:0 0 12px rgba(139,92,246,.2),0 0 40px rgba(59,130,246,.12)}50%{box-shadow:0 0 22px rgba(139,92,246,.45),0 0 54px rgba(59,130,246,.22)}}
+  .fs-loader{display:flex;flex-direction:column;align-items:center;gap:18px}
+  .fs-ring{position:relative;width:80px;height:80px;display:grid;place-items:center}
+  .fs-ring svg{position:absolute;inset:0;animation:spin 2.5s linear infinite}
+  .fs-ring .mk{width:40px;height:40px;border-radius:11px;overflow:hidden;background:#fff;animation:glow 2.5s ease-in-out infinite;z-index:2}
+  .fs-ring .mk img{width:100%;height:100%;object-fit:contain}
+  .fs-tip{font-size:13px;color:hsl(var(--muted-foreground))}
+  .fs-spin{width:1em;height:1em;animation:spin 1.5s linear infinite;display:inline-block;vertical-align:-2px}
+
+  .boot{position:fixed;inset:0;background:hsl(var(--background));display:grid;place-items:center;z-index:100;transition:opacity .4s}
+  .boot.hide{opacity:0;pointer-events:none}
+
+  .note{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:hsl(var(--elevated));border:1px solid hsl(var(--border));
+    padding:8px 14px;border-radius:10px;font-size:12.5px;color:hsl(var(--foreground));opacity:0;transition:.25s;z-index:120;box-shadow:var(--shadow)}
+  .note.show{opacity:1}
+  .fade{animation:fade .4s ease}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+  <!-- boot loader (unified PageLoader) -->
+  <div class="boot" id="boot">
+    <div class="fs-loader">
+      <div class="fs-ring">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="37" fill="none" stroke="hsl(var(--muted))" stroke-width="3"/>
+          <circle cx="40" cy="40" r="37" fill="none" stroke="url(#bg)" stroke-width="3" stroke-linecap="round"
+            stroke-dasharray="232" stroke-dashoffset="162"/>
+          <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#3b82f6"/><stop offset="50%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#f59e0b"/>
+          </linearGradient></defs>
+        </svg>
+        <div class="mk"><img src="../public/icon.png" alt="FlowSmartly" onerror="this.parentNode.innerHTML='&lt;div style=&quot;width:100%;height:100%;background:var(--grad);border-radius:11px&quot;&gt;&lt;/div&gt;'"></div>
+      </div>
+      <div class="fs-tip" id="bootTip">Loading your workspace…</div>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="mk"><img src="../public/icon.png" alt="FlowSmartly" onerror="this.parentNode.style.background='var(--grad)';this.remove()"></div>
+      <div class="wm">Flow<span class="s">Smartly</span></div>
+    </div>
+    <div class="brandchip">◑ <b id="brandName">Acme Coffee Co.</b> ▾</div>
+    <div class="spacer"></div>
+    <div class="credits">⚡ <b>1,240</b> <span class="t-muted" id="lblCredits">credits</span></div>
+    <!-- language -->
+    <div class="iconbtn" id="langBtn" title="Language" onclick="toggleLang(event)">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+      <div class="menu" id="langMenu"></div>
+    </div>
+    <!-- theme -->
+    <div class="iconbtn" id="themeBtn" title="Toggle theme" onclick="toggleTheme()">
+      <svg class="i" id="themeIcon" viewBox="0 0 24 24"></svg>
+    </div>
+    <div class="avatar">JY</div>
+  </div>
+
+  <!-- WORKSPACE RAIL -->
+  <nav class="rail" id="rail"></nav>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="convo" id="convo">
+      <section class="hero" id="hero">
+        <h1><span id="h_greet">Good evening, Jean —</span> <span class="g" id="h_accent">what should we build?</span></h1>
+        <p class="sub" id="h_sub"></p>
+        <div class="chips" id="chips"></div>
+        <div class="seed-grid" id="seeds"></div>
+      </section>
+    </div>
+
+    <!-- COMPOSER -->
+    <div class="composer">
+      <div class="cbox">
+        <div class="topline">
+          <div class="cmodel" title="The agent auto-routes simple turns to a fast model and complex ones to a stronger model">✦ <b>Auto</b> · smart routing</div>
+        </div>
+        <div class="inrow">
+          <div class="iconbtn" title="Attach"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+          <textarea id="ta" rows="1" placeholder="Ask FlowSmartly to do something…"></textarea>
+          <div class="iconbtn" title="Voice"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+          <button class="send" onclick="sendFromBox()" title="Send"><svg class="i" viewBox="0 0 24 24" style="stroke:#fff"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+
+    <!-- WORKSPACE PANEL -->
+    <aside class="wspanel" id="wspanel">
+      <div class="wh"><span id="wsIcon"></span><b id="wsName">Create</b><span class="x" onclick="closeWs()">✕</span></div>
+      <div class="wc" id="wsBody"></div>
+    </aside>
+  </main>
+
+  <div class="note" id="note"></div>
+
+<script>
+/* ===== icons ===== */
+const IC={
+  sparkles:'<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/>',
+  palette:'<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10.5" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="15.5" cy="10.5" r="1"/><path d="M12 21a3 3 0 0 0 0-6 2 2 0 0 1 0-4"/>',
+  megaphone:'<path d="M3 11v2a1 1 0 0 0 1 1h2l9 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 8a4 4 0 0 1 0 8"/>',
+  trending:'<path d="M3 17l6-6 4 4 7-7"/><path d="M17 8h4v4"/>',
+  bag:'<path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  handshake:'<path d="M8 13l2 2 3-3 3 3 2-2"/><path d="M3 9l4-2 5 3 5-3 4 2"/><path d="M3 9v5l5 4M21 9v5l-5 4"/>',
+  sliders:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M18 18h2"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="18" r="2"/>',
+  video:'<rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>',
+  moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+};
+function svg(name,cls='i'){return `<svg class="${cls}" viewBox="0 0 24 24">${IC[name]}</svg>`;}
+
+/* ===== languages (real SUPPORTED_LANGUAGES) ===== */
+const LANGS=[
+  {tag:'en',native:'English'},{tag:'fr',native:'Français'},{tag:'es',native:'Español'},
+  {tag:'pt',native:'Português'},{tag:'pt-BR',native:'Português (BR)'},{tag:'de',native:'Deutsch'},
+  {tag:'it',native:'Italiano'},{tag:'nl',native:'Nederlands'},{tag:'pl',native:'Polski'},
+  {tag:'ru',native:'Русский'},{tag:'tr',native:'Türkçe'},{tag:'ar',native:'العربية'},
+  {tag:'he',native:'עברית'},{tag:'zh',native:'中文'},{tag:'zh-TW',native:'中文 (繁)'},
+  {tag:'ja',native:'日本語'},{tag:'ko',native:'한국어'},{tag:'hi',native:'हिन्दी'},
+  {tag:'bn',native:'বাংলা'},{tag:'id',native:'Bahasa Indonesia'},{tag:'vi',native:'Tiếng Việt'},{tag:'th',native:'ไทย'}
+];
+const RTL=['ar','he'];
+const WS_KEYS=['Home','Create','Publish','Grow','Sell','Web','Outreach','Business'];
+const WS_ICON={Home:'sparkles',Create:'palette',Publish:'megaphone',Grow:'trending',Sell:'bag',Web:'globe',Outreach:'handshake',Business:'sliders'};
+
+/* chrome translations (visible strings; others fall back to en) */
+const T={
+  en:{greet:'Good evening, Jean —',accent:'what should we build?',
+    sub:'Tell me what you want to do. I can design, post, advertise, build a store or site, register a domain — and show the work right here.',
+    ph:'Ask FlowSmartly to do something…',credits:'credits',
+    hint:'FlowSmartly confirms before anything that costs credits or publishes. <span class="kbd">⌘K</span> for commands.',
+    chips:['World Cup promo design','Launch a weekend sale','Make a video ad','Start a store'],
+    ws:{Home:'Home',Create:'Create',Publish:'Publish',Grow:'Grow',Sell:'Sell',Web:'Web',Outreach:'Outreach',Business:'Business'}},
+  fr:{greet:'Bonsoir Jean —',accent:'que créons-nous ?',
+    sub:'Dites-moi ce que vous voulez faire. Je peux concevoir, publier, faire de la publicité, créer une boutique ou un site, enregistrer un domaine — et montrer le travail ici même.',
+    ph:'Demandez à FlowSmartly de faire quelque chose…',credits:'crédits',
+    hint:'FlowSmartly confirme avant toute action payante ou publiée. <span class="kbd">⌘K</span> pour les commandes.',
+    chips:['Visuel promo Coupe du Monde','Lancer une vente week-end','Créer une pub vidéo','Ouvrir une boutique'],
+    ws:{Home:'Accueil',Create:'Créer',Publish:'Publier',Grow:'Développer',Sell:'Vendre',Web:'Web',Outreach:'Contact',Business:'Gestion'}},
+  es:{greet:'Buenas noches, Jean —',accent:'¿qué creamos?',
+    sub:'Dime qué quieres hacer. Puedo diseñar, publicar, anunciar, crear una tienda o web, registrar un dominio — y mostrar el trabajo aquí mismo.',
+    ph:'Pide a FlowSmartly que haga algo…',credits:'créditos',
+    hint:'FlowSmartly confirma antes de cualquier acción con coste o publicación. <span class="kbd">⌘K</span> para comandos.',
+    chips:['Diseño promo Mundial','Lanzar oferta de fin de semana','Crear anuncio en vídeo','Abrir una tienda'],
+    ws:{Home:'Inicio',Create:'Crear',Publish:'Publicar',Grow:'Crecer',Sell:'Vender',Web:'Web',Outreach:'Contactos',Business:'Negocio'}},
+  pt:{greet:'Boa noite, Jean —',accent:'o que vamos criar?',
+    sub:'Diga o que você quer fazer. Posso criar, publicar, anunciar, montar uma loja ou site, registrar um domínio — e mostrar o trabalho aqui mesmo.',
+    ph:'Peça ao FlowSmartly para fazer algo…',credits:'créditos',
+    hint:'O FlowSmartly confirma antes de qualquer ação paga ou publicação. <span class="kbd">⌘K</span> para comandos.',
+    chips:['Arte promo Copa do Mundo','Lançar promoção de fim de semana','Criar anúncio em vídeo','Abrir uma loja'],
+    ws:{Home:'Início',Create:'Criar',Publish:'Publicar',Grow:'Crescer',Sell:'Vender',Web:'Web',Outreach:'Contatos',Business:'Negócio'}},
+  de:{greet:'Guten Abend, Jean —',accent:'was bauen wir?',
+    sub:'Sag mir, was du tun möchtest. Ich kann gestalten, posten, werben, einen Shop oder eine Website erstellen, eine Domain registrieren — und die Arbeit gleich hier zeigen.',
+    ph:'Bitte FlowSmartly, etwas zu tun…',credits:'Credits',
+    hint:'FlowSmartly bestätigt vor allem, was Credits kostet oder veröffentlicht. <span class="kbd">⌘K</span> für Befehle.',
+    chips:['WM-Promo-Design','Wochenend-Sale starten','Video-Anzeige erstellen','Shop eröffnen'],
+    ws:{Home:'Start',Create:'Erstellen',Publish:'Posten',Grow:'Wachsen',Sell:'Verkaufen',Web:'Web',Outreach:'Kontakte',Business:'Verwaltung'}},
+  ar:{greet:'مساء الخير يا جان —',accent:'ماذا ننشئ؟',
+    sub:'أخبرني بما تريد فعله. يمكنني التصميم والنشر والإعلان وبناء متجر أو موقع وتسجيل نطاق — وعرض العمل هنا مباشرة.',
+    ph:'اطلب من FlowSmartly تنفيذ مهمة…',credits:'رصيد',
+    hint:'يؤكّد FlowSmartly قبل أي إجراء مدفوع أو نشر. <span class="kbd">⌘K</span> للأوامر.',
+    chips:['تصميم عرض كأس العالم','إطلاق تخفيضات نهاية الأسبوع','إنشاء إعلان فيديو','افتتاح متجر'],
+    ws:{Home:'الرئيسية',Create:'إنشاء',Publish:'نشر',Grow:'تنمية',Sell:'بيع',Web:'الويب',Outreach:'التواصل',Business:'الأعمال'}},
+  zh:{greet:'晚上好，Jean —',accent:'我们来做点什么？',
+    sub:'告诉我你想做什么。我可以设计、发布、投放广告、搭建商店或网站、注册域名 —— 并在这里直接展示成果。',
+    ph:'让 FlowSmartly 做点什么…',credits:'积分',
+    hint:'任何消耗积分或发布的操作，FlowSmartly 都会先确认。<span class="kbd">⌘K</span> 打开命令。',
+    chips:['世界杯促销设计','开启周末特卖','制作视频广告','开一家商店'],
+    ws:{Home:'主页',Create:'创作',Publish:'发布',Grow:'增长',Sell:'销售',Web:'网站',Outreach:'触达',Business:'管理'}},
+  hi:{greet:'शुभ संध्या, Jean —',accent:'हम क्या बनाएँ?',
+    sub:'बताइए आप क्या करना चाहते हैं। मैं डिज़ाइन, पोस्ट, विज्ञापन, स्टोर या साइट बनाना, डोमेन रजिस्टर करना कर सकता हूँ — और काम यहीं दिखा सकता हूँ।',
+    ph:'FlowSmartly से कुछ करने को कहें…',credits:'क्रेडिट',
+    hint:'क्रेडिट खर्च या प्रकाशन से पहले FlowSmartly पुष्टि करता है। <span class="kbd">⌘K</span> कमांड के लिए।',
+    chips:['वर्ल्ड कप प्रोमो डिज़ाइन','वीकेंड सेल शुरू करें','वीडियो विज्ञापन बनाएं','स्टोर शुरू करें'],
+    ws:{Home:'होम',Create:'बनाएँ',Publish:'प्रकाशित',Grow:'बढ़ाएँ',Sell:'बेचें',Web:'वेब',Outreach:'संपर्क',Business:'व्यवसाय'}},
+  ja:{greet:'こんばんは、Jean —',accent:'何をつくりましょう？',
+    sub:'やりたいことを教えてください。デザイン、投稿、広告、ストアやサイトの構築、ドメイン取得まで——その結果をここに表示します。',
+    ph:'FlowSmartly に頼んでみる…',credits:'クレジット',
+    hint:'クレジットを消費する操作や公開の前に、FlowSmartly が確認します。<span class="kbd">⌘K</span> でコマンド。',
+    chips:['ワールドカップ販促デザイン','週末セールを開始','動画広告を作成','ストアを開設'],
+    ws:{Home:'ホーム',Create:'作成',Publish:'投稿',Grow:'成長',Sell:'販売',Web:'ウェブ',Outreach:'アウトリーチ',Business:'管理'}}
+};
+const CHIP_IC=['palette','megaphone','video','bag'];
+const SEED_IC=['palette','trending','video','bag'];
+
+let lang='en';
+function t(){return T[lang]||T.en;}
+
+/* ===== render chrome ===== */
+function renderRail(){
+  const r=document.getElementById('rail');
+  r.innerHTML=WS_KEYS.map((k,i)=>`
+    <div class="item ${k==='Home'?'active':''}" data-ws="${k}">${svg(WS_ICON[k])}<span>${t().ws[k]}</span></div>
+    ${k==='Home'||k==='Outreach'?'<div class="sep"></div>':''}`).join('');
+}
+function renderHome(){
+  const x=t();
+  document.documentElement.lang=lang;
+  const rtl=RTL.includes(lang);
+  document.body.classList.toggle('rtl',rtl);
+  document.documentElement.dir=rtl?'rtl':'ltr';
+  document.getElementById('h_greet').textContent=x.greet;
+  document.getElementById('h_accent').textContent=x.accent;
+  document.getElementById('h_sub').textContent=x.sub;
+  document.getElementById('ta').placeholder=x.ph;
+  document.getElementById('lblCredits').textContent=x.credits;
+  document.getElementById('hint').innerHTML=x.hint;
+  document.getElementById('chips').innerHTML=x.chips.map((c,i)=>`<div class="chip" onclick="run(this.dataset.q)" data-q="${c}">${svg(CHIP_IC[i])} ${c}</div>`).join('');
+  const seedT=[['Design something','On-brand post, flyer, or ad — editable right in the chat.'],
+    ['Plan my week','A full content calendar, scheduled across your channels.'],
+    ['Make a video','Multi-scene ad with a flow you can tweak scene-by-scene.'],
+    ['Build a store','Domain, storefront, products — assembled end to end.']];
+  document.getElementById('seeds').innerHTML=seedT.map((s,i)=>`
+    <div class="seed" onclick="run(this.dataset.q)" data-q="${x.chips[i]}">
+      <div class="ic">${svg(SEED_IC[i])}</div><div class="t">${s[0]}</div><div class="d">${s[1]}</div></div>`).join('');
+  renderRail();
+}
+function renderLangMenu(){
+  document.getElementById('langMenu').innerHTML=LANGS.map(l=>`
+    <div class="mi ${l.tag===lang?'on':''}" onclick="setLang('${l.tag}',event)">${l.native}<span class="code">${l.tag}</span></div>`).join('');
+}
+function setLang(tag,e){if(e)e.stopPropagation();lang=tag;renderHome();renderLangMenu();document.getElementById('langMenu').classList.remove('open');toast('Language: '+(LANGS.find(l=>l.tag===tag)||{}).native+' — UI + all AI output');}
+function toggleLang(e){e.stopPropagation();document.getElementById('langMenu').classList.toggle('open');}
+document.addEventListener('click',()=>document.getElementById('langMenu').classList.remove('open'));
+
+/* ===== theme ===== */
+function setThemeIcon(){document.getElementById('themeIcon').innerHTML=document.documentElement.classList.contains('dark')?IC.sun:IC.moon;}
+function toggleTheme(){document.documentElement.classList.toggle('dark');setThemeIcon();toast(document.documentElement.classList.contains('dark')?'Dark theme':'Light theme');}
+
+/* ===== helpers ===== */
+const convo=document.getElementById('convo');
+function toast(t){const n=document.getElementById('note');n.textContent=t;n.classList.add('show');clearTimeout(n._t);n._t=setTimeout(()=>n.classList.remove('show'),1900);}
+function scrollDown(){convo.scrollTo({top:convo.scrollHeight,behavior:'smooth'});}
+function el(h){const d=document.createElement('div');d.innerHTML=h.trim();return d.firstElementChild;}
+const ta=document.getElementById('ta');
+ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';});
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendFromBox();}});
+function sendFromBox(){const v=ta.value.trim();if(!v)return;ta.value='';ta.style.height='auto';run(v);}
+
+const SPINNER=`<svg class="fs-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="hsl(var(--muted-foreground))" stroke-width="2.5" stroke-opacity=".25"/><circle cx="12" cy="12" r="10" stroke="url(#sg)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="63" stroke-dashoffset="44"/><defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="50%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient></defs></svg>`;
+
+/* ===== conversation ===== */
+function userMsg(text){convo.appendChild(el(`<div class="msg user fade"><div class="who">JY</div><div class="body"><div class="bubble">${text}</div></div></div>`));scrollDown();}
+function aiShell(){const m=el(`<div class="msg ai fade"><div class="who"><img src="../public/icon.png" onerror="this.parentNode.style.background='var(--grad)';this.remove()"></div><div class="body"></div></div>`);convo.appendChild(m);scrollDown();return m.querySelector('.body');}
+
+function run(text){
+  document.getElementById('hero').style.display='none';
+  userMsg(text);
+  const body=aiShell();
+  const think=el(`<div class="think">${SPINNER} Thinking — reading your brand kit & choosing a layout…</div>`);
+  body.appendChild(think);scrollDown();
+  setTimeout(()=>{
+    think.innerHTML='💭 Thought for 2s · matched <b>Acme Coffee Co.</b> brand kit ▾';
+    body.appendChild(el(`<div class="aitext">Here's a <b>World Cup 2026</b> promo on your brand. I kept the copy short so it renders clean. Edit any text or the accent on the right — it updates live. When you like it, I'll schedule it.</div>`));
+    body.appendChild(canvasCard());
+    body.appendChild(flowCard());
+    body.appendChild(planCard());
+    scrollDown();
+  },1100);
+}
+
+function canvasCard(){
+  const c=el(`
+  <div class="card fade">
+    <div class="hd">${svg('palette')} Editable design · Instagram 1080×1080 <span class="tag">live · update_block</span></div>
+    <div class="bd" style="padding:0">
+      <div class="canvas-wrap">
+        <div class="stage">
+          <div class="poster" id="poster">
+            <div class="pbg"></div>
+            <div class="pin">
+              <div class="eyebrow">ACME COFFEE CO.</div>
+              <div class="ph" id="p_head">Game Day,<br>Brewed Right</div>
+              <div class="psub" id="p_sub">Free pastry with any large coffee during every match.</div>
+              <div class="pcta" id="p_cta">Order ahead →</div>
+              <div class="pfoot"><span>acmecoffee.co</span><span>·</span><span>@acmecoffee</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="editor">
+          <div class="tabs"><div class="tb on">Content</div><div class="tb">Style</div></div>
+          <div class="field"><label>Headline</label><input id="i_head" value="Game Day, Brewed Right"></div>
+          <div class="field"><label>Subhead</label><input id="i_sub" value="Free pastry with any large coffee during every match."></div>
+          <div class="field"><label>Call to action</label><input id="i_cta" value="Order ahead →"></div>
+          <label style="font-size:11px;color:hsl(var(--muted-foreground));display:block;margin-bottom:5px">Accent</label>
+          <div class="swatches" id="sw">
+            <div class="sw on" style="background:#0ea5e9" data-c="#0ea5e9"></div>
+            <div class="sw" style="background:#8b5cf6" data-c="#8b5cf6"></div>
+            <div class="sw" style="background:#eccb93" data-c="#eccb93"></div>
+            <div class="sw" style="background:#ec4899" data-c="#ec4899"></div>
+          </div>
+          <div class="mini">Text edits apply instantly. "Regenerate art" re-renders the visual while keeping your text exact.</div>
+          <button class="btn" style="width:100%;justify-content:center" onclick="regen(this)">↻ Regenerate art</button>
+        </div>
+      </div>
+    </div>
+  </div>`);
+  setTimeout(()=>{
+    bind('i_head','p_head');bind('i_sub','p_sub');bind('i_cta','p_cta');
+    c.querySelectorAll('#sw .sw').forEach(s=>s.addEventListener('click',()=>{
+      c.querySelectorAll('#sw .sw').forEach(x=>x.classList.remove('on'));s.classList.add('on');
+      document.getElementById('poster').style.setProperty('--acc',s.dataset.c);}));
+    c.querySelectorAll('.tabs .tb').forEach(tb=>tb.addEventListener('click',()=>{c.querySelectorAll('.tabs .tb').forEach(x=>x.classList.remove('on'));tb.classList.add('on');}));
+  },0);
+  return c;
+}
+function bind(i,o){const a=document.getElementById(i),b=document.getElementById(o);if(a&&b)a.addEventListener('input',()=>b.innerHTML=a.value.replace(/\n/g,'<br>'));}
+function regen(btn){const p=document.getElementById('poster');const o=btn.innerHTML;btn.innerHTML=SPINNER+' Rendering…';p.style.filter='blur(4px) brightness(.85)';setTimeout(()=>{p.style.filter='';btn.innerHTML=o;toast('Re-rendered — your text kept exactly');},1300);}
+
+function flowCard(){
+  return el(`
+  <div class="card fade">
+    <div class="hd">${svg('video')} Or turn it into a video ad · Story-Ad flow <span class="tag">runs inside chat</span></div>
+    <div class="bd">
+      <div class="flow">
+        <div class="node"><div class="thumb">☕</div><div class="meta"><div class="nm">Hook</div><span class="st ready"><span class="d"></span>ready</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="thumb">⚽</div><div class="meta"><div class="nm">Match moment</div><span class="st run"><span class="d"></span>rendering</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="thumb">🥐</div><div class="meta"><div class="nm">Offer</div><span class="st queue"><span class="d"></span>queued</span></div></div>
+        <div class="arrow">→</div>
+        <div class="node"><div class="thumb">📣</div><div class="meta"><div class="nm">Stitch + CTA</div><span class="st queue"><span class="d"></span>queued</span></div></div>
+      </div>
+      <div class="row"><button class="btn ghost" onclick="toast('Opening the video flow inline…')">Build the video instead →</button></div>
+    </div>
+  </div>`);
+}
+
+function planCard(){
+  return el(`
+  <div class="card plan fade">
+    <div class="hd">📋 Plan · needs your OK <span class="tag">confirm before publish</span></div>
+    <div class="bd">
+      <div class="step"><div class="n">1</div><div>Finalize the design above (your edits are kept).</div></div>
+      <div class="step"><div class="n">2</div><div>Schedule to <b>Instagram</b> + <b>Facebook</b> — Sat 9:00 AM.</div></div>
+      <div class="step"><div class="n">3</div><div>Add 4 on-brand hashtags from your kit.</div></div>
+      <div class="cost">Est. cost: <b style="color:hsl(var(--warn))">6 credits</b> · reversible until it publishes</div>
+      <div class="row">
+        <button class="btn primary" onclick="confirmPlan(this)">Confirm &amp; schedule</button>
+        <button class="btn ghost" onclick="toast('Plan dismissed')">Not now</button>
+      </div>
+    </div>
+  </div>`);
+}
+function confirmPlan(btn){
+  const card=btn.closest('.card');
+  card.querySelector('.bd').innerHTML=`<div class="badge ok">✓ Scheduled</div>
+    <div class="progress"><i id="pg"></i></div>
+    <div class="aitext" id="pgtxt" style="font-size:13px;color:hsl(var(--muted-foreground))">${SPINNER} Scheduling to Instagram + Facebook…</div>`;
+  setTimeout(()=>document.getElementById('pg').style.width='100%',60);
+  setTimeout(()=>{document.getElementById('pgtxt').innerHTML='Done — live <b>Sat 9:00 AM</b> on 2 channels. <a href="#" style="color:hsl(var(--primary))">View in Publish ↗</a>';toast('Scheduled across 2 channels');},1500);
+}
+
+/* ===== workspace rail panel ===== */
+const WS_DESC={
+  Create:'Design studio, logos, video studio, cartoon maker, media library.',
+  Publish:'Social accounts, posts, content calendar and scheduling.',
+  Grow:'Content automation & strategy, email, SMS, WhatsApp, ad builder, story-ad campaigns.',
+  Sell:'Store builder, products, orders, customers, delivery, pricing, storefronts.',
+  Web:'Website builder, landing pages, and domains.',
+  Outreach:'Contacts & lists, reviews / local SEO, pitch board & proposals, follow-ups, forms, events.',
+  Business:'Brand kit, analytics, credits & billing, teams, referrals, settings, admin.'
+};
+const WS_FOLDS={
+  Create:['Design','Logos','Video','Cartoon','Media'],Publish:['Accounts','Posts','Calendar'],
+  Grow:['Automation','Email','SMS','WhatsApp','Ads','Story-Ad'],Sell:['Products','Orders','Customers','Delivery','Pricing'],
+  Web:['Sites','Landing pages','Domains'],Outreach:['Contacts','Reviews/SEO','Pitch','Forms','Events'],
+  Business:['Brand kit','Analytics','Billing','Teams','Referrals','Admin']};
+document.getElementById('rail').addEventListener('click',e=>{
+  const it=e.target.closest('.item');if(!it)return;
+  document.querySelectorAll('.rail .item').forEach(x=>x.classList.remove('active'));it.classList.add('active');
+  const key=it.dataset.ws;if(key==='Home'){closeWs();return;}
+  document.getElementById('wsIcon').innerHTML=svg(WS_ICON[key]);
+  document.getElementById('wsName').textContent=t().ws[key];
+  document.getElementById('wsBody').innerHTML=`
+    <p style="color:hsl(var(--foreground))">${WS_DESC[key]}</p>
+    <div class="pillrow">${(WS_FOLDS[key]||[]).map(p=>`<span class="pill">${p}</span>`).join('')}</div>
+    <p>Everything here is also an agent tool — say what you want and it renders in the chat, or work in the focused view.</p>
+    <div class="row"><button class="btn primary" onclick="closeWs();run('Open ${key} and help me get started')">${svg('sparkles')} Ask the agent</button>
+      <button class="btn ghost" onclick="toast('Opening focused ${key} view…')">Open focused view</button></div>`;
+  document.getElementById('wspanel').classList.add('open');
+});
+function closeWs(){document.getElementById('wspanel').classList.remove('open');}
+
+/* ===== boot ===== */
+const TIPS=['Loading your workspace…','Syncing your brand kit…','Warming up the agent…'];
+let ti=0;const tipEl=document.getElementById('bootTip');
+const tipTimer=setInterval(()=>{ti=(ti+1)%TIPS.length;tipEl.textContent=TIPS[ti];},700);
+setThemeIcon();renderLangMenu();renderHome();
+setTimeout(()=>{clearInterval(tipTimer);document.getElementById('boot').classList.add('hide');},1500);
+</script>
+</body>
+</html>
