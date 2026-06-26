@@ -8,7 +8,7 @@ import {
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { usePreferredLanguage } from "@/hooks/use-preferred-language";
 import { getHomeStrings, buildGreeting } from "./home-i18n";
@@ -248,7 +248,7 @@ export function AgentHome() {
                   })}
                 </div>
                 {!suggestions.length && (
-                  <p className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground"><AISpinner className="h-3 w-3" /> Personalizing suggestions…</p>
+                  <div className="mt-3"><FlowLoader size={14} label="Personalizing suggestions…" /></div>
                 )}
               </section>
             ) : (
@@ -299,7 +299,7 @@ export function AgentHome() {
                 />
                 <button className="hidden h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground sm:grid" aria-label="Voice"><Mic className="h-[18px] w-[18px]" /></button>
                 <button onClick={() => { send(draft, superMode); setDraft(""); }} disabled={sending} className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 text-white disabled:opacity-60" aria-label="Send">
-                  {sending ? <AISpinner className="h-[18px] w-[18px]" /> : <ArrowUp className="h-[18px] w-[18px]" />}
+                  {sending ? <FlowLoader size={18} tone="white" /> : <ArrowUp className="h-[18px] w-[18px]" />}
                 </button>
               </div>
             </div>
