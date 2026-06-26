@@ -59,6 +59,9 @@ Rule: **no feature is lost** — every existing page stays reachable *inside* a 
 - Migrate the 23-section nav into the 7-workspace IA (keep everything reachable).
 - First-run onboarding: agent greets, reads brand kit (`who_am_i`, `get_brand_identity`), suggests first actions.
 - Reposition the public marketing site around "your AI marketing team, in a chat."
+- **Mobile-first (required):** a tailored mobile experience — drawer nav (not the desktop rail), compact topbar, full-width chat + composer, full-screen workspace panel. Not a shrunk desktop.
+- **Everything AI-driven, nothing hardcoded:** time-aware greeting with the real first name; personalized starter suggestions generated from the brand kit (`/api/flow-ai/suggestions`, localized fallback only); the real Flow-AI agent loop (no scripted cards/proposals).
+- **Multi-account (agents):** users who manage multiple businesses get a top **Agent Mode banner** + the brand chip as a **business-switcher dropdown**, wired to `/api/agent/clients` + `/api/agent/impersonate` (POST `{clientId}` to switch, DELETE to exit). Switching reloads `/home` in the new business's context.
 
 ### WS2 — Live in-chat editable canvas (artifacts)
 The single missing primitive everywhere is **keyed in-place block mutation**. Tasks:
