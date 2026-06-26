@@ -38,7 +38,21 @@ export async function PATCH(request: NextRequest) {
     where: { userId: session.userId },
     data: { preferredLanguage: tag },
   });
-  // persisted=false means the user has no brand kit yet; the UI keeps the
-  // choice locally and it takes effect once a brand kit exists.
-  return NextResponse.json({ success: true, data: { language: tag, persisted: res.count > 0 } });
+  // No brand kit yet → create a minimal default one so the language persists
+  // and ALL AI output respects it immediately (name is the only required field).
+  if (res.count === 0) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true },
+    });
+    await prisma.brandKit.create({
+      data: {
+        userId: session.userId,
+        name: user?.name?.trim() || "My Brand",
+        preferredLanguage: tag,
+        isDefault: true,
+      },
+    });
+  }
+  return NextResponse.json({ success: true, data: { language: tag, persisted: true } });
 }

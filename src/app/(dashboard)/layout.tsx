@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/cn";
 import { FlowAIWidget } from "@/components/flow-ai/flow-ai-widget";
 import { EarnWidget } from "@/components/earn/earn-widget";
 import { CreateModal } from "@/components/shared/create-modal";
+import { PageLoader } from "@/components/shared/page-loader";
 import { ShieldCheck, FolderKanban } from "lucide-react";
 import { onCreditsUpdate } from "@/lib/utils/credits-event";
 import { onPlanUpdate } from "@/lib/utils/plan-event";
@@ -247,24 +248,7 @@ export default function DashboardLayout({
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center animate-pulse">
-            <svg
-              className="w-8 h-8 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-              />
-            </svg>
-          </div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+        <PageLoader />
       </div>
     );
   }
