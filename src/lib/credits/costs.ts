@@ -101,7 +101,8 @@ export const DEFAULT_CREDIT_COSTS = {
   //   the small fan-out of work most read-only tools do).
   // The remaining AGENT_* keys override the base when a specific tool has
   // outsized cost (scheduling = DB write + cron coordination, etc).
-  AGENT_MESSAGE: 3,                // Per agent turn (Claude Haiku tool loop)
+  AGENT_MESSAGE: 3,                // Per agent turn (cheapest model — Haiku tool loop)
+  AGENT_MESSAGE_SUPER: 15,         // Per agent turn in user-requested "Super" mode (premium model)
   AGENT_TOOL_CALL_BASE: 1,         // Default per tool call when no override
   AGENT_SCHEDULE_POST: 5,          // Create + schedule a Post via the agent
   AGENT_CANCEL_SCHEDULED_POST: 1,
@@ -247,6 +248,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_IMAGE: "FlowAI image generation",
   AI_CHAT_VIDEO: "FlowAI video generation",
   AGENT_MESSAGE: "Flow-AI agent: assistant turn",
+  AGENT_MESSAGE_SUPER: "Flow-AI agent: assistant turn (Super)",
   AGENT_TOOL_CALL_BASE: "Flow-AI agent: tool call",
   AGENT_SCHEDULE_POST: "Flow-AI agent: schedule social post",
   AGENT_CANCEL_SCHEDULED_POST: "Flow-AI agent: cancel scheduled post",

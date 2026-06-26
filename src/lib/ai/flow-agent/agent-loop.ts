@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { HAIKU_MODEL } from "@/lib/ai/client";
+import { getAgentModel } from "@/lib/ai/agent-model";
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
@@ -43,12 +43,17 @@ import type {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Model: pulled from the database (admin-editable via SystemSetting), defaulting
+// to the CHEAPEST model (Haiku). Standing project rule — never Opus/Sonnet.
+// See getAgentModel(). Budgets kept conservative for cost.
 const MAX_ITERATIONS = 8;
 const MAX_TOKENS = 2048;
 
 export interface AgentRunInput {
   userId: string;
   isAdmin: boolean;
+  /** User opted into premium "Super" mode — premium model + AGENT_MESSAGE_SUPER surcharge. */
+  superMode?: boolean;
   plan: string;
   conversationId: string;
   /** Assistant message row id this turn writes into. */
@@ -410,7 +415,15 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   }
 
   // ─── per-turn credit charge (covers the LLM call itself) ───────────
-  await chargeCredits("AGENT_MESSAGE", "Flow-AI agent: assistant turn");
+  // Super mode uses the premium model and a higher per-turn surcharge.
+  await chargeCredits(
+    input.superMode ? "AGENT_MESSAGE_SUPER" : "AGENT_MESSAGE",
+    input.superMode ? "Flow-AI agent: assistant turn (Super)" : "Flow-AI agent: assistant turn",
+  );
+
+  // Model is admin-editable in the DB; cheapest (Haiku) by default, premium when
+  // the user requested Super mode. One model for the whole turn.
+  const model = await getAgentModel(input.superMode === true);
 
   // ─── main loop ──────────────────────────────────────────────────────
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
@@ -423,7 +436,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     let streamedText = "";
     try {
       const stream = anthropic.messages.stream({
-        model: HAIKU_MODEL as Parameters<typeof anthropic.messages.stream>[0]["model"],
+        model: model as Parameters<typeof anthropic.messages.stream>[0]["model"],
         max_tokens: MAX_TOKENS,
         temperature: 0.5,
         system: systemPrompt,

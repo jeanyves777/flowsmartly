@@ -60,6 +60,7 @@ export function AgentHome() {
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [superMode, setSuperMode] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -264,9 +265,26 @@ export function AgentHome() {
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
             <div className="pointer-events-auto mx-auto max-w-[840px] rounded-2xl border border-border bg-card shadow-lg">
               <div className="px-3 pt-2.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-brand-500" /> <b className="text-foreground">Auto</b> · smart routing
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setSuperMode((v) => !v)}
+                  title={superMode ? "Super mode: premium model (+15 credits/turn). Tap for Standard." : "Standard: cheapest model. Tap for Super mode (premium, +15 credits/turn)."}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors",
+                    superMode ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-brand-500" />
+                  {superMode ? (
+                    <>
+                      <b className="text-foreground">Super</b> · premium · +15 cr
+                    </>
+                  ) : (
+                    <>
+                      <b className="text-foreground">Standard</b> · fast &amp; cheap
+                    </>
+                  )}
+                </button>
               </div>
               <div className="flex items-end gap-2 px-3 pb-3 pt-2 sm:gap-2.5">
                 <button className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground" aria-label="Attach"><Plus className="h-[18px] w-[18px]" /></button>
@@ -276,11 +294,11 @@ export function AgentHome() {
                   placeholder={s.placeholder}
                   disabled={sending}
                   onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(draft); setDraft(""); } }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(draft, superMode); setDraft(""); } }}
                   className="max-h-[120px] flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
                 />
                 <button className="hidden h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground sm:grid" aria-label="Voice"><Mic className="h-[18px] w-[18px]" /></button>
-                <button onClick={() => { send(draft); setDraft(""); }} disabled={sending} className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 text-white disabled:opacity-60" aria-label="Send">
+                <button onClick={() => { send(draft, superMode); setDraft(""); }} disabled={sending} className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 text-white disabled:opacity-60" aria-label="Send">
                   {sending ? <AISpinner className="h-[18px] w-[18px]" /> : <ArrowUp className="h-[18px] w-[18px]" />}
                 </button>
               </div>

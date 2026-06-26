@@ -383,6 +383,7 @@ export async function POST(req: NextRequest) {
         const result = await runFlowAgent({
           userId: session.userId,
           isAdmin: !!session.adminId,
+          superMode: (body as { superMode?: boolean }).superMode === true,
           plan,
           conversationId,
           messageId: assistantMsg.id,

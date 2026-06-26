@@ -222,6 +222,8 @@ export interface AgentSendInput {
    * library (the server fetches it for vision — no re-upload).
    */
   attachments?: Array<{ dataUrl?: string; url?: string; name?: string }>;
+  /** Premium "Super" mode — premium model + surcharge. */
+  superMode?: boolean;
 }
 
 export function useAgentSender() {
@@ -235,6 +237,7 @@ export function useAgentSender() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clientNow: new Date().toISOString(),
         attachments: input.attachments,
+        superMode: input.superMode === true,
       }),
     });
   }, []);
