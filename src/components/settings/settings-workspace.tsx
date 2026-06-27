@@ -894,8 +894,8 @@ export function SettingsWorkspace({ embedded = false }: { embedded?: boolean }) 
       )}
 
       <div className="grid lg:grid-cols-[240px_1fr] gap-6">
-        {/* Sidebar Navigation */}
-        <Card className="h-fit rounded-2xl">
+        {/* Sidebar Navigation — sticky in the embedded (focused-view) shell */}
+        <Card className={cn("h-fit rounded-2xl", embedded && "self-start lg:sticky lg:top-0")}>
           <CardContent className="p-2">
             <nav className="space-y-1">
               {tabs.map((tab) => (

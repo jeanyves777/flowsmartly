@@ -85,7 +85,7 @@ function Poster({ doc }: { doc: DesignDoc }) {
   );
 }
 
-export function FocusedDesignStudio({ value, onChange }: { value: DesignDoc; onChange: (d: DesignDoc) => void }) {
+export function FocusedDesignStudio({ value, onChange, onSave }: { value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void }) {
   const [toolsOpen, setToolsOpen] = useState(true);
   const set = (patch: Partial<DesignDoc>) => onChange({ ...value, ...patch });
 
@@ -97,7 +97,7 @@ export function FocusedDesignStudio({ value, onChange }: { value: DesignDoc; onC
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Redo"><Redo2 className="h-4 w-4" /></button>
         <span className="ms-1 text-[11.5px] text-muted-foreground">{value.size} · draft</span>
         <div className="ms-auto flex items-center gap-1.5">
-          <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground"><Save className="h-3.5 w-3.5" /> Save</button>
+          <button onClick={onSave} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground"><Save className="h-3.5 w-3.5" /> Save</button>
           <button className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white"><Download className="h-3.5 w-3.5" /> Export</button>
           <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
         </div>

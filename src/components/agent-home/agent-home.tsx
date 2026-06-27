@@ -64,6 +64,8 @@ export function AgentHome() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
@@ -73,6 +75,9 @@ export function AgentHome() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
+  const saverRef = useRef<null | (() => void | Promise<void>)>(null);
+  const savedDesignRef = useRef<DesignDoc>(DEFAULT_DESIGN);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -158,6 +163,20 @@ export function AgentHome() {
     canvasUpdateRef.current = (patch) => setDesign((d) => applyDesignPatch(d, patch));
   }, [canvasUpdateRef]);
 
+  // Track unsaved changes in the active focused view so navigation can guard.
+  useEffect(() => {
+    if (focused === "create") {
+      dirtyRef.current = JSON.stringify(design) !== JSON.stringify(savedDesignRef.current);
+      saverRef.current = () => { savedDesignRef.current = design; dirtyRef.current = false; };
+    } else if (focused === "account") {
+      dirtyRef.current = settingsDirty;
+      saverRef.current = null;
+    } else {
+      dirtyRef.current = false;
+      saverRef.current = null;
+    }
+  }, [focused, design, settingsDirty]);
+
   const showToast = useCallback((m: string) => {
     setToast(m);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -198,12 +217,13 @@ export function AgentHome() {
       setDrawerOpen(false);
       return;
     }
+    setFocused(null);
     setActiveWs(key);
     setPanelKey(key);
     setDrawerOpen(false);
   };
-  const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); };
-  const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("account"); };
+  const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); if (key === "create") savedDesignRef.current = design; };
+  const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("account"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
   const handleOpenConversation = (id: string) => { setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); loadConversation(id); };
@@ -215,6 +235,11 @@ export function AgentHome() {
   const handleLogout = async () => {
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
     window.location.href = "/login";
+  };
+  // Intercept navigation away from a focused view that has unsaved changes.
+  const guardNav = (proceed: () => void) => {
+    if (focused && dirtyRef.current) setLeaveAction({ run: proceed });
+    else proceed();
   };
 
   if (booting) {
@@ -273,10 +298,10 @@ export function AgentHome() {
           ⚡ <b className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text font-extrabold text-transparent">{(user?.aiCredits ?? 0).toLocaleString()}</b>
           <span className="hidden text-muted-foreground sm:inline">{s.credits}</span>
         </div>
-        <button onClick={handleNewChat} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
+        <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
         <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><History className="h-[18px] w-[18px]" /></button>
         <div className="hidden items-center gap-1 md:flex">
-          <button onClick={handleNewChat} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><SquarePen className="h-[18px] w-[18px]" /></button>
+          <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><SquarePen className="h-[18px] w-[18px]" /></button>
           <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><History className="h-[18px] w-[18px]" /></button>
           <LanguageSwitcher language={language} onChange={setLanguage} />
           <ThemeMenu />
@@ -291,10 +316,10 @@ export function AgentHome() {
                 <p className="truncate text-[13px] font-semibold">{user?.name ?? "You"}</p>
                 {user?.email && <p className="truncate text-[11.5px] text-muted-foreground">{user.email}</p>}
               </div>
-              <button onClick={openAccount} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+              <button onClick={() => guardNav(openAccount)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <User className="h-4 w-4 text-muted-foreground" /> Profile
               </button>
-              <button onClick={openAccount} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+              <button onClick={() => guardNav(openAccount)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <Settings className="h-4 w-4 text-muted-foreground" /> Account &amp; settings
               </button>
               <div className="my-1 h-px bg-border" />
@@ -315,7 +340,7 @@ export function AgentHome() {
             const active = activeWs === w.key;
             return (
               <div key={w.key} className="contents">
-                <button onClick={() => openWorkspace(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <button onClick={() => guardNav(() => openWorkspace(w.key))} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                   {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
@@ -335,7 +360,7 @@ export function AgentHome() {
               title={fLabel}
               subtitle={focused === "create" ? "Design canvas" : focused === "account" ? "Profile · appearance · account" : WS_DESC[focused]}
               icon={FIcon}
-              onClose={() => { setFocused(null); setActiveWs("home"); }}
+              onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
                 <>
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
@@ -355,9 +380,9 @@ export function AgentHome() {
               }
               canvas={
                 focused === "create" ? (
-                  <FocusedDesignStudio value={design} onChange={setDesign} />
+                  <FocusedDesignStudio value={design} onChange={setDesign} onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }} />
                 ) : focused === "account" ? (
-                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
                     <SettingsWorkspace embedded />
                   </div>
                 ) : (
@@ -456,14 +481,14 @@ export function AgentHome() {
               <div className="mb-2 rounded-xl border border-border p-1.5">
                 <AccountMenu accountLabel={accountLabel} clients={clients} isImpersonating={isImpersonating} onSwitch={switchToClient} onExit={exitImpersonation} onManage={() => router.push("/agent/clients")} />
               </div>
-              <button onClick={handleNewChat} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><SquarePen className="h-[18px] w-[18px]" /> New chat</button>
+              <button onClick={() => guardNav(handleNewChat)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><SquarePen className="h-[18px] w-[18px]" /> New chat</button>
               <button onClick={() => { setHistoryOpen(true); setDrawerOpen(false); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><History className="h-[18px] w-[18px]" /> History</button>
               <div className="my-1.5 h-px w-full bg-border" />
               {/* workspaces */}
               {WORKSPACES.map((w) => {
                 const Icon = w.icon;
                 return (
-                  <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={w.key} onClick={() => guardNav(() => openWorkspace(w.key))} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[w.key] ?? w.label}
                   </button>
                 );
@@ -480,6 +505,23 @@ export function AgentHome() {
 
       {toast && (
         <div className="fixed left-1/2 top-3.5 z-[120] -translate-x-1/2 rounded-[10px] border border-border bg-card px-3.5 py-2 text-[12.5px] shadow-lg">{toast}</div>
+      )}
+
+      {/* unsaved-changes guard */}
+      {leaveAction && (
+        <div className="fixed inset-0 z-[130] grid place-items-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <h3 className="text-[15px] font-bold">Unsaved changes</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">You have changes that haven’t been saved. Save them before you leave?</p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button onClick={() => setLeaveAction(null)} className="rounded-[10px] border border-border px-3.5 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">Stay</button>
+              <button onClick={() => { const a = leaveAction; dirtyRef.current = false; setSettingsDirty(false); setLeaveAction(null); a?.run(); }} className="rounded-[10px] border border-border px-3.5 py-2 text-[13px] font-semibold text-destructive hover:bg-destructive/10">Discard &amp; leave</button>
+              {saverRef.current && (
+                <button onClick={async () => { const a = leaveAction; try { await saverRef.current?.(); } catch { /* ignore */ } setSettingsDirty(false); setLeaveAction(null); a?.run(); }} className="rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[13px] font-semibold text-white">Save &amp; leave</button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
