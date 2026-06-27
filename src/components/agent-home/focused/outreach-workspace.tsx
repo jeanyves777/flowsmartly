@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, UserPlus, Upload, Mail, MessageSquare, Star, FileText, CalendarDays, X, Check } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -22,8 +21,7 @@ interface Stats { total?: number; active?: number; unsubscribed?: number; emailO
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", phone: "", tags: "" };
 
-export function FocusedOutreach({ refreshKey }: { refreshKey?: number }) {
-  const router = useRouter();
+export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView: (key: string) => void }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
@@ -186,10 +184,10 @@ export function FocusedOutreach({ refreshKey }: { refreshKey?: number }) {
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-[13px] font-bold">More outreach</h3>
           <div className="grid gap-2.5 sm:grid-cols-2">
-            <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => router.push("/listsmartly")} />
-            <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => router.push("/pitch-board")} />
-            <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => router.push("/automations")} />
-            <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => router.push("/tools/surveys")} />
+            <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => onOpenView("reviews")} />
+            <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => onOpenView("pitch")} />
+            <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => onOpenView("automations")} />
+            <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => onOpenView("forms")} />
           </div>
         </section>
       </div>

@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
-  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, type LucideIcon,
+  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
+  FileText, ClipboardList, Workflow, Users, Star, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -25,6 +26,12 @@ import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
 import { FocusedBilling } from "./focused/billing-workspace";
+import { FocusedDomains } from "./focused/domains-workspace";
+import { FocusedPitch } from "./focused/pitch-workspace";
+import { FocusedForms } from "./focused/forms-workspace";
+import { FocusedAutomations } from "./focused/automations-workspace";
+import { FocusedCustomers } from "./focused/customers-workspace";
+import { FocusedReviews } from "./focused/reviews-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
@@ -59,6 +66,12 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
   analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
   billing: "Ask the agent about credits & billing — e.g. “how many credits do I have left?”, “what did I spend on this week?”, or “which plan fits me?”.",
+  domains: "Ask the agent to help connect a domain, fix verification, or set up DNS.",
+  pitch: "Ask the agent to draft a proposal for a client or research a prospect.",
+  forms: "Ask the agent to build a new lead-capture form or survey.",
+  automations: "Ask the agent to set up a follow-up sequence — a welcome email, a birthday note, or an abandoned-cart nudge.",
+  customers: "Ask the agent to find your top spenders or re-engage repeat customers.",
+  reviews: "Ask the agent to request more reviews, fix a listing, or improve your local SEO score.",
   publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
   connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
   sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
@@ -68,6 +81,17 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   profile: "Ask the agent to update your public profile.",
 };
 const DEFAULT_CHAT_HINT = "Ask the agent to help with this surface — it can act on your account and confirm before anything costs credits.";
+
+// Header label / subtitle / icon for the sub-surfaces that aren't top-level rail
+// workspaces (built as their own /home/<view> focused views).
+const FOCUS_META: Record<string, { label: string; subtitle: string; icon: LucideIcon }> = {
+  domains: { label: "Domains", subtitle: "Connect & manage your custom domains", icon: Globe },
+  pitch: { label: "Pitch board", subtitle: "Your sales proposals & outreach pitches", icon: FileText },
+  forms: { label: "Forms & surveys", subtitle: "Lead-capture forms & surveys", icon: ClipboardList },
+  automations: { label: "Follow-ups", subtitle: "Automated follow-up sequences", icon: Workflow },
+  customers: { label: "Customers", subtitle: "Your store buyers — orders, spend, last purchase", icon: Users },
+  reviews: { label: "Reviews", subtitle: "Reviews & local SEO presence", icon: Star },
+};
 
 // Tell the agent WHICH surface the user is on so it acts in-context instead of
 // replying with a generic menu. Sent as `surfaceContext` (separate from the
@@ -87,6 +111,18 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Outreach** workspace open (contacts, lists, follow-ups, pitches). Default their intent to contact and outreach actions.`;
     case "analytics":
       return `The user has the **Analytics** workspace open (performance, usage, activity). Default their intent to reporting and insights about their own account.`;
+    case "domains":
+      return `The user is on the **Domains** surface, managing custom domains (registrar, SSL, verification, primary). Help them connect a domain, fix DNS/verification, or set a primary.`;
+    case "pitch":
+      return `The user is on their **Pitch board** (sales proposals & outreach pitches). Drafting a new proposal/pitch is generative — use create_proposal / create_pitch when they ask.`;
+    case "forms":
+      return `The user is on the **Forms & surveys** surface (lead-capture forms/surveys + submissions). Help them build a new form/survey or read submissions when asked.`;
+    case "automations":
+      return `The user is on the **Follow-ups** surface (automated sequences). Help them set up or adjust follow-up automations (welcome, birthday, abandoned-cart, re-engagement).`;
+    case "customers":
+      return `The user is on the **Customers** surface (their store's buyers — orders, spend, last purchase). Help them segment, find top spenders, or re-engage repeat customers.`;
+    case "reviews":
+      return `The user is on the **Reviews & local SEO** surface (ListSmartly). Help them request more reviews, claim/fix listings, or improve their local SEO/citation score.`;
     case "billing":
       return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
     case "connections":
@@ -100,7 +136,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -279,8 +315,9 @@ export function AgentHome() {
   const isBillingFocus = focused === "billing";
   const isConnectionsFocus = focused === "connections";
   const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isBillingFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fws?.icon ?? Sparkles;
+  const fMeta = focused ? FOCUS_META[focused] : undefined;
+  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -304,6 +341,9 @@ export function AgentHome() {
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
   const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("publish"); setFocused("connections"); };
   const openBilling = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("billing"); setDrawerOpen(false); };
+  // Open a sub-surface (domains, pitch, customers, …) from within its parent
+  // workspace — keeps the current rail selection. New-design only, never legacy.
+  const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -439,7 +479,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -477,15 +517,27 @@ export function AgentHome() {
                 ) : focused === "billing" ? (
                   <FocusedBilling refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onConnect={openConnections} refreshKey={actionCount} />
+                  <FocusedPublish onConnect={openConnections} onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
-                  <FocusedSell refreshKey={actionCount} />
+                  <FocusedSell onAsk={(p) => send(p)} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "web" ? (
-                  <FocusedWeb refreshKey={actionCount} />
+                  <FocusedWeb onAsk={(p) => send(p)} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
-                  <FocusedOutreach refreshKey={actionCount} />
+                  <FocusedOutreach onOpenView={openView} refreshKey={actionCount} />
+                ) : focused === "domains" ? (
+                  <FocusedDomains refreshKey={actionCount} />
+                ) : focused === "pitch" ? (
+                  <FocusedPitch onAsk={(p) => send(p)} refreshKey={actionCount} />
+                ) : focused === "forms" ? (
+                  <FocusedForms onAsk={(p) => send(p)} refreshKey={actionCount} />
+                ) : focused === "automations" ? (
+                  <FocusedAutomations onAsk={(p) => send(p)} refreshKey={actionCount} />
+                ) : focused === "customers" ? (
+                  <FocusedCustomers refreshKey={actionCount} />
+                ) : focused === "reviews" ? (
+                  <FocusedReviews onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
