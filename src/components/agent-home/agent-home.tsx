@@ -44,6 +44,9 @@ import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedCartoon } from "./focused/cartoon-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
+import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
+import { FocusedStoryAd } from "./focused/storyad-workspace";
+import { FocusedCalendar } from "./focused/calendar-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
@@ -96,6 +99,9 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   video: "Ask the agent to create a video — an ad, promo, or reel.",
   cartoon: "Ask the agent to make a cartoon or animated creation.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
+  adbuilder: "Ask the agent to build & launch an ad — e.g. “run an ad for my new product, $10/day, target Austin”.",
+  storyad: "Ask the agent to make a Story-Ad movie — a cinematic AI video ad for a product or offer.",
+  calendar: "Ask the agent to plan your content calendar — e.g. “schedule 3 posts this week” or “what’s going out Friday?”.",
   publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
   connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
   sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
@@ -127,6 +133,9 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   video: { label: "Video studio", subtitle: "Your AI-generated videos", icon: Clapperboard },
   cartoon: { label: "Cartoon maker", subtitle: "Your cartoon & animated creations", icon: Smile },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
+  adbuilder: { label: "Ad builder", subtitle: "Your ad campaigns — spend, reach & ROAS", icon: Megaphone },
+  storyad: { label: "Story-Ad", subtitle: "Cinematic AI ad movies & render status", icon: Clapperboard },
+  calendar: { label: "Content calendar", subtitle: "See what’s going out, and when", icon: CalendarDays },
 };
 
 // Tell the agent WHICH surface the user is on so it acts in-context instead of
@@ -183,6 +192,12 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Cartoon maker** (cartoon/animated creations). Help them make a cartoon/animated piece.`;
     case "delivery":
       return `The user is on the **Delivery** surface (order delivery + drivers). Help them with delivery status, assignments, and fulfillment.`;
+    case "adbuilder":
+      return `The user is on the **Ad builder** surface (their ad campaigns — spend, reach, ROAS). Building/launching a NEW ad campaign is generative: gather what they're promoting (a post, product, or link), the goal, audience, and budget, then create and launch it with the ad tool.`;
+    case "storyad":
+      return `The user is on the **Story-Ad** surface (cinematic AI ad movies + render status). Making a new story-ad is a generative video build — use the story-ad tool when they ask.`;
+    case "calendar":
+      return `The user is on the **Content calendar** (scheduled + published posts by date). Help them plan, schedule, or rearrange posts across the week — schedule_social_post / compose posts via the right tool.`;
     case "billing":
       return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
     case "connections":
@@ -196,7 +211,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -637,6 +652,12 @@ export function AgentHome() {
                   <FocusedCartoon onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "adbuilder" ? (
+                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "storyad" ? (
+                  <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "calendar" ? (
+                  <FocusedCalendar onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`, false, undefined, undefined, { hidden: true }); }} />
                 )
