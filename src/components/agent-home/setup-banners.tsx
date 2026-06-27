@@ -34,7 +34,7 @@ interface BannerConfig {
  * agent-home aesthetic. Per [[new-design-no-legacy]] the CTAs DRIVE THE AGENT —
  * they never deep-link to a legacy route. One banner at a time; dismissible.
  */
-export function SetupBanners({ onPrompt }: { onPrompt: (text: string) => void }) {
+export function SetupBanners({ onPrompt, onOpenBrand }: { onPrompt: (text: string) => void; onOpenBrand: () => void }) {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
@@ -134,7 +134,7 @@ export function SetupBanners({ onPrompt }: { onPrompt: (text: string) => void })
         description={active.description}
         onDismiss={() => dismiss(active.id)}
         action={
-          <button onClick={() => onPrompt(active.prompt)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-95">
+          <button onClick={() => (active.id === "setup-brand" ? onOpenBrand() : onPrompt(active.prompt))} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-95">
             {active.cta}
           </button>
         }

@@ -22,6 +22,7 @@ import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
+import { FocusedBrand } from "./focused/brand-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -171,6 +172,8 @@ export function AgentHome() {
     } else if (focused === "account") {
       dirtyRef.current = settingsDirty;
       saverRef.current = null;
+    } else if (focused === "brand") {
+      // FocusedBrand manages dirtyRef + saverRef itself.
     } else {
       dirtyRef.current = false;
       saverRef.current = null;
@@ -201,9 +204,10 @@ export function AgentHome() {
   const greeting = buildGreeting(s, firstName, hour);
   const empty = messages.length === 0;
   const isAccountFocus = focused === "account";
-  const fws = focused && !isAccountFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isAccountFocus ? "Account & settings" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isAccountFocus ? Settings : fws?.icon ?? Sparkles;
+  const isBrandFocus = focused === "brand";
+  const fws = focused && !isAccountFocus && !isBrandFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isAccountFocus ? Settings : isBrandFocus ? Palette : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -222,7 +226,8 @@ export function AgentHome() {
     setPanelKey(key);
     setDrawerOpen(false);
   };
-  const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); if (key === "create") savedDesignRef.current = design; };
+  const openFocused = (key: string) => { const target = key === "business" ? "brand" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
+  const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("account"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -354,11 +359,11 @@ export function AgentHome() {
         {/* main */}
         <main className="relative flex min-w-0 flex-1 flex-col">
           {/* setup prompts live in the main column so the rail stays full-height; CTAs drive the agent, never legacy links */}
-          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} />
+          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} onOpenBrand={openBrand} />
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "account" ? "Profile · appearance · account" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "account" ? "Profile · appearance · account" : focused === "brand" ? "Your brand kit — powers all AI" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -385,6 +390,8 @@ export function AgentHome() {
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
                     <SettingsWorkspace embedded />
                   </div>
+                ) : focused === "brand" ? (
+                  <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
