@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Clock, FolderPlus, Folder, ChevronLeft, Trash2, ListChecks, Save } from "lucide-react";
+import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -214,27 +214,7 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
             ) : listLeads.length ? (
               <div className="space-y-2">
                 {listLeads.map((lead) => (
-                  <div key={lead.id} className="rounded-xl border border-border bg-muted/30 p-3">
-                    <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-[13px] font-semibold">{lead.name}</p>
-                          {typeof lead.rating === "number" && <span className="inline-flex items-center gap-0.5 text-[11px] text-amber-500"><Star className="h-3 w-3 fill-current" /> {lead.rating.toFixed(1)}</span>}
-                          {(lead.pitchCount ?? 0) > 0 && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">{lead.pitchCount} pitch{lead.pitchCount === 1 ? "" : "es"}</span>}
-                        </div>
-                        <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.address, lead.phone].filter(Boolean).join(" · ")}</p>
-                      </div>
-                      <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => setLeadStatus(lead, e.target.value)} disabled={busyLead === lead.id} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
-                        {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
-                      </select>
-                    </div>
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                      <button onClick={() => pitchFor(lead.name, lead.website, lead.address)} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Send className="h-3.5 w-3.5" /> Pitch</button>
-                      <button onClick={() => proposalFor(lead.name, lead.website)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FileText className="h-3.5 w-3.5" /> Proposal</button>
-                      {lead.website && <a href={/^https?:\/\//.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Globe className="h-3.5 w-3.5" /> Site</a>}
-                      <button onClick={() => removeLead(lead)} disabled={busyLead === lead.id} className="ms-auto inline-flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-rose-500 disabled:opacity-60">{busyLead === lead.id ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}</button>
-                    </div>
-                  </div>
+                  <LeadRow key={lead.id} lead={lead} busy={busyLead === lead.id} onStatus={(s) => setLeadStatus(lead, s)} onRemove={() => removeLead(lead)} />
                 ))}
               </div>
             ) : (
@@ -267,6 +247,104 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
           )
         )}
       </div>
+    </div>
+  );
+}
+
+interface LeadPitch { id: string; businessName?: string; documentType?: string; status?: string; recipientEmail?: string | null }
+const statusPill = (s?: string) => ({ READY: "bg-emerald-500/10 text-emerald-500", SENT: "bg-violet-500/10 text-violet-500", FAILED: "bg-rose-500/10 text-rose-500", RESEARCHING: "bg-brand-500/10 text-brand-500", PENDING: "bg-muted text-muted-foreground" }[(s || "PENDING").toUpperCase()] || "bg-muted text-muted-foreground");
+
+/** A saved lead in a list, expandable to its pitches/proposals with create/email/delete. */
+function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<LeadPitch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [propOpen, setPropOpen] = useState(false);
+  const [svcTitle, setSvcTitle] = useState("");
+  const [svcDesc, setSvcDesc] = useState("");
+  const [emailFor, setEmailFor] = useState<string | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try { const j = await fetch(`/api/pitch?savedLeadId=${lead.id}&limit=20`).then((r) => r.json()); if (j?.success) setItems(j.data.pitches || []); } catch { /* ignore */ } finally { setLoading(false); }
+  }, [lead.id]);
+  const toggle = () => { const n = !open; setOpen(n); if (n) loadItems(); };
+
+  const newPitch = async () => {
+    setWorking(true);
+    try { await fetch("/api/pitch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ businessName: lead.name, businessUrl: lead.website || undefined, savedLeadId: lead.id }) }); await loadItems(); } catch { /* ignore */ } finally { setWorking(false); }
+  };
+  const newProposal = async () => {
+    if (!svcTitle.trim()) return;
+    setWorking(true);
+    try {
+      const j = await fetch("/api/pitch/proposals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetName: lead.name, targetWebsite: lead.website || undefined, serviceTitle: svcTitle.trim(), serviceDescription: svcDesc.trim() || svcTitle.trim(), savedLeadId: lead.id }) }).then((r) => r.json());
+      if (j?.success) { setPropOpen(false); setSvcTitle(""); setSvcDesc(""); await loadItems(); }
+    } catch { /* ignore */ } finally { setWorking(false); }
+  };
+  const delItem = async (id: string) => { setWorking(true); try { await fetch(`/api/pitch/${id}`, { method: "DELETE" }); setItems((p) => p.filter((x) => x.id !== id)); } catch { /* ignore */ } finally { setWorking(false); } };
+  const sendItem = async (id: string) => { if (!emailTo.trim()) return; setWorking(true); try { const j = await fetch(`/api/pitch/${id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipientEmail: emailTo.trim() }) }).then((r) => r.json()); if (j?.success) { setEmailFor(null); setEmailTo(""); await loadItems(); } } catch { /* ignore */ } finally { setWorking(false); } };
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/30">
+      <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5 p-3">
+        <button onClick={toggle} className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"><ChevronDown className={cn("h-4 w-4 transition", open && "rotate-180")} /></button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[13px] font-semibold">{lead.name}</p>
+            {typeof lead.rating === "number" && <span className="inline-flex items-center gap-0.5 text-[11px] text-amber-500"><Star className="h-3 w-3 fill-current" /> {lead.rating.toFixed(1)}</span>}
+            {(lead.pitchCount ?? 0) > 0 && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">{lead.pitchCount}</span>}
+          </div>
+          <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.address, lead.phone].filter(Boolean).join(" · ")}</p>
+        </div>
+        <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => onStatus(e.target.value)} disabled={busy} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
+          {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
+        </select>
+        <button onClick={onRemove} disabled={busy} className="mt-1 shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete lead">{busy ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}</button>
+      </div>
+
+      {open && (
+        <div className="border-t border-border/70 px-3 py-2.5">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <button onClick={newPitch} disabled={working} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60"><Send className="h-3.5 w-3.5" /> New pitch</button>
+            <button onClick={() => setPropOpen((v) => !v)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New proposal</button>
+            {lead.website && <a href={/^https?:\/\//.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Globe className="h-3.5 w-3.5" /> Site</a>}
+          </div>
+          {propOpen && (
+            <div className="mb-2.5 rounded-lg border border-brand-500/30 bg-brand-500/5 p-2.5">
+              <input value={svcTitle} onChange={(e) => setSvcTitle(e.target.value)} placeholder="Service you're offering — e.g. Social media management" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+              <textarea rows={2} value={svcDesc} onChange={(e) => setSvcDesc(e.target.value)} placeholder="What you'll deliver (optional — pulled from your Brand Kit if blank)" className="mt-2 w-full resize-none rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+              <button onClick={newProposal} disabled={working || !svcTitle.trim()} className="mt-2 inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">{working ? <FlowLoader size={14} tone="white" /> : <Presentation className="h-3.5 w-3.5" />} Generate proposal</button>
+            </div>
+          )}
+          {loading ? <div className="py-2"><FlowLoader size={16} label="Loading…" /></div> : items.length ? (
+            <div className="space-y-1.5">
+              {items.map((it) => {
+                const isProp = it.documentType === "service_proposal";
+                return (
+                  <div key={it.id} className="rounded-lg border border-border bg-background px-2.5 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", isProp ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>{isProp ? <Presentation className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{isProp ? "Proposal" : "Pitch"}{it.businessName ? ` · ${it.businessName}` : ""}</span>
+                      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize", statusPill(it.status))}>{(it.status || "PENDING").toLowerCase()}</span>
+                      <button onClick={() => { setEmailFor(emailFor === it.id ? null : it.id); setEmailTo(it.recipientEmail || ""); }} className="shrink-0 text-muted-foreground hover:text-brand-500" title="Email"><Mail className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => delItem(it.id)} disabled={working} className="shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                    {emailFor === it.id && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="recipient@email.com" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                        <button onClick={() => sendItem(it.id)} disabled={working || !emailTo.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">{working ? <FlowLoader size={13} tone="white" /> : <Send className="h-3.5 w-3.5" />} Send</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="py-1.5 text-[12px] text-muted-foreground">No pitches or proposals yet — create one above.</p>}
+        </div>
+      )}
     </div>
   );
 }

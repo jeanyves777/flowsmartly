@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const docTypeParam = searchParams.get("documentType"); // "pitch" | "service_proposal"
+    const savedLeadId = searchParams.get("savedLeadId"); // pitches/proposals under one lead
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { userId: session.userId };
     if (status && status !== "all") where.status = status;
     if (docTypeParam === "pitch" || docTypeParam === "service_proposal") where.documentType = docTypeParam;
+    if (savedLeadId) where.savedLeadId = savedLeadId;
 
     // documentType is a first-class column now — no JSON parsing to tell pitches
     // from proposals, and proposalCount is a cheap COUNT (not load-all-and-parse).
@@ -154,12 +156,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Optional link to a saved lead (validate ownership).
+    let savedLeadId: string | null = null;
+    if (typeof body.savedLeadId === "string" && body.savedLeadId) {
+      const sl = await prisma.savedLead.findFirst({ where: { id: body.savedLeadId, userId: session.userId }, select: { id: true } });
+      savedLeadId = sl?.id ?? null;
+    }
+
     // Create pitch record
     const pitch = await prisma.pitch.create({
       data: {
         userId: session.userId,
         businessName,
         businessUrl: businessUrl || null,
+        savedLeadId,
         recipientEmail: recipientEmail || null,
         recipientName: recipientName || null,
         documentType: "pitch",
