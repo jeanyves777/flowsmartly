@@ -120,7 +120,7 @@ export const editImage: FlowAgentTool = {
       return {
         ok: false,
         error_code: "validation_failed",
-        message: "The user asked to add their logo but no logo is set in their Brand Kit. Point them to /brand to upload one.",
+        message: "The user asked to add their logo but no logo is set in their Brand Kit. Point them to /home/brand to upload one.",
       };
     }
 
@@ -130,7 +130,7 @@ export const editImage: FlowAgentTool = {
         return {
           ok: false,
           error_code: "insufficient_credits",
-          message: `Need ${cost} credits for a ${tier} image edit. User has ${user?.aiCredits ?? 0}. Suggest /buy-credits to top up.`,
+          message: `Need ${cost} credits for a ${tier} image edit. User has ${user?.aiCredits ?? 0}. Suggest /home/billing to top up.`,
           meta: { need: cost, have: user?.aiCredits ?? 0 },
         };
       }

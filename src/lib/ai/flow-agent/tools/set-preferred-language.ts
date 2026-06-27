@@ -89,7 +89,7 @@ export const setPreferredLanguage: FlowAgentTool = {
           language,
           label: getLanguageLabel(language),
           summary: `Switched output language to ${supported.nativeLabel} (${language}). All future generations will use it. Your next reply from me will be in ${supported.nativeLabel}.`,
-          link: "/brand",
+          link: "/home/brand",
         },
         resultRefType: "BrandKit",
         resultRefId: kit.id,

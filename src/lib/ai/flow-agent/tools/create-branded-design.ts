@@ -98,7 +98,7 @@ export const createBrandedDesign: FlowAgentTool = {
         return {
           ok: false,
           error_code: "insufficient_credits",
-          message: `A ${tier} branded design costs ${cost} credits (purchased credits only). User has ${purchased}. Suggest /buy-credits.`,
+          message: `A ${tier} branded design costs ${cost} credits (purchased credits only). User has ${purchased}. Suggest /home/billing.`,
           meta: { need: cost, have: purchased, tier },
         };
       }
@@ -278,7 +278,7 @@ export const createBrandedDesign: FlowAgentTool = {
         });
 
         return {
-          output: { url, designId, tier, link: "/studio" },
+          output: { url, designId, tier, link: "/home/create" },
           resultRefType: "Design",
           resultRefId: designId,
         };

@@ -54,7 +54,7 @@ export const createPitch: FlowAgentTool = {
         return {
           ok: false,
           error_code: "missing_brand_kit",
-          message: "No Brand Kit configured — pitches sell the user's real services. Ask them to set up their Brand Kit at /brand first.",
+          message: "No Brand Kit configured — pitches sell the user's real services. Ask them to set up their Brand Kit at /home/brand first.",
         };
       }
 

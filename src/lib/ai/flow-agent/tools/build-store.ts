@@ -27,7 +27,7 @@ interface ProductInput {
 export const buildStore: FlowAgentTool = {
   name: "build_store",
   description:
-    "Build a real, hosted ecommerce store by driving the platform's Store Builder agent. Collect: store name, what it sells, industry, currency, and optionally a few starter products (name + price). Runs the full build in the background and returns a link at /ecommerce. EXPENSIVE — 500 credits — confirm via propose_plan. One store per account (offer to edit the existing one otherwise). Pass `planId` from a confirmed propose_plan.",
+    "Build a real, hosted ecommerce store by driving the platform's Store Builder agent. Collect: store name, what it sells, industry, currency, and optionally a few starter products (name + price). Runs the full build in the background and lands at /home/sell. EXPENSIVE — 500 credits — confirm via propose_plan. One store per account (offer to edit the existing one otherwise). Pass `planId` from a confirmed propose_plan.",
   input_schema: {
     type: "object",
     properties: {
@@ -75,7 +75,7 @@ export const buildStore: FlowAgentTool = {
         return {
           ok: false,
           error_code: "validation_failed",
-          message: `The account already has a store ("${existing.name}"). Only one is allowed — offer to manage it at /ecommerce, or have them delete it first.`,
+          message: `The account already has a store ("${existing.name}"). Only one is allowed — offer to manage it at /home/sell, or have them delete it first.`,
           meta: { existingStoreId: existing.id },
         };
       }
@@ -176,7 +176,7 @@ export const buildStore: FlowAgentTool = {
               ok: false,
               summary: "Your store build hit a snag",
               detail: result.error,
-              deepLink: `/ecommerce`,
+              deepLink: `/home/sell`,
             });
             throw new Error(result.error || "Store build failed");
           }
@@ -188,11 +188,11 @@ export const buildStore: FlowAgentTool = {
             ok: true,
             summary: `Your store "${name}" is built`,
             detail: "Open it to add products, set shipping, and publish.",
-            deepLink: `/ecommerce`,
+            deepLink: `/home/sell`,
           });
 
           return {
-            output: { storeId: store.id, slug: store.slug, link: `/ecommerce` },
+            output: { storeId: store.id, slug: store.slug, link: `/home/sell` },
             resultRefType: "Store",
             resultRefId: store.id,
           };
@@ -203,7 +203,7 @@ export const buildStore: FlowAgentTool = {
         type: "task_started",
         taskId,
         kind: "build_store",
-        summary: `Building your store — a few minutes. I'll notify you when it's ready at /ecommerce.`,
+        summary: `Building your store — a few minutes. I'll notify you when it's ready at /home/sell.`,
       });
 
       return {
@@ -211,7 +211,7 @@ export const buildStore: FlowAgentTool = {
         data: {
           taskId,
           creditCostQuoted: cost,
-          userMessage: `Started building the store "${name}" via the Store Builder (${products.length} starter products). Runs in the background; lands at /ecommerce. Tell the user you'll notify them when it's ready.`,
+          userMessage: `Started building the store "${name}" via the Store Builder (${products.length} starter products). Runs in the background; lands at /home/sell. Tell the user you'll notify them when it's ready.`,
         },
       };
     } catch (e) {

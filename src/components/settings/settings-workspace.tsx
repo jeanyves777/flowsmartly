@@ -1530,14 +1530,14 @@ export function SettingsWorkspace({ embedded = false, section = "all", initialTa
                       <div className="flex flex-wrap items-center gap-2">
                         {(user?.plan === "STARTER" || !user?.plan) ? (
                           <Button asChild>
-                            <Link href="/settings/upgrade">
+                            <Link href="/home/billing">
                               <Zap className="w-4 h-4 mr-2" />
                               Upgrade plan
                             </Link>
                           </Button>
                         ) : (
                           <Button variant="outline" asChild>
-                            <Link href="/settings/upgrade">
+                            <Link href="/home/billing">
                               <ArrowUpRight className="w-4 h-4 mr-2" />
                               Change plan
                             </Link>
@@ -1672,7 +1672,7 @@ export function SettingsWorkspace({ embedded = false, section = "all", initialTa
                       <CardDescription>Purchase credits to power AI features, SMS, and more</CardDescription>
                     </div>
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href="/buy-credits">
+                      <Link href="/home/billing">
                         View All
                         <ArrowRight className="w-4 h-4 ml-1" />
                       </Link>
@@ -1694,7 +1694,7 @@ export function SettingsWorkspace({ embedded = false, section = "all", initialTa
                         </div>
                       </div>
                       <Button asChild>
-                        <Link href="/buy-credits">
+                        <Link href="/home/billing">
                           Open credit store
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Link>
@@ -1754,7 +1754,7 @@ export function SettingsWorkspace({ embedded = false, section = "all", initialTa
                           </Link>
                         </Button>
                         <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
-                          <Link href="/buy-credits">
+                          <Link href="/home/billing">
                             <Plus className="w-4 h-4 mr-1.5" />
                             Buy More
                           </Link>

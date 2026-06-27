@@ -201,7 +201,7 @@ export const addContact: FlowAgentTool = {
           contactId: contact.id,
           name: [input.firstName, input.lastName].filter(Boolean).join(" ") || email || phone,
           summary: `Added contact: ${email || phone}`,
-          link: `/contacts`,
+          link: `/home/outreach`,
         },
         resultRefType: "Contact",
         resultRefId: contact.id,

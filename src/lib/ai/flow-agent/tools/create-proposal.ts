@@ -86,7 +86,7 @@ export const createProposal: FlowAgentTool = {
         return {
           ok: false,
           error_code: "missing_brand_kit",
-          message: "No Brand Kit configured. Proposals use the user's real services + branding — ask them to set up their Brand Kit at /brand first.",
+          message: "No Brand Kit configured. Proposals use the user's real services + branding — ask them to set up their Brand Kit at /home/brand first.",
         };
       }
 

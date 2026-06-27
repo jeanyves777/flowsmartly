@@ -25,7 +25,7 @@ import { notifyAgentTaskComplete } from "../notify-task-complete";
 export const buildWebsite: FlowAgentTool = {
   name: "build_website",
   description:
-    "Build a real, hosted multi-page website by driving the platform's Website Builder agent. Collect: business name, what it does, industry, audience, which pages, and a style. The services/brand come from the user's Brand Kit. Runs the full build in the background (several minutes) and returns a link to edit it at /websites. EXPENSIVE — 500 credits — so confirm cost via propose_plan. One website per account (tell the user to edit/delete their existing one if they already have a site). Pass `planId` from a confirmed propose_plan.",
+    "Build a real, hosted multi-page website by driving the platform's Website Builder agent. Collect: business name, what it does, industry, audience, which pages, and a style. The services/brand come from the user's Brand Kit. Runs the full build in the background (several minutes) and lands at /home/web to edit. EXPENSIVE — 500 credits — so confirm cost via propose_plan. One website per account (tell the user to edit/delete their existing one if they already have a site). Pass `planId` from a confirmed propose_plan.",
   input_schema: {
     type: "object",
     properties: {
@@ -64,7 +64,7 @@ export const buildWebsite: FlowAgentTool = {
         return {
           ok: false,
           error_code: "plan_required",
-          message: "Website hosting needs a paid plan or purchased credits. Suggest upgrading at /settings/upgrade or buying credits at /buy-credits.",
+          message: "Website hosting needs a paid plan or purchased credits. Suggest upgrading or buying credits at /home/billing.",
         };
       }
 
@@ -80,7 +80,7 @@ export const buildWebsite: FlowAgentTool = {
         return {
           ok: false,
           error_code: "validation_failed",
-          message: `The account already has a website ("${existing?.name ?? "site"}"). Only one is allowed — offer to edit it at /websites/${existing?.id}/edit, or have them delete it first.`,
+          message: `The account already has a website ("${existing?.name ?? "site"}"). Only one is allowed — offer to edit it at /home/web, or have them delete it first.`,
           meta: { existingWebsiteId: existing?.id },
         };
       }
@@ -171,7 +171,7 @@ export const buildWebsite: FlowAgentTool = {
               ok: false,
               summary: `Your website build hit a snag`,
               detail: result.error,
-              deepLink: `/websites/${website.id}/edit`,
+              deepLink: `/home/web`,
             });
             throw new Error(result.error || "Website build failed");
           }
@@ -183,11 +183,11 @@ export const buildWebsite: FlowAgentTool = {
             ok: true,
             summary: `Your website "${businessName}" is built`,
             detail: "Open it to review, edit, and publish.",
-            deepLink: `/websites/${website.id}/edit`,
+            deepLink: `/home/web`,
           });
 
           return {
-            output: { websiteId: website.id, slug: website.slug, link: `/websites/${website.id}/edit` },
+            output: { websiteId: website.id, slug: website.slug, link: `/home/web` },
             resultRefType: "Website",
             resultRefId: website.id,
           };
@@ -198,7 +198,7 @@ export const buildWebsite: FlowAgentTool = {
         type: "task_started",
         taskId,
         kind: "build_website",
-        summary: `Building your website (${questionnaire.pages.length} pages) — this takes a few minutes. I'll notify you when it's ready to edit at /websites.`,
+        summary: `Building your website (${questionnaire.pages.length} pages) — this takes a few minutes. I'll notify you when it's ready to edit at /home/web.`,
       });
 
       return {
@@ -206,7 +206,7 @@ export const buildWebsite: FlowAgentTool = {
         data: {
           taskId,
           creditCostQuoted: cost,
-          userMessage: `Started building the website for ${businessName} via the Website Builder. It runs in the background and lands at /websites. Tell the user you'll notify them when it's ready.`,
+          userMessage: `Started building the website for ${businessName} via the Website Builder. It runs in the background and lands at /home/web. Tell the user you'll notify them when it's ready.`,
         },
       };
     } catch (e) {

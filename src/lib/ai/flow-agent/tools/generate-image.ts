@@ -76,7 +76,7 @@ export const generateImage: FlowAgentTool = {
         return {
           ok: false,
           error_code: "insufficient_credits",
-          message: `Need ${cost} credits for ${tier} image generation. User has ${user?.aiCredits ?? 0}. Suggest /buy-credits to top up.`,
+          message: `Need ${cost} credits for ${tier} image generation. User has ${user?.aiCredits ?? 0}. Suggest /home/billing to top up.`,
           meta: { need: cost, have: user?.aiCredits ?? 0, costKey },
         };
       }
