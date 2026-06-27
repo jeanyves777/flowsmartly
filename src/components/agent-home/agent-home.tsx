@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
-  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings,
+  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -25,6 +25,7 @@ import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
+import { FocusedConnections } from "./focused/connections-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -47,7 +48,7 @@ const WS_DESC: Record<string, string> = {
 };
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -223,9 +224,10 @@ export function AgentHome() {
   const isProfileFocus = focused === "profile";
   const isBrandFocus = focused === "brand";
   const isAnalyticsFocus = focused === "analytics";
-  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : fws?.icon ?? Sparkles;
+  const isConnectionsFocus = focused === "connections";
+  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isConnectionsFocus ? "Connections" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isConnectionsFocus ? Link2 : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -247,7 +249,7 @@ export function AgentHome() {
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
-  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab("connections"); setActiveWs("business"); setFocused("account"); };
+  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("publish"); setFocused("connections"); };
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -383,7 +385,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing · connections" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "connections" ? "Connect your social accounts" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -420,6 +422,8 @@ export function AgentHome() {
                   <FocusedAnalytics />
                 ) : focused === "publish" ? (
                   <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} />
+                ) : focused === "connections" ? (
+                  <FocusedConnections />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
