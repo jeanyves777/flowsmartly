@@ -26,6 +26,7 @@ import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
+import { FocusedSell } from "./focused/sell-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -424,6 +425,8 @@ export function AgentHome() {
                   <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} />
                 ) : focused === "connections" ? (
                   <FocusedConnections />
+                ) : focused === "sell" ? (
+                  <FocusedSell onAsk={(p) => send(p)} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
