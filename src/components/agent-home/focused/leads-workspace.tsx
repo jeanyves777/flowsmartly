@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation } from "lucide-react";
+import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -254,6 +254,20 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
 interface LeadPitch { id: string; businessName?: string; documentType?: string; status?: string; recipientEmail?: string | null }
 const statusPill = (s?: string) => ({ READY: "bg-emerald-500/10 text-emerald-500", SENT: "bg-violet-500/10 text-violet-500", FAILED: "bg-rose-500/10 text-rose-500", RESEARCHING: "bg-brand-500/10 text-brand-500", PENDING: "bg-muted text-muted-foreground" }[(s || "PENDING").toUpperCase()] || "bg-muted text-muted-foreground");
 
+// The human-editable text fields shared across pitches (PitchContent) and
+// proposals — only those present on a given document render. Everything else in
+// the content object (sections, design, arrays) is preserved untouched on save.
+const EDIT_FIELDS: { key: string; label: string; long?: boolean }[] = [
+  { key: "subject", label: "Subject" },
+  { key: "headline", label: "Headline", long: true },
+  { key: "personalizedHook", label: "Opening hook", long: true },
+  { key: "opportunityParagraph", label: "The opportunity", long: true },
+  { key: "body", label: "Body", long: true },
+  { key: "impactParagraph", label: "Impact", long: true },
+  { key: "ctaText", label: "Call to action" },
+  { key: "closingLine", label: "Closing line", long: true },
+];
+
 /** A saved lead in a list, expandable to its pitches/proposals with create/email/delete. */
 function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void }) {
   const [open, setOpen] = useState(false);
@@ -265,6 +279,12 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
   const [svcDesc, setSvcDesc] = useState("");
   const [emailFor, setEmailFor] = useState<string | null>(null);
   const [emailTo, setEmailTo] = useState("");
+  const [editFor, setEditFor] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editRaw, setEditRaw] = useState<Record<string, unknown>>({});
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -286,6 +306,34 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
   };
   const delItem = async (id: string) => { setWorking(true); try { await fetch(`/api/pitch/${id}`, { method: "DELETE" }); setItems((p) => p.filter((x) => x.id !== id)); } catch { /* ignore */ } finally { setWorking(false); } };
   const sendItem = async (id: string) => { if (!emailTo.trim()) return; setWorking(true); try { const j = await fetch(`/api/pitch/${id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipientEmail: emailTo.trim() }) }).then((r) => r.json()); if (j?.success) { setEmailFor(null); setEmailTo(""); await loadItems(); } } catch { /* ignore */ } finally { setWorking(false); } };
+
+  // Open the in-place editor: pull the full document, surface its editable text
+  // fields, and let the user revise the detail before re-saving (or emailing).
+  const openEdit = async (id: string) => {
+    if (editFor === id) { setEditFor(null); return; }
+    setEmailFor(null); setEditFor(id); setEditLoading(true); setEditFields({}); setEditRaw({}); setEditName(""); setEditEmail("");
+    try {
+      const j = await fetch(`/api/pitch/${id}`).then((r) => r.json());
+      if (j?.success) {
+        const p = j.data.pitch;
+        const content = (p.pitchContent && typeof p.pitchContent === "object" && !Array.isArray(p.pitchContent)) ? p.pitchContent as Record<string, unknown> : {};
+        setEditRaw(content);
+        setEditName(p.recipientName || "");
+        setEditEmail(p.recipientEmail || "");
+        const fields: Record<string, string> = {};
+        for (const f of EDIT_FIELDS) { if (typeof content[f.key] === "string") fields[f.key] = content[f.key] as string; }
+        setEditFields(fields);
+      }
+    } catch { /* ignore */ } finally { setEditLoading(false); }
+  };
+  const saveEdit = async (id: string) => {
+    setWorking(true);
+    try {
+      const mergedContent = { ...editRaw, ...editFields };
+      const j = await fetch(`/api/pitch/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipientName: editName.trim() || null, recipientEmail: editEmail.trim() || null, pitchContent: mergedContent }) }).then((r) => r.json());
+      if (j?.success) { setEditFor(null); await loadItems(); }
+    } catch { /* ignore */ } finally { setWorking(false); }
+  };
 
   return (
     <div className="rounded-xl border border-border bg-muted/30">
@@ -329,9 +377,37 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
                       <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", isProp ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>{isProp ? <Presentation className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{isProp ? "Proposal" : "Pitch"}{it.businessName ? ` · ${it.businessName}` : ""}</span>
                       <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize", statusPill(it.status))}>{(it.status || "PENDING").toLowerCase()}</span>
-                      <button onClick={() => { setEmailFor(emailFor === it.id ? null : it.id); setEmailTo(it.recipientEmail || ""); }} className="shrink-0 text-muted-foreground hover:text-brand-500" title="Email"><Mail className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => openEdit(it.id)} className={cn("shrink-0 hover:text-brand-500", editFor === it.id ? "text-brand-500" : "text-muted-foreground")} title="Edit details"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => { setEditFor(null); setEmailFor(emailFor === it.id ? null : it.id); setEmailTo(it.recipientEmail || ""); }} className="shrink-0 text-muted-foreground hover:text-brand-500" title="Email"><Mail className="h-3.5 w-3.5" /></button>
                       <button onClick={() => delItem(it.id)} disabled={working} className="shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
+                    {editFor === it.id && (
+                      <div className="mt-2 rounded-lg border border-brand-500/30 bg-brand-500/5 p-2.5">
+                        {editLoading ? <div className="py-1.5"><FlowLoader size={16} label="Loading the document…" /></div> : (
+                          <>
+                            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Recipient name" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                              <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="recipient@email.com" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                            </div>
+                            {EDIT_FIELDS.filter((f) => f.key in editFields).map((f) => (
+                              <div key={f.key} className="mt-2">
+                                <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{f.label}</label>
+                                {f.long ? (
+                                  <textarea rows={2} value={editFields[f.key]} onChange={(e) => setEditFields((p) => ({ ...p, [f.key]: e.target.value }))} className="w-full resize-none rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+                                ) : (
+                                  <input value={editFields[f.key]} onChange={(e) => setEditFields((p) => ({ ...p, [f.key]: e.target.value }))} className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+                                )}
+                              </div>
+                            ))}
+                            <div className="mt-2.5 flex items-center gap-1.5">
+                              <button onClick={() => saveEdit(it.id)} disabled={working} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">{working ? <FlowLoader size={13} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save changes</button>
+                              <button onClick={() => setEditFor(null)} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                            </div>
+                            <p className="mt-1.5 text-[10.5px] text-muted-foreground">Saved changes update the document for this lead — then email it to send the refreshed version.</p>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {emailFor === it.id && (
                       <div className="mt-2 flex items-center gap-1.5">
                         <input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="recipient@email.com" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
