@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
-  Menu, Plus, Mic, ArrowUp, Sparkles, X, ChevronDown, Check, Shield, LogOut,
+  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -17,6 +17,9 @@ import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent } from "./use-home-agent";
 import { HomeMessageView } from "./home-message";
+import { Composer } from "./composer";
+import { FocusedView, FocusedComingSoon } from "./focused-view";
+import { FocusedDesignStudio, DEFAULT_DESIGN, type DesignDoc } from "./focused/design-studio";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null }
 interface AgentClient { id: string; name: string }
@@ -27,12 +30,6 @@ const SUG_ICON: Record<string, LucideIcon> = {
   calendar: CalendarDays, globe: Globe, trending: TrendingUp, sparkles: Sparkles,
 };
 const FALLBACK_ICONS: LucideIcon[] = [Palette, CalendarDays, Video, ShoppingBag];
-
-// Composer modes — extensible: add an entry to surface a new mode in the drop-up.
-const COMPOSER_MODES = [
-  { key: "standard", label: "Standard", hint: "fast & cheap", desc: "Cheapest model — best for everyday tasks.", superMode: false },
-  { key: "super", label: "Super", hint: "premium · +15 cr", desc: "Premium model for complex tasks (+15 credits/turn).", superMode: true },
-];
 
 const WS_DESC: Record<string, string> = {
   create: "Design studio, logos, video studio, cartoon maker, media library.",
@@ -65,13 +62,11 @@ export function AgentHome() {
   const [panelKey, setPanelKey] = useState<string | null>(null);
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [modeKey, setModeKey] = useState("standard");
-  const [modeOpen, setModeOpen] = useState(false);
+  const [focused, setFocused] = useState<string | null>(null);
+  const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
-  const modeRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -125,13 +120,6 @@ export function AgentHome() {
     return () => document.removeEventListener("mousedown", h);
   }, [accountOpen]);
 
-  useEffect(() => {
-    if (!modeOpen) return;
-    const h = (e: MouseEvent) => { if (modeRef.current && !modeRef.current.contains(e.target as Node)) setModeOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [modeOpen]);
-
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
   const showToast = useCallback((m: string) => {
@@ -157,10 +145,12 @@ export function AgentHome() {
   const hour = mounted ? new Date().getHours() : 18;
   const greeting = buildGreeting(s, firstName, hour);
   const empty = messages.length === 0;
-  const mode = COMPOSER_MODES.find((m) => m.key === modeKey) ?? COMPOSER_MODES[0];
-  const superMode = mode.superMode;
+  const fws = focused ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => { setActiveWs(key); setPanelKey(key === "home" ? null : key); setDrawerOpen(false); };
+  const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); };
 
   if (booting) {
     return (
@@ -247,6 +237,39 @@ export function AgentHome() {
 
         {/* main */}
         <main className="relative flex min-w-0 flex-1 flex-col">
+          {focused ? (
+            <FocusedView
+              title={fLabel}
+              subtitle={focused === "create" ? "Design canvas" : WS_DESC[focused]}
+              icon={FIcon}
+              onClose={() => { setFocused(null); setActiveWs("home"); }}
+              chat={
+                <>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+                    {messages.length === 0 ? (
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">Ask the agent to create or change the canvas on the right — e.g. “make a summer sale graphic” or “use gold and a punchier headline”.</p>
+                    ) : (
+                      messages.map((m) => (
+                        <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                      ))
+                    )}
+                    <div ref={bottomRef} />
+                  </div>
+                  <div className="border-t border-border p-3">
+                    <Composer onSend={send} sending={sending} placeholder={s.placeholder} autoFocus />
+                  </div>
+                </>
+              }
+              canvas={
+                focused === "create" ? (
+                  <FocusedDesignStudio value={design} onChange={setDesign} />
+                ) : (
+                  <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onOpenRoute={(r) => router.push(r)} />
+                )
+              }
+            />
+          ) : (
+            <>
           <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 sm:px-[clamp(16px,6vw,110px)] md:pb-40">
             {empty ? (
               <section className="mx-auto mt-[6vh] max-w-[780px]">
@@ -285,61 +308,8 @@ export function AgentHome() {
 
           {/* composer */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
-            <div className="pointer-events-auto mx-auto max-w-[840px] rounded-2xl border border-border bg-card shadow-lg">
-              <div className="relative px-3 pt-2.5" ref={modeRef}>
-                <button
-                  type="button"
-                  onClick={() => setModeOpen((o) => !o)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors",
-                    superMode ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-brand-500" /> <b className="text-foreground">{mode.label}</b> · {mode.hint}
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-                {modeOpen && (
-                  <div
-                    className="absolute bottom-full left-3 z-50 mb-2 w-60 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl"
-                    style={{ maxHeight: "20rem", overflowY: "auto", overscrollBehavior: "contain" }}
-                  >
-                    <div className="px-2.5 py-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Mode</div>
-                    {COMPOSER_MODES.map((m) => (
-                      <button
-                        key={m.key}
-                        type="button"
-                        onClick={() => { setModeKey(m.key); setModeOpen(false); }}
-                        className={cn("flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted", m.key === modeKey && "bg-brand-500/10")}
-                      >
-                        <Sparkles className={cn("mt-0.5 h-4 w-4 shrink-0", m.key === modeKey ? "text-brand-500" : "text-muted-foreground")} />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                            {m.label}
-                            {m.key === modeKey && <Check className="h-3.5 w-3.5 text-brand-500" />}
-                          </span>
-                          <span className="block text-[11px] leading-snug text-muted-foreground">{m.desc}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-end gap-2 px-3 pb-3 pt-2 sm:gap-2.5">
-                <button className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground" aria-label="Attach"><Plus className="h-[18px] w-[18px]" /></button>
-                <textarea
-                  rows={1}
-                  value={draft}
-                  placeholder={s.placeholder}
-                  disabled={sending}
-                  onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(draft, superMode); setDraft(""); } }}
-                  className="max-h-[120px] flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
-                />
-                <button className="hidden h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground sm:grid" aria-label="Voice"><Mic className="h-[18px] w-[18px]" /></button>
-                <button onClick={() => { send(draft, superMode); setDraft(""); }} disabled={sending} className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 text-white disabled:opacity-60" aria-label="Send">
-                  {sending ? <FlowLoader size={18} tone="white" /> : <ArrowUp className="h-[18px] w-[18px]" />}
-                </button>
-              </div>
+            <div className="pointer-events-auto mx-auto max-w-[840px]">
+              <Composer onSend={send} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
@@ -353,9 +323,12 @@ export function AgentHome() {
                 onClose={() => { setPanelKey(null); setActiveWs("home"); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q); }}
                 onOpen={(route) => router.push(route)}
+                onFocus={() => openFocused(panelKey)}
               />
             )}
           </aside>
+            </>
+          )}
         </main>
       </div>
 
@@ -433,12 +406,13 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
-function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen }: {
+function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen, onFocus }: {
   panelKey: string;
   label: string;
   onClose: () => void;
   onAsk: (q: string) => void;
   onOpen: (route: string) => void;
+  onFocus: () => void;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -460,7 +434,7 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen }: {
         <p>Everything here is also an agent tool — say what you want and it renders in the chat, or work in the focused view.</p>
         <div className="flex flex-wrap gap-2 pt-1">
           <button onClick={() => onAsk(`Open ${label} and help me get started`)} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
-          <button onClick={() => onOpen(ws.route)} className="rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">Open focused view</button>
+          <button onClick={onFocus} className="rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">Open focused view</button>
         </div>
       </div>
     </>
