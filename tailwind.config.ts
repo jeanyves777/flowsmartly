@@ -2,7 +2,9 @@ import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
-  darkMode: ["class"],
+  // `dark:` variants fire under BOTH .dark and the .grey ("lighter dark") theme,
+  // so grey restyles every element exactly like dark does.
+  darkMode: ["variant", ["&:where(.dark, .dark *)", "&:where(.grey, .grey *)"]],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",

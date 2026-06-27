@@ -41,7 +41,10 @@ export function LanguageSwitcher({
         <Globe className="h-[18px] w-[18px]" />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 max-h-80 w-56 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-xl">
+        <div
+          className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl"
+          style={{ maxHeight: "20rem", overflowY: "auto", overscrollBehavior: "contain" }}
+        >
           {SUPPORTED_LANGUAGES.map((l) => (
             <button
               key={l.tag}
