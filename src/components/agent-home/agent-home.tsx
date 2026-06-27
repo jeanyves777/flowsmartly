@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
-  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
+  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -24,6 +24,7 @@ import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPa
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
+import { FocusedBilling } from "./focused/billing-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
@@ -57,6 +58,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   create: "Ask the agent to create or change the design on the right — e.g. “make a summer sale graphic” or “use gold and a punchier headline”.",
   brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
   analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
+  billing: "Ask the agent about credits & billing — e.g. “how many credits do I have left?”, “what did I spend on this week?”, or “which plan fits me?”.",
   publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
   connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
   sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
@@ -85,6 +87,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Outreach** workspace open (contacts, lists, follow-ups, pitches). Default their intent to contact and outreach actions.`;
     case "analytics":
       return `The user has the **Analytics** workspace open (performance, usage, activity). Default their intent to reporting and insights about their own account.`;
+    case "billing":
+      return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
     case "connections":
       return `The user has the **Connections** workspace open (linking social accounts). Help them connect or manage their accounts.`;
     case "account":
@@ -96,7 +100,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -272,10 +276,11 @@ export function AgentHome() {
   const isProfileFocus = focused === "profile";
   const isBrandFocus = focused === "brand";
   const isAnalyticsFocus = focused === "analytics";
+  const isBillingFocus = focused === "billing";
   const isConnectionsFocus = focused === "connections";
-  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isConnectionsFocus ? "Connections" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isConnectionsFocus ? Link2 : fws?.icon ?? Sparkles;
+  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isBillingFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -298,6 +303,7 @@ export function AgentHome() {
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
   const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("publish"); setFocused("connections"); };
+  const openBilling = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("billing"); setDrawerOpen(false); };
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -369,10 +375,10 @@ export function AgentHome() {
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1 rounded-full border border-border bg-gradient-to-r from-brand-500/15 to-violet-500/15 px-2.5 py-1.5 text-[12.5px] sm:px-3">
+        <button onClick={() => guardNav(openBilling)} title="Billing & credits" className="flex items-center gap-1 rounded-full border border-border bg-gradient-to-r from-brand-500/15 to-violet-500/15 px-2.5 py-1.5 text-[12.5px] transition hover:border-brand-500/60 sm:px-3">
           ⚡ <b className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text font-extrabold text-transparent">{(user?.aiCredits ?? 0).toLocaleString()}</b>
           <span className="hidden text-muted-foreground sm:inline">{s.credits}</span>
-        </div>
+        </button>
         <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
         <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><History className="h-[18px] w-[18px]" /></button>
         <div className="hidden items-center gap-1 md:flex">
@@ -433,7 +439,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "connections" ? "Connect your social accounts" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -468,6 +474,8 @@ export function AgentHome() {
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} refreshKey={actionCount} />
                 ) : focused === "analytics" ? (
                   <FocusedAnalytics refreshKey={actionCount} />
+                ) : focused === "billing" ? (
+                  <FocusedBilling onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : focused === "publish" ? (
                   <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
