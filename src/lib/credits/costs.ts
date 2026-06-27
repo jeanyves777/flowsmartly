@@ -118,6 +118,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_CANVAS_UPDATE: 0,          // Free — instant UI edit to the focused-view canvas
   AGENT_ADD_PRODUCT: 0,            // Free — listing a product in the store is not AI work
   AGENT_UPDATE_PRODUCT: 0,         // Free — editing a product is store management, not AI work
+  AGENT_DELETE_PRODUCT: 0,         // Free — removing a product is store management
   AGENT_FULFILL_ORDER: 0,          // Free — advancing an order's status is store management
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
@@ -269,6 +270,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_CANVAS_UPDATE: "Flow-AI agent: edit canvas",
   AGENT_ADD_PRODUCT: "Flow-AI agent: add product",
   AGENT_UPDATE_PRODUCT: "Flow-AI agent: update product",
+  AGENT_DELETE_PRODUCT: "Flow-AI agent: delete product",
   AGENT_FULFILL_ORDER: "Flow-AI agent: fulfill order",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
