@@ -172,6 +172,7 @@ export const createProposal: FlowAgentTool = {
               businessUrl: targetWebsite || null,
               recipientEmail: proposalReq.recipientEmail ?? null,
               recipientName: proposalReq.recipientName ?? null,
+              documentType: "service_proposal",
               status: "READY",
               research: JSON.stringify({
                 documentType: "service_proposal",

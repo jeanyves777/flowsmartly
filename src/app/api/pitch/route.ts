@@ -28,14 +28,18 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const docTypeParam = searchParams.get("documentType"); // "pitch" | "service_proposal"
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = { userId: session.userId };
     if (status && status !== "all") where.status = status;
+    if (docTypeParam === "pitch" || docTypeParam === "service_proposal") where.documentType = docTypeParam;
 
-    const [pitches, total, proposalRows] = await Promise.all([
+    // documentType is a first-class column now — no JSON parsing to tell pitches
+    // from proposals, and proposalCount is a cheap COUNT (not load-all-and-parse).
+    const [pitches, total, proposalCount, stats] = await Promise.all([
       prisma.pitch.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -45,61 +49,27 @@ export async function GET(request: NextRequest) {
           id: true,
           businessName: true,
           businessUrl: true,
+          documentType: true,
           status: true,
           recipientEmail: true,
           recipientName: true,
           sentAt: true,
           errorMessage: true,
-          pitchContent: true,
-          research: true,
           createdAt: true,
           updatedAt: true,
         },
       }),
       prisma.pitch.count({ where }),
-      prisma.pitch.findMany({
-        where: { userId: session.userId },
-        select: { pitchContent: true, research: true },
-      }),
+      prisma.pitch.count({ where: { userId: session.userId, documentType: "service_proposal" } }),
+      prisma.pitch.groupBy({ by: ["status"], where: { userId: session.userId }, _count: { status: true } }),
     ]);
 
-    const stats = await prisma.pitch.groupBy({
-      by: ["status"],
-      where: { userId: session.userId },
-      _count: { status: true },
-    });
-
     const statMap = Object.fromEntries(stats.map((s) => [s.status, s._count.status]));
-    const enrichedPitches = pitches.map((pitch) => {
-      let documentType = "pitch";
-      try {
-        const parsed = JSON.parse(pitch.pitchContent || "{}") as { documentType?: string };
-        if (parsed.documentType === "service_proposal") documentType = "service_proposal";
-      } catch {
-        try {
-          const parsedResearch = JSON.parse(pitch.research || "{}") as { documentType?: string };
-          if (parsedResearch.documentType === "service_proposal") documentType = "service_proposal";
-        } catch {}
-      }
-      const { pitchContent: _pitchContent, research: _research, ...safePitch } = pitch;
-      return { ...safePitch, documentType };
-    });
-    const proposalCount = proposalRows.filter((row) => {
-      try {
-        return (JSON.parse(row.pitchContent || "{}") as { documentType?: string }).documentType === "service_proposal";
-      } catch {
-        try {
-          return (JSON.parse(row.research || "{}") as { documentType?: string }).documentType === "service_proposal";
-        } catch {
-          return false;
-        }
-      }
-    }).length;
 
     return NextResponse.json({
       success: true,
       data: {
-        pitches: enrichedPitches,
+        pitches,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
         stats: {
           total,
@@ -192,6 +162,7 @@ export async function POST(request: NextRequest) {
         businessUrl: businessUrl || null,
         recipientEmail: recipientEmail || null,
         recipientName: recipientName || null,
+        documentType: "pitch",
         status: "PENDING",
       },
     });

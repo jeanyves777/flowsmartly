@@ -4707,6 +4707,10 @@ model Pitch {
   userId         String
   businessName   String
   businessUrl    String?
+  // First-class type: a "pitch" is a cold-outreach email; a "service_proposal"
+  // is a branded, PDF-ready service deck. Previously this was smuggled inside the
+  // pitchContent/research JSON and parsed everywhere — now it's one queryable column.
+  documentType   String    @default("pitch") // "pitch" | "service_proposal"
   status         String    @default("PENDING") // PENDING | RESEARCHING | READY | FAILED | SENT
   research       String    @default("{}") // JSON: ResearchData (internal only)
   pitchContent   String    @default("{}") // JSON: PitchContent (what client sees)
@@ -4721,6 +4725,7 @@ model Pitch {
 
   @@index([userId])
   @@index([status])
+  @@index([documentType])
   @@index([createdAt])
 }
 

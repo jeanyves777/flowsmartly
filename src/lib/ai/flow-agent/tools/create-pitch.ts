@@ -88,6 +88,7 @@ export const createPitch: FlowAgentTool = {
               businessUrl: businessUrl || null,
               recipientEmail: clean(input.recipientEmail, 200) || null,
               recipientName: clean(input.recipientName, 120) || null,
+              documentType: "pitch",
               status: "PENDING",
             },
             select: { id: true },

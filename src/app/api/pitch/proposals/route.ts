@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
         businessUrl: targetWebsite,
         recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || null,
         recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || null,
+        documentType: "service_proposal",
         status: "READY",
         research: JSON.stringify({
           documentType: "service_proposal",

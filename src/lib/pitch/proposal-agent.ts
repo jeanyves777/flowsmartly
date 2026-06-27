@@ -237,7 +237,7 @@ function buildTools(ctx: { userId: string }): AgentTool[] {
       handler: async (input) => {
         const limit = Math.min(5, Math.max(1, Number(input.limit) || 3));
         const rows = await prisma.pitch.findMany({
-          where: { userId: ctx.userId, status: "READY" },
+          where: { userId: ctx.userId, status: "READY", documentType: "service_proposal" },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: { businessName: true, pitchContent: true, createdAt: true },
@@ -246,7 +246,6 @@ function buildTools(ctx: { userId: string }): AgentTool[] {
           .map((row) => {
             try {
               const parsed = JSON.parse(row.pitchContent || "{}") as Partial<ServiceProposalContent>;
-              if (parsed.documentType !== "service_proposal") return null;
               return {
                 targetName: row.businessName,
                 createdAt: row.createdAt.toISOString(),
