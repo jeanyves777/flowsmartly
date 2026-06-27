@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
-  Menu, Sun, Moon, Plus, Mic, ArrowUp, Sparkles, X, ChevronDown, Check, Shield, LogOut,
+  Menu, Sun, Moon, Contrast, Plus, Mic, ArrowUp, Sparkles, X, ChevronDown, Check, Shield, LogOut,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -152,8 +152,12 @@ export function AgentHome() {
     try { await fetch("/api/agent/impersonate", { method: "DELETE" }); window.location.href = "/home"; } catch { showToast("Could not exit"); }
   }, [showToast]);
 
-  const toggleTheme = () => setTheme((resolvedTheme ?? theme) === "dark" ? "light" : "dark");
-  const isDark = (resolvedTheme ?? theme) === "dark";
+  const activeTheme = !mounted ? "dark" : theme === "system" ? (resolvedTheme ?? "light") : (theme ?? "light");
+  const cycleTheme = () => {
+    const order = ["light", "grey", "dark"];
+    setTheme(order[(order.indexOf(activeTheme) + 1) % order.length] ?? "light");
+  };
+  const ThemeIcon = activeTheme === "light" ? Sun : activeTheme === "grey" ? Contrast : Moon;
   const firstName = (user?.name?.trim().split(/\s+/)[0]) || "there";
   const initials = (user?.name ?? "you").split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
   const accountLabel = brandName || user?.name || "My account";
@@ -220,8 +224,8 @@ export function AgentHome() {
         </div>
         <div className="hidden items-center gap-1 md:flex">
           <LanguageSwitcher language={language} onChange={setLanguage} />
-          <button onClick={toggleTheme} className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground" aria-label="Toggle theme">
-            {mounted && isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+          <button onClick={cycleTheme} title={`Theme: ${activeTheme} — tap to switch (light → grey → dark)`} className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground" aria-label="Theme">
+            <ThemeIcon className="h-[18px] w-[18px]" />
           </button>
         </div>
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white">{initials}</div>
@@ -385,8 +389,8 @@ export function AgentHome() {
             {/* language + theme */}
             <div className="flex items-center justify-between border-t border-border p-3">
               <LanguageSwitcher language={language} onChange={setLanguage} />
-              <button onClick={toggleTheme} className="grid h-9 w-9 place-items-center rounded-[10px] border border-border text-muted-foreground" aria-label="Toggle theme">
-                {mounted && isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+              <button onClick={cycleTheme} title={`Theme: ${activeTheme}`} className="grid h-9 w-9 place-items-center rounded-[10px] border border-border text-muted-foreground" aria-label="Theme">
+                <ThemeIcon className="h-[18px] w-[18px]" />
               </button>
             </div>
           </div>

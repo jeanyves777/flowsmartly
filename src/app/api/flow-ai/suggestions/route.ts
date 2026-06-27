@@ -43,7 +43,7 @@ Vary the actions across design, posting/scheduling, advertising, video, store/we
 {"suggestions":[{"label":"","hint":"","icon":"","prompt":""}]}`;
 
     const out = await geminiText.generateJSON<{ suggestions: Suggestion[] }>(prompt, {
-      maxTokens: 600,
+      maxTokens: 1400,
       temperature: 0.6,
       systemPrompt: "You return only valid JSON: 4 concise, brand-relevant starter actions for a marketing AI home screen.",
     });
