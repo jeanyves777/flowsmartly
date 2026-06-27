@@ -59,6 +59,7 @@ export function AgentHome() {
   const [agentName, setAgentName] = useState<string | null>(null);
   const [clients, setClients] = useState<AgentClient[]>([]);
   const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
 
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -100,10 +101,16 @@ export function AgentHome() {
             setClients(list.map((c: { id: string; clientUser?: { name?: string } }) => ({ id: c.id, name: c.clientUser?.name || "Client" })));
           }
         }).catch(() => {});
-        // AI starter suggestions (personalized) — non-blocking.
-        fetch("/api/flow-ai/suggestions").then((r) => r.json()).then((d) => {
-          if (alive && d?.success && Array.isArray(d.data?.suggestions) && d.data.suggestions.length) setSuggestions(d.data.suggestions);
-        }).catch(() => {});
+        // AI starter suggestions (personalized) — non-blocking. Mark loaded when
+        // the request RESOLVES (success or failure) so the loader can't spin
+        // forever; the localized fallback chips already render meanwhile.
+        fetch("/api/flow-ai/suggestions")
+          .then((r) => r.json())
+          .then((d) => {
+            if (alive && d?.success && Array.isArray(d.data?.suggestions) && d.data.suggestions.length) setSuggestions(d.data.suggestions);
+          })
+          .catch(() => {})
+          .finally(() => { if (alive) setSuggestionsLoaded(true); });
       } finally {
         const wait = Math.max(0, 650 - (Date.now() - started));
         setTimeout(() => alive && setBooting(false), wait);
@@ -199,7 +206,7 @@ export function AgentHome() {
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
           {accountOpen && (
-            <div className="absolute start-0 z-40 mt-2 w-[260px] rounded-xl border border-border bg-card p-1.5 shadow-xl">
+            <div className="absolute left-0 z-50 mt-2 max-h-80 w-64 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-xl">
               <AccountMenu accountLabel={accountLabel} clients={clients} isImpersonating={isImpersonating} onSwitch={switchToClient} onExit={exitImpersonation} onManage={() => router.push("/agent/clients")} />
             </div>
           )}
@@ -264,7 +271,7 @@ export function AgentHome() {
                     );
                   })}
                 </div>
-                {!suggestions.length && (
+                {!suggestionsLoaded && !suggestions.length && (
                   <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
                 )}
               </section>
@@ -294,7 +301,7 @@ export function AgentHome() {
                   <ChevronDown className="h-3 w-3" />
                 </button>
                 {modeOpen && (
-                  <div className="absolute bottom-full left-3 z-30 mb-2 w-[244px] rounded-xl border border-border bg-card p-1.5 shadow-xl">
+                  <div className="absolute bottom-full left-3 z-50 mb-2 max-h-80 w-60 overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-xl">
                     <div className="px-2.5 py-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Mode</div>
                     {COMPOSER_MODES.map((m) => (
                       <button
