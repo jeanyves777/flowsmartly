@@ -24,6 +24,7 @@ import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPa
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
+import { FocusedPublish } from "./focused/publish-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -415,6 +416,8 @@ export function AgentHome() {
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
                 ) : focused === "analytics" ? (
                   <FocusedAnalytics />
+                ) : focused === "publish" ? (
+                  <FocusedPublish onAsk={(p) => send(p)} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
