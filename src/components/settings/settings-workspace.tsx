@@ -1517,8 +1517,8 @@ export function SettingsWorkspace({ embedded = false, section = "all" }: { embed
                   {isLoading ? (
                     <Skeleton className="h-24" />
                   ) : (
-                    <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 md:flex-row md:items-center md:justify-between">
-                      <div>
+                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-lg">{getPlanName(user?.plan || "STARTER")}</h3>
                           <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">Active</Badge>
@@ -1659,7 +1659,7 @@ export function SettingsWorkspace({ embedded = false, section = "all" }: { embed
                 </CardContent>
               </Card>
 
-              <div className="grid gap-5 xl:grid-cols-2">
+              <div className="grid gap-5">
               {/* Buy Credits */}
               <Card className="rounded-2xl">
                 <CardHeader>
@@ -1681,8 +1681,8 @@ export function SettingsWorkspace({ embedded = false, section = "all" }: { embed
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border bg-muted/30 p-4">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div className="flex items-start gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10">
                           <Package className="w-5 h-5 text-brand-600" />
                         </div>
@@ -1740,7 +1740,7 @@ export function SettingsWorkspace({ embedded = false, section = "all" }: { embed
                           style={{ width: `${Math.min((user?.aiCredits || 0) / 50, 100)}%` }}
                         />
                       </div>
-                      <div className="mt-4 flex gap-3">
+                      <div className="mt-4 flex flex-wrap gap-3">
                         <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
                           <Link href="/credits/history">
                             <History className="w-4 h-4 mr-1.5" />
@@ -1775,7 +1775,7 @@ export function SettingsWorkspace({ embedded = false, section = "all" }: { embed
                   {isLoading ? (
                     <Skeleton className="h-16" />
                   ) : (
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-3xl font-bold">{formatCurrency(user?.balance || 0)}</p>
                         <p className="text-sm text-muted-foreground">available for withdrawal</p>
