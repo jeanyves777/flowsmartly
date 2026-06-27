@@ -62,7 +62,7 @@ const FIELD =
 function Poster({ doc }: { doc: DesignDoc }) {
   const [w, h] = doc.size.split("×").map(Number);
   const ratio = w && h ? w / h : 1;
-  const baseW = ratio >= 1 ? 360 : 300;
+  const baseW = ratio >= 1 ? 460 : 400;
   const height = Math.round(baseW / ratio);
   return (
     <div

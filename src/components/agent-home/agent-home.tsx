@@ -21,7 +21,7 @@ import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
-import { FocusedAccount } from "./focused/account";
+import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -357,7 +357,9 @@ export function AgentHome() {
                 focused === "create" ? (
                   <FocusedDesignStudio value={design} onChange={setDesign} />
                 ) : focused === "account" ? (
-                  <FocusedAccount user={{ name: user?.name ?? "You", email: user?.email ?? null, initials, avatarUrl: user?.avatarUrl ?? null }} language={language} onLanguage={setLanguage} onLogout={handleLogout} />
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+                    <SettingsWorkspace embedded />
+                  </div>
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
