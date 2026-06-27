@@ -23,6 +23,7 @@ import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
+import { FocusedAnalytics } from "./focused/analytics-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -45,7 +46,7 @@ const WS_DESC: Record<string, string> = {
 };
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -219,9 +220,10 @@ export function AgentHome() {
   const isAccountFocus = focused === "account";
   const isProfileFocus = focused === "profile";
   const isBrandFocus = focused === "brand";
-  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : fws?.icon ?? Sparkles;
+  const isAnalyticsFocus = focused === "analytics";
+  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -240,7 +242,7 @@ export function AgentHome() {
     setPanelKey(key);
     setDrawerOpen(false);
   };
-  const openFocused = (key: string) => { const target = key === "business" ? "brand" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
+  const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("account"); };
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
@@ -378,7 +380,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing · connections" : focused === "brand" ? "Your brand kit — powers all AI" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing · connections" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -411,6 +413,8 @@ export function AgentHome() {
                   </div>
                 ) : focused === "brand" ? (
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
+                ) : focused === "analytics" ? (
+                  <FocusedAnalytics />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
