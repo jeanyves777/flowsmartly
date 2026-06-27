@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
-  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare,
+  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -21,7 +21,7 @@ import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
 
-interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null }
+interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
 interface AiSuggestion { label: string; hint: string; icon: string; prompt: string }
 
@@ -61,6 +61,7 @@ export function AgentHome() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export function AgentHome() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -81,7 +83,7 @@ export function AgentHome() {
         const me = await fetch("/api/auth/me").then((r) => r.json()).catch(() => null);
         if (alive && me?.success && me.data?.user) {
           const u = me.data.user;
-          setUser({ name: u.name || "there", aiCredits: u.aiCredits ?? 0, avatarUrl: u.avatarUrl ?? null });
+          setUser({ name: u.name || "there", aiCredits: u.aiCredits ?? 0, avatarUrl: u.avatarUrl ?? null, username: u.username ?? null, email: u.email ?? null });
           if (me.data.isImpersonating) {
             setIsImpersonating(true);
             setAgentName(me.data.agentInfo?.agentName ?? null);
@@ -121,6 +123,13 @@ export function AgentHome() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [accountOpen]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const h = (e: MouseEvent) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [userMenuOpen]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
@@ -183,6 +192,10 @@ export function AgentHome() {
     try { await fetch(`/api/ai/assistant/conversations/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
     if (id === conversationId) newConversation();
     refreshConversations();
+  };
+  const handleLogout = async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
+    window.location.href = "/login";
   };
 
   if (booting) {
@@ -249,7 +262,29 @@ export function AgentHome() {
           <LanguageSwitcher language={language} onChange={setLanguage} />
           <ThemeMenu />
         </div>
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white">{initials}</div>
+        <div className="relative shrink-0" ref={userMenuRef}>
+          <button onClick={() => setUserMenuOpen((o) => !o)} className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white ring-offset-2 ring-offset-background transition hover:ring-2 hover:ring-brand-500/50" aria-label="Account menu">
+            {initials}
+          </button>
+          {userMenuOpen && (
+            <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
+              <div className="border-b border-border px-2.5 pb-2 pt-1">
+                <p className="truncate text-[13px] font-semibold">{user?.name ?? "You"}</p>
+                {user?.email && <p className="truncate text-[11.5px] text-muted-foreground">{user.email}</p>}
+              </div>
+              <button onClick={() => { setUserMenuOpen(false); router.push(user?.username ? `/profile/${user.username}` : "/settings"); }} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <User className="h-4 w-4 text-muted-foreground" /> View profile
+              </button>
+              <button onClick={() => { setUserMenuOpen(false); router.push("/settings"); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <Settings className="h-4 w-4 text-muted-foreground" /> Settings
+              </button>
+              <div className="my-1 h-px bg-border" />
+              <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-destructive hover:bg-destructive/10">
+                <LogOut className="h-4 w-4" /> Log out
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* BODY */}
