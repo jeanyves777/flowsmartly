@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
-  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
+  Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, Smile, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -39,6 +39,11 @@ import { FocusedSms } from "./focused/sms-workspace";
 import { FocusedWhatsApp } from "./focused/whatsapp-workspace";
 import { FocusedTeams } from "./focused/teams-workspace";
 import { FocusedReferrals } from "./focused/referrals-workspace";
+import { FocusedMedia } from "./focused/media-workspace";
+import { FocusedLogo } from "./focused/logo-workspace";
+import { FocusedVideo } from "./focused/video-workspace";
+import { FocusedCartoon } from "./focused/cartoon-workspace";
+import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
@@ -86,6 +91,11 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   whatsapp: "Ask the agent to set up a WhatsApp broadcast or automation.",
   teams: "Ask the agent to invite a teammate or change someone’s role.",
   referrals: "Ask the agent how your referrals are doing or how best to share your link.",
+  media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
+  logo: "Ask the agent to generate a logo for your brand.",
+  video: "Ask the agent to create a video — an ad, promo, or reel.",
+  cartoon: "Ask the agent to make a cartoon or animated creation.",
+  delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
   publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
   connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
   sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
@@ -112,6 +122,11 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   whatsapp: { label: "WhatsApp", subtitle: "WhatsApp broadcasts & automations", icon: MessageCircle },
   teams: { label: "Teams", subtitle: "Members & invites", icon: Users },
   referrals: { label: "Referrals", subtitle: "Your referral link & earnings", icon: Gift },
+  media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
+  logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
+  video: { label: "Video studio", subtitle: "Your AI-generated videos", icon: Clapperboard },
+  cartoon: { label: "Cartoon maker", subtitle: "Your cartoon & animated creations", icon: Smile },
+  delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
 };
 
 // Tell the agent WHICH surface the user is on so it acts in-context instead of
@@ -158,6 +173,16 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Teams** surface (members + invites). Help them invite or manage teammates and roles.`;
     case "referrals":
       return `The user is on the **Referrals** surface (referral link + earnings). Help them share their link or understand their referral earnings.`;
+    case "media":
+      return `The user is on the **Media library** (their images & videos). Help them find/organize media or generate new media (generate_image / generate_video).`;
+    case "logo":
+      return `The user is on the **Logo studio** (their generated logos + brand logo). Generating a logo is a generative task — use the logo tool when they ask.`;
+    case "video":
+      return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
+    case "cartoon":
+      return `The user is on the **Cartoon maker** (cartoon/animated creations). Help them make a cartoon/animated piece.`;
+    case "delivery":
+      return `The user is on the **Delivery** surface (order delivery + drivers). Help them with delivery status, assignments, and fulfillment.`;
     case "billing":
       return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
     case "connections":
@@ -171,7 +196,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -602,6 +627,16 @@ export function AgentHome() {
                   <FocusedTeams refreshKey={actionCount} />
                 ) : focused === "referrals" ? (
                   <FocusedReferrals refreshKey={actionCount} />
+                ) : focused === "media" ? (
+                  <FocusedMedia onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "logo" ? (
+                  <FocusedLogo onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "video" ? (
+                  <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "cartoon" ? (
+                  <FocusedCartoon onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "delivery" ? (
+                  <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`, false, undefined, undefined, { hidden: true }); }} />
                 )
@@ -661,7 +696,7 @@ export function AgentHome() {
                 label={s.ws[panelKey] ?? panelKey}
                 onClose={() => { setPanelKey(null); setActiveWs("home"); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q, false, undefined, undefined, { hidden: true }); }}
-                onFocus={() => openFocused(panelKey)}
+                onOpenView={openView}
               />
             )}
           </aside>
@@ -778,12 +813,12 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
-function WorkspacePanel({ panelKey, label, onClose, onAsk, onFocus }: {
+function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpenView }: {
   panelKey: string;
   label: string;
   onClose: () => void;
   onAsk: (q: string) => void;
-  onFocus: () => void;
+  onOpenView: (key: string) => void;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -791,21 +826,34 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onFocus }: {
   return (
     <>
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
-        <Icon className="h-5 w-5 text-brand-500" />
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
         <b className="text-[15px]">{label}</b>
         <button onClick={onClose} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
       </div>
-      <div className="space-y-3 overflow-auto p-4 text-[13px] leading-relaxed text-muted-foreground">
-        <p className="text-foreground">{WS_DESC[panelKey]}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {ws.items.map((it) => (
-            <button key={it.route + it.label} onClick={() => onAsk(`Open ${it.label} and help me get started.`)} className="rounded-full border border-border px-2.5 py-1 text-[10.5px] hover:border-brand-500/60 hover:text-foreground">{it.label}</button>
-          ))}
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
+        <p className="px-1 pb-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{WS_DESC[panelKey]}</p>
+        {/* Each item opens its OWN focused view (new design). */}
+        <div className="space-y-1">
+          {ws.items.map((it) => {
+            const ItemIcon = (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
+            return (
+              <button
+                key={(it.viewKey ?? "") + it.label}
+                onClick={() => (it.viewKey ? onOpenView(it.viewKey) : onAsk(`Open ${it.label} and help me get started.`))}
+                className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-left transition hover:bg-muted"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><ItemIcon className="h-[17px] w-[17px]" /></span>
+                <span className="flex-1 truncate text-[13px] font-medium text-foreground">{it.label}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            );
+          })}
         </div>
-        <p>Everything here is also an agent tool — say what you want and it renders in the chat, or work in the focused view.</p>
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button onClick={() => onAsk(`Open ${label} and help me get started`)} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
-          <button onClick={onFocus} className="rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">Open focused view</button>
+        {/* One AI entry point below the menu. */}
+        <div className="mt-auto pt-3">
+          <button onClick={() => onAsk(`Help me with ${label}.`)} className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <Sparkles className="h-4 w-4" /> Ask the agent
+          </button>
         </div>
       </div>
     </>

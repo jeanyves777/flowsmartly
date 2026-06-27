@@ -14,6 +14,8 @@ import {
 export interface WorkspaceItem {
   label: string;
   route: string;
+  /** The new-design focused view this item opens (/home/<viewKey>). */
+  viewKey?: string;
 }
 
 export interface Workspace {
@@ -40,11 +42,11 @@ export const WORKSPACES: Workspace[] = [
     icon: Palette,
     route: "/studio",
     items: [
-      { label: "Design studio", route: "/studio" },
-      { label: "Logo generator", route: "/logo-generator" },
-      { label: "Video studio", route: "/video-studio" },
-      { label: "Cartoon maker", route: "/cartoon-maker" },
-      { label: "Media library", route: "/media" },
+      { label: "Design studio", route: "/studio", viewKey: "create" },
+      { label: "Logo generator", route: "/logo-generator", viewKey: "logo" },
+      { label: "Video studio", route: "/video-studio", viewKey: "video" },
+      { label: "Cartoon maker", route: "/cartoon-maker", viewKey: "cartoon" },
+      { label: "Media library", route: "/media", viewKey: "media" },
     ],
   },
   {
@@ -53,9 +55,9 @@ export const WORKSPACES: Workspace[] = [
     icon: Megaphone,
     route: "/posts",
     items: [
-      { label: "Social accounts", route: "/social-accounts" },
-      { label: "Posts", route: "/posts" },
-      { label: "Content calendar", route: "/content" },
+      { label: "Social accounts", route: "/social-accounts", viewKey: "connections" },
+      { label: "Posts", route: "/posts", viewKey: "publish" },
+      { label: "Content calendar", route: "/content", viewKey: "calendar" },
     ],
   },
   {
@@ -64,12 +66,12 @@ export const WORKSPACES: Workspace[] = [
     icon: TrendingUp,
     route: "/content",
     items: [
-      { label: "Automation", route: "/automations" },
-      { label: "Email marketing", route: "/email-marketing" },
-      { label: "SMS marketing", route: "/sms-marketing" },
-      { label: "WhatsApp", route: "/whatsapp" },
-      { label: "Ad builder", route: "/ad-builder/campaign" },
-      { label: "Story-Ad", route: "/story-ad-movie" },
+      { label: "Automation", route: "/automations", viewKey: "automations" },
+      { label: "Email marketing", route: "/email-marketing", viewKey: "email" },
+      { label: "SMS marketing", route: "/sms-marketing", viewKey: "sms" },
+      { label: "WhatsApp", route: "/whatsapp", viewKey: "whatsapp" },
+      { label: "Ad builder", route: "/ad-builder/campaign", viewKey: "adbuilder" },
+      { label: "Story-Ad", route: "/story-ad-movie", viewKey: "storyad" },
     ],
   },
   {
@@ -78,11 +80,11 @@ export const WORKSPACES: Workspace[] = [
     icon: ShoppingBag,
     route: "/ecommerce",
     items: [
-      { label: "Products", route: "/ecommerce/products" },
-      { label: "Orders", route: "/ecommerce/orders" },
-      { label: "Customers", route: "/ecommerce/customers" },
-      { label: "Delivery", route: "/ecommerce/delivery" },
-      { label: "Store dashboard", route: "/ecommerce" },
+      { label: "Products", route: "/ecommerce/products", viewKey: "sell" },
+      { label: "Orders", route: "/ecommerce/orders", viewKey: "sell" },
+      { label: "Customers", route: "/ecommerce/customers", viewKey: "customers" },
+      { label: "Delivery", route: "/ecommerce/delivery", viewKey: "delivery" },
+      { label: "Store dashboard", route: "/ecommerce", viewKey: "sell" },
     ],
   },
   {
@@ -91,9 +93,9 @@ export const WORKSPACES: Workspace[] = [
     icon: Globe,
     route: "/websites",
     items: [
-      { label: "Websites", route: "/websites" },
-      { label: "Landing pages", route: "/landing-pages" },
-      { label: "Domains", route: "/domains" },
+      { label: "Websites", route: "/websites", viewKey: "web" },
+      { label: "Landing pages", route: "/landing-pages", viewKey: "web" },
+      { label: "Domains", route: "/domains", viewKey: "domains" },
     ],
   },
   {
@@ -102,10 +104,11 @@ export const WORKSPACES: Workspace[] = [
     icon: Handshake,
     route: "/contacts",
     items: [
-      { label: "Contacts & lists", route: "/contacts" },
-      { label: "Reviews / local SEO", route: "/listsmartly" },
-      { label: "Pitch board", route: "/pitch-board" },
-      { label: "Email marketing", route: "/email-marketing" },
+      { label: "Contacts & lists", route: "/contacts", viewKey: "outreach" },
+      { label: "Lead finder", route: "/home/leads", viewKey: "leads" },
+      { label: "Reviews / local SEO", route: "/listsmartly", viewKey: "reviews" },
+      { label: "Pitch board", route: "/pitch-board", viewKey: "pitch" },
+      { label: "Forms & surveys", route: "/tools/surveys", viewKey: "forms" },
     ],
   },
   {
@@ -114,8 +117,8 @@ export const WORKSPACES: Workspace[] = [
     icon: Search,
     route: "/home/leads",
     items: [
-      { label: "Find leads", route: "/home/leads" },
-      { label: "My lead lists", route: "/home/leads" },
+      { label: "Find leads", route: "/home/leads", viewKey: "leads" },
+      { label: "My lead lists", route: "/home/leads", viewKey: "leads" },
     ],
   },
   {
@@ -124,12 +127,12 @@ export const WORKSPACES: Workspace[] = [
     icon: SlidersHorizontal,
     route: "/brand",
     items: [
-      { label: "Brand kit", route: "/brand" },
-      { label: "Analytics", route: "/analytics" },
-      { label: "Credits & billing", route: "/credits" },
-      { label: "Teams", route: "/teams" },
-      { label: "Referrals", route: "/referrals" },
-      { label: "Settings", route: "/settings" },
+      { label: "Brand kit", route: "/brand", viewKey: "brand" },
+      { label: "Analytics", route: "/analytics", viewKey: "analytics" },
+      { label: "Credits & billing", route: "/credits", viewKey: "billing" },
+      { label: "Teams", route: "/teams", viewKey: "teams" },
+      { label: "Referrals", route: "/referrals", viewKey: "referrals" },
+      { label: "Settings", route: "/settings", viewKey: "account" },
     ],
   },
 ];
