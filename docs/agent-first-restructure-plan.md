@@ -116,7 +116,13 @@ Sidebar, bespoke spinners, hardcoded colors). Bring each into the new design
   - Create→Design Studio (`/home/create`) · Publish (`/home/publish`) · Grow→Analytics (`/home/analytics`) · Sell (`/home/sell`) · Web (`/home/web`) · Outreach→Contacts (`/home/outreach`) · Business→Brand (`/home/brand`).
   - Account (`/home/account`) · Profile (`/home/profile`) · Connections — real OAuth, no redirect (`/home/connections`).
   - Shared: per-surface routing via optional catch-all `home/[[...view]]`; Profile/Settings split; unsaved-changes guard; sticky settings nav; "actions DO, don't ask" (Connect opens real connection mgmt); composer (one mic↔send button, rounded).
-- **Next — WS4 depth:** (1) the agent ACTS on each surface (extend the `update_canvas` pattern to Brand/Sell/Publish so chat mutates the surface live); (2) surfaces auto-refresh after a relevant agent action; (3) deeper in-surface editing (edit product, fulfill order, website editor in-shell); (4) a dedicated billing/credits surface; (5) sweep the last legacy edges (embedded settings tabs).
+- **WS4 depth — progress (2026-06-27):**
+  - (1) **Agent ACTS on each surface** ✅ mostly — the agent has full CRUD tools and is **surface-aware** (a `surfaceContext` channel tells it which workspace is open so it acts in-context instead of showing a generic menu — see [[agent-operates-account-full-crud]]). Done: Brand (`update_brand_identity`), Sell (`add/update/delete_product`, `fulfill_order`), Outreach (`add/update/delete_contact`), Publish (existing post tools). **Remaining: Web** (agent can `build_website` but not edit pages yet).
+  - (2) **Surfaces auto-refresh** after a relevant agent action ✅ (`actionCount`→`refreshKey`); Brand reflects an agent save when the form is clean.
+  - (3) **Deeper in-surface editing** — products (edit/archive/delete) ✅, orders (fulfill) ✅, contacts (edit/delete) ✅. **Remaining: in-shell website editor.**
+  - (4) **Dedicated billing/credits surface** ✅ read v1 (`/home/billing`: balance, plan, usage-by-type, ledger; opened from the topbar credits pill). **Remaining: in-surface secure Stripe top-up** (packages + checkout).
+  - (5) **Sweep the last legacy edges** (embedded settings tabs, any bespoke chrome) — pending.
+  - Also fixed this pass: composer resets to one row after send + scrolls; brand-setup banner persists every visit until set; Brand surface dropped the redundant "Build with AI" (agent does it); focused-view chat hint is now accurate per surface.
 
 ## Key files (anchors)
 - Shell / UI: `src/components/flow-ai/{flow-ai-shell,use-agent-stream,agent-cards}.tsx`
