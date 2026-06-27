@@ -63,7 +63,7 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false, canvasContext?: string) => {
+    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string) => {
       const trimmed = text.trim();
       if (!trimmed || sending) return;
       setSending(true);
@@ -99,7 +99,7 @@ export function useHomeAgent() {
       };
 
       try {
-        const res = await send({ message: trimmed, conversationId, superMode, canvasContext });
+        const res = await send({ message: trimmed, conversationId, superMode, canvasContext, surfaceContext });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
           try {

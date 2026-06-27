@@ -229,6 +229,8 @@ export interface AgentSendInput {
   superMode?: boolean;
   /** When a focused-view canvas is open, its serialized state so the agent can edit it live. */
   canvasContext?: string;
+  /** Which focused surface the user is on (Brand, Sell, …) so the agent acts in-context. */
+  surfaceContext?: string;
 }
 
 export function useAgentSender() {
@@ -244,6 +246,7 @@ export function useAgentSender() {
         attachments: input.attachments,
         superMode: input.superMode === true,
         canvasContext: input.canvasContext,
+        surfaceContext: input.surfaceContext,
       }),
     });
   }, []);

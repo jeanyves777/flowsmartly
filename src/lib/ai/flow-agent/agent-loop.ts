@@ -86,6 +86,14 @@ export interface AgentRunInput {
    * so the agent can edit the on-screen design. Absent on other surfaces.
    */
   canvasContext?: string;
+  /**
+   * A human description of WHICH focused surface the user is on (Brand, Sell,
+   * Publish, …) plus a little of its state. Injected into the system prompt so
+   * the agent interprets the message in-context and acts on the right surface
+   * instead of asking generic questions. Unlike `canvasContext`, this does NOT
+   * expose update_canvas (that's design-only).
+   */
+  surfaceContext?: string;
   /** Aborts the loop when the client disconnects. */
   abortSignal: AbortSignal;
   /** Emit SSE event back to the client. */
@@ -162,6 +170,15 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     systemPrompt +=
       `\n\n## Active design canvas (focused view)\n${input.canvasContext}\n\n` +
       "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.";
+  }
+
+  // Surface awareness: the user opened a specific workspace (Brand, Sell, …).
+  // Tell the model WHERE they are so it acts on that surface instead of replying
+  // with a generic "what would you like to do?" menu.
+  if (input.surfaceContext) {
+    systemPrompt +=
+      `\n\n## Where the user is right now (focused surface — IMPORTANT)\n${input.surfaceContext}\n` +
+      "Interpret the user's message in THIS context. If what they say is relevant to this surface (e.g. they pasted business info while on the Brand surface, or named a product while on Sell), ACT on it here per the operate-the-account rules — infer the details, propose_plan, then call the matching tool. Do NOT respond with a generic capabilities menu or ask 'what would you like to do?' when the surface already tells you what they're working on.";
   }
 
   // Seed Claude with prior conversation. Skip the just-saved user message —

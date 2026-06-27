@@ -67,6 +67,34 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
 };
 const DEFAULT_CHAT_HINT = "Ask the agent to help with this surface — it can act on your account and confirm before anything costs credits.";
 
+// Tell the agent WHICH surface the user is on so it acts in-context instead of
+// replying with a generic menu. Sent as `surfaceContext` (separate from the
+// design-only `canvasContext`). `create` returns undefined — its design canvas
+// already feeds the agent via designCanvasContext.
+function focusedSurfaceContext(focused: string, brandName?: string | null): string | undefined {
+  switch (focused) {
+    case "brand":
+      return `The user has the **Brand identity** workspace open and is editing their Brand Kit (it powers ALL AI output across the app).${brandName ? ` Current brand name on file: "${brandName}".` : " The kit looks empty or barely started."} Treat ANYTHING they share here — a business description, value proposition, tagline, products, audience, or voice — as them SETTING UP or REFINING THEIR BRAND. Call get_brand_identity to see what exists, INFER every field you can from their message, propose_plan ("Set up your brand kit", free), then call update_brand_identity. Do NOT reply with a generic capabilities menu or ask "what would you like to do?" — they are clearly here to build their brand.`;
+    case "sell":
+      return `The user has the **Sell** workspace open (their store, products, and orders). Default their intent to store actions — add_product, update_product, delete_product, fulfill_order (or build_store if they have none). A product name + price is enough to add one.`;
+    case "publish":
+      return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
+    case "web":
+      return `The user has the **Web** workspace open (their website and landing pages). Default their intent to building or editing their site.`;
+    case "outreach":
+      return `The user has the **Outreach** workspace open (contacts, lists, follow-ups, pitches). Default their intent to contact and outreach actions.`;
+    case "analytics":
+      return `The user has the **Analytics** workspace open (performance, usage, activity). Default their intent to reporting and insights about their own account.`;
+    case "connections":
+      return `The user has the **Connections** workspace open (linking social accounts). Help them connect or manage their accounts.`;
+    case "account":
+    case "profile":
+      return `The user is in their ${focused === "profile" ? "Profile" : "Account & settings"}. Help with account, profile, or settings changes.`;
+    default:
+      return undefined;
+  }
+}
+
 // Focused surfaces that get their own traceable path (/home/<view>).
 const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
 
@@ -421,7 +449,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm) => send(t, sm, focused === "create" ? designCanvasContext(design) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm) => send(t, sm, focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }
