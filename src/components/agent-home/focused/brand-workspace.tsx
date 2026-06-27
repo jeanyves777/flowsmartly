@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ElementType, type MutableRefObject, type ReactNode } from "react";
-import { Sparkles, Save, Check, Plus, X, Palette } from "lucide-react";
+import { Save, Check, Plus, X, Palette } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { LanguageSwitcher } from "../language-switcher";
@@ -73,8 +73,6 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
-  const [genDesc, setGenDesc] = useState("");
-  const [generating, setGenerating] = useState(false);
   const snapshot = useRef<string>(JSON.stringify(EMPTY));
 
   const set = useCallback(<K extends keyof Kit>(k: K, v: Kit[K]) => setKit((p) => ({ ...p, [k]: v })), []);
@@ -156,36 +154,6 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
     saverRef.current = save;
   }, [kit, save, dirtyRef, saverRef]);
 
-  const generate = async () => {
-    const d = genDesc.trim();
-    if (d.length < 20 || generating) return;
-    setGenerating(true);
-    try {
-      const r = await fetch("/api/brand/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: d }) });
-      const j = await r.json();
-      const g = j?.data?.brandKit;
-      if (g) {
-        setKit((p) => ({
-          ...p,
-          name: str(g.name) || p.name, tagline: str(g.tagline) || p.tagline, description: str(g.description) || p.description,
-          industry: str(g.industry) || p.industry, niche: str(g.niche) || p.niche, targetAudience: str(g.targetAudience) || p.targetAudience,
-          audienceAge: str(g.audienceAge) || p.audienceAge, audienceLocation: str(g.audienceLocation) || p.audienceLocation,
-          uniqueValue: str(g.uniqueValue) || p.uniqueValue, voiceTone: str(g.voiceTone) || p.voiceTone,
-          personality: arr(g.personality).length ? arr(g.personality) : p.personality,
-          keywords: arr(g.keywords).length ? arr(g.keywords) : p.keywords,
-          hashtags: arr(g.hashtags).length ? arr(g.hashtags) : p.hashtags,
-          products: arr(g.products).length ? arr(g.products) : p.products,
-          colors: (g.colors && typeof g.colors === "object") ? g.colors : p.colors,
-          preferredLanguage: str(g.preferredLanguage) || p.preferredLanguage,
-        }));
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your brand…" /></div>;
   }
@@ -207,16 +175,6 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl space-y-4">
-          {/* AI quick-build */}
-          <Section title="Build with AI" icon={Sparkles} accent>
-            <p className="text-[12.5px] text-muted-foreground">Describe your business in a sentence or two and AI fills the whole kit — name, voice, audience, colors, keywords. You can refine anything after.</p>
-            <textarea rows={3} value={genDesc} onChange={(e) => setGenDesc(e.target.value)} placeholder="e.g. A premium small-batch coffee roaster in Austin for home baristas who care about origin and freshness." className={cn(FIELD, "mt-2.5")} />
-            <button onClick={generate} disabled={generating || genDesc.trim().length < 20} className="mt-2.5 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-50">
-              {generating ? <FlowLoader size={16} tone="white" /> : <Sparkles className="h-4 w-4" />} {generating ? "Generating…" : "Generate brand kit"}
-            </button>
-            <p className="mt-2 text-[11.5px] text-muted-foreground">Or just ask the agent on the left to set up or refine your brand.</p>
-          </Section>
-
           {/* Identity */}
           <Section title="Identity" icon={Palette}>
             <div className="grid gap-3 sm:grid-cols-2">

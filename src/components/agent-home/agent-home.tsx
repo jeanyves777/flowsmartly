@@ -50,6 +50,23 @@ const WS_DESC: Record<string, string> = {
   business: "Brand kit, analytics, credits & billing, teams, referrals, settings, admin.",
 };
 
+// What to tell the user the agent can do in EACH focused surface — the chat
+// empty-state hint must match the canvas the agent is actually wired to, not
+// always the design canvas.
+const FOCUS_CHAT_HINT: Record<string, string> = {
+  create: "Ask the agent to create or change the design on the right — e.g. “make a summer sale graphic” or “use gold and a punchier headline”.",
+  brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
+  analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
+  publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
+  connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
+  sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
+  web: "Ask the agent to build or edit your site — e.g. “change my homepage headline” or “add an About section”.",
+  outreach: "Ask the agent to manage contacts & outreach — e.g. “add Sarah, sarah@co.com” or “draft a follow-up to my leads”.",
+  account: "Ask the agent about your account — e.g. “change my notification settings” or “update my language”.",
+  profile: "Ask the agent to update your public profile.",
+};
+const DEFAULT_CHAT_HINT = "Ask the agent to help with this surface — it can act on your account and confirm before anything costs credits.";
+
 // Focused surfaces that get their own traceable path (/home/<view>).
 const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
 
@@ -395,7 +412,7 @@ export function AgentHome() {
                 <>
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
                     {messages.length === 0 ? (
-                      <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">Ask the agent to create or change the canvas on the right — e.g. “make a summer sale graphic” or “use gold and a punchier headline”.</p>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{(focused && FOCUS_CHAT_HINT[focused]) || DEFAULT_CHAT_HINT}</p>
                     ) : (
                       messages.map((m) => (
                         <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
