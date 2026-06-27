@@ -1,168 +1,270 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, MapPin, Star, Phone, Globe, ExternalLink, UserPlus, FileText, Send, Check, Sparkles, Clock } from "lucide-react";
+import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Clock, FolderPlus, Folder, ChevronLeft, Trash2, ListChecks, Save } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Lead finder — its OWN dedicated new-design surface (split out of the legacy
- * pitch-board). Search local businesses (Google Places) to PITCH or write a
- * PROPOSAL for, or import as contacts. Real APIs: POST /api/leads/search,
- * POST /api/leads/to-contacts, GET /api/leads/search (recent). Pitch/Proposal
- * are generative → the agent runs them (hidden instruction). No legacy links.
- * [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
+ * Lead finder — its own dedicated surface (split from the legacy pitch-board).
+ * Search local businesses (Google Places), build + save named/categorized LEAD
+ * LISTS, return to them, and work each lead (status, pitch/proposal, delete).
+ * Dedicated SavedLead system: /api/leads/search, /api/leads/lists[/id],
+ * /api/leads/saved[/id]. Pitch/Proposal are generative → the agent runs them.
+ * No legacy links. [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
  */
 
 interface BusinessLead {
-  placeId: string;
-  name: string;
-  address: string;
-  phone?: string;
-  website?: string;
-  rating?: number;
-  reviewCount?: number;
-  businessStatus?: string;
-  types?: string[];
-  googleMapsUrl: string;
+  placeId: string; name: string; address: string; phone?: string; website?: string;
+  rating?: number; reviewCount?: number; businessStatus?: string; types?: string[]; googleMapsUrl: string;
 }
-interface RecentSearch { id: string; query: string; location?: string | null; industry?: string | null; resultCount?: number; createdAt: string }
+interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
+interface SavedLead {
+  id: string; name: string; address?: string | null; phone?: string | null; website?: string | null;
+  rating?: number | null; reviewCount?: number | null; businessStatus?: string | null; category?: string | null;
+  googleMapsUrl?: string | null; status?: string; notes?: string | null; pitchCount?: number;
+}
 
-export function FocusedLeads({ onAsk }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
+const LEAD_STATUS = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
+const statusCls = (s?: string) => ({ NEW: "bg-muted text-muted-foreground", CONTACTED: "bg-brand-500/10 text-brand-500", QUALIFIED: "bg-violet-500/10 text-violet-500", WON: "bg-emerald-500/10 text-emerald-500", LOST: "bg-rose-500/10 text-rose-500" }[(s || "NEW").toUpperCase()] || "bg-muted text-muted-foreground");
+
+export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
+  const [tab, setTab] = useState<"search" | "lists">("search");
+
+  // ── search ──
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<BusinessLead[]>([]);
-  const [searchId, setSearchId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [added, setAdded] = useState<Set<string>>(new Set());
-  const [addingId, setAddingId] = useState<string | null>(null);
-  const [recent, setRecent] = useState<RecentSearch[]>([]);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveCategory, setSaveCategory] = useState("");
+  const [saveTarget, setSaveTarget] = useState<string>("new");
+  const [saving, setSaving] = useState(false);
 
-  const loadRecent = useCallback(async () => {
-    try {
-      const j = await fetch("/api/leads/search?limit=8").then((r) => r.json());
-      if (j?.success && Array.isArray(j.data?.searches)) setRecent(j.data.searches);
-    } catch { /* ignore */ }
+  // ── lists ──
+  const [lists, setLists] = useState<LeadList[]>([]);
+  const [openList, setOpenList] = useState<LeadList | null>(null);
+  const [listLeads, setListLeads] = useState<SavedLead[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [busyLead, setBusyLead] = useState<string | null>(null);
+
+  const loadLists = useCallback(async () => {
+    try { const j = await fetch("/api/leads/lists").then((r) => r.json()); if (j?.success) setLists(j.data.lists || []); } catch { /* ignore */ }
   }, []);
-  useEffect(() => { loadRecent(); }, [loadRecent]);
+  useEffect(() => { loadLists(); }, [loadLists, refreshKey]);
 
   const runSearch = async () => {
     if (!query.trim() || searching) return;
-    setSearching(true); setError(""); setInfo(""); setAdded(new Set());
+    setSearching(true); setError(""); setInfo(""); setSelected(new Set()); setSaveOpen(false);
     try {
-      const j = await fetch("/api/leads/search", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), location: location.trim() || undefined }),
-      }).then((r) => r.json());
+      const j = await fetch("/api/leads/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: query.trim(), location: location.trim() || undefined }) }).then((r) => r.json());
       if (j?.success && j.data) {
         setResults(j.data.results || []);
-        setSearchId(j.data.searchId || null);
         setInfo(`${j.data.total ?? (j.data.results?.length || 0)} businesses${j.data.isFreeRun ? " · free trial search" : j.data.creditsUsed ? ` · ${j.data.creditsUsed} credits` : ""}`);
-        loadRecent();
-      } else {
-        setError(j?.error?.message || "Search failed.");
-        setResults([]);
-      }
-    } catch {
-      setError("Search failed.");
-    } finally {
-      setSearching(false);
-    }
+        if (!saveName) setSaveName(query.trim());
+        if (!saveCategory) setSaveCategory(query.trim());
+      } else { setError(j?.error?.message || "Search failed."); setResults([]); }
+    } catch { setError("Search failed."); } finally { setSearching(false); }
   };
 
-  const addToContacts = async (lead: BusinessLead) => {
-    setAddingId(lead.placeId);
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const saveSelected = async () => {
+    const chosen = results.filter((r) => selected.has(r.placeId));
+    if (chosen.length === 0 || saving) return;
+    setSaving(true);
     try {
-      const j = await fetch("/api/leads/to-contacts", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchId, selectedLeads: [lead] }),
-      }).then((r) => r.json());
-      if (j?.success) setAdded((s) => new Set(s).add(lead.placeId));
-    } catch { /* ignore */ } finally {
-      setAddingId(null);
-    }
+      const body = saveTarget === "new"
+        ? { listName: saveName.trim() || query.trim() || "Leads", category: saveCategory.trim() || undefined, leads: chosen }
+        : { listId: saveTarget, leads: chosen };
+      const j = await fetch("/api/leads/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+      if (j?.success) { setInfo(`Saved ${j.data.saved} lead${j.data.saved === 1 ? "" : "s"}${j.data.skipped ? `, ${j.data.skipped} already saved` : ""}.`); setSelected(new Set()); setSaveOpen(false); loadLists(); }
+      else setError(j?.error?.message || "Could not save.");
+    } catch { setError("Could not save."); } finally { setSaving(false); }
   };
 
-  const pitch = (lead: BusinessLead) => onAsk(`Draft a cold-outreach pitch to ${lead.name}${lead.website ? ` (${lead.website})` : ""} — a local business at ${lead.address}. Use my brand's services and a personalized hook.`);
-  const proposal = (lead: BusinessLead) => onAsk(`Write a branded service proposal for ${lead.name}${lead.website ? ` (${lead.website})` : ""} offering my services. Use my Brand Kit's offerings.`);
+  const showList = async (l: LeadList) => {
+    setOpenList(l); setListLeads([]); setListLoading(true);
+    try { const j = await fetch(`/api/leads/lists/${l.id}`).then((r) => r.json()); if (j?.success) { setOpenList(j.data.list); setListLeads(j.data.leads || []); } } catch { /* ignore */ } finally { setListLoading(false); }
+  };
+
+  const setLeadStatus = async (lead: SavedLead, status: string) => {
+    setBusyLead(lead.id);
+    try { await fetch(`/api/leads/saved/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }); setListLeads((ls) => ls.map((x) => x.id === lead.id ? { ...x, status } : x)); } catch { /* ignore */ } finally { setBusyLead(null); }
+  };
+  const removeLead = async (lead: SavedLead) => {
+    setBusyLead(lead.id);
+    try { await fetch(`/api/leads/saved/${lead.id}`, { method: "DELETE" }); setListLeads((ls) => ls.filter((x) => x.id !== lead.id)); loadLists(); } catch { /* ignore */ } finally { setBusyLead(null); }
+  };
+  const removeList = async (l: LeadList) => {
+    try { await fetch(`/api/leads/lists/${l.id}`, { method: "DELETE" }); setOpenList(null); loadLists(); } catch { /* ignore */ }
+  };
+
+  const pitchFor = (name: string, website?: string | null, address?: string | null) => onAsk(`Draft a cold-outreach pitch to ${name}${website ? ` (${website})` : ""}${address ? ` — a local business at ${address}` : ""}. Use my brand's services and a personalized hook.`);
+  const proposalFor = (name: string, website?: string | null) => onAsk(`Write a branded service proposal for ${name}${website ? ` (${website})` : ""} offering my services. Use my Brand Kit's offerings.`);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
-        {/* search */}
-        <section className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/8 to-violet-500/5 p-4 sm:p-5">
-          <div className="mb-2.5 flex items-center gap-2">
-            <Search className="h-4 w-4 text-brand-500" />
-            <h3 className="text-[13px] font-bold">Find leads</h3>
-            <span className="text-[11.5px] text-muted-foreground">Local businesses to pitch or propose to.</span>
-          </div>
-          <div className="grid gap-2.5 sm:grid-cols-[1.4fr_1fr_auto]">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="What kind of business? e.g. dentists, cafés, gyms" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
-            <input value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Location (city, area)" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
-            <button onClick={runSearch} disabled={searching || !query.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60">
-              {searching ? <FlowLoader size={16} tone="white" /> : <Search className="h-4 w-4" />} Search
-            </button>
-          </div>
-          {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
-          {info && !error && <p className="mt-2 text-[12px] text-muted-foreground">{info}</p>}
-        </section>
+        {/* tabs */}
+        <div className="inline-flex rounded-[10px] border border-border p-0.5">
+          {([["search", "Find leads", Search], ["lists", `My lists${lists.length ? ` (${lists.length})` : ""}`, Folder]] as const).map(([k, lbl, Icon]) => (
+            <button key={k} onClick={() => { setTab(k); if (k === "lists") setOpenList(null); }} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition", tab === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /> {lbl}</button>
+          ))}
+        </div>
 
-        {/* results */}
-        {results.length > 0 ? (
-          <div className="space-y-2.5">
-            {results.map((lead) => (
-              <div key={lead.placeId} className="rounded-2xl border border-border bg-card p-3.5 sm:p-4">
-                <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <p className="text-[14px] font-bold">{lead.name}</p>
-                      {typeof lead.rating === "number" && (
-                        <span className="inline-flex items-center gap-1 text-[11.5px] text-amber-500"><Star className="h-3.5 w-3.5 fill-current" /> {lead.rating.toFixed(1)}{lead.reviewCount ? <span className="text-muted-foreground">({lead.reviewCount})</span> : null}</span>
-                      )}
-                      {lead.businessStatus && lead.businessStatus !== "OPERATIONAL" && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground capitalize">{lead.businessStatus.toLowerCase().replace(/_/g, " ")}</span>}
+        {tab === "search" ? (
+          <>
+            {/* search box */}
+            <section className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/8 to-violet-500/5 p-4 sm:p-5">
+              <div className="grid gap-2.5 sm:grid-cols-[1.4fr_1fr_auto]">
+                <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Business type — e.g. dentists, cafés, gyms" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+                <input value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }} placeholder="Location (city, area)" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+                <button onClick={runSearch} disabled={searching || !query.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60">
+                  {searching ? <FlowLoader size={16} tone="white" /> : <Search className="h-4 w-4" />} Search
+                </button>
+              </div>
+              {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+              {info && !error && <p className="mt-2 text-[12px] text-muted-foreground">{info}</p>}
+            </section>
+
+            {/* save bar */}
+            {selected.size > 0 && (
+              <section className="sticky top-0 z-10 rounded-2xl border border-brand-500/40 bg-card/95 p-3 shadow-lg backdrop-blur">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><ListChecks className="h-4 w-4 text-brand-500" /> {selected.size} selected</span>
+                  <button onClick={() => setSaveOpen((v) => !v)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm"><FolderPlus className="h-3.5 w-3.5" /> Save to list</button>
+                  <button onClick={() => setSelected(new Set())} className="rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Clear</button>
+                </div>
+                {saveOpen && (
+                  <div className="mt-2.5 grid gap-2.5 border-t border-border pt-2.5 sm:grid-cols-[1fr_1fr_auto]">
+                    <select value={saveTarget} onChange={(e) => setSaveTarget(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60">
+                      <option value="new">+ New list</option>
+                      {lists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.category ? ` · ${l.category}` : ""}</option>)}
+                    </select>
+                    {saveTarget === "new" ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="List name" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+                        <input value={saveCategory} onChange={(e) => setSaveCategory(e.target.value)} placeholder="Category" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+                      </div>
+                    ) : <span className="text-[12px] text-muted-foreground self-center">Adds to the selected list.</span>}
+                    <button onClick={saveSelected} disabled={saving} className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">{saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save</button>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* results */}
+            {results.length > 0 ? (
+              <div className="space-y-2.5">
+                {results.map((lead) => {
+                  const on = selected.has(lead.placeId);
+                  return (
+                    <div key={lead.placeId} className={cn("rounded-2xl border bg-card p-3.5 transition", on ? "border-brand-500/50" : "border-border")}>
+                      <div className="flex items-start gap-3">
+                        <button onClick={() => toggle(lead.placeId)} className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border transition", on ? "border-brand-500 bg-brand-500 text-white" : "border-border text-transparent hover:border-brand-500/60")}><Check className="h-3.5 w-3.5" /></button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="text-[14px] font-bold">{lead.name}</p>
+                            {typeof lead.rating === "number" && <span className="inline-flex items-center gap-1 text-[11.5px] text-amber-500"><Star className="h-3.5 w-3.5 fill-current" /> {lead.rating.toFixed(1)}{lead.reviewCount ? <span className="text-muted-foreground">({lead.reviewCount})</span> : null}</span>}
+                          </div>
+                          <p className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /> {lead.address}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+                            {lead.phone && <span className="inline-flex items-center gap-1 text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {lead.phone}</span>}
+                            {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-500 hover:underline"><Globe className="h-3.5 w-3.5" /> Website</a>}
+                            <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /> Maps</a>
+                          </div>
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <button onClick={() => pitchFor(lead.name, lead.website, lead.address)} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Send className="h-3.5 w-3.5" /> Pitch</button>
+                            <button onClick={() => proposalFor(lead.name, lead.website)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FileText className="h-3.5 w-3.5" /> Proposal</button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /> {lead.address}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
-                      {lead.phone && <span className="inline-flex items-center gap-1 text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {lead.phone}</span>}
-                      {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-500 hover:underline"><Globe className="h-3.5 w-3.5" /> Website</a>}
-                      <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /> Maps</a>
+                  );
+                })}
+              </div>
+            ) : !searching && (
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                  <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-500"><Sparkles className="h-6 w-6" /></span>
+                  <p className="mt-3 text-[13.5px] font-semibold">Find your next clients</p>
+                  <p className="mt-1 text-[12.5px] text-muted-foreground">Search a business type + location, select the ones you want, and save them to a named list — then pitch or propose to them.</p>
+                </div>
+              </section>
+            )}
+          </>
+        ) : openList ? (
+          // ── list detail ──
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <button onClick={() => setOpenList(null)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Lists</button>
+              <div className="min-w-0">
+                <h3 className="truncate text-[14px] font-bold">{openList.name}</h3>
+                <p className="truncate text-[11.5px] text-muted-foreground">{openList.category ? `${openList.category} · ` : ""}{listLeads.length} lead{listLeads.length === 1 ? "" : "s"}</p>
+              </div>
+              <button onClick={() => removeList(openList)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete list</button>
+            </div>
+            {listLoading ? (
+              <div className="py-8"><FlowLoader size={22} label="Loading leads…" /></div>
+            ) : listLeads.length ? (
+              <div className="space-y-2">
+                {listLeads.map((lead) => (
+                  <div key={lead.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                    <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[13px] font-semibold">{lead.name}</p>
+                          {typeof lead.rating === "number" && <span className="inline-flex items-center gap-0.5 text-[11px] text-amber-500"><Star className="h-3 w-3 fill-current" /> {lead.rating.toFixed(1)}</span>}
+                          {(lead.pitchCount ?? 0) > 0 && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">{lead.pitchCount} pitch{lead.pitchCount === 1 ? "" : "es"}</span>}
+                        </div>
+                        <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.address, lead.phone].filter(Boolean).join(" · ")}</p>
+                      </div>
+                      <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => setLeadStatus(lead, e.target.value)} disabled={busyLead === lead.id} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
+                        {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
+                      </select>
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <button onClick={() => pitchFor(lead.name, lead.website, lead.address)} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Send className="h-3.5 w-3.5" /> Pitch</button>
+                      <button onClick={() => proposalFor(lead.name, lead.website)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FileText className="h-3.5 w-3.5" /> Proposal</button>
+                      {lead.website && <a href={/^https?:\/\//.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Globe className="h-3.5 w-3.5" /> Site</a>}
+                      <button onClick={() => removeLead(lead)} disabled={busyLead === lead.id} className="ms-auto inline-flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-rose-500 disabled:opacity-60">{busyLead === lead.id ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}</button>
                     </div>
                   </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <button onClick={() => pitch(lead)} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Send className="h-3.5 w-3.5" /> Pitch</button>
-                  <button onClick={() => proposal(lead)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FileText className="h-3.5 w-3.5" /> Proposal</button>
-                  <button onClick={() => addToContacts(lead)} disabled={addingId === lead.placeId || added.has(lead.placeId)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-70">
-                    {added.has(lead.placeId) ? <><Check className="h-3.5 w-3.5 text-emerald-500" /> Added</> : addingId === lead.placeId ? <FlowLoader size={13} /> : <><UserPlus className="h-3.5 w-3.5" /> Add to contacts</>}
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : !searching && (
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-500"><Sparkles className="h-6 w-6" /></span>
-              <p className="mt-3 text-[13.5px] font-semibold">Find your next clients</p>
-              <p className="mt-1 text-[12.5px] text-muted-foreground">Search a business type + location above. Then pitch them, write a proposal, or add them to your contacts.</p>
-            </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No leads in this list yet — add some from the Find leads tab.</p>
+            )}
           </section>
-        )}
-
-        {/* recent searches */}
-        {recent.length > 0 && (
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <h3 className="mb-3 text-[13px] font-bold">Recent searches</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {recent.map((r) => (
-                <button key={r.id} onClick={() => { setQuery(r.query); setLocation(r.location || ""); }} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-[12px] hover:border-brand-500/60 hover:text-foreground">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" /> {r.query}{r.location ? ` · ${r.location}` : ""}{typeof r.resultCount === "number" ? ` (${r.resultCount})` : ""}
+        ) : (
+          // ── lists grid ──
+          lists.length ? (
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {lists.map((l) => (
+                <button key={l.id} onClick={() => showList(l)} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-left transition hover:border-brand-500/60">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder className="h-5 w-5" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-semibold">{l.name}</p>
+                    <p className="truncate text-[11.5px] text-muted-foreground">{l.category ? `${l.category} · ` : ""}{l.leadCount ?? 0} lead{(l.leadCount ?? 0) === 1 ? "" : "s"}</p>
+                  </div>
                 </button>
               ))}
             </div>
-          </section>
+          ) : (
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-500"><Folder className="h-6 w-6" /></span>
+                <p className="mt-3 text-[13.5px] font-semibold">No saved lead lists yet</p>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">Search for businesses, select them, and save them to a named, categorized list you can return to.</p>
+                <button onClick={() => setTab("search")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Search className="h-4 w-4" /> Find leads</button>
+              </div>
+            </section>
+          )
         )}
       </div>
     </div>

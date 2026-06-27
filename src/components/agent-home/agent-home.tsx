@@ -336,6 +336,8 @@ export function AgentHome() {
       setDrawerOpen(false);
       return;
     }
+    // Leads opens its full surface directly (search + saved lists), not a panel.
+    if (key === "leads") { openFocused("leads"); return; }
     setFocused(null);
     setActiveWs(key);
     setPanelKey(key);
@@ -475,7 +477,7 @@ export function AgentHome() {
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
                 </button>
-                {(i === 0 || w.key === "outreach") && <div className="my-1.5 h-px w-11 bg-border" />}
+                {(i === 0 || w.key === "leads") && <div className="my-1.5 h-px w-11 bg-border" />}
               </div>
             );
           })}

@@ -144,6 +144,8 @@ model User {
   whatsappAutomations   WhatsAppAutomation[]
   pitches               Pitch[]
   leadSearches          LeadSearch[]
+  savedLeadLists        SavedLeadList[]
+  savedLeads            SavedLead[]
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
@@ -4711,6 +4713,8 @@ model Pitch {
   // is a branded, PDF-ready service deck. Previously this was smuggled inside the
   // pitchContent/research JSON and parsed everywhere — now it's one queryable column.
   documentType   String    @default("pitch") // "pitch" | "service_proposal"
+  // Optional link to the saved lead this pitch/proposal was built for.
+  savedLeadId    String?
   status         String    @default("PENDING") // PENDING | RESEARCHING | READY | FAILED | SENT
   research       String    @default("{}") // JSON: ResearchData (internal only)
   pitchContent   String    @default("{}") // JSON: PitchContent (what client sees)
@@ -4721,11 +4725,13 @@ model Pitch {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead SavedLead? @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
   @@index([documentType])
+  @@index([savedLeadId])
   @@index([createdAt])
 }
 
@@ -4742,6 +4748,53 @@ model LeadSearch {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// A saved, named + categorized list of leads the user is working (Lead finder).
+model SavedLeadList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  category  String? // user-defined grouping (e.g. industry / campaign)
+  leadCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads SavedLead[]
+
+  @@index([userId])
+}
+
+// A persisted lead (from the Lead finder / Google Places), workable on its own:
+// status, notes, and the pitches/proposals built for it.
+model SavedLead {
+  id             String   @id @default(cuid())
+  userId         String
+  listId         String? // which list it belongs to (null = unfiled)
+  placeId        String? // Google Places id — for de-duping
+  name           String
+  address        String?
+  phone          String?
+  website        String?
+  rating         Float?
+  reviewCount    Int?
+  businessStatus String?
+  category       String? // the lead's own category/type
+  types          String   @default("[]") // JSON: string[]
+  googleMapsUrl  String?
+  status         String   @default("NEW") // NEW | CONTACTED | QUALIFIED | WON | LOST
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list    SavedLeadList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  pitches Pitch[]
+
+  @@index([userId])
+  @@index([listId])
+  @@index([placeId])
 }
 
 // ============================================

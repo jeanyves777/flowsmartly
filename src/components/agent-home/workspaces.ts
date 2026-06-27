@@ -6,6 +6,7 @@ import {
   ShoppingBag,
   Globe,
   Handshake,
+  Search,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -105,6 +106,16 @@ export const WORKSPACES: Workspace[] = [
       { label: "Reviews / local SEO", route: "/listsmartly" },
       { label: "Pitch board", route: "/pitch-board" },
       { label: "Email marketing", route: "/email-marketing" },
+    ],
+  },
+  {
+    key: "leads",
+    label: "Leads",
+    icon: Search,
+    route: "/home/leads",
+    items: [
+      { label: "Find leads", route: "/home/leads" },
+      { label: "My lead lists", route: "/home/leads" },
     ],
   },
   {
