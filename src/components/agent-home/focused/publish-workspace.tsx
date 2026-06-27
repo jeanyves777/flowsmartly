@@ -48,7 +48,7 @@ function fmt(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
 
-export function FocusedPublish({ onConnect, onAsk, refreshKey }: { onConnect: () => void; onAsk: (prompt: string) => void; refreshKey?: number }) {
+export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnect: () => void; onOpenView: (key: string) => void; refreshKey?: number }) {
   const [status, setStatus] = useState<Status>("ALL");
   const [posts, setPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
@@ -91,7 +91,7 @@ export function FocusedPublish({ onConnect, onAsk, refreshKey }: { onConnect: ()
             <button key={t.id} onClick={() => setStatus(t.id)} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", status === t.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t.label}</button>
           ))}
         </div>
-        <button onClick={() => onAsk("Help me create and schedule a new post — ask me what it should say, the vibe, and which platforms, then propose it.")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+        <button onClick={() => onOpenView("compose")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
           <Sparkles className="h-3.5 w-3.5" /> New post
         </button>
       </div>
@@ -136,7 +136,7 @@ export function FocusedPublish({ onConnect, onAsk, refreshKey }: { onConnect: ()
               <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
                 <p className="text-[13px] font-medium">{status === "SCHEDULED" ? "Nothing scheduled yet" : status === "DRAFT" ? "No drafts" : "No posts yet"}</p>
                 <p className="mt-1 text-[12px] text-muted-foreground">Create your first post and the agent will write, design, and schedule it.</p>
-                <button onClick={() => onAsk("Help me create and schedule a new post — ask me what it should say, the vibe, and which platforms, then propose it.")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                <button onClick={() => onOpenView("compose")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
                   <Sparkles className="h-4 w-4" /> Create a post
                 </button>
               </div>

@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -33,6 +33,12 @@ import { FocusedAutomations } from "./focused/automations-workspace";
 import { FocusedCustomers } from "./focused/customers-workspace";
 import { FocusedReviews } from "./focused/reviews-workspace";
 import { FocusedLeads } from "./focused/leads-workspace";
+import { FocusedCompose } from "./focused/compose-workspace";
+import { FocusedEmail } from "./focused/email-workspace";
+import { FocusedSms } from "./focused/sms-workspace";
+import { FocusedWhatsApp } from "./focused/whatsapp-workspace";
+import { FocusedTeams } from "./focused/teams-workspace";
+import { FocusedReferrals } from "./focused/referrals-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
@@ -74,6 +80,12 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   customers: "Ask the agent to find your top spenders or re-engage repeat customers.",
   reviews: "Ask the agent to request more reviews, fix a listing, or improve your local SEO score.",
   leads: "Ask the agent to find leads — e.g. “find dentists in Austin” — then pitch them or write a proposal.",
+  compose: "Ask the agent to write or schedule a post — e.g. “write a post about my new product for Instagram, schedule it for Friday 4pm”.",
+  email: "Ask the agent to draft an email campaign or check how the last one performed.",
+  sms: "Ask the agent to send an SMS blast or check delivery.",
+  whatsapp: "Ask the agent to set up a WhatsApp broadcast or automation.",
+  teams: "Ask the agent to invite a teammate or change someone’s role.",
+  referrals: "Ask the agent how your referrals are doing or how best to share your link.",
   publish: "Ask the agent to schedule or manage posts — e.g. “schedule a post for Friday at 4pm” or “what’s on my calendar?”.",
   connections: "Ask the agent which accounts to connect — e.g. “connect my Instagram” — or use the panel on the right.",
   sell: "Ask the agent to run your store — e.g. “add a product called Blue Mug for $20”, “make the Blue Mug $15”, or “ship order #1023”.",
@@ -94,6 +106,12 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   customers: { label: "Customers", subtitle: "Your store buyers — orders, spend, last purchase", icon: Users },
   reviews: { label: "Reviews", subtitle: "Reviews & local SEO presence", icon: Star },
   leads: { label: "Lead finder", subtitle: "Find local businesses to pitch or propose to", icon: Search },
+  compose: { label: "Compose", subtitle: "Write, schedule & publish a post", icon: SquarePen },
+  email: { label: "Email", subtitle: "Email campaigns & performance", icon: Mail },
+  sms: { label: "SMS", subtitle: "SMS campaigns & delivery", icon: MessageSquare },
+  whatsapp: { label: "WhatsApp", subtitle: "WhatsApp broadcasts & automations", icon: MessageCircle },
+  teams: { label: "Teams", subtitle: "Members & invites", icon: Users },
+  referrals: { label: "Referrals", subtitle: "Your referral link & earnings", icon: Gift },
 };
 
 // Tell the agent WHICH surface the user is on so it acts in-context instead of
@@ -128,6 +146,18 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Reviews & local SEO** surface (ListSmartly). Help them request more reviews, claim/fix listings, or improve their local SEO/citation score.`;
     case "leads":
       return `The user is on the **Lead finder** surface (search local businesses to pitch/propose to). A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded service deck (create_proposal) — these are DIFFERENT, pick the right one for what they ask. They can also add a lead to contacts.`;
+    case "compose":
+      return `The user is on the **Post composer** (write a caption, pick platforms, attach media, schedule). Help them write and schedule a post — schedule_social_post / create posts via the right tool.`;
+    case "email":
+      return `The user is on the **Email** surface (email campaigns + stats). Help them draft, schedule, or review an email campaign (create_email_campaign / send_email_campaign).`;
+    case "sms":
+      return `The user is on the **SMS** surface (SMS campaigns/blasts). Help them create or send an SMS blast and check delivery.`;
+    case "whatsapp":
+      return `The user is on the **WhatsApp** surface (broadcasts/automations). Help them set up WhatsApp messaging.`;
+    case "teams":
+      return `The user is on the **Teams** surface (members + invites). Help them invite or manage teammates and roles.`;
+    case "referrals":
+      return `The user is on the **Referrals** surface (referral link + earnings). Help them share their link or understand their referral earnings.`;
     case "billing":
       return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
     case "connections":
@@ -141,7 +171,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -454,6 +484,15 @@ export function AgentHome() {
               <button onClick={() => guardNav(openAccount)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <Settings className="h-4 w-4 text-muted-foreground" /> Account &amp; settings
               </button>
+              <button onClick={() => { setUserMenuOpen(false); guardNav(() => openView("teams")); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <Users className="h-4 w-4 text-muted-foreground" /> Teams
+              </button>
+              <button onClick={() => { setUserMenuOpen(false); guardNav(() => openView("referrals")); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <Gift className="h-4 w-4 text-muted-foreground" /> Referrals
+              </button>
+              <button onClick={() => { setUserMenuOpen(false); guardNav(openBilling); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <CreditCard className="h-4 w-4 text-muted-foreground" /> Billing &amp; credits
+              </button>
               <div className="my-1 h-px bg-border" />
               <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-destructive hover:bg-destructive/10">
                 <LogOut className="h-4 w-4" /> Log out
@@ -524,11 +563,11 @@ export function AgentHome() {
                 ) : focused === "brand" ? (
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} refreshKey={actionCount} />
                 ) : focused === "analytics" ? (
-                  <FocusedAnalytics refreshKey={actionCount} />
+                  <FocusedAnalytics onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "billing" ? (
                   <FocusedBilling refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onConnect={openConnections} onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedPublish onConnect={openConnections} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
@@ -551,6 +590,18 @@ export function AgentHome() {
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
                   <FocusedLeads onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "compose" ? (
+                  <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "email" ? (
+                  <FocusedEmail onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "sms" ? (
+                  <FocusedSms onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "whatsapp" ? (
+                  <FocusedWhatsApp onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "teams" ? (
+                  <FocusedTeams refreshKey={actionCount} />
+                ) : focused === "referrals" ? (
+                  <FocusedReferrals refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`, false, undefined, undefined, { hidden: true }); }} />
                 )

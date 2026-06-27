@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
 import Image from "next/image";
-import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3 } from "lucide-react";
+import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3, Mail, MessageSquare, MessageCircle, Workflow, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -28,7 +28,7 @@ interface Analytics {
   topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number }>;
 }
 
-export function FocusedAnalytics({ refreshKey }: { refreshKey?: number }) {
+export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView?: (key: string) => void }) {
   const [range, setRange] = useState<Range>("30d");
   const [dash, setDash] = useState<Dash | null>(null);
   const [an, setAn] = useState<Analytics | null>(null);
@@ -82,6 +82,19 @@ export function FocusedAnalytics({ refreshKey }: { refreshKey?: number }) {
             ))}
           </div>
         </div>
+
+        {/* Grow tools — entry to the marketing channels */}
+        {onOpenView && (
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <h3 className="mb-3 text-[13px] font-bold">Grow tools</h3>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <GrowTool icon={Mail} label="Email" onClick={() => onOpenView("email")} />
+              <GrowTool icon={MessageSquare} label="SMS" onClick={() => onOpenView("sms")} />
+              <GrowTool icon={MessageCircle} label="WhatsApp" onClick={() => onOpenView("whatsapp")} />
+              <GrowTool icon={Workflow} label="Follow-ups" onClick={() => onOpenView("automations")} />
+            </div>
+          </section>
+        )}
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -167,6 +180,15 @@ export function FocusedAnalytics({ refreshKey }: { refreshKey?: number }) {
         </section>
       </div>
     </div>
+  );
+}
+
+function GrowTool({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/30 p-3 text-left transition hover:border-brand-500/60">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
+      <span className="text-[13px] font-semibold">{label}</span>
+    </button>
   );
 }
 

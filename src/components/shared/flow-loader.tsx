@@ -28,7 +28,10 @@ export function FlowLoader({
 }) {
   const gid = useId();
   const stroke = Math.max(2, Math.round(size * 0.12));
-  const showMark = (withMark ?? size >= 30) && tone === "brand";
+  // Show the FlowSmartly mark on any loader that's big enough — including the
+  // white-tone loaders inside buttons — so every spinner is the same on-brand
+  // icon loader, not a plain ring. Below ~16px there's no room for the mark.
+  const showMark = withMark ?? size >= 16;
   const circ = 2 * Math.PI * 10;
 
   const ring = (
