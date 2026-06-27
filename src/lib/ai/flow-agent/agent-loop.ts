@@ -80,6 +80,12 @@ export interface AgentRunInput {
   recentTasks?: Array<{ id: string; kind: string; status: string; note?: string; resultUrl?: string | null }>;
   /** Plans proposed earlier in this conversation + status (cancel/confirm awareness). */
   recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
+  /**
+   * When set, a design canvas is open in the focused view. Its serialized state
+   * is injected into the system prompt and the `update_canvas` tool is exposed
+   * so the agent can edit the on-screen design. Absent on other surfaces.
+   */
+  canvasContext?: string;
   /** Aborts the loop when the client disconnects. */
   abortSignal: AbortSignal;
   /** Emit SSE event back to the client. */
@@ -111,7 +117,11 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   await ensureToolsRegistered();
 
   const tools = flowAgentTools.forPlan(input.plan);
-  const clientToolDefs = tools.map((t) => ({
+  // Gate the canvas tool: only expose it to the model when a design canvas is
+  // actually open (focused view). Other surfaces never see it, so the agent
+  // can't call it out of context.
+  const exposedTools = input.canvasContext ? tools : tools.filter((t) => t.name !== "update_canvas");
+  const clientToolDefs = exposedTools.map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.input_schema as Anthropic.Tool["input_schema"],
@@ -138,7 +148,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // the "must propose first" check. Resets per agent turn.
   const confirmedPlans = new Set<string>();
 
-  const systemPrompt = await buildAgentSystemPrompt({
+  let systemPrompt = await buildAgentSystemPrompt({
     userId: input.userId,
     clientNow: input.clientNow,
     timezone: input.timezone,
@@ -146,6 +156,13 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     recentProposals: input.recentProposals,
     userMessage: input.userMessage,
   });
+
+  // Focused-view canvas: tell the model what's on screen + how to edit it live.
+  if (input.canvasContext) {
+    systemPrompt +=
+      `\n\n## Active design canvas (focused view)\n${input.canvasContext}\n\n` +
+      "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.";
+  }
 
   // Seed Claude with prior conversation. Skip the just-saved user message —
   // we pass it as the LAST user turn separately so it stays adjacent to

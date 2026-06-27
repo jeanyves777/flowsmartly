@@ -19,7 +19,7 @@ import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { HomeMessageView } from "./home-message";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
-import { FocusedDesignStudio, DEFAULT_DESIGN, type DesignDoc } from "./focused/design-studio";
+import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null }
 interface AgentClient { id: string; name: string }
@@ -46,7 +46,7 @@ export function AgentHome() {
   const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef } = useHomeAgent();
 
   const [mounted, setMounted] = useState(false);
   const [booting, setBooting] = useState(true);
@@ -141,6 +141,11 @@ export function AgentHome() {
   }, [conversationId]);
 
   useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
+
+  // Apply agent-driven canvas edits (update_canvas → canvas_update event) live.
+  useEffect(() => {
+    canvasUpdateRef.current = (patch) => setDesign((d) => applyDesignPatch(d, patch));
+  }, [canvasUpdateRef]);
 
   const showToast = useCallback((m: string) => {
     setToast(m);
@@ -288,7 +293,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={send} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm) => send(t, sm, focused === "create" ? designCanvasContext(design) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }

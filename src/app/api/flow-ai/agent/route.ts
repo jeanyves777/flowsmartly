@@ -88,6 +88,8 @@ export async function POST(req: NextRequest) {
     message?: string;
     timezone?: string;
     clientNow?: string;
+    /** Serialized focused-view canvas state — exposes/feeds the update_canvas tool. */
+    canvasContext?: string;
     // `dataUrl` = a base64 upload from the device file picker.
     // `url`     = an already-hosted image the user picked from their media
     //             library (no re-upload needed — fetched server-side for vision).
@@ -384,6 +386,7 @@ export async function POST(req: NextRequest) {
           userId: session.userId,
           isAdmin: !!session.adminId,
           superMode: (body as { superMode?: boolean }).superMode === true,
+          canvasContext: typeof body.canvasContext === "string" ? body.canvasContext.slice(0, 2000) : undefined,
           plan,
           conversationId,
           messageId: assistantMsg.id,

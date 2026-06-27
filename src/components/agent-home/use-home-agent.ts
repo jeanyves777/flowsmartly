@@ -50,6 +50,8 @@ export function useHomeAgent() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  // The focused view assigns this — applied when the agent emits a canvas_update.
+  const canvasUpdateRef = useRef<((patch: Record<string, unknown>) => void) | null>(null);
 
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
   const resolvedPlansRef = useRef<Map<string, PlanProposalCardData["status"]>>(new Map());
@@ -59,7 +61,7 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false) => {
+    async (text: string, superMode = false, canvasContext?: string) => {
       const trimmed = text.trim();
       if (!trimmed || sending) return;
       setSending(true);
@@ -94,7 +96,7 @@ export function useHomeAgent() {
       };
 
       try {
-        const res = await send({ message: trimmed, conversationId, superMode });
+        const res = await send({ message: trimmed, conversationId, superMode, canvasContext });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
           try {
@@ -110,6 +112,7 @@ export function useHomeAgent() {
           onStart: (convId) => {
             if (convId !== conversationId) setConversationId(convId);
           },
+          onCanvasUpdate: (patch) => canvasUpdateRef.current?.(patch),
           onText: (delta) => {
             assistantText += delta;
             blockAppendText(blocks, delta);
@@ -280,6 +283,7 @@ export function useHomeAgent() {
     loadConversation,
     newConversation,
     refreshConversations,
+    canvasUpdateRef,
   };
 }
 

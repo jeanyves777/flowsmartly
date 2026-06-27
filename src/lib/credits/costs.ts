@@ -114,6 +114,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_WHO_AM_I: 0,
   AGENT_GET_BRAND_IDENTITY: 0,
   AGENT_PROPOSE_PLAN: 0,           // Free — proposal is "would you like this?", not work
+  AGENT_CANVAS_UPDATE: 0,          // Free — instant UI edit to the focused-view canvas
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
   // Tier-priced media tools. The handler picks the right key based on
@@ -260,6 +261,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_WHO_AM_I: "Flow-AI agent: who am I",
   AGENT_GET_BRAND_IDENTITY: "Flow-AI agent: get brand identity",
   AGENT_PROPOSE_PLAN: "Flow-AI agent: propose plan",
+  AGENT_CANVAS_UPDATE: "Flow-AI agent: edit canvas",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
   AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",

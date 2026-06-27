@@ -24,6 +24,30 @@ export const DEFAULT_DESIGN: DesignDoc = {
   size: "1080×1350",
 };
 
+/** Serialize the canvas for the agent so it can patch fields intelligently. */
+export function designCanvasContext(d: DesignDoc): string {
+  return [
+    "A Design Studio canvas is OPEN on the right. Current fields:",
+    `- headline: ${JSON.stringify(d.headline)}`,
+    `- sub: ${JSON.stringify(d.sub)}`,
+    `- cta (button): ${JSON.stringify(d.cta)}`,
+    `- accent (hex): ${d.accent}`,
+    `- size: ${d.size}`,
+    "Allowed accent hexes: #0ea5e9 (sky/blue), #8b5cf6 (violet/purple), #eccb93 (gold), #10b981 (green), #ef4444 (red).",
+    "Allowed sizes: 1080×1080 (1:1), 1080×1350 (4:5), 1080×1920 (9:16), 1200×628 (ad).",
+  ].join("\n");
+}
+
+/** Merge an agent-emitted patch (only known string fields) into the doc. */
+export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): DesignDoc {
+  const next = { ...d };
+  for (const k of ["headline", "sub", "cta", "accent", "size"] as const) {
+    const v = patch[k];
+    if (typeof v === "string" && v) next[k] = v;
+  }
+  return next;
+}
+
 const ACCENTS = ["#0ea5e9", "#8b5cf6", "#eccb93", "#10b981", "#ef4444"];
 const SIZES = [
   { label: "1:1", v: "1080×1080" },
