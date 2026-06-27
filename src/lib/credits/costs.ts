@@ -116,6 +116,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_UPDATE_BRAND_IDENTITY: 0,  // Free — saving brand text is a setting; the agent inferred it inline
   AGENT_PROPOSE_PLAN: 0,           // Free — proposal is "would you like this?", not work
   AGENT_CANVAS_UPDATE: 0,          // Free — instant UI edit to the focused-view canvas
+  AGENT_ADD_PRODUCT: 0,            // Free — listing a product in the store is not AI work
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
   // Tier-priced media tools. The handler picks the right key based on
@@ -264,6 +265,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_UPDATE_BRAND_IDENTITY: "Flow-AI agent: update brand identity",
   AGENT_PROPOSE_PLAN: "Flow-AI agent: propose plan",
   AGENT_CANVAS_UPDATE: "Flow-AI agent: edit canvas",
+  AGENT_ADD_PRODUCT: "Flow-AI agent: add product",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
   AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",
