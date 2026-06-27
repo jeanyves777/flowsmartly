@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useTheme } from "next-themes";
+import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   BarChart3,
   Bot,
@@ -18,12 +18,10 @@ import {
   MapPin,
   Menu,
   MessageSquare,
-  Moon,
   Rocket,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
-  Sun,
   Users,
   WalletCards,
   Zap,
@@ -348,14 +346,8 @@ function MegaMenuPanel({ menu }: { menu: MegaMenu }) {
 }
 
 export function PublicHeader() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<MegaMenuKey | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 px-2 pt-2">
@@ -428,33 +420,11 @@ export function PublicHeader() {
             <Button className="h-12 bg-zinc-950 px-5 font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200" asChild>
               <Link href="/register">Try for free</Link>
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              aria-label="Toggle theme"
-            >
-              {mounted && resolvedTheme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
+            <ThemeMenu />
           </div>
 
           <div className="flex items-center gap-2 lg:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              aria-label="Toggle theme"
-            >
-              {mounted && resolvedTheme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
+            <ThemeMenu />
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Open menu">

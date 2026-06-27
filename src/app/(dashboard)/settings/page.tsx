@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Settings, User, Bell, Shield, Palette, CreditCard, Link2, Moon, Sun, Smartphone, Camera, Save, Check, ExternalLink, Instagram, Twitter, Linkedin, Facebook, AlertTriangle, RefreshCw, Coins, Zap, Crown, Star, Package, ArrowUpRight, Plus, Trash2, MoreVertical, Upload, History, Receipt, ArrowRight, Copy, KeyRound, QrCode } from "lucide-react";
+import { Settings, User, Bell, Shield, Palette, CreditCard, Link2, Moon, Sun, Contrast, Smartphone, Camera, Save, Check, ExternalLink, Instagram, Twitter, Linkedin, Facebook, AlertTriangle, RefreshCw, Coins, Zap, Crown, Star, Package, ArrowUpRight, Plus, Trash2, MoreVertical, Upload, History, Receipt, ArrowRight, Copy, KeyRound, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1864,9 +1864,10 @@ export default function SettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     {[
                       { id: "light", label: "Light", icon: Sun },
+                      { id: "grey", label: "Grey", icon: Contrast },
                       { id: "dark", label: "Dark", icon: Moon },
                       { id: "system", label: "System", icon: Smartphone },
                     ].map((option) => (

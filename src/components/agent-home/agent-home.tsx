@@ -188,7 +188,7 @@ export function AgentHome() {
       )}
 
       {/* TOP BAR */}
-      <header className="flex h-14 items-center gap-2 border-b border-border bg-background/70 px-3 backdrop-blur sm:gap-3 sm:px-4">
+      <header className="relative z-40 flex h-14 items-center gap-2 border-b border-border bg-background/70 px-3 backdrop-blur sm:gap-3 sm:px-4">
         <button onClick={() => setDrawerOpen(true)} className="grid h-9 w-9 place-items-center rounded-[10px] text-muted-foreground hover:text-foreground md:hidden" aria-label="Menu">
           <Menu className="h-5 w-5" />
         </button>

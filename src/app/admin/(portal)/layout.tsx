@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+import { ThemeMenu } from "@/components/shared/theme-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -571,15 +572,8 @@ export default function AdminPortalLayout({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 ml-auto">
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </Button>
+            {/* Theme picker — Light / Grey / Dark */}
+            <ThemeMenu />
 
             {/* Notifications */}
             <DropdownMenu onOpenChange={(open) => {
