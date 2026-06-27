@@ -28,6 +28,7 @@ import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
 import { FocusedWeb } from "./focused/web-workspace";
+import { FocusedOutreach } from "./focused/outreach-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -430,6 +431,8 @@ export function AgentHome() {
                   <FocusedSell onAsk={(p) => send(p)} />
                 ) : focused === "web" ? (
                   <FocusedWeb onAsk={(p) => send(p)} />
+                ) : focused === "outreach" ? (
+                  <FocusedOutreach onAsk={(p) => send(p)} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
