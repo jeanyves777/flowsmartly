@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
-import Link from "next/link";
 import { Mail, Palette, Target, Zap, X, CheckCircle2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -21,19 +20,21 @@ interface BannerConfig {
   title: string;
   description: string;
   cta: string;
-  href: string;
+  /** Agent prompt — the CTA drives the agent in the new design (never a legacy link). */
+  prompt: string;
   wash: string;
   iconColor: string;
 }
 
 /**
  * Setup prompts for the agent home, in the NEW design — verify email + the
- * progressive onboarding nudges (brand → strategy → automation). Same data
- * sources as the legacy dashboard banners (`/api/user/onboarding-state`,
+ * progressive onboarding nudges (brand → strategy → automation). Uses the same
+ * data sources as the legacy dashboard banners (`/api/user/onboarding-state`,
  * `/api/auth/send-verification`, `/api/user/dismiss-banner`), reskinned to the
- * agent-home aesthetic. Shows one banner at a time; dismissible.
+ * agent-home aesthetic. Per [[new-design-no-legacy]] the CTAs DRIVE THE AGENT —
+ * they never deep-link to a legacy route. One banner at a time; dismissible.
  */
-export function SetupBanners() {
+export function SetupBanners({ onPrompt }: { onPrompt: (text: string) => void }) {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
@@ -111,13 +112,13 @@ export function SetupBanners() {
 
   const banners: BannerConfig[] = [];
   if (!state.brandSetup) {
-    banners.push({ id: "setup-brand", icon: Palette, title: "Set up your brand identity", description: "Tell the agent about your brand to unlock on-brand content, strategy, and more.", cta: "Set up brand", href: "/brand", wash: "from-violet-500/12 via-fuchsia-500/10 to-violet-500/12", iconColor: "text-violet-500" });
+    banners.push({ id: "setup-brand", icon: Palette, title: "Set up your brand identity", description: "Tell the agent about your brand to unlock on-brand content, strategy, and more.", cta: "Set up brand", prompt: "Help me set up my brand identity. Ask me what you need to know — name, what we do, audience, tone, colors — and save it to my brand kit.", wash: "from-violet-500/12 via-fuchsia-500/10 to-violet-500/12", iconColor: "text-violet-500" });
   }
   if (state.brandSetup && !state.hasStrategy) {
-    banners.push({ id: "create-strategy", icon: Target, title: "Create your marketing strategy", description: "Generate an AI strategy with tasks, timelines, and progress tracking.", cta: "Create strategy", href: "/content/strategy/generate", wash: "from-brand-500/12 via-cyan-500/10 to-brand-500/12", iconColor: "text-brand-500" });
+    banners.push({ id: "create-strategy", icon: Target, title: "Create your marketing strategy", description: "Generate an AI strategy with tasks, timelines, and progress tracking.", cta: "Create strategy", prompt: "Create my marketing strategy — propose goals, audience, channels, and a content plan I can act on.", wash: "from-brand-500/12 via-cyan-500/10 to-brand-500/12", iconColor: "text-brand-500" });
   }
   if (state.hasStrategy && !state.hasAutomation) {
-    banners.push({ id: "automate-strategy", icon: Zap, title: "Put your strategy on autopilot", description: "AI generates posts on your schedule, tracks progress, and scores performance.", cta: "Automate now", href: state.strategyId ? `/content/strategy?view=automations&strategy=${state.strategyId}` : "/content/strategy?view=automations", wash: "from-amber-500/12 via-orange-500/10 to-amber-500/12", iconColor: "text-amber-500" });
+    banners.push({ id: "automate-strategy", icon: Zap, title: "Put your strategy on autopilot", description: "AI generates posts on your schedule, tracks progress, and scores performance.", cta: "Automate now", prompt: "Help me automate my marketing strategy — set up scheduled content generation on a cadence that fits my plan.", wash: "from-amber-500/12 via-orange-500/10 to-amber-500/12", iconColor: "text-amber-500" });
   }
 
   const active = banners.find((b) => !dismissed.includes(b.id) && !hiddenIds.includes(b.id));
@@ -133,9 +134,9 @@ export function SetupBanners() {
         description={active.description}
         onDismiss={() => dismiss(active.id)}
         action={
-          <Link href={active.href} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-95">
+          <button onClick={() => onPrompt(active.prompt)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-95">
             {active.cta}
-          </Link>
+          </button>
         }
       />
     </div>

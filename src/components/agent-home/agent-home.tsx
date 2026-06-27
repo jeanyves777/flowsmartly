@@ -303,9 +303,6 @@ export function AgentHome() {
         </div>
       </header>
 
-      {/* setup prompts (verify email · set brand · strategy) — new design */}
-      <SetupBanners />
-
       {/* BODY */}
       <div className="flex min-h-0 flex-1">
         {/* desktop workspace rail */}
@@ -328,6 +325,8 @@ export function AgentHome() {
 
         {/* main */}
         <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* setup prompts live in the main column so the rail stays full-height; CTAs drive the agent, never legacy links */}
+          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} />
           {focused ? (
             <FocusedView
               title={fLabel}

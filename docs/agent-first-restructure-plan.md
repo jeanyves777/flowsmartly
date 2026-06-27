@@ -93,6 +93,7 @@ Sidebar, bespoke spinners, hardcoded colors). Bring each into the new design
 - **Order:** shared dashboard chrome (sidebar/header) → **Business** (settings,
   brand, analytics, billing) → the remaining workspaces' pages.
 - Rule (unchanged): no feature lost; each page stays reachable inside its workspace.
+- **Hard rule ([[new-design-no-legacy]]):** the new design NEVER links to a legacy route. Every legacy surface is reinvented in the new style under the new design's **own route namespace** (rooted at `/home`); CTAs/menus open a new-design surface or drive the agent — never `/brand`, `/settings`, `/content/strategy`, etc. Legacy may still be edited as needed during the transition, but users in the new UI are never sent there.
 
 ## 6. Sequencing (each phase shippable)
 
