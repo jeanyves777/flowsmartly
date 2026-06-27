@@ -384,7 +384,7 @@ export function AgentHome() {
         {/* main */}
         <main className="relative flex min-w-0 flex-1 flex-col">
           {/* setup prompts live in the main column so the rail stays full-height; CTAs drive the agent, never legacy links */}
-          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} onOpenBrand={openBrand} />
+          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} onOpenBrand={openBrand} refreshKey={actionCount} />
           {focused ? (
             <FocusedView
               title={fLabel}
@@ -420,7 +420,7 @@ export function AgentHome() {
                     <SettingsWorkspace embedded section="profile" />
                   </div>
                 ) : focused === "brand" ? (
-                  <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
+                  <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} refreshKey={actionCount} />
                 ) : focused === "analytics" ? (
                   <FocusedAnalytics refreshKey={actionCount} />
                 ) : focused === "publish" ? (

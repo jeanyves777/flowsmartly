@@ -62,9 +62,12 @@ const FIELD = "w-full resize-none rounded-[10px] border border-input bg-backgrou
 function arr(v: unknown): string[] { return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; }
 function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 
-export function FocusedBrand({ dirtyRef, saverRef }: {
+export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
   dirtyRef: MutableRefObject<boolean>;
   saverRef: MutableRefObject<null | (() => void | Promise<void>)>;
+  /** Bumps after a relevant agent action — reloads the kit so an agent-driven
+   *  save (update_brand_identity) shows up live, unless the form has edits. */
+  refreshKey?: number;
 }) {
   const [kit, setKit] = useState<Kit>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -76,34 +79,48 @@ export function FocusedBrand({ dirtyRef, saverRef }: {
 
   const set = useCallback(<K extends keyof Kit>(k: K, v: Kit[K]) => setKit((p) => ({ ...p, [k]: v })), []);
 
-  // Load the brand kit.
+  const applyKit = useCallback((b: Record<string, unknown>) => {
+    const next: Kit = {
+      ...EMPTY,
+      name: str(b.name), tagline: str(b.tagline), description: str(b.description), logo: str(b.logo), iconLogo: str(b.iconLogo),
+      email: str(b.email), phone: str(b.phone), website: str(b.website), address: str(b.address), city: str(b.city), country: str(b.country),
+      industry: str(b.industry), niche: str(b.niche), targetAudience: str(b.targetAudience), audienceAge: str(b.audienceAge),
+      audienceLocation: str(b.audienceLocation), uniqueValue: str(b.uniqueValue), voiceTone: str(b.voiceTone),
+      personality: arr(b.personality), keywords: arr(b.keywords), hashtags: arr(b.hashtags), products: arr(b.products),
+      colors: (b.colors && typeof b.colors === "object") ? (b.colors as Colors) : {},
+      handles: (b.handles && typeof b.handles === "object") ? (b.handles as Handles) : {},
+      preferredLanguage: str(b.preferredLanguage) || "en",
+    };
+    setKit(next);
+    snapshot.current = JSON.stringify(next);
+  }, []);
+
+  // Load the brand kit on mount.
   useEffect(() => {
     let alive = true;
     fetch("/api/brand")
       .then((r) => r.json())
-      .then((j) => {
-        if (!alive) return;
-        const b = j?.data?.brandKit;
-        if (b) {
-          const next: Kit = {
-            ...EMPTY,
-            name: str(b.name), tagline: str(b.tagline), description: str(b.description), logo: str(b.logo), iconLogo: str(b.iconLogo),
-            email: str(b.email), phone: str(b.phone), website: str(b.website), address: str(b.address), city: str(b.city), country: str(b.country),
-            industry: str(b.industry), niche: str(b.niche), targetAudience: str(b.targetAudience), audienceAge: str(b.audienceAge),
-            audienceLocation: str(b.audienceLocation), uniqueValue: str(b.uniqueValue), voiceTone: str(b.voiceTone),
-            personality: arr(b.personality), keywords: arr(b.keywords), hashtags: arr(b.hashtags), products: arr(b.products),
-            colors: (b.colors && typeof b.colors === "object") ? b.colors : {},
-            handles: (b.handles && typeof b.handles === "object") ? b.handles : {},
-            preferredLanguage: str(b.preferredLanguage) || "en",
-          };
-          setKit(next);
-          snapshot.current = JSON.stringify(next);
-        }
-      })
+      .then((j) => { if (alive && j?.data?.brandKit) applyKit(j.data.brandKit); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [applyKit]);
+
+  // After a relevant agent action (e.g. the agent filled the kit via
+  // update_brand_identity), silently reload so the form shows the new values —
+  // but ONLY when the form is clean, so we never clobber the user's own edits.
+  const firstRefresh = useRef(true);
+  useEffect(() => {
+    if (firstRefresh.current) { firstRefresh.current = false; return; }
+    if (JSON.stringify(kit) !== snapshot.current) return; // unsaved edits → skip
+    let alive = true;
+    fetch("/api/brand")
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.data?.brandKit) applyKit(j.data.brandKit); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const save = useCallback(async () => {
     if (!kit.name.trim()) { return; }

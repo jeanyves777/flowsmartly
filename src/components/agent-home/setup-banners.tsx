@@ -34,13 +34,16 @@ interface BannerConfig {
  * agent-home aesthetic. Per [[new-design-no-legacy]] the CTAs DRIVE THE AGENT —
  * they never deep-link to a legacy route. One banner at a time; dismissible.
  */
-export function SetupBanners({ onPrompt, onOpenBrand }: { onPrompt: (text: string) => void; onOpenBrand: () => void }) {
+export function SetupBanners({ onPrompt, onOpenBrand, refreshKey = 0 }: { onPrompt: (text: string) => void; onOpenBrand: () => void; refreshKey?: number }) {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  // Re-fetch on mount AND after a relevant agent action (refreshKey) so that
+  // once the agent sets up the brand (update_brand_identity → isComplete), the
+  // "set up your brand" banner clears without a manual reload.
   useEffect(() => {
     let alive = true;
     fetch("/api/user/onboarding-state")
@@ -53,10 +56,14 @@ export function SetupBanners({ onPrompt, onOpenBrand }: { onPrompt: (text: strin
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
-  const dismiss = useCallback(async (id: string) => {
+  // `persist=false` → session-only hide (the banner returns on the next visit).
+  // Used for the brand-setup banner, which must keep nudging until the brand
+  // is actually set; a one-off dismiss never permanently suppresses it.
+  const dismiss = useCallback(async (id: string, persist = true) => {
     setHiddenIds((p) => [...p, id]);
+    if (!persist) return;
     setDismissed((p) => [...p, id]);
     try {
       await fetch("/api/user/dismiss-banner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bannerId: id }) });
@@ -121,7 +128,14 @@ export function SetupBanners({ onPrompt, onOpenBrand }: { onPrompt: (text: strin
     banners.push({ id: "automate-strategy", icon: Zap, title: "Put your strategy on autopilot", description: "AI generates posts on your schedule, tracks progress, and scores performance.", cta: "Automate now", prompt: "Help me automate my marketing strategy — set up scheduled content generation on a cadence that fits my plan.", wash: "from-amber-500/12 via-orange-500/10 to-amber-500/12", iconColor: "text-amber-500" });
   }
 
-  const active = banners.find((b) => !dismissed.includes(b.id) && !hiddenIds.includes(b.id));
+  const active = banners.find((b) => {
+    if (hiddenIds.includes(b.id)) return false; // collapsed for this session
+    // The brand-setup banner reappears on EVERY home visit until the brand is
+    // actually set (state.brandSetup) — a past dismissal never permanently
+    // suppresses it. Other nudges respect the persisted dismissal.
+    if (b.id === "setup-brand") return true;
+    return !dismissed.includes(b.id);
+  });
   if (!active) return null;
 
   return (
@@ -132,7 +146,7 @@ export function SetupBanners({ onPrompt, onOpenBrand }: { onPrompt: (text: strin
         iconColor={active.iconColor}
         title={active.title}
         description={active.description}
-        onDismiss={() => dismiss(active.id)}
+        onDismiss={() => dismiss(active.id, active.id !== "setup-brand")}
         action={
           <button onClick={() => (active.id === "setup-brand" ? onOpenBrand() : onPrompt(active.prompt))} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:opacity-95">
             {active.cta}

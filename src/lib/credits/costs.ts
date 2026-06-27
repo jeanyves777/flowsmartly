@@ -113,6 +113,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_SEARCH_FEATURES: 0,
   AGENT_WHO_AM_I: 0,
   AGENT_GET_BRAND_IDENTITY: 0,
+  AGENT_UPDATE_BRAND_IDENTITY: 0,  // Free — saving brand text is a setting; the agent inferred it inline
   AGENT_PROPOSE_PLAN: 0,           // Free — proposal is "would you like this?", not work
   AGENT_CANVAS_UPDATE: 0,          // Free — instant UI edit to the focused-view canvas
   AGENT_LIST_SCHEDULED_POSTS: 0,
@@ -260,6 +261,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_SEARCH_FEATURES: "Flow-AI agent: search features",
   AGENT_WHO_AM_I: "Flow-AI agent: who am I",
   AGENT_GET_BRAND_IDENTITY: "Flow-AI agent: get brand identity",
+  AGENT_UPDATE_BRAND_IDENTITY: "Flow-AI agent: update brand identity",
   AGENT_PROPOSE_PLAN: "Flow-AI agent: propose plan",
   AGENT_CANVAS_UPDATE: "Flow-AI agent: edit canvas",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",

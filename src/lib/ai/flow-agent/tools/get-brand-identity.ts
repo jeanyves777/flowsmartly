@@ -12,7 +12,7 @@ import type { FlowAgentTool } from "../registry";
 export const getBrandIdentity: FlowAgentTool = {
   name: "get_brand_identity",
   description:
-    "Fetch the user's full BrandKit — name, tagline, description, industry, niche, target audience, voice tone, personality, colors, fonts, unique value, products, keywords, hashtags, social handles, contact info. Call this BEFORE producing any copy or visual that should sound/look like the brand. Returns { configured: false } if no brand kit exists — in that case, prompt the user to set one up at /brand-kit before proceeding.",
+    "Fetch the user's full BrandKit — name, tagline, description, industry, niche, target audience, voice tone, personality, colors, fonts, unique value, products, keywords, hashtags, social handles, contact info. Call this BEFORE producing any copy or visual that should sound/look like the brand, AND before update_brand_identity so you merge onto what's already there. Returns { configured: false } if no brand kit exists — in that case do NOT send the user to a settings page; offer to build the kit FOR them and call update_brand_identity (infer the fields from whatever they've told you).",
   input_schema: { type: "object", properties: {} },
   plans: null,
   costKey: "AGENT_GET_BRAND_IDENTITY",
