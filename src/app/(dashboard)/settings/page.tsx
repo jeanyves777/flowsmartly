@@ -38,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { FlowLoader } from "@/components/shared/flow-loader";
 
 type SettingsTab = "profile" | "notifications" | "security" | "billing" | "connections" | "appearance";
 
@@ -881,25 +881,27 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand-500/10 flex items-center justify-center">
             <Settings className="w-4 h-4 text-brand-600" />
           </div>
-          Settings
+          <span className="bg-gradient-to-r from-brand-500 via-purple-500 to-brand-600 bg-clip-text text-transparent">
+            Settings
+          </span>
         </h1>
       </div>
 
       <div className="grid lg:grid-cols-[240px_1fr] gap-6">
         {/* Sidebar Navigation */}
-        <Card className="h-fit">
+        <Card className="h-fit rounded-2xl">
           <CardContent className="p-2">
             <nav className="space-y-1">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                     activeTab === tab.id
-                      ? "bg-brand-500 text-white"
+                      ? "bg-brand-500/10 text-brand-500"
                       : "hover:bg-muted text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -920,7 +922,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, x: 0 }}
               className="space-y-5"
             >
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -936,7 +938,7 @@ export default function SettingsPage() {
                       disabled={isSyncingFromBrand || isLoading}
                     >
                       {isSyncingFromBrand ? (
-                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                        <FlowLoader size={16} className="mr-2" />
                       ) : (
                         <RefreshCw className="w-4 h-4 mr-2" />
                       )}
@@ -1011,7 +1013,7 @@ export default function SettingsPage() {
                                 className="bg-black/60 hover:bg-black/80 text-white border-0 shadow-lg"
                               >
                                 {isUploadingCover ? (
-                                  <AISpinner className="w-4 h-4 mr-1.5 animate-spin" />
+                                  <FlowLoader size={16} tone="white" className="mr-1.5" />
                                 ) : (
                                   <Upload className="w-4 h-4 mr-1.5" />
                                 )}
@@ -1231,7 +1233,7 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveProfile} disabled={isSaving || isLoading}>
                   {isSaving ? (
                     <>
-                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                      <FlowLoader size={16} tone="white" className="mr-2" />
                       Saving...
                     </>
                   ) : (
@@ -1252,7 +1254,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, x: 0 }}
               className="space-y-6"
             >
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Notification Preferences</CardTitle>
                   <CardDescription>
@@ -1304,7 +1306,7 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveNotifications} disabled={isSaving || isLoading}>
                   {isSaving ? (
                     <>
-                      <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                      <FlowLoader size={16} tone="white" className="mr-2" />
                       Saving...
                     </>
                   ) : (
@@ -1325,7 +1327,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, x: 0 }}
               className="space-y-6"
             >
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Change Password</CardTitle>
                   <CardDescription>
@@ -1372,7 +1374,7 @@ export default function SettingsPage() {
                   >
                     {isSaving ? (
                       <>
-                        <AISpinner className="w-4 h-4 mr-2 animate-spin" />
+                        <FlowLoader size={16} tone="white" className="mr-2" />
                         Updating...
                       </>
                     ) : (
@@ -1382,7 +1384,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Two-Factor Authentication</CardTitle>
                   <CardDescription>
@@ -1415,7 +1417,7 @@ export default function SettingsPage() {
                       className={user?.twoFactorEnabled ? "" : "bg-brand-500 text-white hover:bg-brand-600"}
                     >
                       {twoFactorLoading ? (
-                        <AISpinner className="mr-2 h-4 w-4" />
+                        <FlowLoader size={16} tone="white" className="mr-2" />
                       ) : user?.twoFactorEnabled ? (
                         <KeyRound className="mr-2 h-4 w-4" />
                       ) : (
@@ -1427,7 +1429,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Active Sessions</CardTitle>
                   <CardDescription>
@@ -1451,7 +1453,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Danger Zone — Delete Account (GDPR self-service erasure) */}
-              <Card className="border-red-500/40">
+              <Card className="border-red-500/40 rounded-2xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-red-600">
                     <AlertTriangle className="w-5 h-5" />
@@ -1497,7 +1499,7 @@ export default function SettingsPage() {
               className="space-y-5"
             >
               {/* Current Plan */}
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Crown className="w-5 h-5 text-brand-500" />
@@ -1541,7 +1543,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Payment Methods */}
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -1559,7 +1561,7 @@ export default function SettingsPage() {
                         disabled={isOpeningPortal}
                       >
                         {isOpeningPortal ? (
-                          <AISpinner className="w-4 h-4 animate-spin mr-2" />
+                          <FlowLoader size={16} className="mr-2" />
                         ) : (
                           <ExternalLink className="w-4 h-4 mr-2" />
                         )}
@@ -1637,7 +1639,7 @@ export default function SettingsPage() {
                               disabled={isDeletingPaymentMethod === method.id}
                             >
                               {isDeletingPaymentMethod === method.id ? (
-                                <AISpinner className="w-4 h-4 animate-spin" />
+                                <FlowLoader size={16} />
                               ) : (
                                 <Trash2 className="w-4 h-4" />
                               )}
@@ -1652,7 +1654,7 @@ export default function SettingsPage() {
 
               <div className="grid gap-5 xl:grid-cols-2">
               {/* Buy Credits */}
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -1696,7 +1698,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Current Credits Balance */}
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -1757,7 +1759,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Account Balance */}
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Account Balance</CardTitle>
                   <CardDescription>Your current earnings balance</CardDescription>
@@ -1789,7 +1791,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, x: 0 }}
               className="space-y-6"
             >
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -1824,7 +1826,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Marketing Configuration */}
-              <Card className="bg-gradient-to-r from-brand-500/10 to-purple-500/10 border-brand-500/20">
+              <Card className="bg-gradient-to-r from-brand-500/10 to-purple-500/10 border-brand-500/20 rounded-2xl">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -1856,7 +1858,7 @@ export default function SettingsPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              <Card>
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle>Theme</CardTitle>
                   <CardDescription>
@@ -1949,7 +1951,7 @@ export default function SettingsPage() {
                         <img src={twoFactorSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-52 w-52" />
                       ) : (
                         <div className="grid h-52 w-52 place-items-center text-muted-foreground">
-                          <AISpinner className="h-5 w-5" />
+                          <FlowLoader size={20} />
                         </div>
                       )}
                     </div>
@@ -2011,7 +2013,7 @@ export default function SettingsPage() {
                 disabled={twoFactorLoading || twoFactorCode.trim().length < 6}
                 className="bg-brand-500 text-white hover:bg-brand-600"
               >
-                {twoFactorLoading ? <AISpinner className="mr-2 h-4 w-4" /> : <Shield className="mr-2 h-4 w-4" />}
+                {twoFactorLoading ? <FlowLoader size={16} tone="white" className="mr-2" /> : <Shield className="mr-2 h-4 w-4" />}
                 Verify and enable
               </Button>
             )}
@@ -2021,7 +2023,7 @@ export default function SettingsPage() {
                 disabled={twoFactorLoading || (!twoFactorCode.trim() && !twoFactorPassword.trim())}
                 className="bg-red-600 text-white hover:bg-red-700"
               >
-                {twoFactorLoading ? <AISpinner className="mr-2 h-4 w-4" /> : <KeyRound className="mr-2 h-4 w-4" />}
+                {twoFactorLoading ? <FlowLoader size={16} tone="white" className="mr-2" /> : <KeyRound className="mr-2 h-4 w-4" />}
                 Disable 2FA
               </Button>
             )}
@@ -2117,7 +2119,7 @@ export default function SettingsPage() {
             >
               {isDeletingAccount ? (
                 <>
-                  <AISpinner className="w-4 h-4 mr-2" />
+                  <FlowLoader size={16} tone="white" className="mr-2" />
                   Deleting...
                 </>
               ) : (
