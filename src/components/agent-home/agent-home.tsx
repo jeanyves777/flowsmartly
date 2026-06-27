@@ -21,6 +21,7 @@ import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
+import { FocusedAccount } from "./focused/account";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -180,9 +181,10 @@ export function AgentHome() {
   const hour = mounted ? new Date().getHours() : 18;
   const greeting = buildGreeting(s, firstName, hour);
   const empty = messages.length === 0;
-  const fws = focused ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = fws?.icon ?? Sparkles;
+  const isAccountFocus = focused === "account";
+  const fws = focused && !isAccountFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isAccountFocus ? "Account & settings" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isAccountFocus ? Settings : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -201,6 +203,7 @@ export function AgentHome() {
     setDrawerOpen(false);
   };
   const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); };
+  const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("account"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
   const handleOpenConversation = (id: string) => { setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); loadConversation(id); };
@@ -288,11 +291,11 @@ export function AgentHome() {
                 <p className="truncate text-[13px] font-semibold">{user?.name ?? "You"}</p>
                 {user?.email && <p className="truncate text-[11.5px] text-muted-foreground">{user.email}</p>}
               </div>
-              <button onClick={() => { setUserMenuOpen(false); router.push(user?.username ? `/profile/${user.username}` : "/settings"); }} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
-                <User className="h-4 w-4 text-muted-foreground" /> View profile
+              <button onClick={openAccount} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <User className="h-4 w-4 text-muted-foreground" /> Profile
               </button>
-              <button onClick={() => { setUserMenuOpen(false); router.push("/settings"); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
-                <Settings className="h-4 w-4 text-muted-foreground" /> Settings
+              <button onClick={openAccount} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <Settings className="h-4 w-4 text-muted-foreground" /> Account &amp; settings
               </button>
               <div className="my-1 h-px bg-border" />
               <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-destructive hover:bg-destructive/10">
@@ -330,7 +333,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "account" ? "Profile · appearance · account" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => { setFocused(null); setActiveWs("home"); }}
               chat={
@@ -353,8 +356,10 @@ export function AgentHome() {
               canvas={
                 focused === "create" ? (
                   <FocusedDesignStudio value={design} onChange={setDesign} />
+                ) : focused === "account" ? (
+                  <FocusedAccount user={{ name: user?.name ?? "You", email: user?.email ?? null, initials, avatarUrl: user?.avatarUrl ?? null }} language={language} onLanguage={setLanguage} onLogout={handleLogout} />
                 ) : (
-                  <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onOpenRoute={(r) => router.push(r)} />
+                  <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
               }
             />
@@ -412,7 +417,6 @@ export function AgentHome() {
                 label={s.ws[panelKey] ?? panelKey}
                 onClose={() => { setPanelKey(null); setActiveWs("home"); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q); }}
-                onOpen={(route) => router.push(route)}
                 onFocus={() => openFocused(panelKey)}
               />
             )}
@@ -513,12 +517,11 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
-function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen, onFocus }: {
+function WorkspacePanel({ panelKey, label, onClose, onAsk, onFocus }: {
   panelKey: string;
   label: string;
   onClose: () => void;
   onAsk: (q: string) => void;
-  onOpen: (route: string) => void;
   onFocus: () => void;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
@@ -535,7 +538,7 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen, onFocus }: {
         <p className="text-foreground">{WS_DESC[panelKey]}</p>
         <div className="flex flex-wrap gap-1.5">
           {ws.items.map((it) => (
-            <button key={it.route + it.label} onClick={() => onOpen(it.route)} className="rounded-full border border-border px-2.5 py-1 text-[10.5px] hover:border-brand-500/60 hover:text-foreground">{it.label}</button>
+            <button key={it.route + it.label} onClick={() => onAsk(`Open ${it.label} and help me get started.`)} className="rounded-full border border-border px-2.5 py-1 text-[10.5px] hover:border-brand-500/60 hover:text-foreground">{it.label}</button>
           ))}
         </div>
         <p>Everything here is also an agent tool — say what you want and it renders in the chat, or work in the focused view.</p>

@@ -126,12 +126,13 @@ export function FocusedComingSoon({
   label,
   description,
   items,
-  onOpenRoute,
+  onAsk,
 }: {
   label: string;
   description: string;
   items: { label: string; route: string }[];
-  onOpenRoute: (route: string) => void;
+  /** Drive the agent for an item — the new design never deep-links to legacy. */
+  onAsk: (label: string) => void;
 }) {
   return (
     <div className="grid min-h-0 flex-1 place-items-center p-8 text-center">
@@ -139,10 +140,10 @@ export function FocusedComingSoon({
         <div className="mx-auto w-fit"><FlowLoader size={40} withMark /></div>
         <h3 className="mt-4 text-[17px] font-bold">{label} — focused view</h3>
         <p className="mt-1 text-[13px] text-muted-foreground">{description}</p>
-        <p className="mt-3 text-[12.5px] text-muted-foreground">This hands-on canvas is coming online. Meanwhile, ask the agent on the left, or open a classic tool:</p>
+        <p className="mt-3 text-[12.5px] text-muted-foreground">This hands-on canvas is coming online. Meanwhile, ask the agent to get you started:</p>
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {items.map((it) => (
-            <button key={it.route + it.label} onClick={() => onOpenRoute(it.route)} className="rounded-full border border-border px-2.5 py-1 text-[11px] hover:border-brand-500/60 hover:text-foreground">{it.label}</button>
+            <button key={it.route + it.label} onClick={() => onAsk(it.label)} className="rounded-full border border-border px-2.5 py-1 text-[11px] hover:border-brand-500/60 hover:text-foreground">{it.label}</button>
           ))}
         </div>
       </div>
