@@ -477,13 +477,13 @@ export function AgentHome() {
                 ) : focused === "billing" ? (
                   <FocusedBilling refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} refreshKey={actionCount} />
+                  <FocusedPublish onConnect={openConnections} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
-                  <FocusedSell onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedSell refreshKey={actionCount} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedWeb refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
                   <FocusedOutreach refreshKey={actionCount} />
                 ) : (

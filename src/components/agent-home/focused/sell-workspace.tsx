@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Store, Sparkles, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -37,7 +38,8 @@ function money(cents?: number, currency = "USD"): string {
   try { return ((cents ?? 0) / 100).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 0 }); } catch { return `${((cents ?? 0) / 100).toFixed(0)}`; }
 }
 
-export function FocusedSell({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
+export function FocusedSell({ refreshKey }: { refreshKey?: number }) {
+  const router = useRouter();
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -146,7 +148,7 @@ export function FocusedSell({ onAsk, refreshKey }: { onAsk: (prompt: string) => 
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Store className="h-8 w-8" /></span>
           <h2 className="mt-4 text-[20px] font-extrabold">Launch your online store</h2>
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">Tell the agent what you sell and it builds the whole store — branded storefront, products, and checkout — in minutes.</p>
-          <button onClick={() => onAsk("Help me build my online store — ask me what I sell, my products and prices, then create the store.")} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
+          <button onClick={() => router.push("/ecommerce")} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
             <Sparkles className="h-4 w-4" /> Create my store
           </button>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Globe, Sparkles, ExternalLink, LayoutTemplate, Link2, Eye, MousePointerClick, CheckCircle2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -17,7 +18,8 @@ interface Website { id: string; name?: string; slug?: string; status?: string; b
 interface Landing { id: string; title?: string; status?: string; thumbnailUrl?: string | null; views?: number; submissions?: number; conversionRate?: number; }
 interface Domain { id: string; domainName?: string; registrarStatus?: string; sslStatus?: string; isPrimary?: boolean; isConnected?: boolean; }
 
-export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
+export function FocusedWeb({ refreshKey }: { refreshKey?: number }) {
+  const router = useRouter();
   const [sites, setSites] = useState<Website[]>([]);
   const [pages, setPages] = useState<Landing[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -47,7 +49,7 @@ export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => v
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
         {/* Websites */}
-        <Section title="Website" icon={Globe} action={<NewBtn label="New website" onClick={() => onAsk("Help me build a website — ask me my business name, what it's for, and the style, then create it.")} />}>
+        <Section title="Website" icon={Globe} action={<NewBtn label="New website" onClick={() => router.push("/websites")} />}>
           {sites.length ? (
             <div className="space-y-2.5">
               {sites.map((s) => (
@@ -65,12 +67,12 @@ export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => v
               ))}
             </div>
           ) : (
-            <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => onAsk("Help me build a website — ask me my business name, what it's for, and the style, then create it.")} />
+            <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => router.push("/websites")} />
           )}
         </Section>
 
         {/* Landing pages */}
-        <Section title="Landing pages" icon={LayoutTemplate} action={<NewBtn label="New page" onClick={() => onAsk("Help me create a landing page — ask me the goal, offer, and audience, then generate it.")} />}>
+        <Section title="Landing pages" icon={LayoutTemplate} action={<NewBtn label="New page" onClick={() => router.push("/landing-pages")} />}>
           {pages.length ? (
             <div className="grid gap-2.5 sm:grid-cols-2">
               {pages.map((p) => (
@@ -93,12 +95,12 @@ export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => v
               ))}
             </div>
           ) : (
-            <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk("Help me create a landing page — ask me the goal, offer, and audience, then generate it.")} />
+            <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => router.push("/landing-pages")} />
           )}
         </Section>
 
         {/* Domains */}
-        <Section title="Domains" icon={Link2} action={<NewBtn label="Add domain" onClick={() => onAsk("Help me get or connect a custom domain for my site.")} />}>
+        <Section title="Domains" icon={Link2} action={<NewBtn label="Add domain" onClick={() => router.push("/domains")} />}>
           {domains.length ? (
             <div className="space-y-2">
               {domains.map((d) => (
@@ -112,7 +114,7 @@ export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => v
               ))}
             </div>
           ) : (
-            <Empty title="No custom domain" sub="Connect your own domain so your site lives at your brand." cta="Get a domain" onCta={() => onAsk("Help me get or connect a custom domain for my site.")} />
+            <Empty title="No custom domain" sub="Connect your own domain so your site lives at your brand." cta="Get a domain" onCta={() => router.push("/domains")} />
           )}
         </Section>
       </div>
