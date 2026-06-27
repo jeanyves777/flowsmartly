@@ -183,7 +183,22 @@ export function AgentHome() {
   const fLabel = fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = fws?.icon ?? Sparkles;
 
-  const openWorkspace = (key: string) => { setActiveWs(key); setPanelKey(key === "home" ? null : key); setDrawerOpen(false); };
+  const openWorkspace = (key: string) => {
+    // Home returns to the fresh, empty initial state (greeting + suggestions) —
+    // clears the conversation, exits the focused view, closes panels.
+    if (key === "home") {
+      newConversation();
+      setFocused(null);
+      setActiveWs("home");
+      setPanelKey(null);
+      setHistoryOpen(false);
+      setDrawerOpen(false);
+      return;
+    }
+    setActiveWs(key);
+    setPanelKey(key);
+    setDrawerOpen(false);
+  };
   const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
