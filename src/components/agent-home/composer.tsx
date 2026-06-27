@@ -31,6 +31,15 @@ export function Composer({
   const [modeKey, setModeKey] = useState("standard");
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the textarea with its content up to a cap (then it scrolls), and snap
+  // it back to one row when empty. Called on input and after send so the box
+  // returns to its initial size instead of staying expanded.
+  const autosize = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  };
 
   useEffect(() => {
     if (!modeOpen) return;
@@ -46,6 +55,9 @@ export function Composer({
     if (!t || sending) return;
     onSend(t, superMode);
     setDraft("");
+    // Reset the box to its initial one-row height — without this the textarea
+    // keeps the expanded inline height from the message just sent.
+    if (taRef.current) taRef.current.style.height = "auto";
   };
 
   return (
@@ -91,14 +103,15 @@ export function Composer({
       <div className="flex items-end gap-2 px-3 pb-3 pt-2 sm:gap-2.5">
         <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground" aria-label="Attach"><Plus className="h-[18px] w-[18px]" /></button>
         <textarea
+          ref={taRef}
           rows={1}
           value={draft}
           placeholder={placeholder}
           disabled={sending}
           autoFocus={autoFocus}
-          onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+          onChange={(e) => { setDraft(e.target.value); autosize(e.target); }}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          className="max-h-[120px] flex-1 resize-none rounded-2xl bg-transparent px-1 py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
+          className="max-h-[120px] flex-1 resize-none overflow-y-auto rounded-2xl bg-transparent px-1 py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
         />
         {/* One button: Mic when empty, Send when there's text — saves space. */}
         <button
