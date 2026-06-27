@@ -112,7 +112,11 @@ Sidebar, bespoke spinners, hardcoded colors). Bring each into the new design
 
 ## 8. Status & next
 - **Phase 0** (mockups) ✅ · **Phase 1** (agent home + IA, mobile, multi-account, AI-driven) ✅ · **Phase 2 core** (focused-view split + editable Design Studio + `update_canvas` agent→canvas binding + deep-linkable conversation history) ✅.
-- **Next:** continue Phase 2 artifacts (ad/story-ad + video-studio flows) **and** begin **WS4 legacy reskin one route at a time** — start with the shared dashboard chrome (Sidebar/Header), then Business (settings first). Each step ships + is reviewed before the next.
+- **WS4 surfaces** ✅ — every rail workspace + the account surfaces reinvented in the new design, each at its own traceable path `/home/<view>`, real data, no legacy links, agent-reachable:
+  - Create→Design Studio (`/home/create`) · Publish (`/home/publish`) · Grow→Analytics (`/home/analytics`) · Sell (`/home/sell`) · Web (`/home/web`) · Outreach→Contacts (`/home/outreach`) · Business→Brand (`/home/brand`).
+  - Account (`/home/account`) · Profile (`/home/profile`) · Connections — real OAuth, no redirect (`/home/connections`).
+  - Shared: per-surface routing via optional catch-all `home/[[...view]]`; Profile/Settings split; unsaved-changes guard; sticky settings nav; "actions DO, don't ask" (Connect opens real connection mgmt); composer (one mic↔send button, rounded).
+- **Next — WS4 depth:** (1) the agent ACTS on each surface (extend the `update_canvas` pattern to Brand/Sell/Publish so chat mutates the surface live); (2) surfaces auto-refresh after a relevant agent action; (3) deeper in-surface editing (edit product, fulfill order, website editor in-shell); (4) a dedicated billing/credits surface; (5) sweep the last legacy edges (embedded settings tabs).
 
 ## Key files (anchors)
 - Shell / UI: `src/components/flow-ai/{flow-ai-shell,use-agent-stream,agent-cards}.tsx`
