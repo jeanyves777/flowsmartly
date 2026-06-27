@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, UserPlus, Upload, Mail, MessageSquare, Star, FileText, CalendarDays, X, Check } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -21,7 +22,8 @@ interface Stats { total?: number; active?: number; unsubscribed?: number; emailO
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", phone: "", tags: "" };
 
-export function FocusedOutreach({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
+export function FocusedOutreach({ refreshKey }: { refreshKey?: number }) {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
@@ -180,14 +182,14 @@ export function FocusedOutreach({ onAsk, refreshKey }: { onAsk: (prompt: string)
           ) : null}
         </section>
 
-        {/* Other outreach — generative tasks the agent runs (no UI form yet) */}
+        {/* Other outreach — each card opens its actual feature, not a chat prompt */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-[13px] font-bold">More outreach</h3>
           <div className="grid gap-2.5 sm:grid-cols-2">
-            <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => onAsk("Help me get more reviews and improve my local SEO / business listings.")} />
-            <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => onAsk("Help me write a client proposal — ask me about the client and the offer.")} />
-            <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => onAsk("Help me set up an automated follow-up sequence for new leads.")} />
-            <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => onAsk("Help me create a lead-capture form or an event page.")} />
+            <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => router.push("/listsmartly")} />
+            <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => router.push("/pitch-board")} />
+            <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => router.push("/automations")} />
+            <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => router.push("/tools/surveys")} />
           </div>
         </section>
       </div>

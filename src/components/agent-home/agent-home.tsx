@@ -485,7 +485,7 @@ export function AgentHome() {
                 ) : focused === "web" ? (
                   <FocusedWeb onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
-                  <FocusedOutreach onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedOutreach refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )
