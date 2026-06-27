@@ -225,3 +225,181 @@ function safeArray(json: string | null | undefined): string[] {
     return [];
   }
 }
+
+// ── update_contact / delete_contact ──────────────────────────────────────────
+
+interface ContactLite { id: string; firstName: string | null; lastName: string | null; email: string | null; phone: string | null; }
+type Resolved = { ok: true; contact: ContactLite } | { ok: false; message: string };
+
+const trimStr = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+const hasKey = (input: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(input, k);
+const fullName = (c: ContactLite) => [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || c.phone || "contact";
+
+/** Find a contact by id, else by an email/phone/name `match` string. */
+async function resolveContact(userId: string, input: Record<string, unknown>): Promise<Resolved> {
+  const select = { id: true, firstName: true, lastName: true, email: true, phone: true } as const;
+  const contactId = trimStr(input.contactId);
+  if (contactId) {
+    const c = await prisma.contact.findFirst({ where: { id: contactId, userId }, select });
+    return c ? { ok: true, contact: c } : { ok: false, message: `No contact with id ${contactId}.` };
+  }
+  const match = trimStr(input.match);
+  if (!match) return { ok: false, message: "Provide contactId or a `match` (email, phone, or name) to identify the contact." };
+
+  if (match.includes("@")) {
+    const c = await prisma.contact.findUnique({ where: { userId_email: { userId, email: match.toLowerCase() } }, select });
+    if (c) return { ok: true, contact: c };
+  }
+  if (/^\+?[\d\s().-]{6,}$/.test(match)) {
+    const c = await prisma.contact.findUnique({ where: { userId_phone: { userId, phone: match } }, select });
+    if (c) return { ok: true, contact: c };
+  }
+  // Name (or unmatched email/phone) → scan and match in JS (DB-agnostic).
+  const all = await prisma.contact.findMany({ where: { userId }, select, take: 500, orderBy: { updatedAt: "desc" } });
+  const q = match.toLowerCase();
+  const hit = (c: ContactLite) =>
+    fullName(c).toLowerCase() === q || (c.email && c.email.toLowerCase() === q) || (c.phone && c.phone === match);
+  const exact = all.filter(hit);
+  const contains = exact.length ? exact : all.filter((c) => fullName(c).toLowerCase().includes(q) || (c.email && c.email.toLowerCase().includes(q)) || (c.phone && c.phone.includes(match)));
+  if (contains.length === 0) return { ok: false, message: `No contact matching "${match}".` };
+  if (contains.length > 1) return { ok: false, message: `Multiple contacts match "${match}": ${contains.slice(0, 10).map(fullName).join(", ")}. Ask the user which one (or pass contactId).` };
+  return { ok: true, contact: contains[0] };
+}
+
+async function recountContactList(listId: string): Promise<void> {
+  const [total, active] = await Promise.all([
+    prisma.contactListMember.count({ where: { contactListId: listId } }),
+    prisma.contactListMember.count({ where: { contactListId: listId, contact: { status: "ACTIVE" } } }),
+  ]);
+  await prisma.contactList.update({ where: { id: listId }, data: { totalCount: total, activeCount: active } }).catch(() => {});
+}
+
+export const updateContact: FlowAgentTool = {
+  name: "update_contact",
+  description:
+    "Update an existing contact in the user's CRM — name, email, phone, company, location, birthday, tags, opt-in, or status. Identify the contact by `contactId` or `match` (an email, phone, or name to find them). Pass ONLY the fields that change. To unsubscribe someone set status 'UNSUBSCRIBED'; to re-activate set 'ACTIVE'. Pass `planId` from a confirmed propose_plan. Free.",
+  input_schema: {
+    type: "object",
+    properties: {
+      planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
+      contactId: { type: "string", description: "Contact id, if known." },
+      match: { type: "string", description: "Email, phone, or name to locate the contact when contactId isn't known." },
+      email: { type: "string", description: "New email." },
+      phone: { type: "string", description: "New phone (E.164, +15551234567)." },
+      firstName: { type: "string" },
+      lastName: { type: "string" },
+      company: { type: "string" },
+      city: { type: "string" },
+      state: { type: "string" },
+      address: { type: "string" },
+      birthday: { type: "string", description: "MM-DD (e.g. '06-15')." },
+      tags: { type: "array", items: { type: "string" }, description: "Replaces the contact's tags." },
+      emailOptedIn: { type: "boolean" },
+      smsOptedIn: { type: "boolean" },
+      status: { type: "string", description: "'ACTIVE' or 'UNSUBSCRIBED'." },
+    },
+    required: ["planId"],
+  },
+  plans: null,
+  costKey: "AGENT_UPDATE_CONTACT",
+  mutating: true,
+  handler: async (input, ctx) => {
+    try {
+      const resolved = await resolveContact(ctx.userId, input);
+      if (!resolved.ok) return { ok: false, error_code: "validation_failed", message: resolved.message };
+      const c = resolved.contact;
+
+      const data: Record<string, unknown> = {};
+      const changed: string[] = [];
+
+      if (hasKey(input, "email")) {
+        const email = trimStr(input.email).toLowerCase();
+        if (email && email !== c.email) {
+          const dupe = await prisma.contact.findFirst({ where: { userId: ctx.userId, email, id: { not: c.id } }, select: { id: true } });
+          if (dupe) return { ok: false, error_code: "validation_failed", message: `Another contact already has email "${email}".` };
+        }
+        data.email = email || null; changed.push("email");
+      }
+      if (hasKey(input, "phone")) {
+        const phone = trimStr(input.phone);
+        if (phone && phone !== c.phone) {
+          const dupe = await prisma.contact.findFirst({ where: { userId: ctx.userId, phone, id: { not: c.id } }, select: { id: true } });
+          if (dupe) return { ok: false, error_code: "validation_failed", message: `Another contact already has phone "${phone}".` };
+        }
+        data.phone = phone || null; changed.push("phone");
+      }
+      if (hasKey(input, "birthday")) {
+        const bd = trimStr(input.birthday);
+        if (bd && !/^\d{2}-\d{2}$/.test(bd)) return { ok: false, error_code: "validation_failed", message: `birthday must be MM-DD (e.g. "06-15"), got "${bd}".` };
+        data.birthday = bd || null; changed.push("birthday");
+      }
+      for (const f of ["firstName", "lastName", "company", "city", "state", "address"]) {
+        if (hasKey(input, f)) { data[f] = trimStr(input[f]) || null; changed.push(f); }
+      }
+      if (hasKey(input, "tags") && Array.isArray(input.tags)) {
+        data.tags = JSON.stringify(input.tags.filter((t): t is string => typeof t === "string" && t.trim().length > 0)); changed.push("tags");
+      }
+      if (hasKey(input, "emailOptedIn") && typeof input.emailOptedIn === "boolean") { data.emailOptedIn = input.emailOptedIn; changed.push("email opt-in"); }
+      if (hasKey(input, "smsOptedIn") && typeof input.smsOptedIn === "boolean") { data.smsOptedIn = input.smsOptedIn; changed.push("SMS opt-in"); }
+      if (hasKey(input, "status")) {
+        const s = trimStr(input.status).toUpperCase();
+        if (!["ACTIVE", "UNSUBSCRIBED"].includes(s)) return { ok: false, error_code: "validation_failed", message: "status must be ACTIVE or UNSUBSCRIBED." };
+        data.status = s;
+        data.unsubscribedAt = s === "UNSUBSCRIBED" ? new Date() : null;
+        changed.push("status");
+      }
+
+      if (Object.keys(data).length === 0) {
+        return { ok: false, error_code: "missing_input", message: "No fields to change. Provide at least one of: email, phone, name, tags, status, etc." };
+      }
+
+      await prisma.contact.update({ where: { id: c.id }, data });
+      return {
+        ok: true,
+        data: { contactId: c.id, updatedFields: changed, summary: `Updated ${fullName({ ...c, ...(data.firstName !== undefined || data.lastName !== undefined ? { firstName: (data.firstName as string) ?? c.firstName, lastName: (data.lastName as string) ?? c.lastName } : {}) })} (${changed.join(", ")}). Confirm to the user in ONE short sentence.`, link: "/home/outreach" },
+        resultRefType: "Contact",
+        resultRefId: c.id,
+      };
+    } catch (e) {
+      return { ok: false, error_code: "internal", message: e instanceof Error ? e.message : "Failed to update contact" };
+    }
+  },
+};
+
+export const deleteContact: FlowAgentTool = {
+  name: "delete_contact",
+  description:
+    "Permanently remove a contact from the user's CRM. Identify by `contactId` or `match` (email, phone, or name). Use this only when the user wants the contact GONE — to merely stop emailing/texting them, prefer update_contact with status 'UNSUBSCRIBED'. Pass `planId` from a confirmed propose_plan. Free.",
+  input_schema: {
+    type: "object",
+    properties: {
+      planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
+      contactId: { type: "string", description: "Contact id, if known." },
+      match: { type: "string", description: "Email, phone, or name to locate the contact when contactId isn't known." },
+    },
+    required: ["planId"],
+  },
+  plans: null,
+  costKey: "AGENT_DELETE_CONTACT",
+  mutating: true,
+  handler: async (input, ctx) => {
+    try {
+      const resolved = await resolveContact(ctx.userId, input);
+      if (!resolved.ok) return { ok: false, error_code: "validation_failed", message: resolved.message };
+      const c = resolved.contact;
+
+      const memberships = await prisma.contactListMember.findMany({ where: { contactId: c.id }, select: { contactListId: true } });
+      await prisma.contact.delete({ where: { id: c.id } });
+      await Promise.all([...new Set(memberships.map((m) => m.contactListId))].map((id) => recountContactList(id)));
+
+      return {
+        ok: true,
+        data: { contactId: c.id, summary: `Removed ${fullName(c)} from your contacts. Confirm to the user in ONE short sentence.`, link: "/home/outreach" },
+        resultRefType: "Contact",
+        resultRefId: c.id,
+      };
+    } catch (e) {
+      return { ok: false, error_code: "internal", message: e instanceof Error ? e.message : "Failed to delete contact" };
+    }
+  },
+};

@@ -120,6 +120,8 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_UPDATE_PRODUCT: 0,         // Free — editing a product is store management, not AI work
   AGENT_DELETE_PRODUCT: 0,         // Free — removing a product is store management
   AGENT_FULFILL_ORDER: 0,          // Free — advancing an order's status is store management
+  AGENT_UPDATE_CONTACT: 0,         // Free — editing a CRM contact is data management
+  AGENT_DELETE_CONTACT: 0,         // Free — removing a CRM contact is data management
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
   // Tier-priced media tools. The handler picks the right key based on
@@ -272,6 +274,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_UPDATE_PRODUCT: "Flow-AI agent: update product",
   AGENT_DELETE_PRODUCT: "Flow-AI agent: delete product",
   AGENT_FULFILL_ORDER: "Flow-AI agent: fulfill order",
+  AGENT_UPDATE_CONTACT: "Flow-AI agent: update contact",
+  AGENT_DELETE_CONTACT: "Flow-AI agent: delete contact",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
   AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",

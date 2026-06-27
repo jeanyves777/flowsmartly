@@ -101,7 +101,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { readImage } = await import("./tools/read-image");
   const { generateVideo } = await import("./tools/generate-video");
   const { startStoryAdCampaign } = await import("./tools/start-story-ad-campaign");
-  const { listContacts, addContact } = await import("./tools/contact-tools");
+  const { listContacts, addContact, updateContact, deleteContact } = await import("./tools/contact-tools");
   const { createEmailCampaign } = await import("./tools/create-email-campaign");
   const { createAutomation } = await import("./tools/create-automation");
   const { listCampaigns, listAutomations } = await import("./tools/list-tools");
@@ -161,6 +161,8 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(startStoryAdCampaign);
   flowAgentTools.register(listContacts);
   flowAgentTools.register(addContact);
+  flowAgentTools.register(updateContact);
+  flowAgentTools.register(deleteContact);
   flowAgentTools.register(createEmailCampaign);
   flowAgentTools.register(createAutomation);
   flowAgentTools.register(listCampaigns);
