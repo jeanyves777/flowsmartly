@@ -71,6 +71,7 @@ export function AgentHome() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   const [activeWs, setActiveWs] = useState("home");
@@ -245,7 +246,8 @@ export function AgentHome() {
   };
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
-  const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("account"); };
+  const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
+  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab("connections"); setActiveWs("business"); setFocused("account"); };
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -406,7 +408,7 @@ export function AgentHome() {
                   <FocusedDesignStudio value={design} onChange={setDesign} onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }} />
                 ) : focused === "account" ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
-                    <SettingsWorkspace embedded section="settings" />
+                    <SettingsWorkspace embedded section="settings" initialTab={settingsInitialTab} />
                   </div>
                 ) : focused === "profile" ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
@@ -417,7 +419,7 @@ export function AgentHome() {
                 ) : focused === "analytics" ? (
                   <FocusedAnalytics />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onAsk={(p) => send(p)} />
+                  <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )

@@ -114,12 +114,12 @@ const defaultNotificationPrefs: NotificationPrefs = {
 
 const MAX_COVER_IMAGE_SIZE = 25 * 1024 * 1024;
 
-export function SettingsWorkspace({ embedded = false, section = "all" }: { embedded?: boolean; section?: "all" | "profile" | "settings" }) {
+export function SettingsWorkspace({ embedded = false, section = "all", initialTab }: { embedded?: boolean; section?: "all" | "profile" | "settings"; initialTab?: string }) {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<SettingsTab>(section === "settings" ? "notifications" : "profile");
+  const [activeTab, setActiveTab] = useState<SettingsTab>((initialTab as SettingsTab) || (section === "settings" ? "notifications" : "profile"));
   // Split surfaces: Profile is its own page; Settings excludes profile.
   const visibleTabs = section === "all" ? tabs : section === "profile" ? tabs.filter((t) => t.id === "profile") : tabs.filter((t) => t.id !== "profile");
   const [isSaving, setIsSaving] = useState(false);

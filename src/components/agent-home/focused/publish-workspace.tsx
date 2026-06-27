@@ -48,7 +48,7 @@ function fmt(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
 
-export function FocusedPublish({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function FocusedPublish({ onAsk, onConnect }: { onAsk: (prompt: string) => void; onConnect: () => void }) {
   const [status, setStatus] = useState<Status>("ALL");
   const [posts, setPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
@@ -117,7 +117,7 @@ export function FocusedPublish({ onAsk }: { onAsk: (prompt: string) => void }) {
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-4">
                 <p className="text-[12.5px] text-muted-foreground">No social accounts connected — you can still post to your in-app feed. Connect Instagram, Facebook, X… to cross-post.</p>
-                <button onClick={() => onAsk("Help me connect my social accounts so I can cross-post (Instagram, Facebook, X, LinkedIn, TikTok).")} className="shrink-0 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Connect</button>
+                <button onClick={onConnect} className="shrink-0 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Connect</button>
               </div>
             )}
           </section>
