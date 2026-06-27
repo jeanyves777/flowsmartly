@@ -90,6 +90,7 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [pitches, setPitches] = useState<Pitch[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
+  const [docFilter, setDocFilter] = useState<"all" | "pitch" | "service_proposal">("all");
 
   // Inline "open": which pitch is expanded, its loaded detail, and load state.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   }
 
   const total = stats.total ?? pitches.length;
+  const shown = pitches.filter((p) => docFilter === "all" || (p.documentType || "pitch") === docFilter);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -160,6 +162,11 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-bold">Your pitches</h3>
+            <div className="inline-flex rounded-[10px] border border-border p-0.5">
+              {([["all", "All"], ["pitch", "Pitches"], ["service_proposal", "Proposals"]] as const).map(([k, lbl]) => (
+                <button key={k} onClick={() => setDocFilter(k)} className={cn("rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition", docFilter === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>
+              ))}
+            </div>
             {(stats.pending ?? 0) > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500"><Clock className="h-3 w-3" /> {stats.pending} in progress</span>
             )}
@@ -170,9 +177,9 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             )}
           </div>
 
-          {pitches.length ? (
+          {shown.length ? (
             <div className="space-y-2">
-              {pitches.map((p) => {
+              {shown.map((p) => {
                 const m = statusMeta(p.status);
                 const isProposal = p.documentType === "service_proposal";
                 const isOpen = openId === p.id;

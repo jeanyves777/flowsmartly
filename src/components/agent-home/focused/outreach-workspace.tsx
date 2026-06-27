@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Users, UserPlus, Upload, Mail, MessageSquare, Star, FileText, CalendarDays, X, Check } from "lucide-react";
+import { Users, UserPlus, Upload, Mail, MessageSquare, Star, FileText, CalendarDays, Search, X, Check } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -184,6 +184,7 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-[13px] font-bold">More outreach</h3>
           <div className="grid gap-2.5 sm:grid-cols-2">
+            <Quick icon={Search} title="Find leads" desc="Find local businesses to pitch or propose to." onClick={() => onOpenView("leads")} />
             <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => onOpenView("reviews")} />
             <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => onOpenView("pitch")} />
             <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => onOpenView("automations")} />
