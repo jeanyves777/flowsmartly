@@ -344,6 +344,10 @@ export function AgentHome() {
   // Open a sub-surface (domains, pitch, customers, …) from within its parent
   // workspace — keeps the current rail selection. New-design only, never legacy.
   const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
+  // A button-driven agent action: the instruction is INTERNAL (not shown as a
+  // user message) — the user just sees the agent work + respond. Carries the
+  // current surface context so the agent acts in place.
+  const sendAction = (p: string) => send(p, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -475,7 +479,7 @@ export function AgentHome() {
         {/* main */}
         <main className="relative flex min-w-0 flex-1 flex-col">
           {/* setup prompts live in the main column so the rail stays full-height; CTAs drive the agent, never legacy links */}
-          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t); }} onOpenBrand={openBrand} refreshKey={actionCount} />
+          <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t, false, undefined, undefined, { hidden: true }); }} onOpenBrand={openBrand} refreshKey={actionCount} />
           {focused ? (
             <FocusedView
               title={fLabel}
@@ -517,29 +521,29 @@ export function AgentHome() {
                 ) : focused === "billing" ? (
                   <FocusedBilling refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onConnect={openConnections} onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedPublish onConnect={openConnections} onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
-                  <FocusedSell onAsk={(p) => send(p)} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={(p) => send(p)} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
                   <FocusedOutreach onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "domains" ? (
                   <FocusedDomains refreshKey={actionCount} />
                 ) : focused === "pitch" ? (
-                  <FocusedPitch onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedPitch onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "forms" ? (
-                  <FocusedForms onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedForms onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "automations" ? (
-                  <FocusedAutomations onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "customers" ? (
                   <FocusedCustomers refreshKey={actionCount} />
                 ) : focused === "reviews" ? (
-                  <FocusedReviews onAsk={(p) => send(p)} refreshKey={actionCount} />
+                  <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : (
-                  <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
+                  <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`, false, undefined, undefined, { hidden: true }); }} />
                 )
               }
             />
@@ -596,7 +600,7 @@ export function AgentHome() {
                 panelKey={panelKey}
                 label={s.ws[panelKey] ?? panelKey}
                 onClose={() => { setPanelKey(null); setActiveWs("home"); }}
-                onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q); }}
+                onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q, false, undefined, undefined, { hidden: true }); }}
                 onFocus={() => openFocused(panelKey)}
               />
             )}

@@ -63,14 +63,18 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string) => {
+    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean }) => {
       const trimmed = text.trim();
       if (!trimmed || sending) return;
       setSending(true);
 
+      // `hidden` = a button-driven internal instruction to the agent (not something
+      // the user typed). We send it to the agent but DON'T render it as a user
+      // bubble — the user just sees the agent start working (the thinking
+      // animation on the pending assistant turn), then its response.
       const userMsg: HomeMessage = { id: `tmp-u-${Date.now()}`, role: "user", content: trimmed };
       const pendingMsg: HomeMessage = { id: `tmp-a-${Date.now()}`, role: "assistant", content: "" };
-      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+      setMessages((prev) => (opts?.hidden ? [...prev, pendingMsg] : [...prev, userMsg, pendingMsg]));
 
       const toolCallsById = new Map<string, AgentToolCardData>();
       const proposalsById = new Map<string, PlanProposalCardData>();
