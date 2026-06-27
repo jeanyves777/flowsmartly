@@ -49,7 +49,7 @@ export function Composer({
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-lg">
+    <div className="rounded-3xl border border-border bg-card shadow-lg">
       <div className="relative px-3 pt-2.5" ref={modeRef}>
         <button
           type="button"
@@ -89,7 +89,7 @@ export function Composer({
         )}
       </div>
       <div className="flex items-end gap-2 px-3 pb-3 pt-2 sm:gap-2.5">
-        <button className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground" aria-label="Attach"><Plus className="h-[18px] w-[18px]" /></button>
+        <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground" aria-label="Attach"><Plus className="h-[18px] w-[18px]" /></button>
         <textarea
           rows={1}
           value={draft}
@@ -98,11 +98,19 @@ export function Composer({
           autoFocus={autoFocus}
           onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          className="max-h-[120px] flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
+          className="max-h-[120px] flex-1 resize-none rounded-2xl bg-transparent px-1 py-1.5 text-[15px] leading-relaxed outline-none disabled:opacity-60"
         />
-        <button className="hidden h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground sm:grid" aria-label="Voice"><Mic className="h-[18px] w-[18px]" /></button>
-        <button onClick={submit} disabled={sending} className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 text-white disabled:opacity-60" aria-label="Send">
-          {sending ? <FlowLoader size={18} tone="white" /> : <ArrowUp className="h-[18px] w-[18px]" />}
+        {/* One button: Mic when empty, Send when there's text — saves space. */}
+        <button
+          onClick={() => { if (draft.trim()) submit(); }}
+          disabled={sending}
+          aria-label={draft.trim() ? "Send" : "Voice input"}
+          className={cn(
+            "grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full transition-colors disabled:opacity-60",
+            draft.trim() ? "bg-gradient-to-r from-brand-500 to-violet-500 text-white shadow-sm shadow-brand-500/30" : "border border-border text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {sending ? <FlowLoader size={18} tone="white" /> : draft.trim() ? <ArrowUp className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}
         </button>
       </div>
     </div>
