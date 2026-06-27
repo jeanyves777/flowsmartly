@@ -114,12 +114,14 @@ const defaultNotificationPrefs: NotificationPrefs = {
 
 const MAX_COVER_IMAGE_SIZE = 25 * 1024 * 1024;
 
-export function SettingsWorkspace({ embedded = false }: { embedded?: boolean }) {
+export function SettingsWorkspace({ embedded = false, section = "all" }: { embedded?: boolean; section?: "all" | "profile" | "settings" }) {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(section === "settings" ? "notifications" : "profile");
+  // Split surfaces: Profile is its own page; Settings excludes profile.
+  const visibleTabs = section === "all" ? tabs : section === "profile" ? tabs.filter((t) => t.id === "profile") : tabs.filter((t) => t.id !== "profile");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -893,12 +895,13 @@ export function SettingsWorkspace({ embedded = false }: { embedded?: boolean }) 
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[240px_1fr] gap-6">
-        {/* Sidebar Navigation — sticky in the embedded (focused-view) shell */}
+      <div className={cn(section === "profile" ? "" : "grid lg:grid-cols-[240px_1fr] gap-6")}>
+        {/* Sidebar Navigation — hidden for a single-section view; sticky in the embedded shell */}
+        {section !== "profile" && (
         <Card className={cn("h-fit rounded-2xl", embedded && "self-start lg:sticky lg:top-0")}>
           <CardContent className="p-2">
             <nav className="space-y-1">
-              {tabs.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -915,6 +918,7 @@ export function SettingsWorkspace({ embedded = false }: { embedded?: boolean }) 
             </nav>
           </CardContent>
         </Card>
+        )}
 
         {/* Content */}
         <div className="space-y-6">

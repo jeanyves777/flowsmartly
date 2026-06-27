@@ -44,6 +44,9 @@ const WS_DESC: Record<string, string> = {
   business: "Brand kit, analytics, credits & billing, teams, referrals, settings, admin.",
 };
 
+// Focused surfaces that get their own traceable path (/home/<view>).
+const FOCUS_VIEWS = new Set(["create", "brand", "account", "profile", "publish", "grow", "sell", "web", "outreach"]);
+
 export function AgentHome() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,6 +150,9 @@ export function AgentHome() {
     const cid = searchParams.get("conversationId");
     if (cid) loadConversation(cid);
     refreshConversations();
+    // Open the focused surface named in the path (/home/<view>) on deep-link.
+    const seg = window.location.pathname.replace(/^\/home\/?/, "").split("/")[0];
+    if (seg && FOCUS_VIEWS.has(seg)) setFocused(seg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -156,6 +162,13 @@ export function AgentHome() {
     else url.searchParams.delete("conversationId");
     window.history.replaceState({}, "", url.toString());
   }, [conversationId]);
+
+  // Each focused surface gets its own traceable path (/home/<view>); home = /home.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.pathname = focused ? `/home/${focused}` : "/home";
+    window.history.replaceState({}, "", url.toString());
+  }, [focused]);
 
   useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
 
@@ -169,7 +182,7 @@ export function AgentHome() {
     if (focused === "create") {
       dirtyRef.current = JSON.stringify(design) !== JSON.stringify(savedDesignRef.current);
       saverRef.current = () => { savedDesignRef.current = design; dirtyRef.current = false; };
-    } else if (focused === "account") {
+    } else if (focused === "account" || focused === "profile") {
       dirtyRef.current = settingsDirty;
       saverRef.current = null;
     } else if (focused === "brand") {
@@ -204,10 +217,11 @@ export function AgentHome() {
   const greeting = buildGreeting(s, firstName, hour);
   const empty = messages.length === 0;
   const isAccountFocus = focused === "account";
+  const isProfileFocus = focused === "profile";
   const isBrandFocus = focused === "brand";
-  const fws = focused && !isAccountFocus && !isBrandFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
-  const fLabel = isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isAccountFocus ? Settings : isBrandFocus ? Palette : fws?.icon ?? Sparkles;
+  const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
+  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : fws?.icon ?? Sparkles;
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -229,6 +243,7 @@ export function AgentHome() {
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("account"); };
+  const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
   const handleOpenConversation = (id: string) => { setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); loadConversation(id); };
@@ -321,7 +336,7 @@ export function AgentHome() {
                 <p className="truncate text-[13px] font-semibold">{user?.name ?? "You"}</p>
                 {user?.email && <p className="truncate text-[11.5px] text-muted-foreground">{user.email}</p>}
               </div>
-              <button onClick={() => guardNav(openAccount)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+              <button onClick={() => guardNav(openProfile)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <User className="h-4 w-4 text-muted-foreground" /> Profile
               </button>
               <button onClick={() => guardNav(openAccount)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
@@ -363,7 +378,7 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "account" ? "Profile · appearance · account" : focused === "brand" ? "Your brand kit — powers all AI" : WS_DESC[focused]}
+              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing · connections" : focused === "brand" ? "Your brand kit — powers all AI" : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               chat={
@@ -388,7 +403,11 @@ export function AgentHome() {
                   <FocusedDesignStudio value={design} onChange={setDesign} onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }} />
                 ) : focused === "account" ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
-                    <SettingsWorkspace embedded />
+                    <SettingsWorkspace embedded section="settings" />
+                  </div>
+                ) : focused === "profile" ? (
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
+                    <SettingsWorkspace embedded section="profile" />
                   </div>
                 ) : focused === "brand" ? (
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
