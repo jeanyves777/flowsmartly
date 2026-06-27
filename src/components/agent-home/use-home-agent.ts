@@ -50,6 +50,8 @@ export function useHomeAgent() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  // Bumps after any agent turn that ran a tool — focused surfaces refetch on it.
+  const [actionCount, setActionCount] = useState(0);
   // The focused view assigns this — applied when the agent emits a canvas_update.
   const canvasUpdateRef = useRef<((patch: Record<string, unknown>) => void) | null>(null);
 
@@ -75,6 +77,7 @@ export function useHomeAgent() {
       const tasksById = new Map<string, AgentTaskCardData>();
       const blocks: MessageBlock[] = [];
       let assistantText = "";
+      let turnHadTool = false;
 
       const flushMessage = () => {
         setMessages((prev) =>
@@ -119,6 +122,7 @@ export function useHomeAgent() {
             flushMessage();
           },
           onToolCallStart: (call) => {
+            turnHadTool = true;
             blockPushCard(blocks, "tool", call.id);
             toolCallsById.set(call.id, call);
             flushMessage();
@@ -173,7 +177,7 @@ export function useHomeAgent() {
             assistantText = assistantText ? `${assistantText}\n\n⚠️ ${message}` : `⚠️ ${message}`;
             flushMessage();
           },
-          onDone: () => flushMessage(),
+          onDone: () => { if (turnHadTool) setActionCount((c) => c + 1); flushMessage(); },
         });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : "Something went wrong";
@@ -284,6 +288,7 @@ export function useHomeAgent() {
     newConversation,
     refreshConversations,
     canvasUpdateRef,
+    actionCount,
   };
 }
 

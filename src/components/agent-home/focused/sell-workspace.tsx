@@ -32,7 +32,7 @@ function money(cents?: number, currency = "USD"): string {
   try { return ((cents ?? 0) / 100).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 0 }); } catch { return `${((cents ?? 0) / 100).toFixed(0)}`; }
 }
 
-export function FocusedSell({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function FocusedSell({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -63,7 +63,7 @@ export function FocusedSell({ onAsk }: { onAsk: (prompt: string) => void }) {
       .catch(() => { if (alive) setHasStore(false); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your store…" /></div>;

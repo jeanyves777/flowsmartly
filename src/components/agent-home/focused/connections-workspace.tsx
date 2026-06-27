@@ -39,7 +39,7 @@ const NAMES: Record<string, string> = {
   tiktok: "TikTok", youtube: "YouTube", pinterest: "Pinterest",
 };
 
-export function FocusedConnections() {
+export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function FocusedConnections() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const connect = (platform: string) => { window.location.href = `/api/social/${platform}/connect`; };
   const disconnect = async (id: string) => {

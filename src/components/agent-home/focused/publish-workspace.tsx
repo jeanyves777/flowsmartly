@@ -48,7 +48,7 @@ function fmt(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
 
-export function FocusedPublish({ onAsk, onConnect }: { onAsk: (prompt: string) => void; onConnect: () => void }) {
+export function FocusedPublish({ onAsk, onConnect, refreshKey }: { onAsk: (prompt: string) => void; onConnect: () => void; refreshKey?: number }) {
   const [status, setStatus] = useState<Status>("ALL");
   const [posts, setPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
@@ -63,7 +63,7 @@ export function FocusedPublish({ onAsk, onConnect }: { onAsk: (prompt: string) =
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     let alive = true;
@@ -74,7 +74,7 @@ export function FocusedPublish({ onAsk, onConnect }: { onAsk: (prompt: string) =
       .catch(() => {})
       .finally(() => { if (alive) setPostsLoading(false); });
     return () => { alive = false; };
-  }, [status]);
+  }, [status, refreshKey]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your content…" /></div>;

@@ -17,7 +17,7 @@ interface Website { id: string; name?: string; slug?: string; status?: string; b
 interface Landing { id: string; title?: string; status?: string; thumbnailUrl?: string | null; views?: number; submissions?: number; conversionRate?: number; }
 interface Domain { id: string; domainName?: string; registrarStatus?: string; sslStatus?: string; isPrimary?: boolean; isConnected?: boolean; }
 
-export function FocusedWeb({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function FocusedWeb({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
   const [sites, setSites] = useState<Website[]>([]);
   const [pages, setPages] = useState<Landing[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -37,7 +37,7 @@ export function FocusedWeb({ onAsk }: { onAsk: (prompt: string) => void }) {
       setLoading(false);
     });
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your web presence…" /></div>;

@@ -58,7 +58,7 @@ export function AgentHome() {
   const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef, actionCount } = useHomeAgent();
 
   const [mounted, setMounted] = useState(false);
   const [booting, setBooting] = useState(true);
@@ -422,17 +422,17 @@ export function AgentHome() {
                 ) : focused === "brand" ? (
                   <FocusedBrand dirtyRef={dirtyRef} saverRef={saverRef} />
                 ) : focused === "analytics" ? (
-                  <FocusedAnalytics />
+                  <FocusedAnalytics refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} />
+                  <FocusedPublish onAsk={(p) => send(p)} onConnect={openConnections} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
-                  <FocusedConnections />
+                  <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
-                  <FocusedSell onAsk={(p) => send(p)} />
+                  <FocusedSell onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={(p) => send(p)} />
+                  <FocusedWeb onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
-                  <FocusedOutreach onAsk={(p) => send(p)} />
+                  <FocusedOutreach onAsk={(p) => send(p)} refreshKey={actionCount} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`); }} />
                 )

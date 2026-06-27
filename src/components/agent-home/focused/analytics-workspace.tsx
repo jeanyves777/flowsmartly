@@ -28,7 +28,7 @@ interface Analytics {
   topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number }>;
 }
 
-export function FocusedAnalytics() {
+export function FocusedAnalytics({ refreshKey }: { refreshKey?: number }) {
   const [range, setRange] = useState<Range>("30d");
   const [dash, setDash] = useState<Dash | null>(null);
   const [an, setAn] = useState<Analytics | null>(null);
@@ -48,7 +48,7 @@ export function FocusedAnalytics() {
       setLoading(false);
     });
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     let alive = true;
@@ -59,7 +59,7 @@ export function FocusedAnalytics() {
       .catch(() => {})
       .finally(() => { if (alive) setAnLoading(false); });
     return () => { alive = false; };
-  }, [range]);
+  }, [range, refreshKey]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your numbers…" /></div>;

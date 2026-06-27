@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils/cn";
 interface Contact { id: string; name?: string; email?: string | null; phone?: string | null; status?: string; emailOptedIn?: boolean; smsOptedIn?: boolean; company?: string | null; imageUrl?: string | null; lists?: { id: string; name: string }[]; }
 interface Stats { total?: number; active?: number; unsubscribed?: number; emailOptedIn?: number; smsOptedIn?: number; }
 
-export function FocusedOutreach({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function FocusedOutreach({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,7 @@ export function FocusedOutreach({ onAsk }: { onAsk: (prompt: string) => void }) 
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your audience…" /></div>;
