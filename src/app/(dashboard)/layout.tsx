@@ -270,7 +270,11 @@ export default function DashboardLayout({
     pathname === "/home" ||
     pathname.startsWith("/home/") ||
     pathname === "/flow-ai" ||
-    pathname.startsWith("/flow-ai/");
+    pathname.startsWith("/flow-ai/") ||
+    // Purchase / plan flows opened from the new-design Billing surface — render
+    // them clean (no legacy sidebar/header chrome) so they feel like /home.
+    pathname === "/buy-credits" ||
+    pathname === "/settings/upgrade";
   if (isFullscreenPage) {
     return <>{children}</>;
   }

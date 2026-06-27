@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Coins, CreditCard, Sparkles, ArrowUpRight, ArrowDownRight, Receipt, Gift, Zap, RefreshCw } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -34,7 +35,8 @@ function whenLabel(iso: string): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedBilling({ onAsk, refreshKey }: { onAsk: (prompt: string) => void; refreshKey?: number }) {
+export function FocusedBilling({ refreshKey }: { refreshKey?: number }) {
+  const router = useRouter();
   const [credits, setCredits] = useState(0);
   const [plan, setPlan] = useState("STARTER");
   const [txns, setTxns] = useState<Txn[]>([]);
@@ -87,10 +89,10 @@ export function FocusedBilling({ onAsk, refreshKey }: { onAsk: (prompt: string) 
             <span className="ms-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-[12px] font-semibold"><Sparkles className="h-3.5 w-3.5 text-brand-500" /> {planLabel} plan</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => onAsk("I want to buy more credits — what packages and prices are available?")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <button onClick={() => router.push("/buy-credits")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <CreditCard className="h-4 w-4" /> Buy credits
             </button>
-            <button onClick={() => onAsk("Help me choose the right plan — compare my current plan with the others and what I'd get.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+            <button onClick={() => router.push("/settings/upgrade")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
               <Sparkles className="h-4 w-4" /> Manage plan
             </button>
           </div>
