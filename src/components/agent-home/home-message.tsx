@@ -10,7 +10,8 @@ import {
   SpeakButton,
   FeedbackButtons,
 } from "@/components/flow-ai/agent-cards";
-import { RichText, TypingDots } from "@/components/flow-ai/rich-text";
+import { RichText } from "@/components/flow-ai/rich-text";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { BrandMark } from "./brand-mark";
 import type { HomeMessage } from "./use-home-agent";
 
@@ -74,7 +75,7 @@ export function HomeMessageView({
               !message.planProposals?.length &&
               !message.agentTasks?.length && (
                 <div className="inline-flex items-center rounded-2xl border border-border bg-card px-3 py-2">
-                  <TypingDots />
+                  <FlowLoader size={24} withMark label="Working…" />
                 </div>
               )
             )}
