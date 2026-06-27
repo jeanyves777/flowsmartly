@@ -17,6 +17,7 @@ import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { HomeMessageView } from "./home-message";
+import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
@@ -301,6 +302,9 @@ export function AgentHome() {
           )}
         </div>
       </header>
+
+      {/* setup prompts (verify email · set brand · strategy) — new design */}
+      <SetupBanners />
 
       {/* BODY */}
       <div className="flex min-h-0 flex-1">
