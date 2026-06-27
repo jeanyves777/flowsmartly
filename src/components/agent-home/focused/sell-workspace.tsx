@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, Sparkles, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { StoreCallToAction, STORE_BUILD_PROMPT } from "./store-cta";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -138,17 +139,13 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your store…" /></div>;
   }
 
-  // No store yet → store creation is a heavy generative build, so the agent runs it.
+  // No store yet → show the benefits + exact charges, then have the agent build
+  // it (a heavy generative build → agent-driven).
   if (!hasStore) {
     return (
-      <div className="grid min-h-0 flex-1 place-items-center p-8 text-center">
-        <div className="max-w-md">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Store className="h-8 w-8" /></span>
-          <h2 className="mt-4 text-[20px] font-extrabold">Launch your online store</h2>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">Tell the agent what you sell and it builds the whole store — branded storefront, products, and checkout — in minutes.</p>
-          <button onClick={() => onAsk("Help me build my online store — ask me what I sell, my products and prices, then create the store.")} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
-            <Sparkles className="h-4 w-4" /> Create my store
-          </button>
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
+        <div className="mx-auto mt-[2vh] max-w-lg">
+          <StoreCallToAction onBuild={() => onAsk(STORE_BUILD_PROMPT)} />
         </div>
       </div>
     );

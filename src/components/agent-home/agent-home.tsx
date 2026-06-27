@@ -50,6 +50,7 @@ import { FocusedCalendar } from "./focused/calendar-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
+import { StoreCallToAction, STORE_BUILD_PROMPT } from "./focused/store-cta";
 import { FocusedWeb } from "./focused/web-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
@@ -224,6 +225,7 @@ export function AgentHome() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [brandName, setBrandName] = useState<string | null>(null);
+  const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [agentName, setAgentName] = useState<string | null>(null);
   const [clients, setClients] = useState<AgentClient[]>([]);
@@ -294,6 +296,17 @@ export function AgentHome() {
     })();
     return () => { alive = false; };
   }, []);
+
+  // Store status gates the Sell workspace: no store → show the build CTA, not an
+  // empty Products/Orders menu. Re-checks after agent actions (a build flips it).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/ecommerce/store")
+      .then((r) => r.json())
+      .then((j) => { if (alive) setHasStore(!!j?.data?.hasStore && !!j?.data?.store); })
+      .catch(() => { if (alive) setHasStore(null); });
+    return () => { alive = false; };
+  }, [actionCount]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -715,6 +728,7 @@ export function AgentHome() {
               <WorkspacePanel
                 panelKey={panelKey}
                 label={s.ws[panelKey] ?? panelKey}
+                hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs("home"); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q, false, undefined, undefined, { hidden: true }); }}
                 onOpenView={openView}
@@ -834,9 +848,10 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
-function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpenView }: {
+function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView }: {
   panelKey: string;
   label: string;
+  hasStore: boolean | null;
   onClose: () => void;
   onAsk: (q: string) => void;
   onOpenView: (key: string) => void;
@@ -844,6 +859,9 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpenView }: {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
   const Icon = ws.icon;
+  // Sell with no store yet: don't show empty Products/Orders/Customers menus —
+  // show what they get + what it costs, and one button to build it.
+  const sellNoStore = panelKey === "sell" && hasStore === false;
   return (
     <>
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
@@ -851,6 +869,11 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpenView }: {
         <b className="text-[15px]">{label}</b>
         <button onClick={onClose} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
       </div>
+      {sellNoStore ? (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <StoreCallToAction compact onBuild={() => onAsk(STORE_BUILD_PROMPT)} />
+        </div>
+      ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
         <p className="px-1 pb-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{WS_DESC[panelKey]}</p>
         {/* Each item opens its OWN focused view (new design). */}
@@ -877,6 +900,7 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpenView }: {
           </button>
         </div>
       </div>
+      )}
     </>
   );
 }
