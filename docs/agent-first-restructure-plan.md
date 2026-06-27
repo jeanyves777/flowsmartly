@@ -79,12 +79,28 @@ The single missing primitive everywhere is **keyed in-place block mutation**. Ta
 - **Harden the plan/confirm state machine:** idempotency + dedup (duplicate confirm cards are a known bug), fewer confirmations for cheap/reversible actions, server-computed cost estimates (stop letting the LLM guess cost).
 - Add a generic `open_workspace` / `navigate` tool (ties WS1 + WS2 together).
 
+### WS4 — Legacy surface reskin (new-design integration)
+Every pre-pivot route still wears the **old dashboard chrome** (legacy Header +
+Sidebar, bespoke spinners, hardcoded colors). Bring each into the new design
+**one route/area at a time** (reviewable per step) — no feature lost:
+- **Consistency pass (default first, low-risk):** replace bespoke spinners
+  (`AISpinner`, `FlowActionSpinner`, raw `animate-spin` / `Loader2`) with the
+  shared **`FlowLoader`** ([[shared-loader-rule]]); normalize hardcoded colors to
+  theme tokens so **light / grey / dark** all work; align cards, spacing, and the
+  brand mark to the agent-home aesthetic.
+- **Shell hosting (progressive):** render the route inside the new **rail +
+  topbar** so it lives in the agent-first frame, with the agent reachable beside it.
+- **Order:** shared dashboard chrome (sidebar/header) → **Business** (settings,
+  brand, analytics, billing) → the remaining workspaces' pages.
+- Rule (unchanged): no feature lost; each page stays reachable inside its workspace.
+
 ## 6. Sequencing (each phase shippable)
 
 - **Phase 0 — Mockups & contracts (next).** Interactive HTML mockups in `design/`: agent home + workspace rail, and the in-chat editable canvas (design artifact + a pipeline flow). Lock the 7-workspace IA and the `update_block` + `respond` contracts. *(CLAUDE.md: mock before building.)*
 - **Phase 1 — Agent home + IA (WS1)** + the model upgrade & thinking trace (small, helps everything). Ships the "lost users" fix.
 - **Phase 2 — Canvas primitive + first artifacts (WS2 core).**
 - **Phase 3 — Capability completion (WS3):** dead-ends → real tools, confirm/plan hardening, `open_workspace`.
+- **Phase 3.5 — Legacy surface reskin (WS4):** migrate old routes to the new design system **one at a time**, consistency-pass first (shared `FlowLoader` + theme tokens + brand), then progressively host inside the agent shell. Runs alongside Phase 3/4; start with the shared dashboard chrome.
 - **Phase 4 — Backend modularization behind tools** (ongoing, low urgency): extract Admin + Billing first (cheap, isolated), then formalize per-domain tool/repository contracts.
 
 ## 7. Risks / open decisions
@@ -93,8 +109,9 @@ The single missing primitive everywhere is **keyed in-place block mutation**. Ta
 - **No feature loss** during IA migration — audit every current route into a workspace.
 - **Backend split is deliberately deferred** — low user-facing ROI vs. the UX pivot; a full microservice/DB-federation split is 12–16 weeks and not warranted yet.
 
-## 8. Immediate next step
-Build the **Phase 0 mockups** (agent home + in-chat editable canvas) in `design/`, share for review, then port to React.
+## 8. Status & next
+- **Phase 0** (mockups) ✅ · **Phase 1** (agent home + IA, mobile, multi-account, AI-driven) ✅ · **Phase 2 core** (focused-view split + editable Design Studio + `update_canvas` agent→canvas binding + deep-linkable conversation history) ✅.
+- **Next:** continue Phase 2 artifacts (ad/story-ad + video-studio flows) **and** begin **WS4 legacy reskin one route at a time** — start with the shared dashboard chrome (Sidebar/Header), then Business (settings first). Each step ships + is reviewed before the next.
 
 ## Key files (anchors)
 - Shell / UI: `src/components/flow-ai/{flow-ai-shell,use-agent-stream,agent-cards}.tsx`
