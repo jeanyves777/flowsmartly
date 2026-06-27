@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
-  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut,
+  Menu, Sparkles, X, ChevronDown, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -15,7 +15,7 @@ import { getHomeStrings, buildGreeting } from "./home-i18n";
 import { WORKSPACES } from "./workspaces";
 import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
-import { useHomeAgent } from "./use-home-agent";
+import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { HomeMessageView } from "./home-message";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
@@ -43,9 +43,10 @@ const WS_DESC: Record<string, string> = {
 
 export function AgentHome() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, send, handlePlanResponse, handlePickTemplate, handlePickOption } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations } = useHomeAgent();
 
   const [mounted, setMounted] = useState(false);
   const [booting, setBooting] = useState(true);
@@ -59,6 +60,7 @@ export function AgentHome() {
 
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
@@ -122,6 +124,24 @@ export function AgentHome() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
+  // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
+  // as the active conversation changes — so any chat is shareable / revisitable.
+  useEffect(() => {
+    const cid = searchParams.get("conversationId");
+    if (cid) loadConversation(cid);
+    refreshConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (conversationId) url.searchParams.set("conversationId", conversationId);
+    else url.searchParams.delete("conversationId");
+    window.history.replaceState({}, "", url.toString());
+  }, [conversationId]);
+
+  useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
+
   const showToast = useCallback((m: string) => {
     setToast(m);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -151,6 +171,14 @@ export function AgentHome() {
 
   const openWorkspace = (key: string) => { setActiveWs(key); setPanelKey(key === "home" ? null : key); setDrawerOpen(false); };
   const openFocused = (key: string) => { setPanelKey(null); setActiveWs(key); setFocused(key); setDrawerOpen(false); };
+
+  const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
+  const handleOpenConversation = (id: string) => { setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); loadConversation(id); };
+  const handleDeleteConversation = async (id: string) => {
+    try { await fetch(`/api/ai/assistant/conversations/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
+    if (id === conversationId) newConversation();
+    refreshConversations();
+  };
 
   if (booting) {
     return (
@@ -208,7 +236,11 @@ export function AgentHome() {
           ⚡ <b className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text font-extrabold text-transparent">{(user?.aiCredits ?? 0).toLocaleString()}</b>
           <span className="hidden text-muted-foreground sm:inline">{s.credits}</span>
         </div>
+        <button onClick={handleNewChat} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
+        <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><History className="h-[18px] w-[18px]" /></button>
         <div className="hidden items-center gap-1 md:flex">
+          <button onClick={handleNewChat} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><SquarePen className="h-[18px] w-[18px]" /></button>
+          <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><History className="h-[18px] w-[18px]" /></button>
           <LanguageSwitcher language={language} onChange={setLanguage} />
           <ThemeMenu />
         </div>
@@ -329,6 +361,20 @@ export function AgentHome() {
           </aside>
             </>
           )}
+
+          {/* history panel — available in home and focused view */}
+          <aside className={cn("fixed inset-0 z-30 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-auto md:right-0 md:w-[360px] md:border-s md:border-border md:shadow-2xl", historyOpen ? "translate-x-0" : "translate-x-full")}>
+            {historyOpen && (
+              <HistoryPanel
+                conversations={conversations}
+                activeId={conversationId}
+                onClose={() => setHistoryOpen(false)}
+                onNew={handleNewChat}
+                onOpen={handleOpenConversation}
+                onDelete={handleDeleteConversation}
+              />
+            )}
+          </aside>
         </main>
       </div>
 
@@ -346,6 +392,9 @@ export function AgentHome() {
               <div className="mb-2 rounded-xl border border-border p-1.5">
                 <AccountMenu accountLabel={accountLabel} clients={clients} isImpersonating={isImpersonating} onSwitch={switchToClient} onExit={exitImpersonation} onManage={() => router.push("/agent/clients")} />
               </div>
+              <button onClick={handleNewChat} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><SquarePen className="h-[18px] w-[18px]" /> New chat</button>
+              <button onClick={() => { setHistoryOpen(true); setDrawerOpen(false); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><History className="h-[18px] w-[18px]" /> History</button>
+              <div className="my-1.5 h-px w-full bg-border" />
               {/* workspaces */}
               {WORKSPACES.map((w) => {
                 const Icon = w.icon;
@@ -436,6 +485,45 @@ function WorkspacePanel({ panelKey, label, onClose, onAsk, onOpen, onFocus }: {
           <button onClick={() => onAsk(`Open ${label} and help me get started`)} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
           <button onClick={onFocus} className="rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground">Open focused view</button>
         </div>
+      </div>
+    </>
+  );
+}
+
+function HistoryPanel({ conversations, activeId, onClose, onNew, onOpen, onDelete }: {
+  conversations: ConversationSummary[];
+  activeId: string | null;
+  onClose: () => void;
+  onNew: () => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
+        <History className="h-5 w-5 text-brand-500" />
+        <b className="text-[15px]">History</b>
+        <button onClick={onClose} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
+      </div>
+      <div className="p-3">
+        <button onClick={onNew} className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+          <SquarePen className="h-4 w-4" /> New chat
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto px-2 pb-3">
+        {conversations.length === 0 ? (
+          <p className="px-3 py-6 text-center text-[12.5px] text-muted-foreground">No past conversations yet.</p>
+        ) : (
+          conversations.map((c) => (
+            <div key={c.id} className={cn("group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm", c.id === activeId ? "bg-brand-500/10 text-brand-500" : "hover:bg-muted")}>
+              <button onClick={() => onOpen(c.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <MessageSquare className="h-4 w-4 shrink-0 opacity-70" />
+                <span className="min-w-0 flex-1 truncate">{c.title}</span>
+              </button>
+              <button onClick={() => onDelete(c.id)} className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100" aria-label="Delete conversation"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ))
+        )}
       </div>
     </>
   );

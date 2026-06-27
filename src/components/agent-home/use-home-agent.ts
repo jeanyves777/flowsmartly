@@ -14,6 +14,8 @@ import {
   subscribeToTaskStream,
   blockAppendText,
   blockPushCard,
+  fetchConversationCards,
+  parseMessageBlocks,
 } from "@/components/flow-ai/use-agent-stream";
 
 /**
@@ -34,11 +36,20 @@ export interface HomeMessage {
   agentTasks?: AgentTaskCardData[];
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
 export function useHomeAgent() {
   const send = useAgentSender();
   const [messages, setMessages] = useState<HomeMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
 
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
   const resolvedPlansRef = useRef<Map<string, PlanProposalCardData["status"]>>(new Map());
@@ -207,7 +218,69 @@ export function useHomeAgent() {
 
   const handlePickOption = useCallback((text: string) => void handleSend(text), [handleSend]);
 
-  return { messages, sending, conversationId, send: handleSend, handlePlanResponse, handlePickTemplate, handlePickOption };
+  // ── Conversation history (deep-linkable, ChatGPT/Claude-style) ──
+  const refreshConversations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/assistant/conversations?limit=40");
+      const json = await res.json();
+      const raw: Array<{ id: string; title?: string | null; updatedAt: string; messageCount?: number }> = json?.data?.conversations ?? [];
+      setConversations(raw.map((c) => ({ id: c.id, title: c.title || "New conversation", updatedAt: c.updatedAt, messageCount: c.messageCount ?? 0 })));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const loadConversation = useCallback(async (id: string) => {
+    // Set the id first so the URL stays stable while the transcript loads.
+    setConversationId(id);
+    setLoadingConversation(true);
+    try {
+      const res = await fetch(`/api/ai/assistant/conversations/${id}`);
+      const json = await res.json();
+      if (json?.success) {
+        const conv = json.data ?? json;
+        const rawMsgs: Array<{ id: string; role: string; content: string; metadata?: string | null }> = conv?.messages ?? [];
+        const cards = await fetchConversationCards(id);
+        setMessages(
+          rawMsgs
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({
+              id: m.id,
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.content,
+              blocks: parseMessageBlocks(m.metadata),
+              toolCalls: cards.toolCallsByMsg.get(m.id),
+              planProposals: cards.proposalsByMsg.get(m.id),
+              agentTasks: cards.tasksByMsg.get(m.id),
+            })),
+        );
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoadingConversation(false);
+    }
+  }, []);
+
+  const newConversation = useCallback(() => {
+    setMessages([]);
+    setConversationId(null);
+  }, []);
+
+  return {
+    messages,
+    sending,
+    conversationId,
+    conversations,
+    loadingConversation,
+    send: handleSend,
+    handlePlanResponse,
+    handlePickTemplate,
+    handlePickOption,
+    loadConversation,
+    newConversation,
+    refreshConversations,
+  };
 }
 
 function startTaskSubscription(
