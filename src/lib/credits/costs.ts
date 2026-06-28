@@ -123,6 +123,9 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_UPDATE_CONTACT: 0,         // Free — editing a CRM contact is data management
   AGENT_DELETE_CONTACT: 0,         // Free — removing a CRM contact is data management
   AGENT_UPDATE_WEBSITE: 0,         // Free — publish/rename/SEO is site management, not a rebuild
+  AGENT_SETUP_LOCAL_PRESENCE: 500, // ListSmartly unlock — first-time setup charges the unlock credits
+  AGENT_UPDATE_LISTING: 0,         // Free — flipping a listing status / fixing NAP is presence management
+  AGENT_RESPOND_TO_REVIEW: 0,      // Free key — an AI draft charges AI_REVIEW_RESPONSE inside the tool
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
   // Tier-priced media tools. The handler picks the right key based on
@@ -278,6 +281,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_UPDATE_CONTACT: "Flow-AI agent: update contact",
   AGENT_DELETE_CONTACT: "Flow-AI agent: delete contact",
   AGENT_UPDATE_WEBSITE: "Flow-AI agent: update website",
+  AGENT_SETUP_LOCAL_PRESENCE: "Flow-AI agent: set up local presence",
+  AGENT_UPDATE_LISTING: "Flow-AI agent: update directory listing",
+  AGENT_RESPOND_TO_REVIEW: "Flow-AI agent: respond to review",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
   AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",
