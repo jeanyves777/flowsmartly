@@ -64,7 +64,7 @@ export function StoreCallToAction({ onBuild, compact }: { onBuild: () => void; c
               );
             })}
           </div>
-          <p className="mt-2.5 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">Store is on the <span className="font-semibold text-foreground">Pro plan</span> and up — the agent will help you switch if you’re not there yet.</p>
+          <p className="mt-2.5 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">Available on <span className="font-semibold text-foreground">every plan</span> — no upgrade needed to launch.</p>
         </div>
 
         <button onClick={onBuild} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
