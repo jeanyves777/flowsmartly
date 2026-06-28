@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ElementType } from "rea
 import Image from "next/image";
 import { PenSquare, Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -36,6 +37,12 @@ function fmtWhen(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
 
+// The post API takes a single mediaType — infer it from the first attachment.
+function isVideoUrl(url: string): boolean {
+  const u = url.toLowerCase();
+  return /\.(mp4|webm|mov|avi)/.test(u) || u.includes("/video/");
+}
+
 // datetime-local wants "YYYY-MM-DDTHH:mm" in local time — build a sensible default (now + 1h).
 function defaultScheduleValue(): string {
   const d = new Date(Date.now() + 60 * 60 * 1000);
@@ -48,8 +55,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
   const [loading, setLoading] = useState(true);
 
   const [caption, setCaption] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [mediaType, setMediaType] = useState<"image" | "video">("image");
+  const [media, setMedia] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>(["feed"]);
   const [mode, setMode] = useState<"now" | "schedule" | "draft">("now");
   const [scheduleAt, setScheduleAt] = useState("");
@@ -86,7 +92,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
   };
 
   const reset = () => {
-    setCaption(""); setMediaUrl(""); setMediaType("image"); setSelected(["feed"]);
+    setCaption(""); setMedia([]); setSelected(["feed"]);
     setMode("now"); setScheduleAt(""); setError("");
   };
 
@@ -109,7 +115,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
         caption: text,
         platforms: selected,
       };
-      if (mediaUrl.trim()) { body.mediaUrls = [mediaUrl.trim()]; body.mediaType = mediaType; }
+      if (media.length) { body.mediaUrls = media; body.mediaType = isVideoUrl(media[0]) ? "video" : "image"; }
       if (scheduledAt) body.scheduledAt = scheduledAt;
       if (mode === "draft") body.status = "DRAFT"; // best-effort — the response status is the source of truth
 
@@ -240,26 +246,21 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
             )}
           </div>
 
-          {/* media (optional) */}
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-[1fr_auto]">
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><ImageIcon className="h-3.5 w-3.5" /> Media URL <span className="font-normal">(optional)</span></span>
-              <input value={mediaUrl} onChange={(e) => { setMediaUrl(e.target.value); setDone(null); }} placeholder="https://…/image.jpg" inputMode="url" className={FIELD} />
-            </label>
-            <label className="block sm:w-32">
-              <span className="mb-1.5 block text-[11.5px] font-medium text-muted-foreground">Type</span>
-              <select value={mediaType} onChange={(e) => setMediaType(e.target.value as "image" | "video")} disabled={!mediaUrl.trim()} className={cn(FIELD, "disabled:opacity-50")}>
-                <option value="image">Image</option>
-                <option value="video">Video</option>
-              </select>
-            </label>
+          {/* media (optional) — real upload + media library + preview */}
+          <div className="mt-4">
+            <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><ImageIcon className="h-3.5 w-3.5" /> Media <span className="font-normal">(optional)</span></span>
+            <MediaUploader
+              value={media}
+              onChange={(urls) => { setMedia(urls); setDone(null); }}
+              multiple
+              maxFiles={4}
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime"
+              filterTypes={["image", "video"]}
+              variant="gallery"
+              placeholder="Upload or pick from your library"
+              libraryTitle="Your media library"
+            />
           </div>
-          {mediaUrl.trim() && mediaType === "image" && (
-            <div className="mt-2.5 overflow-hidden rounded-xl border border-border bg-muted/30">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mediaUrl.trim()} alt="Attachment preview" className="max-h-56 w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-            </div>
-          )}
 
           {/* timing */}
           <div className="mt-4">
@@ -300,7 +301,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
               {posting ? <FlowLoader size={15} tone="white" /> : mode === "schedule" ? <CalendarClock className="h-4 w-4" /> : mode === "draft" ? <FileEdit className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               {mode === "schedule" ? "Schedule post" : mode === "draft" ? "Save draft" : "Post now"}
             </button>
-            {(caption || mediaUrl) && (
+            {(caption || media.length > 0) && (
               <button onClick={reset} disabled={posting} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"><X className="h-3.5 w-3.5" /> Clear</button>
             )}
             <span className="ms-auto inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
