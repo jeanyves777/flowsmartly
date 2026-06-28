@@ -2,52 +2,57 @@
 
 import { useEffect, useState, type ElementType, type ReactNode } from "react";
 import Image from "next/image";
-import { Globe, Sparkles, ExternalLink, LayoutTemplate, Link2, Eye, MousePointerClick, CheckCircle2 } from "lucide-react";
+import { Globe, Sparkles, ExternalLink, LayoutTemplate, Eye, MousePointerClick, FileStack, BarChart3 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Web — a deep new-design surface (the Web workspace canvas): websites, landing
- * pages, and domains in one place. Real data (GET /api/websites, /api/landing-
- * pages, /api/domains); creation drives the agent (build_website / landing pages).
+ * Web — split into focused, single-purpose surfaces so each type gets its OWN
+ * organized view (not all mixed in one scroll): FocusedWeb = Websites, while
+ * FocusedLanding = Landing pages and FocusedDomains (its own file) = Domains.
+ * Real data (GET /api/websites, /api/landing-pages); creation drives the agent.
  * No legacy links. [[new-design-no-legacy]]
  */
 
 interface Website { id: string; name?: string; slug?: string; status?: string; buildStatus?: string; pageCount?: number; totalViews?: number; customDomain?: string | null; }
 interface Landing { id: string; title?: string; status?: string; thumbnailUrl?: string | null; views?: number; submissions?: number; conversionRate?: number; }
-interface Domain { id: string; domainName?: string; registrarStatus?: string; sslStatus?: string; isPrimary?: boolean; isConnected?: boolean; }
 
-export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView: (key: string) => void }) {
+const BUILD_SITE_PROMPT = "Help me build a website — ask me my business name, what it's for, and the style, then create it.";
+const BUILD_PAGE_PROMPT = "Help me create a landing page — ask me the goal, offer, and audience, then generate it.";
+
+/* ── Websites ─────────────────────────────────────────────────────────── */
+export function FocusedWeb({ refreshKey, onAsk }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
   const [sites, setSites] = useState<Website[]>([]);
-  const [pages, setPages] = useState<Landing[]>([]);
-  const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      fetch("/api/websites").then((r) => r.json()).catch(() => null),
-      fetch("/api/landing-pages?limit=12").then((r) => r.json()).catch(() => null),
-      fetch("/api/domains").then((r) => r.json()).catch(() => null),
-    ]).then(([w, l, d]) => {
+    fetch("/api/websites").then((r) => r.json()).catch(() => null).then((w) => {
       if (!alive) return;
       if (Array.isArray(w?.websites)) setSites(w.websites);
-      if (Array.isArray(l?.data?.pages)) setPages(l.data.pages);
-      if (Array.isArray(d?.data?.domains)) setDomains(d.data.domains);
       setLoading(false);
     });
     return () => { alive = false; };
   }, [refreshKey]);
 
   if (loading) {
-    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your web presence…" /></div>;
+    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your websites…" /></div>;
   }
+
+  const totalPages = sites.reduce((n, s) => n + (s.pageCount ?? 0), 0);
+  const totalViews = sites.reduce((n, s) => n + (s.totalViews ?? 0), 0);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
-        {/* Websites */}
-        <Section title="Website" icon={Globe} action={<NewBtn label="New website" onClick={() => onAsk("Help me build a website — ask me my business name, what it's for, and the style, then create it.")} />}>
+        {sites.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <Kpi icon={Globe} label="Sites" value={String(sites.length)} />
+            <Kpi icon={FileStack} label="Pages" value={String(totalPages)} />
+            <Kpi icon={BarChart3} label="Views" value={totalViews.toLocaleString()} />
+          </div>
+        )}
+        <Section title="Your websites" icon={Globe} action={<NewBtn label="New website" onClick={() => onAsk(BUILD_SITE_PROMPT)} />}>
           {sites.length ? (
             <div className="space-y-2.5">
               {sites.map((s) => (
@@ -65,12 +70,47 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
               ))}
             </div>
           ) : (
-            <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => onAsk("Help me build a website — ask me my business name, what it's for, and the style, then create it.")} />
+            <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => onAsk(BUILD_SITE_PROMPT)} />
           )}
         </Section>
+      </div>
+    </div>
+  );
+}
 
-        {/* Landing pages */}
-        <Section title="Landing pages" icon={LayoutTemplate} action={<NewBtn label="New page" onClick={() => onAsk("Help me create a landing page — ask me the goal, offer, and audience, then generate it.")} />}>
+/* ── Landing pages ────────────────────────────────────────────────────── */
+export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
+  const [pages, setPages] = useState<Landing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/landing-pages?limit=24").then((r) => r.json()).catch(() => null).then((l) => {
+      if (!alive) return;
+      if (Array.isArray(l?.data?.pages)) setPages(l.data.pages);
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, [refreshKey]);
+
+  if (loading) {
+    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your landing pages…" /></div>;
+  }
+
+  const totalViews = pages.reduce((n, p) => n + (p.views ?? 0), 0);
+  const totalSubs = pages.reduce((n, p) => n + (p.submissions ?? 0), 0);
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl space-y-4">
+        {pages.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <Kpi icon={LayoutTemplate} label="Pages" value={String(pages.length)} />
+            <Kpi icon={Eye} label="Views" value={totalViews.toLocaleString()} />
+            <Kpi icon={MousePointerClick} label="Leads" value={totalSubs.toLocaleString()} />
+          </div>
+        )}
+        <Section title="Your landing pages" icon={LayoutTemplate} action={<NewBtn label="New page" onClick={() => onAsk(BUILD_PAGE_PROMPT)} />}>
           {pages.length ? (
             <div className="grid gap-2.5 sm:grid-cols-2">
               {pages.map((p) => (
@@ -93,29 +133,20 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
               ))}
             </div>
           ) : (
-            <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk("Help me create a landing page — ask me the goal, offer, and audience, then generate it.")} />
-          )}
-        </Section>
-
-        {/* Domains */}
-        <Section title="Domains" icon={Link2} action={<NewBtn label="Add domain" onClick={() => onOpenView("domains")} />}>
-          {domains.length ? (
-            <div className="space-y-2">
-              {domains.map((d) => (
-                <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                  <span className="text-[13px] font-semibold">{d.domainName}</span>
-                  {d.isPrimary && <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500">Primary</span>}
-                  <span className={cn("ms-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", d.registrarStatus === "active" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>
-                    {d.registrarStatus === "active" ? <CheckCircle2 className="h-3 w-3" /> : null}{d.registrarStatus || "pending"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty title="No custom domain" sub="Connect your own domain so your site lives at your brand." cta="Get a domain" onCta={() => onOpenView("domains")} />
+            <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk(BUILD_PAGE_PROMPT)} />
           )}
         </Section>
       </div>
+    </div>
+  );
+}
+
+/* ── shared ───────────────────────────────────────────────────────────── */
+function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
+      <p className="mt-1 text-[18px] font-bold">{value}</p>
     </div>
   );
 }

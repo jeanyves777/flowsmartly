@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, Smile, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, Smile, LayoutTemplate, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -51,7 +51,7 @@ import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
 import { StoreCallToAction, STORE_BUILD_PROMPT } from "./focused/store-cta";
-import { FocusedWeb } from "./focused/web-workspace";
+import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
@@ -82,6 +82,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
   analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
   billing: "Ask the agent about credits & billing — e.g. “how many credits do I have left?”, “what did I spend on this week?”, or “which plan fits me?”.",
+  landing: "Ask the agent to create a landing page — e.g. “a page for my summer offer with a signup form”.",
   domains: "Ask the agent to help connect a domain, fix verification, or set up DNS.",
   pitch: "Ask the agent to draft a proposal for a client or research a prospect.",
   forms: "Ask the agent to build a new lead-capture form or survey.",
@@ -116,6 +117,7 @@ const DEFAULT_CHAT_HINT = "Ask the agent to help with this surface — it can ac
 // Header label / subtitle / icon for the sub-surfaces that aren't top-level rail
 // workspaces (built as their own /home/<view> focused views).
 const FOCUS_META: Record<string, { label: string; subtitle: string; icon: LucideIcon }> = {
+  landing: { label: "Landing pages", subtitle: "High-converting pages for campaigns & offers", icon: LayoutTemplate },
   domains: { label: "Domains", subtitle: "Connect & manage your custom domains", icon: Globe },
   pitch: { label: "Pitch board", subtitle: "Your sales proposals & outreach pitches", icon: FileText },
   forms: { label: "Forms & surveys", subtitle: "Lead-capture forms & surveys", icon: ClipboardList },
@@ -157,6 +159,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Outreach** workspace open (contacts, lists, follow-ups, pitches). Default their intent to contact and outreach actions.`;
     case "analytics":
       return `The user has the **Analytics** workspace open (performance, usage, activity). Default their intent to reporting and insights about their own account.`;
+    case "landing":
+      return `The user is on the **Landing pages** surface (campaign/offer pages). Creating a landing page is generative — gather the goal, offer, and audience, then generate it.`;
     case "domains":
       return `The user is on the **Domains** surface, managing custom domains (registrar, SSL, verification, primary). Help them connect a domain, fix DNS/verification, or set a primary.`;
     case "pitch":
@@ -212,7 +216,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -626,7 +630,9 @@ export function AgentHome() {
                 ) : focused === "sell" ? (
                   <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedWeb onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "landing" ? (
+                  <FocusedLanding onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "outreach" ? (
                   <FocusedOutreach onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "domains" ? (
@@ -876,18 +882,21 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
       ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
         <p className="px-1 pb-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{WS_DESC[panelKey]}</p>
-        {/* Each item opens its OWN focused view (new design). */}
-        <div className="space-y-1">
+        {/* Each item is an info card that opens its OWN focused view (new design). */}
+        <div className="space-y-2">
           {ws.items.map((it) => {
             const ItemIcon = (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
             return (
               <button
                 key={(it.viewKey ?? "") + it.label}
                 onClick={() => (it.viewKey ? onOpenView(it.viewKey) : onAsk(`Open ${it.label} and help me get started.`))}
-                className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-left transition hover:bg-muted"
+                className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left transition hover:border-brand-500/50 hover:bg-muted/50"
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><ItemIcon className="h-[17px] w-[17px]" /></span>
-                <span className="flex-1 truncate text-[13px] font-medium text-foreground">{it.label}</span>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><ItemIcon className="h-[18px] w-[18px]" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold text-foreground">{it.label}</span>
+                  {it.desc && <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">{it.desc}</span>}
+                </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             );
