@@ -83,6 +83,22 @@ export function FocusedTeams({ refreshKey }: { refreshKey?: number }) {
   }, [load, refreshKey]);
 
   const canManage = (myRole || "").toUpperCase() === "OWNER" || (myRole || "").toUpperCase() === "ADMIN";
+  const isOwnerMe = (myRole || "").toUpperCase() === "OWNER"; // only the owner can change roles
+
+  const changeRole = async (m: Member, newRole: string) => {
+    if (!team || newRole.toUpperCase() === m.role?.toUpperCase()) return;
+    setBusyId(m.id);
+    try {
+      const r = await fetch(`/api/teams/${team.id}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: m.user.id, role: newRole }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) { await load(); }
+      else { setNotice(j?.error?.message || "Could not change the role."); setTimeout(() => setNotice(""), 3000); }
+    } catch { /* ignore */ } finally { setBusyId(null); }
+  };
 
   const invite = async () => {
     const e = email.trim();
@@ -241,7 +257,13 @@ export function FocusedTeams({ refreshKey }: { refreshKey?: number }) {
                       <p className="truncate text-[13px] font-medium">{name}</p>
                       <p className="truncate text-[11.5px] text-muted-foreground">{m.user.email || (m.joinedAt ? `Joined ${whenLabel(m.joinedAt)}` : "")}</p>
                     </div>
-                    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
+                    {isOwnerMe && !isOwner ? (
+                      <select value={(m.role || "MEMBER").toUpperCase()} onChange={(e) => changeRole(m, e.target.value)} disabled={busyId === m.id} title="Change role" className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[11px] font-semibold outline-none focus:border-brand-500/60 disabled:opacity-60">
+                        {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
+                      </select>
+                    ) : (
+                      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
+                    )}
                     {canManage && !isOwner && (
                       <button onClick={() => removeMember(m)} disabled={busyId === m.id} title="Remove member" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-rose-500/60 hover:text-rose-500 disabled:opacity-60">
                         {busyId === m.id ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}

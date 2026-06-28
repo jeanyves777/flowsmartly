@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Gift, Users, UserCheck, Coins, Copy, Check, Link2, Share2, Clock } from "lucide-react";
+import { Gift, Users, UserCheck, Coins, Copy, Check, Link2, Share2, Clock, Mail, MessageCircle, Twitter, Receipt } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -35,6 +35,17 @@ interface ReferredUser {
   createdAt?: string;
 }
 
+interface Commission {
+  id: string;
+  amountCents?: number;
+  amount?: number;
+  status?: string;
+  description?: string | null;
+  sourceName?: string | null;
+  referredName?: string | null;
+  createdAt?: string;
+}
+
 function money(cents?: number): string {
   const v = (cents ?? 0) / 100;
   try {
@@ -58,6 +69,7 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
   const [link, setLink] = useState("");
   const [stats, setStats] = useState<Stats>({});
   const [referrals, setReferrals] = useState<ReferredUser[]>([]);
+  const [commissions, setCommissions] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
@@ -70,6 +82,7 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
         setLink(typeof j.data.link === "string" ? j.data.link : "");
         if (j.data.stats) setStats(j.data.stats as Stats);
         if (Array.isArray(j.data.referrals)) setReferrals(j.data.referrals as ReferredUser[]);
+        if (Array.isArray(j.data.commissions)) setCommissions(j.data.commissions as Commission[]);
         setError("");
       } else {
         setError(j?.error?.message || "Could not load your referrals.");
@@ -102,6 +115,19 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
     }
     setCopied(which);
     setTimeout(() => setCopied((c) => (c === which ? null : c)), 1800);
+  };
+
+  // One-tap share to X / WhatsApp / Email — external share intents (allowed).
+  const share = (network: "x" | "whatsapp" | "email") => {
+    if (!link) return;
+    const text = "I use FlowSmartly to run my marketing — join with my link and we both earn:";
+    const url =
+      network === "x"
+        ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`
+        : network === "whatsapp"
+          ? `https://wa.me/?text=${encodeURIComponent(`${text} ${link}`)}`
+          : `mailto:?subject=${encodeURIComponent("Join me on FlowSmartly")}&body=${encodeURIComponent(`${text}\n\n${link}`)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   if (loading) {
@@ -165,6 +191,14 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
                 </div>
                 <p className="text-[12px] leading-snug text-muted-foreground">When someone signs up with your link, you earn a recurring commission on their spend.</p>
               </div>
+
+              {/* one-tap share */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-muted-foreground">Share:</span>
+                <button onClick={() => share("x")} disabled={!link} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background/70 px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"><Twitter className="h-3.5 w-3.5" /> X</button>
+                <button onClick={() => share("whatsapp")} disabled={!link} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background/70 px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</button>
+                <button onClick={() => share("email")} disabled={!link} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background/70 px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"><Mail className="h-3.5 w-3.5" /> Email</button>
+              </div>
             </>
           )}
         </section>
@@ -216,6 +250,34 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
             </div>
           )}
         </section>
+
+        {/* commission history */}
+        {commissions.length > 0 && (
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Commission history</h3>
+            </div>
+            <div className="space-y-1.5">
+              {commissions.map((c) => {
+                const cents = typeof c.amountCents === "number" ? c.amountCents : typeof c.amount === "number" ? Math.round(c.amount * 100) : 0;
+                const st = (c.status || "pending").toLowerCase();
+                const paid = st === "paid" || st === "completed";
+                return (
+                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+                    <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", paid ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}><Coins className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-medium">{c.description || c.sourceName || c.referredName || "Referral commission"}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{c.createdAt ? whenLabel(c.createdAt) : ""}</p>
+                    </div>
+                    <span className="shrink-0 text-[13px] font-bold tabular-nums text-emerald-500">+{money(cents)}</span>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", paid ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>{st}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
