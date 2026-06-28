@@ -276,7 +276,7 @@ function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemov
   return (
     <>
       <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
-        {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Remove background"}
+        {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Bg Removal"}
       </button>
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={onDelete} title="Delete image" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
