@@ -87,7 +87,7 @@ export function FocusedView({
       {/* WORKSPACE (right) */}
       <div
         className={cn(
-          "min-h-0 flex-1 flex-col",
+          "min-h-0 min-w-0 flex-1 flex-col",
           mobileChat ? "max-md:hidden" : "max-md:flex",
           "md:flex",
         )}
@@ -110,13 +110,17 @@ export function FocusedView({
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       </div>
 
-      {/* mobile chat toggle */}
-      <button
-        onClick={() => setMobileChat((v) => !v)}
-        className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-border bg-popover px-4 py-2 text-[12.5px] font-semibold shadow-lg md:hidden"
-      >
-        <MessageSquare className="h-4 w-4" /> {mobileChat ? "Show canvas" : "Open chat"}
-      </button>
+      {/* mobile chat toggle — shown only while the chat overlay is CLOSED, so the
+          floating button never sits on top of the chat composer. The chat overlay's
+          own header has a back/close button to return to the canvas. */}
+      {!mobileChat && (
+        <button
+          onClick={() => setMobileChat(true)}
+          className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-border bg-popover px-4 py-2 text-[12.5px] font-semibold shadow-lg md:hidden"
+        >
+          <MessageSquare className="h-4 w-4" /> Open chat
+        </button>
+      )}
     </div>
   );
 }

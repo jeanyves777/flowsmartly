@@ -301,6 +301,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const textsRef = useRef<TextLayer[]>(value.texts || []);
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
   useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
+  // On small screens the controls are a slide-over drawer — start it closed so it
+  // doesn't cover the canvas on load (it's open by default on desktop).
+  useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setToolsOpen(false); }, []);
 
   const [w] = value.size.split("×").map(Number);
   const ratio = (() => { const [a, b] = value.size.split("×").map(Number); return a && b ? a / b : 1; })();
@@ -379,11 +382,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Undo"><Undo2 className="h-4 w-4" /></button>
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Redo"><Redo2 className="h-4 w-4" /></button>
         <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
-        <span className="ms-1 text-[11.5px] text-muted-foreground">{value.size} · {value.generating ? "rendering…" : value.imageUrl ? "rendered" : "draft"}</span>
+        <span className="ms-1 hidden text-[11.5px] text-muted-foreground sm:inline">{value.size} · {value.generating ? "rendering…" : value.imageUrl ? "rendered" : "draft"}</span>
         <div className="ms-auto flex items-center gap-1.5">
           <button onClick={onSave} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground"><Save className="h-3.5 w-3.5" /> Save</button>
           <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
@@ -391,8 +394,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
+      <div className="relative flex min-h-0 flex-1">
+        <div className="grid min-h-0 min-w-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
           {/* Non-clipping wrapper sized to the poster — the floating toolbar lives
               here (a sibling of the poster) so it's never cut off by overflow-hidden. */}
           <div className="relative" style={{ width: baseW, maxWidth: "100%" }}>
@@ -483,10 +486,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
         </div>
 
         {toolsOpen && (
-          <div className="flex w-[272px] shrink-0 flex-col border-s border-border bg-muted/30">
-            <div className="flex shrink-0 gap-1 border-b border-border p-1.5">
+          <>
+            {/* On small screens the controls are a slide-over drawer (so they don't
+                steal horizontal space and push the canvas off-screen); inline column at lg+. */}
+            <button aria-label="Close controls" onClick={() => setToolsOpen(false)} className="absolute inset-0 z-20 bg-black/40 lg:hidden" />
+          <div className="z-30 flex shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[280px] max-lg:max-w-[86%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[272px] lg:border-s lg:border-border">
+            <div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
               <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
               <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
+              <button onClick={() => setToolsOpen(false)} aria-label="Close controls" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground lg:hidden"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
               {tab === "style" ? (
@@ -540,6 +548,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
               <p className="mt-2 text-[11px] leading-snug text-muted-foreground">Renders a real on-brand image using THIS layout{images.length ? " + your images" : ""} as the inspiration reference.</p>
             </div>
           </div>
+          </>
         )}
       </div>
 
