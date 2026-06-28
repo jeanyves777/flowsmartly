@@ -32,6 +32,8 @@ function CreditsInner({ refreshKey, onBack }: { refreshKey?: number; onBack?: ()
   const [showAddCard, setShowAddCard] = useState(false);
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const pendingPkgRef = useRef<string | null>(null);
+  const packagesRef = useRef<CreditPackage[]>([]);
+  useEffect(() => { packagesRef.current = packages; }, [packages]);
 
   const loadMethods = useCallback(async (): Promise<PaymentMethod[]> => {
     const j = await fetch("/api/payments/methods").then((r) => r.json()).catch(() => null);
@@ -72,10 +74,28 @@ function CreditsInner({ refreshKey, onBack }: { refreshKey?: number; onBack?: ()
         if (error) throw new Error(error.message || "Payment authentication failed");
       }
 
-      const added = data.data.creditsAdded ?? 0;
+      // Payment succeeded. On the immediate-charge path the route returns the
+      // real creditsAdded/newBalance; on the 3DS (requires_action) path both come
+      // back as 0 (credits are applied by the webhook after authentication), so we
+      // fall back to the package total and re-fetch the live balance. Guard with
+      // truthiness (not typeof === "number"), since 0 means "not yet applied".
+      const pkg = packagesRef.current.find((p) => p.id === packageId);
+      const fallbackTotal = pkg ? pkg.credits + (pkg.bonus || 0) : 0;
+      const added = data.data.creditsAdded || fallbackTotal;
       const newBalance = data.data.newBalance;
-      if (typeof newBalance === "number") { setBalance(newBalance); emitCreditsUpdate(newBalance); }
-      else { emitCreditsUpdate(); }
+      if (newBalance) {
+        setBalance(newBalance);
+        emitCreditsUpdate(newBalance);
+      } else {
+        // Fallback: re-fetch the live balance (3DS path / webhook-applied credits).
+        const cr = await fetch("/api/user/credits").then((r) => r.json()).catch(() => null);
+        if (cr?.success && typeof cr.data?.credits === "number") {
+          setBalance(cr.data.credits);
+          emitCreditsUpdate(cr.data.credits);
+        } else {
+          emitCreditsUpdate();
+        }
+      }
       setJustAdded(added);
       toast({ title: "Credits added!", description: `${added.toLocaleString()} credits are now in your balance.` });
     } catch (err) {

@@ -446,9 +446,15 @@ function ReviewsPanel({ onAsk, refreshKey, onChanged }: { onAsk?: (p: string) =>
     return Array.from(set);
   }, [reviews]);
 
-  // Patch one review in place after a reply/flag/archive without a full reload.
+  // Patch one review in place after a reply/flag without a full reload.
   const patchReview = useCallback((id: string, patch: Partial<Review>) => {
     setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
+
+  // Drop a review from the list (archive) — the route filters isArchived out, so
+  // it would vanish on reload anyway; remove it now to avoid a stale row.
+  const removeReview = useCallback((id: string) => {
+    setReviews((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
   const afterChange = useCallback((msg: string) => { setNotice(msg); onChanged(); }, [onChanged]);
@@ -499,7 +505,7 @@ function ReviewsPanel({ onAsk, refreshKey, onChanged }: { onAsk?: (p: string) =>
         </div>
       ) : (
         <div className="space-y-2">
-          {reviews.map((rv) => <ReviewCard key={rv.id} review={rv} onPatch={patchReview} onChanged={afterChange} />)}
+          {reviews.map((rv) => <ReviewCard key={rv.id} review={rv} onPatch={patchReview} onRemove={removeReview} onChanged={afterChange} />)}
         </div>
       )}
 
@@ -520,7 +526,7 @@ function ReviewsPanel({ onAsk, refreshKey, onChanged }: { onAsk?: (p: string) =>
   );
 }
 
-function ReviewCard({ review, onPatch, onChanged }: { review: Review; onPatch: (id: string, p: Partial<Review>) => void; onChanged: (msg: string) => void }) {
+function ReviewCard({ review, onPatch, onRemove, onChanged }: { review: Review; onPatch: (id: string, p: Partial<Review>) => void; onRemove: (id: string) => void; onChanged: (msg: string) => void }) {
   const sm = SENTIMENT_META[(review.sentiment || "").toLowerCase()];
   const replied = review.hasResponse || review.responseStatus === "posted";
   const [replying, setReplying] = useState(false);
@@ -589,6 +595,7 @@ function ReviewCard({ review, onPatch, onChanged }: { review: Review; onPatch: (
           onPatch(review.id, { isFlagged: !review.isFlagged });
           onChanged(!review.isFlagged ? "Review flagged." : "Flag removed.");
         } else {
+          onRemove(review.id);
           onChanged("Review archived.");
         }
       } else {

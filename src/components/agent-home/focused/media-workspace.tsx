@@ -589,7 +589,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
           {/* inline uploader — clicking "Upload" opens this real input, not a chat prompt */}
           {uploadOpen && (
             <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
-              <p className="mb-2.5 text-[12.5px] font-semibold">Upload images or videos{currentFolder ? ` to ${currentFolder.name}` : ""}</p>
+              <p className="mb-2.5 text-[12.5px] font-semibold">Upload images or videos</p>
               <MediaUploader
                 value={[]}
                 onChange={onUploaded}
@@ -601,7 +601,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                 placeholder="Upload"
                 showButtons
               />
-              <p className="mt-2 text-[11px] text-muted-foreground">Uploaded files are added to your library automatically.</p>
+              <p className="mt-2 text-[11px] text-muted-foreground">Uploaded files are added to your library{currentFolder ? " — move them into this folder after upload" : ""}.</p>
             </div>
           )}
 

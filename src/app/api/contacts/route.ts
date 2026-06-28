@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, phone, firstName, lastName, birthday, imageUrl, tags = [], listIds = [], emailOptedIn, smsOptedIn } = body;
+    const { email, phone, firstName, lastName, company, city, state, address, birthday, imageUrl, tags = [], listIds = [], emailOptedIn, smsOptedIn } = body;
 
     // Validate birthday format if provided (MM-DD)
     if (birthday !== undefined && birthday !== null && birthday !== "") {
@@ -211,6 +211,10 @@ export async function POST(request: NextRequest) {
         phone,
         firstName,
         lastName,
+        company: company || null,
+        city: city || null,
+        state: state || null,
+        address: address || null,
         birthday: birthday || null,
         imageUrl: imageUrl || null,
         tags: JSON.stringify(tags),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType } from "react";
+import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
 import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { EmailSetupCard } from "./email-setup";
@@ -342,6 +342,123 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                                 {detail.contactList?.name ? <span>Audience: {detail.contactList.name}</span> : null}
                               </div>
                             </div>
+
+                            {actionNotice ? (
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12.5px] font-medium text-emerald-600 dark:text-emerald-400">
+                                <Check className="h-4 w-4 shrink-0" /> {actionNotice}
+                              </div>
+                            ) : null}
+
+                            {/* action bar */}
+                            {mode === null ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                {canEdit(detail.status) && (
+                                  <button onClick={startEdit} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60">
+                                    <Pencil className="h-3.5 w-3.5" /> Edit
+                                  </button>
+                                )}
+                                {canSend(detail.status) && (
+                                  <>
+                                    <button onClick={() => { setActionError(null); setActionNotice(null); setMode("send"); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+                                      <Send className="h-3.5 w-3.5" /> Send now
+                                    </button>
+                                    <button onClick={() => { setActionError(null); setActionNotice(null); setScheduleAt(defaultScheduleValue()); setMode("schedule"); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60">
+                                      <CalendarClock className="h-3.5 w-3.5" /> Schedule
+                                    </button>
+                                  </>
+                                )}
+                                {canDelete(detail.status) && (
+                                  <button onClick={() => { setActionError(null); setActionNotice(null); setMode("delete"); }} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 bg-rose-500/5 px-3 py-1.5 text-[12.5px] font-semibold text-rose-500 hover:bg-rose-500/10">
+                                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                                  </button>
+                                )}
+                              </div>
+                            ) : null}
+
+                            {/* edit form */}
+                            {mode === "edit" ? (
+                              <div className="space-y-2.5 rounded-xl border border-border bg-background p-3">
+                                <Field label="Campaign name">
+                                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500" />
+                                </Field>
+                                <Field label="Subject">
+                                  <input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500" />
+                                </Field>
+                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                  <Field label="From name">
+                                    <input value={form.fromName} onChange={(e) => setForm((f) => ({ ...f, fromName: e.target.value }))} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500" />
+                                  </Field>
+                                  <Field label="Reply-to">
+                                    <input value={form.replyTo} onChange={(e) => setForm((f) => ({ ...f, replyTo: e.target.value }))} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500" />
+                                  </Field>
+                                </div>
+                                <Field label="Audience">
+                                  <select value={form.contactListId} onChange={(e) => setForm((f) => ({ ...f, contactListId: e.target.value }))} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500">
+                                    <option value="">No list</option>
+                                    {(lists ?? []).map((l) => (
+                                      <option key={l.id} value={l.id}>{l.name}{typeof l.totalCount === "number" ? ` (${l.totalCount})` : ""}</option>
+                                    ))}
+                                  </select>
+                                </Field>
+                                {actionError ? <p className="text-[12px] text-rose-500">{actionError}</p> : null}
+                                <div className="flex items-center justify-end gap-2 pt-0.5">
+                                  <button disabled={busy} onClick={resetActions} className="rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60 disabled:opacity-50">Cancel</button>
+                                  <button disabled={busy} onClick={saveEdit} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
+                                    {busy ? <FlowLoader size={14} /> : <Check className="h-3.5 w-3.5" />} Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* schedule form */}
+                            {mode === "schedule" ? (
+                              <div className="space-y-2.5 rounded-xl border border-border bg-background p-3">
+                                <Field label="Send at">
+                                  <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[13px] outline-none focus:border-brand-500" />
+                                </Field>
+                                {actionError ? <p className="text-[12px] text-rose-500">{actionError}</p> : null}
+                                <div className="flex items-center justify-end gap-2 pt-0.5">
+                                  <button disabled={busy} onClick={resetActions} className="rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60 disabled:opacity-50">Cancel</button>
+                                  <button disabled={busy} onClick={() => submitSend("schedule")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
+                                    {busy ? <FlowLoader size={14} /> : <CalendarClock className="h-3.5 w-3.5" />} Schedule
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* send confirm */}
+                            {mode === "send" ? (
+                              <div className="space-y-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                                <div className="flex items-start gap-2 text-[12.5px]">
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                                  <p>Send <span className="font-semibold">{detail.name}</span> now? This delivers to the selected audience and deducts credits.</p>
+                                </div>
+                                {actionError ? <p className="text-[12px] text-rose-500">{actionError}</p> : null}
+                                <div className="flex items-center justify-end gap-2 pt-0.5">
+                                  <button disabled={busy} onClick={resetActions} className="rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60 disabled:opacity-50">Cancel</button>
+                                  <button disabled={busy} onClick={() => submitSend("send")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
+                                    {busy ? <FlowLoader size={14} /> : <Send className="h-3.5 w-3.5" />} Send now
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* delete confirm */}
+                            {mode === "delete" ? (
+                              <div className="space-y-2.5 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3">
+                                <div className="flex items-start gap-2 text-[12.5px]">
+                                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                                  <p>Delete <span className="font-semibold">{detail.name}</span>? This cannot be undone.</p>
+                                </div>
+                                {actionError ? <p className="text-[12px] text-rose-500">{actionError}</p> : null}
+                                <div className="flex items-center justify-end gap-2 pt-0.5">
+                                  <button disabled={busy} onClick={resetActions} className="rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60 disabled:opacity-50">Cancel</button>
+                                  <button disabled={busy} onClick={confirmDelete} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
+                                    {busy ? <FlowLoader size={14} /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         ) : (
                           <p className="py-3 text-center text-[12.5px] text-muted-foreground">Could not load this campaign.</p>
@@ -382,6 +499,15 @@ function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; v
 function Stat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
     <span className="inline-flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" /><span className="sr-only">{label}: </span><span className="font-medium text-foreground/90">{value}</span></span>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 
