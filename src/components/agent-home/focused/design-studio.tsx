@@ -98,8 +98,10 @@ export function designCanvasContext(d: DesignDoc): string {
 
 export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): DesignDoc {
   const next = { ...d };
+  const TEXT_KEYS = new Set(["eyebrow", "headline", "sub", "cta"]);
   for (const k of ["eyebrow", "headline", "sub", "cta", "accent", "size", "style"] as const) {
-    const v = patch[k]; if (typeof v === "string" && v) next[k] = v;
+    // Normalize a literal backslash-n into a real line break for text fields.
+    const v = patch[k]; if (typeof v === "string" && v) next[k] = TEXT_KEYS.has(k) ? v.replace(/\\n/g, "\n") : v;
   }
   if (typeof patch.imageUrl === "string" && patch.imageUrl) next.imageUrl = patch.imageUrl;
   if (typeof patch.generating === "boolean") next.generating = patch.generating;
@@ -284,8 +286,8 @@ function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemov
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[];
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, working }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; working?: boolean;
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
@@ -304,6 +306,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   // On small screens the controls are a slide-over drawer — start it closed so it
   // doesn't cover the canvas on load (it's open by default on desktop).
   useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setToolsOpen(false); }, []);
+  // Keep the per-element ✨ spinner up until the agent turn actually finishes —
+  // clear it only when the agent stops working (not on an arbitrary timer).
+  useEffect(() => { if (working === false) setAssistBusy(null); }, [working]);
 
   const [w] = value.size.split("×").map(Number);
   const ratio = (() => { const [a, b] = value.size.split("×").map(Number); return a && b ? a / b : 1; })();
@@ -321,7 +326,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const removeImage = (id: string) => { setImages(imagesRef.current.filter((i) => i.id !== id)); setSel((s) => (s?.kind === "image" && s.id === id ? null : s)); };
   const removeText = (id: string) => { setTexts(textsRef.current.filter((t) => t.id !== id)); setSel((s) => (s?.kind === "text" && s.id === id ? null : s)); };
   const exportImage = () => { if (value.imageUrl) window.open(value.imageUrl, "_blank", "noopener,noreferrer"); };
-  const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); setTimeout(() => setAssistBusy((b) => (b === el ? null : b)), 2600); };
+  const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
 
   // per-element style read/write (core elements via value.styles, free text via the layer)
   const coreStyle = (k: ElementKey): TextStyle => value.styles?.[k] ?? {};
@@ -431,11 +436,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                   );
                 })}
 
-                {images.length === 0 && (
-                  <button type="button" onClick={() => photoRef.current?.click()} className="absolute left-1/2 top-[24%] grid h-[34%] w-[64%] -translate-x-1/2 place-items-center rounded-xl border-2 border-dashed border-white/30 bg-white/[0.04] text-center transition hover:border-white/50">
-                    <div className="flex flex-col items-center gap-1.5 px-3 text-white/80"><ImagePlus className="h-6 w-6" /><span className="text-[11.5px] font-semibold">Drop your photo here</span><span className="text-[10px] text-white/55">or use Add photo / Add logo — as many as you need</span></div>
-                  </button>
-                )}
+                {/* Images are optional — add them from the toolbar (Add photo / Add
+                    logo) or by dropping onto the canvas; no permanent placeholder. */}
 
                 {/* core text */}
                 {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {

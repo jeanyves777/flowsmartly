@@ -26,6 +26,11 @@ import {
  * / history live in the global widget and can be layered on later.
  */
 
+// Invisible marker (U+2063, a format char that survives .trim()) prepended to
+// button-driven internal instructions so the transcript loader can drop them —
+// they're sent to the agent but must never surface as a user bubble.
+const HIDDEN_PREFIX = "⁣";
+
 export interface HomeMessage {
   id: string;
   role: "user" | "assistant";
@@ -75,6 +80,9 @@ export function useHomeAgent() {
       const userMsg: HomeMessage = { id: `tmp-u-${Date.now()}`, role: "user", content: trimmed };
       const pendingMsg: HomeMessage = { id: `tmp-a-${Date.now()}`, role: "assistant", content: "" };
       setMessages((prev) => (opts?.hidden ? [...prev, pendingMsg] : [...prev, userMsg, pendingMsg]));
+      // Hidden instructions are persisted server-side; tag them so a later reload
+      // drops them instead of re-rendering the raw internal prompt as a user bubble.
+      const wire = opts?.hidden ? HIDDEN_PREFIX + trimmed : trimmed;
 
       const toolCallsById = new Map<string, AgentToolCardData>();
       const proposalsById = new Map<string, PlanProposalCardData>();
@@ -103,7 +111,7 @@ export function useHomeAgent() {
       };
 
       try {
-        const res = await send({ message: trimmed, conversationId, superMode, canvasContext, surfaceContext });
+        const res = await send({ message: wire, conversationId, superMode, canvasContext, surfaceContext });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
           try {
@@ -257,6 +265,9 @@ export function useHomeAgent() {
         setMessages(
           rawMsgs
             .filter((m) => m.role === "user" || m.role === "assistant")
+            // Drop button-driven internal instructions (tagged with HIDDEN_PREFIX)
+            // so we never re-surface a raw agent prompt as a user bubble.
+            .filter((m) => !(m.role === "user" && m.content.startsWith(HIDDEN_PREFIX)))
             .map((m) => ({
               id: m.id,
               role: m.role === "assistant" ? "assistant" : "user",

@@ -635,11 +635,14 @@ export function AgentHome() {
                     value={design}
                     onChange={setDesign}
                     brandColors={brandColors}
+                    working={sending}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
                       const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action button text";
+                      // Propose a few options as a clickable card instead of silently
+                      // applying one — the user picks, THEN we apply only that field.
                       send(
-                        `Improve ONLY the ${label} on the design canvas — make it punchier and on-brand. Change ONLY the "${el}" field via update_canvas; keep the eyebrow, headline, subtext, button, images, accent, style and size you're NOT changing EXACTLY as they are. Don't regenerate anything else; reply in one short sentence.`,
+                        `Suggest 3 distinct, genuinely punchier on-brand options for the ${label} of the open design — short and high-impact, NOT just re-capitalized or trivially reworded. Use the ask_choice tool to show them as a clickable card: each option's label = the exact new ${label} text, the sublabel = the angle in 2-4 words. Do NOT change the canvas yet. When I tap one, apply ONLY the "${el}" field via update_canvas and keep the eyebrow, headline, subtext, button, accent, style and size you're NOT changing EXACTLY as they are, then confirm in one short sentence.`,
                         false, designCanvasContext(design), undefined, { hidden: true },
                       );
                     }}

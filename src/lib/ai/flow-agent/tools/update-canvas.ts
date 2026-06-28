@@ -31,11 +31,14 @@ export const updateCanvas: FlowAgentTool = {
   mutating: false,
   handler: async (input, ctx) => {
     const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    // Models often emit a literal backslash-n (it survives JSON escaping) instead
+    // of a real newline — normalize so the canvas shows a line break, not "\n".
+    const text = (v: unknown) => str(v).replace(/\\n/g, "\n");
     const patch: Record<string, string> = {};
 
-    if (str(input.headline)) patch.headline = str(input.headline);
-    if (str(input.sub)) patch.sub = str(input.sub);
-    if (str(input.cta)) patch.cta = str(input.cta);
+    if (text(input.headline)) patch.headline = text(input.headline);
+    if (text(input.sub)) patch.sub = text(input.sub);
+    if (text(input.cta)) patch.cta = text(input.cta);
 
     const accent = str(input.accent).toLowerCase();
     if (accent) {
