@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
       mediaType: bodyMediaType,
       platforms,
       scheduledAt,
+      status: bodyStatus,
       aiGenerate,
       aiTopic,
       aiTone,
@@ -256,11 +257,15 @@ export async function POST(request: NextRequest) {
     const hashtags = finalCaption.match(/#[\w]+/g) || [];
     const mentions = finalCaption.match(/@[\w]+/g) || [];
 
-    // Determine status
+    // Determine status. An explicit DRAFT request must NOT publish — it saves a
+    // draft (no publishedAt, no external publishing). Otherwise a future
+    // scheduledAt → SCHEDULED, and anything else publishes now.
     let status = "PUBLISHED";
     let parsedScheduledAt: Date | null = null;
 
-    if (scheduledAt) {
+    if (typeof bodyStatus === "string" && bodyStatus.toUpperCase() === "DRAFT") {
+      status = "DRAFT";
+    } else if (scheduledAt) {
       const scheduledDate = new Date(scheduledAt);
       if (isNaN(scheduledDate.getTime())) {
         return NextResponse.json(
