@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ElementType } from "react";
 import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { EmailSetupCard } from "./email-setup";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -64,6 +65,8 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
+  // null = unknown; false = needs setup (gate); true = configured (show campaigns).
+  const [configured, setConfigured] = useState<boolean | null>(null);
 
   // Selected campaign detail: id while loading, the detail object once fetched, null when closed.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -72,12 +75,18 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   const load = useCallback(async () => {
     try {
-      const j = await fetch("/api/campaigns?type=email&limit=30").then((r) => r.json());
+      const [cfg, j] = await Promise.all([
+        fetch("/api/marketing-config").then((r) => r.json()).catch(() => null),
+        fetch("/api/campaigns?type=email&limit=30").then((r) => r.json()).catch(() => null),
+      ]);
+      const c = cfg?.data?.config;
+      // Ready to send = a provider chosen, a sender on file, and a verified test send.
+      setConfigured(!!c && c.emailProvider !== "NONE" && !!c.emailVerified && !!c.defaultFromEmail);
       if (j?.success && j.data) {
         if (Array.isArray(j.data.campaigns)) setCampaigns(j.data.campaigns);
         if (j.data.stats) setStats(j.data.stats);
       }
-    } catch { /* ignore */ }
+    } catch { setConfigured((v) => (v === null ? false : v)); }
   }, []);
 
   useEffect(() => {
@@ -101,6 +110,15 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
+  }
+
+  // Config gate: no sending setup → show the setup landing, not the campaigns menu.
+  if (configured === false) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        <EmailSetupCard onDone={() => { setConfigured(null); setLoading(true); load().finally(() => setLoading(false)); }} />
+      </div>
+    );
   }
 
   const totalCampaigns = stats.total ?? campaigns.length;
