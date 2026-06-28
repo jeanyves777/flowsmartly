@@ -220,7 +220,9 @@ export async function GET(request: NextRequest) {
         connectedAt: item.connectedAt?.toISOString() || null,
         tokenExpiresAt: item.tokenExpiresAt?.toISOString() || null,
         missingScopes: missingRequiredScopes(item.platform, item.scopes),
-        needsReconnect: missingRequiredScopes(item.platform, item.scopes).length > 0,
+        // An expired token also needs a reconnect (mirrors the platform-filtered branch).
+        needsReconnect: missingRequiredScopes(item.platform, item.scopes).length > 0
+          || (!!item.tokenExpiresAt && item.tokenExpiresAt.getTime() < Date.now()),
       }));
       return {
         platform: p.id,

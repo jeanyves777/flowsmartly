@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X } from "lucide-react";
+import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X, Eye, Download, BarChart3, ShieldAlert, TrendingUp, Code2, AlertTriangle, CheckCircle2, AlertCircle, ChevronUp, Zap, Trophy, Users, Clock, Target, ListTodo } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { computeDigitalScore, scoreColor, scoreBg } from "@/components/pitch/score-utils";
+import { scoreLabel } from "@/lib/pitch/scorer";
+import type { ResearchData } from "@/lib/pitch/pitch-detail-types";
 
 /**
  * Lead finder — its own dedicated surface (split from the legacy pitch-board).
@@ -51,6 +54,7 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
   const [listLeads, setListLeads] = useState<SavedLead[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [busyLead, setBusyLead] = useState<string | null>(null);
+  const [confirmDelList, setConfirmDelList] = useState(false);
 
   const loadLists = useCallback(async () => {
     try { const j = await fetch("/api/leads/lists").then((r) => r.json()); if (j?.success) setLists(j.data.lists || []); } catch { /* ignore */ }
@@ -88,7 +92,7 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
   };
 
   const showList = async (l: LeadList) => {
-    setOpenList(l); setListLeads([]); setListLoading(true);
+    setOpenList(l); setListLeads([]); setListLoading(true); setConfirmDelList(false);
     try { const j = await fetch(`/api/leads/lists/${l.id}`).then((r) => r.json()); if (j?.success) { setOpenList(j.data.list); setListLeads(j.data.leads || []); } } catch { /* ignore */ } finally { setListLoading(false); }
   };
 
@@ -202,12 +206,19 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
           // ── list detail ──
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => setOpenList(null)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Lists</button>
+              <button onClick={() => { setOpenList(null); setConfirmDelList(false); }} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Lists</button>
               <div className="min-w-0">
                 <h3 className="truncate text-[14px] font-bold">{openList.name}</h3>
                 <p className="truncate text-[11.5px] text-muted-foreground">{openList.category ? `${openList.category} · ` : ""}{listLeads.length} lead{listLeads.length === 1 ? "" : "s"}</p>
               </div>
-              <button onClick={() => removeList(openList)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete list</button>
+              {confirmDelList ? (
+                <span className="ms-auto inline-flex items-center gap-1.5">
+                  <button onClick={() => removeList(openList)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Trash2 className="h-3.5 w-3.5" /> Confirm delete</button>
+                  <button onClick={() => setConfirmDelList(false)} className="inline-flex items-center gap-1 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmDelList(true)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete list</button>
+              )}
             </div>
             {listLoading ? (
               <div className="py-8"><FlowLoader size={22} label="Loading leads…" /></div>
@@ -254,6 +265,33 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
 interface LeadPitch { id: string; businessName?: string; documentType?: string; status?: string; recipientEmail?: string | null }
 const statusPill = (s?: string) => ({ READY: "bg-emerald-500/10 text-emerald-500", SENT: "bg-violet-500/10 text-violet-500", FAILED: "bg-rose-500/10 text-rose-500", RESEARCHING: "bg-brand-500/10 text-brand-500", PENDING: "bg-muted text-muted-foreground" }[(s || "PENDING").toUpperCase()] || "bg-muted text-muted-foreground");
 
+// ── Detail content shapes (from GET /api/pitch/[id]) ─────────────────────────
+interface OutreachContent {
+  subject?: string; headline?: string; personalizedHook?: string; keyFindings?: string[];
+  hiddenFindingsCount?: number; opportunityParagraph?: string; solutionBullets?: string[];
+  impactParagraph?: string; ctaText?: string; ctaSubtext?: string; closingLine?: string;
+}
+interface ProposalContent {
+  documentType: "service_proposal"; subject?: string; title?: string; subtitle?: string;
+  preparedFor?: string; preparedBy?: string; serviceTitle?: string; executiveSummary?: string;
+  aboutBrand?: string; clientNeed?: string; commitments?: string[]; benefits?: string[];
+  deliverables?: Array<{ title?: string; description?: string }>;
+  timeline?: Array<{ label?: string; title?: string; description?: string }>;
+  proofPoints?: Array<{ metric?: string; label?: string; note?: string }>;
+  pricing?: { name?: string; amount?: number; originalAmount?: number; interval?: string; note?: string };
+  terms?: string[]; nextSteps?: string[];
+  contact?: { name?: string; email?: string; phone?: string; website?: string; address?: string };
+}
+interface PitchDetail {
+  id: string; businessName: string; businessUrl?: string | null; documentType?: string;
+  status?: string; recipientEmail?: string | null; recipientName?: string | null;
+  sentAt?: string | null; errorMessage?: string | null; createdAt?: string;
+  research: ResearchData; pitchContent: OutreachContent | ProposalContent;
+}
+const isProposalContent = (c: OutreachContent | ProposalContent): c is ProposalContent =>
+  (c as ProposalContent)?.documentType === "service_proposal";
+const fmtPrice = (n?: number) => typeof n === "number" ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "";
+
 // The human-editable text fields shared across pitches (PitchContent) and
 // proposals — only those present on a given document render. Everything else in
 // the content object (sections, design, arrays) is preserved untouched on save.
@@ -285,6 +323,13 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editFields, setEditFields] = useState<Record<string, string>>({});
+  // ── detail view (full audit + client-facing preview) ──
+  const [viewFor, setViewFor] = useState<string | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [detail, setDetail] = useState<PitchDetail | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [confirmDelLead, setConfirmDelLead] = useState(false);
+  const [confirmDelItem, setConfirmDelItem] = useState<string | null>(null);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -311,7 +356,7 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
   // fields, and let the user revise the detail before re-saving (or emailing).
   const openEdit = async (id: string) => {
     if (editFor === id) { setEditFor(null); return; }
-    setEmailFor(null); setEditFor(id); setEditLoading(true); setEditFields({}); setEditRaw({}); setEditName(""); setEditEmail("");
+    setEmailFor(null); setViewFor(null); setDetail(null); setEditFor(id); setEditLoading(true); setEditFields({}); setEditRaw({}); setEditName(""); setEditEmail("");
     try {
       const j = await fetch(`/api/pitch/${id}`).then((r) => r.json());
       if (j?.success) {
@@ -335,6 +380,40 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
     } catch { /* ignore */ } finally { setWorking(false); }
   };
 
+  // Open the full detail view: pull the document + internal research so we can
+  // render the digital-presence audit, score, Google profile, reviews, pain
+  // points, opportunities, and the client-facing pitch/proposal preview.
+  const openView = async (id: string) => {
+    if (viewFor === id) { setViewFor(null); setDetail(null); return; }
+    setEditFor(null); setEmailFor(null); setViewFor(id); setViewLoading(true); setDetail(null);
+    try {
+      const j = await fetch(`/api/pitch/${id}`).then((r) => r.json());
+      if (j?.success) {
+        const p = j.data.pitch;
+        const content = (p.pitchContent && typeof p.pitchContent === "object") ? p.pitchContent : {};
+        const research = (p.research && typeof p.research === "object") ? p.research : {};
+        setDetail({ ...p, pitchContent: content, research } as PitchDetail);
+      }
+    } catch { /* ignore */ } finally { setViewLoading(false); }
+  };
+
+  // Download the generated pitch/proposal as a PDF. The dedicated PDF path is
+  // POST /api/pitch/[id]/send with { pdfOnly: true }, which streams the binary.
+  const downloadPdf = async (id: string, name: string) => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/pitch/${id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true }) });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(name || "pitch").replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ } finally { setDownloading(false); }
+  };
+
   return (
     <div className="rounded-xl border border-border bg-muted/30">
       <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5 p-3">
@@ -350,7 +429,14 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
         <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => onStatus(e.target.value)} disabled={busy} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
           {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </select>
-        <button onClick={onRemove} disabled={busy} className="mt-1 shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete lead">{busy ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}</button>
+        {confirmDelLead ? (
+          <span className="mt-0.5 inline-flex shrink-0 items-center gap-1">
+            <button onClick={onRemove} disabled={busy} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-500 px-2 py-1 text-[10.5px] font-semibold text-white disabled:opacity-60">{busy ? <FlowLoader size={11} tone="white" /> : <Trash2 className="h-3 w-3" />} Delete</button>
+            <button onClick={() => setConfirmDelLead(false)} className="rounded-[8px] border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmDelLead(true)} disabled={busy} className="mt-1 shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete lead"><Trash2 className="h-3.5 w-3.5" /></button>
+        )}
       </div>
 
       {open && (
@@ -377,9 +463,17 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
                       <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", isProp ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>{isProp ? <Presentation className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>
                       <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{isProp ? "Proposal" : "Pitch"}{it.businessName ? ` · ${it.businessName}` : ""}</span>
                       <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize", statusPill(it.status))}>{(it.status || "PENDING").toLowerCase()}</span>
+                      <button onClick={() => openView(it.id)} className={cn("shrink-0 hover:text-brand-500", viewFor === it.id ? "text-brand-500" : "text-muted-foreground")} title="View full detail"><Eye className="h-3.5 w-3.5" /></button>
                       <button onClick={() => openEdit(it.id)} className={cn("shrink-0 hover:text-brand-500", editFor === it.id ? "text-brand-500" : "text-muted-foreground")} title="Edit details"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => { setEditFor(null); setEmailFor(emailFor === it.id ? null : it.id); setEmailTo(it.recipientEmail || ""); }} className="shrink-0 text-muted-foreground hover:text-brand-500" title="Email"><Mail className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => delItem(it.id)} disabled={working} className="shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => { setEditFor(null); setViewFor(null); setDetail(null); setConfirmDelItem(null); setEmailFor(emailFor === it.id ? null : it.id); setEmailTo(it.recipientEmail || ""); }} className="shrink-0 text-muted-foreground hover:text-brand-500" title="Email"><Mail className="h-3.5 w-3.5" /></button>
+                      {confirmDelItem === it.id ? (
+                        <span className="inline-flex shrink-0 items-center gap-1">
+                          <button onClick={() => { delItem(it.id); setConfirmDelItem(null); }} disabled={working} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-500 px-2 py-0.5 text-[10.5px] font-semibold text-white disabled:opacity-60"><Trash2 className="h-3 w-3" /> Delete</button>
+                          <button onClick={() => setConfirmDelItem(null)} className="rounded-[8px] border border-border px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => { setEmailFor(null); setConfirmDelItem(it.id); }} disabled={working} className="shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                      )}
                     </div>
                     {editFor === it.id && (
                       <div className="mt-2 rounded-lg border border-brand-500/30 bg-brand-500/5 p-2.5">
@@ -414,6 +508,17 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
                         <button onClick={() => sendItem(it.id)} disabled={working || !emailTo.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">{working ? <FlowLoader size={13} tone="white" /> : <Send className="h-3.5 w-3.5" />} Send</button>
                       </div>
                     )}
+                    {viewFor === it.id && (
+                      <div className="mt-2">
+                        {viewLoading ? (
+                          <div className="rounded-lg border border-border bg-background py-6"><FlowLoader size={18} label="Opening the full detail…" /></div>
+                        ) : detail ? (
+                          <PitchDetailView detail={detail} downloading={downloading} onDownload={() => downloadPdf(detail.id, detail.businessName)} onClose={() => { setViewFor(null); setDetail(null); }} />
+                        ) : (
+                          <p className="rounded-lg border border-border bg-background px-3 py-4 text-center text-[12px] text-muted-foreground">Could not load this document.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -421,6 +526,314 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
           ) : <p className="py-1.5 text-[12px] text-muted-foreground">No pitches or proposals yet — create one above.</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Section heading helper ───────────────────────────────────────────────────
+function SectionTitle({ icon, children, className }: { icon: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return <h4 className={cn("flex items-center gap-1.5 text-[12.5px] font-bold", className)}>{icon}{children}</h4>;
+}
+
+/**
+ * Full pitch/proposal detail — the digital-presence audit (health score, score
+ * breakdown, Google profile, reviews), pain points, opportunities, and the
+ * client-facing pitch/proposal preview. Plus a one-tap PDF download.
+ * All data comes from GET /api/pitch/[id]; PDF from POST …/send { pdfOnly }.
+ */
+function PitchDetailView({ detail, downloading, onDownload, onClose }: { detail: PitchDetail; downloading: boolean; onDownload: () => void; onClose: () => void }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [showHours, setShowHours] = useState(false);
+  const content = detail.pitchContent;
+  const proposal = isProposalContent(content) ? content : null;
+  const pc = proposal ? null : (content as OutreachContent);
+  const research = detail.research || {};
+  const gp = research.googlePlaces;
+  const status = (detail.status || "PENDING").toUpperCase();
+  const isReady = status === "READY" || status === "SENT";
+  const isProcessing = status === "PENDING" || status === "RESEARCHING";
+  const { overall, categories } = isReady && !proposal ? computeDigitalScore(research) : { overall: 0, categories: [] };
+
+  return (
+    <div className="rounded-xl border border-brand-500/30 bg-card">
+      {/* header / toolbar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+        <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", proposal ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>{proposal ? <Presentation className="h-4 w-4" /> : <FileText className="h-4 w-4" />}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-bold">{proposal ? "Service proposal" : "Outreach pitch"} · {detail.businessName}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {research.industry ? `${research.industry} · ` : ""}{status[0] + status.slice(1).toLowerCase()}
+            {detail.sentAt ? ` · sent ${new Date(detail.sentAt).toLocaleDateString()}` : ""}
+          </p>
+        </div>
+        {isReady && (
+          <button onClick={onDownload} disabled={downloading} className="inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60" title="Download as PDF">
+            {downloading ? <FlowLoader size={13} /> : <Download className="h-3.5 w-3.5" />} PDF
+          </button>
+        )}
+        <button onClick={onClose} className="shrink-0 rounded-[9px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground" title="Close"><X className="h-3.5 w-3.5" /></button>
+      </div>
+
+      <div className="p-3">
+        {isProcessing ? (
+          <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center">
+            <FlowLoader size={20} label={status === "PENDING" ? "Queued for research…" : "Researching the business…"} />
+            <p className="mx-auto mt-2 max-w-sm text-[11.5px] text-muted-foreground">The agent is scanning the website, pulling Google Business data, and crafting the {proposal ? "proposal" : "pitch"}. This takes 30–90 seconds — reopen to refresh.</p>
+          </div>
+        ) : status === "FAILED" ? (
+          <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-3 text-[12px] text-rose-500">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{detail.errorMessage || "Research failed. Delete and create a new one to retry."}</span>
+          </div>
+        ) : proposal ? (
+          /* ═══ PROPOSAL — client-facing preview ═══ */
+          <ProposalPreview proposal={proposal} businessName={detail.businessName} />
+        ) : (
+          /* ═══ PITCH — internal audit + client preview ═══ */
+          <div className="grid gap-3 lg:grid-cols-2">
+            {/* LEFT: digital-presence audit (internal) */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <SectionTitle icon={<BarChart3 className="h-4 w-4 text-brand-500" />}>Digital presence audit</SectionTitle>
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">Internal only</span>
+              </div>
+
+              {/* health score */}
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[12px] font-semibold">Digital health score</p>
+                    <p className={cn("text-[11px] font-semibold", scoreColor(overall))}>{scoreLabel(overall)} · vs 85 top performers</p>
+                  </div>
+                  <div className="text-right"><span className={cn("text-2xl font-black", scoreColor(overall))}>{overall}</span><span className="text-[10px] text-muted-foreground">/100</span></div>
+                </div>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted">
+                  <div className={cn("h-full rounded-full transition-all", scoreBg(overall))} style={{ width: `${overall}%` }} />
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-2.5 text-center">
+                  <div><div className={cn("text-[15px] font-black", scoreColor(overall))}>{overall}</div><div className="text-[10px] text-muted-foreground">{detail.businessName.split(" ")[0]}</div></div>
+                  <div><div className="text-[15px] font-black text-muted-foreground">52</div><div className="text-[10px] text-muted-foreground">Industry avg</div></div>
+                  <div><div className="text-[15px] font-black text-emerald-500">85</div><div className="text-[10px] text-muted-foreground">Top</div></div>
+                </div>
+              </div>
+
+              {/* score breakdown */}
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <SectionTitle icon={<BarChart3 className="h-4 w-4 text-brand-500" />} className="mb-2.5">Score breakdown</SectionTitle>
+                <div className="space-y-2.5">
+                  {categories.map((cat) => (
+                    <div key={cat.name}>
+                      <button onClick={() => setExpanded(expanded === cat.name ? null : cat.name)} className="w-full text-left">
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className={scoreColor(cat.score)}>{cat.icon}</span>
+                          <span className="flex-1 text-[12px] font-medium">{cat.name}</span>
+                          <span className={cn("w-8 text-right text-[12px] font-bold", scoreColor(cat.score))}>{cat.score}</span>
+                          <span className="w-7 text-right text-[10px] text-muted-foreground">{cat.weight}%</span>
+                          {expanded === cat.name ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full transition-all", scoreBg(cat.score))} style={{ width: `${cat.score}%` }} /></div>
+                      </button>
+                      {expanded === cat.name && (
+                        <div className="ms-6 mt-1.5 space-y-1.5">
+                          {cat.items.map((item, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[11px]">
+                              {item.ok ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" />}
+                              <span><span className={item.ok ? "font-medium" : "font-medium text-muted-foreground"}>{item.label}</span>{item.detail ? <span className="text-muted-foreground"> — {item.detail}</span> : null}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Google profile */}
+              <div className={cn("rounded-xl border p-3", gp ? "border-border bg-muted/30" : "border-rose-500/30 bg-rose-500/5")}>
+                <div className="mb-2 flex items-center gap-2">
+                  <SectionTitle icon={<Star className="h-4 w-4 text-amber-500" />}>Google Business profile</SectionTitle>
+                  <span className={cn("ms-auto rounded-full px-2 py-0.5 text-[10px] font-semibold", gp ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>{gp ? "Found" : "Not found"}</span>
+                </div>
+                {!gp ? (
+                  <p className="flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> No Google listing — essentially invisible to local search.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {gp.rating !== undefined && (
+                      <div className="flex items-center gap-3">
+                        <div className="text-center"><div className={cn("text-2xl font-black", gp.rating >= 4.5 ? "text-emerald-500" : gp.rating >= 4 ? "text-amber-500" : "text-rose-500")}>{gp.rating.toFixed(1)}</div><div className="text-[10px] text-muted-foreground">of 5.0</div></div>
+                        <div className="flex-1">
+                          <div className="flex">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className={cn("h-3.5 w-3.5", i < Math.round(gp.rating || 0) ? "fill-amber-400 text-amber-400" : "fill-muted text-muted")} />)}</div>
+                          <p className="mt-0.5 text-[11.5px] text-muted-foreground"><strong>{gp.reviewCount ?? 0}</strong> Google reviews</p>
+                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", gp.rating >= 4.5 ? "bg-emerald-500" : gp.rating >= 4 ? "bg-amber-500" : "bg-rose-500")} style={{ width: `${(gp.rating / 5) * 100}%` }} /></div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-1 text-[11.5px] text-muted-foreground">
+                      {gp.address && <p className="flex items-start gap-1.5"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {gp.address}</p>}
+                      {gp.phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 shrink-0" /> <a href={`tel:${gp.phone}`} className="hover:text-foreground">{gp.phone}</a></p>}
+                      {gp.googleMapsUrl && <a href={gp.googleMapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-brand-500 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> View on Google Maps</a>}
+                      {gp.isOpenNow !== undefined && <p className={cn("flex items-center gap-1.5 font-medium", gp.isOpenNow ? "text-emerald-500" : "text-rose-500")}><span className={cn("h-2 w-2 rounded-full", gp.isOpenNow ? "bg-emerald-500" : "bg-rose-500")} /> {gp.isOpenNow ? "Open now" : "Closed now"}</p>}
+                    </div>
+                    {gp.hours && gp.hours.length > 0 && (
+                      <div>
+                        <button onClick={() => setShowHours((v) => !v)} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">{showHours ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />} <Clock className="h-3 w-3" /> {showHours ? "Hide hours" : "Show hours"}</button>
+                        {showHours && <div className="mt-1 space-y-0.5">{gp.hours.map((h, i) => <div key={i} className="text-[11px] text-muted-foreground">{h}</div>)}</div>}
+                      </div>
+                    )}
+                    {gp.recentReviews && gp.recentReviews.length > 0 && (
+                      <div>
+                        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Recent reviews</p>
+                        <div className="space-y-2">
+                          {gp.recentReviews.map((rv, i) => (
+                            <div key={i} className={cn("rounded-lg border p-2", rv.rating >= 4 ? "border-emerald-500/20 bg-emerald-500/5" : "border-rose-500/20 bg-rose-500/5")}>
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <div className="flex">{Array.from({ length: 5 }).map((_, si) => <Star key={si} className={cn("h-3 w-3", si < rv.rating ? "fill-amber-400 text-amber-400" : "fill-muted text-muted")} />)}</div>
+                                <span className="text-[10px] text-muted-foreground">{rv.timeAgo}</span>
+                              </div>
+                              <p className="text-[11.5px] leading-relaxed text-foreground line-clamp-3">&ldquo;{rv.text}&rdquo;</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* tech stack */}
+              {research.techStack && research.techStack.length > 0 && (
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
+                  <SectionTitle icon={<Code2 className="h-4 w-4 text-muted-foreground" />} className="mb-2">Detected tech stack</SectionTitle>
+                  <div className="flex flex-wrap gap-1.5">{research.techStack.map((t, i) => <span key={i} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{t}</span>)}</div>
+                </div>
+              )}
+
+              {/* pain points */}
+              {research.painPoints && research.painPoints.length > 0 && (
+                <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
+                  <SectionTitle icon={<ShieldAlert className="h-4 w-4" />} className="mb-2 text-rose-500">Identified issues ({research.painPoints.length})</SectionTitle>
+                  <div className="space-y-1.5">{research.painPoints.map((p, i) => <div key={i} className="flex items-start gap-1.5 text-[11.5px]"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" /> <span>{p}</span></div>)}</div>
+                </div>
+              )}
+
+              {/* opportunities */}
+              {research.opportunities && research.opportunities.length > 0 && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                  <SectionTitle icon={<TrendingUp className="h-4 w-4" />} className="mb-2 text-emerald-500">Growth opportunities ({research.opportunities.length})</SectionTitle>
+                  <div className="space-y-1.5">{research.opportunities.map((o, i) => <div key={i} className="flex items-start gap-1.5 text-[11.5px]"><Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /> <span>{o}</span></div>)}</div>
+                </div>
+              )}
+
+              {research.summary && (
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
+                  <SectionTitle icon={<Target className="h-4 w-4 text-muted-foreground" />} className="mb-1.5">Business summary</SectionTitle>
+                  <p className="text-[11.5px] leading-relaxed text-muted-foreground">{research.summary}</p>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT: client-facing pitch preview */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <SectionTitle icon={<Eye className="h-4 w-4 text-brand-500" />}>Pitch preview</SectionTitle>
+                <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-500">Client sees this</span>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-4 text-white">
+                  <p className="text-[18px] font-black leading-tight">{pc?.headline || `A growth strategy for ${detail.businessName}`}</p>
+                  <p className="mt-1 text-[11px] text-white/85">Prepared for <strong>{detail.businessName}</strong></p>
+                </div>
+                <div className="space-y-3 p-3.5">
+                  {pc?.subject && (
+                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2"><p className="text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">Email subject</p><p className="text-[12.5px] font-semibold">{pc.subject}</p></div>
+                  )}
+                  {pc?.personalizedHook && <p className="text-[12.5px] leading-relaxed">{pc.personalizedHook}</p>}
+                  {pc?.keyFindings && pc.keyFindings.length > 0 && (
+                    <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="mb-2 text-[9.5px] font-bold uppercase tracking-wide text-brand-500">What we discovered</p>
+                      <div className="space-y-2">{pc.keyFindings.map((f, i) => <div key={i} className="flex items-start gap-2"><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white">{i + 1}</span><span className="text-[12px]">{f}</span></div>)}</div>
+                      {(pc.hiddenFindingsCount || 0) > 0 && <p className="mt-2 flex items-center gap-1.5 border-t border-border pt-2 text-[10.5px] italic text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> +{pc.hiddenFindingsCount} more insights to discuss.</p>}
+                    </div>
+                  )}
+                  {pc?.opportunityParagraph && <div><p className="mb-1 text-[9.5px] font-bold uppercase tracking-wide text-brand-500">The opportunity</p><p className="text-[12px] leading-relaxed">{pc.opportunityParagraph}</p></div>}
+                  {pc?.solutionBullets && pc.solutionBullets.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-[9.5px] font-bold uppercase tracking-wide text-brand-500">How we can help</p>
+                      <div className="space-y-1.5">{pc.solutionBullets.map((b, i) => <div key={i} className="flex items-start gap-2 rounded-lg border border-brand-500/15 bg-brand-500/5 p-2"><Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" /> <span className="text-[12px]">{b}</span></div>)}</div>
+                    </div>
+                  )}
+                  {pc?.impactParagraph && <div className="rounded-lg border border-brand-500/15 bg-gradient-to-br from-brand-500/5 to-violet-500/5 p-3"><p className="mb-1 flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-brand-500"><TrendingUp className="h-3.5 w-3.5" /> Expected impact</p><p className="text-[12px] leading-relaxed">{pc.impactParagraph}</p></div>}
+                  {pc?.ctaText && <div className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 p-3 text-center text-white"><Trophy className="mx-auto mb-1 h-5 w-5 opacity-85" /><p className="text-[14px] font-black">{pc.ctaText}</p>{pc.ctaSubtext && <p className="text-[11px] text-white/85">{pc.ctaSubtext}</p>}</div>}
+                  {pc?.closingLine && <p className="text-[11.5px] italic text-muted-foreground">{pc.closingLine}</p>}
+                </div>
+              </div>
+              {status === "SENT" && detail.sentAt && (
+                <div className="flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-[11.5px] text-violet-500"><CheckCircle2 className="h-4 w-4 shrink-0" /> Sent to <strong>{detail.recipientEmail}</strong> on {new Date(detail.sentAt).toLocaleDateString()}</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Client-facing proposal preview — exec summary, deliverables, benefits, proof, pricing, timeline, next steps. */
+function ProposalPreview({ proposal, businessName }: { proposal: ProposalContent; businessName: string }) {
+  const p = proposal;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <div className="bg-gradient-to-r from-violet-500 to-brand-500 px-4 py-4 text-white">
+        {p.preparedBy && <p className="text-[9.5px] font-bold uppercase tracking-widest text-white/75">{p.preparedBy}</p>}
+        <p className="mt-1 text-[18px] font-black leading-tight">{p.title || `Proposal for ${businessName}`}</p>
+        {p.subtitle && <p className="mt-1 text-[12px] text-white/85">{p.subtitle}</p>}
+        <p className="mt-1 text-[11px] text-white/85">Prepared for <strong>{p.preparedFor || businessName}</strong></p>
+      </div>
+      <div className="space-y-3.5 p-3.5">
+        {p.executiveSummary && <div><p className="mb-1 text-[9.5px] font-bold uppercase tracking-wide text-violet-500">Executive summary</p><p className="text-[12px] leading-relaxed">{p.executiveSummary}</p></div>}
+        {p.clientNeed && <div className="rounded-lg border border-border bg-muted/30 p-3"><p className="mb-1 text-[9.5px] font-bold uppercase tracking-wide text-violet-500">The need</p><p className="text-[12px] leading-relaxed">{p.clientNeed}</p></div>}
+        {p.benefits && p.benefits.length > 0 && (
+          <div><p className="mb-2 text-[9.5px] font-bold uppercase tracking-wide text-violet-500">Benefits</p><div className="space-y-1.5">{p.benefits.map((b, i) => <div key={i} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /> <span className="text-[12px]">{b}</span></div>)}</div></div>
+        )}
+        {p.deliverables && p.deliverables.length > 0 && (
+          <div>
+            <p className="mb-2 text-[9.5px] font-bold uppercase tracking-wide text-violet-500">Deliverables</p>
+            <div className="space-y-1.5">{p.deliverables.map((d, i) => <div key={i} className="rounded-lg border border-violet-500/15 bg-violet-500/5 p-2.5"><p className="text-[12px] font-semibold">{d.title}</p>{d.description && <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{d.description}</p>}</div>)}</div>
+          </div>
+        )}
+        {p.proofPoints && p.proofPoints.length > 0 && (
+          <div>
+            <p className="mb-2 text-[9.5px] font-bold uppercase tracking-wide text-violet-500">Proof points</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{p.proofPoints.map((pp, i) => <div key={i} className="rounded-lg border border-border bg-muted/30 p-2.5 text-center"><div className="text-[16px] font-black text-violet-500">{pp.metric}</div><div className="text-[10.5px] text-muted-foreground">{pp.label}</div></div>)}</div>
+          </div>
+        )}
+        {p.timeline && p.timeline.length > 0 && (
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-violet-500"><Clock className="h-3.5 w-3.5" /> Timeline</p>
+            <div className="space-y-1.5">{p.timeline.map((t, i) => <div key={i} className="flex gap-2.5"><span className="mt-0.5 shrink-0 rounded-md bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">{t.label || `Phase ${i + 1}`}</span><div className="min-w-0"><p className="text-[12px] font-semibold">{t.title}</p>{t.description && <p className="text-[11px] text-muted-foreground">{t.description}</p>}</div></div>)}</div>
+          </div>
+        )}
+        {p.pricing && (p.pricing.amount !== undefined || p.pricing.name) && (
+          <div className="rounded-lg bg-gradient-to-r from-violet-500 to-brand-500 p-3.5 text-center text-white">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-white/80">{p.pricing.name || "Investment"}</p>
+            {p.pricing.amount !== undefined && (
+              <p className="mt-0.5 text-[20px] font-black">
+                {p.pricing.originalAmount !== undefined && p.pricing.originalAmount > (p.pricing.amount || 0) && <span className="me-1.5 text-[13px] font-semibold text-white/60 line-through">${fmtPrice(p.pricing.originalAmount)}</span>}
+                ${fmtPrice(p.pricing.amount)}{p.pricing.interval ? <span className="text-[12px] font-semibold text-white/85">/{p.pricing.interval}</span> : null}
+              </p>
+            )}
+            {p.pricing.note && <p className="mt-0.5 text-[10.5px] text-white/85">{p.pricing.note}</p>}
+          </div>
+        )}
+        {p.nextSteps && p.nextSteps.length > 0 && (
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-violet-500"><ListTodo className="h-3.5 w-3.5" /> Next steps</p>
+            <div className="space-y-1.5">{p.nextSteps.map((s, i) => <div key={i} className="flex items-start gap-2"><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-violet-500 text-[9px] font-bold text-white">{i + 1}</span><span className="text-[12px]">{s}</span></div>)}</div>
+          </div>
+        )}
+        {p.terms && p.terms.length > 0 && (
+          <div className="border-t border-border pt-2.5"><p className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">Terms</p><ul className="list-disc space-y-0.5 ps-4 text-[11px] text-muted-foreground">{p.terms.map((t, i) => <li key={i}>{t}</li>)}</ul></div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
 import Image from "next/image";
-import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3, Mail, MessageSquare, MessageCircle, Workflow, type LucideIcon } from "lucide-react";
+import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3, Mail, MessageSquare, MessageCircle, Workflow, RefreshCw, RadioTower, CheckCircle2, AlertTriangle, Clock, KeyRound, Activity, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -28,13 +28,94 @@ interface Analytics {
   topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number }>;
 }
 
+/** Per-account health from GET /api/social-accounts/analytics (see route for shape). */
+type HealthStatus = "synced" | "limited" | "needs_token" | "token_expired" | "unsupported" | "sync_failed" | "needs_refresh";
+interface SocialHealthAccount {
+  id: string;
+  platform: string;
+  platformKey?: string;
+  platformUsername?: string | null;
+  platformDisplayName?: string | null;
+  platformAvatarUrl?: string | null;
+  followersCount?: number | null;
+  followingCount?: number | null;
+  postsCount?: number | null;
+  engagementRate?: number | null;
+  impressions?: number | null;
+  reach?: number | null;
+  profileViews?: number | null;
+  analyticsUpdatedAt?: string | null;
+  connectedAt?: string | null;
+  tokenExpiresAt?: string | null;
+  hasAccessToken?: boolean;
+  tokenExpired?: boolean;
+  analyticsRefreshSupported?: boolean;
+  analyticsStatus?: string;
+  analyticsMessage?: string;
+}
+interface RefreshSummary { synced: number; partial: number; blocked: number }
+
+const fmtNum = (value: number | null | undefined): string => {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+};
+const fmtOptional = (value: number | null | undefined): string =>
+  value === null || value === undefined ? "—" : fmtNum(value);
+const fmtRate = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+  const v = Number(value);
+  const normalized = v > 1 ? v : v * 100;
+  return `${normalized.toFixed(1)}%`;
+};
+const timeAgo = (value: string | null | undefined): string => {
+  if (!value) return "Never synced";
+  const diff = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return "Just now";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "Yesterday" : `${days}d ago`;
+};
+
+function deriveStatus(a: SocialHealthAccount): HealthStatus {
+  if (a.analyticsStatus) return a.analyticsStatus as HealthStatus;
+  if (a.tokenExpired) return "token_expired";
+  if (!a.hasAccessToken) return "needs_token";
+  if (!a.analyticsRefreshSupported) return "unsupported";
+  if (!a.analyticsUpdatedAt) return "needs_refresh";
+  return "synced";
+}
+const STATUS_META: Record<HealthStatus, { label: string; icon: LucideIcon; tone: string }> = {
+  synced: { label: "Synced", icon: CheckCircle2, tone: "text-emerald-500 bg-emerald-500/10" },
+  limited: { label: "Partial", icon: Activity, tone: "text-amber-500 bg-amber-500/10" },
+  needs_refresh: { label: "Needs refresh", icon: Clock, tone: "text-amber-500 bg-amber-500/10" },
+  unsupported: { label: "Connector pending", icon: Clock, tone: "text-muted-foreground bg-muted/40" },
+  needs_token: { label: "Missing token", icon: KeyRound, tone: "text-rose-500 bg-rose-500/10" },
+  token_expired: { label: "Token expired", icon: AlertTriangle, tone: "text-rose-500 bg-rose-500/10" },
+  sync_failed: { label: "Sync failed", icon: AlertTriangle, tone: "text-rose-500 bg-rose-500/10" },
+};
+
 export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView?: (key: string) => void }) {
   const [range, setRange] = useState<Range>("30d");
   const [dash, setDash] = useState<Dash | null>(null);
   const [an, setAn] = useState<Analytics | null>(null);
   const [score, setScore] = useState<{ score: number; hasStrategy: boolean } | null>(null);
+  const [health, setHealth] = useState<SocialHealthAccount[]>([]);
+  const [healthLoading, setHealthLoading] = useState(true);
+  const [refreshSummary, setRefreshSummary] = useState<RefreshSummary | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [anLoading, setAnLoading] = useState(false);
+  // Internal bump re-runs every fetch effect after a live sync, on top of the
+  // parent-controlled refreshKey.
+  const [bump, setBump] = useState(0);
+  const cycle = `${refreshKey ?? 0}:${bump}`;
 
   useEffect(() => {
     let alive = true;
@@ -48,7 +129,7 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
       setLoading(false);
     });
     return () => { alive = false; };
-  }, [refreshKey]);
+  }, [cycle]);
 
   useEffect(() => {
     let alive = true;
@@ -59,7 +140,40 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
       .catch(() => {})
       .finally(() => { if (alive) setAnLoading(false); });
     return () => { alive = false; };
-  }, [range, refreshKey]);
+  }, [range, cycle]);
+
+  // Cached per-account health (no provider hit) on mount + after each bump.
+  useEffect(() => {
+    let alive = true;
+    setHealthLoading(true);
+    fetch("/api/social-accounts/analytics")
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.success) setHealth(Array.isArray(j.analytics) ? j.analytics : []); })
+      .catch(() => {})
+      .finally(() => { if (alive) setHealthLoading(false); });
+    return () => { alive = false; };
+  }, [cycle]);
+
+  // Live refresh: hits each connected platform, re-syncs cached metrics, then
+  // re-pulls the dashboard, analytics, and health so the whole surface updates.
+  const refreshLive = useCallback(async () => {
+    setRefreshing(true);
+    setRefreshSummary(null);
+    try {
+      const res = await fetch("/api/social-accounts/analytics?refresh=true");
+      const j = await res.json().catch(() => null);
+      if (j?.success) {
+        if (Array.isArray(j.analytics)) setHealth(j.analytics);
+        if (j.refreshSummary) setRefreshSummary(j.refreshSummary as RefreshSummary);
+      }
+    } catch {
+      /* leave cached state in place */
+    } finally {
+      setRefreshing(false);
+      // Re-pull aggregate analytics + dashboard so KPIs reflect the fresh sync.
+      setBump((n) => n + 1);
+    }
+  }, []);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your numbers…" /></div>;
@@ -73,15 +187,40 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-4">
-        {/* range toggle */}
-        <div className="flex items-center justify-between">
+        {/* range toggle + live refresh */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[13px] text-muted-foreground">Performance &amp; usage at a glance.</p>
-          <div className="inline-flex rounded-[10px] border border-border p-0.5">
-            {(["7d", "30d", "90d"] as Range[]).map((r) => (
-              <button key={r} onClick={() => setRange(r)} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", range === r ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{r}</button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={refreshLive}
+              disabled={refreshing}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold transition",
+                refreshing ? "cursor-not-allowed text-muted-foreground" : "hover:border-brand-500/60 hover:text-brand-500"
+              )}
+              title="Pull the latest followers, reach &amp; engagement from your connected platforms"
+            >
+              {refreshing ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {refreshing ? "Syncing…" : "Refresh live"}
+            </button>
+            <div className="inline-flex rounded-[10px] border border-border p-0.5">
+              {(["7d", "30d", "90d"] as Range[]).map((r) => (
+                <button key={r} onClick={() => setRange(r)} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", range === r ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{r}</button>
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* live refresh summary */}
+        {refreshSummary && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[12px]">
+            <RadioTower className="h-3.5 w-3.5 text-brand-500" />
+            <span className="font-semibold">Live sync complete.</span>
+            <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" />{refreshSummary.synced} synced</span>
+            {refreshSummary.partial > 0 && <span className="inline-flex items-center gap-1 text-amber-500"><Activity className="h-3.5 w-3.5" />{refreshSummary.partial} partial</span>}
+            {refreshSummary.blocked > 0 && <span className="inline-flex items-center gap-1 text-rose-500"><AlertTriangle className="h-3.5 w-3.5" />{refreshSummary.blocked} need attention</span>}
+          </div>
+        )}
 
         {/* Grow tools — entry to the marketing channels */}
         {onOpenView && (
@@ -121,6 +260,38 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
             <AreaChart points={series} />
           ) : (
             <Empty text="No view data for this range yet — it fills in as your content gets seen." />
+          )}
+        </section>
+
+        {/* connected account health */}
+        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <RadioTower className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Connected account health</h3>
+              {(healthLoading || refreshing) && <FlowLoader size={14} className="ms-1" />}
+            </div>
+            {health.length > 0 && (
+              <button
+                onClick={refreshLive}
+                disabled={refreshing}
+                className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold transition", refreshing ? "cursor-not-allowed text-muted-foreground" : "text-brand-500 hover:text-brand-600")}
+              >
+                <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
+                Sync now
+              </button>
+            )}
+          </div>
+          {healthLoading ? (
+            <div className="grid place-items-center py-8"><FlowLoader size={22} /></div>
+          ) : health.length ? (
+            <div className="space-y-2.5">
+              {health.map((a) => (
+                <AccountHealthRow key={a.id} account={a} />
+              ))}
+            </div>
+          ) : (
+            <Empty text="Connect a social account to track followers, reach, engagement and sync status here." />
           )}
         </section>
 
@@ -189,6 +360,63 @@ function GrowTool({ icon: Icon, label, onClick }: { icon: LucideIcon; label: str
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
       <span className="text-[13px] font-semibold">{label}</span>
     </button>
+  );
+}
+
+function AccountHealthRow({ account }: { account: SocialHealthAccount }) {
+  const status = deriveStatus(account);
+  const meta = STATUS_META[status];
+  const StatusIcon = meta.icon;
+  const platformKey = account.platformKey || account.platform;
+  const name = account.platformDisplayName || account.platformUsername || platformKey;
+  const handle = account.platformUsername ? `@${account.platformUsername}` : platformKey.replace(/_/g, " ");
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-3">
+        {account.platformAvatarUrl ? (
+          <Image src={account.platformAvatarUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" unoptimized />
+        ) : (
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-[13px] font-bold uppercase text-brand-500">{platformKey.slice(0, 2)}</span>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold">{name}</p>
+          <p className="truncate text-[11.5px] capitalize text-muted-foreground">{handle}</p>
+        </div>
+        <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.tone)}>
+          <StatusIcon className="h-3 w-3" />{meta.label}
+        </span>
+      </div>
+      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-4">
+        <HealthStat icon={Users} label="Followers" value={fmtOptional(account.followersCount)} />
+        <HealthStat icon={Eye} label="Reach" value={fmtOptional(account.reach ?? account.impressions ?? account.profileViews)} />
+        <HealthStat icon={Heart} label="Engagement" value={fmtRate(account.engagementRate)} />
+        <HealthStat icon={FileText} label="Posts" value={fmtOptional(account.postsCount)} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />Last synced {timeAgo(account.analyticsUpdatedAt)}</span>
+        <span aria-hidden>·</span>
+        <span className={cn("inline-flex items-center gap-1", account.tokenExpired && "text-rose-500")}>
+          <KeyRound className="h-3 w-3" />
+          {account.tokenExpired ? "Token expired" : account.tokenExpiresAt ? `Token valid until ${new Date(account.tokenExpiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : account.hasAccessToken ? "Token active" : "No token"}
+        </span>
+      </div>
+      {account.analyticsMessage && status !== "synced" && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">{account.analyticsMessage}</p>
+      )}
+    </div>
+  );
+}
+
+function HealthStat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <Icon className="h-3 w-3" />
+        <span className="text-[10.5px] font-medium">{label}</span>
+      </div>
+      <p className="mt-0.5 text-[14px] font-bold leading-none">{value}</p>
+    </div>
   );
 }
 
