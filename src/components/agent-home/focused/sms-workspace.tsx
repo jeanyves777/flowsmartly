@@ -66,6 +66,9 @@ function whenLabel(iso?: string | null): string {
 const NEW_BLAST_PROMPT =
   "Help me send an SMS blast. Ask me who to send it to and what offer or update I want to share, then write the message (with an opt-out line) and set it up. If my SMS number or compliance isn't ready yet, walk me through getting set up first.";
 
+const SMS_SETUP_PROMPT =
+  "Help me set up SMS sending — walk me through getting a verified sender number and confirming opt-in compliance so I can start sending blasts.";
+
 export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
   const [stats, setStats] = useState<SmsStats>({});
@@ -107,6 +110,36 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const monthlyLimit = number?.monthlyLimit ?? 0;
   const sentThisMonth = number?.sentThisMonth ?? 0;
   const usagePct = monthlyLimit > 0 ? Math.min(100, Math.round((sentThisMonth / monthlyLimit) * 100)) : 0;
+
+  // Config gate: no verified sender number yet → show a clean setup landing,
+  // not the blasts UI (you can't send without one). [[unprovisioned-feature-shows-cta]]
+  if (!hasNumber) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-lg">
+          <div className="rounded-2xl border border-border bg-card p-5 text-center sm:p-6">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Phone className="h-7 w-7" /></span>
+            <h2 className="mt-3 text-[18px] font-extrabold">Set up SMS sending</h2>
+            <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">To send SMS blasts you need a verified sender number. It takes a few steps:</p>
+            <ol className="mx-auto mt-4 max-w-sm space-y-2 text-left">
+              <SetupStep n={1} title="Get a dedicated number" desc="A sender number your recipients will see." />
+              <SetupStep n={2} title="Confirm opt-in compliance" desc="Show how your contacts consented to texts." />
+              <SetupStep n={3} title="Carrier registration" desc="Required so your messages actually deliver." />
+            </ol>
+            <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3 text-left">
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground">Costs:</span> a monthly number rental plus a small per-message rate — both vary by country. Recipients must opt in before you text them.</p>
+            </div>
+            {onAsk && (
+              <button onClick={() => onAsk(SMS_SETUP_PROMPT)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                <Sparkles className="h-4 w-4" /> Set up SMS
+              </button>
+            )}
+            <p className="mt-2 text-[11px] text-muted-foreground">The agent guides you through it — nothing sends until your number is verified.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -239,6 +272,18 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
         </p>
       </div>
     </div>
+  );
+}
+
+function SetupStep({ n, title, desc }: { n: number; title: string; desc: string }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-500/12 text-[11px] font-bold text-brand-500">{n}</span>
+      <span>
+        <span className="block text-[12.5px] font-semibold">{title}</span>
+        <span className="block text-[11.5px] text-muted-foreground">{desc}</span>
+      </span>
+    </li>
   );
 }
 
