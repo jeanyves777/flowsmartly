@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2 } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,7 +18,7 @@ export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
 export interface Pos { x: number; y: number } // fraction 0..1 of the poster
 export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right" }
 export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
-export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean }
+export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string }
 
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
@@ -184,7 +184,9 @@ function CanvasText({ value, style, defaultSize, defaultColor, selected, onSelec
   useEffect(() => { const el = txtRef.current; if (el && !editing && el.innerText !== value) el.innerText = value; }, [value, editing]);
   const startEdit = () => { setEditing(true); requestAnimationFrame(() => { const el = txtRef.current; if (!el) return; el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }); };
   const sz = style.size ?? defaultSize;
-  const css: CSSProperties = { fontSize: sz, fontWeight: style.bold ? 800 : undefined, color: style.color ?? defaultColor, textAlign: style.align ?? "left", maxWidth: maxW, background: bg };
+  // Box hugs its content (`max-content`) so text stays well-fitted as the size
+  // changes — capped by `maxW` so a long line wraps instead of overflowing.
+  const css: CSSProperties = { fontSize: sz, fontWeight: style.bold ? 800 : undefined, color: style.color ?? defaultColor, textAlign: style.align ?? "left", width: "max-content", maxWidth: maxW, background: bg };
   return (
     <Draggable pos={pos} onMove={onMove} onSelect={onSelect} posterRef={posterRef} disabled={editing} className={cn("group", selected && "z-10")}>
       <div className={cn("relative inline-block rounded-[5px]", selected && !editing && "outline outline-2 outline-brand-400")}>
@@ -202,29 +204,78 @@ function CanvasText({ value, style, defaultSize, defaultColor, selected, onSelec
   );
 }
 
-/** Floating style toolbar for the selected text. */
-function StyleToolbar({ style, defaultSize, onChange, onDelete }: { style: TextStyle; defaultSize: number; onChange: (p: Partial<TextStyle>) => void; onDelete?: () => void }) {
+/** A swatch that opens the OS color picker so any custom color is selectable. */
+function ColorPicker({ value, onChange, className, iconClass }: { value?: string; onChange: (c: string) => void; className?: string; iconClass?: string }) {
+  const safe = value && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(value) ? value : "#0ea5e9";
+  return (
+    <label title="Pick a custom color" className={cn("relative grid cursor-pointer place-items-center overflow-hidden", className)} style={{ background: "conic-gradient(from 0deg,#ef4444,#f59e0b,#22c55e,#0ea5e9,#8b5cf6,#ef4444)" }}>
+      <input type="color" value={safe} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+      <Plus className={cn("text-white drop-shadow", iconClass)} />
+    </label>
+  );
+}
+
+/** Draggable floating-toolbar shell — a grip lets the user move it out of the way. */
+function FloatingToolbar({ children }: { children: ReactNode }) {
+  const [d, setD] = useState({ x: 0, y: 0 });
+  const st = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex items-center gap-1 rounded-lg bg-zinc-900/92 px-1 py-1 text-white shadow-xl ring-1 ring-white/10 backdrop-blur"
+      style={{ transform: `translate(calc(-50% + ${d.x}px), ${d.y}px)` }}>
+      <button title="Drag the toolbar" className="grid h-6 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-white/45 hover:bg-white/10 hover:text-white/80 active:cursor-grabbing"
+        onPointerDown={(e) => { e.preventDefault(); st.current = { sx: e.clientX, sy: e.clientY, ox: d.x, oy: d.y }; try { ref.current?.setPointerCapture(e.pointerId); } catch { /* noop */ } }}
+        onPointerMove={(e) => { const s = st.current; if (!s) return; setD({ x: s.ox + (e.clientX - s.sx), y: s.oy + (e.clientY - s.sy) }); }}
+        onPointerUp={(e) => { st.current = null; try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ } }}>
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <span className="h-4 w-px shrink-0 bg-white/20" />
+      {children}
+    </div>
+  );
+}
+
+/** Text-style controls (size / bold / color / align / delete) for the floating toolbar. */
+function TextControls({ style, defaultSize, brandColors, onChange, onDelete }: { style: TextStyle; defaultSize: number; brandColors?: string[]; onChange: (p: Partial<TextStyle>) => void; onDelete?: () => void }) {
   const sz = Math.round(style.size ?? defaultSize);
   const align = style.align ?? "left";
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
   return (
-    <div className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-zinc-900/92 px-1.5 py-1 text-white shadow-xl ring-1 ring-white/10 backdrop-blur">
+    <>
       <button onClick={() => onChange({ size: clamp(sz - 2, 8, 96) })} className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A−</button>
       <span className="min-w-[22px] text-center text-[11px] tabular-nums">{sz}</span>
       <button onClick={() => onChange({ size: clamp(sz + 2, 8, 96) })} className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A+</button>
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={() => onChange({ bold: !style.bold })} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", style.bold && "bg-white/20")}><Bold className="h-3.5 w-3.5" /></button>
       <span className="mx-0.5 h-4 w-px bg-white/20" />
-      {TEXT_COLORS.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (style.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (style.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={style.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       {([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([a, Icon]) => <button key={a} onClick={() => onChange({ align: a })} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", align === a && "bg-white/20")}><Icon className="h-3.5 w-3.5" /></button>)}
       {onDelete && <><span className="mx-0.5 h-4 w-px bg-white/20" /><button onClick={onDelete} title="Delete text" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button></>}
-    </div>
+    </>
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void;
+/** Image controls (background removal / delete) for the floating toolbar. */
+function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemoveBg: () => void; onDelete: () => void }) {
+  return (
+    <>
+      <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
+        {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Remove background"}
+      </button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete image" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[];
 }) {
+  // Accent swatches lead with the user's real brand colors, then sensible
+  // fallbacks; the current accent is always present so it stays selected.
+  const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
   const [toolsOpen, setToolsOpen] = useState(true);
   const [tab, setTab] = useState<"design" | "style">("design");
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
@@ -269,11 +320,36 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   };
   const resizeImage = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchImage(id, { w: clamp(startW + dx / pw, 0.08, 0.96) }); };
 
+  // Cut out the subject — POSTs the image (uploaded URL, or the original File if
+  // the library upload didn't land) to the rembg service and swaps in the result.
+  const removeBg = async (id: string) => {
+    const img = imagesRef.current.find((i) => i.id === id);
+    if (!img || img.processing) return;
+    patchImage(id, { processing: true, bgError: undefined });
+    try {
+      let res: Response;
+      if (img.url.startsWith("http")) {
+        res = await fetch("/api/image-tools/remove-background", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: img.url }) });
+      } else if (img.file) {
+        const fd = new FormData(); fd.append("file", img.file);
+        res = await fetch("/api/image-tools/remove-background", { method: "POST", body: fd });
+      } else {
+        patchImage(id, { processing: false, bgError: "Add the image to your library first." });
+        return;
+      }
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.data?.imageUrl) patchImage(id, { url: j.data.imageUrl, processing: false, local: false, error: false, bgError: undefined });
+      else patchImage(id, { processing: false, bgError: j?.error?.message || "Background removal unavailable." });
+    } catch {
+      patchImage(id, { processing: false, bgError: "Background removal failed." });
+    }
+  };
+
   const addFiles = (files: FileList | null, kind: "photo" | "logo") => {
     if (!files) return;
     Array.from(files).filter((f) => f.type.startsWith("image/")).forEach((file, idx) => {
       const id = newId("img"); const localUrl = URL.createObjectURL(file); const isLogo = kind === "logo";
-      const layer: ImageLayer = { id, url: localUrl, x: isLogo ? 0.06 : clamp(0.24 + idx * 0.04, 0, 0.6), y: isLogo ? 0.06 : clamp(0.22 + idx * 0.04, 0, 0.6), w: isLogo ? 0.2 : 0.46, kind, local: true };
+      const layer: ImageLayer = { id, url: localUrl, x: isLogo ? 0.06 : clamp(0.24 + idx * 0.04, 0, 0.6), y: isLogo ? 0.06 : clamp(0.22 + idx * 0.04, 0, 0.6), w: isLogo ? 0.2 : 0.46, kind, local: true, file };
       onChange({ ...value, images: [...imagesRef.current, layer] });
       setSel({ kind: "image", id });
       void uploadImage(file).then((real) => { if (real) patchImage(id, { url: real, local: false, error: false }); else patchImage(id, { error: true }); });
@@ -323,7 +399,12 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={img.url} alt={img.kind} className={cn("pointer-events-none w-full object-cover shadow-lg", img.kind === "logo" ? "rounded-md" : "aspect-[4/5] rounded-xl")} />
                         <button onClick={() => removeImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
-                        {img.local && <span className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[8px] font-semibold text-amber-300">{img.error ? "local only" : "uploading…"}</span>}
+                        {img.processing && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
+                        {img.bgError ? (
+                          <span className="absolute bottom-1.5 left-1.5 max-w-[88%] rounded bg-black/72 px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-amber-300">{img.bgError}</span>
+                        ) : img.local ? (
+                          <span className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[8px] font-semibold text-amber-300">{img.error ? "local only" : "uploading…"}</span>
+                        ) : null}
                         {selected && <ResizeHandle onStart={() => { (img as ImageLayer & { _sw?: number })._sw = img.w; }} onResize={(dx) => resizeImage(img.id, dx, (img as ImageLayer & { _sw?: number })._sw ?? img.w)} />}
                       </div>
                     </Draggable>
@@ -346,7 +427,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                       selected={sel?.kind === "core" && sel.id === k} onSelect={() => setSel({ kind: "core", id: k })}
                       onCommit={(v) => set({ [k]: v } as Partial<DesignDoc>)} onMove={(p) => move(k, p)} onResize={(dx, dy, ss) => resizeText(k, true, dx, dy, ss)}
                       onAssist={onElementAssist ? () => assist(k) : undefined} posterRef={posterRef} pos={posOf(value, k)} busy={assistBusy === k}
-                      baseClass={cn(serif, baseClass)} maxW={k === "headline" ? "78%" : k === "sub" ? "72%" : "70%"} bg={k === "cta" ? value.accent : undefined} />
+                      baseClass={cn(serif, baseClass)} maxW={k === "headline" ? "90%" : k === "sub" ? "86%" : "88%"} bg={k === "cta" ? value.accent : undefined} />
                   );
                 })}
 
@@ -362,9 +443,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
               </>
             )}
 
-            {/* style toolbar for the selected text */}
-            {!showAiImage && (sel?.kind === "core" || sel?.kind === "text") && (
-              <StyleToolbar style={selStyle()} defaultSize={selDefaultSize()} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
+            {/* draggable toolbar — text styling, or image actions (background removal) */}
+            {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || !!selIsImage) && (
+              <FloatingToolbar>
+                {sel.kind === "image" && selIsImage ? (
+                  <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
+                ) : (
+                  <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
+                )}
+              </FloatingToolbar>
             )}
 
             {value.generating && (
@@ -414,14 +501,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                         <button key={img.id} onClick={() => setSel({ kind: "image", id: img.id })} className={cn("flex w-full items-center gap-2 rounded-lg border bg-background/60 p-1.5 text-left", selIsImage?.id === img.id ? "border-brand-500" : "border-border")}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={img.url} alt="" className="h-9 w-9 rounded-md object-cover" />
-                          <span className="flex-1 truncate text-[11px] capitalize text-muted-foreground">{img.kind}{img.error ? " · local only" : img.local ? " · uploading…" : ""}</span>
+                          <span className="flex-1 truncate text-[11px] capitalize text-muted-foreground">{img.kind}{img.bgError ? " · bg failed" : img.processing ? " · removing bg…" : img.error ? " · local only" : img.local ? " · uploading…" : ""}</span>
+                          <span onClick={(e) => { e.stopPropagation(); removeBg(img.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-brand-500" title="Remove background (1 credit)">{img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}</span>
                           <span onClick={(e) => { e.stopPropagation(); removeImage(img.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove"><X className="h-3.5 w-3.5" /></span>
                         </button>
                       ))}</div>
                     ) : <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Add or drop photos + logo — drag each on the canvas to place it.</p>}
                     {anyLocalErr && <p className="mt-1.5 text-[10.5px] leading-snug text-amber-500">Some images couldn’t reach your library (storage isn’t reachable) — they show here but won’t be used by AI generation until the upload succeeds.</p>}
                   </ControlGroup>
-                  <ControlGroup title="Brand accent"><div className="mt-1.5 flex gap-2">{ACCENTS.map((a) => <button key={a} onClick={() => set({ accent: a })} className={cn("h-6 w-6 rounded-lg border-2", value.accent === a ? "border-foreground" : "border-transparent")} style={{ background: a }} aria-label={a} />)}</div></ControlGroup>
+                  <ControlGroup title={brandColors?.length ? "Brand accent" : "Accent color"}><div className="mt-1.5 flex flex-wrap items-center gap-2">{accentSwatches.map((a) => <button key={a} onClick={() => set({ accent: a })} className={cn("h-6 w-6 rounded-lg border-2", value.accent === a ? "border-foreground" : "border-transparent")} style={{ background: a }} aria-label={a} />)}<ColorPicker value={value.accent} onChange={(c) => set({ accent: c })} className="h-6 w-6 rounded-lg border border-border" iconClass="h-3 w-3" /></div>{brandColors?.length ? <p className="mt-1.5 text-[10.5px] text-muted-foreground">Your brand colors lead — or pick any with the picker.</p> : null}</ControlGroup>
                   <ControlGroup title="Size"><div className="mt-1.5 flex flex-wrap gap-1.5">{SIZES.map((sz) => <button key={sz.v} onClick={() => set({ size: sz.v })} className={cn("rounded-lg border px-2.5 py-1.5 text-[11.5px]", value.size === sz.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>{sz.label}</button>)}</div></ControlGroup>
                 </>
               )}

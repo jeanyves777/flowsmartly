@@ -253,6 +253,7 @@ export function AgentHome() {
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
+  const [brandColors, setBrandColors] = useState<string[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -278,7 +279,24 @@ export function AgentHome() {
             setAgentName(me.data.agentInfo?.agentName ?? null);
           }
         }
-        fetch("/api/brand").then((r) => r.json()).then((b) => { if (alive && b?.success && b.data?.brandKit?.name) setBrandName(b.data.brandKit.name); }).catch(() => {});
+        fetch("/api/brand").then((r) => r.json()).then((b) => {
+          if (!alive || !b?.success) return;
+          const bk = b.data?.brandKit;
+          if (bk?.name) setBrandName(bk.name);
+          // Seed the canvas with the user's brand colors: swatches lead with them
+          // and the default accent becomes the brand's primary (only while the
+          // design is still untouched, so we never clobber the user's edits).
+          const sw = [bk?.colors?.primary, bk?.colors?.secondary, bk?.colors?.accent].filter((c): c is string => typeof c === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c));
+          if (sw.length) {
+            setBrandColors(sw);
+            setDesign((d) => {
+              if (d !== DEFAULT_DESIGN) return d;
+              const seeded = { ...d, accent: sw[0] };
+              savedDesignRef.current = seeded;
+              return seeded;
+            });
+          }
+        }).catch(() => {});
         // Agent profile → managed businesses for the switcher.
         fetch("/api/agent/profile").then((r) => r.json()).then(async (p) => {
           if (!alive || p?.data?.profile?.status !== "APPROVED") return;
@@ -616,6 +634,7 @@ export function AgentHome() {
                   <FocusedDesignStudio
                     value={design}
                     onChange={setDesign}
+                    brandColors={brandColors}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
                       const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action button text";
