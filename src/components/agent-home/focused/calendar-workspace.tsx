@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   Image as ImageIcon,
   Clock,
+  Plus,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -78,7 +79,7 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useState<ViewMode>("month");
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
 
   const load = useCallback(async () => {
@@ -204,7 +205,67 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-[12.5px] text-rose-500">{error}</div>
           )}
 
-          {!posts.length && !error ? (
+          {view === "month" ? (
+            <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-[14px] font-bold">{monthLabel}</h3>
+                <div className="inline-flex items-center gap-1">
+                  <button onClick={() => setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
+                  <button onClick={() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); setMonthCursor(d); }} className="rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">Today</button>
+                  <button onClick={() => setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Next month"><ChevronRight className="h-4 w-4" /></button>
+                </div>
+                <span className="ms-auto hidden text-[11px] text-muted-foreground sm:inline">Click any day to schedule a post</span>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {WEEKDAYS.map((w) => (
+                  <div key={w} className="pb-1 text-center text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{w}</div>
+                ))}
+                {monthCells.map(({ date, inMonth, items }) => {
+                  const isToday = sameDay(date, today);
+                  return (
+                    <button
+                      key={dayKey(date)}
+                      onClick={() => onOpenView?.("compose")}
+                      title={`Schedule a post for ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+                      className={cn(
+                        "group min-h-[92px] rounded-[10px] border p-1.5 text-left align-top transition sm:min-h-[108px]",
+                        inMonth ? "border-border bg-muted/20 hover:border-brand-500/50 hover:bg-muted/40" : "border-transparent bg-transparent hover:bg-muted/20",
+                        isToday && "border-brand-500/60 bg-brand-500/5",
+                      )}
+                    >
+                      <div className="mb-1 flex items-center">
+                        <span className={cn("grid h-5 min-w-[20px] place-items-center rounded-full px-1 text-[11.5px] font-semibold", inMonth ? (isToday ? "bg-brand-500 text-white" : "text-foreground") : "text-muted-foreground/40")}>{date.getDate()}</span>
+                        <Plus className="ms-auto h-3.5 w-3.5 text-brand-500 opacity-0 transition group-hover:opacity-100" />
+                      </div>
+                      <div className="space-y-0.5">
+                        {items.slice(0, 3).map((p) => {
+                          const meta = statusMeta(p.status);
+                          return (
+                            <div key={p.id} className="flex items-center gap-1 truncate rounded-[6px] bg-card px-1 py-0.5 text-[10px]">
+                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} />
+                              <span className="truncate text-muted-foreground">{p.caption?.trim() || "Post"}</span>
+                            </div>
+                          );
+                        })}
+                        {items.length > 3 && <div className="px-1 text-[10px] font-medium text-muted-foreground">+{items.length - 3} more</div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-brand-500" /> Scheduled</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Published</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-muted-foreground" /> Draft</span>
+                {!posts.length && (
+                  <span className="ms-auto inline-flex items-center gap-1.5 text-muted-foreground/80">
+                    Nothing scheduled yet — click a day{onAsk ? ", or " : "."}
+                    {onAsk && <button onClick={() => onAsk("Plan a week of social posts for me — suggest topics and the best times to publish, then schedule them.")} className="font-semibold text-brand-500 hover:underline">plan my week</button>}
+                  </span>
+                )}
+              </div>
+            </section>
+          ) : !posts.length && !error ? (
             <div className="grid place-items-center rounded-2xl border border-dashed border-border px-4 py-16 text-center">
               <div className="max-w-md">
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><CalendarDays className="h-7 w-7" /></span>
@@ -222,47 +283,6 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
                 </div>
               </div>
             </div>
-          ) : view === "month" ? (
-            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-[13px] font-bold">{monthLabel}</h3>
-                <div className="ms-auto inline-flex items-center gap-1">
-                  <button onClick={() => setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
-                  <button onClick={() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); setMonthCursor(d); }} className="rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">Today</button>
-                  <button onClick={() => setMonthCursor((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Next month"><ChevronRight className="h-4 w-4" /></button>
-                </div>
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {WEEKDAYS.map((w) => (
-                  <div key={w} className="pb-1 text-center text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{w}</div>
-                ))}
-                {monthCells.map(({ date, inMonth, items }) => {
-                  const isToday = sameDay(date, today);
-                  return (
-                    <div key={dayKey(date)} className={cn("min-h-[68px] rounded-[10px] border p-1.5", inMonth ? "border-border bg-muted/20" : "border-transparent bg-transparent", isToday && "border-brand-500/60 bg-brand-500/5")}>
-                      <div className={cn("mb-1 text-[11px] font-semibold", inMonth ? (isToday ? "text-brand-500" : "text-foreground") : "text-muted-foreground/50")}>{date.getDate()}</div>
-                      <div className="space-y-0.5">
-                        {items.slice(0, 2).map((p) => {
-                          const meta = statusMeta(p.status);
-                          return (
-                            <div key={p.id} className="flex items-center gap-1 truncate rounded-[6px] bg-card px-1 py-0.5 text-[10px]">
-                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} />
-                              <span className="truncate text-muted-foreground">{p.caption?.trim() || "Post"}</span>
-                            </div>
-                          );
-                        })}
-                        {items.length > 2 && <div className="px-1 text-[10px] font-medium text-muted-foreground">+{items.length - 2} more</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-brand-500" /> Scheduled</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Published</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-muted-foreground" /> Draft</span>
-              </div>
-            </section>
           ) : (
             <>
               {/* Upcoming by date */}
