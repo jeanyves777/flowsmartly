@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
 import {
-  Users, UserPlus, Upload, Mail, MessageSquare, Star, FileText, CalendarDays,
+  Users, UserPlus, Upload, Download, Mail, MessageSquare, Star, FileText, CalendarDays,
   Search, X, Check, ChevronLeft, ChevronRight, Trash2, Pencil, ListFilter,
-  Layers, Plus, Tag, ArrowRight, AlertTriangle,
+  Layers, Plus, Tag, ArrowRight, AlertTriangle, Cake, MapPin,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaUploader } from "@/components/shared/media-uploader";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -41,7 +42,7 @@ interface ListSummary {
 type StatusFilter = "all" | "active" | "unsubscribed";
 
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
-const EMPTY_FORM = { firstName: "", lastName: "", email: "", phone: "", company: "", city: "", state: "", tags: "" };
+const EMPTY_FORM = { firstName: "", lastName: "", email: "", phone: "", company: "", city: "", state: "", tags: "", birthday: "", address: "" };
 const PAGE_SIZE = 25;
 
 const IMPORT_FIELDS = [
@@ -87,8 +88,15 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
   // Add form
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [photoUrl, setPhotoUrl] = useState<string>("");
+  const [emailOptIn, setEmailOptIn] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(true);
+  const [formListIds, setFormListIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Filtered export
+  const [exporting, setExporting] = useState(false);
 
   // Search / filter / page
   const [searchInput, setSearchInput] = useState("");
@@ -202,10 +210,32 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
 
   const set = (k: keyof typeof EMPTY_FORM, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const resetAddForm = useCallback(() => {
+    setForm(EMPTY_FORM);
+    setPhotoUrl("");
+    setEmailOptIn(true);
+    setSmsOptIn(true);
+    setFormListIds(new Set());
+    setError("");
+  }, []);
+
+  const toggleFormList = (id: string) => {
+    setFormListIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const save = async () => {
     const email = form.email.trim();
     const phone = form.phone.trim();
     if (!email && !phone) { setError("Add at least an email or a phone."); return; }
+    const birthday = form.birthday.trim();
+    if (birthday && !/^\d{2}-\d{2}$/.test(birthday)) {
+      setError("Birthday must be in MM-DD format (e.g. 04-21).");
+      return;
+    }
     setSaving(true); setError("");
     try {
       const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
@@ -220,12 +250,18 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
           company: form.company.trim() || undefined,
           city: form.city.trim() || undefined,
           state: form.state.trim() || undefined,
+          address: form.address.trim() || undefined,
+          birthday: birthday || undefined,
+          imageUrl: photoUrl || undefined,
           tags,
+          emailOptedIn: emailOptIn,
+          smsOptedIn: smsOptIn,
+          listIds: Array.from(formListIds),
         }),
       });
       const j = await r.json();
       if (r.ok && j?.success) {
-        setAdding(false); setForm(EMPTY_FORM); flash("Contact added.");
+        setAdding(false); resetAddForm(); flash("Contact added.");
         await refresh();
       } else {
         setError(j?.error?.message || "Could not add the contact.");
@@ -236,6 +272,40 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
       setSaving(false);
     }
   };
+
+  // Export the currently filtered contacts to a CSV download.
+  const exportCsv = useCallback(async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (search) qs.set("search", search);
+      if (status !== "all") qs.set("status", status);
+      if (listId) qs.set("listId", listId);
+      const r = await fetch(`/api/contacts/export?${qs.toString()}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        flash(j?.error?.message || "Could not export contacts.", 3500);
+        return;
+      }
+      const blob = await r.blob();
+      const disposition = r.headers.get("Content-Disposition") || "";
+      const match = /filename=([^;]+)/i.exec(disposition);
+      const filename = match ? match[1].trim().replace(/^"|"$/g, "") : "contacts.csv";
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      flash("Export downloaded.");
+    } catch {
+      flash("Could not export contacts.", 3500);
+    } finally {
+      setExporting(false);
+    }
+  }, [search, status, listId, flash]);
 
   // ── Row edit ────────────────────────────────────────────────────────────────
   const openRow = async (c: Contact) => {
@@ -258,6 +328,8 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
           city: d.city || "",
           state: d.state || "",
           tags: (d.tags || []).join(", "),
+          birthday: d.birthday || "",
+          address: d.address || "",
         });
         setEditStatus(d.status === "unsubscribed" ? "unsubscribed" : "active");
       } else {
@@ -276,6 +348,11 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
     const email = editForm.email.trim();
     const phone = editForm.phone.trim();
     if (!email && !phone) { setEditError("Keep at least an email or a phone."); return; }
+    const birthday = editForm.birthday.trim();
+    if (birthday && !/^\d{2}-\d{2}$/.test(birthday)) {
+      setEditError("Birthday must be in MM-DD format (e.g. 04-21).");
+      return;
+    }
     setEditSaving(true); setEditError("");
     try {
       const tags = editForm.tags.split(",").map((t) => t.trim()).filter(Boolean);
@@ -290,6 +367,8 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
           company: editForm.company.trim(),
           city: editForm.city.trim(),
           state: editForm.state.trim(),
+          address: editForm.address.trim(),
+          birthday: editForm.birthday.trim(),
           tags,
           status: editStatus,
         }),
@@ -499,10 +578,18 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
             </h3>
             {notice && <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-500"><Check className="h-3.5 w-3.5" /> {notice}</span>}
             <div className="ms-auto flex items-center gap-1.5">
+              <button
+                onClick={exportCsv}
+                disabled={exporting || (contacts.length === 0 && !(search || status !== "all" || listId))}
+                title={(search || status !== "all" || listId) ? "Export the contacts matching your current filters" : "Export all contacts"}
+                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60"
+              >
+                {exporting ? <FlowLoader size={14} /> : <Download className="h-3.5 w-3.5" />} Export
+              </button>
               <button onClick={() => fileRef.current?.click()} disabled={importing} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
                 <Upload className="h-3.5 w-3.5" /> Import
               </button>
-              <button onClick={() => { setAdding((v) => !v); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><UserPlus className="h-3.5 w-3.5" /> Add contact</button>
+              <button onClick={() => { setAdding((v) => { if (v) resetAddForm(); return !v; }); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><UserPlus className="h-3.5 w-3.5" /> Add contact</button>
             </div>
           </div>
 
@@ -583,24 +670,82 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
           {/* inline add form */}
           {adding && (
             <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                <input value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="First name" className={FIELD} />
-                <input value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Last name" className={FIELD} />
-                <input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="Email" type="email" className={FIELD} />
-                <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone (+15551234567)" className={FIELD} />
-                <input value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company" className={FIELD} />
-                <div className="grid grid-cols-2 gap-2.5">
-                  <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" className={FIELD} />
-                  <input value={form.state} onChange={(e) => set("state", e.target.value)} placeholder="State" className={FIELD} />
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {/* Photo */}
+                <div className="shrink-0">
+                  <span className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Photo</span>
+                  <MediaUploader
+                    value={photoUrl ? [photoUrl] : []}
+                    onChange={(urls) => setPhotoUrl(urls[0] || "")}
+                    multiple={false}
+                    variant="large"
+                    filterTypes={["image"]}
+                    placeholder="Photo"
+                    libraryTitle="Choose a contact photo"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2.5">
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <input value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="First name" className={FIELD} />
+                    <input value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Last name" className={FIELD} />
+                    <input value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="Email" type="email" className={FIELD} />
+                    <input value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone (+15551234567)" className={FIELD} />
+                    <input value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="Company" className={FIELD} />
+                    <div className="relative">
+                      <Cake className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <input value={form.birthday} onChange={(e) => set("birthday", e.target.value)} placeholder="Birthday (MM-DD)" inputMode="numeric" className={cn(FIELD, "pl-8")} />
+                    </div>
+                  </div>
                 </div>
               </div>
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                <input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="City" className={FIELD} />
+                <input value={form.state} onChange={(e) => set("state", e.target.value)} placeholder="State" className={FIELD} />
+              </div>
+              <div className="relative mt-2.5">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Street address" className={cn(FIELD, "pl-8")} />
+              </div>
               <input value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="Tags (comma-separated, e.g. VIP, lead)" className={cn(FIELD, "mt-2.5")} />
+
+              {/* Opt-in toggles */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <OptInToggle icon={Mail} label="Email opt-in" checked={emailOptIn} onChange={() => setEmailOptIn((v) => !v)} />
+                <OptInToggle icon={MessageSquare} label="SMS opt-in" checked={smsOptIn} onChange={() => setSmsOptIn((v) => !v)} />
+              </div>
+
+              {/* List membership */}
+              {lists.length > 0 && (
+                <div className="mt-2.5">
+                  <span className="mb-1.5 block text-[11.5px] font-semibold text-muted-foreground">Add to lists</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {lists.map((l) => {
+                      const on = formListIds.has(l.id);
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => toggleFormList(l.id)}
+                          aria-pressed={on}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition",
+                            on ? "border-brand-500/50 bg-brand-500/10 text-brand-500" : "border-border bg-background text-muted-foreground hover:border-brand-500/60 hover:text-foreground",
+                          )}
+                        >
+                          {on ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />} {l.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
               <div className="mt-3 flex items-center gap-2">
                 <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
                   {saving ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} Save contact
                 </button>
-                <button onClick={() => { setAdding(false); setForm(EMPTY_FORM); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                <button onClick={() => { setAdding(false); resetAddForm(); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
               </div>
             </div>
           )}
@@ -699,9 +844,17 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
                                 <input value={editForm.email} onChange={(e) => setEdit("email", e.target.value)} placeholder="Email" type="email" className={FIELD} />
                                 <input value={editForm.phone} onChange={(e) => setEdit("phone", e.target.value)} placeholder="Phone (+15551234567)" className={FIELD} />
                                 <input value={editForm.company} onChange={(e) => setEdit("company", e.target.value)} placeholder="Company" className={FIELD} />
+                                <div className="relative">
+                                  <Cake className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                  <input value={editForm.birthday} onChange={(e) => setEdit("birthday", e.target.value)} placeholder="Birthday (MM-DD)" inputMode="numeric" className={cn(FIELD, "pl-8")} />
+                                </div>
                                 <div className="grid grid-cols-2 gap-2.5">
                                   <input value={editForm.city} onChange={(e) => setEdit("city", e.target.value)} placeholder="City" className={FIELD} />
                                   <input value={editForm.state} onChange={(e) => setEdit("state", e.target.value)} placeholder="State" className={FIELD} />
+                                </div>
+                                <div className="relative sm:col-span-2">
+                                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                  <input value={editForm.address} onChange={(e) => setEdit("address", e.target.value)} placeholder="Street address" className={cn(FIELD, "pl-8")} />
                                 </div>
                               </div>
                               <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
@@ -1073,6 +1226,27 @@ function Checkbox({ checked, indeterminate, onChange, ariaLabel }: { checked: bo
       )}
     >
       {indeterminate ? <span className="h-0.5 w-2.5 rounded-full bg-white" /> : checked ? <Check className="h-3 w-3" /> : null}
+    </button>
+  );
+}
+
+function OptInToggle({ icon: Icon, label, checked, onChange }: { icon: ElementType; label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-[10px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition",
+        checked ? "border-brand-500/50 bg-brand-500/10 text-brand-500" : "border-border bg-background text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+      <span className={cn("relative ml-0.5 inline-flex h-4 w-7 shrink-0 items-center rounded-full transition", checked ? "bg-brand-500" : "bg-muted-foreground/30")}>
+        <span className={cn("inline-block h-3 w-3 rounded-full bg-white shadow-sm transition", checked ? "translate-x-3.5" : "translate-x-0.5")} />
+      </span>
     </button>
   );
 }

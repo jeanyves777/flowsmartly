@@ -27,6 +27,13 @@ import {
   Link2,
   Plug,
   AlertTriangle,
+  Search,
+  Filter,
+  CalendarRange,
+  Columns3,
+  RefreshCw,
+  RotateCcw,
+  Send,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -67,10 +74,20 @@ interface PlatformAcc {
   avatarUrl?: string | null;
 }
 
-type ViewMode = "list" | "month";
+// Per-platform publish result (returned fresh by the retry endpoint).
+interface PublishResult { success: boolean; postId?: string; error?: string }
+
+type ViewMode = "list" | "month" | "week" | "day";
+type StatusFilter = "ALL" | "SCHEDULED" | "PUBLISHED" | "DRAFT";
 
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 const CAPTION_MAX = 2200;
+const DAY_START_HOUR = 6; // timeline starts at 6am, runs to midnight (compact but covers business hours)
+const HOUR_PX = 52; // height of one hour row in the week/day timeline
+
+// "feed" is the in-app destination; everything else is an external social platform.
+const isExternalPlatform = (p: string) => !!p && p.toLowerCase() !== "feed";
+const prettyPlatform = (p: string) => (p === "feed" ? "In-app feed" : p.charAt(0).toUpperCase() + p.slice(1));
 
 // Best date to place a post on the calendar: scheduled time, else published, else created.
 function postDate(p: Post): Date | null {
@@ -104,6 +121,39 @@ function dayHeading(d: Date, today: Date): string {
   try { return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); } catch { return dayKey(d); }
 }
 
+// Start-of-week (Sunday) at 00:00 for the week containing `d`.
+function startOfWeek(d: Date): Date {
+  const s = new Date(d);
+  s.setHours(0, 0, 0, 0);
+  s.setDate(s.getDate() - s.getDay());
+  return s;
+}
+
+// The 7 day-starts (Sun…Sat) for the week containing `d`.
+function weekDays(d: Date): Date[] {
+  const start = startOfWeek(d);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    return day;
+  });
+}
+
+// Fractional hour-of-day (e.g. 14.5 for 2:30pm) used to position a post on the timeline.
+function hourOfDay(d: Date): number {
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+function fmtHourLabel(hour: number): string {
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  const ampm = hour < 12 || hour === 24 ? "AM" : "PM";
+  return `${h12} ${ampm}`;
+}
+
+function shortDay(d: Date): string {
+  try { return d.toLocaleDateString(undefined, { weekday: "short" }); } catch { return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]; }
+}
+
 // datetime-local wants "YYYY-MM-DDTHH:mm" in local time.
 function toLocalInput(iso?: string | null): string {
   const base = iso ? new Date(iso) : new Date(Date.now() + 60 * 60 * 1000);
@@ -133,7 +183,15 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewMode>("month");
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
+  // Anchor day for the Week/Day timelines (start-of-day in local time).
+  const [dayCursor, setDayCursor] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // Search + filters (applied client-side over the loaded posts — the list API
+  // only filters by status server-side, so caption/platform narrowing happens here).
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [platformFilter, setPlatformFilter] = useState<string>("ALL");
 
   const load = useCallback(async () => {
     try {
@@ -177,13 +235,33 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
     return { scheduled, published, drafts };
   }, [posts]);
 
+  // Every distinct channel across the user's posts — powers the platform filter.
+  const platformOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of posts) for (const pl of p.platforms ?? []) if (pl) set.add(pl);
+    return Array.from(set).sort();
+  }, [posts]);
+
+  // Filtered posts (search + status + channel) — drives every calendar view below.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return posts.filter((p) => {
+      if (statusFilter !== "ALL" && (p.status || "").toUpperCase() !== statusFilter) return false;
+      if (platformFilter !== "ALL" && !(p.platforms ?? []).includes(platformFilter)) return false;
+      if (q && !(p.caption || "").toLowerCase().includes(q) && !(p.platforms ?? []).some((pl) => pl.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [posts, query, statusFilter, platformFilter]);
+
+  const filtersActive = query.trim() !== "" || statusFilter !== "ALL" || platformFilter !== "ALL";
+
   // Posts that can be placed on a calendar (have a date), sorted ascending by date.
   const dated = useMemo(() => {
-    return posts
+    return filtered
       .map((p) => ({ p, d: postDate(p) }))
       .filter((x): x is { p: Post; d: Date } => x.d !== null)
       .sort((a, b) => a.d.getTime() - b.d.getTime());
-  }, [posts]);
+  }, [filtered]);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
@@ -230,6 +308,22 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
     });
   }, [monthCursor, dated]);
 
+  // Posts placed on a given calendar day, each with its fractional hour-of-day.
+  // Anything before DAY_START_HOUR is pinned to the top "earlier" rail so it stays visible.
+  const placedByDay = useMemo(() => {
+    const map = new Map<string, { post: Post; date: Date; hour: number }[]>();
+    for (const { p, d } of dated) {
+      const key = dayKey(d);
+      const arr = map.get(key);
+      const entry = { post: p, date: d, hour: hourOfDay(d) };
+      if (arr) arr.push(entry); else map.set(key, [entry]);
+    }
+    return map;
+  }, [dated]);
+
+  // The columns shown in the Week timeline (Sun…Sat of the cursor week).
+  const weekColumns = useMemo(() => weekDays(dayCursor), [dayCursor]);
+
   const openPost = useMemo(() => posts.find((p) => p.id === openId) ?? null, [posts, openId]);
 
   if (loading) {
@@ -240,17 +334,35 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
     try { return monthCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" }); } catch { return ""; }
   })();
 
+  const weekLabel = (() => {
+    const days = weekColumns;
+    const a = days[0], b = days[6];
+    try {
+      const sameMonth = a.getMonth() === b.getMonth();
+      const left = a.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const right = b.toLocaleDateString(undefined, sameMonth ? { day: "numeric", year: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+      return `${left} – ${right}`;
+    } catch { return ""; }
+  })();
+
+  const dayLabel = (() => {
+    try { return dayCursor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }); } catch { return ""; }
+  })();
+
+  // Hours rendered in the week/day timelines: DAY_START_HOUR … 23.
+  const timelineHours = Array.from({ length: 24 - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
+  const stepDays = (n: number) => setDayCursor((d) => { const next = new Date(d); next.setDate(d.getDate() + n); return next; });
+  const goToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setDayCursor(d); };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/30 px-4 py-2.5">
         <div className="inline-flex rounded-[10px] border border-border p-0.5">
-          <button onClick={() => setView("list")} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", view === "list" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
-            <List className="h-3.5 w-3.5" /> Upcoming
-          </button>
-          <button onClick={() => setView("month")} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", view === "month" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
-            <LayoutGrid className="h-3.5 w-3.5" /> Month
-          </button>
+          <ViewTab active={view === "list"} onClick={() => setView("list")} icon={List} label="Upcoming" />
+          <ViewTab active={view === "day"} onClick={() => setView("day")} icon={CalendarRange} label="Day" />
+          <ViewTab active={view === "week"} onClick={() => setView("week")} icon={Columns3} label="Week" />
+          <ViewTab active={view === "month"} onClick={() => setView("month")} icon={LayoutGrid} label="Month" />
         </div>
         <button onClick={() => onOpenView?.("compose")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
           <Sparkles className="h-3.5 w-3.5" /> Schedule a post
@@ -265,6 +377,60 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
             <Kpi icon={CheckCircle2} label="Published" value={counts.published.toLocaleString()} />
             <Kpi icon={FileEdit} label="Drafts" value={counts.drafts.toLocaleString()} />
           </div>
+
+          {/* Search + filters — narrow the calendar by caption, status, and channel */}
+          {(posts.length > 0 || filtersActive) && (
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-2.5">
+              <div className="relative min-w-[180px] flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search captions or channels…"
+                  className="w-full rounded-[10px] border border-input bg-background py-2 pl-9 pr-3 text-[13px] outline-none focus:border-brand-500/60"
+                />
+              </div>
+              <div className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Filter className="h-3.5 w-3.5" />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium outline-none focus:border-brand-500/60"
+                aria-label="Filter by status"
+              >
+                <option value="ALL">All statuses</option>
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="DRAFT">Drafts</option>
+              </select>
+              <select
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                className="rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium capitalize outline-none focus:border-brand-500/60"
+                aria-label="Filter by channel"
+              >
+                <option value="ALL">All channels</option>
+                {platformOptions.map((p) => (
+                  <option key={p} value={p}>{prettyPlatform(p)}</option>
+                ))}
+              </select>
+              {filtersActive && (
+                <button
+                  onClick={() => { setQuery(""); setStatusFilter("ALL"); setPlatformFilter("ALL"); }}
+                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-2 text-[12px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" /> Clear
+                </button>
+              )}
+              {filtersActive && (
+                <span className="ms-auto w-full text-[11.5px] text-muted-foreground sm:w-auto">
+                  {filtered.length} of {posts.length} {posts.length === 1 ? "post" : "posts"}
+                </span>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-[12.5px] text-rose-500">{error}</div>
@@ -342,6 +508,32 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
                 )}
               </div>
             </section>
+          ) : view === "week" ? (
+            <WeekTimeline
+              columns={weekColumns}
+              hours={timelineHours}
+              placedByDay={placedByDay}
+              today={today}
+              label={weekLabel}
+              onPrev={() => stepDays(-7)}
+              onNext={() => stepDays(7)}
+              onToday={goToday}
+              onOpen={(id) => setOpenId(id)}
+              onSchedule={() => onOpenView?.("compose")}
+            />
+          ) : view === "day" ? (
+            <DayTimeline
+              day={dayCursor}
+              hours={timelineHours}
+              items={placedByDay.get(dayKey(dayCursor)) ?? []}
+              isToday={sameDay(dayCursor, today)}
+              label={dayLabel}
+              onPrev={() => stepDays(-1)}
+              onNext={() => stepDays(1)}
+              onToday={goToday}
+              onOpen={(id) => setOpenId(id)}
+              onSchedule={() => onOpenView?.("compose")}
+            />
           ) : !posts.length && !error ? (
             <div className="grid place-items-center rounded-2xl border border-dashed border-border px-4 py-16 text-center">
               <div className="max-w-md">
@@ -455,6 +647,220 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
   );
 }
 
+// ── View toggle tab ─────────────────────────────────────────────────────────────
+
+function ViewTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: ElementType; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition",
+        active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </button>
+  );
+}
+
+// ── Week / Day hour-by-hour timeline ────────────────────────────────────────────
+
+type Placed = { post: Post; date: Date; hour: number };
+
+// Shared prev / today / next control used by the Week and Day timelines.
+function TimelineNav({ label, onPrev, onNext, onToday }: { label: string; onPrev: () => void; onNext: () => void; onToday: () => void }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <h3 className="text-[14px] font-bold">{label}</h3>
+      <div className="inline-flex items-center gap-1">
+        <button onClick={onPrev} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Previous"><ChevronLeft className="h-4 w-4" /></button>
+        <button onClick={onToday} className="rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">Today</button>
+        <button onClick={onNext} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Next"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+    </div>
+  );
+}
+
+// A single post chip placed at its hour on the timeline.
+function TimelineEvent({ entry, baseHour, compact, onOpen }: { entry: Placed; baseHour: number; compact?: boolean; onOpen: () => void }) {
+  const meta = statusMeta(entry.post.status);
+  // Clamp to the rendered window so a 3am post still shows pinned at the top.
+  const top = Math.max(0, (entry.hour - baseHour) * HOUR_PX);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`${fmtTime(entry.date)} · ${entry.post.caption?.trim() || "Post"}`}
+      style={{ top }}
+      className={cn(
+        "absolute left-1 right-1 z-10 flex items-center gap-1 overflow-hidden rounded-[7px] border border-border bg-card px-1.5 py-1 text-left shadow-sm transition hover:border-brand-500/60 hover:bg-brand-500/10",
+      )}
+    >
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
+      <span className="shrink-0 text-[10px] font-semibold tabular-nums text-muted-foreground">{fmtTime(entry.date)}</span>
+      {!compact && <span className="truncate text-[11px]">{entry.post.caption?.trim() || "Post"}</span>}
+      {compact && <span className="truncate text-[10px] text-muted-foreground">{entry.post.caption?.trim() || "Post"}</span>}
+    </button>
+  );
+}
+
+function WeekTimeline({
+  columns, hours, placedByDay, today, label, onPrev, onNext, onToday, onOpen, onSchedule,
+}: {
+  columns: Date[];
+  hours: number[];
+  placedByDay: Map<string, Placed[]>;
+  today: Date;
+  label: string;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onOpen: (id: string) => void;
+  onSchedule: () => void;
+}) {
+  const baseHour = hours[0];
+  const bodyHeight = hours.length * HOUR_PX;
+  const total = columns.reduce((n, c) => n + (placedByDay.get(dayKey(c))?.length ?? 0), 0);
+  return (
+    <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+      <TimelineNav label={label} onPrev={onPrev} onNext={onNext} onToday={onToday} />
+      {/* day headers */}
+      <div className="grid" style={{ gridTemplateColumns: `48px repeat(7, minmax(0, 1fr))` }}>
+        <div />
+        {columns.map((c) => {
+          const isToday = sameDay(c, today);
+          return (
+            <button
+              key={dayKey(c)}
+              type="button"
+              onClick={onSchedule}
+              title={`Schedule a post for ${c.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+              className={cn("mb-1 rounded-[8px] px-1 py-1 text-center transition hover:bg-muted/40", isToday && "bg-brand-500/5")}
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{shortDay(c)}</div>
+              <div className={cn("mx-auto mt-0.5 grid h-6 w-6 place-items-center rounded-full text-[12px] font-bold", isToday ? "bg-brand-500 text-white" : "text-foreground")}>{c.getDate()}</div>
+            </button>
+          );
+        })}
+      </div>
+      {/* scrollable timeline body */}
+      <div className="max-h-[460px] overflow-y-auto">
+        <div className="grid" style={{ gridTemplateColumns: `48px repeat(7, minmax(0, 1fr))` }}>
+          {/* hour labels */}
+          <div className="relative" style={{ height: bodyHeight }}>
+            {hours.map((h, i) => (
+              <div key={h} className="absolute right-1 -translate-y-1/2 text-[9.5px] font-medium text-muted-foreground" style={{ top: i * HOUR_PX }}>
+                {i === 0 ? "" : fmtHourLabel(h)}
+              </div>
+            ))}
+          </div>
+          {columns.map((c) => {
+            const items = (placedByDay.get(dayKey(c)) ?? []).slice().sort((a, b) => a.hour - b.hour);
+            const isToday = sameDay(c, today);
+            return (
+              <div key={dayKey(c)} className={cn("relative border-l border-border", isToday && "bg-brand-500/5")} style={{ height: bodyHeight }}>
+                {hours.map((h, i) => (
+                  <div key={h} className="absolute inset-x-0 border-t border-border/50" style={{ top: i * HOUR_PX, height: HOUR_PX }} />
+                ))}
+                {items.map((entry) => (
+                  <TimelineEvent key={entry.post.id} entry={entry} baseHour={baseHour} compact onOpen={() => onOpen(entry.post.id)} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {total === 0 && (
+        <p className="mt-3 text-center text-[12px] text-muted-foreground">Nothing on the calendar this week — pick a day header to schedule a post.</p>
+      )}
+    </section>
+  );
+}
+
+function DayTimeline({
+  day, hours, items, isToday, label, onPrev, onNext, onToday, onOpen, onSchedule,
+}: {
+  day: Date;
+  hours: number[];
+  items: Placed[];
+  isToday: boolean;
+  label: string;
+  onPrev: () => void;
+  onNext: () => void;
+  onToday: () => void;
+  onOpen: (id: string) => void;
+  onSchedule: () => void;
+}) {
+  const baseHour = hours[0];
+  const bodyHeight = hours.length * HOUR_PX;
+  const sorted = items.slice().sort((a, b) => a.hour - b.hour);
+  return (
+    <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h3 className={cn("text-[14px] font-bold", isToday && "text-brand-500")}>{label}</h3>
+        <div className="inline-flex items-center gap-1">
+          <button onClick={onPrev} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Previous day"><ChevronLeft className="h-4 w-4" /></button>
+          <button onClick={onToday} className="rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">Today</button>
+          <button onClick={onNext} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Next day"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+        <button onClick={onSchedule} className="ms-auto inline-flex items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-brand-500 hover:bg-brand-500/10" title={`Schedule a post for ${day.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}>
+          <Plus className="h-3.5 w-3.5" /> Schedule
+        </button>
+      </div>
+      <div className="max-h-[460px] overflow-y-auto">
+        <div className="grid" style={{ gridTemplateColumns: `56px minmax(0, 1fr)` }}>
+          <div className="relative" style={{ height: bodyHeight }}>
+            {hours.map((h, i) => (
+              <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground" style={{ top: i * HOUR_PX }}>
+                {i === 0 ? "" : fmtHourLabel(h)}
+              </div>
+            ))}
+          </div>
+          <div className="relative border-l border-border" style={{ height: bodyHeight }}>
+            {hours.map((h, i) => (
+              <div key={h} className="absolute inset-x-0 border-t border-border/50" style={{ top: i * HOUR_PX, height: HOUR_PX }} />
+            ))}
+            {sorted.map((entry) => (
+              <DayTimelineEvent key={entry.post.id} entry={entry} baseHour={baseHour} onOpen={() => onOpen(entry.post.id)} />
+            ))}
+          </div>
+        </div>
+      </div>
+      {sorted.length === 0 && (
+        <p className="mt-3 text-center text-[12px] text-muted-foreground">Nothing scheduled for this day — use Schedule to add a post.</p>
+      )}
+    </section>
+  );
+}
+
+// Roomier event chip for the single-day timeline (shows status + channels).
+function DayTimelineEvent({ entry, baseHour, onOpen }: { entry: Placed; baseHour: number; onOpen: () => void }) {
+  const meta = statusMeta(entry.post.status);
+  const top = Math.max(0, (entry.hour - baseHour) * HOUR_PX);
+  const media = entry.post.mediaUrls?.[0];
+  const platforms = entry.post.platforms ?? [];
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{ top }}
+      className="absolute left-2 right-2 z-10 flex items-center gap-2 overflow-hidden rounded-[9px] border border-border bg-muted/40 px-2 py-1.5 text-left shadow-sm transition hover:border-brand-500/60 hover:bg-brand-500/10"
+    >
+      <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
+        {media ? <Image src={media} alt="" width={36} height={36} className="h-full w-full object-cover" unoptimized /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px]">{entry.post.caption?.trim() || "Untitled post"}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-muted-foreground">
+          <span className={cn("inline-flex items-center gap-1 font-medium", meta.tone)}><meta.Icon className="h-3 w-3" /> {meta.label}</span>
+          <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {fmtTime(entry.date)}</span>
+          {platforms.length > 0 && <span className="capitalize">{platforms.join(" · ")}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ── Post detail / edit / reschedule / delete panel ──────────────────────────────
 
 type DetailMode = "view" | "edit";
@@ -487,12 +893,28 @@ function PostDetail({
   const [err, setErr] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Cross-post (retry) state — the per-platform results returned by the retry endpoint,
+  // plus the set of external platforms the user picked to re-publish.
+  const [retryResults, setRetryResults] = useState<Record<string, PublishResult> | null>(null);
+  const [retryTargets, setRetryTargets] = useState<string[]>([]);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryNotice, setRetryNotice] = useState("");
+
+  // External (non-feed) channels this post targets — the only ones a retry can re-publish to.
+  const externalChannels = useMemo(
+    () => Array.from(new Set((post.platforms ?? []).filter(isExternalPlatform))),
+    [post.platforms],
+  );
+
   // Reset local state whenever the underlying post changes (re-fetch after a save).
   useEffect(() => {
     setCaption(post.caption ?? "");
     setMedia(post.mediaUrls ?? []);
     setPlatforms(post.platforms?.length ? post.platforms : ["feed"]);
     setScheduleAt(toLocalInput(post.scheduledAt));
+    setRetryResults(null);
+    setRetryTargets([]);
+    setRetryNotice("");
   }, [post.id, post.caption, post.mediaUrls, post.platforms, post.scheduledAt]);
 
   const targets = useMemo(() => {
@@ -548,6 +970,40 @@ function PostDetail({
     if (isNaN(d.getTime())) { setErr("That schedule time isn't valid."); return; }
     if (d.getTime() <= Date.now()) { setErr("Pick a time in the future."); return; }
     await patch({ scheduledAt: d.toISOString(), status: "SCHEDULED" }, "Couldn't reschedule that post. Try again.");
+  };
+
+  const toggleRetryTarget = (id: string) => {
+    setRetryNotice("");
+    setRetryTargets((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  // POST /api/content/posts/[id]/retry — re-publish to the chosen external platforms.
+  // The endpoint returns fresh per-platform results, which we render below.
+  const runRetry = async () => {
+    if (retryTargets.length === 0) { setErr("Pick at least one channel to re-publish to."); return; }
+    setRetryBusy(true); setErr(""); setRetryNotice("");
+    try {
+      const r = await fetch(`/api/content/posts/${post.id}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms: retryTargets }),
+      });
+      const j = await r.json();
+      if (r.ok && j?.success) {
+        const results = (j.data?.publishResults ?? {}) as Record<string, PublishResult>;
+        setRetryResults(results);
+        const ok = Object.values(results).filter((res) => res?.success).length;
+        const total = Object.keys(results).length;
+        setRetryNotice(total ? `Re-published to ${total} channel${total === 1 ? "" : "s"} — ${ok} succeeded.` : "Retry complete.");
+        await onSaved();
+      } else {
+        setErr(j?.error?.message || "Couldn't re-publish that post. Try again.");
+      }
+    } catch {
+      setErr("Couldn't re-publish that post. Try again.");
+    } finally {
+      setRetryBusy(false);
+    }
   };
 
   const remove = async () => {
@@ -632,6 +1088,67 @@ function PostDetail({
                   <Stat icon={Heart} label="Likes" value={post.likeCount ?? 0} />
                   <Stat icon={MessageCircle} label="Comments" value={post.commentCount ?? 0} />
                   <Stat icon={Share2} label="Shares" value={post.shareCount ?? 0} />
+                </div>
+              )}
+
+              {/* per-platform publish results + retry (published posts with external channels) */}
+              {isPublished && externalChannels.length > 0 && (
+                <div className="rounded-[10px] border border-border bg-muted/30 p-3.5">
+                  <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground"><Send className="h-3.5 w-3.5" /> Cross-post results</span>
+                  <p className="mb-2.5 text-[11.5px] text-muted-foreground">Pick the channels that failed (or that you want to push again) and re-publish. Results show per channel below.</p>
+
+                  {/* channel chips — selectable retry targets, annotated with the last result */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {externalChannels.map((p) => {
+                      const res = retryResults?.[p];
+                      const on = retryTargets.includes(p);
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => toggleRetryTarget(p)}
+                          aria-pressed={on}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium capitalize transition",
+                            on ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-card text-foreground hover:border-brand-500/40",
+                          )}
+                        >
+                          {res?.success ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : res ? <AlertTriangle className="h-3.5 w-3.5 text-rose-500" /> : null}
+                          {prettyPlatform(p)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* per-platform results from the last retry */}
+                  {retryResults && Object.keys(retryResults).length > 0 && (
+                    <div className="mt-2.5 space-y-1.5 rounded-[10px] border border-border bg-card p-2.5">
+                      {Object.entries(retryResults).map(([p, res]) => (
+                        <div key={p} className="flex items-start gap-2 text-[12px]">
+                          {res?.success
+                            ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                            : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />}
+                          <span className="shrink-0 font-medium capitalize">{prettyPlatform(p)}</span>
+                          <span className={cn("min-w-0 flex-1", res?.success ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500")}>
+                            {res?.success ? "Posted" : (res?.error || "Failed")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {retryNotice && (
+                    <p className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> {retryNotice}</p>
+                  )}
+
+                  <button
+                    onClick={runRetry}
+                    disabled={retryBusy}
+                    className="mt-2.5 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60"
+                  >
+                    {retryBusy ? <FlowLoader size={14} tone="white" /> : retryResults ? <RotateCcw className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    {retryResults ? "Retry again" : "Retry publish"}
+                  </button>
                 </div>
               )}
 

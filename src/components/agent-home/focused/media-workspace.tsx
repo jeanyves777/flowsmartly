@@ -5,7 +5,7 @@ import Image from "next/image";
 import {
   ImagePlay, Image as ImageIcon, Film, Play, ExternalLink, X, FileText, Music, LayoutGrid, Sparkles,
   Search, Folder, FolderPlus, FolderInput, Trash2, Pencil, Check, ChevronRight, CheckSquare, Square,
-  Home, CornerUpLeft, AlertTriangle,
+  Home, CornerUpLeft, AlertTriangle, FileCode, Download, Tag, Plus,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -19,11 +19,14 @@ import { cn } from "@/lib/utils/cn";
  * "Create with the agent" is the one genuinely generative action and drives the
  * chat. No legacy links — assets open in a lightbox or their live URL.
  *
- * Full library management lives in-surface: search by name (?search=), a folder
- * rail with create/rename/delete + breadcrumb browse (?folderId=), move a single
- * file (PUT /api/media/[id]) or many (select mode + /api/media/bulk), and delete
- * one (DELETE /api/media/[id]) or many — every destructive action uses an inline
- * two-step confirm, never window.confirm.
+ * Full library management lives in-surface: search by name (?search=), filter by
+ * type (image/video/svg/audio/document pills) or by tag (?tag=), a folder rail
+ * with create/rename/delete + breadcrumb browse (?folderId=), move a single file
+ * (PUT /api/media/[id]) or many (select mode + /api/media/bulk), and delete one
+ * (DELETE /api/media/[id]) or many — every destructive action uses an inline
+ * two-step confirm, never window.confirm. Each file can be renamed, tagged
+ * (PUT /api/media/[id] { originalName | tags }), and downloaded to disk (fetch the
+ * url as a blob → anchor download).
  * [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
  */
 
@@ -38,6 +41,7 @@ interface MediaItem {
   width?: number | null;
   height?: number | null;
   folderId?: string | null;
+  tags?: string[] | null;
   createdAt: string;
   metadata?: { thumbnailUrl?: string; thumbnailUrlMd?: string; thumbnailUrlSm?: string } | null;
 }
@@ -51,12 +55,17 @@ interface MediaFolder {
   createdAt: string;
 }
 
-type FilterKey = "all" | "image" | "video";
+type FilterKey = "all" | "image" | "video" | "svg" | "audio" | "document";
 
-const FILTERS: { key: FilterKey; label: string; query?: string }[] = [
-  { key: "all", label: "All" },
-  { key: "image", label: "Images", query: "image,svg" },
-  { key: "video", label: "Videos", query: "video" },
+// Each pill filters the loaded library client-side via `match`; only pills whose
+// type is actually present in the current view are shown.
+const FILTERS: { key: FilterKey; label: string; match: (t: string) => boolean }[] = [
+  { key: "all", label: "All", match: () => true },
+  { key: "image", label: "Images", match: (t) => t === "image" },
+  { key: "video", label: "Videos", match: (t) => t === "video" },
+  { key: "svg", label: "SVG", match: (t) => t === "svg" },
+  { key: "audio", label: "Audio", match: (t) => t === "audio" },
+  { key: "document", label: "Docs", match: (t) => t === "document" },
 ];
 
 // "root" sentinel = the top-level (un-foldered) view; a string id = inside a folder.
@@ -91,6 +100,7 @@ function typeIcon(t: string): ElementType {
   if (t === "video") return Film;
   if (t === "audio") return Music;
   if (t === "document") return FileText;
+  if (t === "svg") return FileCode;
   return ImageIcon;
 }
 
@@ -130,6 +140,17 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [confirmDeleteFile, setConfirmDeleteFile] = useState<string | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
 
+  // rename a file (in lightbox)
+  const [renamingFile, setRenamingFile] = useState(false);
+  const [fileRenameValue, setFileRenameValue] = useState("");
+
+  // tag editing (in lightbox) + tag filter (library)
+  const [tagInput, setTagInput] = useState("");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+  // download progress (per file id)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   // debounce the search box
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -151,6 +172,11 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
       // Searching spans the whole library; otherwise scope to the open folder.
       if (debouncedSearch) params.set("search", debouncedSearch);
       else params.set("folderId", scope);
+      // Tag filter is a global, server-side match (?tag=) across the library.
+      if (tagFilter) {
+        params.set("tag", tagFilter);
+        params.delete("folderId");
+      }
       const j = await fetch(`/api/media?${params.toString()}`).then((r) => r.json());
       if (j?.success && Array.isArray(j.data?.files)) {
         setItems(j.data.files as MediaItem[]);
@@ -162,7 +188,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     } finally {
       setFetching(false);
     }
-  }, [scope, debouncedSearch]);
+  }, [scope, debouncedSearch, tagFilter]);
 
   useEffect(() => {
     let alive = true;
@@ -170,24 +196,42 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return () => { alive = false; };
   }, [load, loadFolders, refreshKey]);
 
-  // Drop any stale selection when the visible set changes (folder/search/filter).
-  useEffect(() => { setSelected(new Set()); setBulkConfirmDelete(false); }, [scope, debouncedSearch, filter]);
+  // Drop any stale selection when the visible set changes (folder/search/filter/tag).
+  useEffect(() => { setSelected(new Set()); setBulkConfirmDelete(false); }, [scope, debouncedSearch, filter, tagFilter]);
+
+  // Reset lightbox-local editors (rename / tag input) whenever a new file opens.
+  useEffect(() => { setRenamingFile(false); setFileRenameValue(""); setTagInput(""); setConfirmDeleteFile(null); }, [lightbox?.id]);
 
   const counts = useMemo(() => {
+    const by: Record<string, number> = {};
     let images = 0;
     let videos = 0;
     for (const m of items) {
+      by[m.type] = (by[m.type] || 0) + 1;
       if (isImageLike(m.type)) images++;
       else if (m.type === "video") videos++;
     }
-    return { total: items.length, images, videos };
+    return { total: items.length, images, videos, by };
   }, [items]);
 
+  // Show a pill only when "all" or that type actually appears in the loaded view,
+  // so SVG/Audio/Docs pills surface lazily as those assets exist.
+  const activeFilters = useMemo(
+    () => FILTERS.filter((f) => f.key === "all" || f.key === "image" || f.key === "video" || (counts.by[f.key] ?? 0) > 0),
+    [counts]
+  );
+
   const visible = useMemo(() => {
-    if (filter === "image") return items.filter((m) => isImageLike(m.type));
-    if (filter === "video") return items.filter((m) => m.type === "video");
-    return items;
+    const f = FILTERS.find((x) => x.key === filter) ?? FILTERS[0];
+    if (filter === "all") return items;
+    return items.filter((m) => f.match(m.type));
   }, [items, filter]);
+
+  // If the active filter's type vanishes from the view (folder switch, deletes),
+  // fall back to "All" so the grid never looks empty for a stale pill.
+  useEffect(() => {
+    if (filter !== "all" && !activeFilters.some((f) => f.key === filter)) setFilter("all");
+  }, [activeFilters, filter]);
 
   // Folder helpers — the API returns a flat list with parentId; derive children
   // of the current scope and the breadcrumb chain from it.
@@ -323,8 +367,10 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
       }).then((r) => r.json());
       if (j?.success) {
         setMovePickerFor(null);
-        // If the file moved out of the current scope, drop it from the grid.
-        const stillHere = debouncedSearch ? true : (folderId ?? null) === (scope === "root" ? null : scope);
+        // If the file moved out of the current scope, drop it from the grid. A
+        // global view (search OR an active tag filter) spans every folder, so a
+        // folder-move never changes membership there — keep the file in view.
+        const stillHere = (debouncedSearch || tagFilter) ? true : (folderId ?? null) === (scope === "root" ? null : scope);
         if (!stillHere) {
           setItems((prev) => prev.filter((m) => m.id !== id));
           if (lightbox?.id === id) setLightbox(null);
@@ -340,7 +386,93 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     } finally {
       setFileBusy(false);
     }
-  }, [scope, debouncedSearch, lightbox, loadFolders]);
+  }, [scope, debouncedSearch, tagFilter, lightbox, loadFolders]);
+
+  // Rename a file — PUT /api/media/[id] { originalName }. Patches the grid + the
+  // open lightbox in place so the new name shows without a full re-fetch.
+  const renameFile = useCallback(async (id: string) => {
+    const name = fileRenameValue.trim();
+    if (!name) return;
+    setFileBusy(true);
+    try {
+      const j = await fetch(`/api/media/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ originalName: name }),
+      }).then((r) => r.json());
+      if (j?.success) {
+        setItems((prev) => prev.map((m) => (m.id === id ? { ...m, originalName: name } : m)));
+        setLightbox((lb) => (lb && lb.id === id ? { ...lb, originalName: name } : lb));
+        setRenamingFile(false);
+      } else {
+        setError(j?.error?.message || "Could not rename the file.");
+      }
+    } catch {
+      setError("Could not rename the file.");
+    } finally {
+      setFileBusy(false);
+    }
+  }, [fileRenameValue]);
+
+  // Set the full tag list — PUT /api/media/[id] { tags }. Used by both add + remove
+  // (we always send the next array). Echoes the server's normalized tags back.
+  const setFileTags = useCallback(async (id: string, nextTags: string[]) => {
+    setFileBusy(true);
+    try {
+      const j = await fetch(`/api/media/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      }).then((r) => r.json());
+      if (j?.success) {
+        const saved: string[] = Array.isArray(j.data?.file?.tags) ? j.data.file.tags : nextTags;
+        setItems((prev) => prev.map((m) => (m.id === id ? { ...m, tags: saved } : m)));
+        setLightbox((lb) => (lb && lb.id === id ? { ...lb, tags: saved } : lb));
+      } else {
+        setError(j?.error?.message || "Could not update tags.");
+      }
+    } catch {
+      setError("Could not update tags.");
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
+
+  const addTag = useCallback((id: string, current: string[]) => {
+    const t = tagInput.trim();
+    if (!t) return;
+    if (current.some((x) => x.toLowerCase() === t.toLowerCase())) { setTagInput(""); return; }
+    setTagInput("");
+    void setFileTags(id, [...current, t]);
+  }, [tagInput, setFileTags]);
+
+  const removeTag = useCallback((id: string, current: string[], t: string) => {
+    void setFileTags(id, current.filter((x) => x !== t));
+  }, [setFileTags]);
+
+  // Download a file to disk — fetch the (presigned) url as a blob, then click a
+  // synthetic anchor with `download`. Falls back to opening the url on failure.
+  const downloadFile = useCallback(async (m: MediaItem) => {
+    setDownloadingId(m.id);
+    try {
+      const res = await fetch(m.url);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = m.originalName || m.filename || "download";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch {
+      // Cross-origin/network hiccup — open the asset so the user can save it.
+      window.open(m.url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingId(null);
+    }
+  }, []);
 
   // ── Bulk mutations ────────────────────────────────────────────────────────
   const bulkDelete = useCallback(async () => {
@@ -382,7 +514,9 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
       }).then((r) => r.json());
       if (j?.success) {
         const moved = new Set(ids);
-        const stayHere = debouncedSearch ? true : (folderId ?? null) === (scope === "root" ? null : scope);
+        // A global view (search OR tag filter) spans every folder — a folder move
+        // doesn't change tag/name membership, so keep the moved files in view.
+        const stayHere = (debouncedSearch || tagFilter) ? true : (folderId ?? null) === (scope === "root" ? null : scope);
         if (!stayHere) setItems((prev) => prev.filter((m) => !moved.has(m.id)));
         else setItems((prev) => prev.map((m) => (moved.has(m.id) ? { ...m, folderId } : m)));
         setSelected(new Set());
@@ -397,7 +531,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     } finally {
       setBulkBusy(false);
     }
-  }, [selected, scope, debouncedSearch, loadFolders]);
+  }, [selected, scope, debouncedSearch, tagFilter, loadFolders]);
 
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
@@ -413,6 +547,9 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   }
 
   const searching = debouncedSearch.length > 0;
+  // A "global" view (search or an active tag filter) spans the whole library, so
+  // folder navigation is hidden — the scope no longer drives the result set.
+  const globalView = searching || !!tagFilter;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -463,8 +600,8 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             {fetching && <FlowLoader size={18} />}
           </div>
 
-          {/* breadcrumb + folder controls (hidden while searching — search is global) */}
-          {!searching && (
+          {/* breadcrumb + folder controls (hidden in a global view — search/tag span all) */}
+          {!globalView && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[12px]">
               <button
                 onClick={() => setScope("root")}
@@ -493,7 +630,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
           )}
 
           {/* new folder inline form */}
-          {!searching && newFolderOpen && (
+          {!globalView && newFolderOpen && (
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 p-2.5">
               <FolderPlus className="h-4 w-4 shrink-0 text-brand-500" />
               <input
@@ -516,7 +653,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
           )}
 
           {/* folder rail — subfolders of the current scope */}
-          {!searching && childFolders.length > 0 && (
+          {!globalView && childFolders.length > 0 && (
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {childFolders.map((f) => (
                 <div key={f.id} className="group/folder relative rounded-xl border border-border bg-muted/30 transition hover:border-brand-500/60">
@@ -566,10 +703,10 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             </div>
           )}
 
-          {/* filter pills */}
+          {/* filter pills — type filters apply to the loaded view */}
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            {FILTERS.map((f) => {
-              const n = f.key === "all" ? counts.total : f.key === "image" ? counts.images : counts.videos;
+            {activeFilters.map((f) => {
+              const n = f.key === "all" ? counts.total : (counts.by[f.key] ?? 0);
               return (
                 <button
                   key={f.key}
@@ -585,6 +722,23 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               );
             })}
           </div>
+
+          {/* active tag filter banner (set from a file's tag chip) */}
+          {tagFilter && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2">
+              <Tag className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+              <span className="text-[12.5px]">
+                Filtering by tag <span className="font-semibold text-brand-500">#{tagFilter}</span>
+                <span className="ms-1.5 text-muted-foreground">· {visible.length} {visible.length === 1 ? "file" : "files"}</span>
+              </span>
+              <button
+                onClick={() => setTagFilter(null)}
+                className="ms-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11.5px] font-semibold text-muted-foreground transition hover:text-foreground"
+              >
+                <X className="h-3 w-3" /> Clear tag
+              </button>
+            </div>
+          )}
 
           {/* inline uploader — clicking "Upload" opens this real input, not a chat prompt */}
           {uploadOpen && (
@@ -656,10 +810,39 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                         >
                           {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                         </span>
+                        {/* quick download (hidden in select mode to avoid mis-taps) */}
+                        {!selectMode && (
+                          <span
+                            onClick={(e) => { e.stopPropagation(); if (downloadingId !== m.id) downloadFile(m); }}
+                            className="absolute bottom-1.5 right-1.5 grid h-7 w-7 cursor-pointer place-items-center rounded-md bg-background/85 text-muted-foreground opacity-0 backdrop-blur-sm transition hover:text-foreground group-hover:opacity-100"
+                            role="button"
+                            aria-label="Download file"
+                          >
+                            {downloadingId === m.id ? <FlowLoader size={14} /> : <Download className="h-4 w-4" />}
+                          </span>
+                        )}
                       </div>
                       <div className="p-2.5">
                         <p className="truncate text-[12.5px] font-medium">{m.originalName || m.filename || "Untitled"}</p>
                         <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[whenLabel(m.createdAt), fileSize(m.size)].filter(Boolean).join(" · ")}</p>
+                        {!!m.tags?.length && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {m.tags.slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                onClick={(e) => { e.stopPropagation(); setTagFilter(t); setFilter("all"); }}
+                                className={cn(
+                                  "inline-flex max-w-full cursor-pointer items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition",
+                                  tagFilter === t ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                                )}
+                                role="button"
+                              >
+                                <Tag className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{t}</span>
+                              </span>
+                            ))}
+                            {m.tags.length > 3 && <span className="text-[10px] font-medium text-muted-foreground">+{m.tags.length - 3}</span>}
+                          </div>
+                        )}
                       </div>
                     </button>
                   </div>
@@ -671,18 +854,20 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><ImagePlay className="h-7 w-7" /></span>
               <p className="mt-3 text-[13px] font-medium">
                 {searching ? `No files match “${debouncedSearch}”`
-                  : items.length ? `No ${filter === "video" ? "videos" : "images"} ${currentFolder ? `in ${currentFolder.name}` : "here"}`
+                  : tagFilter ? `No files tagged #${tagFilter}`
+                  : items.length ? `No ${(FILTERS.find((f) => f.key === filter)?.label || "files").toLowerCase()} ${currentFolder ? `in ${currentFolder.name}` : "here"}`
                   : currentFolder ? `${currentFolder.name} is empty`
                   : "Your media library is empty"}
               </p>
               <p className="mt-1 text-[12px] text-muted-foreground">
                 {searching ? "Try a different name, or clear the search."
+                  : tagFilter ? "Clear the tag filter, or tag more files to see them here."
                   : items.length ? "Switch filters or upload more to see them here."
                   : "Upload images and videos, or have the agent create some for you."}
               </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <button onClick={() => setUploadOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><ImagePlay className="h-4 w-4" /> Upload media</button>
-                {onAsk && !searching && (
+                {onAsk && !globalView && (
                   <button onClick={() => onAsk("Create some images for my brand — ask me what I need (product shots, social posts, a logo), then generate them and save them to my media library.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Sparkles className="h-4 w-4" /> Create with the agent</button>
                 )}
               </div>
@@ -732,7 +917,13 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
       {movePickerFor && (
         <FolderPicker
           folders={folders}
-          currentFolderId={currentFolder?.id ?? null}
+          // For a single file, "current" is that file's own folder (it may differ
+          // from the browse scope in a search/tag view); bulk uses the open scope.
+          currentFolderId={
+            movePickerFor === "bulk"
+              ? (currentFolder?.id ?? null)
+              : (items.find((m) => m.id === movePickerFor)?.folderId ?? null)
+          }
           busy={movePickerFor === "bulk" ? bulkBusy : fileBusy}
           title={movePickerFor === "bulk" ? `Move ${Math.min(selected.size, BULK_MAX)} file${Math.min(selected.size, BULK_MAX) === 1 ? "" : "s"} to…` : "Move file to…"}
           onClose={() => setMovePickerFor(null)}
@@ -763,38 +954,112 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-card px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold">{lightbox.originalName || lightbox.filename || "Untitled"}</p>
-                <p className="truncate text-[11.5px] text-muted-foreground">{[lightbox.type, whenLabel(lightbox.createdAt), fileSize(lightbox.size), lightbox.width && lightbox.height ? `${lightbox.width}×${lightbox.height}` : ""].filter(Boolean).join(" · ")}</p>
-              </div>
-              <div className="ms-auto flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={() => setMovePickerFor(lightbox.id)}
-                  disabled={fileBusy}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"
-                >
-                  <FolderInput className="h-3.5 w-3.5" /> Move
-                </button>
-                <a href={lightbox.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                  <ExternalLink className="h-3.5 w-3.5" /> Open original
-                </a>
-                {confirmDeleteFile === lightbox.id ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-1.5 py-1">
-                    <span className="px-1 text-[11.5px] font-semibold text-rose-500">Delete?</span>
-                    <button onClick={() => deleteFile(lightbox.id)} disabled={fileBusy} className="inline-flex items-center gap-1 rounded-md bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50">
-                      {fileBusy ? <FlowLoader size={12} tone="white" /> : <Trash2 className="h-3 w-3" />} Yes
+            <div className="border-t border-border bg-card px-4 py-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1">
+                  {renamingFile ? (
+                    <div className="flex items-center gap-1.5">
+                      <Pencil className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                      <input
+                        autoFocus
+                        value={fileRenameValue}
+                        onChange={(e) => setFileRenameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") renameFile(lightbox.id); if (e.key === "Escape") setRenamingFile(false); }}
+                        className="min-w-0 flex-1 rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[13px] outline-none transition focus:border-brand-500/60"
+                      />
+                      <button onClick={() => renameFile(lightbox.id)} disabled={fileBusy || !fileRenameValue.trim()} className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50" aria-label="Save name">
+                        {fileBusy ? <FlowLoader size={12} tone="white" /> : <Check className="h-3.5 w-3.5" />}
+                      </button>
+                      <button onClick={() => setRenamingFile(false)} className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:text-foreground" aria-label="Cancel rename"><X className="h-4 w-4" /></button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setRenamingFile(true); setFileRenameValue(lightbox.originalName || lightbox.filename || ""); }}
+                      className="group/name flex max-w-full items-center gap-1.5 text-left"
+                      aria-label="Rename file"
+                    >
+                      <span className="truncate text-[13px] font-semibold">{lightbox.originalName || lightbox.filename || "Untitled"}</span>
+                      <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition group-hover/name:opacity-100" />
                     </button>
-                    <button onClick={() => setConfirmDeleteFile(null)} className="rounded-md px-2 py-1 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground">No</button>
-                  </span>
-                ) : (
+                  )}
+                  <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lightbox.type, whenLabel(lightbox.createdAt), fileSize(lightbox.size), lightbox.width && lightbox.height ? `${lightbox.width}×${lightbox.height}` : ""].filter(Boolean).join(" · ")}</p>
+                </div>
+                <div className="ms-auto flex flex-wrap items-center gap-1.5">
                   <button
-                    onClick={() => setConfirmDeleteFile(lightbox.id)}
-                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 px-3 py-1.5 text-[12.5px] font-semibold text-rose-500 transition hover:bg-rose-500/10"
+                    onClick={() => { if (downloadingId !== lightbox.id) downloadFile(lightbox); }}
+                    disabled={downloadingId === lightbox.id}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                    {downloadingId === lightbox.id ? <FlowLoader size={14} /> : <Download className="h-3.5 w-3.5" />} Download
                   </button>
-                )}
+                  <button
+                    onClick={() => setMovePickerFor(lightbox.id)}
+                    disabled={fileBusy}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"
+                  >
+                    <FolderInput className="h-3.5 w-3.5" /> Move
+                  </button>
+                  <a href={lightbox.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open original
+                  </a>
+                  {confirmDeleteFile === lightbox.id ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-1.5 py-1">
+                      <span className="px-1 text-[11.5px] font-semibold text-rose-500">Delete?</span>
+                      <button onClick={() => deleteFile(lightbox.id)} disabled={fileBusy} className="inline-flex items-center gap-1 rounded-md bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50">
+                        {fileBusy ? <FlowLoader size={12} tone="white" /> : <Trash2 className="h-3 w-3" />} Yes
+                      </button>
+                      <button onClick={() => setConfirmDeleteFile(null)} className="rounded-md px-2 py-1 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground">No</button>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteFile(lightbox.id)}
+                      className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 px-3 py-1.5 text-[12.5px] font-semibold text-rose-500 transition hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* tags — view, remove (×), add, and jump to a tag filter */}
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+                <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {(lightbox.tags ?? []).map((t) => (
+                  <span key={t} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pl-2 pr-1 text-[11.5px] font-semibold">
+                    <button
+                      onClick={() => { setTagFilter(t); setFilter("all"); setLightbox(null); }}
+                      className="text-muted-foreground transition hover:text-brand-500"
+                      aria-label={`Filter by ${t}`}
+                    >
+                      {t}
+                    </button>
+                    <button
+                      onClick={() => removeTag(lightbox.id, lightbox.tags ?? [], t)}
+                      disabled={fileBusy}
+                      className="grid h-4 w-4 place-items-center rounded text-muted-foreground transition hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-50"
+                      aria-label={`Remove tag ${t}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                {!(lightbox.tags ?? []).length && <span className="text-[11.5px] text-muted-foreground">No tags yet</span>}
+                <span className="ms-auto inline-flex items-center gap-1.5">
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(lightbox.id, lightbox.tags ?? []); } }}
+                    placeholder="Add a tag…"
+                    className="w-32 rounded-[10px] border border-border bg-background px-2.5 py-1 text-[12px] outline-none transition focus:border-brand-500/60"
+                  />
+                  <button
+                    onClick={() => addTag(lightbox.id, lightbox.tags ?? [])}
+                    disabled={fileBusy || !tagInput.trim()}
+                    className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1 text-[12px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
+                </span>
               </div>
             </div>
           </div>

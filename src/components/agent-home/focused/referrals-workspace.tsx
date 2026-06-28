@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Gift, Users, UserCheck, Coins, Copy, Check, Link2, Share2, Clock, Mail, MessageCircle, Twitter, Receipt } from "lucide-react";
+import { Gift, Users, UserCheck, Coins, Copy, Check, Link2, Share2, Clock, Mail, MessageCircle, Twitter, Receipt, ChevronDown, Briefcase, UserRound } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -42,8 +42,53 @@ interface Commission {
   status?: string;
   description?: string | null;
   sourceName?: string | null;
+  sourceType?: string | null;
   referredName?: string | null;
   createdAt?: string;
+}
+
+interface Pagination {
+  page?: number;
+  limit?: number;
+  total?: number;
+  pages?: number;
+}
+
+const PAGE_LIMIT = 20;
+
+/** "Client" (referred a client) vs "Agent" (referred another agent). [[legacy /referrals parity]] */
+function referralTypeLabel(type?: string): { label: string; icon: ElementType; tone: string } {
+  switch ((type || "").toUpperCase()) {
+    case "AGENT_TO_AGENT":
+      return { label: "Agent", icon: Briefcase, tone: "bg-violet-500/10 text-violet-500" };
+    case "USER_TO_CLIENT":
+    case "AGENT_TO_CLIENT":
+      return { label: "Client", icon: UserRound, tone: "bg-blue-500/10 text-blue-500" };
+    default:
+      return { label: "Client", icon: UserRound, tone: "bg-blue-500/10 text-blue-500" };
+  }
+}
+
+/** Per-referral commission rate + type, e.g. "5% recurring" / "50% one-time". */
+function commissionLabel(rate?: number, type?: string): string {
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) return "";
+  const pct = (rate * 100).toFixed(0);
+  const kind = (type || "").toUpperCase() === "ONE_TIME" ? "one-time" : "recurring";
+  return `${pct}% ${kind}`;
+}
+
+/** Human label for a commission's sourceType (SUBSCRIPTION / CREDIT_PURCHASE / AGENT_HIRE). */
+function sourceTypeLabel(sourceType?: string | null): string {
+  switch ((sourceType || "").toUpperCase()) {
+    case "SUBSCRIPTION":
+      return "Subscription";
+    case "CREDIT_PURCHASE":
+      return "Credit purchase";
+    case "AGENT_HIRE":
+      return "Agent hire";
+    default:
+      return "";
+  }
 }
 
 function money(cents?: number): string {
@@ -70,33 +115,60 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
   const [stats, setStats] = useState<Stats>({});
   const [referrals, setReferrals] = useState<ReferredUser[]>([]);
   const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({});
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const j = await fetch("/api/referrals?limit=30").then((r) => r.json());
-      if (j?.success && j.data) {
-        setCode(typeof j.data.code === "string" ? j.data.code : "");
-        setLink(typeof j.data.link === "string" ? j.data.link : "");
-        if (j.data.stats) setStats(j.data.stats as Stats);
-        if (Array.isArray(j.data.referrals)) setReferrals(j.data.referrals as ReferredUser[]);
-        if (Array.isArray(j.data.commissions)) setCommissions(j.data.commissions as Commission[]);
-        setError("");
-      } else {
-        setError(j?.error?.message || "Could not load your referrals.");
-      }
-    } catch {
-      setError("Could not load your referrals.");
+  // Load one page of referrals. page 1 = fresh load (also seeds commissions);
+  // page > 1 appends to the existing list (the route paginates the referral
+  // list via ?page/limit). [[GET /api/referrals?page&limit]]
+  const load = useCallback(async (page: number) => {
+    const j = await fetch(`/api/referrals?page=${page}&limit=${PAGE_LIMIT}`).then((r) => r.json());
+    if (j?.success && j.data) {
+      setCode(typeof j.data.code === "string" ? j.data.code : "");
+      setLink(typeof j.data.link === "string" ? j.data.link : "");
+      if (j.data.stats) setStats(j.data.stats as Stats);
+      if (j.data.pagination) setPagination(j.data.pagination as Pagination);
+      const next = Array.isArray(j.data.referrals) ? (j.data.referrals as ReferredUser[]) : [];
+      setReferrals((prev) => {
+        if (page <= 1) return next;
+        // De-dupe by id when appending (defensive against overlap).
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...next.filter((r) => !seen.has(r.id))];
+      });
+      // Commission history is tied to the same page param, so we only seed it
+      // from page 1 to keep the full first-page history stable while paging.
+      if (page <= 1 && Array.isArray(j.data.commissions)) setCommissions(j.data.commissions as Commission[]);
+      setError("");
+    } else {
+      setError(j?.error?.message || "Could not load your referrals.");
     }
   }, []);
 
   useEffect(() => {
     let alive = true;
-    load().finally(() => { if (alive) setLoading(false); });
+    load(1).catch(() => { if (alive) setError("Could not load your referrals."); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  const loadedPage = pagination.page ?? 1;
+  const totalPages = pagination.pages ?? 1;
+  const hasMore = loadedPage < totalPages;
+  const totalReferralsCount = pagination.total ?? referrals.length;
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      await load(loadedPage + 1);
+    } catch {
+      setError("Could not load more referrals.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const copy = async (value: string, which: "link" | "code") => {
     if (!value) return;
@@ -212,29 +284,62 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
 
         {/* referred users */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-[13px] font-bold">People you referred</h3>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="text-[13px] font-bold">People you referred</h3>
+            {referrals.length ? (
+              <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground tabular-nums">
+                {totalReferralsCount > referrals.length ? `${referrals.length} of ${totalReferralsCount.toLocaleString()}` : totalReferralsCount.toLocaleString()}
+              </span>
+            ) : null}
+          </div>
           {referrals.length ? (
-            <div className="space-y-2">
-              {referrals.map((r) => {
-                const active = (r.status || "").toUpperCase() === "ACTIVE";
-                const name = r.referredName || r.referredEmail || "New member";
-                return (
-                  <div key={r.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                    {r.referredAvatar ? (
-                      <Image src={r.referredAvatar} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full object-cover" unoptimized />
-                    ) : (
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-500/30 text-[11px] font-bold text-brand-500">{name.slice(0, 1).toUpperCase()}</span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium">{name}</p>
-                      <p className="truncate text-[11.5px] text-muted-foreground">{r.createdAt ? `Joined ${whenLabel(r.createdAt)}` : (r.referredEmail || "")}</p>
+            <>
+              <div className="space-y-2">
+                {referrals.map((r) => {
+                  const active = (r.status || "").toUpperCase() === "ACTIVE";
+                  const name = r.referredName || r.referredEmail || "New member";
+                  const type = referralTypeLabel(r.referralType);
+                  const TypeIcon = type.icon;
+                  const rate = commissionLabel(r.commissionRate, r.commissionType);
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+                      {r.referredAvatar ? (
+                        <Image src={r.referredAvatar} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full object-cover" unoptimized />
+                      ) : (
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-500/30 text-[11px] font-bold text-brand-500">{name.slice(0, 1).toUpperCase()}</span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className="truncate text-[13px] font-medium">{name}</p>
+                          <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", type.tone)}>
+                            <TypeIcon className="h-2.5 w-2.5" />{type.label}
+                          </span>
+                        </div>
+                        <p className="truncate text-[11.5px] text-muted-foreground">
+                          {r.createdAt ? `Joined ${whenLabel(r.createdAt)}` : (r.referredEmail || "")}
+                          {rate ? <span className="text-foreground/70"> · {rate}</span> : null}
+                        </p>
+                      </div>
+                      {r.totalEarnedCents ? <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-emerald-500">+{money(r.totalEarnedCents)}</span> : null}
+                      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{(r.status || "active").toLowerCase()}</span>
                     </div>
-                    {r.totalEarnedCents ? <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-emerald-500">+{money(r.totalEarnedCents)}</span> : null}
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{(r.status || "active").toLowerCase()}</span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+              {hasMore ? (
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-background/70 px-4 py-2 text-[12.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-60"
+                >
+                  {loadingMore ? (
+                    <FlowLoader size={16} />
+                  ) : (
+                    <><ChevronDown className="h-4 w-4" /> Load more ({(totalReferralsCount - referrals.length).toLocaleString()} more)</>
+                  )}
+                </button>
+              ) : null}
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-brand-500/10 text-brand-500"><Gift className="h-5 w-5" /></span>
@@ -263,12 +368,15 @@ export function FocusedReferrals({ refreshKey }: { refreshKey?: number }) {
                 const cents = typeof c.amountCents === "number" ? c.amountCents : typeof c.amount === "number" ? Math.round(c.amount * 100) : 0;
                 const st = (c.status || "pending").toLowerCase();
                 const paid = st === "paid" || st === "completed";
+                const title = c.description || c.sourceName || c.referredName || "Referral commission";
+                const source = sourceTypeLabel(c.sourceType);
+                const sub = [c.createdAt ? whenLabel(c.createdAt) : "", source].filter(Boolean).join(" · ");
                 return (
                   <div key={c.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
                     <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", paid ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}><Coins className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium">{c.description || c.sourceName || c.referredName || "Referral commission"}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{c.createdAt ? whenLabel(c.createdAt) : ""}</p>
+                      <p className="truncate text-[12.5px] font-medium">{title}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{sub}</p>
                     </div>
                     <span className="shrink-0 text-[13px] font-bold tabular-nums text-emerald-500">+{money(cents)}</span>
                     <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", paid ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500")}>{st}</span>

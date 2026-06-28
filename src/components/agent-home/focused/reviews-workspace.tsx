@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
   Star, MessageSquare, Reply, Gauge, MapPin, ExternalLink, Sparkles, ListChecks,
   ShieldCheck, ThumbsUp, ThumbsDown, Minus, Search, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, Clock, HelpCircle, Send, X, Flag, Archive, Wand2,
-  Filter, BadgeCheck, ListTree,
+  Filter, BadgeCheck, ListTree, RefreshCw, Pencil, Building2, Save, Layers,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -26,9 +26,11 @@ import { cn } from "@/lib/utils/cn";
  * else is direct UI. [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
  */
 
+interface TierCoverage { tier: number; live: number; total: number; percentage: number }
 interface Analytics {
   scores?: { citationScore?: number; coverageScore?: number; consistencyScore?: number; reviewScore?: number };
   listings?: { total?: number; statusCounts?: Record<string, number> };
+  listingsByTier?: TierCoverage[];
   reviews?: {
     total?: number; averageRating?: number; responseRate?: number;
     sentimentCounts?: Record<string, number>; byPlatform?: Record<string, number>;
@@ -61,7 +63,24 @@ interface Review {
   isFlagged?: boolean;
   createdAt: string;
 }
-interface Profile { businessName?: string | null; city?: string | null; state?: string | null; setupComplete?: boolean }
+interface ProfileHours { monFri?: string; sat?: string; sun?: string }
+interface ProfileSocial { facebook?: string; instagram?: string; twitter?: string; linkedin?: string }
+interface Profile {
+  businessName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  industry?: string | null;
+  description?: string | null;
+  hours?: ProfileHours | null;
+  socialLinks?: ProfileSocial | null;
+  setupComplete?: boolean;
+}
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
 
 // "live"-ish listing statuses that count as a real presence on a directory.
@@ -121,22 +140,62 @@ const SELECT = "rounded-[9px] border border-input bg-background px-2.5 py-1.5 te
 
 type Tab = "listings" | "reviews";
 
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+function str(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+// The profile endpoint returns hours/socialLinks already JSON-parsed, but guard
+// against unexpected shapes from older records.
+function parseProfile(raw: unknown): Profile {
+  const p = asObject(raw);
+  const hours = asObject(p.hours);
+  const social = asObject(p.socialLinks);
+  return {
+    businessName: str(p.businessName) || null,
+    phone: str(p.phone) || null,
+    email: str(p.email) || null,
+    website: str(p.website) || null,
+    address: str(p.address) || null,
+    city: str(p.city) || null,
+    state: str(p.state) || null,
+    zip: str(p.zip) || null,
+    country: str(p.country) || null,
+    industry: str(p.industry) || null,
+    description: str(p.description) || null,
+    hours: { monFri: str(hours.monFri), sat: str(hours.sat), sun: str(hours.sun) },
+    socialLinks: {
+      facebook: str(social.facebook), instagram: str(social.instagram),
+      twitter: str(social.twitter), linkedin: str(social.linkedin),
+    },
+    setupComplete: p.setupComplete === true,
+  };
+}
+
 export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("listings");
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     const pj = await fetch("/api/listsmartly/profile").then((r) => r.json()).catch(() => null);
-    const prof = pj?.success ? pj?.data?.profile : null;
-    setHasProfile(!!prof);
-    setProfile(prof);
-    if (prof) {
+    const rawProfile = pj?.success ? pj?.data?.profile : null;
+    setHasProfile(!!rawProfile);
+    setProfile(rawProfile ? parseProfile(rawProfile) : null);
+    if (rawProfile) {
       const aj = await fetch("/api/listsmartly/analytics").then((r) => r.json()).catch(() => null);
       if (aj?.success && aj.data) setAnalytics(aj.data as Analytics);
     }
+  }, []);
+
+  // Refresh just the analytics (used after a scan re-computes scores/stats).
+  const refreshAnalytics = useCallback(async () => {
+    const aj = await fetch("/api/listsmartly/analytics").then((r) => r.json()).catch(() => null);
+    if (aj?.success && aj.data) setAnalytics(aj.data as Analytics);
   }, []);
 
   useEffect(() => {
@@ -184,6 +243,8 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
     { label: "Reviews", value: a?.scores?.reviewScore ?? 0 },
   ];
 
+  const tierCoverage = (a?.listingsByTier ?? []).filter((t) => t.total > 0);
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -198,7 +259,25 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
               </div>
               <p className="truncate text-[12px] text-muted-foreground">{location ? `${location} · ` : ""}{totalListings} {totalListings === 1 ? "directory" : "directories"}</p>
             </div>
+            <button
+              onClick={() => setEditing((v) => !v)}
+              className={cn(
+                "ms-auto inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12px] font-semibold transition-colors",
+                editing ? "border-brand-500/60 text-brand-500" : "border-border hover:border-brand-500/60 hover:text-foreground"
+              )}
+            >
+              <Pencil className="h-3.5 w-3.5" /> {editing ? "Close" : "Edit profile"}
+            </button>
           </div>
+
+          {editing && profile && (
+            <ProfileEditor
+              profile={profile}
+              onSaved={(p) => { setProfile(p); setEditing(false); }}
+              onCancel={() => setEditing(false)}
+            />
+          )}
+
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Kpi icon={Gauge} label="SEO score" value={citation ? `${citation}` : "—"} />
             <Kpi icon={Star} label="Avg rating" value={rating ? rating.toFixed(1) : "—"} />
@@ -217,6 +296,27 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
               </div>
             ))}
           </div>
+
+          {/* per-tier coverage: live vs total on each directory tier */}
+          {tierCoverage.length > 0 && (
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-2.5 flex items-center gap-2"><Layers className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12px] font-semibold">Coverage by tier</span></div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {tierCoverage.map((t) => (
+                  <div key={t.tier} className="rounded-xl border border-border bg-muted/30 p-2.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate text-[11px] font-semibold">Tier {t.tier}</span>
+                      <span className="shrink-0 text-[10.5px] font-semibold tabular-nums text-muted-foreground">{t.live}/{t.total}</span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{TIER_NAMES[t.tier] ?? "Other"}</p>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className={cn("h-full rounded-full", t.percentage >= 60 ? "bg-emerald-500" : t.percentage > 0 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.max(3, Math.min(100, t.percentage))}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* tabs */}
@@ -236,7 +336,7 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
         </div>
 
         {tab === "listings" ? (
-          <ListingsPanel onAsk={onAsk} refreshKey={refreshKey} />
+          <ListingsPanel onAsk={onAsk} refreshKey={refreshKey} onScanned={refreshAnalytics} />
         ) : (
           <ReviewsPanel onAsk={onAsk} refreshKey={refreshKey} onChanged={load} />
         )}
@@ -247,7 +347,9 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
 
 /* ------------------------------- Listings panel ------------------------------ */
 
-function ListingsPanel({ onAsk, refreshKey }: { onAsk?: (p: string) => void; refreshKey?: number }) {
+interface ScanSummary { total: number; live: number; missing: number; unverified: number; inconsistent: number; errors: number; searched: number }
+
+function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) => void; refreshKey?: number; onScanned: () => void }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,6 +358,13 @@ function ListingsPanel({ onAsk, refreshKey }: { onAsk?: (p: string) => void; ref
   const [status, setStatus] = useState("");
   const [tier, setTier] = useState("");
   const [page, setPage] = useState(1);
+
+  // Directory/review scan: a heavy action that re-checks every directory and
+  // re-computes scores, so it uses an inline two-step confirm (not window.confirm).
+  const [confirmScan, setConfirmScan] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanSummary | null>(null);
+  const [scanError, setScanError] = useState("");
 
   // Debounce the search box.
   useEffect(() => { const t = setTimeout(() => setDebounced(search.trim()), 300); return () => clearTimeout(t); }, [search]);
@@ -279,6 +388,25 @@ function ListingsPanel({ onAsk, refreshKey }: { onAsk?: (p: string) => void; ref
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  const runScan = useCallback(async () => {
+    setScanning(true); setConfirmScan(false); setScanError(""); setScanResult(null);
+    try {
+      const r = await fetch("/api/listsmartly/listings/scan", { method: "POST" });
+      const j = await r.json();
+      if (r.ok && j?.success && j.data?.summary) {
+        setScanResult(j.data.summary as ScanSummary);
+        await load();        // refreshed listing rows / statuses
+        onScanned();         // refreshed header scores + tier coverage
+      } else {
+        setScanError(j?.error?.message || "Could not run the scan. Try again.");
+      }
+    } catch {
+      setScanError("Could not run the scan. Try again.");
+    } finally {
+      setScanning(false);
+    }
+  }, [load, onScanned]);
+
   // Group the current page by workflow state, then by tier within each group.
   const grouped = useMemo(() => {
     const out: Record<string, Record<number, Listing[]>> = {};
@@ -294,12 +422,43 @@ function ListingsPanel({ onAsk, refreshKey }: { onAsk?: (p: string) => void; ref
     <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="text-[13px] font-bold">Directory listings</h3>
-        {onAsk && (
-          <button onClick={() => onAsk("Scan my business across the directories and fix any missing or inconsistent listings.")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-            <Wand2 className="h-3.5 w-3.5" /> Scan &amp; fix
-          </button>
-        )}
+        <div className="ms-auto flex flex-wrap items-center gap-1.5">
+          {/* Real in-surface scan: re-checks every directory + refreshes status. */}
+          {confirmScan ? (
+            <span className="inline-flex items-center gap-1.5">
+              <button onClick={runScan} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                <RefreshCw className="h-3.5 w-3.5" /> Run scan
+              </button>
+              <button onClick={() => setConfirmScan(false)} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button onClick={() => { setConfirmScan(true); setScanError(""); }} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+              {scanning ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />} {scanning ? "Scanning…" : "Scan directories"}
+            </button>
+          )}
+          {onAsk && (
+            <button onClick={() => onAsk("Scan my business across the directories and fix any missing or inconsistent listings.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+              <Wand2 className="h-3.5 w-3.5" /> Auto-fix
+            </button>
+          )}
+        </div>
       </div>
+
+      {confirmScan && !scanning && (
+        <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-2 text-[12px] text-amber-600 dark:text-amber-400">
+          A full scan re-checks every directory and recomputes your scores — it can take a minute and may use credits. Confirm to run it.
+        </p>
+      )}
+      {scanResult && (
+        <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">
+          Scan complete — {scanResult.total} directories checked: {scanResult.live} live, {scanResult.missing} missing, {scanResult.inconsistent} inconsistent{scanResult.errors ? `, ${scanResult.errors} errors` : ""}.
+        </p>
+      )}
+      {scanError && (
+        <p className="mb-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2 text-[12px] text-rose-500">{scanError}</p>
+      )}
 
       {/* filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -671,6 +830,134 @@ function ReviewCard({ review, onPatch, onRemove, onChanged }: { review: Review; 
         </div>
       )}
     </div>
+  );
+}
+
+/* ------------------------------ Profile editor ------------------------------ */
+
+const FIELD = "w-full rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
+
+function ProfileEditor({ profile, onSaved, onCancel }: { profile: Profile; onSaved: (p: Profile) => void; onCancel: () => void }) {
+  const [form, setForm] = useState({
+    businessName: profile.businessName || "",
+    phone: profile.phone || "",
+    email: profile.email || "",
+    website: profile.website || "",
+    address: profile.address || "",
+    city: profile.city || "",
+    state: profile.state || "",
+    zip: profile.zip || "",
+    country: profile.country || "US",
+    industry: profile.industry || "",
+    description: profile.description || "",
+    hoursMonFri: profile.hours?.monFri || "",
+    hoursSat: profile.hours?.sat || "",
+    hoursSun: profile.hours?.sun || "",
+    facebook: profile.socialLinks?.facebook || "",
+    instagram: profile.socialLinks?.instagram || "",
+    twitter: profile.socialLinks?.twitter || "",
+    linkedin: profile.socialLinks?.linkedin || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.businessName.trim()) { setError("Business name is required."); return; }
+    setSaving(true); setError("");
+    try {
+      const r = await fetch("/api/listsmartly/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: form.businessName.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          website: form.website.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          zip: form.zip.trim(),
+          country: form.country.trim(),
+          industry: form.industry.trim(),
+          description: form.description.trim(),
+          hours: { monFri: form.hoursMonFri.trim(), sat: form.hoursSat.trim(), sun: form.hoursSun.trim() },
+          socialLinks: {
+            facebook: form.facebook.trim(), instagram: form.instagram.trim(),
+            twitter: form.twitter.trim(), linkedin: form.linkedin.trim(),
+          },
+        }),
+      });
+      const j = await r.json();
+      if (r.ok && j?.success && j.data?.profile) {
+        onSaved(parseProfile(j.data.profile));
+      } else {
+        setError(j?.error?.message || "Could not save your profile. Try again.");
+      }
+    } catch {
+      setError("Could not save your profile. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5 sm:p-4">
+      <div className="mb-3 flex items-center gap-2"><Building2 className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12.5px] font-bold">Business profile</span><span className="text-[11px] text-muted-foreground">Keep this accurate — it powers every listing.</span></div>
+
+      <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Name, address &amp; phone</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Field label="Business name"><input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} className={FIELD} placeholder="Acme Plumbing" /></Field>
+        <Field label="Industry"><input value={form.industry} onChange={(e) => set("industry", e.target.value)} className={FIELD} placeholder="Plumbing" /></Field>
+        <Field label="Phone"><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={FIELD} placeholder="(555) 123-4567" inputMode="tel" /></Field>
+        <Field label="Email"><input value={form.email} onChange={(e) => set("email", e.target.value)} className={FIELD} placeholder="hello@acme.com" inputMode="email" /></Field>
+        <Field label="Website"><input value={form.website} onChange={(e) => set("website", e.target.value)} className={FIELD} placeholder="https://acme.com" inputMode="url" /></Field>
+        <Field label="Street address"><input value={form.address} onChange={(e) => set("address", e.target.value)} className={FIELD} placeholder="123 Main St" /></Field>
+        <Field label="City"><input value={form.city} onChange={(e) => set("city", e.target.value)} className={FIELD} placeholder="Austin" /></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="State"><input value={form.state} onChange={(e) => set("state", e.target.value)} className={FIELD} placeholder="TX" /></Field>
+          <Field label="ZIP"><input value={form.zip} onChange={(e) => set("zip", e.target.value)} className={FIELD} placeholder="78701" inputMode="numeric" /></Field>
+        </div>
+      </div>
+
+      <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Description</p>
+      <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} className={cn(FIELD, "resize-y")} placeholder="A short description of what your business offers…" />
+
+      <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Hours</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Field label="Mon–Fri"><input value={form.hoursMonFri} onChange={(e) => set("hoursMonFri", e.target.value)} className={FIELD} placeholder="9am – 5pm" /></Field>
+        <Field label="Saturday"><input value={form.hoursSat} onChange={(e) => set("hoursSat", e.target.value)} className={FIELD} placeholder="10am – 2pm" /></Field>
+        <Field label="Sunday"><input value={form.hoursSun} onChange={(e) => set("hoursSun", e.target.value)} className={FIELD} placeholder="Closed" /></Field>
+      </div>
+
+      <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Social links</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Field label="Facebook"><input value={form.facebook} onChange={(e) => set("facebook", e.target.value)} className={FIELD} placeholder="https://facebook.com/…" inputMode="url" /></Field>
+        <Field label="Instagram"><input value={form.instagram} onChange={(e) => set("instagram", e.target.value)} className={FIELD} placeholder="https://instagram.com/…" inputMode="url" /></Field>
+        <Field label="X / Twitter"><input value={form.twitter} onChange={(e) => set("twitter", e.target.value)} className={FIELD} placeholder="https://x.com/…" inputMode="url" /></Field>
+        <Field label="LinkedIn"><input value={form.linkedin} onChange={(e) => set("linkedin", e.target.value)} className={FIELD} placeholder="https://linkedin.com/…" inputMode="url" /></Field>
+      </div>
+
+      {error && <p className="mt-2.5 text-[11.5px] text-rose-500">{error}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+          {saving ? <FlowLoader size={14} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save profile
+        </button>
+        <button onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">
+          <X className="h-3.5 w-3.5" /> Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 

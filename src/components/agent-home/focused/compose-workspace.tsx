@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { PenSquare, Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X, AlertTriangle, RefreshCw, XCircle, Ban } from "lucide-react";
+import { PenSquare, Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X, AlertTriangle, RefreshCw, XCircle, Ban, Search, Eye, MoreHorizontal, Heart, MessageCircle, Share2, ThumbsUp, Repeat2, Bookmark, Globe2, Play, BadgeCheck, CheckCheck } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { cn } from "@/lib/utils/cn";
@@ -116,6 +116,43 @@ function fmtWhen(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
 
+// ─── Per-platform live-preview chrome ─────────────────────────────────────
+// A small style + layout descriptor per network so the live preview card can
+// mimic how the caption + media actually look in each feed. `accent` is the
+// brand color for the header/handle; `style` picks the action-row layout.
+type PreviewStyle = "facebook" | "twitter" | "instagram" | "linkedin" | "feed";
+interface PreviewChrome {
+  accent: string; // header tint
+  badge: boolean; // verified badge in header
+  style: PreviewStyle; // action-row layout family
+}
+const PREVIEW_CHROME: Record<string, PreviewChrome> = {
+  feed: { accent: "#0EA5E9", badge: false, style: "feed" },
+  facebook: { accent: "#1877F2", badge: true, style: "facebook" },
+  twitter: { accent: "#111827", badge: true, style: "twitter" },
+  x: { accent: "#111827", badge: true, style: "twitter" },
+  threads: { accent: "#111827", badge: false, style: "twitter" },
+  instagram: { accent: "#E4405F", badge: false, style: "instagram" },
+  whatsapp: { accent: "#25D366", badge: false, style: "instagram" },
+  pinterest: { accent: "#E60023", badge: false, style: "instagram" },
+  tiktok: { accent: "#FE2C55", badge: false, style: "instagram" },
+  youtube: { accent: "#FF0000", badge: false, style: "instagram" },
+  linkedin: { accent: "#0A66C2", badge: false, style: "linkedin" },
+};
+function previewChrome(platform: string): PreviewChrome {
+  return PREVIEW_CHROME[platform] || PREVIEW_CHROME.feed;
+}
+// Friendly platform name for the preview "posted to" line.
+function platformDisplayName(platform: string): string {
+  if (platform === "feed") return "In-app feed";
+  if (platform === "twitter" || platform === "x") return "X";
+  if (platform === "linkedin") return "LinkedIn";
+  if (platform === "youtube") return "YouTube";
+  if (platform === "tiktok") return "TikTok";
+  if (platform === "whatsapp") return "WhatsApp";
+  return platform.charAt(0).toUpperCase() + platform.slice(1);
+}
+
 // The post API takes a single mediaType — infer it from the first attachment.
 function isVideoUrl(url: string): boolean {
   const u = url.toLowerCase();
@@ -146,6 +183,9 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
   const [selected, setSelected] = useState<string[]>(["feed"]);
   const [mode, setMode] = useState<"now" | "schedule" | "draft">("now");
   const [scheduleAt, setScheduleAt] = useState("");
+
+  const [channelSearch, setChannelSearch] = useState("");
+  const [previewTarget, setPreviewTarget] = useState<string>("feed");
 
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState("");
@@ -232,6 +272,32 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
     [targets, selected],
   );
 
+  // Channel search — narrow the destination chips to find a target quickly.
+  const filteredTargets = useMemo<Target[]>(() => {
+    const q = channelSearch.trim().toLowerCase();
+    if (!q) return targets;
+    return targets.filter((t) => {
+      const hay = `${t.label} ${t.platform} ${t.username || ""} ${platformDisplayName(t.platform)}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [targets, channelSearch]);
+
+  // Selectable = every postable (media-compatible) destination. Used by Select all.
+  const selectableIds = useMemo<string[]>(
+    () => targets.filter((t) => !incompatibleById[t.id]).map((t) => t.id),
+    [targets, incompatibleById],
+  );
+  const allSelectableSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.includes(id));
+
+  const selectAll = () => {
+    setDone(null);
+    setSelected(selectableIds);
+  };
+  const clearChannels = () => {
+    setDone(null);
+    setSelected(["feed"]); // the in-app feed is always available
+  };
+
   const toggle = (id: string) => {
     if (incompatibleById[id]) return; // can't select an unpostable channel
     setDone(null);
@@ -245,8 +311,22 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
 
   const reset = () => {
     setCaption(""); setMedia([]); setSelected(["feed"]);
-    setMode("now"); setScheduleAt(""); setError("");
+    setMode("now"); setScheduleAt(""); setError(""); setChannelSearch("");
   };
+
+  // Live preview — switch a styled post card across the selected channels.
+  // Preview only over selected destinations; fall back to the feed.
+  const previewOptions = useMemo<Target[]>(() => {
+    const chosen = targets.filter((t) => selected.includes(t.id));
+    return chosen.length ? chosen : [FEED];
+  }, [targets, selected]);
+  // Keep the active preview tab valid as the selection changes.
+  useEffect(() => {
+    if (!previewOptions.some((t) => t.id === previewTarget)) {
+      setPreviewTarget(previewOptions[0]?.id ?? "feed");
+    }
+  }, [previewOptions, previewTarget]);
+  const activePreview = previewOptions.find((t) => t.id === previewTarget) || previewOptions[0] || FEED;
 
   const post = async () => {
     const text = caption.trim();
@@ -371,7 +451,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                     ? hasResults
                       ? `${succeededIds.length} of ${resultEntries.length} ${resultEntries.length === 1 ? "channel" : "channels"} published${failedIds.length ? `, ${failedIds.length} failed` : ""} — also live on your in-app feed.`
                       : "It's live on your in-app feed now."
-                    : (done.platforms?.length ? done.platforms : ["feed"]).map((p) => (p === "feed" ? "in-app feed" : p.replace(/^account:/, ""))).join(" · ")}
+                    : (done.platforms?.length ? done.platforms : ["feed"]).map((p) => (p === "feed" ? "in-app feed" : destinationLabel(p, targets))).join(" · ")}
                 </p>
               </div>
               <button onClick={() => setDone(null)} className="shrink-0 rounded-lg p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -430,9 +510,56 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
 
           {/* targets — one chip per connected account */}
           <div className="mt-4">
-            <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Plug className="h-3.5 w-3.5" /> Post to</span>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Plug className="h-3.5 w-3.5" /> Post to</span>
+              <span className="text-[11px] text-muted-foreground">{selected.length} selected</span>
+            </div>
+
+            {/* search + select-all / clear — only when there are real channels to sift */}
+            {targets.length > 1 && (
+              <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[180px] flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={channelSearch}
+                    onChange={(e) => setChannelSearch(e.target.value)}
+                    placeholder="Search channels…"
+                    className={cn(FIELD, "h-8 py-0 ps-8 pe-7 text-[12px]")}
+                  />
+                  {channelSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setChannelSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                      title="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="inline-flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    disabled={allSelectableSelected}
+                    className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" /> Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearChannels}
+                    disabled={selected.length <= 1 && selected[0] === "feed"}
+                    className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" /> Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
-              {targets.map((t) => {
+              {filteredTargets.map((t) => {
                 const on = selected.includes(t.id);
                 const why = incompatibleById[t.id];
                 const disabled = !!why;
@@ -470,6 +597,13 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                 );
               })}
             </div>
+
+            {/* no chip matches the channel search */}
+            {targets.length > 1 && filteredTargets.length === 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                <Search className="h-3.5 w-3.5" /> No channels match &ldquo;{channelSearch.trim()}&rdquo;.
+              </p>
+            )}
 
             {/* why a channel is disabled */}
             {Object.keys(incompatibleById).length > 0 && (
@@ -537,6 +671,40 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
             )}
           </div>
 
+          {/* live preview — a channel-styled post card you can switch across the selected channels */}
+          <div className="mt-4">
+            <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Eye className="h-3.5 w-3.5" /> Live preview <span className="font-normal">— how it looks per channel</span></span>
+
+            {/* channel tabs (selected destinations) */}
+            {previewOptions.length > 1 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {previewOptions.map((t) => {
+                  const isActive = t.id === activePreview.id;
+                  const chrome = previewChrome(t.platform);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPreviewTarget(t.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition",
+                        isActive ? "border-transparent text-white" : "border-border bg-muted/40 text-muted-foreground hover:text-foreground",
+                      )}
+                      style={isActive ? { backgroundColor: chrome.accent } : undefined}
+                    >
+                      {t.feed ? <Rss className="h-3 w-3" /> : t.avatarUrl ? (
+                        <Image src={t.avatarUrl} alt="" width={14} height={14} className="h-3.5 w-3.5 rounded-full object-cover" unoptimized />
+                      ) : <Link2 className="h-3 w-3" />}
+                      <span className="capitalize">{t.feed ? "Feed" : platformDisplayName(t.platform)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <PreviewCard target={activePreview} caption={caption} media={media} isVideo={isVideoUrl} />
+          </div>
+
           {/* timing */}
           <div className="mt-4">
             <span className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Clock className="h-3.5 w-3.5" /> When</span>
@@ -601,6 +769,137 @@ function Tip({ icon: Icon, title, desc }: { icon: ElementType; title: string; de
     <div className="rounded-2xl border border-border bg-card p-3.5">
       <div className="flex items-center gap-1.5 text-brand-500"><Icon className="h-4 w-4" /><span className="text-[12px] font-semibold text-foreground">{title}</span></div>
       <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">{desc}</p>
+    </div>
+  );
+}
+
+// ─── Live preview card ─────────────────────────────────────────────────────
+// A channel-styled mock post card: it shows the caption + attached media the
+// way the active destination's feed would frame them (header chrome + an
+// action row that mirrors that network's layout). Read-only — no actions fire.
+function PreviewCard({
+  target,
+  caption,
+  media,
+  isVideo,
+}: {
+  target: Target;
+  caption: string;
+  media: string[];
+  isVideo: (url: string) => boolean;
+}) {
+  const chrome = previewChrome(target.platform);
+  const text = caption.trim();
+  const name = target.feed ? "Your business" : (target.label || platformDisplayName(target.platform));
+  const handle = target.username ? `@${target.username}` : platformDisplayName(target.platform);
+  const shots = media.slice(0, 4);
+  const initial = (name.trim()[0] || "F").toUpperCase();
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-muted/30 p-3">
+      <div className="mx-auto max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        {/* header */}
+        <div className="flex items-center gap-2.5 p-3">
+          {target.avatarUrl ? (
+            <Image src={target.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" unoptimized />
+          ) : (
+            <span
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white"
+              style={{ backgroundColor: chrome.accent }}
+            >
+              {initial}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p className="truncate text-[13px] font-bold text-foreground">{name}</p>
+              {chrome.badge && <BadgeCheck className="h-3.5 w-3.5 shrink-0" style={{ color: chrome.accent }} />}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              {chrome.style === "twitter" ? (
+                <span className="truncate">{handle}</span>
+              ) : (
+                <>
+                  <span className="truncate">{platformDisplayName(target.platform)}</span>
+                  <span>·</span>
+                  <span>Now</span>
+                  {chrome.style === "facebook" && <><span>·</span><Globe2 className="h-3 w-3" /></>}
+                </>
+              )}
+            </div>
+          </div>
+          <MoreHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </div>
+
+        {/* caption */}
+        {(text || shots.length === 0) && (
+          <div className="px-3 pb-2.5">
+            <p className={cn("max-h-40 overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed", text ? "text-foreground" : "text-muted-foreground")}>
+              {text || "Your caption will appear here as you type."}
+            </p>
+          </div>
+        )}
+
+        {/* media */}
+        {shots.length > 0 && (
+          <div className={cn("grid gap-0.5 border-y border-border bg-muted/40", shots.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+            {shots.map((url, i) => (
+              <div key={`${url}-${i}`} className={cn("relative overflow-hidden bg-muted", shots.length === 1 ? "aspect-video" : "aspect-square")}>
+                {isVideo(url) ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <video src={url} muted playsInline preload="metadata" className="h-full w-full bg-black object-cover" />
+                    <span className="absolute inset-0 grid place-items-center bg-black/20">
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white"><Play className="h-4 w-4 fill-white/40" /></span>
+                    </span>
+                  </>
+                ) : (
+                  <Image src={url} alt="" fill sizes="(max-width: 768px) 100vw, 28rem" className="object-cover" unoptimized />
+                )}
+                {i === 3 && media.length > 4 && (
+                  <div className="absolute inset-0 grid place-items-center bg-black/55 text-lg font-bold text-white">+{media.length - 4}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* action row — mirrors the active network's layout family */}
+        {chrome.style === "instagram" ? (
+          <div className="flex items-center gap-4 px-3 py-2.5 text-foreground">
+            <Heart className="h-5 w-5" />
+            <MessageCircle className="h-5 w-5" />
+            <Share2 className="h-5 w-5" />
+            <Bookmark className="ms-auto h-5 w-5" />
+          </div>
+        ) : chrome.style === "twitter" ? (
+          <div className="flex items-center justify-between px-4 py-2.5 text-muted-foreground">
+            <MessageCircle className="h-4 w-4" />
+            <Repeat2 className="h-4 w-4" />
+            <Heart className="h-4 w-4" />
+            <Share2 className="h-4 w-4" />
+          </div>
+        ) : chrome.style === "feed" ? (
+          <div className="flex items-center justify-between px-3 py-2 text-[11.5px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><Rss className="h-3.5 w-3.5" style={{ color: chrome.accent }} /> In-app feed</span>
+            <span className="inline-flex items-center gap-3">
+              <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> Like</span>
+              <span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> Comment</span>
+            </span>
+          </div>
+        ) : (
+          // facebook / linkedin family — labelled like/comment/share row
+          <div className="grid grid-cols-3 border-t border-border px-1 py-1 text-[12px] font-semibold text-muted-foreground">
+            <span className="inline-flex items-center justify-center gap-1.5 py-1.5"><ThumbsUp className="h-4 w-4" /> Like</span>
+            <span className="inline-flex items-center justify-center gap-1.5 py-1.5"><MessageCircle className="h-4 w-4" /> Comment</span>
+            <span className="inline-flex items-center justify-center gap-1.5 py-1.5"><Share2 className="h-4 w-4" /> Share</span>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-2 text-center text-[10.5px] text-muted-foreground">
+        Preview only — {target.feed ? "your in-app feed" : platformDisplayName(target.platform)} may render captions and media slightly differently.
+      </p>
     </div>
   );
 }

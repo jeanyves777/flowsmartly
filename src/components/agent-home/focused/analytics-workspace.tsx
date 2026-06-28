@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
 import Image from "next/image";
-import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3, Mail, MessageSquare, MessageCircle, Workflow, RefreshCw, RadioTower, CheckCircle2, AlertTriangle, Clock, KeyRound, Activity, type LucideIcon } from "lucide-react";
+import { Coins, FileText, Target, TrendingUp, TrendingDown, Eye, Heart, Users, BarChart3, Mail, MessageSquare, MessageCircle, Workflow, RefreshCw, RadioTower, CheckCircle2, AlertTriangle, Clock, KeyRound, Activity, MousePointerClick, Megaphone, DollarSign, Zap, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -21,12 +21,36 @@ interface Dash {
   aiUsage?: { thisMonth?: number };
   recentActivity?: Array<{ id: string; type?: string; title?: string; content?: string; mediaUrl?: string | null; views?: number; likes?: number; createdAt?: string }>;
 }
-interface Analytics {
-  stats?: { views?: number; viewsChange?: number; likes?: number; likesChange?: number; engagementRate?: number; followers?: number; followersChange?: number; postsThisPeriod?: number };
-  chartData?: Array<{ date: string; views?: number }>;
-  platformStats?: Array<{ platform: string; posts?: number; views?: number; likes?: number }>;
-  topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number }>;
+interface AnStats {
+  views?: number; viewsChange?: number;
+  likes?: number; likesChange?: number;
+  comments?: number; commentsChange?: number;
+  shares?: number; sharesChange?: number;
+  clicks?: number; clicksChange?: number;
+  engagementRate?: number;
+  followers?: number; followersChange?: number;
+  postsThisPeriod?: number;
 }
+interface ChartPoint { date: string; views?: number; likes?: number; comments?: number; shares?: number; clicks?: number; posts?: number; boostedViews?: number; organicViews?: number }
+interface BoostedSlice { posts?: number; views?: number; likes?: number; comments?: number; shares?: number }
+interface BoostedVsOrganic { boosted?: BoostedSlice; organic?: BoostedSlice }
+interface AdStats { activeCampaigns?: number; totalSpent?: number; totalImpressions?: number; totalEarned?: number }
+interface Analytics {
+  stats?: AnStats;
+  boostedVsOrganic?: BoostedVsOrganic | null;
+  adStats?: AdStats | null;
+  chartData?: ChartPoint[];
+  platformStats?: Array<{ platform: string; posts?: number; views?: number; likes?: number; comments?: number; shares?: number; clicks?: number; boostedPosts?: number; lastPostAt?: string | null }>;
+  topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number; shares?: number; clicks?: number }>;
+}
+
+/** Chart display modes mirror the legacy /analytics surface, driven off chartData. */
+type ChartMode = "views" | "engagement" | "distribution";
+const CHART_MODES: Array<{ id: ChartMode; label: string }> = [
+  { id: "views", label: "Views" },
+  { id: "engagement", label: "Engagement" },
+  { id: "distribution", label: "Boosted / organic" },
+];
 
 /** Per-account health from GET /api/social-accounts/analytics (see route for shape). */
 type HealthStatus = "synced" | "limited" | "needs_token" | "token_expired" | "unsupported" | "sync_failed" | "needs_refresh";
@@ -64,11 +88,14 @@ const fmtNum = (value: number | null | undefined): string => {
 };
 const fmtOptional = (value: number | null | undefined): string =>
   value === null || value === undefined ? "—" : fmtNum(value);
+const fmtMoney = (value: number | null | undefined): string =>
+  `$${Number(value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtRate = (value: number | null | undefined): string => {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-  const v = Number(value);
-  const normalized = v > 1 ? v : v * 100;
-  return `${normalized.toFixed(1)}%`;
+  // The social-accounts/analytics route already stores engagementRate as a
+  // percentage number (e.g. 5.0 → "5.0%", 0.5 → "0.5%"), matching the analytics
+  // KPI convention. Render it as-is — never re-scale sub-1% rates by 100.
+  return `${Number(value).toFixed(1)}%`;
 };
 const timeAgo = (value: string | null | undefined): string => {
   if (!value) return "Never synced";
@@ -103,6 +130,7 @@ const STATUS_META: Record<HealthStatus, { label: string; icon: LucideIcon; tone:
 
 export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView?: (key: string) => void }) {
   const [range, setRange] = useState<Range>("30d");
+  const [chartMode, setChartMode] = useState<ChartMode>("views");
   const [dash, setDash] = useState<Dash | null>(null);
   const [an, setAn] = useState<Analytics | null>(null);
   const [score, setScore] = useState<{ score: number; hasStrategy: boolean } | null>(null);
@@ -182,7 +210,18 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
   const credits = dash?.user?.aiCredits ?? 0;
   const usedThisMonth = dash?.aiUsage?.thisMonth ?? 0;
   const posts = dash?.stats?.postsCount ?? 0;
-  const series = (an?.chartData ?? []).map((p) => p.views ?? 0);
+  const chartData = an?.chartData ?? [];
+  // The headline area chart tracks the primary metric for the active mode so the
+  // big trend line still reads at a glance; the grouped bars below break it out.
+  const series = chartData.map((p) =>
+    chartMode === "views"
+      ? p.views ?? 0
+      : chartMode === "engagement"
+        ? (p.likes ?? 0) + (p.comments ?? 0) + (p.shares ?? 0) + (p.clicks ?? 0)
+        : (p.boostedViews ?? 0) + (p.organicViews ?? 0)
+  );
+  const bvo = an?.boostedVsOrganic ?? null;
+  const ads = an?.adStats ?? null;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -244,24 +283,71 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi icon={Users} label="Followers" value={(an?.stats?.followers ?? dash?.stats?.followers ?? 0).toLocaleString()} delta={an?.stats?.followersChange} />
-          <Kpi icon={Target} label="Strategy score" value={score?.hasStrategy ? `${score.score}/100` : "—"} sub={score?.hasStrategy ? undefined : "No strategy yet"} />
+          <Kpi icon={MousePointerClick} label="Clicks" value={(an?.stats?.clicks ?? 0).toLocaleString()} delta={an?.stats?.clicksChange} sub="feed taps & CTA clicks" />
           <Kpi icon={Heart} label="Likes" value={(an?.stats?.likes ?? 0).toLocaleString()} delta={an?.stats?.likesChange} />
+          <Kpi icon={Target} label="Strategy score" value={score?.hasStrategy ? `${score.score}/100` : "—"} sub={score?.hasStrategy ? undefined : "No strategy yet"} />
           <Kpi icon={BarChart3} label="Platforms" value={String((an?.platformStats ?? []).length)} sub="connected" />
         </div>
 
-        {/* chart */}
+        {/* chart with mode toggle */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <Eye className="h-4 w-4 text-brand-500" />
-            <h3 className="text-[13px] font-bold">Views over time</h3>
-            {anLoading && <FlowLoader size={14} className="ms-1" />}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">
+                {chartMode === "views" ? "Views over time" : chartMode === "engagement" ? "Engagement over time" : "Boosted vs organic"}
+              </h3>
+              {anLoading && <FlowLoader size={14} className="ms-1" />}
+            </div>
+            <div className="inline-flex rounded-[10px] border border-border p-0.5">
+              {CHART_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setChartMode(m.id)}
+                  className={cn("rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold transition", chartMode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
           {series.some((v) => v > 0) ? (
-            <AreaChart points={series} />
+            chartMode === "views" ? (
+              <AreaChart points={series} />
+            ) : (
+              <ModeBars data={chartData} mode={chartMode} />
+            )
           ) : (
-            <Empty text="No view data for this range yet — it fills in as your content gets seen." />
+            <Empty
+              text={
+                chartMode === "views"
+                  ? "No view data for this range yet — it fills in as your content gets seen."
+                  : chartMode === "engagement"
+                    ? "No engagement yet — likes, comments, shares and clicks show here as people interact."
+                    : "No boosted or organic activity yet for this range."
+              }
+            />
           )}
         </section>
+
+        {/* boosted vs organic distribution + ad spend / earnings */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Boosted vs organic</h3>
+            </div>
+            <BoostedOrganicMix data={bvo} />
+          </section>
+
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Ad spend &amp; earnings</h3>
+            </div>
+            <AdSummary data={ads} />
+          </section>
+        </div>
 
         {/* connected account health */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
@@ -302,9 +388,16 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
             {(an?.platformStats ?? []).length ? (
               <div className="space-y-2">
                 {an!.platformStats!.map((p) => (
-                  <div key={p.platform} className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2 text-[13px]">
-                    <span className="font-medium capitalize">{p.platform}</span>
-                    <span className="text-muted-foreground">{(p.views ?? 0).toLocaleString()} views · {(p.likes ?? 0).toLocaleString()} likes</span>
+                  <div key={p.platform} className="rounded-xl border border-border bg-muted/30 px-3 py-2">
+                    <div className="flex items-center justify-between text-[13px]">
+                      <span className="font-medium capitalize">{p.platform.replace(/_/g, " ")}</span>
+                      <span className="text-[11px] text-muted-foreground">{(p.posts ?? 0).toLocaleString()} posts</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{(p.views ?? 0).toLocaleString()}</span>
+                      <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{(p.likes ?? 0).toLocaleString()}</span>
+                      <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" />{(p.clicks ?? 0).toLocaleString()} clicks</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -461,6 +554,137 @@ function AreaChart({ points }: { points: number[] }) {
       <path d={area} fill="url(#acgrad)" />
       <path d={line} fill="none" stroke="#0ea5e9" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** Grouped daily bars for Engagement (likes/comments/shares/clicks) and
+ * Boosted-vs-organic modes, sharing the same chartData the area chart reads. */
+function ModeBars({ data, mode }: { data: ChartPoint[]; mode: Exclude<ChartMode, "views"> }) {
+  const max = Math.max(
+    1,
+    ...data.map((d) =>
+      mode === "engagement"
+        ? (d.likes ?? 0) + (d.comments ?? 0) + (d.shares ?? 0) + (d.clicks ?? 0)
+        : (d.boostedViews ?? 0) + (d.organicViews ?? 0)
+    )
+  );
+  const legend =
+    mode === "engagement"
+      ? [
+          { color: "bg-pink-500", label: "Likes" },
+          { color: "bg-amber-500", label: "Comments" },
+          { color: "bg-emerald-500", label: "Shares" },
+          { color: "bg-violet-500", label: "Clicks" },
+        ]
+      : [
+          { color: "bg-violet-500", label: "Boosted" },
+          { color: "bg-emerald-500", label: "Organic" },
+        ];
+  const h = (v: number) => `${Math.max(v > 0 ? 4 : 1, (v / max) * 100)}%`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        {legend.map((l) => (
+          <span key={l.label} className="inline-flex items-center gap-1.5">
+            <span className={cn("h-2.5 w-2.5 rounded-full", l.color)} />
+            {l.label}
+          </span>
+        ))}
+      </div>
+      <div className="flex h-40 items-end gap-1.5 overflow-x-auto rounded-xl border border-border bg-muted/30 p-3">
+        {data.map((d, i) => (
+          <div key={`${d.date}-${i}`} className="group flex min-w-[26px] flex-1 flex-col items-center gap-1.5">
+            <div className="flex h-32 w-full items-end justify-center gap-0.5">
+              {mode === "engagement" ? (
+                <>
+                  <span className="w-1/4 rounded-t bg-pink-500" style={{ height: h(d.likes ?? 0) }} />
+                  <span className="w-1/4 rounded-t bg-amber-500" style={{ height: h(d.comments ?? 0) }} />
+                  <span className="w-1/4 rounded-t bg-emerald-500" style={{ height: h(d.shares ?? 0) }} />
+                  <span className="w-1/4 rounded-t bg-violet-500" style={{ height: h(d.clicks ?? 0) }} />
+                </>
+              ) : (
+                <>
+                  <span className="w-1/2 rounded-t bg-violet-500" style={{ height: h(d.boostedViews ?? 0) }} />
+                  <span className="w-1/2 rounded-t bg-emerald-500" style={{ height: h(d.organicViews ?? 0) }} />
+                </>
+              )}
+            </div>
+            <span className="truncate text-[9.5px] text-muted-foreground">{d.date}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Stacked boosted/organic split across each engagement dimension. */
+function BoostedOrganicMix({ data }: { data: BoostedVsOrganic | null | undefined }) {
+  if (!data || (!data.boosted && !data.organic)) {
+    return <Empty text="Boost a post to compare boosted vs organic reach here." />;
+  }
+  const b = data.boosted ?? {};
+  const o = data.organic ?? {};
+  const rows: Array<{ label: string; boosted: number; organic: number }> = [
+    { label: "Posts", boosted: b.posts ?? 0, organic: o.posts ?? 0 },
+    { label: "Views", boosted: b.views ?? 0, organic: o.views ?? 0 },
+    { label: "Likes", boosted: b.likes ?? 0, organic: o.likes ?? 0 },
+    { label: "Comments", boosted: b.comments ?? 0, organic: o.comments ?? 0 },
+    { label: "Shares", boosted: b.shares ?? 0, organic: o.shares ?? 0 },
+  ];
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-violet-500" />Boosted</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Organic</span>
+      </div>
+      {rows.map((row) => {
+        const total = row.boosted + row.organic;
+        const boostedPct = total ? (row.boosted / total) * 100 : 0;
+        return (
+          <div key={row.label} className="space-y-1">
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="font-medium">{row.label}</span>
+              <span className="text-[11px] text-muted-foreground">{fmtNum(row.boosted)} boosted · {fmtNum(row.organic)} organic</span>
+            </div>
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+              <div className="bg-violet-500" style={{ width: `${boostedPct}%` }} />
+              <div className="bg-emerald-500" style={{ width: `${100 - boostedPct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Ad spend / earnings / impressions / active campaigns summary. */
+function AdSummary({ data }: { data: AdStats | null | undefined }) {
+  const items: Array<{ label: string; value: string; icon: LucideIcon }> = [
+    { label: "Active campaigns", value: fmtNum(data?.activeCampaigns), icon: Megaphone },
+    { label: "Impressions", value: fmtNum(data?.totalImpressions), icon: Eye },
+    { label: "Spend", value: fmtMoney(data?.totalSpent), icon: DollarSign },
+    { label: "Earned", value: fmtMoney(data?.totalEarned), icon: Zap },
+  ];
+  const isEmpty =
+    !data ||
+    ((data.activeCampaigns ?? 0) === 0 &&
+      (data.totalImpressions ?? 0) === 0 &&
+      (data.totalSpent ?? 0) === 0 &&
+      (data.totalEarned ?? 0) === 0);
+  if (isEmpty) {
+    return <Empty text="Run an ad campaign or earn from ad views to see spend and earnings here." />;
+  }
+  return (
+    <div className="grid grid-cols-2 gap-2.5">
+      {items.map(({ label, value, icon: Icon }) => (
+        <div key={label} className="rounded-xl border border-border bg-muted/30 p-3">
+          <Icon className="mb-1.5 h-4 w-4 text-muted-foreground" />
+          <p className="text-[18px] font-bold leading-none">{value}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{label}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 

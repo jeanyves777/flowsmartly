@@ -123,8 +123,10 @@ export async function PATCH(
       listIds,
     } = body;
 
-    // Validate email uniqueness if changing
-    if (email !== undefined && email !== contact.email) {
+    // Validate email uniqueness if changing to a NON-empty value (a null/empty
+    // email can never collide on the unique index — and would falsely match
+    // another contact that also has no email).
+    if (email != null && email !== "" && email !== contact.email) {
       const existingEmail = await prisma.contact.findFirst({
         where: {
           userId: session.userId,
@@ -140,8 +142,9 @@ export async function PATCH(
       }
     }
 
-    // Validate phone uniqueness if changing
-    if (phone !== undefined && phone !== contact.phone) {
+    // Validate phone uniqueness if changing to a NON-empty value (null/empty
+    // can't collide and would falsely match another no-phone contact).
+    if (phone != null && phone !== "" && phone !== contact.phone) {
       const existingPhone = await prisma.contact.findFirst({
         where: {
           userId: session.userId,

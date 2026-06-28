@@ -320,6 +320,9 @@ interface EditState {
 }
 
 const LOG_PAGE = 25;
+// The detail route hard-caps `logLimit` at 200 — never ask for more than it
+// will return, or "Load more" becomes a dead button that never grows the list.
+const LOG_LIMIT_MAX = 200;
 
 function AutomationDetailDrawer({
   summary,
@@ -343,6 +346,7 @@ function AutomationDetailDrawer({
   const [lists, setLists] = useState<ContactListOption[]>([]);
   const [form, setForm] = useState<EditState | null>(null);
   const [logLimit, setLogLimit] = useState(LOG_PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const m = typeMeta(summary.type);
   const isEmail = (summary.campaignType || "EMAIL").toUpperCase() === "EMAIL";
@@ -363,8 +367,11 @@ function AutomationDetailDrawer({
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    loadDetail().finally(() => { if (alive) setLoading(false); });
+    // Only show the full-body loader on the very first fetch — paginating the
+    // activity log (logLimit bump) should refresh in place, not flash a spinner
+    // and collapse the panel the user is reading.
+    setDetail((d) => { if (!d) setLoading(true); return d; });
+    loadDetail().finally(() => { if (alive) { setLoading(false); setLoadingMore(false); } });
     return () => { alive = false; };
   }, [loadDetail]);
 
@@ -570,12 +577,14 @@ function AutomationDetailDrawer({
                         <span className="shrink-0 text-[10.5px] text-muted-foreground">{logWhen(log.sentAt)}</span>
                       </div>
                     ))}
-                    {detail.totalLogs > detail.logs.length && (
+                    {detail.totalLogs > detail.logs.length && logLimit < LOG_LIMIT_MAX && (
                       <button
                         type="button"
-                        onClick={() => setLogLimit((n) => n + LOG_PAGE)}
-                        className="mt-1 w-full rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground"
+                        onClick={() => { setLoadingMore(true); setLogLimit((n) => Math.min(LOG_LIMIT_MAX, n + LOG_PAGE)); }}
+                        disabled={loadingMore}
+                        className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
                       >
+                        {loadingMore && <FlowLoader size={13} />}
                         Load more ({(detail.totalLogs - detail.logs.length).toLocaleString()} left)
                       </button>
                     )}
