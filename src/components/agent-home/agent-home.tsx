@@ -618,24 +618,28 @@ export function AgentHome() {
                     onChange={setDesign}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
-                      const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : "call-to-action button text";
+                      const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action button text";
                       send(
-                        `Improve ONLY the ${label} on the design canvas — make it punchier and on-brand. Change ONLY the "${el}" field via update_canvas; keep the headline, subtext, button, image, accent, style and size you're NOT changing EXACTLY as they are. Don't regenerate anything else; reply in one short sentence.`,
+                        `Improve ONLY the ${label} on the design canvas — make it punchier and on-brand. Change ONLY the "${el}" field via update_canvas; keep the eyebrow, headline, subtext, button, images, accent, style and size you're NOT changing EXACTLY as they are. Don't regenerate anything else; reply in one short sentence.`,
                         false, designCanvasContext(design), undefined, { hidden: true },
                       );
                     }}
-                    onRegenerate={() => send(
-                      [
-                        `Create a branded design image for the open canvas, using my CURRENT design as the layout inspiration (keep this structure):`,
-                        `- headline: ${JSON.stringify(design.headline)}`,
-                        `- subtext: ${JSON.stringify(design.sub)}`,
-                        `- button (CTA): ${JSON.stringify(design.cta)}`,
-                        `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
-                        design.userImageUrl ? `- USE MY uploaded image as the subject and PRESERVE it — pass it in referenceImageUrls: ${design.userImageUrl}` : "",
-                        `Ask me the tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
-                      ].filter(Boolean).join("\n"),
-                      false, designCanvasContext(design), undefined, { hidden: true },
-                    )}
+                    onRegenerate={() => {
+                      const refs = (design.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
+                      send(
+                        [
+                          `Create a branded design image for the open canvas, using my CURRENT design as the layout inspiration (keep this structure):`,
+                          `- eyebrow: ${JSON.stringify(design.eyebrow)}`,
+                          `- headline: ${JSON.stringify(design.headline)}`,
+                          `- subtext: ${JSON.stringify(design.sub)}`,
+                          `- button (CTA): ${JSON.stringify(design.cta)}`,
+                          `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          refs.length ? `- USE MY images and PRESERVE them — pass these in referenceImageUrls: ${refs.join("; ")}` : "",
+                          `Ask me the tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
+                        ].filter(Boolean).join("\n"),
+                        false, designCanvasContext(design), undefined, { hidden: true },
+                      );
+                    }}
                   />
                 ) : focused === "account" ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>

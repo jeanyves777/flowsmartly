@@ -1,45 +1,46 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImageOff, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImageOff, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * The design document. Controlled by the parent so the agent mutates it via the
- * `update_canvas` seam exactly like direct edits — one source of truth. The user
- * can DRAG every element to reposition it, double-click text to edit in place,
- * drop their OWN photo into the canvas, pick a style (its own visual tab), and
- * ask the agent to improve a SINGLE element (returns only that element, never a
- * full regen). "Generate full design" renders a real on-brand image using this
- * layout + the user's image as the inspiration reference; `imageUrl` holds that
- * result, `generating` the live rendering state.
+ * `update_canvas` seam exactly like direct edits. Everything on the canvas is
+ * DRAGGABLE (text + every image/logo), text is double-click editable in place,
+ * the user can drop MULTIPLE photos + a logo, pick a style (its own visual tab),
+ * and ask the agent to improve ONE element (returns only that element). "Generate
+ * full design" renders a real image using this layout + the user's images as the
+ * inspiration reference.
  */
-export type ElementKey = "headline" | "sub" | "cta";
-type PosKey = ElementKey | "image";
-export interface Pos { x: number; y: number } // fraction 0..1 of the poster (element top-left)
+export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
+export interface Pos { x: number; y: number } // fraction 0..1 of the poster (top-left)
+export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean }
 
 export interface DesignDoc {
+  eyebrow: string;
   headline: string;
   sub: string;
   cta: string;
   accent: string;
   size: string; // "WxH"
   style?: string;
-  userImageUrl?: string;
-  imageUrl?: string;
+  images?: ImageLayer[];
+  imageUrl?: string; // rendered AI design
   generating?: boolean;
-  pos?: Partial<Record<PosKey, Pos>>;
+  pos?: Partial<Record<ElementKey, Pos>>;
 }
 
-const DEFAULT_POS: Record<PosKey, Pos> = {
-  image: { x: 0.05, y: 0.05 },
+const DEFAULT_POS: Record<ElementKey, Pos> = {
+  eyebrow: { x: 0.05, y: 0.05 },
   headline: { x: 0.05, y: 0.56 },
   sub: { x: 0.05, y: 0.77 },
   cta: { x: 0.05, y: 0.88 },
 };
 
 export const DEFAULT_DESIGN: DesignDoc = {
+  eyebrow: "FLOWSMARTLY · LIMITED TIME",
   headline: "Summer Sale\nup to 40% off",
   sub: "Refresh your wardrobe with our brightest drop yet. This week only.",
   cta: "Shop the sale →",
@@ -67,37 +68,41 @@ const SIZES = [
 const FIELD = "w-full resize-none rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-const posOf = (d: DesignDoc, k: PosKey): Pos => d.pos?.[k] ?? DEFAULT_POS[k];
+const posOf = (d: DesignDoc, k: ElementKey): Pos => d.pos?.[k] ?? DEFAULT_POS[k];
 const pct = (p: Pos) => ({ left: `${(p.x * 100).toFixed(2)}%`, top: `${(p.y * 100).toFixed(2)}%` });
+let _seq = 0;
+const newId = () => `img-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
 
-/** Serialize the canvas (incl. element coordinates) so the agent edits a single element or uses the layout as inspiration. */
+/** Serialize the canvas (text + coordinates + images) so the agent edits one element or uses the layout as inspiration. */
 export function designCanvasContext(d: DesignDoc): string {
-  const c = (k: PosKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
+  const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
+  const imgs = (d.images || []).filter((i) => !i.local && i.url);
   return [
-    "A Design Studio canvas is OPEN on the right; the user can drag elements, edit text in place, and drop a photo.",
-    d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design (text mockup, no rendered image yet).",
+    "A Design Studio canvas is OPEN on the right; the user can drag every element, edit text in place, and drop photos/a logo.",
+    d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design (mockup, no rendered image yet).",
     "Current design — this layout + positions ARE the inspiration; keep the structure:",
+    `- eyebrow: ${JSON.stringify(d.eyebrow)} at ${c("eyebrow")}`,
     `- headline: ${JSON.stringify(d.headline)} at ${c("headline")}`,
     `- sub: ${JSON.stringify(d.sub)} at ${c("sub")}`,
     `- cta (button): ${JSON.stringify(d.cta)} at ${c("cta")}`,
     `- accent (hex): ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
-    d.userImageUrl ? `- the user dropped their OWN image (subject) at ${c("image")}: ${d.userImageUrl} — preserve it; pass it as referenceImageUrls when generating.` : "- no user image yet.",
+    imgs.length ? `- the user placed ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass them as referenceImageUrls when generating.` : "- no images placed yet.",
     "Allowed accent hexes: #0ea5e9, #8b5cf6, #eccb93, #10b981, #ef4444. Allowed sizes: 1080×1080, 1080×1350, 1080×1920, 1200×628.",
-    "EDITING RULES: For a TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') call update_canvas with ONLY that field — return JUST the element the user wants changed, never rewrite the others (instant, free). Only when the user wants a full rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's image in referenceImageUrls.",
+    "EDITING RULES: For a TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') call update_canvas with ONLY that field — return JUST the element the user wants changed, never rewrite the others. Only when the user wants a full rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
   ].join("\n");
 }
 
 /** Merge an agent-emitted patch into the doc. */
 export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): DesignDoc {
   const next = { ...d };
-  for (const k of ["headline", "sub", "cta", "accent", "size", "style"] as const) {
+  for (const k of ["eyebrow", "headline", "sub", "cta", "accent", "size", "style"] as const) {
     const v = patch[k];
     if (typeof v === "string" && v) next[k] = v;
   }
-  if (typeof patch.userImageUrl === "string") next.userImageUrl = patch.userImageUrl || undefined;
   if (typeof patch.imageUrl === "string" && patch.imageUrl) next.imageUrl = patch.imageUrl;
   if (typeof patch.generating === "boolean") next.generating = patch.generating;
-  if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<PosKey, Pos>) };
+  if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
+  if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
   return next;
 }
 
@@ -107,11 +112,10 @@ async function uploadImage(file: File): Promise<string | null> {
     fd.append("file", file);
     const r = await fetch("/api/media", { method: "POST", body: fd });
     const j = await r.json().catch(() => null);
-    return j?.data?.file?.url || j?.data?.url || null;
+    return (r.ok && (j?.data?.file?.url || j?.data?.url)) || null;
   } catch { return null; }
 }
 
-/** A quick CSS preview of each design style, tinted with the chosen accent. */
 function StylePreview({ v, accent }: { v: string; accent: string }) {
   const base = "relative h-[58px] w-full overflow-hidden rounded-md";
   switch (v) {
@@ -133,7 +137,7 @@ function Draggable({ pos, onMove, posterRef, disabled, className, style, childre
   const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const onDown = (e: React.PointerEvent) => {
     if (disabled) return;
-    if ((e.target as HTMLElement).closest("button")) return; // let buttons (assist/remove) click
+    if ((e.target as HTMLElement).closest("button")) return;
     e.preventDefault();
     drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
     try { ref.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
@@ -141,7 +145,7 @@ function Draggable({ pos, onMove, posterRef, disabled, className, style, childre
   const onMoveP = (e: React.PointerEvent) => {
     const d = drag.current; const p = posterRef.current; if (!d || !p) return;
     const r = p.getBoundingClientRect();
-    onMove({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, 0, 0.95), y: clamp(d.oy + (e.clientY - d.sy) / r.height, 0, 0.95) });
+    onMove({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, 0, 0.96), y: clamp(d.oy + (e.clientY - d.sy) / r.height, 0, 0.96) });
   };
   const onUp = (e: React.PointerEvent) => { drag.current = null; try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ } };
   return (
@@ -154,7 +158,7 @@ function Draggable({ pos, onMove, posterRef, disabled, className, style, childre
 
 /** A draggable + double-click-to-edit text element with a per-element AI assist. */
 function CanvasText({ value, onCommit, onMove, onAssist, posterRef, pos, busy, ariaLabel, textClass, wrapStyle }: {
-  value: string; onCommit: (v: string) => void; onMove: (p: Pos) => void; onAssist: () => void;
+  value: string; onCommit: (v: string) => void; onMove: (p: Pos) => void; onAssist?: () => void;
   posterRef: React.RefObject<HTMLDivElement | null>; pos: Pos; busy?: boolean; ariaLabel: string;
   textClass: string; wrapStyle?: CSSProperties;
 }) {
@@ -173,23 +177,24 @@ function CanvasText({ value, onCommit, onMove, onAssist, posterRef, pos, busy, a
   return (
     <Draggable pos={pos} onMove={onMove} posterRef={posterRef} disabled={editing} className="group" style={wrapStyle}>
       <div className="relative inline-flex items-start gap-1.5">
-        <div
-          ref={txtRef} role="textbox" aria-label={ariaLabel} contentEditable={editing} suppressContentEditableWarning
+        <div ref={txtRef} role="textbox" aria-label={ariaLabel} contentEditable={editing} suppressContentEditableWarning
           onDoubleClick={startEdit}
           onBlur={(e) => { setEditing(false); const t = e.currentTarget.innerText.replace(/\n{3,}/g, "\n\n").trimEnd(); if (t !== value) onCommit(t); }}
-          className={cn("whitespace-pre-line rounded-[4px] outline-none transition", editing ? "cursor-text ring-2 ring-white/60" : "ring-1 ring-white/0 hover:ring-white/25", textClass)}
-        />
-        <button onClick={onAssist} disabled={busy} title="Improve this with AI (only this element)" className="pointer-events-auto mt-0.5 inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-        </button>
+          className={cn("whitespace-pre-line rounded-[4px] outline-none transition", editing ? "cursor-text ring-2 ring-white/60" : "ring-1 ring-white/0 hover:ring-white/25", textClass)} />
+        {onAssist && (
+          <button onClick={onAssist} disabled={busy} title="Improve this with AI (only this element)" className="pointer-events-auto mt-0.5 inline-grid h-6 w-6 shrink-0 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+          </button>
+        )}
       </div>
     </Draggable>
   );
 }
 
-function Poster({ doc, onEdit, onAssist, onImage, onMove, assistBusy }: {
+function Poster({ doc, onEdit, onAssist, onMove, onMoveImage, onRemoveImage, onAddFiles, assistBusy }: {
   doc: DesignDoc; onEdit: (patch: Partial<DesignDoc>) => void; onAssist: (el: ElementKey) => void;
-  onImage: (url: string | undefined) => void; onMove: (k: PosKey, p: Pos) => void; assistBusy: ElementKey | null;
+  onMove: (k: ElementKey, p: Pos) => void; onMoveImage: (id: string, p: Pos) => void; onRemoveImage: (id: string) => void;
+  onAddFiles: (files: FileList | null, kind: "photo" | "logo") => void; assistBusy: ElementKey | null;
 }) {
   const [w, h] = doc.size.split("×").map(Number);
   const ratio = w && h ? w / h : 1;
@@ -197,25 +202,17 @@ function Poster({ doc, onEdit, onAssist, onImage, onMove, assistBusy }: {
   const height = Math.round(baseW / ratio);
   const [imgError, setImgError] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const posterRef = useRef<HTMLDivElement>(null);
   const showAiImage = !!doc.imageUrl && !imgError;
-
-  const handleFile = async (file?: File | null) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    setUploading(true);
-    const url = await uploadImage(file);
-    setUploading(false);
-    if (url) onImage(url);
-  };
+  const images = doc.images || [];
 
   return (
     <div ref={posterRef} className="relative overflow-hidden rounded-[18px] text-white shadow-2xl"
       style={{ width: baseW, height, maxWidth: "100%", background: "linear-gradient(160deg,#0b2447,#0a1b3a)" }}
-      onDragOver={(e) => { if (!doc.userImageUrl && !showAiImage) { e.preventDefault(); setDragOver(true); } }}
+      onDragOver={(e) => { if (!showAiImage) { e.preventDefault(); setDragOver(true); } }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { if (!doc.userImageUrl && !showAiImage) { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); } }}
+      onDrop={(e) => { if (!showAiImage) { e.preventDefault(); setDragOver(false); onAddFiles(e.dataTransfer.files, "photo"); } }}
     >
       {showAiImage ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -223,36 +220,36 @@ function Poster({ doc, onEdit, onAssist, onImage, onMove, assistBusy }: {
       ) : (
         <>
           <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />
-          <div className="absolute left-5 top-4 text-[9px] uppercase tracking-[2.5px] text-white/70">FlowSmartly · Limited time</div>
 
-          {/* user image — a draggable photo block, or a centered drop placeholder */}
-          {doc.userImageUrl ? (
-            <Draggable pos={posOf(doc, "image")} onMove={(p) => onMove("image", p)} posterRef={posterRef} className="group" style={{ width: "46%" }}>
+          {/* image / logo layers — each draggable */}
+          {images.map((img) => (
+            <Draggable key={img.id} pos={{ x: img.x, y: img.y }} onMove={(p) => onMoveImage(img.id, p)} posterRef={posterRef} className="group" style={{ width: `${img.w * 100}%` }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={doc.userImageUrl} alt="Your image" className="pointer-events-none aspect-[4/5] w-full rounded-xl object-cover shadow-lg" />
-              <button onClick={() => onImage(undefined)} title="Remove image" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
+              <img src={img.url} alt={img.kind} className={cn("pointer-events-none w-full object-cover shadow-lg", img.kind === "logo" ? "rounded-md" : "aspect-[4/5] rounded-xl")} />
+              <button onClick={() => onRemoveImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
+              {img.local && <span className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[8px] font-semibold text-amber-300">{img.error ? "local only" : "uploading…"}</span>}
             </Draggable>
-          ) : (
-            <button type="button" onClick={() => fileRef.current?.click()} className={cn("absolute left-1/2 top-[26%] grid h-[34%] w-[64%] -translate-x-1/2 place-items-center rounded-xl border-2 border-dashed text-center transition", dragOver ? "border-white/70 bg-white/10" : "border-white/30 bg-white/[0.04] hover:border-white/50")}>
+          ))}
+
+          {/* add-image placeholder (only when there are no images yet, to keep it discoverable) */}
+          {images.length === 0 && (
+            <button type="button" onClick={() => fileRef.current?.click()} className={cn("absolute left-1/2 top-[24%] grid h-[34%] w-[64%] -translate-x-1/2 place-items-center rounded-xl border-2 border-dashed text-center transition", dragOver ? "border-white/70 bg-white/10" : "border-white/30 bg-white/[0.04] hover:border-white/50")}>
               <div className="flex flex-col items-center gap-1.5 px-3 text-white/80">
-                {uploading ? <FlowLoader size={26} tone="white" /> : <ImagePlus className="h-6 w-6" />}
-                <span className="text-[11.5px] font-semibold">{uploading ? "Uploading…" : "Drop your photo here"}</span>
-                <span className="text-[10px] text-white/55">the AI keeps it as the subject</span>
+                <ImagePlus className="h-6 w-6" />
+                <span className="text-[11.5px] font-semibold">Drop your photo here</span>
+                <span className="text-[10px] text-white/55">or click — add as many images + a logo as you need</span>
               </div>
             </button>
           )}
 
-          {/* draggable, double-click-to-edit text elements */}
+          {/* draggable, double-click-to-edit text */}
+          <CanvasText ariaLabel="Eyebrow" value={doc.eyebrow} onCommit={(v) => onEdit({ eyebrow: v })} onMove={(p) => onMove("eyebrow", p)} onAssist={() => onAssist("eyebrow")} posterRef={posterRef} pos={posOf(doc, "eyebrow")} busy={assistBusy === "eyebrow"} textClass="text-[9px] font-semibold uppercase tracking-[2.5px] text-white/75" wrapStyle={{ maxWidth: "70%" }} />
           <CanvasText ariaLabel="Headline" value={doc.headline} onCommit={(v) => onEdit({ headline: v })} onMove={(p) => onMove("headline", p)} onAssist={() => onAssist("headline")} posterRef={posterRef} pos={posOf(doc, "headline")} busy={assistBusy === "headline"} textClass="text-[27px] font-extrabold leading-[1.05] tracking-tight" wrapStyle={{ maxWidth: "78%" }} />
           <CanvasText ariaLabel="Subtext" value={doc.sub} onCommit={(v) => onEdit({ sub: v })} onMove={(p) => onMove("sub", p)} onAssist={() => onAssist("sub")} posterRef={posterRef} pos={posOf(doc, "sub")} busy={assistBusy === "sub"} textClass="text-[11.5px] leading-snug text-white/85" wrapStyle={{ maxWidth: "72%" }} />
           <Draggable pos={posOf(doc, "cta")} onMove={(p) => onMove("cta", p)} posterRef={posterRef} className="group">
             <div className="relative inline-flex items-center gap-1.5">
-              <div className="inline-flex rounded-full px-3.5 py-2" style={{ background: doc.accent, color: "#06121f" }}>
-                <EditableCta value={doc.cta} onCommit={(v) => onEdit({ cta: v })} />
-              </div>
-              <button onClick={() => onAssist("cta")} disabled={assistBusy === "cta"} title="Improve the CTA with AI" className="pointer-events-auto inline-grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">
-                {assistBusy === "cta" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              </button>
+              <div className="inline-flex rounded-full px-3.5 py-2" style={{ background: doc.accent, color: "#06121f" }}><EditableCta value={doc.cta} onCommit={(v) => onEdit({ cta: v })} /></div>
+              <button onClick={() => onAssist("cta")} disabled={assistBusy === "cta"} title="Improve the CTA with AI" className="pointer-events-auto inline-grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">{assistBusy === "cta" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}</button>
             </div>
           </Draggable>
         </>
@@ -263,17 +260,16 @@ function Poster({ doc, onEdit, onAssist, onImage, onMove, assistBusy }: {
           <div className="flex flex-col items-center gap-2.5 text-center">
             <FlowLoader size={36} withMark tone="white" />
             <p className="text-[12.5px] font-semibold text-white">Rendering your design…</p>
-            <p className="text-[11px] text-white/70">Using your layout{doc.userImageUrl ? " + your photo" : ""} as the reference.</p>
+            <p className="text-[11px] text-white/70">Using your layout{images.length ? " + your images" : ""} as the reference.</p>
           </div>
         </div>
       )}
       {imgError && !doc.generating && <div className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] text-white/80"><ImageOff className="h-3 w-3" /> preview unavailable</div>}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }} />
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onAddFiles(e.target.files, "photo"); e.target.value = ""; }} />
     </div>
   );
 }
 
-/** The CTA text — double-click to edit in place (drag is handled by its Draggable wrapper). */
 function EditableCta({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -292,10 +288,37 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const [toolsOpen, setToolsOpen] = useState(true);
   const [tab, setTab] = useState<"design" | "style">("design");
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  // Latest images for async upload swaps (avoids stale closures).
+  const imagesRef = useRef<ImageLayer[]>(value.images || []);
+  useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
+
   const set = (patch: Partial<DesignDoc>) => onChange({ ...value, ...patch });
-  const move = (k: PosKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
+  const setImages = (imgs: ImageLayer[]) => onChange({ ...value, images: imgs });
+  const move = (k: ElementKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
+  const moveImage = (id: string, p: Pos) => setImages(imagesRef.current.map((i) => (i.id === id ? { ...i, x: p.x, y: p.y } : i)));
+  const patchImage = (id: string, patch: Partial<ImageLayer>) => setImages(imagesRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const removeImage = (id: string) => setImages(imagesRef.current.filter((i) => i.id !== id));
   const exportImage = () => { if (value.imageUrl) window.open(value.imageUrl, "_blank", "noopener,noreferrer"); };
   const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); setTimeout(() => setAssistBusy((b) => (b === el ? null : b)), 2600); };
+
+  // Add image(s): show INSTANTLY via a local object URL, upload in the background,
+  // then swap to the hosted URL when it lands (or mark local-only if S3 is down).
+  const addFiles = (files: FileList | null, kind: "photo" | "logo") => {
+    if (!files) return;
+    Array.from(files).filter((f) => f.type.startsWith("image/")).forEach((file, idx) => {
+      const id = newId();
+      const localUrl = URL.createObjectURL(file);
+      const isLogo = kind === "logo";
+      const layer: ImageLayer = { id, url: localUrl, x: isLogo ? 0.06 : clamp(0.24 + idx * 0.04, 0, 0.6), y: isLogo ? 0.06 : clamp(0.22 + idx * 0.04, 0, 0.6), w: isLogo ? 0.2 : 0.46, kind, local: true };
+      onChange({ ...value, images: [...imagesRef.current, layer] });
+      void uploadImage(file).then((real) => { if (real) patchImage(id, { url: real, local: false, error: false }); else patchImage(id, { error: true }); });
+    });
+  };
+
+  const images = value.images || [];
+  const anyLocal = images.some((i) => i.local && i.error);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -312,12 +335,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
       <div className="flex min-h-0 flex-1">
         <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
-          <Poster doc={value} onEdit={set} onAssist={assist} onImage={(url) => set({ userImageUrl: url })} onMove={move} assistBusy={assistBusy} />
+          <Poster doc={value} onEdit={set} onAssist={assist} onMove={move} onMoveImage={moveImage} onRemoveImage={removeImage} onAddFiles={addFiles} assistBusy={assistBusy} />
         </div>
 
         {toolsOpen && (
           <div className="flex w-[272px] shrink-0 flex-col border-s border-border bg-muted/30">
-            {/* tabs */}
             <div className="flex shrink-0 gap-1 border-b border-border p-1.5">
               <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
               <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
@@ -333,10 +355,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                       return (
                         <button key={s.v} onClick={() => set({ style: s.v })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", sel ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
                           <StylePreview v={s.v} accent={value.accent} />
-                          <div className="mt-1.5 px-0.5">
-                            <p className={cn("text-[12px] font-bold", sel && "text-brand-500")}>{s.label}</p>
-                            <p className="text-[10px] leading-tight text-muted-foreground">{s.desc}</p>
-                          </div>
+                          <div className="mt-1.5 px-0.5"><p className={cn("text-[12px] font-bold", sel && "text-brand-500")}>{s.label}</p><p className="text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
                         </button>
                       );
                     })}
@@ -344,25 +363,35 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                 </>
               ) : (
                 <>
-                  <p className="mb-3 rounded-lg border border-border bg-background/60 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">Drag any element to move it. Double-click text to edit. The <Wand2 className="inline h-3 w-3 text-brand-500" /> on each element asks the agent to improve <span className="font-semibold text-foreground">only that part</span>.</p>
+                  <p className="mb-3 rounded-lg border border-border bg-background/60 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">Drag any element to move it. Double-click text to edit. The <Wand2 className="inline h-3 w-3 text-brand-500" /> improves <span className="font-semibold text-foreground">only that element</span>.</p>
 
                   <ControlGroup title="Content">
+                    <Field label="Eyebrow" assist={onElementAssist ? () => assist("eyebrow") : undefined}><input value={value.eyebrow} onChange={(e) => set({ eyebrow: e.target.value })} className={FIELD} /></Field>
                     <Field label="Headline" assist={onElementAssist ? () => assist("headline") : undefined}><textarea rows={2} value={value.headline} onChange={(e) => set({ headline: e.target.value })} className={FIELD} /></Field>
                     <Field label="Subtext" assist={onElementAssist ? () => assist("sub") : undefined}><textarea rows={2} value={value.sub} onChange={(e) => set({ sub: e.target.value })} className={FIELD} /></Field>
                     <Field label="Button" assist={onElementAssist ? () => assist("cta") : undefined}><input value={value.cta} onChange={(e) => set({ cta: e.target.value })} className={FIELD} /></Field>
                   </ControlGroup>
 
-                  <ControlGroup title="Your image">
-                    {value.userImageUrl ? (
-                      <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-border bg-background/60 p-1.5">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={value.userImageUrl} alt="" className="h-10 w-10 rounded-md object-cover" />
-                        <span className="flex-1 truncate text-[11px] text-muted-foreground">Your photo — drag it on the canvas</span>
-                        <button onClick={() => set({ userImageUrl: undefined })} className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove"><X className="h-3.5 w-3.5" /></button>
+                  <ControlGroup title="Images & logo">
+                    <div className="mt-1.5 flex gap-1.5">
+                      <button onClick={() => photoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Add photo</button>
+                      <button onClick={() => logoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
+                    </div>
+                    {images.length > 0 ? (
+                      <div className="mt-2 space-y-1.5">
+                        {images.map((img) => (
+                          <div key={img.id} className="flex items-center gap-2 rounded-lg border border-border bg-background/60 p-1.5">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.url} alt="" className="h-9 w-9 rounded-md object-cover" />
+                            <span className="flex-1 truncate text-[11px] capitalize text-muted-foreground">{img.kind}{img.error ? " · local only" : img.local ? " · uploading…" : ""}</span>
+                            <button onClick={() => removeImage(img.id)} className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Drop a photo onto the canvas (or click the photo zone). The AI keeps it as the subject.</p>
+                      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Add or drop your photos + logo — drag each on the canvas to place it. The AI keeps them when you generate.</p>
                     )}
+                    {anyLocal && <p className="mt-1.5 text-[10.5px] leading-snug text-amber-500">Some images couldn’t reach your library (storage isn’t reachable) — they show here but won’t be used by AI generation until the upload succeeds.</p>}
                   </ControlGroup>
 
                   <ControlGroup title="Brand accent">
@@ -380,21 +409,20 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
               <button onClick={onRegenerate} disabled={value.generating} className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
                 {value.generating ? <FlowLoader size={16} tone="white" /> : <Sparkles className="h-4 w-4" />} {value.generating ? "Rendering…" : value.imageUrl ? "Regenerate full design" : "Generate full design with AI"}
               </button>
-              <p className="mt-2 text-[11px] leading-snug text-muted-foreground">Renders a real on-brand image using THIS layout{value.userImageUrl ? " + your photo" : ""} as the inspiration reference.</p>
+              <p className="mt-2 text-[11px] leading-snug text-muted-foreground">Renders a real on-brand image using THIS layout{images.length ? " + your images" : ""} as the inspiration reference.</p>
             </div>
           </div>
         )}
       </div>
+
+      <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files, "photo"); e.target.value = ""; }} />
+      <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files, "logo"); e.target.value = ""; }} />
     </div>
   );
 }
 
 function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Palette; label: string }) {
-  return (
-    <button onClick={onClick} className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
-      <Icon className="h-4 w-4" /> {label}
-    </button>
-  );
+  return <button onClick={onClick} className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-4 w-4" /> {label}</button>;
 }
 
 function ControlGroup({ title, children }: { title: string; children: ReactNode }) {
