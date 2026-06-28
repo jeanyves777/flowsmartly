@@ -617,12 +617,24 @@ export function AgentHome() {
                     value={design}
                     onChange={setDesign}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
+                    onElementAssist={(el) => {
+                      const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : "call-to-action button text";
+                      send(
+                        `Improve ONLY the ${label} on the design canvas — make it punchier and on-brand. Change ONLY the "${el}" field via update_canvas; keep the headline, subtext, button, image, accent, style and size you're NOT changing EXACTLY as they are. Don't regenerate anything else; reply in one short sentence.`,
+                        false, designCanvasContext(design), undefined, { hidden: true },
+                      );
+                    }}
                     onRegenerate={() => send(
-                      `Create a branded design image for the canvas that's open — headline ${JSON.stringify(design.headline)}, subtext ${JSON.stringify(design.sub)}, button ${JSON.stringify(design.cta)}, size ${design.size}. Use my brand. Ask me which tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
-                      false,
-                      designCanvasContext(design),
-                      undefined,
-                      { hidden: true },
+                      [
+                        `Create a branded design image for the open canvas, using my CURRENT design as the layout inspiration (keep this structure):`,
+                        `- headline: ${JSON.stringify(design.headline)}`,
+                        `- subtext: ${JSON.stringify(design.sub)}`,
+                        `- button (CTA): ${JSON.stringify(design.cta)}`,
+                        `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                        design.userImageUrl ? `- USE MY uploaded image as the subject and PRESERVE it — pass it in referenceImageUrls: ${design.userImageUrl}` : "",
+                        `Ask me the tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
+                      ].filter(Boolean).join("\n"),
+                      false, designCanvasContext(design), undefined, { hidden: true },
                     )}
                   />
                 ) : focused === "account" ? (
