@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
-import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check, Search, Monitor, Smartphone, Copy, Code2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { EmailSetupCard } from "./email-setup";
 import { cn } from "@/lib/utils/cn";
@@ -71,6 +71,16 @@ const STATUS_META: Record<string, { label: string; icon: ElementType; tone: stri
 };
 const statusMeta = (s: string) => STATUS_META[s?.toLowerCase()] ?? { label: s || "Draft", icon: FileText, tone: "bg-muted text-muted-foreground" };
 
+// Status filter chips — values map to the route's lowercase `status` param (it uppercases server-side).
+type StatusFilter = "all" | "draft" | "scheduled" | "sent" | "failed";
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "draft", label: "Drafts" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "sent", label: "Sent" },
+  { value: "failed", label: "Failed" },
+];
+
 function whenLabel(iso?: string | null): string {
   if (!iso) return "";
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
@@ -83,10 +93,19 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   // null = unknown; false = needs setup (gate); true = configured (show campaigns).
   const [configured, setConfigured] = useState<boolean | null>(null);
 
+  // Search (name/subject) + status filter — wired to GET /api/campaigns?type=email&search=&status=.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [listLoading, setListLoading] = useState(false); // a filtered re-fetch is in flight
+
   // Selected campaign detail: id while loading, the detail object once fetched, null when closed.
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Rendered HTML preview state (per open campaign): visible, viewport, copied flash.
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewView, setPreviewView] = useState<"desktop" | "mobile">("desktop");
+  const [htmlCopied, setHtmlCopied] = useState(false);
 
   // In-surface management (CRUD) state for the open campaign.
   type ActionMode = null | "edit" | "delete" | "send" | "schedule";
@@ -114,27 +133,52 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     } catch { setLists([]); }
   }, [lists]);
 
+  // Latest search/status, read inside load() without making the callback identity churn on each keystroke.
+  const queryRef = useRef({ search: "", status: "all" as StatusFilter });
+  queryRef.current = { search, status: statusFilter };
+
   const load = useCallback(async () => {
     try {
+      const q = queryRef.current;
+      const params = new URLSearchParams({ type: "email", limit: "30" });
+      const term = q.search.trim();
+      if (term) params.set("search", term);
+      if (q.status !== "all") params.set("status", q.status);
       const [cfg, j] = await Promise.all([
         fetch("/api/marketing-config").then((r) => r.json()).catch(() => null),
-        fetch("/api/campaigns?type=email&limit=30").then((r) => r.json()).catch(() => null),
+        fetch(`/api/campaigns?${params.toString()}`).then((r) => r.json()).catch(() => null),
       ]);
       const c = cfg?.data?.config;
       // Ready to send = a provider chosen, a sender on file, and a verified test send.
       setConfigured(!!c && c.emailProvider !== "NONE" && !!c.emailVerified && !!c.defaultFromEmail);
       if (j?.success && j.data) {
-        if (Array.isArray(j.data.campaigns)) setCampaigns(j.data.campaigns);
+        setCampaigns(Array.isArray(j.data.campaigns) ? j.data.campaigns : []);
         if (j.data.stats) setStats(j.data.stats);
       }
     } catch { setConfigured((v) => (v === null ? false : v)); }
   }, []);
 
+  // Becomes true once the initial load (or a refreshKey reload) has run, so the filter effect
+  // below knows not to double-fetch on the very first render with default (empty) filters.
+  const initialLoaded = useRef(false);
   useEffect(() => {
     let alive = true;
-    load().finally(() => { if (alive) setLoading(false); });
+    initialLoaded.current = false;
+    load().finally(() => { if (alive) { setLoading(false); initialLoaded.current = true; } });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  // Debounced re-fetch when the search term or status filter changes (the initial load already
+  // covers the default filters; this only fires for actual user-driven filter changes).
+  useEffect(() => {
+    if (!initialLoaded.current) return;
+    let alive = true;
+    setListLoading(true);
+    const t = setTimeout(() => {
+      load().finally(() => { if (alive) setListLoading(false); });
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [search, statusFilter, load]);
 
   // Fetch (or re-fetch) a campaign's detail. Returns the detail so callers can seed forms.
   const fetchDetail = useCallback(async (id: string): Promise<CampaignDetail | null> => {
@@ -150,12 +194,24 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   }, []);
 
   const openCampaign = useCallback(async (c: Campaign) => {
+    setShowPreview(false); setHtmlCopied(false); setPreviewView("desktop");
     if (openId === c.id) { setOpenId(null); setDetail(null); resetActions(); setActionNotice(null); return; }
     setOpenId(c.id); setDetail(null); setDetailLoading(true);
     resetActions(); setActionNotice(null);
     await fetchDetail(c.id);
     setDetailLoading(false);
   }, [openId, fetchDetail, resetActions]);
+
+  // Copy the rendered HTML source of the open campaign to the clipboard.
+  const copyHtml = useCallback(async () => {
+    const html = detail?.contentHtml;
+    if (!html) return;
+    try {
+      await navigator.clipboard.writeText(html);
+      setHtmlCopied(true);
+      setTimeout(() => setHtmlCopied(false), 1800);
+    } catch { /* clipboard may be unavailable; silently ignore */ }
+  }, [detail]);
 
   // Enter edit mode — seed the form from the loaded detail and load the audience options.
   const startEdit = useCallback(() => {
@@ -234,6 +290,25 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     } catch { setActionError("Could not send this campaign."); setBusy(false); }
   }, [openId, scheduleAt, fetchDetail, load]);
 
+  // Mobile preview: force a 375px viewport and clamp 600px email tables to the phone width.
+  const previewHtml = detail?.contentHtml ?? "";
+  const mobileSrcDoc = useMemo(() => {
+    if (!previewHtml) return "";
+    if (previewHtml.includes("<head>")) {
+      return previewHtml.replace(
+        "<head>",
+        `<head><meta name="viewport" content="width=375, initial-scale=1"><style>body{max-width:375px!important;margin:0 auto!important;}table[style*="width: 600px"]{width:100%!important;max-width:375px!important;}</style>`,
+      );
+    }
+    // Fragment without a document shell — wrap it so the viewport clamp still applies.
+    return `<!doctype html><html><head><meta name="viewport" content="width=375, initial-scale=1"><style>body{max-width:375px!important;margin:0 auto!important;font-family:system-ui,sans-serif;}table[style*="width: 600px"]{width:100%!important;max-width:375px!important;}</style></head><body>${previewHtml}</body></html>`;
+  }, [previewHtml]);
+
+  // The single-campaign GET route returns raw counts but not open/click rates, so derive
+  // them here for the detail Mini cards (same formula the list route uses: opens/sent, clicks/opens).
+  const detailOpenRate = detail && (detail.sent ?? 0) > 0 ? Math.round(((detail.opened ?? 0) / (detail.sent ?? 1)) * 100) : 0;
+  const detailClickRate = detail && (detail.opened ?? 0) > 0 ? Math.round(((detail.clicked ?? 0) / (detail.opened ?? 1)) * 100) : 0;
+
   const newCampaignPrompt = "Help me create a new email campaign — ask me the goal and audience, then draft the subject line and email body and set it up.";
 
   if (loading) {
@@ -281,7 +356,42 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-[13px] font-bold">Campaigns</h3>
 
-          {campaigns.length ? (
+          {/* search + status filter */}
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or subject…"
+                aria-label="Search campaigns"
+                className="w-full rounded-[10px] border border-border bg-muted/30 ps-8 pe-8 py-1.5 text-[12.5px] outline-none focus:border-brand-500"
+              />
+              {search ? (
+                <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute end-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1 rounded-[10px] bg-muted/40 p-1">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition",
+                    statusFilter === f.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {listLoading ? (
+            <div className="grid place-items-center py-10"><FlowLoader size={24} label="Filtering campaigns…" /></div>
+          ) : campaigns.length ? (
             <div className="space-y-2">
               {campaigns.map((c) => {
                 const m = statusMeta(c.status);
@@ -319,8 +429,8 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                               <Mini label="Sent" value={(detail.sent ?? 0).toLocaleString()} />
                               <Mini label="Delivered" value={(detail.delivered ?? 0).toLocaleString()} />
-                              <Mini label="Opened" value={`${(detail.opened ?? 0).toLocaleString()}${detail.openRate ? ` · ${detail.openRate}%` : ""}`} />
-                              <Mini label="Clicked" value={`${(detail.clicked ?? 0).toLocaleString()}${detail.clickRate ? ` · ${detail.clickRate}%` : ""}`} />
+                              <Mini label="Opened" value={`${(detail.opened ?? 0).toLocaleString()}${detailOpenRate ? ` · ${detailOpenRate}%` : ""}`} />
+                              <Mini label="Clicked" value={`${(detail.clicked ?? 0).toLocaleString()}${detailClickRate ? ` · ${detailClickRate}%` : ""}`} />
                             </div>
                             {(detail.bounced || detail.unsubscribed || detail.failed) ? (
                               <div className="grid grid-cols-3 gap-3">
@@ -342,6 +452,69 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                                 {detail.contactList?.name ? <span>Audience: {detail.contactList.name}</span> : null}
                               </div>
                             </div>
+
+                            {/* rendered HTML email preview */}
+                            {detail.contentHtml ? (
+                              <div className="rounded-xl border border-border bg-background overflow-hidden">
+                                <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+                                  <button
+                                    onClick={() => setShowPreview((v) => !v)}
+                                    className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold hover:text-brand-500"
+                                  >
+                                    <Code2 className="h-3.5 w-3.5" /> {showPreview ? "Hide email preview" : "Preview email"}
+                                    <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition", showPreview && "rotate-90")} />
+                                  </button>
+                                  {showPreview ? (
+                                    <div className="ms-auto flex items-center gap-1.5">
+                                      <div className="flex items-center gap-0.5 rounded-[8px] bg-muted/50 p-0.5">
+                                        <button
+                                          onClick={() => setPreviewView("desktop")}
+                                          aria-label="Desktop preview"
+                                          aria-pressed={previewView === "desktop"}
+                                          className={cn("grid h-6 w-6 place-items-center rounded-[6px] transition", previewView === "desktop" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                                        >
+                                          <Monitor className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => setPreviewView("mobile")}
+                                          aria-label="Mobile preview"
+                                          aria-pressed={previewView === "mobile"}
+                                          className={cn("grid h-6 w-6 place-items-center rounded-[6px] transition", previewView === "mobile" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                                        >
+                                          <Smartphone className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                      <button
+                                        onClick={copyHtml}
+                                        className="inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-card px-2.5 py-1 text-[11.5px] font-semibold hover:bg-muted/60"
+                                      >
+                                        {htmlCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                        {htmlCopied ? "Copied" : "Copy HTML"}
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                                {showPreview ? (
+                                  <div className="flex justify-center bg-muted/30 p-3">
+                                    {previewView === "mobile" ? (
+                                      <div className="mx-auto" style={{ width: 320 }}>
+                                        <div className="overflow-hidden rounded-[2.25rem] border-[6px] border-gray-800 bg-gray-800 shadow-2xl dark:border-gray-600 dark:bg-gray-600">
+                                          <div className="flex h-6 items-center justify-center bg-gray-800 dark:bg-gray-600"><div className="h-4 w-20 rounded-full bg-black" /></div>
+                                          <div className="overflow-hidden bg-white" style={{ width: 308 }}>
+                                            <iframe srcDoc={mobileSrcDoc} style={{ width: 308, height: 520, border: "none", display: "block" }} sandbox="allow-same-origin" title="Mobile email preview" />
+                                          </div>
+                                          <div className="flex h-4 items-center justify-center bg-gray-800 dark:bg-gray-600"><div className="h-1 w-24 rounded-full bg-gray-600 dark:bg-gray-400" /></div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full max-w-[620px]">
+                                        <iframe srcDoc={previewHtml} className="w-full rounded-lg border border-border bg-white" style={{ minHeight: 460 }} sandbox="allow-same-origin" title="Desktop email preview" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
 
                             {actionNotice ? (
                               <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12.5px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -468,6 +641,15 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                   </div>
                 );
               })}
+            </div>
+          ) : (search.trim() || statusFilter !== "all") ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground"><Search className="h-6 w-6" /></span>
+              <p className="mt-3 text-[13.5px] font-semibold">No matching campaigns</p>
+              <p className="mt-1 text-[12.5px] text-muted-foreground">No campaigns match {search.trim() ? <span className="font-medium text-foreground">&ldquo;{search.trim()}&rdquo;</span> : "this filter"}{search.trim() && statusFilter !== "all" ? " for this status" : ""}.</p>
+              <button onClick={() => { setSearch(""); setStatusFilter("all"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-muted/60">
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </button>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">

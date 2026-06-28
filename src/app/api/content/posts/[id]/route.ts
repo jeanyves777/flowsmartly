@@ -67,8 +67,16 @@ export async function PATCH(
           { status: 400 }
         );
       }
+      // A scheduled time must be in the FUTURE — a past time would leave a
+      // "SCHEDULED" post stuck in the past that never publishes cleanly.
+      if (scheduledAt && scheduledAt.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { success: false, error: { message: "scheduledAt must be in the future" } },
+          { status: 400 }
+        );
+      }
       updateData.scheduledAt = scheduledAt;
-      if (scheduledAt && scheduledAt > new Date()) {
+      if (scheduledAt) {
         updateData.status = "SCHEDULED";
         updateData.publishedAt = null;
       }

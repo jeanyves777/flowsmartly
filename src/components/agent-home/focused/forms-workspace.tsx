@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
-import { ClipboardList, FileText, MessageSquareText, Sparkles, Send, Inbox, ExternalLink, ChevronDown, ChevronRight, Power, PowerOff, Mail, Phone, User, Star, Plus, Pencil, Trash2, Save, X, ArrowUp, ArrowDown, AlertTriangle, ListChecks } from "lucide-react";
+import { ClipboardList, FileText, MessageSquareText, Sparkles, Send, Inbox, ExternalLink, ChevronDown, ChevronRight, Power, PowerOff, Mail, Phone, User, Star, Plus, Pencil, Trash2, Save, X, ArrowUp, ArrowDown, AlertTriangle, ListChecks, Search, Link2, QrCode, Code2, Copy, Check, Users, UserPlus, ArrowLeft, ArrowRight } from "lucide-react";
+import QRCode from "qrcode";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -12,10 +13,15 @@ import { cn } from "@/lib/utils/cn";
  * REAL UI — Open/Close toggles a form's status (PUT /api/{data-forms|surveys}/[id]),
  * "View submissions" loads responses in place (GET …/submissions | …/responses).
  * EDIT renames + edits fields/questions/thank-you/reorder in place (PUT …),
- * SEND distributes to a contact list via email/SMS (POST …/send), and DELETE
- * removes the form/survey and its submissions (DELETE …) — all with inline
- * confirms, no legacy links. Building a NEW form/survey is a generative job, so
- * that one drives the agent. Only the live public page opens in a new tab.
+ * SEND distributes to a contact list via email/SMS (POST …/send), SHARE exposes
+ * a copy-link + branded QR (qrcode → data-url) + an embeddable <iframe> snippet,
+ * and DELETE removes the form/survey and its submissions (DELETE …) — all with
+ * inline confirms, no legacy links. The submissions panel searches + paginates
+ * beyond the first page (GET …/submissions|…/responses?page=&search=), and forms
+ * can SYNC their submissions into a contact list — new or existing — in place
+ * (POST /api/data-forms/[id]/sync-contacts). The list itself is searchable +
+ * status-filterable. Building a NEW form/survey is a generative job, so that one
+ * drives the agent. Only the live public page opens in a new tab.
  * [[surface-buttons-are-ui-actions]]
  */
 
@@ -127,11 +133,24 @@ function parseFields(kind: Kind, raw: unknown[]): EditField[] {
 function liveUrl(it: Item): string {
   return it.kind === "form" ? `/form/${it.slug}` : `/survey/${it.slug}`;
 }
+// Absolute, shareable public URL (origin only resolves in the browser).
+function publicUrl(it: Item): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}${liveUrl(it)}`;
+}
+function embedCode(it: Item): string {
+  return `<iframe src="${publicUrl(it)}" width="100%" height="600" frameborder="0"></iframe>`;
+}
 function apiBase(kind: Kind): string {
   return kind === "form" ? "/api/data-forms" : "/api/surveys";
 }
-function entriesPath(it: Item): string {
-  return it.kind === "form" ? `${apiBase("form")}/${it.id}/submissions?limit=20` : `${apiBase("survey")}/${it.id}/responses?limit=20`;
+const ENTRIES_PAGE_SIZE = 20;
+// Submissions (forms) / responses (surveys) share the same page+search contract.
+function entriesPath(it: Item, page: number, search: string): string {
+  const sub = it.kind === "form" ? "submissions" : "responses";
+  const params = new URLSearchParams({ page: String(page), limit: String(ENTRIES_PAGE_SIZE) });
+  if (search.trim()) params.set("search", search.trim());
+  return `${apiBase(it.kind)}/${it.id}/${sub}?${params.toString()}`;
 }
 
 function whenLabel(iso?: string): string {
@@ -145,7 +164,7 @@ const STATUS_META: Record<string, { label: string; tone: string }> = {
   CLOSED: { label: "Closed", tone: "bg-amber-500/10 text-amber-500" },
 };
 
-type Panel = "entries" | "edit" | "send";
+type Panel = "entries" | "edit" | "send" | "share" | "sync";
 
 export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [items, setItems] = useState<Item[]>([]);
@@ -158,9 +177,18 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
+  const [entriesPage, setEntriesPage] = useState(1);
+  const [entriesPages, setEntriesPages] = useState(1);
+  const [entriesTotal, setEntriesTotal] = useState(0);
+  const [entriesSearch, setEntriesSearch] = useState("");
   const [busyToggle, setBusyToggle] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
+
+  // List-level search + status filter (name/status).
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DRAFT" | "CLOSED">("ALL");
+  const [kindFilter, setKindFilter] = useState<"ALL" | Kind>("ALL");
 
   // Marketing readiness + contact lists are shared across all send panels; fetch lazily once.
   const [emailReady, setEmailReady] = useState(false);
@@ -248,18 +276,29 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return { total: items.length, submissions, sent, live };
   }, [items]);
 
+  // Client-side search + status/kind filter over the loaded list (name/status).
+  const visibleItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return items.filter((it) => {
+      if (statusFilter !== "ALL" && it.status !== statusFilter) return false;
+      if (kindFilter !== "ALL" && it.kind !== kindFilter) return false;
+      if (!q) return true;
+      return (it.title || "").toLowerCase().includes(q) || (it.description || "").toLowerCase().includes(q) || (it.contactListName || "").toLowerCase().includes(q);
+    });
+  }, [items, query, statusFilter, kindFilter]);
+
   const openPanel = useCallback((it: Item, next: Panel) => {
     setConfirmDelete(null);
     if (openId === it.id && panel === next) { setOpenId(null); return; }
     setOpenId(it.id);
     setPanel(next);
-    if (next === "send") void ensureSendData();
+    if (next === "send" || next === "sync") void ensureSendData();
   }, [openId, panel, ensureSendData]);
 
-  const loadEntries = useCallback(async (it: Item) => {
+  const loadEntries = useCallback(async (it: Item, page: number, search: string) => {
     setEntries([]); setEntriesLoading(true);
     try {
-      const j = await fetch(entriesPath(it)).then((r) => r.json());
+      const j = await fetch(entriesPath(it, page, search)).then((r) => r.json());
       const rows: unknown[] = Array.isArray(j?.data) ? j.data : [];
       const norm: Entry[] = rows.map((raw) => {
         const r = raw as Record<string, unknown>;
@@ -274,18 +313,29 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         };
       });
       setEntries(norm);
+      const pg = (j?.pagination ?? {}) as Record<string, unknown>;
+      setEntriesTotal(Number(pg.total ?? norm.length));
+      setEntriesPages(Math.max(1, Number(pg.pages ?? 1)));
+      setEntriesPage(Number(pg.page ?? page));
     } catch { /* ignore — empty state covers it */ } finally {
       setEntriesLoading(false);
     }
   }, []);
 
-  // When the submissions panel becomes the open panel for an item, (re)load it.
+  // When the submissions panel opens (or its page/search change), (re)load it.
+  // Reset paging/search whenever the open item changes.
+  useEffect(() => {
+    setEntriesPage(1); setEntriesSearch(""); setEntriesTotal(0); setEntriesPages(1);
+  }, [openId]);
+
   useEffect(() => {
     if (!openId || panel !== "entries") return;
     const it = items.find((x) => x.id === openId);
-    if (it) void loadEntries(it);
+    if (!it) return;
+    const t = setTimeout(() => void loadEntries(it, entriesPage, entriesSearch), entriesSearch ? 300 : 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openId, panel]);
+  }, [openId, panel, entriesPage, entriesSearch]);
 
   const toggleStatus = useCallback(async (it: Item) => {
     const next = it.status === "ACTIVE" ? "CLOSED" : "ACTIVE";
@@ -364,6 +414,31 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return { ok: true, message: j?.data?.message || `Queued to ${queued} contact${queued === 1 ? "" : "s"}` };
   }, []);
 
+  // Sync a form's submissions into a contact list — append to an existing list or
+  // create a fresh one (forms only; surveys have no sync endpoint).
+  const syncContacts = useCallback(async (
+    it: Item,
+    mode: "existing" | "new",
+    value: string,
+  ): Promise<{ ok: boolean; message: string }> => {
+    const body: Record<string, unknown> = {};
+    if (mode === "existing") body.listId = value;
+    else { body.createNewList = true; body.newListName = value; }
+    try {
+      const r = await fetch(`${apiBase("form")}/${it.id}/sync-contacts`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) return { ok: false, message: j?.error?.message || "Couldn't sync contacts" };
+      // A fresh list invalidates the cached contact-list options + may rename the linked list.
+      sendDataReq.current = false; setLists(null);
+      void load();
+      return { ok: true, message: j?.data?.message || "Contacts synced" };
+    } catch {
+      return { ok: false, message: "Couldn't sync contacts" };
+    }
+  }, [load]);
+
   const newForm = () => onAsk?.("Create a new lead-capture form to collect contact details from my audience. Suggest the right fields and a thank-you message.");
 
   if (loading) {
@@ -392,14 +467,57 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             )}
           </div>
 
+          {/* Search + status/kind filters (name/status) */}
+          {!loadError && items.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[180px] flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name…"
+                  className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-7 text-[12px] outline-none focus:border-brand-500/60"
+                />
+                {query && (
+                  <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+                )}
+              </div>
+              <div className="flex items-center gap-1 rounded-[10px] border border-border bg-background p-0.5">
+                {(["ALL", "form", "survey"] as const).map((k) => (
+                  <button key={k} onClick={() => setKindFilter(k)} className={cn("rounded-[8px] px-2.5 py-1 text-[11.5px] font-semibold", kindFilter === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+                    {k === "ALL" ? "All" : k === "form" ? "Forms" : "Surveys"}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60"
+              >
+                <option value="ALL">Any status</option>
+                <option value="ACTIVE">Live</option>
+                <option value="DRAFT">Draft</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+            </div>
+          )}
+
           {loadError ? (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <p className="text-[13px] font-medium">Couldn&apos;t load your forms</p>
               <p className="mt-1 text-[12px] text-muted-foreground">Something went wrong fetching them. Try again in a moment.</p>
             </div>
+          ) : items.length && !visibleItems.length ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+              <p className="text-[13px] font-medium">No matches</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">No forms or surveys match your search or filters.</p>
+              <button onClick={() => { setQuery(""); setStatusFilter("ALL"); setKindFilter("ALL"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-background px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </button>
+            </div>
           ) : items.length ? (
             <div className="space-y-2.5">
-              {items.map((it) => {
+              {visibleItems.map((it) => {
                 const sm = STATUS_META[it.status] ?? STATUS_META.DRAFT;
                 const isOpen = openId === it.id;
                 const isDeleting = busyDelete === it.id;
@@ -439,6 +557,14 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                       <ActionBtn active={isOpen && panel === "send"} onClick={() => openPanel(it, "send")}>
                         <Send className="h-3.5 w-3.5" /> Send
                       </ActionBtn>
+                      <ActionBtn active={isOpen && panel === "share"} onClick={() => openPanel(it, "share")}>
+                        <Link2 className="h-3.5 w-3.5" /> Share
+                      </ActionBtn>
+                      {it.kind === "form" && (
+                        <ActionBtn active={isOpen && panel === "sync"} onClick={() => openPanel(it, "sync")}>
+                          <Users className="h-3.5 w-3.5" /> Sync to list
+                        </ActionBtn>
+                      )}
                       <a href={liveUrl(it)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-background px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
                         <ExternalLink className="h-3.5 w-3.5" /> Open live
                       </a>
@@ -476,13 +602,29 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
                     {/* inline panels */}
                     {isOpen && panel === "entries" && (
-                      <EntriesPanel loading={entriesLoading} entries={entries} />
+                      <EntriesPanel
+                        item={it}
+                        loading={entriesLoading}
+                        entries={entries}
+                        search={entriesSearch}
+                        onSearch={(v) => { setEntriesSearch(v); setEntriesPage(1); }}
+                        page={entriesPage}
+                        pages={entriesPages}
+                        total={entriesTotal}
+                        onPage={(p) => setEntriesPage(p)}
+                      />
                     )}
                     {isOpen && panel === "edit" && (
                       <EditPanel item={it} onSave={saveEdit} onClose={() => setOpenId(null)} />
                     )}
                     {isOpen && panel === "send" && (
                       <SendPanel item={it} lists={lists} emailReady={emailReady} smsReady={smsReady} onSend={sendItem} onAsk={onAsk} />
+                    )}
+                    {isOpen && panel === "share" && (
+                      <SharePanel item={it} />
+                    )}
+                    {isOpen && panel === "sync" && (
+                      <SyncPanel item={it} lists={lists} onSync={syncContacts} />
                     )}
                   </div>
                 );
@@ -522,11 +664,42 @@ function ActionBtn({ active, onClick, children }: { active: boolean; onClick: ()
   );
 }
 
-function EntriesPanel({ loading, entries }: { loading: boolean; entries: Entry[] }) {
+function EntriesPanel({ item, loading, entries, search, onSearch, page, pages, total, onPage }: {
+  item: Item;
+  loading: boolean;
+  entries: Entry[];
+  search: string;
+  onSearch: (v: string) => void;
+  page: number;
+  pages: number;
+  total: number;
+  onPage: (p: number) => void;
+}) {
+  const noun = item.kind === "form" ? "submission" : "response";
+  const rangeFrom = total === 0 ? 0 : (page - 1) * ENTRIES_PAGE_SIZE + 1;
+  const rangeTo = Math.min(page * ENTRIES_PAGE_SIZE, total);
   return (
     <div className="border-t border-border bg-background/50 px-3 py-3">
+      {/* search across name / email / phone (server-side) */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[170px] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder={item.kind === "form" ? `Search ${noun}s by name, email or phone…` : `Search ${noun}s by name or email…`}
+            className="w-full rounded-[10px] border border-border bg-card py-1.5 pl-8 pr-7 text-[12px] outline-none focus:border-brand-500/60"
+          />
+          {search && (
+            <button onClick={() => onSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+          )}
+        </div>
+        {total > 0 && (
+          <span className="text-[11px] text-muted-foreground">{rangeFrom}–{rangeTo} of {total}</span>
+        )}
+      </div>
       {loading ? (
-        <div className="grid place-items-center py-6"><FlowLoader size={22} label="Loading submissions…" /></div>
+        <div className="grid place-items-center py-6"><FlowLoader size={22} label={`Loading ${noun}s…`} /></div>
       ) : entries.length ? (
         <div className="space-y-2">
           {entries.map((e) => (
@@ -559,8 +732,236 @@ function EntriesPanel({ loading, entries }: { loading: boolean; entries: Entry[]
             </div>
           ))}
         </div>
+      ) : search ? (
+        <p className="py-4 text-center text-[12px] text-muted-foreground">No {noun}s match “{search}”.</p>
       ) : (
-        <p className="py-4 text-center text-[12px] text-muted-foreground">No submissions yet — share the live link to start collecting.</p>
+        <p className="py-4 text-center text-[12px] text-muted-foreground">No {noun}s yet — share the live link to start collecting.</p>
+      )}
+
+      {/* pagination beyond the first page */}
+      {!loading && pages > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <button
+            onClick={() => onPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="inline-flex items-center gap-1 rounded-[9px] border border-border bg-card px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 disabled:opacity-40"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Prev
+          </button>
+          <span className="text-[11.5px] text-muted-foreground">Page {page} of {pages}</span>
+          <button
+            onClick={() => onPage(Math.min(pages, page + 1))}
+            disabled={page >= pages}
+            className="inline-flex items-center gap-1 rounded-[9px] border border-border bg-card px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 disabled:opacity-40"
+          >
+            Next <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline copy-to-clipboard button with a transient "Copied" state.
+function CopyButton({ value, label = "Copy", className }: { value: string; label?: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(value); } catch { return; }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <button
+      onClick={copy}
+      className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1 text-[11.5px] font-semibold transition-colors", copied ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-border bg-card hover:border-brand-500/60 hover:text-foreground", className)}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : label}
+    </button>
+  );
+}
+
+// Share panel — copy the public link, scan/download a QR, or embed the iframe.
+function SharePanel({ item }: { item: Item }) {
+  const url = publicUrl(item);
+  const embed = embedCode(item);
+  const [qr, setQr] = useState<string | null>(null);
+  const [tab, setTab] = useState<"link" | "qr" | "embed">("link");
+
+  useEffect(() => {
+    let alive = true;
+    if (!url) return;
+    QRCode.toDataURL(url, { width: 320, margin: 1, errorCorrectionLevel: "M" })
+      .then((d) => { if (alive) setQr(d); })
+      .catch(() => { if (alive) setQr(null); });
+    return () => { alive = false; };
+  }, [url]);
+
+  const downloadQr = () => {
+    if (!qr) return;
+    const a = document.createElement("a");
+    a.href = qr;
+    a.download = `${(item.title || item.kind).toLowerCase().replace(/\s+/g, "-")}-qr.png`;
+    a.click();
+  };
+
+  return (
+    <div className="space-y-3 border-t border-border bg-background/50 px-3 py-3">
+      <div className="flex items-center gap-1 rounded-[10px] border border-border bg-card p-0.5 w-fit">
+        <ShareTab active={tab === "link"} onClick={() => setTab("link")} icon={Link2} label="Link" />
+        <ShareTab active={tab === "qr"} onClick={() => setTab("qr")} icon={QrCode} label="QR code" />
+        <ShareTab active={tab === "embed"} onClick={() => setTab("embed")} icon={Code2} label="Embed" />
+      </div>
+
+      {tab === "link" && (
+        <div className="space-y-2">
+          <span className="block text-[11px] font-medium text-muted-foreground">Public link</span>
+          <div className="flex items-center gap-2">
+            <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none" />
+            <CopyButton value={url} label="Copy link" />
+          </div>
+          <p className="text-[11px] text-muted-foreground">Anyone with this link can open your {item.kind} and submit a response.</p>
+        </div>
+      )}
+
+      {tab === "qr" && (
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+          <div className="grid h-[180px] w-[180px] shrink-0 place-items-center rounded-[12px] border border-border bg-white p-2">
+            {qr ? <img src={qr} alt="QR code" className="h-full w-full object-contain" /> : <FlowLoader size={22} label="Generating…" />}
+          </div>
+          <div className="space-y-2">
+            <p className="text-[12px] font-medium">Scan to open the {item.kind}</p>
+            <p className="text-[11.5px] text-muted-foreground">Print it on a flyer, table tent, or receipt — scanning opens the live link.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={downloadQr} disabled={!qr} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50">
+                <QrCode className="h-3.5 w-3.5" /> Download PNG
+              </button>
+              <CopyButton value={url} label="Copy link" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "embed" && (
+        <div className="space-y-2">
+          <span className="block text-[11px] font-medium text-muted-foreground">Embed on your website</span>
+          <textarea readOnly value={embed} onFocus={(e) => e.currentTarget.select()} rows={3} className="w-full resize-none rounded-[10px] border border-border bg-card px-2.5 py-2 font-mono text-[11px] leading-relaxed outline-none" />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">Paste this into any HTML page to embed the live {item.kind}.</p>
+            <CopyButton value={embed} label="Copy code" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShareTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: ElementType; label: string }) {
+  return (
+    <button onClick={onClick} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1 text-[11.5px] font-semibold", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </button>
+  );
+}
+
+// Sync panel (forms only) — push submission contacts into a new or existing list.
+function SyncPanel({ item, lists, onSync }: {
+  item: Item;
+  lists: ContactList[] | null;
+  onSync: (it: Item, mode: "existing" | "new", value: string) => Promise<{ ok: boolean; message: string }>;
+}) {
+  const [mode, setMode] = useState<"existing" | "new">("new");
+  const [listId, setListId] = useState<string>(item.contactListId || "");
+  const [newName, setNewName] = useState<string>(item.title || "");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const labelCls = "block text-[11px] font-medium text-muted-foreground mb-1";
+  const inputCls = "w-full rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60";
+
+  const canSync = item.responseCount > 0 && (mode === "existing" ? !!listId : newName.trim().length > 0);
+
+  const doSync = async () => {
+    setBusy(true);
+    const r = await onSync(item, mode, mode === "existing" ? listId : newName.trim());
+    setResult(r);
+    setConfirming(false);
+    setBusy(false);
+  };
+
+  // A successful sync invalidates the parent's cached lists (sets them to null);
+  // keep rendering so the success message shows instead of snapping back to the
+  // loader. Fall back to an empty list for any list-dependent reads below.
+  if (lists === null && !result) {
+    return <div className="border-t border-border bg-background/50 px-3 py-6"><div className="grid place-items-center"><FlowLoader size={20} label="Loading lists…" /></div></div>;
+  }
+  const safeLists = lists || [];
+
+  return (
+    <div className="space-y-3 border-t border-border bg-background/50 px-3 py-3">
+      <p className="text-[11.5px] text-muted-foreground">
+        Turn this form&apos;s submissions into contacts — any submission with an email or phone is added to your audience (duplicates are merged).
+      </p>
+
+      {item.responseCount === 0 ? (
+        <div className="flex items-center gap-2 rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11.5px] text-amber-600">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>No submissions yet — collect at least one response before syncing.</span>
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <button onClick={() => { setMode("new"); setResult(null); setConfirming(false); }} className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2 text-[12px] font-semibold", mode === "new" ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-card hover:border-brand-500/50")}>
+              <UserPlus className="h-3.5 w-3.5" /> New list
+            </button>
+            <button onClick={() => { setMode("existing"); setResult(null); setConfirming(false); }} disabled={safeLists.length === 0} className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2 text-[12px] font-semibold disabled:opacity-50", mode === "existing" ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-card hover:border-brand-500/50")}>
+              <ListChecks className="h-3.5 w-3.5" /> Existing list
+            </button>
+          </div>
+
+          {mode === "new" ? (
+            <div>
+              <label className={labelCls}>New list name</label>
+              <input value={newName} onChange={(e) => { setNewName(e.target.value); setResult(null); setConfirming(false); }} className={inputCls} placeholder="e.g. Website leads" />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>Add to list</label>
+              {safeLists.length === 0 ? (
+                <p className="rounded-[10px] border border-dashed border-border px-3 py-3 text-center text-[11.5px] text-muted-foreground">No contact lists yet — create a new one above.</p>
+              ) : (
+                <select value={listId} onChange={(e) => { setListId(e.target.value); setResult(null); setConfirming(false); }} className={inputCls}>
+                  <option value="">Select a contact list…</option>
+                  {safeLists.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name} ({l.totalCount} contact{l.totalCount === 1 ? "" : "s"})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {result ? (
+            <div className={cn("rounded-[10px] px-3 py-2 text-[11.5px] font-medium", result.ok ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-500")}>
+              {result.message}
+            </div>
+          ) : confirming ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-2">
+              <span className="text-[11.5px]">
+                Sync {item.responseCount} submission{item.responseCount === 1 ? "" : "s"} {mode === "new" ? <>into a new list <span className="font-semibold">{newName.trim()}</span></> : <>into <span className="font-semibold">{safeLists.find((l) => l.id === listId)?.name}</span></>}?
+              </span>
+              <div className="ms-auto flex items-center gap-1.5">
+                <button onClick={doSync} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                  {busy ? <FlowLoader size={13} tone="white" /> : <Users className="h-3.5 w-3.5" />} Confirm sync
+                </button>
+                <button onClick={() => setConfirming(false)} disabled={busy} className="inline-flex items-center rounded-[9px] border border-border bg-background px-2 py-1 text-[11.5px] font-semibold disabled:opacity-60"><X className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setConfirming(true)} disabled={!canSync} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+              <Users className="h-3.5 w-3.5" /> Sync contacts
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -739,6 +1140,15 @@ function SendPanel({ item, lists, emailReady, smsReady, onSend, onAsk }: {
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Readiness resolves after this panel mounts (the loader shows while lists is
+  // null), so the initial `channel` guess can land on a disabled channel — e.g.
+  // an SMS-only account defaulting to "email" leaves Send stuck disabled. Once
+  // readiness is known, snap to a usable channel if the current one isn't ready.
+  useEffect(() => {
+    if (channel === "email" && !emailReady && smsReady) setChannel("sms");
+    else if (channel === "sms" && !smsReady && emailReady) setChannel("email");
+  }, [channel, emailReady, smsReady]);
 
   const anyChannel = emailReady || smsReady;
   const selectedList = (lists || []).find((l) => l.id === listId);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
-import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine } from "lucide-react";
+import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -55,6 +55,24 @@ interface NumberStatus {
   sentThisMonth?: number | null;
 }
 
+// GET /api/sms/numbers/a2p-status → A2P 10DLC brand + campaign registration state
+// (for local, non-toll-free numbers).
+interface A2pStatus {
+  hasRegistration: boolean;
+  brandStatus?: string | null;
+  brandFailureReason?: string | null;
+  campaignStatus?: string | null;
+  campaignFailureReason?: string | null;
+  isApproved?: boolean;
+}
+
+// GET /api/sms/numbers/verify → toll-free verification state (for toll-free numbers).
+interface TollfreeStatus {
+  hasVerification: boolean;
+  status?: string | null;
+  rejectionReason?: string | null;
+}
+
 // Per-status pill styling (mirrors the campaign state machine).
 const STATUS_META: Record<string, { tone: string; icon: ElementType }> = {
   sent: { tone: "bg-emerald-500/10 text-emerald-500", icon: CheckCircle2 },
@@ -81,6 +99,41 @@ function dateTimeLabel(iso?: string | null): string {
 // actively sending or already sent the send/delete routes reject it.
 const SENDABLE = new Set(["draft", "scheduled", "paused", "failed"]);
 const DELETABLE = new Set(["draft", "scheduled", "paused", "failed", "sending"]);
+// PATCH /api/campaigns/[id] accepts a status change to PAUSED/DRAFT/SCHEDULED but
+// rejects SENDING/SENT. So a scheduled blast can be held (→PAUSED) and a paused one
+// resumed (→DRAFT so it's sendable again). An already-sent blast can't be touched.
+const PAUSABLE = new Set(["scheduled", "active"]);
+const RESUMABLE = new Set(["paused"]);
+
+// Status filter chips for the blasts list (server filters via ?status=UPPER).
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "draft", label: "Draft" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "paused", label: "Paused" },
+  { value: "sent", label: "Sent" },
+  { value: "failed", label: "Failed" },
+];
+
+// A2P brand/campaign + toll-free verification status → pill tone + label.
+function regTone(status?: string | null): string {
+  const s = (status || "").toUpperCase();
+  if (["APPROVED", "VERIFIED", "SUCCESSFUL", "TWILIO_APPROVED"].includes(s)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-500";
+  if (["FAILED", "REJECTED", "TWILIO_REJECTED", "SUSPENDED"].includes(s)) return "border-rose-500/30 bg-rose-500/10 text-rose-500";
+  return "border-amber-500/30 bg-amber-500/10 text-amber-500";
+}
+function regLabel(status?: string | null): string {
+  if (!status) return "Not started";
+  return status
+    .replace(/^TWILIO_/, "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function isRegFailed(status?: string | null): boolean {
+  const s = (status || "").toUpperCase();
+  return ["FAILED", "REJECTED", "TWILIO_REJECTED", "SUSPENDED"].includes(s);
+}
 
 const NEW_BLAST_PROMPT =
   "Help me send an SMS blast. Ask me who to send it to and what offer or update I want to share, then write the message (with an opt-out line) and set it up. If my SMS number or compliance isn't ready yet, walk me through getting set up first.";
@@ -94,6 +147,24 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const [number, setNumber] = useState<NumberStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Search + status filter for the blasts list (server-side via /api/campaigns).
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [listLoading, setListLoading] = useState(false);
+
+  // Carrier registration / compliance detail (A2P 10DLC + toll-free verification).
+  const [a2p, setA2p] = useState<A2pStatus | null>(null);
+  const [tollfree, setTollfree] = useState<TollfreeStatus | null>(null);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regBusy, setRegBusy] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
+
+  // Release the rented number (two-step inline confirm).
+  const [confirmRelease, setConfirmRelease] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
   // Inline blast detail: id while loading, the detail object once fetched, null when closed.
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SmsCampaignDetail | null>(null);
@@ -105,25 +176,61 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const [cj, nj] = await Promise.all([
-      fetch("/api/campaigns?type=sms&limit=30").then((r) => r.json()).catch(() => null),
-      fetch("/api/sms/numbers?action=current").then((r) => r.json()).catch(() => null),
-    ]);
+  // Load number status (+ aggregate stats not narrowed by the list filter).
+  const loadNumber = useCallback(async () => {
+    const nj = await fetch("/api/sms/numbers?action=current").then((r) => r.json()).catch(() => null);
+    if (nj?.success && nj.data) setNumber(nj.data as NumberStatus);
+  }, []);
+
+  // Load the blasts list with the active search + status filter applied server-side.
+  const loadCampaigns = useCallback(async () => {
+    const params = new URLSearchParams({ type: "sms", limit: "30" });
+    if (search) params.set("search", search);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    const cj = await fetch(`/api/campaigns?${params.toString()}`).then((r) => r.json()).catch(() => null);
     if (cj?.success && cj.data) {
       if (Array.isArray(cj.data.campaigns)) setCampaigns(cj.data.campaigns as SmsCampaign[]);
       if (cj.data.stats) setStats(cj.data.stats as SmsStats);
     }
-    if (nj?.success && nj.data) {
-      setNumber(nj.data as NumberStatus);
+  }, [search, statusFilter]);
+
+  const load = useCallback(async () => {
+    await Promise.all([loadCampaigns(), loadNumber()]);
+  }, [loadCampaigns, loadNumber]);
+
+  // Fetch carrier registration detail for the rented number. The API picks the
+  // right path (A2P for local, toll-free verify for toll-free) — we read both and
+  // render whichever applies. Re-fetching reflects the latest carrier state.
+  const loadRegistration = useCallback(async () => {
+    setRegLoading(true); setRegError(null);
+    try {
+      const [aj, tj] = await Promise.all([
+        fetch("/api/sms/numbers/a2p-status").then((r) => r.json()).catch(() => null),
+        fetch("/api/sms/numbers/verify").then((r) => r.json()).catch(() => null),
+      ]);
+      if (aj?.success && aj.data) setA2p(aj.data as A2pStatus);
+      if (tj?.success && tj.data) setTollfree(tj.data as TollfreeStatus);
+    } finally {
+      setRegLoading(false);
     }
   }, []);
 
   useEffect(() => {
     let alive = true;
-    load().finally(() => { if (alive) setLoading(false); });
+    Promise.all([loadCampaigns(), loadNumber(), loadRegistration()]).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [load, refreshKey]);
+  }, [loadCampaigns, loadNumber, loadRegistration, refreshKey]);
+
+  // Re-fetch only the list when the search term or status filter changes (after
+  // the first load), so the hero/registration cards don't flash.
+  useEffect(() => {
+    if (loading) return;
+    let alive = true;
+    setListLoading(true);
+    loadCampaigns().finally(() => { if (alive) setListLoading(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, statusFilter]);
 
   // Toggle a blast's inline detail panel; fetch the deeper record on open.
   const openBlast = useCallback(async (c: SmsCampaign) => {
@@ -187,6 +294,70 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     }
   }, [load, openId]);
 
+  // Pause a scheduled blast (→PAUSED) or resume a paused one (→DRAFT, so it's
+  // sendable/reschedulable again). PATCH /api/campaigns/[id] handles the transition.
+  const setBlastStatus = useCallback(async (id: string, nextStatus: "PAUSED" | "DRAFT") => {
+    setBusyId(id); setActionError(null);
+    try {
+      const j = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      }).then((r) => r.json()).catch(() => null);
+      if (j?.success) {
+        await load();
+        if (openId === id) {
+          const dj = await fetch(`/api/campaigns/${id}`).then((r) => r.json()).catch(() => null);
+          if (dj?.success && dj.data?.campaign) setDetail(dj.data.campaign as SmsCampaignDetail);
+        }
+      } else {
+        setActionError(j?.error?.message || (nextStatus === "PAUSED" ? "Could not pause this blast." : "Could not resume this blast."));
+      }
+    } catch {
+      setActionError(nextStatus === "PAUSED" ? "Could not pause this blast." : "Could not resume this blast.");
+    } finally {
+      setBusyId(null);
+    }
+  }, [load, openId]);
+
+  // Release (give up) the rented SMS number after inline confirm. Frees the
+  // number on Twilio and clears it locally → surface drops back to the setup gate.
+  const releaseNumber = useCallback(async () => {
+    setReleaseBusy(true); setReleaseError(null);
+    try {
+      const j = await fetch("/api/sms/numbers", { method: "DELETE" }).then((r) => r.json()).catch(() => null);
+      if (j?.success) {
+        setConfirmRelease(false);
+        setA2p(null); setTollfree(null);
+        await loadNumber();
+      } else {
+        setReleaseError(j?.error?.message || "Could not release this number.");
+      }
+    } catch {
+      setReleaseError("Could not release this number.");
+    } finally {
+      setReleaseBusy(false);
+    }
+  }, [loadNumber]);
+
+  // Retry / resubmit A2P 10DLC registration when it failed (POST re-runs the
+  // submission). For toll-free, there's no retry endpoint — only a refresh.
+  const retryA2pRegistration = useCallback(async () => {
+    setRegBusy(true); setRegError(null);
+    try {
+      const j = await fetch("/api/sms/numbers/a2p-status", { method: "POST" }).then((r) => r.json()).catch(() => null);
+      if (j?.success) {
+        await loadRegistration();
+      } else {
+        setRegError(j?.error?.message || "Could not resubmit registration.");
+      }
+    } catch {
+      setRegError("Could not resubmit registration.");
+    } finally {
+      setRegBusy(false);
+    }
+  }, [loadRegistration]);
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your SMS…" /></div>;
   }
@@ -202,6 +373,10 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const monthlyLimit = number?.monthlyLimit ?? 0;
   const sentThisMonth = number?.sentThisMonth ?? 0;
   const usagePct = monthlyLimit > 0 ? Math.min(100, Math.round((sentThisMonth / monthlyLimit) * 100)) : 0;
+  // US toll-free numbers register via toll-free verification; everything else
+  // (local US/long-code) registers via A2P 10DLC. Drives which registration card shows.
+  const isTollFreeNumber = !!number?.phoneNumber && /^\+1(800|833|844|855|866|877|888)/.test(number.phoneNumber);
+  const filtersActive = search !== "" || statusFilter !== "all";
 
   // Config gate: no verified sender number yet → show a clean setup landing,
   // not the blasts UI (you can't send without one). [[unprovisioned-feature-shows-cta]]
@@ -279,12 +454,100 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button onClick={askNew} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <Sparkles className="h-4 w-4" /> {hasNumber ? "New SMS blast" : "Set up SMS"}
             </button>
+            {hasNumber && (
+              confirmRelease ? (
+                <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2.5 py-1.5">
+                  <span className="text-[11.5px] font-medium">Release {number?.phoneNumber}? This frees the number — you&apos;ll need to rent a new one to send again.</span>
+                  <button onClick={releaseNumber} disabled={releaseBusy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                    {releaseBusy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Release
+                  </button>
+                  <button onClick={() => { setConfirmRelease(false); setReleaseError(null); }} disabled={releaseBusy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Keep</button>
+                </span>
+              ) : (
+                <button onClick={() => { setReleaseError(null); setConfirmRelease(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-rose-500">
+                  <Trash2 className="h-3.5 w-3.5" /> Release number
+                </button>
+              )
+            )}
           </div>
+          {releaseError && (
+            <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {releaseError}</p>
+          )}
         </section>
+
+        {/* carrier registration / compliance detail */}
+        {hasNumber && (
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h3 className="inline-flex items-center gap-1.5 text-[13px] font-bold"><ShieldCheck className="h-4 w-4 text-brand-500" /> Carrier registration</h3>
+              <span className="text-[11.5px] text-muted-foreground">{isTollFreeNumber ? "Toll-free verification" : "A2P 10DLC"}</span>
+              <button
+                onClick={loadRegistration}
+                disabled={regLoading || regBusy}
+                className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", regLoading && "animate-spin")} /> Refresh
+              </button>
+            </div>
+
+            {regLoading && !a2p && !tollfree ? (
+              <div className="grid place-items-center py-5"><FlowLoader size={20} label="Checking registration…" /></div>
+            ) : isTollFreeNumber ? (
+              <RegRow
+                label="Toll-free verification"
+                status={tollfree?.status}
+                detail={tollfree?.rejectionReason}
+                pending={!tollfree?.hasVerification}
+                pendingText="Verification not submitted yet — the agent submits it when you rent a toll-free number."
+              />
+            ) : (
+              <div className="space-y-2">
+                <RegRow
+                  label="Brand registration"
+                  status={a2p?.brandStatus}
+                  detail={a2p?.brandFailureReason}
+                  pending={!a2p?.hasRegistration}
+                  pendingText="A2P brand not registered yet — the agent submits it when you rent a local number."
+                />
+                <RegRow
+                  label="Campaign registration"
+                  status={a2p?.campaignStatus}
+                  detail={a2p?.campaignFailureReason}
+                  pending={!a2p?.hasRegistration}
+                  pendingText="Created automatically once your brand is approved."
+                />
+              </div>
+            )}
+
+            {/* approved banner / retry on failure */}
+            {!isTollFreeNumber && a2p?.isApproved && (
+              <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" /> Fully approved — your number can send marketing SMS.</p>
+            )}
+            {!isTollFreeNumber && a2p?.hasRegistration && (isRegFailed(a2p.brandStatus) || isRegFailed(a2p.campaignStatus)) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Registration failed.</span>
+                <button onClick={retryA2pRegistration} disabled={regBusy} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                  {regBusy ? <FlowLoader size={13} /> : <RotateCw className="h-3.5 w-3.5" />} Resubmit registration
+                </button>
+              </div>
+            )}
+            {isTollFreeNumber && isRegFailed(tollfree?.status) && onAsk && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Toll-free verification was rejected.</span>
+                <button onClick={() => onAsk("My toll-free SMS verification was rejected. Help me fix the issues and resubmit it.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground">
+                  <Sparkles className="h-3.5 w-3.5" /> Fix with agent
+                </button>
+              </div>
+            )}
+            {regError && (
+              <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {regError}</p>
+            )}
+          </section>
+        )}
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -303,6 +566,51 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
             </button>
           </div>
 
+          {/* search + status filter */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <form
+              onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}
+              className="relative min-w-0 flex-1"
+            >
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onBlur={() => setSearch(searchInput.trim())}
+                placeholder="Search blasts…"
+                className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-8 text-[12.5px] outline-none focus:border-brand-500/50"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchInput(""); setSearch(""); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </form>
+            <div className="flex flex-wrap items-center gap-1">
+              <ListFilter className="mr-0.5 h-3.5 w-3.5 text-muted-foreground" />
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
+                    statusFilter === f.value
+                      ? "border-brand-500/40 bg-brand-500/10 text-brand-500"
+                      : "border-border bg-card text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {listLoading && <FlowLoader size={16} />}
+          </div>
+
           {campaigns.length ? (
             <div className="space-y-2">
               {campaigns.map((c) => {
@@ -316,6 +624,8 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
                 const busy = busyId === c.id;
                 const canSend = hasNumber && SENDABLE.has(status);
                 const canDelete = DELETABLE.has(status);
+                const canPause = PAUSABLE.has(status);
+                const canResume = RESUMABLE.has(status);
                 return (
                   <div key={c.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
                     <button onClick={() => openBlast(c)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left">
@@ -357,8 +667,28 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
                         )}
 
                         {/* management actions — never the agent; these are CRUD */}
-                        {(canSend || canDelete) && (
+                        {(canSend || canDelete || canPause || canResume) && (
                           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                            {canPause && (
+                              <button
+                                onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "PAUSED"); }}
+                                disabled={busy}
+                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-amber-500 disabled:opacity-60"
+                              >
+                                {busy ? <FlowLoader size={13} /> : <Pause className="h-3.5 w-3.5" />} Pause
+                              </button>
+                            )}
+
+                            {canResume && (
+                              <button
+                                onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "DRAFT"); }}
+                                disabled={busy}
+                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-500/40 bg-emerald-500/5 px-3 py-1.5 text-[12px] font-medium text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-60"
+                              >
+                                {busy ? <FlowLoader size={13} /> : <Play className="h-3.5 w-3.5" />} Resume
+                              </button>
+                            )}
+
                             {canSend && (
                               confirmSend === c.id ? (
                                 <span className="inline-flex items-center gap-2 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-2 py-1">
@@ -425,6 +755,15 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
                 );
               })}
             </div>
+          ) : filtersActive ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground"><Search className="h-6 w-6" /></span>
+              <p className="mt-3 text-[13px] font-medium">No blasts match your filters</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">{search ? `Nothing found for "${search}"` : "No blasts with that status"}{statusFilter !== "all" && search ? ` and status "${statusFilter}"` : ""}.</p>
+              <button onClick={() => { setSearchInput(""); setSearch(""); setStatusFilter("all"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-4 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+                <XCircle className="h-4 w-4" /> Clear filters
+              </button>
+            </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MessageSquare className="h-6 w-6" /></span>
@@ -467,6 +806,10 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
   const deliveredRate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
   const clickRate = sent > 0 ? Math.round((clicked / sent) * 100) : 0;
   const audience = detail.contactList?.activeCount ?? detail.contactList?.totalCount ?? detail.audience ?? 0;
+  // The detail route returns `content` but not messageLength/segments, so derive
+  // them from the saved copy (mirrors the list route's char/segment math).
+  const charCount = detail.messageLength ?? (detail.content ? detail.content.length : 0);
+  const segmentCount = detail.segments ?? (charCount > 0 ? Math.max(1, Math.ceil(charCount / 160)) : 0);
   return (
     <div className="space-y-3">
       {/* message preview */}
@@ -479,8 +822,8 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
         ) : (
           <p className="text-[12px] italic text-muted-foreground">No message content saved.</p>
         )}
-        {typeof detail.messageLength === "number" && detail.messageLength > 0 && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">{detail.messageLength} chars{detail.segments ? ` · ${detail.segments} segment${detail.segments > 1 ? "s" : ""}` : ""}</p>
+        {charCount > 0 && (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">{charCount} chars{segmentCount ? ` · ${segmentCount} segment${segmentCount > 1 ? "s" : ""}` : ""}</p>
         )}
       </div>
 
@@ -532,6 +875,30 @@ function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; v
     <div className="rounded-2xl border border-border bg-card p-3.5">
       <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
       <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    </div>
+  );
+}
+
+// One line of carrier-registration state: a labeled step with a status pill +
+// optional failure/rejection reason from the carrier.
+function RegRow({ label, status, detail, pending, pendingText }: { label: string; status?: string | null; detail?: string | null; pending?: boolean; pendingText?: string }) {
+  if (pending) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+        <span className="text-[12.5px] font-semibold">{label}</span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground"><Hourglass className="h-3 w-3" /> Not started</span>
+        {pendingText && <span className="w-full text-[11px] text-muted-foreground">{pendingText}</span>}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+      <span className="text-[12.5px] font-semibold">{label}</span>
+      <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold", regTone(status))}>
+        {isRegFailed(status) ? <ShieldAlert className="h-3 w-3" /> : ["APPROVED", "VERIFIED", "SUCCESSFUL", "TWILIO_APPROVED"].includes((status || "").toUpperCase()) ? <ShieldCheck className="h-3 w-3" /> : <Hourglass className="h-3 w-3" />}
+        {regLabel(status)}
+      </span>
+      {detail && <span className="w-full text-[11px] text-rose-500">{detail}</span>}
     </div>
   );
 }

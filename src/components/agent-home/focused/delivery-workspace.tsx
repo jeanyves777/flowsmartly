@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   MapPin,
   Phone,
+  Mail,
   User,
   Bike,
   Car,
@@ -17,6 +18,9 @@ import {
   Check,
   ArrowRight,
   CircleDot,
+  Navigation,
+  Banknote,
+  Link2,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -41,6 +45,10 @@ interface DeliveryAssignment {
   estimatedDeliveryTime?: string | null;
   codAmountCents?: number | null;
   codCollected?: boolean;
+}
+// A delivery that still owes a cash collection (COD assigned, not yet collected).
+function isCodPending(a?: DeliveryAssignment | null): boolean {
+  return !!a && a.codAmountCents != null && a.codAmountCents > 0 && !a.codCollected;
 }
 interface ShippingAddress { name?: string; line1?: string; city?: string; state?: string; country?: string; }
 interface Order {
@@ -67,6 +75,10 @@ interface Driver {
   status?: string; // available | busy | offline
   isActive?: boolean;
   activeAssignmentCount?: number;
+  accessToken?: string | null;
+  currentLatitude?: number | null;
+  currentLongitude?: number | null;
+  lastLocationUpdate?: string | null;
 }
 interface StoreData { id: string; name: string; currency?: string; }
 
@@ -124,6 +136,37 @@ function shortAddress(a?: ShippingAddress): string {
   return [a.city, a.state, a.country].filter(Boolean).join(", ");
 }
 
+// Human ETA, e.g. "Today 14:30" or a short date — defensive against bad strings.
+function formatEta(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch { return d.toISOString(); }
+}
+
+// "just now" / "5m ago" / "2h ago" relative time for the last GPS ping.
+function relativeTime(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  if (diff < 0) return "just now";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function gpsCoords(lat?: number | null, lng?: number | null): string {
+  if (lat == null || lng == null) return "";
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
 export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
@@ -138,9 +181,12 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
 
   // Add-driver form.
   const [addingDriver, setAddingDriver] = useState(false);
-  const [driverForm, setDriverForm] = useState({ name: "", phone: "", vehicleType: "bike", region: "" });
+  const [driverForm, setDriverForm] = useState({ name: "", phone: "", email: "", vehicleType: "bike", region: "" });
   const [savingDriver, setSavingDriver] = useState(false);
   const [driverError, setDriverError] = useState("");
+
+  // Which driver's tracking link was just copied (for the transient "Copied" state).
+  const [copiedDriverId, setCopiedDriverId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const sj = await fetch("/api/ecommerce/store").then((r) => r.json()).catch(() => null);
@@ -217,8 +263,11 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
   const saveDriver = async () => {
     const name = driverForm.name.trim();
     const phone = driverForm.phone.trim();
+    const email = driverForm.email.trim();
     if (!name) { setDriverError("Give the driver a name."); return; }
     if (!phone) { setDriverError("Add a phone number."); return; }
+    // Light client-side email check; the API also validates.
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setDriverError("That email doesn't look right."); return; }
     setSavingDriver(true); setDriverError("");
     try {
       const r = await fetch("/api/ecommerce/drivers", {
@@ -227,6 +276,7 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
         body: JSON.stringify({
           name,
           phone,
+          email: email || undefined,
           vehicleType: driverForm.vehicleType,
           region: driverForm.region.trim() || undefined,
         }),
@@ -234,7 +284,7 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success !== false) {
         setAddingDriver(false);
-        setDriverForm({ name: "", phone: "", vehicleType: "bike", region: "" });
+        setDriverForm({ name: "", phone: "", email: "", vehicleType: "bike", region: "" });
         await loadData();
       } else {
         setDriverError(j?.error?.message || "Could not add the driver.");
@@ -243,6 +293,22 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
       setDriverError("Could not add the driver.");
     } finally {
       setSavingDriver(false);
+    }
+  };
+
+  // The driver's GPS tracking link — they open it to share live location via
+  // their accessToken (POST /api/ecommerce/drivers/[id]/location?token=…).
+  const copyTrackingLink = async (d: Driver) => {
+    if (!d.accessToken) return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const link = `${origin}/api/ecommerce/drivers/${d.id}/location?token=${d.accessToken}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedDriverId(d.id);
+      window.setTimeout(() => setCopiedDriverId((cur) => (cur === d.id ? null : cur)), 2000);
+    } catch {
+      // Clipboard blocked (insecure context / permissions) — surface inline.
+      setDriverError("Couldn't copy — copy it manually from the address bar.");
     }
   };
 
@@ -270,6 +336,9 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
 
   const cur = store?.currency || "USD";
   const availableDrivers = drivers.filter((d) => d.isActive !== false && d.status !== "offline");
+  // The orders list returns only { id, name } for an assignment's driver, so we
+  // join against the full drivers list to surface phone + live GPS in each row.
+  const driverById = new Map(drivers.map((d) => [d.id, d]));
 
   // KPIs across fulfilment-relevant orders.
   const inTransitStatuses = new Set(["assigned", "picked_up", "in_transit"]);
@@ -280,6 +349,10 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
     const od = (o.status || "").toUpperCase();
     return od !== "DELIVERED" && ds !== "delivered" && !(ds && inTransitStatuses.has(ds));
   }).length;
+  // Cash-on-delivery still owed to the store (assigned, not yet collected).
+  const codPendingOrders = orders.filter((o) => isCodPending(o.deliveryAssignment));
+  const codPendingCount = codPendingOrders.length;
+  const codPendingCents = codPendingOrders.reduce((sum, o) => sum + (o.deliveryAssignment?.codAmountCents || 0), 0);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -293,10 +366,11 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
               <p className="truncate text-[12px] text-muted-foreground">Fulfilment &amp; driver tracking for {store?.name}</p>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Kpi icon={Clock} label="Pending" value={String(pending)} />
             <Kpi icon={Truck} label="In transit" value={String(inTransit)} />
             <Kpi icon={CheckCircle2} label="Delivered" value={String(delivered)} />
+            <Kpi icon={Banknote} label="COD to collect" value={String(codPendingCount)} hint={codPendingCount ? money(codPendingCents, cur) : undefined} tone={codPendingCount ? "amber" : undefined} />
           </div>
         </section>
 
@@ -316,6 +390,12 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
                 const next = a ? NEXT_DELIVERY[a.status] : null;
                 const isBusy = busy === o.id;
                 const addr = shortAddress(o.shippingAddress);
+                // Full driver record (phone + live GPS) for the assigned driver.
+                const fullDriver = a?.driver?.id ? driverById.get(a.driver.id) : a?.driverId ? driverById.get(a.driverId) : undefined;
+                const driverPhone = a?.driver?.phone || fullDriver?.phone;
+                const hasGps = fullDriver?.currentLatitude != null && fullDriver?.currentLongitude != null;
+                const eta = formatEta(a?.estimatedDeliveryTime) || formatEta(o.estimatedDelivery);
+                const codPending = isCodPending(a);
                 return (
                   <div key={o.id} className="rounded-xl border border-border bg-muted/30 p-3">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -337,9 +417,31 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
 
                     {/* assigned driver line */}
                     {a?.driver && (
-                      <div className="mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                        <User className="h-3.5 w-3.5" /><span className="font-medium text-foreground">{a.driver.name || "Driver"}</span>
-                        {a.driver.phone && <><span className="text-border">·</span><span className="inline-flex items-center gap-0.5"><Phone className="h-3 w-3" />{a.driver.phone}</span></>}
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5"><User className="h-3.5 w-3.5" /><span className="font-medium text-foreground">{a.driver.name || "Driver"}</span></span>
+                        {driverPhone && <><span className="text-border">·</span><span className="inline-flex items-center gap-0.5"><Phone className="h-3 w-3" />{driverPhone}</span></>}
+                      </div>
+                    )}
+
+                    {/* ETA + live GPS + COD pending — only when there's an assignment */}
+                    {a && (eta || hasGps || codPending) && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {eta && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+                            <Clock className="h-3 w-3" /> ETA {eta}
+                          </span>
+                        )}
+                        {hasGps && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-medium text-emerald-500">
+                            <Navigation className="h-3 w-3" /> {gpsCoords(fullDriver?.currentLatitude, fullDriver?.currentLongitude)}
+                            {fullDriver?.lastLocationUpdate && <span className="font-normal opacity-80">· {relativeTime(fullDriver.lastLocationUpdate)}</span>}
+                          </span>
+                        )}
+                        {codPending && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-500">
+                            <Banknote className="h-3 w-3" /> Collect {money(a?.codAmountCents, o.currency || cur)}
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -407,6 +509,7 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
                 <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Phone *</span><input value={driverForm.phone} onChange={(e) => setDriverForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+233 …" inputMode="tel" className={FIELD} /></label>
               </div>
               <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Email</span><input value={driverForm.email} onChange={(e) => setDriverForm((f) => ({ ...f, email: e.target.value }))} placeholder="(optional)" type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" className={FIELD} /></label>
                 <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Vehicle</span>
                   <select value={driverForm.vehicleType} onChange={(e) => setDriverForm((f) => ({ ...f, vehicleType: e.target.value }))} className={FIELD}><option value="bike">Bike</option><option value="car">Car</option><option value="truck">Truck</option></select>
                 </label>
@@ -427,17 +530,41 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
               {drivers.map((d) => {
                 const VIcon = vehicleIcon(d.vehicleType);
                 const offline = d.isActive === false || d.status === "offline";
+                const dHasGps = d.currentLatitude != null && d.currentLongitude != null;
+                const copied = copiedDriverId === d.id;
                 return (
-                  <div key={d.id} className={cn("flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5", offline && "opacity-60")}>
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><VIcon className="h-4 w-4" /></span>
-                    <div className="min-w-0">
-                      <p className="truncate text-[12.5px] font-semibold">{d.name}</p>
-                      <p className="flex items-center gap-1 truncate text-[12px] text-muted-foreground"><Phone className="h-3 w-3" />{d.phone}{d.region ? ` · ${d.region}` : ""}</p>
+                  <div key={d.id} className={cn("rounded-xl border border-border bg-muted/30 px-3 py-2.5", offline && "opacity-60")}>
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><VIcon className="h-4 w-4" /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12.5px] font-semibold">{d.name}</p>
+                        <p className="flex items-center gap-1 truncate text-[12px] text-muted-foreground"><Phone className="h-3 w-3 shrink-0" />{d.phone}{d.region ? ` · ${d.region}` : ""}</p>
+                        {d.email && <p className="flex items-center gap-1 truncate text-[11.5px] text-muted-foreground"><Mail className="h-3 w-3 shrink-0" />{d.email}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", offline ? "bg-muted text-muted-foreground" : driverTone(d.status))}>{offline ? "Offline" : (d.status || "available")}</span>
+                        {(d.activeAssignmentCount ?? 0) > 0 && <span className="text-[10.5px] font-medium text-muted-foreground">{d.activeAssignmentCount} active</span>}
+                      </div>
                     </div>
-                    <div className="ms-auto flex flex-col items-end gap-1">
-                      <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", offline ? "bg-muted text-muted-foreground" : driverTone(d.status))}>{offline ? "Offline" : (d.status || "available")}</span>
-                      {(d.activeAssignmentCount ?? 0) > 0 && <span className="text-[10.5px] font-medium text-muted-foreground">{d.activeAssignmentCount} active</span>}
-                    </div>
+                    {/* live location + tracking-link share */}
+                    {(dHasGps || d.accessToken) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
+                        {dHasGps ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Navigation className="h-3 w-3 text-emerald-500" />
+                            <span className="font-medium text-foreground">{gpsCoords(d.currentLatitude, d.currentLongitude)}</span>
+                            {d.lastLocationUpdate && <span className="opacity-80">· {relativeTime(d.lastLocationUpdate)}</span>}
+                          </span>
+                        ) : d.accessToken ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Navigation className="h-3 w-3" /> No location yet</span>
+                        ) : null}
+                        {d.accessToken && (
+                          <button onClick={() => copyTrackingLink(d)} className={cn("ms-auto inline-flex items-center gap-1 rounded-[8px] border px-2 py-1 text-[11px] font-semibold transition-colors", copied ? "border-emerald-500/40 text-emerald-500" : "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground")}>
+                            {copied ? <><Check className="h-3 w-3" /> Copied</> : <><Link2 className="h-3 w-3" /> Tracking link</>}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -455,11 +582,12 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function Kpi({ icon: Icon, label, value, hint, tone }: { icon: ElementType; label: string; value: string; hint?: string; tone?: "amber" }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
+    <div className={cn("rounded-xl border bg-muted/30 p-3", tone === "amber" ? "border-amber-500/30 bg-amber-500/5" : "border-border")}>
+      <div className={cn("flex items-center gap-1.5 text-muted-foreground", tone === "amber" && "text-amber-500")}><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
+      <p className={cn("mt-1 text-[18px] font-extrabold leading-none", tone === "amber" && "text-amber-500")}>{value}</p>
+      {hint && <p className="mt-1 text-[11px] font-semibold text-amber-500">{hint}</p>}
     </div>
   );
 }

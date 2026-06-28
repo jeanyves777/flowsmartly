@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import Image from "next/image";
 import {
   Sparkles, CalendarClock, CheckCircle2, FileEdit, Link2, Plug, Image as ImageIcon,
   ChevronRight, Pencil, Trash2, X, Check, AlertTriangle, RefreshCw, CalendarX2, Save, RotateCcw,
+  Search, Filter, Hash, Eye, Heart, MessageCircle, Share2, Send, Loader2,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -29,13 +30,20 @@ interface Post {
   mediaUrls?: string[];
   mediaType?: string | null;
   platforms?: string[];
+  hashtags?: string[];
+  mentions?: string[];
   status: string;
   scheduledAt?: string | null;
   publishedAt?: string | null;
   likeCount?: number;
   commentCount?: number;
+  shareCount?: number;
   viewCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
+// Pagination envelope from GET /api/content/posts.
+interface Pagination { total: number; page: number; limit: number; hasMore: boolean }
 interface PlatformAcc {
   platform: string;
   name?: string;
@@ -58,6 +66,8 @@ const TABS: { id: Status; label: string }[] = [
 const isExternal = (p: string) => p && p.toLowerCase() !== "feed";
 const prettyPlatform = (p: string) => (p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1));
 
+const PAGE_SIZE = 30;
+
 function fmt(iso?: string | null): string {
   if (!iso) return "";
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
@@ -74,12 +84,19 @@ function toLocalInput(iso?: string | null): string {
 export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnect: () => void; onOpenView: (key: string) => void; refreshKey?: number }) {
   const [status, setStatus] = useState<Status>("ALL");
   const [posts, setPosts] = useState<Post[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
   const [loading, setLoading] = useState(true);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   // Local bump to re-fetch posts after a mutation, independent of the parent refreshKey.
   const [reload, setReload] = useState(0);
+
+  // Client-side search + platform filter. The list API only filters by status &
+  // paginates, so caption/platform narrowing happens over the loaded pages.
+  const [query, setQuery] = useState("");
+  const [platformFilter, setPlatformFilter] = useState<string>("ALL");
 
   useEffect(() => {
     let alive = true;
@@ -91,24 +108,70 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
     return () => { alive = false; };
   }, [refreshKey]);
 
+  // Fetch the first page whenever the status / refresh inputs change. Page 1 replaces.
   useEffect(() => {
     let alive = true;
     setPostsLoading(true);
-    fetch(`/api/content/posts?status=${status}&limit=30`)
+    setOpenId(null);
+    fetch(`/api/content/posts?status=${status}&page=1&limit=${PAGE_SIZE}`)
       .then((r) => r.json())
-      .then((j) => { if (alive && j?.success && Array.isArray(j.data?.posts)) setPosts(j.data.posts); })
+      .then((j) => {
+        if (!alive || !j?.success) return;
+        setPosts(Array.isArray(j.data?.posts) ? j.data.posts : []);
+        setPagination(j.data?.pagination ?? null);
+      })
       .catch(() => {})
       .finally(() => { if (alive) setPostsLoading(false); });
     return () => { alive = false; };
   }, [status, refreshKey, reload]);
 
-  if (loading) {
-    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your content…" /></div>;
-  }
+  // Append the next page (load-more beyond the page cap).
+  const loadMore = useCallback(() => {
+    if (loadingMore || !pagination?.hasMore) return;
+    const next = pagination.page + 1;
+    setLoadingMore(true);
+    fetch(`/api/content/posts?status=${status}&page=${next}&limit=${PAGE_SIZE}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j?.success) return;
+        const more: Post[] = Array.isArray(j.data?.posts) ? j.data.posts : [];
+        setPosts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...more.filter((p) => !seen.has(p.id))];
+        });
+        setPagination(j.data?.pagination ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [loadingMore, pagination, status]);
 
   const connected = accounts.filter((a) => a.connected || (a.connectedCount ?? 0) > 0);
   // Connectable external destinations for the editor's platform picker (always include feed).
   const connectedPlatforms = connected.map((a) => a.platform).filter(isExternal);
+
+  // Distinct platforms actually present on the loaded posts → filter chips.
+  const presentPlatforms = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of posts) for (const pl of p.platforms ?? []) set.add(pl);
+    return Array.from(set).sort((a, b) => (a === "feed" ? -1 : b === "feed" ? 1 : a.localeCompare(b)));
+  }, [posts]);
+
+  // Apply the in-surface search + platform narrowing over the loaded pages.
+  const visiblePosts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return posts.filter((p) => {
+      if (platformFilter !== "ALL" && !(p.platforms ?? []).includes(platformFilter)) return false;
+      if (!q) return true;
+      const hay = `${p.caption ?? ""} ${(p.hashtags ?? []).join(" ")} ${(p.platforms ?? []).join(" ")}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [posts, query, platformFilter]);
+
+  const filtering = query.trim().length > 0 || platformFilter !== "ALL";
+
+  if (loading) {
+    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your content…" /></div>;
+  }
 
   const refetch = () => setReload((n) => n + 1);
 
@@ -118,7 +181,7 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/30 px-4 py-2.5">
         <div className="inline-flex rounded-[10px] border border-border p-0.5">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => { setStatus(t.id); setOpenId(null); }} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", status === t.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t.label}</button>
+            <button key={t.id} onClick={() => { setStatus(t.id); setOpenId(null); setQuery(""); setPlatformFilter("ALL"); }} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", status === t.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t.label}</button>
           ))}
         </div>
         <button onClick={() => onOpenView("compose")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
@@ -156,21 +219,77 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <h3 className="text-[13px] font-bold">{status === "ALL" ? "Your posts" : TABS.find((t) => t.id === status)?.label}</h3>
+              {pagination && <span className="text-[11.5px] text-muted-foreground">{filtering ? `${visiblePosts.length} of ${posts.length} loaded` : `${posts.length} of ${pagination.total}`}</span>}
               {postsLoading && <FlowLoader size={14} className="ms-1" />}
             </div>
-            {posts.length ? (
-              <div className="space-y-2.5">
-                {posts.map((p) => (
-                  <PostRow
-                    key={p.id}
-                    post={p}
-                    open={openId === p.id}
-                    onToggle={() => setOpenId((id) => (id === p.id ? null : p.id))}
-                    connectedPlatforms={connectedPlatforms}
-                    onChanged={refetch}
-                    onRemoved={() => { setOpenId(null); setPosts((prev) => prev.filter((x) => x.id !== p.id)); refetch(); }}
+
+            {/* search + platform filter (in-surface narrowing over loaded pages) */}
+            {(posts.length > 0 || filtering) && (
+              <div className="mb-3 space-y-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search captions, hashtags, platforms…"
+                    className="w-full rounded-[10px] border border-border bg-background ps-9 pe-9 py-2 text-[12.5px] outline-none focus:border-brand-500/60"
                   />
-                ))}
+                  {query && (
+                    <button type="button" onClick={() => setQuery("")} className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-muted-foreground hover:text-foreground" aria-label="Clear search">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {presentPlatforms.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                    <FilterChip label="All platforms" active={platformFilter === "ALL"} onClick={() => setPlatformFilter("ALL")} />
+                    {presentPlatforms.map((p) => (
+                      <FilterChip key={p} label={prettyPlatform(p)} active={platformFilter === p} onClick={() => setPlatformFilter(p)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {visiblePosts.length ? (
+              <>
+                <div className="space-y-2.5">
+                  {visiblePosts.map((p) => (
+                    <PostRow
+                      key={p.id}
+                      post={p}
+                      open={openId === p.id}
+                      onToggle={() => setOpenId((id) => (id === p.id ? null : p.id))}
+                      connectedPlatforms={connectedPlatforms}
+                      onChanged={refetch}
+                      onRemoved={() => { setOpenId(null); setPosts((prev) => prev.filter((x) => x.id !== p.id)); }}
+                    />
+                  ))}
+                </div>
+                {pagination?.hasMore && (
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground disabled:opacity-60"
+                    >
+                      {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </button>
+                  </div>
+                )}
+                {filtering && pagination?.hasMore && (
+                  <p className="mt-2 text-center text-[11px] text-muted-foreground">Filtering only the loaded posts — load more to search the rest.</p>
+                )}
+              </>
+            ) : filtering ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                <p className="text-[13px] font-medium">No matches</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">No loaded posts match your search or platform filter.</p>
+                <button onClick={() => { setQuery(""); setPlatformFilter("ALL"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                  Clear filters
+                </button>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
@@ -278,7 +397,12 @@ function PostRow({
         platforms,
       };
       // Only touch the schedule when the post is/was scheduled, or the user set one.
-      if (scheduleAt) body.scheduledAt = new Date(scheduleAt).toISOString();
+      if (scheduleAt) {
+        const when = new Date(scheduleAt);
+        if (Number.isNaN(when.getTime())) { setError("Pick a valid date and time."); setBusy(false); return; }
+        if (when.getTime() <= Date.now()) { setError("Choose a future time, or cancel the schedule instead."); setBusy(false); return; }
+        body.scheduledAt = when.toISOString();
+      }
       const j = await fetch(`/api/content/posts/${post.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -385,9 +509,12 @@ function PostRow({
             </div>
           )}
 
+          {/* ── detail view (read-only summary built from the list payload) ─ */}
+          {mode === null && <PostDetail post={post} />}
+
           {/* default actions bar */}
           {mode === null && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <ActionBtn icon={Pencil} label="Edit" onClick={startEdit} />
               {isScheduled && <ActionBtn icon={CalendarClock} label="Reschedule" onClick={startReschedule} />}
               {isScheduled && <ActionBtn icon={CalendarX2} label="Cancel schedule" onClick={() => { setError(null); setNotice(null); setMode("unschedule"); }} />}
@@ -605,6 +732,129 @@ function PlatformChip({ label, active, onClick }: { label: string; active: boole
     >
       {active && <Check className="h-3 w-3" />} {label}
     </button>
+  );
+}
+
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-[11.5px] font-medium capitalize transition",
+        active ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * Read-only post detail. Built entirely from the list payload (caption, media,
+ * platforms, hashtags/mentions, engagement) — there is no GET /api/content/posts/[id]
+ * endpoint to fetch a richer record, and persisted per-platform publishResults are
+ * only returned by the retry action (surfaced in the retry panel below).
+ */
+function PostDetail({ post }: { post: Post }) {
+  const st = post.status?.toUpperCase();
+  const media = post.mediaUrls ?? [];
+  const hashtags = post.hashtags ?? [];
+  const mentions = post.mentions ?? [];
+  const platforms = post.platforms ?? [];
+  const isPublished = st === "PUBLISHED";
+
+  const meta: { label: string; value: string }[] = [];
+  if (post.publishedAt) meta.push({ label: "Published", value: fmt(post.publishedAt) });
+  if (post.scheduledAt) meta.push({ label: "Scheduled", value: fmt(post.scheduledAt) });
+  if (post.createdAt) meta.push({ label: "Created", value: fmt(post.createdAt) });
+  if (post.updatedAt && post.updatedAt !== post.createdAt) meta.push({ label: "Updated", value: fmt(post.updatedAt) });
+
+  const stats: { icon: ElementType; value: number }[] = [
+    { icon: Eye, value: post.viewCount ?? 0 },
+    { icon: Heart, value: post.likeCount ?? 0 },
+    { icon: MessageCircle, value: post.commentCount ?? 0 },
+    { icon: Share2, value: post.shareCount ?? 0 },
+  ];
+
+  return (
+    <div className="mb-3 space-y-3 rounded-[10px] border border-border bg-background p-3">
+      {/* media gallery */}
+      {media.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {media.slice(0, 8).map((url, i) => (
+            <div key={`${url}-${i}`} className="relative h-16 w-16 overflow-hidden rounded-lg bg-muted/40">
+              {/\.(mp4|webm|mov|avi|mkv)/i.test(url)
+                ? <video src={url} className="h-full w-full object-cover" muted playsInline />
+                : <Image src={url} alt="" width={64} height={64} className="h-full w-full object-cover" unoptimized />}
+            </div>
+          ))}
+          {media.length > 8 && (
+            <div className="grid h-16 w-16 place-items-center rounded-lg border border-border bg-muted/30 text-[12px] font-semibold text-muted-foreground">+{media.length - 8}</div>
+          )}
+        </div>
+      )}
+
+      {/* full caption */}
+      {post.caption
+        ? <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed">{post.caption}</p>
+        : <p className="text-[12.5px] italic text-muted-foreground">No caption.</p>}
+
+      {/* hashtags / mentions */}
+      {(hashtags.length > 0 || mentions.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {hashtags.slice(0, 12).map((h, i) => (
+            <span key={`h-${i}`} className="inline-flex items-center gap-0.5 rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-500">
+              <Hash className="h-2.5 w-2.5" />{h.replace(/^#/, "")}
+            </span>
+          ))}
+          {mentions.slice(0, 8).map((m, i) => (
+            <span key={`m-${i}`} className="rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{m.startsWith("@") ? m : `@${m}`}</span>
+          ))}
+        </div>
+      )}
+
+      {/* destinations */}
+      {platforms.length > 0 && (
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Destinations</p>
+          <div className="flex flex-wrap gap-1.5">
+            {platforms.map((p) => (
+              <span key={p} className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-medium",
+                isExternal(p) ? "border-border bg-muted/40" : "border-brand-500/40 bg-brand-500/10 text-brand-500",
+              )}>
+                {isExternal(p) ? <Send className="h-3 w-3 text-muted-foreground" /> : <Sparkles className="h-3 w-3" />}
+                {prettyPlatform(p)}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Per-platform publish results appear when you run a cross-post retry below.
+          </p>
+        </div>
+      )}
+
+      {/* engagement (published only) */}
+      {isPublished && (
+        <div className="flex flex-wrap gap-3 border-t border-border/60 pt-2.5">
+          {stats.map(({ icon: Icon, value }, i) => (
+            <span key={i} className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground">
+              <Icon className="h-3.5 w-3.5" /> {value.toLocaleString()}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* timestamps */}
+      {meta.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border/60 pt-2.5 text-[11px] text-muted-foreground">
+          {meta.map((m) => (
+            <span key={m.label}><span className="font-medium text-foreground/70">{m.label}:</span> {m.value}</span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
