@@ -102,11 +102,14 @@ export async function GET(request: NextRequest) {
         success: true,
         accounts: accounts.map((account) => {
           const missingScopes = missingRequiredScopes(account.platform, account.scopes);
+          // An expired token also needs a reconnect (covers WhatsApp/others where
+          // missingRequiredScopes only knows about Twitter scopes).
+          const tokenExpired = !!account.tokenExpiresAt && account.tokenExpiresAt.getTime() < Date.now();
           return {
             ...account,
             scopes: parseScopes(account.scopes),
             missingScopes,
-            needsReconnect: missingScopes.length > 0,
+            needsReconnect: missingScopes.length > 0 || tokenExpired,
           };
         }),
         meta: {
