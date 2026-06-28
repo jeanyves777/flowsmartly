@@ -144,7 +144,9 @@ export function useHomeAgent() {
             blockPushCard(blocks, "task", task.id);
             tasksById.set(task.id, task);
             flushMessage();
-            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage);
+            // A branded-design task → the open design canvas shows a live rendering state.
+            if (task.kind === "create_branded_design") canvasUpdateRef.current?.({ generating: true });
+            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch));
           },
           onTaskProgress: (taskId, progress, message) => {
             const existing = tasksById.get(taskId);
@@ -302,6 +304,7 @@ function startTaskSubscription(
   flush: () => void,
   registry: Map<string, AbortController>,
   appendAssistantMessage?: (msg: { id: string; content: string }) => void,
+  onCanvasImage?: (patch: Record<string, unknown>) => void,
 ) {
   if (registry.has(taskId)) return;
   const controller = subscribeToTaskStream(taskId, (event) => {
@@ -317,10 +320,16 @@ function startTaskSubscription(
       next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage };
     } else if (event.type === "completed") {
       next = { ...current, status: "completed", output: event.output ?? current.output, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
+      // A finished branded design renders into the open canvas.
+      if (current.kind === "create_branded_design") {
+        const url = (next.output as { url?: string } | null | undefined)?.url;
+        onCanvasImage?.(url ? { generating: false, imageUrl: url } : { generating: false });
+      }
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else if (event.type === "failed") {
       next = { ...current, status: "failed", error: event.error ?? current.error };
+      if (current.kind === "create_branded_design") onCanvasImage?.({ generating: false });
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else {

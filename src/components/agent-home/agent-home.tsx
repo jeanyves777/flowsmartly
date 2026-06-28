@@ -613,7 +613,18 @@ export function AgentHome() {
               }
               canvas={
                 focused === "create" ? (
-                  <FocusedDesignStudio value={design} onChange={setDesign} onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }} />
+                  <FocusedDesignStudio
+                    value={design}
+                    onChange={setDesign}
+                    onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
+                    onRegenerate={() => send(
+                      `Create a branded design image for the canvas that's open — headline ${JSON.stringify(design.headline)}, subtext ${JSON.stringify(design.sub)}, button ${JSON.stringify(design.cta)}, size ${design.size}. Use my brand. Ask me which tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
+                      false,
+                      designCanvasContext(design),
+                      undefined,
+                      { hidden: true },
+                    )}
+                  />
                 ) : focused === "account" ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8" onInput={() => { if (!settingsDirty) setSettingsDirty(true); }}>
                     <SettingsWorkspace embedded section="settings" initialTab={settingsInitialTab} />
