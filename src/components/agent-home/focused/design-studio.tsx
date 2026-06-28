@@ -219,18 +219,23 @@ function ColorPicker({ value, onChange, className, iconClass }: { value?: string
   );
 }
 
-/** Draggable floating-toolbar shell — a grip lets the user move it out of the way. */
+/** Draggable floating-toolbar shell — a grip lets the user move it out of the way.
+ * Dragging writes the transform straight to the DOM (no per-move re-render, so it
+ * stays smooth) and only commits to React state on release. */
 function FloatingToolbar({ children }: { children: ReactNode }) {
-  const [d, setD] = useState({ x: 0, y: 0 });
-  const st = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const pos = useRef({ x: 0, y: 0 });
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const [committed, setCommitted] = useState({ x: 0, y: 0 });
+  const apply = () => { if (ref.current) ref.current.style.transform = `translate(calc(-50% + ${pos.current.x}px), ${pos.current.y}px)`; };
+  const onDown = (e: React.PointerEvent) => { e.preventDefault(); drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.current.x, oy: pos.current.y }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ } };
+  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d) return; pos.current = { x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) }; apply(); };
+  const onUp = (e: React.PointerEvent) => { if (!drag.current) return; drag.current = null; setCommitted({ ...pos.current }); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ } };
   return (
-    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex items-center gap-1 rounded-lg bg-zinc-900/92 px-1 py-1 text-white shadow-xl ring-1 ring-white/10 backdrop-blur"
-      style={{ transform: `translate(calc(-50% + ${d.x}px), ${d.y}px)` }}>
+    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex max-w-[94vw] items-center gap-1 rounded-lg bg-zinc-900/92 px-1 py-1 text-white shadow-xl ring-1 ring-white/10 backdrop-blur"
+      style={{ transform: `translate(calc(-50% + ${committed.x}px), ${committed.y}px)` }}>
       <button title="Drag the toolbar" className="grid h-6 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-white/45 hover:bg-white/10 hover:text-white/80 active:cursor-grabbing"
-        onPointerDown={(e) => { e.preventDefault(); st.current = { sx: e.clientX, sy: e.clientY, ox: d.x, oy: d.y }; try { ref.current?.setPointerCapture(e.pointerId); } catch { /* noop */ } }}
-        onPointerMove={(e) => { const s = st.current; if (!s) return; setD({ x: s.ox + (e.clientX - s.sx), y: s.oy + (e.clientY - s.sy) }); }}
-        onPointerUp={(e) => { st.current = null; try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ } }}>
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <GripVertical className="h-3.5 w-3.5" />
       </button>
       <span className="h-4 w-px shrink-0 bg-white/20" />
@@ -388,6 +393,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
       <div className="flex min-h-0 flex-1">
         <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
+          {/* Non-clipping wrapper sized to the poster — the floating toolbar lives
+              here (a sibling of the poster) so it's never cut off by overflow-hidden. */}
+          <div className="relative" style={{ width: baseW, maxWidth: "100%" }}>
           <div ref={posterRef} className="relative overflow-hidden rounded-[18px] shadow-2xl" style={{ width: baseW, height, maxWidth: "100%", background: theme.bg }}
             onPointerDown={(e) => { if (e.target === e.currentTarget) setSel(null); }}
             onDragOver={(e) => { if (!showAiImage) e.preventDefault(); }}
@@ -452,23 +460,25 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
               </>
             )}
 
-            {/* draggable toolbar — text styling, or image actions (background removal) */}
-            {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || !!selIsImage) && (
-              <FloatingToolbar>
-                {sel.kind === "image" && selIsImage ? (
-                  <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
-                ) : (
-                  <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
-                )}
-              </FloatingToolbar>
-            )}
-
             {value.generating && (
               <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px]">
                 <div className="flex flex-col items-center gap-2.5 text-center"><FlowLoader size={36} withMark tone="white" /><p className="text-[12.5px] font-semibold text-white">Rendering your design…</p><p className="text-[11px] text-white/70">Using your layout{images.length ? " + your images" : ""} as the reference.</p></div>
               </div>
             )}
             {value.imageUrl && <span className="absolute bottom-2 left-2 hidden" aria-hidden />}
+          </div>
+
+          {/* draggable toolbar — sits OUTSIDE the clipped poster so it's never cut
+              off, and can extend past the poster edges into the canvas area */}
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || !!selIsImage) && (
+            <FloatingToolbar>
+              {sel.kind === "image" && selIsImage ? (
+                <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
+              ) : (
+                <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
+              )}
+            </FloatingToolbar>
+          )}
           </div>
         </div>
 
