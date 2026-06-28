@@ -26,6 +26,8 @@ import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
 import { FocusedBilling } from "./focused/billing-workspace";
+import { FocusedCredits } from "./focused/credits-workspace";
+import { FocusedPlans } from "./focused/plans-workspace";
 import { FocusedDomains } from "./focused/domains-workspace";
 import { FocusedPitch } from "./focused/pitch-workspace";
 import { FocusedForms } from "./focused/forms-workspace";
@@ -82,6 +84,8 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
   analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
   billing: "Ask the agent about credits & billing — e.g. “how many credits do I have left?”, “what did I spend on this week?”, or “which plan fits me?”.",
+  credits: "Ask the agent how many credits you have or what they’re spent on — or just pick a pack to top up.",
+  plans: "Ask the agent which plan fits you, or what each plan includes — then upgrade right here.",
   landing: "Ask the agent to create a landing page — e.g. “a page for my summer offer with a signup form”.",
   domains: "Ask the agent to help connect a domain, fix verification, or set up DNS.",
   pitch: "Ask the agent to draft a proposal for a client or research a prospect.",
@@ -136,6 +140,8 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   cartoon: { label: "Cartoon maker", subtitle: "Your cartoon & animated creations", icon: Smile },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
+  credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
+  plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
   adbuilder: { label: "Ad builder", subtitle: "Your ad campaigns — spend, reach & ROAS", icon: Megaphone },
   storyad: { label: "Story-Ad", subtitle: "Cinematic AI ad movies & render status", icon: Clapperboard },
   calendar: { label: "Content calendar", subtitle: "See what’s going out, and when", icon: CalendarDays },
@@ -205,6 +211,10 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Content calendar** (scheduled + published posts by date). Help them plan, schedule, or rearrange posts across the week — schedule_social_post / compose posts via the right tool.`;
     case "billing":
       return `The user has the **Billing & credits** workspace open (balance, plan, usage, transactions). Default their intent to credits/billing questions — use get_credits_history and list_my_features (for action costs). If they want to buy credits or change plans, explain the options; the actual purchase happens in the secure checkout.`;
+    case "credits":
+      return `The user is on the **Buy credits** surface (credit top-up packages). Help them choose a pack or explain pricing — the purchase itself is a secure Stripe checkout right in the surface.`;
+    case "plans":
+      return `The user is on the **Plans** surface (subscription plans + upgrade). Help them compare plans or pick the right one — upgrading is a secure Stripe checkout right in the surface.`;
     case "connections":
       return `The user has the **Connections** workspace open (linking social accounts). Help them connect or manage their accounts.`;
     case "account":
@@ -216,7 +226,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -622,7 +632,11 @@ export function AgentHome() {
                 ) : focused === "analytics" ? (
                   <FocusedAnalytics onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "billing" ? (
-                  <FocusedBilling refreshKey={actionCount} />
+                  <FocusedBilling onOpenView={openView} refreshKey={actionCount} />
+                ) : focused === "credits" ? (
+                  <FocusedCredits onBack={() => openView("billing")} refreshKey={actionCount} />
+                ) : focused === "plans" ? (
+                  <FocusedPlans onBack={() => openView("billing")} refreshKey={actionCount} />
                 ) : focused === "publish" ? (
                   <FocusedPublish onConnect={openConnections} onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "connections" ? (

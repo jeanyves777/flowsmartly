@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { Coins, CreditCard, Sparkles, ArrowUpRight, ArrowDownRight, Receipt, Gift, Zap, RefreshCw } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -9,9 +8,9 @@ import { cn } from "@/lib/utils/cn";
 /**
  * Billing & credits — a deep new-design surface (the Business workspace canvas):
  * credit balance, plan, recent usage by type, and the transaction ledger. Real
- * data (GET /api/user/credits + /api/user/credits/history). No legacy links —
- * Buy/Manage drive the agent for now; the secure Stripe top-up is a follow-up.
- * [[new-design-no-legacy]]
+ * data (GET /api/user/credits + /api/user/credits/history). Buy credits / Manage
+ * plan open NATIVE /home focus views (credits / plans) — no legacy links; the
+ * final charge is handled by Stripe inside those surfaces. [[new-design-no-legacy]]
  */
 
 interface Txn { id: string; type: string; amount: number; balanceAfter?: number; description?: string | null; referenceType?: string | null; createdAt: string; }
@@ -35,8 +34,7 @@ function whenLabel(iso: string): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedBilling({ refreshKey }: { refreshKey?: number }) {
-  const router = useRouter();
+export function FocusedBilling({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView?: (key: string) => void }) {
   const [credits, setCredits] = useState(0);
   const [plan, setPlan] = useState("STARTER");
   const [txns, setTxns] = useState<Txn[]>([]);
@@ -89,10 +87,10 @@ export function FocusedBilling({ refreshKey }: { refreshKey?: number }) {
             <span className="ms-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-[12px] font-semibold"><Sparkles className="h-3.5 w-3.5 text-brand-500" /> {planLabel} plan</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => router.push("/buy-credits")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <button onClick={() => onOpenView?.("credits")} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <CreditCard className="h-4 w-4" /> Buy credits
             </button>
-            <button onClick={() => router.push("/settings/upgrade")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+            <button onClick={() => onOpenView?.("plans")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
               <Sparkles className="h-4 w-4" /> Manage plan
             </button>
           </div>
