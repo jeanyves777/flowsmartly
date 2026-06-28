@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
-import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink } from "lucide-react";
+import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -22,12 +22,21 @@ interface SmsCampaign {
   sent?: number;
   delivered?: number;
   failed?: number;
+  clicked?: number;
   unsubscribed?: number;
   messageLength?: number;
   segments?: number;
   scheduledAt?: string | null;
   sentAt?: string | null;
   createdAt?: string;
+}
+
+// GET /api/campaigns/[id] → data.campaign (a deeper read than the list item).
+interface SmsCampaignDetail extends SmsCampaign {
+  content?: string | null;
+  contactList?: { id: string; name: string; totalCount?: number; activeCount?: number } | null;
+  contactListId?: string | null;
+  updatedAt?: string;
 }
 
 interface SmsStats {
@@ -63,6 +72,16 @@ function whenLabel(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
+function dateTimeLabel(iso?: string | null): string {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
+}
+
+// A draft (or scheduled/failed/paused) blast can still be sent or deleted; once it's
+// actively sending or already sent the send/delete routes reject it.
+const SENDABLE = new Set(["draft", "scheduled", "paused", "failed"]);
+const DELETABLE = new Set(["draft", "scheduled", "paused", "failed", "sending"]);
+
 const NEW_BLAST_PROMPT =
   "Help me send an SMS blast. Ask me who to send it to and what offer or update I want to share, then write the message (with an opt-out line) and set it up. If my SMS number or compliance isn't ready yet, walk me through getting set up first.";
 
@@ -74,6 +93,17 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const [stats, setStats] = useState<SmsStats>({});
   const [number, setNumber] = useState<NumberStatus | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Inline blast detail: id while loading, the detail object once fetched, null when closed.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<SmsCampaignDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Two-step inline confirms (no window.confirm) + the busy action per row.
+  const [confirmSend, setConfirmSend] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [cj, nj] = await Promise.all([
@@ -94,6 +124,68 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     load().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  // Toggle a blast's inline detail panel; fetch the deeper record on open.
+  const openBlast = useCallback(async (c: SmsCampaign) => {
+    setActionError(null);
+    setConfirmSend(null);
+    setConfirmDelete(null);
+    if (openId === c.id) { setOpenId(null); setDetail(null); return; }
+    setOpenId(c.id); setDetail(null); setDetailLoading(true);
+    try {
+      const j = await fetch(`/api/campaigns/${c.id}`).then((r) => r.json());
+      if (j?.success && j.data?.campaign) setDetail(j.data.campaign as SmsCampaignDetail);
+    } catch { /* leave detail null → fallback message */ } finally {
+      setDetailLoading(false);
+    }
+  }, [openId]);
+
+  // Send a draft blast now (after inline confirm). Refresh list + detail on success.
+  const sendBlast = useCallback(async (id: string) => {
+    setBusyId(id); setActionError(null);
+    try {
+      const j = await fetch(`/api/campaigns/${id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send" }),
+      }).then((r) => r.json()).catch(() => null);
+      if (j?.success) {
+        setConfirmSend(null);
+        await load();
+        // Refresh the open detail so its stats/status reflect the send.
+        if (openId === id) {
+          const dj = await fetch(`/api/campaigns/${id}`).then((r) => r.json()).catch(() => null);
+          if (dj?.success && dj.data?.campaign) setDetail(dj.data.campaign as SmsCampaignDetail);
+        }
+      } else {
+        setActionError(j?.error?.message || "Could not send this blast.");
+      }
+    } catch {
+      setActionError("Could not send this blast.");
+    } finally {
+      setBusyId(null);
+    }
+  }, [load, openId]);
+
+  // Delete a blast (after inline confirm). Remove it from the list + close detail.
+  const deleteBlast = useCallback(async (id: string) => {
+    setBusyId(id); setActionError(null);
+    try {
+      const j = await fetch(`/api/campaigns/${id}`, { method: "DELETE" }).then((r) => r.json()).catch(() => null);
+      if (j?.success) {
+        setConfirmDelete(null);
+        setCampaigns((prev) => prev.filter((c) => c.id !== id));
+        if (openId === id) { setOpenId(null); setDetail(null); }
+        await load();
+      } else {
+        setActionError(j?.error?.message || "Could not delete this blast.");
+      }
+    } catch {
+      setActionError("Could not delete this blast.");
+    } finally {
+      setBusyId(null);
+    }
+  }, [load, openId]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your SMS…" /></div>;
@@ -215,29 +307,118 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
             <div className="space-y-2">
               {campaigns.map((c) => {
                 const m = statusMeta(c.status);
+                const status = c.status.toLowerCase();
+                const isOpen = openId === c.id;
                 const sent = c.sent ?? 0;
                 const delivered = c.delivered ?? 0;
                 const rate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
                 const when = whenLabel(c.sentAt) || (c.scheduledAt ? `scheduled ${whenLabel(c.scheduledAt)}` : whenLabel(c.createdAt));
+                const busy = busyId === c.id;
+                const canSend = hasNumber && SENDABLE.has(status);
+                const canDelete = DELETABLE.has(status);
                 return (
-                  <div key={c.id} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <div key={c.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
+                    <button onClick={() => openBlast(c)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left">
                       <span className="truncate text-[13px] font-semibold">{c.name}</span>
                       <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", m.tone)}>
-                        <m.icon className="h-3 w-3" /> {c.status.toLowerCase()}
+                        <m.icon className="h-3 w-3" /> {status}
                       </span>
                       {when && <span className="text-[11.5px] text-muted-foreground">{when}</span>}
                       <span className="ms-auto text-[12px] text-muted-foreground">
                         <span className="font-semibold text-foreground tabular-nums">{(c.audience ?? 0).toLocaleString()}</span> recipients
                       </span>
-                    </div>
+                      <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", isOpen && "rotate-90")} />
+                    </button>
                     {sent > 0 && (
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 px-3 py-2 text-[11.5px] text-muted-foreground">
                         <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> {sent.toLocaleString()} sent</span>
                         <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3 w-3" /> {delivered.toLocaleString()} delivered <span className="text-muted-foreground">({rate}%)</span></span>
                         {!!c.failed && <span className="inline-flex items-center gap-1 text-rose-500"><XCircle className="h-3 w-3" /> {c.failed.toLocaleString()} failed</span>}
+                        {!!c.clicked && <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" /> {c.clicked.toLocaleString()} clicked</span>}
                         {!!c.unsubscribed && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {c.unsubscribed.toLocaleString()} opted out</span>}
                         {!!c.segments && <span>{c.segments} segment{c.segments > 1 ? "s" : ""}</span>}
+                      </div>
+                    )}
+
+                    {/* inline detail panel */}
+                    {isOpen && (
+                      <div className="border-t border-border/60 px-3 py-3">
+                        {detailLoading ? (
+                          <div className="grid place-items-center py-6"><FlowLoader size={22} label="Loading blast…" /></div>
+                        ) : detail && detail.id === c.id ? (
+                          <BlastDetail detail={detail} senderNumber={number?.phoneNumber} />
+                        ) : (
+                          <p className="py-3 text-center text-[12.5px] text-muted-foreground">Could not load this blast.</p>
+                        )}
+
+                        {actionError && busyId === null && (confirmSend === c.id || confirmDelete === c.id || !canSend) === false && (
+                          // (handled below near the action buttons)
+                          null
+                        )}
+
+                        {/* management actions — never the agent; these are CRUD */}
+                        {(canSend || canDelete) && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                            {canSend && (
+                              confirmSend === c.id ? (
+                                <span className="inline-flex items-center gap-2 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-2 py-1">
+                                  <span className="text-[11.5px] font-medium">Send to {(detail?.contactList?.activeCount ?? detail?.contactList?.totalCount ?? c.audience ?? 0).toLocaleString()} now?</span>
+                                  <button
+                                    onClick={() => sendBlast(c.id)}
+                                    disabled={busy}
+                                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60"
+                                  >
+                                    {busy ? <FlowLoader size={13} /> : <Send className="h-3 w-3" />} Confirm
+                                  </button>
+                                  <button onClick={() => setConfirmSend(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => { setConfirmDelete(null); setActionError(null); setConfirmSend(c.id); }}
+                                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"
+                                >
+                                  <Send className="h-3.5 w-3.5" /> Send now
+                                </button>
+                              )
+                            )}
+
+                            {canDelete && (
+                              confirmDelete === c.id ? (
+                                <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2 py-1">
+                                  <span className="text-[11.5px] font-medium">Delete this blast?</span>
+                                  <button
+                                    onClick={() => deleteBlast(c.id)}
+                                    disabled={busy}
+                                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60"
+                                  >
+                                    {busy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Confirm
+                                  </button>
+                                  <button onClick={() => setConfirmDelete(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => { setConfirmSend(null); setActionError(null); setConfirmDelete(c.id); }}
+                                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-rose-500"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                                </button>
+                              )
+                            )}
+
+                            {onAsk && (status === "draft" || status === "scheduled") && (
+                              <button
+                                onClick={() => onAsk(`Help me edit my SMS blast "${c.name}" — let me change the message copy, audience, or schedule, then save it.`)}
+                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
+                              >
+                                <PenLine className="h-3.5 w-3.5" /> Edit with agent
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {actionError && (openId === c.id) && (
+                          <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {actionError}</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -271,6 +452,65 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
           <ExternalLink className="h-3 w-3" /> SMS rates and carrier rules vary by country. Recipients must opt in.
         </p>
       </div>
+    </div>
+  );
+}
+
+// The inline blast detail: message preview (phone bubble), performance breakdown,
+// timeline, and audience — a deeper read than the list row.
+function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; senderNumber?: string }) {
+  const sent = detail.sent ?? 0;
+  const delivered = detail.delivered ?? 0;
+  const failed = detail.failed ?? 0;
+  const clicked = detail.clicked ?? 0;
+  const unsub = detail.unsubscribed ?? 0;
+  const deliveredRate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
+  const clickRate = sent > 0 ? Math.round((clicked / sent) * 100) : 0;
+  const audience = detail.contactList?.activeCount ?? detail.contactList?.totalCount ?? detail.audience ?? 0;
+  return (
+    <div className="space-y-3">
+      {/* message preview */}
+      <div className="rounded-xl border border-border bg-background p-3">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <MessageSquare className="h-3.5 w-3.5" /> Message{senderNumber ? ` · from ${senderNumber}` : ""}
+        </div>
+        {detail.content ? (
+          <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-brand-500/10 px-3 py-2 text-[12.5px] leading-relaxed text-foreground">{detail.content}</div>
+        ) : (
+          <p className="text-[12px] italic text-muted-foreground">No message content saved.</p>
+        )}
+        {typeof detail.messageLength === "number" && detail.messageLength > 0 && (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">{detail.messageLength} chars{detail.segments ? ` · ${detail.segments} segment${detail.segments > 1 ? "s" : ""}` : ""}</p>
+        )}
+      </div>
+
+      {/* performance (only once it's been sent) */}
+      {sent > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <DetailStat icon={Send} label="Sent" value={sent.toLocaleString()} />
+          <DetailStat icon={CheckCircle2} label="Delivered" value={`${delivered.toLocaleString()} · ${deliveredRate}%`} tone="text-emerald-500" />
+          <DetailStat icon={MousePointerClick} label="Clicked" value={`${clicked.toLocaleString()} · ${clickRate}%`} />
+          <DetailStat icon={XCircle} label="Failed" value={failed.toLocaleString()} tone={failed > 0 ? "text-rose-500" : undefined} />
+        </div>
+      )}
+
+      {/* audience + timeline */}
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11.5px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {detail.contactList?.name ? `${detail.contactList.name} · ` : ""}{audience.toLocaleString()} recipients</span>
+        {unsub > 0 && <span className="inline-flex items-center gap-1.5">{unsub.toLocaleString()} opted out</span>}
+        {detail.scheduledAt && <span className="inline-flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5" /> Scheduled {dateTimeLabel(detail.scheduledAt)}</span>}
+        {detail.sentAt && <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Sent {dateTimeLabel(detail.sentAt)}</span>}
+        {!detail.sentAt && detail.createdAt && <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Created {dateTimeLabel(detail.createdAt)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function DetailStat({ icon: Icon, label, value, tone }: { icon: ElementType; label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+      <div className={cn("flex items-center gap-1 text-muted-foreground", tone)}><Icon className="h-3 w-3" /><span className="text-[10.5px] font-medium uppercase tracking-wide">{label}</span></div>
+      <p className={cn("mt-0.5 text-[14px] font-bold tabular-nums", tone)}>{value}</p>
     </div>
   );
 }

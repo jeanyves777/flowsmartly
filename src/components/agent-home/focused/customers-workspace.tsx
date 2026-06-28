@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
-import { Users, Repeat, Coins, UserPlus, Check, ShoppingBag, Clock, Mail, Phone } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { Users, Repeat, Coins, UserPlus, Check, ShoppingBag, Clock, Mail, Phone, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+
+const PAGE_SIZE = 20;
 
 /**
  * Customers — a deep new-design ecommerce surface (the Customers workspace
@@ -52,13 +54,35 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  // `fetching` is the lightweight in-place spinner for search/page changes — it
+  // never blanks the whole surface the way the first-load `loading` does.
+  const [fetching, setFetching] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<Record<string, boolean>>({});
 
+  // Search (debounced) + pagination.
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Debounce the raw input into the applied `search`, resetting to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch((prev) => {
+        if (prev !== searchInput.trim()) setPage(1);
+        return searchInput.trim();
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/ecommerce/customers?limit=50");
+      const qs = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      if (search) qs.set("search", search);
+      const r = await fetch(`/api/ecommerce/customers?${qs.toString()}`);
       // No store → the route answers 404; treat that as "no store yet".
       if (r.status === 404) {
         setHasStore(false);
@@ -67,8 +91,9 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
       const j = await r.json().catch(() => null);
       if (j?.success && j.data) {
         setHasStore(true);
-        if (Array.isArray(j.data.customers)) setCustomers(j.data.customers as Customer[]);
+        setCustomers(Array.isArray(j.data.customers) ? (j.data.customers as Customer[]) : []);
         if (typeof j.data.total === "number") setTotal(j.data.total);
+        setTotalPages(typeof j.data.totalPages === "number" && j.data.totalPages > 0 ? j.data.totalPages : 1);
       } else {
         // Unauthorized or unexpected — show as no store rather than a broken view.
         setHasStore(false);
@@ -76,12 +101,22 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
     } catch {
       setHasStore(false);
     }
-  }, []);
+  }, [page, search]);
 
+  // First mount / refreshKey → full-surface loader. Search & page changes only
+  // toggle the in-place `fetching` spinner so the list stays put. A ref tracks
+  // whether we've completed the very first load.
+  const didInitialLoad = useRef(false);
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    load().finally(() => { if (alive) setLoading(false); });
+    const initial = !didInitialLoad.current;
+    if (initial) setLoading(true); else setFetching(true);
+    load().finally(() => {
+      if (!alive) return;
+      didInitialLoad.current = true;
+      setLoading(false);
+      setFetching(false);
+    });
     return () => { alive = false; };
   }, [load, refreshKey]);
 
@@ -143,7 +178,34 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
 
         {/* Customers list */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-[13px] font-bold">Your customers</h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h3 className="flex items-center gap-2 text-[13px] font-bold">
+              Your customers
+              {fetching && <FlowLoader size={14} />}
+            </h3>
+            {/* Search by name / email — debounced, drives the `search` query param. */}
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by name or email…"
+                aria-label="Search customers"
+                className="w-full rounded-[10px] border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-[12px] outline-none transition placeholder:text-muted-foreground focus:border-brand-500/60"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  aria-label="Clear search"
+                  className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
           {customers.length ? (
             <div className="space-y-2">
               {customers.map((c) => {
@@ -181,10 +243,43 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
                 );
               })}
             </div>
+          ) : search ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+              <p className="text-[13px] font-medium">No matches</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">No customers match &ldquo;{search}&rdquo;. Try a different name or email.</p>
+            </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <p className="text-[13px] font-medium">No customers yet</p>
               <p className="mt-1 text-[12px] text-muted-foreground">Share your storefront — once people buy, they&apos;ll appear here with their orders and spend.</p>
+            </div>
+          )}
+
+          {/* Pagination — uses the totalPages the API returns. */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
+              <p className="text-[11.5px] text-muted-foreground">
+                Page <span className="font-semibold text-foreground">{page}</span> of {totalPages}
+                <span className="hidden sm:inline"> · {totalCount.toLocaleString()} customers</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || fetching}
+                  className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold transition hover:border-brand-500/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || fetching}
+                  className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold transition hover:border-brand-500/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </section>

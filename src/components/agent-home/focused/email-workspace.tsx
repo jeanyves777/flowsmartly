@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ElementType } from "react";
-import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent } from "lucide-react";
+import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { EmailSetupCard } from "./email-setup";
 import { cn } from "@/lib/utils/cn";
@@ -43,6 +43,21 @@ interface CampaignDetail extends Campaign {
   replyTo?: string | null;
   content?: string | null;
   contentHtml?: string | null;
+  contactListId?: string | null;
+}
+interface ContactListOption { id: string; name: string; totalCount?: number }
+
+// Draft-only management is allowed where the server permits it:
+// edit  → any status except SENT; delete → not ACTIVE/SENT; send → not SENT/SENDING.
+const canEdit = (s: string) => s?.toLowerCase() !== "sent";
+const canDelete = (s: string) => !["active", "sent"].includes(s?.toLowerCase());
+const canSend = (s: string) => !["sent", "sending"].includes(s?.toLowerCase());
+
+// A datetime-local string (local TZ, no seconds) one hour from now — a sane schedule default.
+function defaultScheduleValue(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 const STATUS_META: Record<string, { label: string; icon: ElementType; tone: string }> = {
@@ -73,6 +88,32 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // In-surface management (CRUD) state for the open campaign.
+  type ActionMode = null | "edit" | "delete" | "send" | "schedule";
+  const [mode, setMode] = useState<ActionMode>(null);
+  const [busy, setBusy] = useState(false); // a mutation is in flight
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  // Edit form fields (seeded from the detail when entering edit mode).
+  const [form, setForm] = useState({ name: "", subject: "", fromName: "", replyTo: "", contactListId: "" });
+  const [scheduleAt, setScheduleAt] = useState("");
+  // Contact lists for the audience selector — fetched lazily the first time edit opens.
+  const [lists, setLists] = useState<ContactListOption[] | null>(null);
+
+  const resetActions = useCallback(() => {
+    setMode(null); setBusy(false); setActionError(null);
+  }, []);
+
+  const loadLists = useCallback(async () => {
+    if (lists !== null) return;
+    try {
+      const j = await fetch("/api/contact-lists").then((r) => r.json());
+      if (j?.success && Array.isArray(j.data?.lists)) {
+        setLists(j.data.lists.map((l: { id: string; name: string; totalCount?: number }) => ({ id: l.id, name: l.name, totalCount: l.totalCount })));
+      } else setLists([]);
+    } catch { setLists([]); }
+  }, [lists]);
+
   const load = useCallback(async () => {
     try {
       const [cfg, j] = await Promise.all([
@@ -95,16 +136,103 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  const openCampaign = useCallback(async (c: Campaign) => {
-    if (openId === c.id) { setOpenId(null); setDetail(null); return; }
-    setOpenId(c.id); setDetail(null); setDetailLoading(true);
+  // Fetch (or re-fetch) a campaign's detail. Returns the detail so callers can seed forms.
+  const fetchDetail = useCallback(async (id: string): Promise<CampaignDetail | null> => {
     try {
-      const j = await fetch(`/api/campaigns/${c.id}`).then((r) => r.json());
-      if (j?.success && j.data?.campaign) setDetail(j.data.campaign as CampaignDetail);
-    } catch { /* ignore */ } finally {
-      setDetailLoading(false);
-    }
-  }, [openId]);
+      const j = await fetch(`/api/campaigns/${id}`).then((r) => r.json());
+      if (j?.success && j.data?.campaign) {
+        const d = j.data.campaign as CampaignDetail;
+        setDetail(d);
+        return d;
+      }
+    } catch { /* ignore */ }
+    return null;
+  }, []);
+
+  const openCampaign = useCallback(async (c: Campaign) => {
+    if (openId === c.id) { setOpenId(null); setDetail(null); resetActions(); setActionNotice(null); return; }
+    setOpenId(c.id); setDetail(null); setDetailLoading(true);
+    resetActions(); setActionNotice(null);
+    await fetchDetail(c.id);
+    setDetailLoading(false);
+  }, [openId, fetchDetail, resetActions]);
+
+  // Enter edit mode — seed the form from the loaded detail and load the audience options.
+  const startEdit = useCallback(() => {
+    if (!detail) return;
+    setActionError(null); setActionNotice(null);
+    setForm({
+      name: detail.name ?? "",
+      subject: detail.subject ?? "",
+      fromName: detail.fromName ?? "",
+      replyTo: detail.replyTo ?? "",
+      contactListId: detail.contactListId ?? detail.contactList?.id ?? "",
+    });
+    void loadLists();
+    setMode("edit");
+  }, [detail, loadLists]);
+
+  // PATCH /api/campaigns/[id] — save name/subject/sender/audience for a draft.
+  const saveEdit = useCallback(async () => {
+    if (!openId) return;
+    if (!form.name.trim()) { setActionError("Campaign name is required."); return; }
+    setBusy(true); setActionError(null);
+    try {
+      const j = await fetch(`/api/campaigns/${openId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          subject: form.subject,
+          fromName: form.fromName || null,
+          replyTo: form.replyTo || null,
+          contactListId: form.contactListId || null,
+        }),
+      }).then((r) => r.json());
+      if (!j?.success) { setActionError(j?.error?.message || "Could not save changes."); setBusy(false); return; }
+      await Promise.all([fetchDetail(openId), load()]);
+      setMode(null); setBusy(false);
+      setActionNotice("Campaign updated.");
+    } catch { setActionError("Could not save changes."); setBusy(false); }
+  }, [openId, form, fetchDetail, load]);
+
+  // DELETE /api/campaigns/[id] — remove a draft/scheduled/failed/paused campaign.
+  const confirmDelete = useCallback(async () => {
+    if (!openId) return;
+    setBusy(true); setActionError(null);
+    try {
+      const j = await fetch(`/api/campaigns/${openId}`, { method: "DELETE" }).then((r) => r.json());
+      if (!j?.success) { setActionError(j?.error?.message || "Could not delete this campaign."); setBusy(false); return; }
+      const removedId = openId;
+      setCampaigns((prev) => prev.filter((c) => c.id !== removedId));
+      setOpenId(null); setDetail(null); resetActions();
+      void load();
+    } catch { setActionError("Could not delete this campaign."); setBusy(false); }
+  }, [openId, load, resetActions]);
+
+  // POST /api/campaigns/[id]/send — send now, or schedule for a future date-time.
+  const submitSend = useCallback(async (action: "send" | "schedule") => {
+    if (!openId) return;
+    if (action === "schedule" && !scheduleAt) { setActionError("Pick a date and time."); return; }
+    setBusy(true); setActionError(null);
+    try {
+      const body: Record<string, unknown> = { action };
+      if (action === "schedule") body.scheduledAt = new Date(scheduleAt).toISOString();
+      const j = await fetch(`/api/campaigns/${openId}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => r.json());
+      if (!j?.success) { setActionError(j?.error?.message || "Could not send this campaign."); setBusy(false); return; }
+      await Promise.all([fetchDetail(openId), load()]);
+      setMode(null); setBusy(false);
+      setActionNotice(
+        action === "schedule"
+          ? `Scheduled for ${whenLabel(j.data?.scheduledAt) || "the selected time"}.`
+          : (typeof j.data?.message === "string" ? j.data.message : "Campaign sent.")
+      );
+    } catch { setActionError("Could not send this campaign."); setBusy(false); }
+  }, [openId, scheduleAt, fetchDetail, load]);
 
   const newCampaignPrompt = "Help me create a new email campaign — ask me the goal and audience, then draft the subject line and email body and set it up.";
 

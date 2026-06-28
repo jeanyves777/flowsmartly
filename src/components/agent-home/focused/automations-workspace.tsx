@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType } from "react";
-import { Workflow, Sparkles, Mail, MessageSquare, Power, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { Workflow, Sparkles, Mail, MessageSquare, Power, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, Save, CheckCircle2, XCircle, MinusCircle, Globe } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -10,12 +10,18 @@ import { cn } from "@/lib/utils/cn";
  * canvas): the automated follow-up sequences that run on their own. Real data
  * (GET /api/automations) with KPIs, then each automation listed with its type +
  * channel and a real active/pause toggle (PATCH /api/automations/[id]
- * { enabled }). Toggling is do-it-in-the-UI, not a chat prompt. Building a new
- * sequence is generative, so that drives the agent. No legacy links.
+ * { enabled }). Toggling is do-it-in-the-UI, not a chat prompt.
+ *
+ * Click a row to open an in-surface DETAIL panel (GET /api/automations/[id])
+ * with full config, delivery stats and the recent activity log; edit its
+ * settings (name, subject, content, send time, days offset, timezone, audience
+ * list) via PATCH, or delete it (two-step inline confirm) via DELETE. Building a
+ * new sequence is generative, so that drives the agent. No legacy links.
  * [[surface-buttons-are-ui-actions]]
  */
 
 interface ContactListRef { id: string; name: string; totalCount: number; }
+interface ContactListOption { id: string; name: string; totalCount: number; }
 interface Automation {
   id: string;
   name: string;
@@ -23,13 +29,42 @@ interface Automation {
   enabled: boolean;
   campaignType: string;
   subject?: string | null;
+  content?: string;
   sendTime?: string;
   daysOffset?: number;
+  timezone?: string;
+  contactListId?: string | null;
   contactList?: ContactListRef | null;
   totalSent?: number;
   lastTriggered?: string | null;
 }
 interface Stats { total?: number; active?: number; totalSent?: number; }
+
+interface AutomationStats {
+  totalAttempted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  successRate: number;
+  failureRate: number;
+  skipRate: number;
+}
+interface AutomationLog {
+  id: string;
+  contactId: string | null;
+  status: string;
+  error: string | null;
+  sentAt: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+}
+interface AutomationDetail extends Automation {
+  content: string;
+  stats: AutomationStats;
+  logs: AutomationLog[];
+  totalLogs: number;
+}
 
 // Per-type display — icon + a friendly label (DB stores UPPER_SNAKE).
 const TYPE_META: Record<string, { label: string; icon: ElementType }> = {
@@ -47,9 +82,39 @@ const TYPE_META: Record<string, { label: string; icon: ElementType }> = {
 };
 const typeMeta = (t: string) => TYPE_META[t] ?? { label: t.replace(/_/g, " ").toLowerCase(), icon: Workflow };
 
+// Common timezones — a compact, sensible set for the editor select.
+const TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Africa/Abidjan",
+  "Africa/Lagos",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
+
 function whenLabel(iso?: string | null): string {
   if (!iso) return "Not run yet";
   try { return `Last run ${new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`; } catch { return ""; }
+}
+
+function logWhen(iso: string): string {
+  try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
+}
+
+function offsetLabel(n?: number): string {
+  if (typeof n !== "number" || n === 0) return "on the day";
+  if (n < 0) return `${Math.abs(n)} day${Math.abs(n) === 1 ? "" : "s"} before`;
+  return `${n} day${n === 1 ? "" : "s"} after`;
 }
 
 const CREATE_PROMPT = "Set up a new automated follow-up sequence for me — ask me what the trigger should be (welcome, birthday, abandoned cart, re-engagement…), what channel (email or SMS), and draft the message.";
@@ -60,6 +125,7 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +176,8 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
     }
   };
 
+  const openAutomation = automations.find((a) => a.id === openId) || null;
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your follow-ups…" /></div>;
   }
@@ -158,9 +226,14 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
                     <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", a.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}>
                       <m.icon className="h-[18px] w-[18px]" />
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(a.id)}
+                      className="group min-w-0 flex-1 text-left"
+                      aria-label={`Open ${a.name}`}
+                    >
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-[13px] font-semibold">{a.name}</p>
+                        <p className="truncate text-[13px] font-semibold group-hover:text-brand-500">{a.name}</p>
                         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
                       </div>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
@@ -168,7 +241,7 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
                         <span>· {whenLabel(a.lastTriggered)}</span>
                         {typeof reach === "number" ? <span>· {reach.toLocaleString()} contacts</span> : a.contactList?.name ? <span>· {a.contactList.name}</span> : null}
                       </p>
-                    </div>
+                    </button>
                     <button
                       onClick={() => toggle(a)}
                       disabled={busyId === a.id}
@@ -179,6 +252,14 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
                     >
                       {busyId === a.id ? <FlowLoader size={13} /> : a.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                       {a.enabled ? "Pause" : "Activate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOpenId(a.id)}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label="View details"
+                    >
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -201,6 +282,15 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
           )}
         </section>
       </div>
+
+      {openAutomation && (
+        <AutomationDetailDrawer
+          summary={openAutomation}
+          onClose={() => setOpenId(null)}
+          onChanged={load}
+          onDeleted={() => { setOpenId(null); load(); }}
+        />
+      )}
     </div>
   );
 }
@@ -211,5 +301,517 @@ function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; v
       <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
       <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detail drawer — full config, stats, recent activity log, plus inline edit
+// (PATCH) and a two-step delete (DELETE). Opened from a row click.
+// ---------------------------------------------------------------------------
+
+interface EditState {
+  name: string;
+  subject: string;
+  content: string;
+  sendTime: string;
+  daysOffset: string;
+  timezone: string;
+  contactListId: string;
+}
+
+const LOG_PAGE = 25;
+
+function AutomationDetailDrawer({
+  summary,
+  onClose,
+  onChanged,
+  onDeleted,
+}: {
+  summary: Automation;
+  onClose: () => void;
+  onChanged: () => Promise<void> | void;
+  onDeleted: () => void;
+}) {
+  const [detail, setDetail] = useState<AutomationDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [lists, setLists] = useState<ContactListOption[]>([]);
+  const [form, setForm] = useState<EditState | null>(null);
+  const [logLimit, setLogLimit] = useState(LOG_PAGE);
+
+  const m = typeMeta(summary.type);
+  const isEmail = (summary.campaignType || "EMAIL").toUpperCase() === "EMAIL";
+
+  const loadDetail = useCallback(async () => {
+    try {
+      const j = await fetch(`/api/automations/${summary.id}?logLimit=${logLimit}`).then((r) => r.json());
+      if (j?.success && j.data?.automation) {
+        setDetail(j.data.automation as AutomationDetail);
+        setError("");
+      } else {
+        setError(j?.error?.message || "Could not load this follow-up.");
+      }
+    } catch {
+      setError("Could not load this follow-up.");
+    }
+  }, [summary.id, logLimit]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    loadDetail().finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [loadDetail]);
+
+  // Pull contact lists once for the audience selector (only when editing opens).
+  useEffect(() => {
+    if (!editing) return;
+    let alive = true;
+    fetch("/api/contact-lists")
+      .then((r) => r.json())
+      .then((j) => {
+        if (alive && j?.success && Array.isArray(j.data?.lists)) {
+          setLists(j.data.lists as ContactListOption[]);
+        }
+      })
+      .catch(() => { /* selector still works with the current value */ });
+    return () => { alive = false; };
+  }, [editing]);
+
+  const beginEdit = () => {
+    const d = detail;
+    setForm({
+      name: d?.name ?? summary.name ?? "",
+      subject: d?.subject ?? summary.subject ?? "",
+      content: d?.content ?? "",
+      sendTime: d?.sendTime ?? summary.sendTime ?? "09:00",
+      daysOffset: String(d?.daysOffset ?? summary.daysOffset ?? 0),
+      timezone: d?.timezone ?? summary.timezone ?? "UTC",
+      contactListId: d?.contactListId ?? summary.contactListId ?? "",
+    });
+    setSaveError("");
+    setEditing(true);
+  };
+
+  const setField = <K extends keyof EditState>(key: K, value: EditState[K]) =>
+    setForm((f) => (f ? { ...f, [key]: value } : f));
+
+  const save = async () => {
+    if (!form) return;
+    if (!form.name.trim()) { setSaveError("Give the sequence a name."); return; }
+    if (!form.content.trim()) { setSaveError("The message content can't be empty."); return; }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.sendTime)) { setSaveError("Send time must be HH:mm (e.g. 09:00)."); return; }
+    const offsetNum = Number.parseInt(form.daysOffset, 10);
+    if (!Number.isFinite(offsetNum)) { setSaveError("Days offset must be a number."); return; }
+
+    setSaving(true);
+    setSaveError("");
+    try {
+      const r = await fetch(`/api/automations/${summary.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          subject: isEmail ? (form.subject || null) : undefined,
+          content: form.content,
+          sendTime: form.sendTime,
+          daysOffset: Math.max(-30, Math.min(30, offsetNum)),
+          timezone: form.timezone || "UTC",
+          contactListId: form.contactListId ? form.contactListId : null,
+        }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.success === false) {
+        setSaveError(j?.error?.message || "Could not save your changes.");
+      } else {
+        setEditing(false);
+        await loadDetail();
+        await onChanged();
+      }
+    } catch {
+      setSaveError("Could not save your changes.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const doDelete = async () => {
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/automations/${summary.id}`, { method: "DELETE" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.success === false) {
+        setSaveError(j?.error?.message || "Could not delete this follow-up.");
+        setConfirmDelete(false);
+        setDeleting(false);
+        return;
+      }
+      onDeleted();
+    } catch {
+      setSaveError("Could not delete this follow-up.");
+      setConfirmDelete(false);
+      setDeleting(false);
+    }
+  };
+
+  const audienceLabel = detail?.contactList?.name ?? summary.contactList?.name ?? "All eligible contacts";
+  const audienceReach = detail?.contactList?.totalCount ?? summary.contactList?.totalCount;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+      />
+      <div className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start gap-3 border-b border-border px-4 py-3.5 sm:px-5">
+          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", summary.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}>
+            <m.icon className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-[14px] font-bold">{detail?.name ?? summary.name}</p>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", summary.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{summary.enabled ? "Active" : "Paused"}</span>
+            </div>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
+              <span>· {isEmail ? "Email" : "SMS"}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          {loading ? (
+            <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading details…" /></div>
+          ) : error ? (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
+          ) : editing && form ? (
+            <EditForm
+              form={form}
+              isEmail={isEmail}
+              lists={lists}
+              currentListName={audienceLabel}
+              currentListId={(detail?.contactListId ?? summary.contactListId) || ""}
+              saving={saving}
+              saveError={saveError}
+              onField={setField}
+              onCancel={() => { setEditing(false); setSaveError(""); }}
+              onSave={save}
+            />
+          ) : detail ? (
+            <div className="space-y-4">
+              {saveError && (
+                <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>
+              )}
+
+              {/* Delivery stats */}
+              <div>
+                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Delivery</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <StatTile icon={CheckCircle2} tone="emerald" label="Sent" value={detail.stats.sent} rate={detail.stats.successRate} />
+                  <StatTile icon={XCircle} tone="rose" label="Failed" value={detail.stats.failed} rate={detail.stats.failureRate} />
+                  <StatTile icon={MinusCircle} tone="amber" label="Skipped" value={detail.stats.skipped} rate={detail.stats.skipRate} />
+                </div>
+              </div>
+
+              {/* Config */}
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Settings</h4>
+                <dl className="space-y-1.5 text-[12px]">
+                  {isEmail && (
+                    <Row label="Subject"><span className="text-foreground">{detail.subject || <span className="text-muted-foreground">—</span>}</span></Row>
+                  )}
+                  <Row label="Timing"><span className="inline-flex items-center gap-1 text-foreground"><Clock className="h-3 w-3 text-muted-foreground" />{detail.sendTime} · {offsetLabel(detail.daysOffset)}</span></Row>
+                  <Row label="Timezone"><span className="inline-flex items-center gap-1 text-foreground"><Globe className="h-3 w-3 text-muted-foreground" />{detail.timezone || "UTC"}</span></Row>
+                  <Row label="Audience"><span className="inline-flex items-center gap-1 text-foreground"><Users className="h-3 w-3 text-muted-foreground" />{audienceLabel}{typeof audienceReach === "number" ? ` (${audienceReach.toLocaleString()})` : ""}</span></Row>
+                  <Row label="Last run"><span className="text-foreground">{whenLabel(detail.lastTriggered).replace(/^Last run /, "") === "Not run yet" ? "Not run yet" : new Date(detail.lastTriggered as string).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></Row>
+                </dl>
+                {detail.content && (
+                  <div className="mt-2.5 border-t border-border pt-2.5">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Message</p>
+                    <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/90">{detail.content}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent activity */}
+              <div>
+                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Recent activity</h4>
+                {detail.logs.length ? (
+                  <div className="space-y-1.5">
+                    {detail.logs.map((log) => (
+                      <div key={log.id} className="flex items-start gap-2 rounded-[10px] border border-border bg-muted/20 px-2.5 py-2">
+                        <LogBadge status={log.status} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12px] font-medium">{log.contactName || log.contactEmail || log.contactPhone || "Contact"}</p>
+                          {log.error ? (
+                            <p className="truncate text-[11px] text-rose-500">{log.error}</p>
+                          ) : log.contactEmail || log.contactPhone ? (
+                            <p className="truncate text-[11px] text-muted-foreground">{log.contactEmail || log.contactPhone}</p>
+                          ) : null}
+                        </div>
+                        <span className="shrink-0 text-[10.5px] text-muted-foreground">{logWhen(log.sentAt)}</span>
+                      </div>
+                    ))}
+                    {detail.totalLogs > detail.logs.length && (
+                      <button
+                        type="button"
+                        onClick={() => setLogLimit((n) => n + LOG_PAGE)}
+                        className="mt-1 w-full rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground"
+                      >
+                        Load more ({(detail.totalLogs - detail.logs.length).toLocaleString()} left)
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="rounded-[10px] border border-dashed border-border px-3 py-4 text-center text-[12px] text-muted-foreground">No deliveries logged yet.</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Footer actions */}
+        {!loading && !error && !editing && (
+          <div className="flex items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
+            {confirmDelete ? (
+              <>
+                <button
+                  type="button"
+                  onClick={doDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-rose-600 disabled:opacity-60"
+                >
+                  {deleting ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Confirm delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={beginEdit}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 px-3 py-2 text-[12px] font-semibold text-rose-500 transition hover:bg-rose-500/5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right">{children}</dd>
+    </div>
+  );
+}
+
+function StatTile({ icon: Icon, tone, label, value, rate }: { icon: ElementType; tone: "emerald" | "rose" | "amber"; label: string; value: number; rate: number }) {
+  const toneCls = tone === "emerald" ? "text-emerald-500" : tone === "rose" ? "text-rose-500" : "text-amber-500";
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 p-2.5 text-center">
+      <Icon className={cn("mx-auto h-4 w-4", toneCls)} />
+      <p className="mt-1 text-[18px] font-extrabold leading-none">{value.toLocaleString()}</p>
+      <p className="mt-1 text-[10.5px] text-muted-foreground">{label} · {rate}%</p>
+    </div>
+  );
+}
+
+function LogBadge({ status }: { status: string }) {
+  const s = status.toUpperCase();
+  if (s === "SENT") return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-emerald-500/10 text-emerald-500"><CheckCircle2 className="h-3 w-3" /></span>;
+  if (s === "FAILED") return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-rose-500/10 text-rose-500"><XCircle className="h-3 w-3" /></span>;
+  return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-amber-500/10 text-amber-500"><MinusCircle className="h-3 w-3" /></span>;
+}
+
+function EditForm({
+  form,
+  isEmail,
+  lists,
+  currentListName,
+  currentListId,
+  saving,
+  saveError,
+  onField,
+  onCancel,
+  onSave,
+}: {
+  form: EditState;
+  isEmail: boolean;
+  lists: ContactListOption[];
+  currentListName: string;
+  currentListId: string;
+  saving: boolean;
+  saveError: string;
+  onField: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  // If the automation's current list isn't in the fetched options yet (still
+  // loading, or scoped differently), keep it selectable so we don't lose it.
+  const listOptions = useMemo(() => {
+    const opts = [...lists];
+    if (currentListId && !opts.some((l) => l.id === currentListId)) {
+      opts.unshift({ id: currentListId, name: currentListName, totalCount: 0 });
+    }
+    return opts;
+  }, [lists, currentListId, currentListName]);
+
+  return (
+    <div className="space-y-3.5">
+      {saveError && (
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>
+      )}
+
+      <Field label="Name">
+        <input
+          value={form.name}
+          onChange={(e) => onField("name", e.target.value)}
+          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+          placeholder="Welcome series"
+        />
+      </Field>
+
+      {isEmail && (
+        <Field label="Subject">
+          <input
+            value={form.subject}
+            onChange={(e) => onField("subject", e.target.value)}
+            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+            placeholder="Welcome to the family 👋"
+          />
+        </Field>
+      )}
+
+      <Field label={isEmail ? "Message body" : "Message"}>
+        <textarea
+          value={form.content}
+          onChange={(e) => onField("content", e.target.value)}
+          rows={5}
+          className="w-full resize-y rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60"
+          placeholder="Write the message that goes out…"
+        />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Send time">
+          <input
+            type="time"
+            value={form.sendTime}
+            onChange={(e) => onField("sendTime", e.target.value)}
+            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+          />
+        </Field>
+        <Field label="Days offset" hint="− before, + after">
+          <input
+            type="number"
+            min={-30}
+            max={30}
+            value={form.daysOffset}
+            onChange={(e) => onField("daysOffset", e.target.value)}
+            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+          />
+        </Field>
+      </div>
+
+      <Field label="Timezone">
+        <select
+          value={TIMEZONES.includes(form.timezone) ? form.timezone : "__current"}
+          onChange={(e) => onField("timezone", e.target.value === "__current" ? form.timezone : e.target.value)}
+          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+        >
+          {!TIMEZONES.includes(form.timezone) && form.timezone && (
+            <option value="__current">{form.timezone}</option>
+          )}
+          {TIMEZONES.map((tz) => (
+            <option key={tz} value={tz}>{tz}</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Audience list">
+        <select
+          value={form.contactListId}
+          onChange={(e) => onField("contactListId", e.target.value)}
+          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
+        >
+          <option value="">All eligible contacts</option>
+          {listOptions.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}{l.totalCount ? ` (${l.totalCount.toLocaleString()})` : ""}</option>
+          ))}
+        </select>
+      </Field>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60"
+        >
+          {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-4 w-4" />}
+          Save changes
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="rounded-[10px] border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 flex items-center justify-between text-[11.5px] font-semibold text-muted-foreground">
+        <span>{label}</span>
+        {hint && <span className="font-normal">{hint}</span>}
+      </span>
+      {children}
+    </label>
   );
 }

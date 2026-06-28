@@ -15,6 +15,11 @@ import {
   ChevronDown,
   Presentation,
   Trophy,
+  Trash2,
+  Download,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -24,9 +29,12 @@ import { cn } from "@/lib/utils/cn";
  * user's sales proposals & outreach pitches with status + target, plus KPIs.
  * Real data (GET /api/pitch → j.data.pitches + j.data.stats). Opening a pitch
  * expands its detail INLINE here (GET /api/pitch/[id]) — a click does-it-in-the-UI,
- * never a legacy route. Creating a NEW proposal is a heavy generative build, so
- * that one button drives the agent via onAsk. No legacy links.
- * [[surface-buttons-are-ui-actions]]
+ * never a legacy route. From the inline detail the user can edit the copy
+ * (PATCH /api/pitch/[id], mirroring the leads-workspace editor), email it
+ * (POST /api/pitch/[id]/send), download the PDF (POST {pdfOnly:true}), and
+ * delete it (DELETE /api/pitch/[id], inline confirm). Creating a NEW proposal is
+ * a heavy generative build, so that one button drives the agent via onAsk.
+ * No legacy links. [[surface-buttons-are-ui-actions]]
  */
 
 type PitchStatus = "PENDING" | "RESEARCHING" | "READY" | "SENT" | "FAILED";
@@ -61,7 +69,7 @@ interface PitchDetail {
   status?: string;
   recipientEmail?: string | null;
   recipientName?: string | null;
-  pitchContent?: {
+  pitchContent?: Record<string, unknown> & {
     title?: string;
     subtitle?: string;
     executiveSummary?: string;
@@ -82,6 +90,28 @@ function whenLabel(iso?: string | null): string {
   if (!iso) return "";
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return ""; }
 }
+
+// The human-editable copy on a pitch (PitchContent) and proposal
+// (ServiceProposalContent) — only the fields actually present on a given
+// document render. `kind: "list"` fields are string[] edited one-per-line.
+// Everything else in the content object (design, arrays of objects, brand
+// snapshot…) is preserved untouched on save.
+const EDIT_FIELDS: { key: string; label: string; kind: "short" | "long" | "list" }[] = [
+  { key: "subject", label: "Subject", kind: "short" },
+  { key: "title", label: "Title", kind: "short" },
+  { key: "subtitle", label: "Subtitle", kind: "short" },
+  { key: "headline", label: "Headline", kind: "long" },
+  { key: "personalizedHook", label: "Opening hook", kind: "long" },
+  { key: "executiveSummary", label: "Executive summary", kind: "long" },
+  { key: "clientNeed", label: "Client need", kind: "long" },
+  { key: "aboutBrand", label: "About us", kind: "long" },
+  { key: "opportunityParagraph", label: "The opportunity", kind: "long" },
+  { key: "keyFindings", label: "Key findings (one per line)", kind: "list" },
+  { key: "solutionBullets", label: "Solution bullets (one per line)", kind: "list" },
+  { key: "impactParagraph", label: "Impact", kind: "long" },
+  { key: "ctaText", label: "Call to action", kind: "short" },
+  { key: "closingLine", label: "Closing line", kind: "long" },
+];
 
 const NEW_PROPOSAL_PROMPT =
   "Help me draft a proposal for a client — ask me who the client is, what service I'm pitching, the goals, and the price, then generate it.";
@@ -113,16 +143,34 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  const open = useCallback(async (p: Pitch) => {
-    if (openId === p.id) { setOpenId(null); setDetail(null); return; }
-    setOpenId(p.id); setDetail(null); setDetailLoading(true);
+  const loadDetail = useCallback(async (id: string) => {
+    setDetailLoading(true);
     try {
-      const j = await fetch(`/api/pitch/${p.id}`).then((r) => r.json());
+      const j = await fetch(`/api/pitch/${id}`).then((r) => r.json());
       if (j?.success && j.data?.pitch) setDetail(j.data.pitch as PitchDetail);
     } catch { /* ignore */ } finally {
       setDetailLoading(false);
     }
-  }, [openId]);
+  }, []);
+
+  const open = useCallback(async (p: Pitch) => {
+    if (openId === p.id) { setOpenId(null); setDetail(null); return; }
+    setOpenId(p.id); setDetail(null);
+    await loadDetail(p.id);
+  }, [openId, loadDetail]);
+
+  // After an edit, refresh both the list (status/recipient may change) and the
+  // open detail so the inline view reflects the saved document immediately.
+  const onChanged = useCallback(async (id: string) => {
+    await Promise.all([load(), openId === id ? loadDetail(id) : Promise.resolve()]);
+  }, [load, loadDetail, openId]);
+
+  // After a delete, collapse the row and drop it from the list locally.
+  const onDeleted = useCallback((id: string) => {
+    setPitches((ps) => ps.filter((x) => x.id !== id));
+    if (openId === id) { setOpenId(null); setDetail(null); }
+    load();
+  }, [load, openId]);
 
   const startNew = () => onAsk?.(NEW_PROPOSAL_PROMPT);
 
@@ -207,7 +255,12 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                         {detailLoading ? (
                           <div className="py-3"><FlowLoader size={18} label="Opening pitch…" /></div>
                         ) : (
-                          <PitchDetailView pitch={p} detail={detail} />
+                          <PitchDetailView
+                            pitch={p}
+                            detail={detail}
+                            onChanged={() => onChanged(p.id)}
+                            onDeleted={() => onDeleted(p.id)}
+                          />
                         )}
                       </div>
                     )}
@@ -233,19 +286,153 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   );
 }
 
-function PitchDetailView({ pitch, detail }: { pitch: Pitch; detail: PitchDetail | null }) {
+function PitchDetailView({
+  pitch,
+  detail,
+  onChanged,
+  onDeleted,
+}: {
+  pitch: Pitch;
+  detail: PitchDetail | null;
+  onChanged: () => void;
+  onDeleted: () => void;
+}) {
   const content = detail?.pitchContent;
-  const title = content?.title?.trim();
-  const subtitle = content?.subtitle?.trim();
-  const summary = content?.executiveSummary?.trim();
+  const asStr = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const title = asStr(content?.title) || asStr(content?.headline);
+  const subtitle = asStr(content?.subtitle);
+  const summary = asStr(content?.executiveSummary) || asStr(content?.personalizedHook);
   const recipient = detail?.recipientName || pitch.recipientName;
   const email = detail?.recipientEmail || pitch.recipientEmail;
   const status = (detail?.status || pitch.status || "").toUpperCase();
   const failed = status === "FAILED";
   const inProgress = status === "PENDING" || status === "RESEARCHING";
+  const sendable = status === "READY" || status === "SENT";
+
+  // Which panel is open in the detail: send / edit / delete-confirm.
+  const [panel, setPanel] = useState<"none" | "send" | "edit">("none");
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [busy, setBusy] = useState<null | "send" | "pdf" | "save" | "delete">(null);
+  const [note, setNote] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  // Send form
+  const [toEmail, setToEmail] = useState(email || "");
+  const [toName, setToName] = useState(recipient || "");
+  const [msg, setMsg] = useState("");
+
+  // Edit form — mirrors the leads-workspace in-place editor (EDIT_FIELDS).
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
+  const [editRaw, setEditRaw] = useState<Record<string, unknown>>({});
+  const [editName, setEditName] = useState(recipient || "");
+  const [editEmail, setEditEmail] = useState(email || "");
+
+  const closePanels = () => { setPanel("none"); setConfirmDel(false); };
+
+  const openSend = () => {
+    setNote(null); setConfirmDel(false);
+    setToEmail(email || ""); setToName(recipient || ""); setMsg("");
+    setPanel((p) => (p === "send" ? "none" : "send"));
+  };
+
+  const openEdit = () => {
+    setNote(null); setConfirmDel(false);
+    if (panel === "edit") { setPanel("none"); return; }
+    const raw = (content && typeof content === "object" && !Array.isArray(content)) ? (content as Record<string, unknown>) : {};
+    setEditRaw(raw);
+    setEditName(recipient || ""); setEditEmail(email || "");
+    const fields: Record<string, string> = {};
+    for (const f of EDIT_FIELDS) {
+      const v = raw[f.key];
+      if (f.kind === "list") {
+        if (Array.isArray(v)) fields[f.key] = v.filter((x) => typeof x === "string").join("\n");
+      } else if (typeof v === "string") {
+        fields[f.key] = v;
+      }
+    }
+    setEditFields(fields);
+    setPanel("edit");
+  };
+
+  const send = async () => {
+    if (!toEmail.trim() || busy) return;
+    setBusy("send"); setNote(null);
+    try {
+      const j = await fetch(`/api/pitch/${pitch.id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientEmail: toEmail.trim(), recipientName: toName.trim() || undefined, message: msg.trim() || undefined }),
+      }).then((r) => r.json());
+      if (j?.success) { setNote({ kind: "ok", text: `Sent to ${j.data?.sentTo || toEmail.trim()}.` }); setPanel("none"); onChanged(); }
+      else setNote({ kind: "err", text: j?.error?.message || "Could not send." });
+    } catch { setNote({ kind: "err", text: "Could not send." }); } finally { setBusy(null); }
+  };
+
+  const downloadPdf = async () => {
+    if (busy) return;
+    setBusy("pdf"); setNote(null);
+    try {
+      const res = await fetch(`/api/pitch/${pitch.id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfOnly: true }),
+      });
+      if (!res.ok) {
+        let m = "Could not generate the PDF.";
+        try { const j = await res.json(); m = j?.error?.message || m; } catch { /* binary or empty */ }
+        setNote({ kind: "err", text: m });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(pitch.businessName || "proposal").replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { setNote({ kind: "err", text: "Could not download the PDF." }); } finally { setBusy(null); }
+  };
+
+  const saveEdit = async () => {
+    if (busy) return;
+    setBusy("save"); setNote(null);
+    try {
+      // Re-serialize list fields back to string[]; preserve everything else.
+      const merged: Record<string, unknown> = { ...editRaw };
+      for (const f of EDIT_FIELDS) {
+        if (!(f.key in editFields)) continue;
+        if (f.kind === "list") {
+          merged[f.key] = editFields[f.key].split("\n").map((s) => s.trim()).filter(Boolean);
+        } else {
+          merged[f.key] = editFields[f.key];
+        }
+      }
+      const j = await fetch(`/api/pitch/${pitch.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientName: editName.trim() || null, recipientEmail: editEmail.trim() || null, pitchContent: merged }),
+      }).then((r) => r.json());
+      if (j?.success) { setNote({ kind: "ok", text: "Changes saved." }); setPanel("none"); onChanged(); }
+      else setNote({ kind: "err", text: j?.error?.message || "Could not save." });
+    } catch { setNote({ kind: "err", text: "Could not save." }); } finally { setBusy(null); }
+  };
+
+  const del = async () => {
+    if (busy) return;
+    setBusy("delete"); setNote(null);
+    try {
+      const j = await fetch(`/api/pitch/${pitch.id}`, { method: "DELETE" }).then((r) => r.json());
+      if (j?.success) { onDeleted(); return; }
+      setNote({ kind: "err", text: j?.error?.message || "Could not delete." });
+      setConfirmDel(false);
+    } catch { setNote({ kind: "err", text: "Could not delete." }); setConfirmDel(false); } finally { setBusy(null); }
+  };
+
+  const editableFields = EDIT_FIELDS.filter((f) => f.key in editFields);
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {title && <p className="text-[13.5px] font-bold leading-snug">{title}</p>}
       {subtitle && <p className="text-[12px] text-muted-foreground">{subtitle}</p>}
 
@@ -256,10 +443,10 @@ function PitchDetailView({ pitch, detail }: { pitch: Pitch; detail: PitchDetail 
       ) : summary ? (
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">{summary}</p>
       ) : !title ? (
-        <p className="text-[12.5px] text-muted-foreground">This pitch is ready. Ask the agent in the chat to refine, send, or export it.</p>
+        <p className="text-[12.5px] text-muted-foreground">This pitch is ready. Use the actions below to edit, email, or export it.</p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 text-[11.5px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><Target className="h-3.5 w-3.5" /> {pitch.businessName || "Target"}</span>
         {(recipient || email) && <span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {recipient || email}</span>}
         {pitch.businessUrl && (
@@ -273,6 +460,96 @@ function PitchDetailView({ pitch, detail }: { pitch: Pitch; detail: PitchDetail 
           </a>
         )}
       </div>
+
+      {/* actions — only once the document is built (READY/SENT). Edit/Delete are
+          always available so a failed/in-progress doc can still be removed. */}
+      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+        {sendable && (
+          <button onClick={openSend} className={cn("inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm", panel === "send" && "opacity-90 ring-2 ring-brand-500/30")}>
+            <Send className="h-3.5 w-3.5" /> {status === "SENT" ? "Send again" : "Send"}
+          </button>
+        )}
+        {sendable && (
+          <button onClick={downloadPdf} disabled={busy === "pdf"} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+            {busy === "pdf" ? <FlowLoader size={14} /> : <Download className="h-3.5 w-3.5" />} PDF
+          </button>
+        )}
+        <button onClick={openEdit} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground", panel === "edit" && "border-brand-500/60 text-foreground")}>
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </button>
+        {confirmDel ? (
+          <span className="inline-flex items-center gap-1.5">
+            <button onClick={del} disabled={busy === "delete"} className="inline-flex items-center gap-1.5 rounded-[9px] bg-rose-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
+              {busy === "delete" ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Confirm delete
+            </button>
+            <button onClick={() => setConfirmDel(false)} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+          </span>
+        ) : (
+          <button onClick={() => { closePanels(); setConfirmDel(true); }} className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-rose-500/50 hover:text-rose-500">
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+        )}
+      </div>
+
+      {note && (
+        <p className={cn("rounded-lg px-2.5 py-2 text-[12px]", note.kind === "ok" ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/5 text-rose-500")}>{note.text}</p>
+      )}
+
+      {/* send form */}
+      {panel === "send" && sendable && (
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Recipient email</label>
+              <input value={toEmail} onChange={(e) => setToEmail(e.target.value)} type="email" placeholder="recipient@email.com" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Recipient name</label>
+              <input value={toName} onChange={(e) => setToName(e.target.value)} placeholder="Optional" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Personal message (optional)</label>
+            <textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="A short note to include at the top of the email" className="w-full resize-none rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5">
+            <button onClick={send} disabled={busy === "send" || !toEmail.trim()} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
+              {busy === "send" ? <FlowLoader size={14} tone="white" /> : <Send className="h-3.5 w-3.5" />} Send now
+            </button>
+            <button onClick={() => setPanel("none")} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+          </div>
+          <p className="mt-1.5 text-[10.5px] text-muted-foreground">The branded PDF is attached automatically. Sending marks this {pitch.documentType === "service_proposal" ? "proposal" : "pitch"} as Sent.</p>
+        </div>
+      )}
+
+      {/* edit form — in-place copy editor, mirroring leads-workspace */}
+      {panel === "edit" && (
+        <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Recipient name" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+            <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="recipient@email.com" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+          </div>
+          {editableFields.length ? editableFields.map((f) => (
+            <div key={f.key} className="mt-2">
+              <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{f.label}</label>
+              {f.kind === "short" ? (
+                <input value={editFields[f.key]} onChange={(e) => setEditFields((p) => ({ ...p, [f.key]: e.target.value }))} className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+              ) : (
+                <textarea rows={f.kind === "list" ? 3 : 2} value={editFields[f.key]} onChange={(e) => setEditFields((p) => ({ ...p, [f.key]: e.target.value }))} className="w-full resize-none rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+              )}
+            </div>
+          )) : (
+            <p className="mt-2 text-[11.5px] text-muted-foreground">This document has no editable text fields yet — it may still be generating.</p>
+          )}
+          <div className="mt-2.5 flex items-center gap-1.5">
+            <button onClick={saveEdit} disabled={busy === "save"} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
+              {busy === "save" ? <FlowLoader size={14} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save changes
+            </button>
+            <button onClick={() => setPanel("none")} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+          </div>
+          <p className="mt-1.5 text-[10.5px] text-muted-foreground">Saved changes update the document — then send it to deliver the refreshed version.</p>
+        </div>
+      )}
     </div>
   );
 }
