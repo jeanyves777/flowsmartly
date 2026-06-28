@@ -46,8 +46,7 @@ export const WORKSPACES: Workspace[] = [
     items: [
       { label: "Design studio", route: "/studio", viewKey: "create", desc: "Create graphics, posts & ads with AI" },
       { label: "Logo generator", route: "/logo-generator", viewKey: "logo", desc: "Generate a logo for your brand" },
-      { label: "Video studio", route: "/video-studio", viewKey: "video", desc: "Make ads, promos & reels" },
-      { label: "Cartoon maker", route: "/cartoon-maker", viewKey: "cartoon", desc: "Turn ideas into cartoons & animations" },
+      { label: "Video studio", route: "/video-studio", viewKey: "video", desc: "Make ads, promos, reels & animations" },
       { label: "Media library", route: "/media", viewKey: "media", desc: "All your images & videos in one place" },
     ],
   },

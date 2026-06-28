@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, Smile, LayoutTemplate, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -44,7 +44,6 @@ import { FocusedReferrals } from "./focused/referrals-workspace";
 import { FocusedMedia } from "./focused/media-workspace";
 import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
-import { FocusedCartoon } from "./focused/cartoon-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
 import { FocusedStoryAd } from "./focused/storyad-workspace";
@@ -67,7 +66,7 @@ const SUG_ICON: Record<string, LucideIcon> = {
 const FALLBACK_ICONS: LucideIcon[] = [Palette, CalendarDays, Video, ShoppingBag];
 
 const WS_DESC: Record<string, string> = {
-  create: "Design studio, logos, video studio, cartoon maker, media library.",
+  create: "Design studio, logos, video studio, media library.",
   publish: "Social accounts, posts, content calendar and scheduling.",
   grow: "Content automation & strategy, email, SMS, WhatsApp, ad builder, story-ad campaigns.",
   sell: "Store builder, products, orders, customers, delivery, pricing, storefronts.",
@@ -103,7 +102,6 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
-  cartoon: "Ask the agent to make a cartoon or animated creation.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
   adbuilder: "Ask the agent to build & launch an ad — e.g. “run an ad for my new product, $10/day, target Austin”.",
   storyad: "Ask the agent to make a Story-Ad movie — a cinematic AI video ad for a product or offer.",
@@ -138,7 +136,6 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
-  cartoon: { label: "Cartoon maker", subtitle: "Your cartoon & animated creations", icon: Smile },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -199,8 +196,6 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Logo studio** (their generated logos + brand logo). Generating a logo is a generative task — use the logo tool when they ask.`;
     case "video":
       return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
-    case "cartoon":
-      return `The user is on the **Cartoon maker** (cartoon/animated creations). Help them make a cartoon/animated piece.`;
     case "delivery":
       return `The user is on the **Delivery** surface (order delivery + drivers). Help them with delivery status, assignments, and fulfillment.`;
     case "adbuilder":
@@ -226,7 +221,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "cartoon", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 export function AgentHome() {
   const router = useRouter();
@@ -681,8 +676,6 @@ export function AgentHome() {
                   <FocusedLogo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "video" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
-                ) : focused === "cartoon" ? (
-                  <FocusedCartoon onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "adbuilder" ? (
