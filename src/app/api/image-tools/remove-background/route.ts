@@ -116,9 +116,21 @@ export async function POST(request: NextRequest) {
     // Process background removal
     const result = await removeBackground(inputPath, { model });
 
-    // Upload to S3
+    // Upload to S3 — but if storage isn't configured/reachable (local dev), fall
+    // back to serving the PNG straight from /public so the feature still works.
     const s3Key = `bg-removed/${path.basename(result.outputPath)}`;
-    const s3Url = await uploadLocalFileToS3(result.outputPath, s3Key);
+    let imageUrl: string;
+    let storedLocally = false;
+    try {
+      imageUrl = await uploadLocalFileToS3(result.outputPath, s3Key);
+    } catch (e) {
+      console.warn(
+        "[bg-remove] S3 upload failed; serving local file:",
+        e instanceof Error ? e.message : e
+      );
+      imageUrl = result.outputUrl; // /uploads/bg-removed/<uuid>.png, served from /public
+      storedLocally = true;
+    }
 
     // Get file size for media library
     const fileStat = await stat(result.outputPath);
@@ -129,7 +141,7 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         filename: path.basename(result.outputPath),
         originalName: `bg-removed-${Date.now()}.png`,
-        url: s3Url,
+        url: imageUrl,
         type: "image",
         mimeType: "image/png",
         size: fileStat.size,
@@ -152,13 +164,14 @@ export async function POST(request: NextRequest) {
     if (tempInputPath) {
       await unlink(tempInputPath).catch(() => {});
     }
-    // Clean up local output (already uploaded to S3)
-    await unlink(result.outputPath).catch(() => {});
+    // Clean up the local output only if it went to S3; keep it when we're
+    // serving it from /public.
+    if (!storedLocally) await unlink(result.outputPath).catch(() => {});
 
     return NextResponse.json({
       success: true,
       data: {
-        imageUrl: s3Url,
+        imageUrl,
         creditsUsed: cost,
         creditsRemaining:
           deductResult.transaction?.balanceAfter ?? null,
