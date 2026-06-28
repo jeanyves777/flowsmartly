@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils/cn";
  */
 export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
 export interface Pos { x: number; y: number } // fraction 0..1 of the poster
-export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right" }
+export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right"; bg?: string }
 export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
 export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string }
 
@@ -184,15 +184,19 @@ function CanvasText({ value, style, defaultSize, defaultColor, selected, onSelec
   useEffect(() => { const el = txtRef.current; if (el && !editing && el.innerText !== value) el.innerText = value; }, [value, editing]);
   const startEdit = () => { setEditing(true); requestAnimationFrame(() => { const el = txtRef.current; if (!el) return; el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }); };
   const sz = style.size ?? defaultSize;
-  // Box hugs its content (`max-content`) so text stays well-fitted as the size
-  // changes — capped by `maxW` so a long line wraps instead of overflowing.
-  const css: CSSProperties = { fontSize: sz, fontWeight: style.bold ? 800 : undefined, color: style.color ?? defaultColor, textAlign: style.align ?? "left", width: "max-content", maxWidth: maxW, background: bg };
+  // The WRAPPER owns the sizing: `width: max-content` hugs the content and a
+  // PIXEL `maxW` (computed off the known poster width) caps it — so the outline,
+  // fill and text are always one tight box that reflows as the size changes.
+  // (A percentage maxWidth here resolves ambiguously inside the shrink-to-fit
+  // chain, which is what made the box wider than its content.)
+  const fill = style.bg !== undefined ? style.bg : bg; // "" = explicit no-fill
+  const css: CSSProperties = { fontSize: sz, fontWeight: style.bold ? 800 : undefined, color: style.color ?? defaultColor, textAlign: style.align ?? "left", background: fill || undefined };
   return (
     <Draggable pos={pos} onMove={onMove} onSelect={onSelect} posterRef={posterRef} disabled={editing} className={cn("group", selected && "z-10")}>
-      <div className={cn("relative inline-block rounded-[5px]", selected && !editing && "outline outline-2 outline-brand-400")}>
+      <div className={cn("relative rounded-[5px]", selected && !editing && "outline outline-2 outline-brand-400")} style={{ width: "max-content", maxWidth: maxW }}>
         <div ref={txtRef} role="textbox" aria-label={ariaLabel} contentEditable={editing} suppressContentEditableWarning onDoubleClick={startEdit}
           onBlur={(e) => { setEditing(false); const t = e.currentTarget.innerText.replace(/\n{3,}/g, "\n\n").trimEnd(); if (t !== value) onCommit(t); }}
-          className={cn("whitespace-pre-line rounded-[4px] px-0.5 outline-none transition", baseClass, editing ? "cursor-text ring-2 ring-white/60" : "ring-1 ring-white/0 hover:ring-white/25")} style={css} />
+          className={cn("block w-full whitespace-pre-line rounded-[4px] px-0.5 outline-none transition", baseClass, editing ? "cursor-text ring-2 ring-white/60" : "ring-1 ring-white/0 hover:ring-white/25")} style={css} />
         {selected && !editing && <ResizeHandle onStart={() => { startSize.current = sz; }} onResize={(dx, dy) => onResize(dx, dy, startSize.current)} />}
         {onAssist && (
           <button onClick={onAssist} disabled={busy} title="Improve this with AI (only this element)" className="pointer-events-auto absolute -right-7 top-0 inline-grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">
@@ -235,11 +239,12 @@ function FloatingToolbar({ children }: { children: ReactNode }) {
   );
 }
 
-/** Text-style controls (size / bold / color / align / delete) for the floating toolbar. */
-function TextControls({ style, defaultSize, brandColors, onChange, onDelete }: { style: TextStyle; defaultSize: number; brandColors?: string[]; onChange: (p: Partial<TextStyle>) => void; onDelete?: () => void }) {
+/** Text-style controls (size / bold / color / fill / align / delete) for the floating toolbar. */
+function TextControls({ style, defaultSize, brandColors, defaultBg, onChange, onDelete }: { style: TextStyle; defaultSize: number; brandColors?: string[]; defaultBg?: string; onChange: (p: Partial<TextStyle>) => void; onDelete?: () => void }) {
   const sz = Math.round(style.size ?? defaultSize);
   const align = style.align ?? "left";
   const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  const effBg = style.bg !== undefined ? style.bg : defaultBg; // current fill ("" = none)
   return (
     <>
       <button onClick={() => onChange({ size: clamp(sz - 2, 8, 96) })} className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A−</button>
@@ -252,6 +257,10 @@ function TextControls({ style, defaultSize, brandColors, onChange, onDelete }: {
       <ColorPicker value={style.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       {([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([a, Icon]) => <button key={a} onClick={() => onChange({ align: a })} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", align === a && "bg-white/20")}><Icon className="h-3.5 w-3.5" /></button>)}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <span title="Fill / background color" className="grid h-6 w-4 place-items-center text-white/60"><PaintBucket className="h-3.5 w-3.5" /></span>
+      <ColorPicker value={effBg || undefined} onChange={(c) => onChange({ bg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      {effBg ? <button onClick={() => onChange({ bg: "" })} title="No fill" className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/15"><Ban className="h-3.5 w-3.5" /></button> : null}
       {onDelete && <><span className="mx-0.5 h-4 w-px bg-white/20" /><button onClick={onDelete} title="Delete text" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button></>}
     </>
   );
@@ -427,7 +436,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                       selected={sel?.kind === "core" && sel.id === k} onSelect={() => setSel({ kind: "core", id: k })}
                       onCommit={(v) => set({ [k]: v } as Partial<DesignDoc>)} onMove={(p) => move(k, p)} onResize={(dx, dy, ss) => resizeText(k, true, dx, dy, ss)}
                       onAssist={onElementAssist ? () => assist(k) : undefined} posterRef={posterRef} pos={posOf(value, k)} busy={assistBusy === k}
-                      baseClass={cn(serif, baseClass)} maxW={k === "headline" ? "90%" : k === "sub" ? "86%" : "88%"} bg={k === "cta" ? value.accent : undefined} />
+                      baseClass={cn(serif, baseClass)} maxW={`${Math.round(baseW * (k === "headline" ? 0.9 : k === "sub" ? 0.86 : 0.88))}px`} bg={k === "cta" ? value.accent : undefined} />
                   );
                 })}
 
@@ -436,7 +445,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                   <CanvasText key={t.id} ariaLabel="Text" value={t.text} style={t.style ?? {}} defaultSize={16} defaultColor="#ffffff"
                     selected={sel?.kind === "text" && sel.id === t.id} onSelect={() => setSel({ kind: "text", id: t.id })}
                     onCommit={(v) => patchText(t.id, { text: v })} onMove={(p) => patchText(t.id, { x: p.x, y: p.y })} onResize={(dx, dy, ss) => resizeText(t.id, false, dx, dy, ss)}
-                    posterRef={posterRef} pos={{ x: t.x, y: t.y }} baseClass="font-semibold" maxW={`${(t.w ?? 0.5) * 100}%`} />
+                    posterRef={posterRef} pos={{ x: t.x, y: t.y }} baseClass="font-semibold" maxW={`${Math.round(baseW * (t.w ?? 0.6))}px`} />
                 ))}
 
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
@@ -449,7 +458,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                 {sel.kind === "image" && selIsImage ? (
                   <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
                 ) : (
-                  <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
+                  <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
                 )}
               </FloatingToolbar>
             )}
