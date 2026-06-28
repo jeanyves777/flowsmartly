@@ -214,54 +214,55 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
       {/* bottom sheet — the brief form */}
       {sheetOpen && (
         <div className="absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-3xl rounded-t-2xl border border-border bg-card shadow-2xl">
-          <div className="flex items-center gap-2 px-4 pt-2.5">
-            <span className="mx-auto h-1 w-10 rounded-full bg-border" />
+          <div className="flex items-center gap-2 px-3.5 pb-1.5 pt-2">
+            <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+            <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
+            <span className="text-[11px] text-muted-foreground">node</span>
+            <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="flex items-center gap-2 px-4 pb-2 pt-1.5">
-            <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-[11px] font-bold text-brand-500">Brief</span>
-            <span className="text-[12px] text-muted-foreground">node</span>
-            <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="max-h-[58vh] overflow-y-auto px-4 pb-4 sm:px-5">
-            <label className="mb-1 block text-[12px] font-semibold">Campaign brief</label>
+          <div className="max-h-[46vh] overflow-y-auto px-3.5 pb-3">
+            <label className="mb-1 block text-[11.5px] font-semibold">Campaign brief</label>
             <textarea
-              value={brief} onChange={(e) => setBrief(e.target.value)} rows={3}
-              placeholder="e.g. A 30-second reel for our glow serum — a woman's calming night skincare routine, cinematic."
-              className="w-full resize-none rounded-xl border border-input bg-background px-3.5 py-3 text-[13px] leading-relaxed outline-none focus:border-brand-500/60"
+              value={brief} onChange={(e) => setBrief(e.target.value)} rows={2}
+              placeholder="e.g. A 30s reel for our glow serum — a calming night skincare routine, cinematic."
+              className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
             />
 
-            <p className="mb-1.5 mt-3.5 text-[12px] font-semibold">Type — choose the visual style</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="mt-2.5 flex items-end gap-1.5">
+              <p className="text-[11.5px] font-semibold">Style</p>
+              <span className="text-[10.5px] text-muted-foreground">— visual look</span>
+            </div>
+            <div className="mt-1 grid grid-cols-3 gap-1.5">
               {STYLES.map((st) => (
-                <button key={st.v} onClick={() => setStyle(st.v)} className={cn("rounded-xl border px-3 py-2.5 text-center transition", style === st.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                  <span className="block text-[13px] font-bold">{st.label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{st.hint}</span>
+                <button key={st.v} onClick={() => setStyle(st.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", style === st.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                  <span className="block text-[12px] font-bold leading-tight">{st.label}</span>
+                  <span className="block text-[10px] text-muted-foreground">{st.hint}</span>
                 </button>
               ))}
             </div>
 
-            <p className="mb-1.5 mt-3.5 text-[12px] font-semibold">Video length</p>
-            <div className="grid grid-cols-3 gap-2">
+            <p className="mb-1 mt-2.5 text-[11.5px] font-semibold">Length</p>
+            <div className="grid grid-cols-3 gap-1.5">
               {LENGTHS.map((l) => (
-                <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-xl border px-3 py-2.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                  <span className="text-[13px] font-bold">{l.v}s</span>
-                  <span className="ms-1 text-[11px] text-muted-foreground">≈{l.scenes} scenes</span>
+                <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                  <span className="text-[12px] font-bold">{l.v}s</span>
+                  <span className="ms-1 text-[10px] text-muted-foreground">≈{l.scenes}</span>
                 </button>
               ))}
             </div>
 
             {/* estimate result */}
             {estimate && estimateInputsRef.current === `${style}:${length}` && (
-              <div className="mt-3.5 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="mt-2.5 rounded-[10px] border border-border bg-muted/30 p-2.5">
                 <div className="flex items-center gap-2">
-                  <Coins className="h-4 w-4 text-brand-500" />
-                  <b className="text-[13px]">{estimate.total.toLocaleString()} credits</b>
-                  <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500">{estimate.qualityLabel}</span>
+                  <Coins className="h-3.5 w-3.5 text-brand-500" />
+                  <b className="text-[12.5px]">{estimate.total.toLocaleString()} credits</b>
+                  <span className="rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand-500">{estimate.qualityLabel}</span>
                   {!estimate.hasEnoughCredits && !estimate.isAdmin && (
-                    <span className="ms-auto inline-flex items-center gap-1 text-[11px] font-semibold text-amber-500"><AlertTriangle className="h-3.5 w-3.5" /> Not enough credits</span>
+                    <span className="ms-auto inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-500"><AlertTriangle className="h-3 w-3" /> Low credits</span>
                   )}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10.5px] text-muted-foreground">
                   <Cost label="Video" v={estimate.breakdown.video} />
                   <Cost label="Images" v={estimate.breakdown.images} />
                   <Cost label="Voice" v={estimate.breakdown.voice} />
@@ -271,17 +272,17 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                 </div>
               </div>
             )}
-            {estErr && <p className="mt-2 text-[12px] text-rose-500">{estErr}</p>}
+            {estErr && <p className="mt-1.5 text-[11.5px] text-rose-500">{estErr}</p>}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
-            <span className="text-[11.5px] text-muted-foreground">{estimate ? "Build spins the agent on the left → it renders into the canvas." : "Brief + length → estimate."}</span>
+          <div className="flex items-center gap-2 border-t border-border px-3.5 py-2.5">
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">{estimate ? "Build spins the agent → renders into the canvas." : "Brief + length → estimate."}</span>
             <div className="ms-auto flex items-center gap-2">
-              <button onClick={runEstimate} disabled={estimating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
-                {estimating ? <FlowLoader size={14} /> : <Coins className="h-4 w-4" />} Estimate cost
+              <button onClick={runEstimate} disabled={estimating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                {estimating ? <FlowLoader size={14} /> : <Coins className="h-3.5 w-3.5" />} Estimate
               </button>
-              <button onClick={build} disabled={!brief.trim() || !onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
-                <Wand2 className="h-4 w-4" /> Build the video
+              <button onClick={build} disabled={!brief.trim() || !onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+                <Wand2 className="h-3.5 w-3.5" /> Build the video
               </button>
             </div>
           </div>
