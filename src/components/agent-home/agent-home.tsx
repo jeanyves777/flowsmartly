@@ -223,6 +223,10 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 // Focused surfaces that get their own traceable path (/home/<view>).
 const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
+// The in-progress design canvas is autosaved here so an unexpected reload or a
+// deep-link remount never throws away unsaved edits (per-tab, survives reloads).
+const DESIGN_DRAFT_KEY = "fs-design-draft";
+
 export function AgentHome() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -368,19 +372,30 @@ export function AgentHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (conversationId) url.searchParams.set("conversationId", conversationId);
-    else url.searchParams.delete("conversationId");
-    window.history.replaceState({}, "", url.toString());
-  }, [conversationId]);
-
-  // Each focused surface gets its own traceable path (/home/<view>); home = /home.
+  // Keep the URL (path = focused surface, ?conversationId = active chat) in sync
+  // in ONE guarded replaceState — only when it actually changes — to avoid
+  // redundant history churn that can occasionally trip a soft→hard navigation.
   useEffect(() => {
     const url = new URL(window.location.href);
     url.pathname = focused ? `/home/${focused}` : "/home";
-    window.history.replaceState({}, "", url.toString());
-  }, [focused]);
+    if (conversationId) url.searchParams.set("conversationId", conversationId);
+    else url.searchParams.delete("conversationId");
+    if (url.toString() !== window.location.href) window.history.replaceState({}, "", url.toString());
+  }, [focused, conversationId]);
+
+  // Autosave the in-progress design so a reload/remount restores unsaved edits.
+  // Restore once on mount…
+  useEffect(() => {
+    try { const s = sessionStorage.getItem(DESIGN_DRAFT_KEY); if (s) { const d = JSON.parse(s) as DesignDoc; setDesign(d); savedDesignRef.current = d; } } catch { /* ignore */ }
+  }, []);
+  // …and persist every real change. We SKIP the pristine initial doc (it is
+  // reference-equal to DEFAULT_DESIGN) so the first render — which runs before
+  // the restore's setDesign commits, and twice under StrictMode — can never
+  // clobber an already-saved draft back to default.
+  useEffect(() => {
+    if (design === DEFAULT_DESIGN) return;
+    try { sessionStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(design)); } catch { /* ignore */ }
+  }, [design]);
 
   useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
 
