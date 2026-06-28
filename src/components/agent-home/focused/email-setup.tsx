@@ -86,7 +86,7 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
-        {/* LEFT — provider + credentials */}
+        {/* LEFT — provider picker only */}
         <div className="rounded-2xl border border-border bg-card p-5">
           <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">1 · Sending provider</p>
           <div className="space-y-1.5">
@@ -101,8 +101,12 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
               </button>
             ))}
           </div>
-          <div className="mt-3.5 space-y-2.5 border-t border-border/70 pt-3.5">
-            <p className="text-[11.5px] font-semibold text-muted-foreground">{def.label} credentials</p>
+        </div>
+
+        {/* RIGHT — credentials for the chosen provider + sender + actions */}
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">2 · {def.label} credentials</p>
+          <div className="space-y-2.5">
             {def.fields.map((f) => (
               <div key={f.key}>
                 <label className="mb-1 block text-[11.5px] font-semibold">{f.label}</label>
@@ -114,11 +118,8 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
               </div>
             ))}
           </div>
-        </div>
 
-        {/* RIGHT — sender + actions */}
-        <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">2 · Sender</p>
+          <p className="mb-2.5 mt-4 border-t border-border/70 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">3 · Sender</p>
           <div className="space-y-2.5">
             <div>
               <label className="mb-1 block text-[11.5px] font-semibold">From name</label>
