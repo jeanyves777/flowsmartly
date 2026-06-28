@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -20,10 +20,16 @@ export interface TextStyle { size?: number; bold?: boolean; color?: string; alig
 export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
 export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string }
 
+// Brand contact details + social handles a user can drop onto the design.
+export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "youtube" | "tiktok";
+export type ContactType = "email" | "phone" | "website" | "address" | SocialKey;
+export interface ContactLayer { id: string; type: ContactType; value: string; x: number; y: number; style?: TextStyle }
+export interface BrandContact { email?: string; phone?: string; website?: string; address?: string; handles?: Partial<Record<SocialKey, string>> }
+
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
-  images?: ImageLayer[]; texts?: TextLayer[];
+  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[];
   imageUrl?: string; generating?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
@@ -52,6 +58,31 @@ const STYLES: { v: string; label: string; desc: string }[] = [
   { v: "playful", label: "Playful", desc: "Bright, rounded, fun" },
 ];
 const ACCENTS = ["#0ea5e9", "#8b5cf6", "#eccb93", "#10b981", "#ef4444"];
+
+const CONTACT_TYPES: ContactType[] = ["email", "phone", "website", "address", "instagram", "twitter", "linkedin", "facebook", "youtube", "tiktok"];
+const CONTACT_META: Record<ContactType, { Icon: LucideIcon; label: string; placeholder: string; social?: boolean }> = {
+  email: { Icon: Mail, label: "Email", placeholder: "you@brand.com" },
+  phone: { Icon: Phone, label: "Phone", placeholder: "+1 555 0100" },
+  website: { Icon: Globe, label: "Website", placeholder: "brand.com" },
+  address: { Icon: MapPin, label: "Address", placeholder: "City, State" },
+  instagram: { Icon: Instagram, label: "Instagram", placeholder: "@brand", social: true },
+  twitter: { Icon: Twitter, label: "X (Twitter)", placeholder: "@brand", social: true },
+  linkedin: { Icon: Linkedin, label: "LinkedIn", placeholder: "/company/brand", social: true },
+  facebook: { Icon: Facebook, label: "Facebook", placeholder: "/brand", social: true },
+  youtube: { Icon: Youtube, label: "YouTube", placeholder: "@brand", social: true },
+  tiktok: { Icon: Music2, label: "TikTok", placeholder: "@brand", social: true },
+};
+/** The brand-kit value for a contact type, formatted for display (or "" if unset). */
+function brandContactValue(bc: BrandContact | undefined, t: ContactType): string {
+  if (!bc) return "";
+  if (t === "email") return bc.email || "";
+  if (t === "phone") return bc.phone || "";
+  if (t === "website") return (bc.website || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (t === "address") return bc.address || "";
+  const h = bc.handles?.[t] || "";
+  if (!h) return "";
+  return CONTACT_META[t].social && !/^@|^https?:|^\//.test(h) ? `@${h}` : h;
+}
 const TEXT_COLORS = ["#ffffff", "#06121f", "#eccb93", "#0ea5e9", "#ef4444", "#10b981"];
 const SIZES = [{ label: "1:1", v: "1080×1080" }, { label: "4:5", v: "1080×1350" }, { label: "9:16", v: "1080×1920" }, { label: "Ad", v: "1200×628" }];
 const FIELD = "w-full resize-none rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
@@ -75,12 +106,13 @@ function posterTheme(style: string | undefined, accent: string): { bg: string; g
 }
 
 // A selection points at a core element, a free-text layer, or an image.
-type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | null;
+type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | null;
 
 export function designCanvasContext(d: DesignDoc): string {
   const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
   const imgs = (d.images || []).filter((i) => !i.local && i.url);
   const extra = (d.texts || []).map((t) => JSON.stringify(t.text)).filter(Boolean);
+  const contacts = (d.contacts || []).map((c) => `${c.type}: ${c.value}`);
   return [
     "A Design Studio canvas is OPEN; the user can drag, resize, edit text in place, restyle text, add text, and drop photos/a logo.",
     d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design.",
@@ -90,6 +122,7 @@ export function designCanvasContext(d: DesignDoc): string {
     `- sub: ${JSON.stringify(d.sub)} at ${c("sub")}`,
     `- cta (button): ${JSON.stringify(d.cta)} at ${c("cta")}`,
     extra.length ? `- extra text: ${extra.join("; ")}` : "",
+    contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
     `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
     imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
     "EDITING RULES: For a TARGETED change to ONE core element ('improve the CTA', 'punchier headline', 'make it gold') call update_canvas with ONLY that field — never rewrite the others. Only when the user wants a full rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
@@ -108,6 +141,7 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
   if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
+  if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
   return next;
 }
 
@@ -210,6 +244,35 @@ function CanvasText({ value, style, defaultSize, defaultColor, selected, onSelec
   );
 }
 
+/** A draggable, double-click-editable contact/social chip: icon + value. Reuses
+ * the same selection/toolbar system as text, so it restyles & resizes "as usual". */
+function ContactChip({ item, selected, onSelect, onCommit, onMove, onResize, posterRef, defaultInk }: {
+  item: ContactLayer; selected: boolean; onSelect: () => void; onCommit: (v: string) => void;
+  onMove: (p: Pos) => void; onResize: (dx: number, dy: number, startSize: number) => void;
+  posterRef: React.RefObject<HTMLDivElement | null>; defaultInk: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const txtRef = useRef<HTMLDivElement>(null);
+  const startSize = useRef(0);
+  const { Icon } = CONTACT_META[item.type];
+  const style = item.style ?? {};
+  const sz = style.size ?? 13;
+  const ink = style.color ?? defaultInk;
+  useEffect(() => { const el = txtRef.current; if (el && !editing && el.innerText !== item.value) el.innerText = item.value; }, [item.value, editing]);
+  const startEdit = () => { setEditing(true); requestAnimationFrame(() => { const el = txtRef.current; if (!el) return; el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }); };
+  return (
+    <Draggable pos={{ x: item.x, y: item.y }} onMove={onMove} onSelect={onSelect} posterRef={posterRef} disabled={editing} className={cn("group", selected && "z-10")}>
+      <div className={cn("relative inline-flex items-center gap-1.5 rounded-[6px] px-1 py-0.5", selected && !editing && "outline outline-2 outline-brand-400", !editing && "ring-1 ring-white/0 hover:ring-white/25")} style={{ background: style.bg || undefined }}>
+        <Icon className="shrink-0" style={{ width: Math.round(sz * 1.05), height: Math.round(sz * 1.05), color: ink }} />
+        <div ref={txtRef} role="textbox" aria-label={CONTACT_META[item.type].label} contentEditable={editing} suppressContentEditableWarning onDoubleClick={startEdit}
+          onBlur={(e) => { setEditing(false); const t = e.currentTarget.innerText.replace(/\s+/g, " ").trim(); if (t !== item.value) onCommit(t); }}
+          className={cn("whitespace-nowrap outline-none", editing ? "cursor-text" : "cursor-move")} style={{ fontSize: sz, fontWeight: style.bold ? 700 : 600, color: ink, textAlign: style.align }} />
+        {selected && !editing && <ResizeHandle onStart={() => { startSize.current = sz; }} onResize={(dx, dy) => onResize(dx, dy, startSize.current)} />}
+      </div>
+    </Draggable>
+  );
+}
+
 /** A swatch that opens the OS color picker so any custom color is selectable. */
 function ColorPicker({ value, onChange, className, iconClass }: { value?: string; onChange: (c: string) => void; className?: string; iconClass?: string }) {
   const safe = value && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(value) ? value : "#0ea5e9";
@@ -286,14 +349,14 @@ function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemov
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, working }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; working?: boolean;
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, brandContact, working }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; working?: boolean;
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
   const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
   const [toolsOpen, setToolsOpen] = useState(true);
-  const [tab, setTab] = useState<"design" | "style">("design");
+  const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
   const [sel, setSel] = useState<Sel>(null);
   const logoRef = useRef<HTMLInputElement>(null);
@@ -301,8 +364,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const posterRef = useRef<HTMLDivElement>(null);
   const imagesRef = useRef<ImageLayer[]>(value.images || []);
   const textsRef = useRef<TextLayer[]>(value.texts || []);
+  const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
   useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
+  useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
   // On small screens the controls are a slide-over drawer — start it closed so it
   // doesn't cover the canvas on load (it's open by default on desktop).
   useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setToolsOpen(false); }, []);
@@ -321,19 +386,29 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const move = (k: ElementKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
   const setImages = (imgs: ImageLayer[]) => onChange({ ...value, images: imgs });
   const setTexts = (t: TextLayer[]) => onChange({ ...value, texts: t });
+  const setContacts = (c: ContactLayer[]) => onChange({ ...value, contacts: c });
   const patchImage = (id: string, patch: Partial<ImageLayer>) => setImages(imagesRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const patchText = (id: string, patch: Partial<TextLayer>) => setTexts(textsRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const patchContact = (id: string, patch: Partial<ContactLayer>) => setContacts(contactsRef.current.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const removeImage = (id: string) => { setImages(imagesRef.current.filter((i) => i.id !== id)); setSel((s) => (s?.kind === "image" && s.id === id ? null : s)); };
   const removeText = (id: string) => { setTexts(textsRef.current.filter((t) => t.id !== id)); setSel((s) => (s?.kind === "text" && s.id === id ? null : s)); };
+  const removeContact = (id: string) => { setContacts(contactsRef.current.filter((c) => c.id !== id)); setSel((s) => (s?.kind === "contact" && s.id === id ? null : s)); };
+  const addContact = (type: ContactType) => {
+    const id = newId("ct");
+    const val = brandContactValue(brandContact, type) || CONTACT_META[type].placeholder;
+    const n = contactsRef.current.length;
+    onChange({ ...value, contacts: [...contactsRef.current, { id, type, value: val, x: 0.06, y: clamp(0.9 - n * 0.055, 0.45, 0.92) }] });
+    setSel({ kind: "contact", id });
+  };
   const exportImage = () => { if (value.imageUrl) window.open(value.imageUrl, "_blank", "noopener,noreferrer"); };
   const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
 
   // per-element style read/write (core elements via value.styles, free text via the layer)
   const coreStyle = (k: ElementKey): TextStyle => value.styles?.[k] ?? {};
   const setCoreStyle = (k: ElementKey, patch: Partial<TextStyle>) => set({ styles: { ...value.styles, [k]: { ...value.styles?.[k], ...patch } } });
-  const selStyle = (): TextStyle => sel?.kind === "core" ? coreStyle(sel.id) : sel?.kind === "text" ? (value.texts?.find((t) => t.id === sel.id)?.style ?? {}) : {};
-  const selDefaultSize = (): number => sel?.kind === "core" ? DEFAULT_SIZE[sel.id] : 16;
-  const setSelStyle = (patch: Partial<TextStyle>) => { if (sel?.kind === "core") setCoreStyle(sel.id, patch); else if (sel?.kind === "text") patchText(sel.id, { style: { ...(value.texts?.find((t) => t.id === sel.id)?.style), ...patch } }); };
+  const selStyle = (): TextStyle => sel?.kind === "core" ? coreStyle(sel.id) : sel?.kind === "text" ? (value.texts?.find((t) => t.id === sel.id)?.style ?? {}) : sel?.kind === "contact" ? (value.contacts?.find((c) => c.id === sel.id)?.style ?? {}) : {};
+  const selDefaultSize = (): number => sel?.kind === "core" ? DEFAULT_SIZE[sel.id] : sel?.kind === "contact" ? 13 : 16;
+  const setSelStyle = (patch: Partial<TextStyle>) => { if (sel?.kind === "core") setCoreStyle(sel.id, patch); else if (sel?.kind === "text") patchText(sel.id, { style: { ...(value.texts?.find((t) => t.id === sel.id)?.style), ...patch } }); else if (sel?.kind === "contact") patchContact(sel.id, { style: { ...(value.contacts?.find((c) => c.id === sel.id)?.style), ...patch } }); };
 
   // resize: text → font size; image → width fraction
   const resizeText = (k: ElementKey | string, isCore: boolean, dx: number, dy: number, startSize: number) => {
@@ -341,6 +416,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
     if (isCore) setCoreStyle(k as ElementKey, { size }); else patchText(k as string, { style: { ...(textsRef.current.find((t) => t.id === k)?.style), size } });
   };
   const resizeImage = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchImage(id, { w: clamp(startW + dx / pw, 0.08, 0.96) }); };
+  const resizeContact = (id: string, dx: number, dy: number, startSize: number) => { patchContact(id, { style: { ...(contactsRef.current.find((c) => c.id === id)?.style), size: clamp(startSize + (dx + dy) / 2 * 0.4, 8, 56) } }); };
 
   // Cut out the subject — POSTs the image (uploaded URL, or the original File if
   // the library upload didn't land) to the rembg service and swaps in the result.
@@ -381,6 +457,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
   const images = value.images || [];
   const texts = value.texts || [];
+  const contacts = value.contacts || [];
   const showAiImage = !!value.imageUrl;
   const anyLocalErr = images.some((i) => i.error);
   const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
@@ -461,6 +538,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                     posterRef={posterRef} pos={{ x: t.x, y: t.y }} baseClass="font-semibold" maxW={`${Math.round(baseW * (t.w ?? 0.6))}px`} />
                 ))}
 
+                {/* contact / social chips */}
+                {contacts.map((c) => (
+                  <ContactChip key={c.id} item={c} selected={sel?.kind === "contact" && sel.id === c.id} onSelect={() => setSel({ kind: "contact", id: c.id })}
+                    onCommit={(v) => patchContact(c.id, { value: v })} onMove={(p) => patchContact(c.id, { x: p.x, y: p.y })} onResize={(dx, dy, ss) => resizeContact(c.id, dx, dy, ss)}
+                    posterRef={posterRef} defaultInk={theme.subInk} />
+                ))}
+
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
               </>
             )}
@@ -475,12 +559,12 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
           {/* draggable toolbar — sits OUTSIDE the clipped poster so it's never cut
               off, and can extend past the poster edges into the canvas area */}
-          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || !!selIsImage) && (
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage) && (
             <FloatingToolbar>
               {sel.kind === "image" && selIsImage ? (
                 <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
               ) : (
-                <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : undefined} />
+                <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : sel.kind === "contact" ? () => removeContact(sel.id) : undefined} />
               )}
             </FloatingToolbar>
           )}
@@ -496,10 +580,28 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
             <div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
               <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
               <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
+              <TabBtn active={tab === "contact"} onClick={() => setTab("contact")} icon={AtSign} label="Contact" />
               <button onClick={() => setToolsOpen(false)} aria-label="Close controls" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground lg:hidden"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
-              {tab === "style" ? (
+              {tab === "contact" ? (
+                <>
+                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Tap to drop your contact details & social handles on the canvas — each lands as an icon + text you can drag, restyle and edit like any element.</p>
+                  <div className="space-y-1.5">
+                    {CONTACT_TYPES.map((t) => {
+                      const meta = CONTACT_META[t]; const v = brandContactValue(brandContact, t); const Icon = meta.Icon;
+                      return (
+                        <button key={t} onClick={() => addContact(t)} title={`Add ${meta.label} to the design`} className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-background/60 p-2 text-left transition hover:border-brand-500/60 hover:bg-muted/50">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-muted text-foreground"><Icon className="h-[15px] w-[15px]" /></span>
+                          <span className="min-w-0 flex-1"><span className="block text-[12px] font-semibold leading-tight">{meta.label}</span><span className="block truncate text-[11px] text-muted-foreground">{v || `Add ${meta.label.toLowerCase()}`}</span></span>
+                          <Plus className="h-4 w-4 shrink-0 text-brand-500" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2.5 text-[10.5px] leading-snug text-muted-foreground">{brandContact ? "Values come from your brand kit — edit any chip on the canvas to override." : "Fill your brand kit to auto-fill these; you can still add and type them here."}</p>
+                </>
+              ) : tab === "style" ? (
                 <>
                   <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Pick a visual style — the AI renders the full design in this look.</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -561,7 +663,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 }
 
 function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Palette; label: string }) {
-  return <button onClick={onClick} className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-4 w-4" /> {label}</button>;
+  return <button onClick={onClick} className={cn("inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11.5px] font-semibold transition", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-[15px] w-[15px] shrink-0" /> {label}</button>;
 }
 function ControlGroup({ title, children }: { title: string; children: ReactNode }) {
   return <div className="mb-4"><h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>{children}</div>;

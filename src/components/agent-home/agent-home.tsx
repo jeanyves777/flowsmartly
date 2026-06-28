@@ -21,7 +21,7 @@ import { HomeMessageView } from "./home-message";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
-import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc } from "./focused/design-studio";
+import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
@@ -254,6 +254,7 @@ export function AgentHome() {
   const [focused, setFocused] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   const [brandColors, setBrandColors] = useState<string[]>([]);
+  const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -283,6 +284,10 @@ export function AgentHome() {
           if (!alive || !b?.success) return;
           const bk = b.data?.brandKit;
           if (bk?.name) setBrandName(bk.name);
+          // Contact details + social handles → the canvas "Contact" tab.
+          const addr = [bk?.city, bk?.state].filter(Boolean).join(", ") || bk?.address || undefined;
+          const h = (bk?.handles && typeof bk.handles === "object") ? bk.handles : {};
+          setBrandContact(bk ? { email: bk.email || undefined, phone: bk.phone || undefined, website: bk.website || undefined, address: addr, handles: { instagram: h.instagram || undefined, twitter: h.twitter || undefined, linkedin: h.linkedin || undefined, facebook: h.facebook || undefined, youtube: h.youtube || undefined, tiktok: h.tiktok || undefined } } : null);
           // Seed the canvas with the user's brand colors: swatches lead with them
           // and the default accent becomes the brand's primary (only while the
           // design is still untouched, so we never clobber the user's edits).
@@ -635,6 +640,7 @@ export function AgentHome() {
                     value={design}
                     onChange={setDesign}
                     brandColors={brandColors}
+                    brandContact={brandContact ?? undefined}
                     working={sending}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
