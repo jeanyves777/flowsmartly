@@ -133,7 +133,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   referrals: { label: "Referrals", subtitle: "Your referral link & earnings", icon: Gift },
   media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
-  video: { label: "Video studio", subtitle: "Your AI-generated videos", icon: Clapperboard },
+  video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   cartoon: { label: "Cartoon maker", subtitle: "Your cartoon & animated creations", icon: Smile },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   adbuilder: { label: "Ad builder", subtitle: "Your ad campaigns — spend, reach & ROAS", icon: Megaphone },
