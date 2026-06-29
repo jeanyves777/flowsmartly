@@ -72,8 +72,8 @@ export function useHomeAgent() {
       const url = (output as { url?: string } | null | undefined)?.url;
       canvasUpdateRef.current?.(url ? { generating: false, imageUrl: url } : { generating: false });
     } else if (kind === "canvas_object") {
-      const out = output as { url?: string; objectType?: string } | null | undefined;
-      if (out?.url) canvasUpdateRef.current?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+      const out = output as { url?: string; objectType?: string; slotId?: string } | null | undefined;
+      if (out?.url) canvasUpdateRef.current?.(out.slotId ? { fillImageLayer: { id: out.slotId, url: out.url } } : out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
     }
   }, []);
 
@@ -190,8 +190,8 @@ export function useHomeAgent() {
               const url = (merged.output as { url?: string } | null | undefined)?.url;
               canvasUpdateRef.current?.(url ? { generating: false, imageUrl: url } : { generating: false });
             } else if (merged.kind === "canvas_object") {
-              const out = merged.output as { url?: string; objectType?: string } | null | undefined;
-              if (out?.url) canvasUpdateRef.current?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+              const out = merged.output as { url?: string; objectType?: string; slotId?: string } | null | undefined;
+              if (out?.url) canvasUpdateRef.current?.(out.slotId ? { fillImageLayer: { id: out.slotId, url: out.url } } : out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
             }
             taskStreamsRef.current.get(task.id)?.abort();
             taskStreamsRef.current.delete(task.id);
@@ -390,8 +390,8 @@ function startTaskSubscription(
         const url = (output as { url?: string } | null | undefined)?.url;
         onCanvasImage?.(url ? { generating: false, imageUrl: url } : { generating: false });
       } else if (kind === "canvas_object") {
-        const out = output as { url?: string; objectType?: string } | null | undefined;
-        if (out?.url) onCanvasImage?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+        const out = output as { url?: string; objectType?: string; slotId?: string } | null | undefined;
+        if (out?.url) onCanvasImage?.(out.slotId ? { fillImageLayer: { id: out.slotId, url: out.url } } : out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
       }
     };
     if (event.type === "snapshot") {

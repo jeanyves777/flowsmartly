@@ -584,6 +584,16 @@ export function AgentHome() {
   // agent's canvas tools (update_canvas / add_design_page / start_print_project)
   // stay exposed when a button-driven action fires from the Print Studio hero.
   const sendAction = (p: string) => send(p, false, focused === "print" ? designCanvasContext(printDesign) : focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  // A photo SLOT's "Generate" button — drive the agent to generate a contextual
+  // photo and drop it into that exact slot (it may ask one clarifying question).
+  const sendFillSlot = (layer: { id: string; label?: string; genHint?: string }, doc: DesignDoc) => send(
+    [
+      `Fill the photo SLOT on my open design. Slot id: "${layer.id}"${layer.label ? ` (a "${layer.label}")` : ""}.`,
+      layer.genHint ? `It should show: ${layer.genHint}.` : "",
+      `Generate a fitting, on-brand PHOTO with add_canvas_object type "photo", passing slotId "${layer.id}" — it drops into that exact slot. Base it on the design (headline/offer/style/accent). If it's genuinely unclear what the photo should depict, ask me ONE short question first; otherwise propose_plan (the image cost) then generate.`,
+    ].filter(Boolean).join(" "),
+    false, designCanvasContext(doc), undefined, { hidden: true },
+  );
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -777,6 +787,7 @@ export function AgentHome() {
                     onSaveBrandLogo={handleSaveBrandLogo}
                     working={sending}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
+                    onPlaceholderGenerate={(layer) => sendFillSlot(layer, design)}
                     onElementAssist={(el) => {
                       const label = el === "headline" ? "headline" : el === "sub" ? "subtext" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action button text";
                       // Propose a few options as a clickable card instead of silently
@@ -857,6 +868,7 @@ export function AgentHome() {
                     brandLogo={brandLogo}
                     onSaveBrandLogo={handleSaveBrandLogo}
                     working={sending}
+                    onPlaceholderGenerate={(layer) => sendFillSlot(layer, printDesign)}
                     onElementAssist={(el) => {
                       const label = el === "headline" ? "headline" : el === "sub" ? "subtext / details" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action";
                       send(

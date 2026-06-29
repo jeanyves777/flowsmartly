@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ArrowRight, ChevronLeft, Upload, Wand2, Image as ImageIcon, Loader2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey } from "./design-studio";
+import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey, type ImageLayer, type ShapeLayer } from "./design-studio";
 
 /**
  * Print Studio — a playground-style surface (same look as the Video playground &
@@ -124,39 +124,48 @@ type SampleText = NonNullable<DesignDoc["texts"]>[number];
 let _smp = 0;
 const tl = (text: string, x: number, y: number, size: number, color: string, w: number, bold?: boolean): SampleText =>
   ({ id: `smp-${_smp++}`, text, x, y, w, style: { size, color, ...(bold ? { bold: true } : {}) } });
+// A colored background BLOCK (panel/band) behind the text — the designed background.
+const sh = (x: number, y: number, w: number, h: number, color: string, radius?: number, opacity?: number): ShapeLayer =>
+  ({ id: `smb-${_smp++}`, x, y, w, h, color, ...(radius != null ? { radius } : {}), ...(opacity != null ? { opacity } : {}) });
+// An empty PHOTO SLOT (AI-fill or upload).
+const slot = (x: number, y: number, w: number, label: string, genHint: string, aspect: number): ImageLayer =>
+  ({ id: `sms-${_smp++}`, url: "", x, y, w, kind: "photo", placeholder: true, label, genHint, aspect });
 const ACC = "@accent";
-const DK = { H: "#ffffff", B: "rgba(255,255,255,0.86)", M: "rgba(255,255,255,0.62)" }; // on dark
+const WHITE = "#ffffff";
+const DK = { H: "#ffffff", B: "rgba(255,255,255,0.88)", M: "rgba(255,255,255,0.66)" }; // on dark / accent
 const LT = { H: "#18181b", B: "#3f3f46", M: "#71717a" };                               // on white
 
 const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
   flyer: {
     eyebrow: "GRAND OPENING · SAT JUNE 28",
     headline: "Summer\nBlock Party",
-    sub: "A free afternoon of music, food &\nfamily fun — everyone’s welcome.",
+    sub: "A free afternoon of music,\nfood & family fun.",
     cta: "Get free tickets →",
-    pos: { eyebrow: { x: 0.07, y: 0.06 }, headline: { x: 0.07, y: 0.15 }, sub: { x: 0.07, y: 0.52 }, cta: { x: 0.07, y: 0.88 } },
-    styles: { eyebrow: { size: 12 }, headline: { size: 40 }, sub: { size: 14 }, cta: { size: 14 } },
+    pos: { eyebrow: { x: 0.08, y: 0.07 }, headline: { x: 0.08, y: 0.15 }, sub: { x: 0.08, y: 0.37 }, cta: { x: 0.08, y: 0.82 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 38 }, sub: { size: 14 }, cta: { size: 14 } },
+    shapes: [sh(0, 0.9, 1, 0.1, ACC)],
+    images: [slot(0.55, 0.45, 0.4, "Event photo", "a lively, candid photo of a community block party — crowd, food trucks, string lights, warm golden hour", 0.92)],
     texts: [
-      tl("12–6 PM · RIVERSIDE PARK", 0.07, 0.45, 14, ACC, 0.82, true),
-      tl("WHAT’S ON", 0.07, 0.64, 12, ACC, 0.82, true),
-      tl("• 12+ local food trucks\n• Live bands all afternoon\n• Kids’ games & face painting\n• Free giveaways every hour", 0.07, 0.7, 12.5, DK.B, 0.84),
-      tl("500 River Rd · free entry · all ages · yourbrand.com/events", 0.07, 0.94, 10, DK.M, 0.86),
+      tl("12–6 PM · RIVERSIDE PARK", 0.08, 0.5, 13, ACC, 0.44, true),
+      tl("WHAT’S ON", 0.08, 0.58, 12, ACC, 0.44, true),
+      tl("• 12+ local food trucks\n• Live bands all afternoon\n• Kids’ games & face paint\n• Free giveaways", 0.08, 0.63, 12, DK.B, 0.45),
+      tl("500 River Rd · free entry · all ages welcome", 0.08, 0.935, 10.5, WHITE, 0.84, true),
     ],
   },
   card: {
     eyebrow: "ACME ROOFING CO.",
-    headline: "Jordan Rivera",
+    headline: "Jordan\nRivera",
     sub: "Operations Manager",
     cta: "Free estimate →",
-    pos: { eyebrow: { x: 0.07, y: 0.17 }, headline: { x: 0.07, y: 0.33 }, sub: { x: 0.07, y: 0.55 }, cta: { x: 0.6, y: 0.75 } },
-    styles: { eyebrow: { size: 11, bold: true }, headline: { size: 23 }, sub: { size: 12 }, cta: { size: 10 } },
+    pos: { eyebrow: { x: 0.06, y: 0.16 }, headline: { x: 0.06, y: 0.34 }, sub: { x: 0.06, y: 0.66 }, cta: { x: 0.06, y: 0.82 } },
+    styles: { eyebrow: { size: 10, bold: true, color: "rgba(255,255,255,0.85)" }, headline: { size: 21, color: WHITE }, sub: { size: 11, color: "rgba(255,255,255,0.9)" }, cta: { size: 9, bg: WHITE, color: "#0a0a0a" } },
+    shapes: [sh(0, 0, 0.36, 1, ACC)],
     texts: [
-      tl("Roofing · gutters · storm repair", 0.07, 0.7, 9.5, LT.M, 0.5),
-      tl("(404) 555-0142", 0.6, 0.22, 12, LT.H, 0.36, true),
-      tl("hello@acmeroofing.com", 0.6, 0.33, 10, LT.B, 0.38),
-      tl("acmeroofing.com", 0.6, 0.42, 10, LT.B, 0.38),
-      tl("Austin, TX 78701", 0.6, 0.51, 10, LT.B, 0.38),
-      tl("Licensed & insured · 20-yr warranty", 0.6, 0.62, 9, LT.M, 0.38),
+      tl("(404) 555-0142", 0.42, 0.24, 13, LT.H, 0.5, true),
+      tl("hello@acmeroofing.com", 0.42, 0.38, 11, LT.B, 0.5),
+      tl("acmeroofing.com", 0.42, 0.48, 11, LT.B, 0.5),
+      tl("Austin, TX 78701", 0.42, 0.58, 11, LT.B, 0.5),
+      tl("Licensed & insured · roofing · gutters · storm repair", 0.42, 0.74, 8.5, LT.M, 0.5),
     ],
   },
   tent: {
@@ -166,64 +175,70 @@ const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
     cta: "Ask your server",
     pos: { eyebrow: { x: 0.1, y: 0.1 }, headline: { x: 0.1, y: 0.18 }, sub: { x: 0.1, y: 0.37 }, cta: { x: 0.1, y: 0.44 } },
     styles: { eyebrow: { size: 13 }, headline: { size: 34 }, sub: { size: 13 }, cta: { size: 12 } },
+    images: [slot(0.56, 0.58, 0.38, "Photo", "an inviting photo of signature cocktails and shared appetizers on a warm bar top", 1.0)],
     texts: [
-      tl("TONIGHT’S SPECIALS", 0.1, 0.56, 14, ACC, 0.8, true),
-      tl("• $5 house reds & whites\n• ½-price wings & nachos\n• $7 signature cocktails\n• $6 craft drafts", 0.1, 0.64, 14, DK.B, 0.82),
-      tl("Ask your server · cash & card welcome", 0.1, 0.9, 10.5, DK.M, 0.82),
+      tl("TONIGHT’S SPECIALS", 0.1, 0.56, 14, ACC, 0.42, true),
+      tl("• $5 house reds & whites\n• ½-price wings & nachos\n• $7 signature cocktails\n• $6 craft drafts", 0.1, 0.64, 13, DK.B, 0.44),
+      tl("Ask your server · cash & card welcome", 0.1, 0.92, 10.5, DK.M, 0.84),
     ],
   },
-  // Brochure covers sit in the right-most panel; the other panels are filled with
-  // free-text so the whole flat sheet reads as a finished brochure.
+  // Brochure covers are a bold ACCENT panel (right-most) with white cover copy + a
+  // photo; the inner panels are full text on white — a finished, designed brochure.
   bifold: {
     eyebrow: "WELCOME TO",
     headline: "Bright Smiles\nDental",
     sub: "Modern, gentle care\nfor the whole family.",
     cta: "Book your visit →",
-    pos: { eyebrow: { x: 0.53, y: 0.3 }, headline: { x: 0.53, y: 0.42 }, sub: { x: 0.53, y: 0.68 }, cta: { x: 0.53, y: 0.84 } },
-    styles: { eyebrow: { size: 11 }, headline: { size: 24 }, sub: { size: 12 }, cta: { size: 12 } },
+    pos: { eyebrow: { x: 0.55, y: 0.47 }, headline: { x: 0.55, y: 0.55 }, sub: { x: 0.55, y: 0.77 }, cta: { x: 0.55, y: 0.89 } },
+    styles: { eyebrow: { size: 11, color: "rgba(255,255,255,0.85)" }, headline: { size: 23, color: WHITE }, sub: { size: 12, color: "rgba(255,255,255,0.92)" }, cta: { size: 12, bg: WHITE, color: "#0a0a0a" } },
+    shapes: [sh(0.5, 0, 0.5, 1, ACC)],
+    images: [slot(0.55, 0.06, 0.4, "Cover photo", "a warm, welcoming photo of a smiling family or patient in a bright modern dental clinic", 1.5)],
     texts: [
-      tl("ABOUT US", 0.05, 0.12, 12, ACC, 0.4, true),
-      tl("Bright Smiles Dental brings gentle, modern dentistry to Austin families — with honest pricing and same-day care since 2008.", 0.05, 0.2, 11, LT.B, 0.4),
-      tl("OUR SERVICES", 0.05, 0.46, 12, ACC, 0.4, true),
-      tl("• Exams, cleanings & whitening\n• Invisalign® clear aligners\n• Crowns, bridges & implants\n• Emergency visits", 0.05, 0.54, 10.5, LT.B, 0.4),
-      tl("(404) 555-0142 · brightsmiles.com", 0.05, 0.86, 10.5, LT.H, 0.42, true),
+      tl("ABOUT US", 0.07, 0.12, 12, ACC, 0.38, true),
+      tl("Bright Smiles Dental brings gentle, modern dentistry to Austin families — with honest pricing and same-day care since 2008.", 0.07, 0.2, 11, LT.B, 0.38),
+      tl("OUR SERVICES", 0.07, 0.48, 12, ACC, 0.38, true),
+      tl("• Exams, cleanings & whitening\n• Invisalign® clear aligners\n• Crowns, bridges & implants\n• Emergency visits", 0.07, 0.56, 10.5, LT.B, 0.38),
+      tl("(404) 555-0142 · brightsmiles.com", 0.07, 0.88, 10.5, LT.H, 0.4, true),
     ],
   },
   trifold: {
     eyebrow: "WELCOME TO",
     headline: "Bright\nSmiles\nDental",
-    sub: "Gentle, modern\ncare for families.",
+    sub: "Gentle, modern\ncare for all.",
     cta: "Book a visit →",
-    pos: { eyebrow: { x: 0.68, y: 0.3 }, headline: { x: 0.68, y: 0.4 }, sub: { x: 0.68, y: 0.68 }, cta: { x: 0.68, y: 0.84 } },
-    styles: { eyebrow: { size: 9 }, headline: { size: 22 }, sub: { size: 10 }, cta: { size: 10.5 } },
+    pos: { eyebrow: { x: 0.7, y: 0.45 }, headline: { x: 0.7, y: 0.52 }, sub: { x: 0.7, y: 0.76 }, cta: { x: 0.7, y: 0.88 } },
+    styles: { eyebrow: { size: 9, color: "rgba(255,255,255,0.85)" }, headline: { size: 19, color: WHITE }, sub: { size: 9.5, color: "rgba(255,255,255,0.92)" }, cta: { size: 9.5, bg: WHITE, color: "#0a0a0a" } },
+    shapes: [sh(0.667, 0, 0.333, 1, ACC)],
+    images: [slot(0.7, 0.06, 0.26, "Cover photo", "a friendly photo of a happy patient or a bright, modern dental clinic", 1.1)],
     texts: [
       // middle panel — who we are + contact
-      tl("WHO WE ARE", 0.37, 0.1, 11.5, ACC, 0.27, true),
-      tl("Bright Smiles Dental has cared for Austin families since 2008 — gentle, modern dentistry with honest, transparent pricing.", 0.37, 0.18, 9, LT.B, 0.28),
-      tl("CONTACT US", 0.37, 0.52, 11.5, ACC, 0.27, true),
-      tl("(404) 555-0142", 0.37, 0.6, 9.5, LT.H, 0.28, true),
-      tl("hello@brightsmiles.com", 0.37, 0.655, 9, LT.B, 0.28),
-      tl("123 Market St, Austin TX", 0.37, 0.71, 9, LT.B, 0.28),
-      tl("Mon–Fri 8–6 · Sat 9–2", 0.37, 0.8, 9, LT.B, 0.28),
+      tl("WHO WE ARE", 0.36, 0.1, 11, ACC, 0.27, true),
+      tl("Bright Smiles Dental has cared for Austin families since 2008 — gentle, modern dentistry with honest, transparent pricing.", 0.36, 0.18, 9, LT.B, 0.28),
+      tl("CONTACT US", 0.36, 0.52, 11, ACC, 0.27, true),
+      tl("(404) 555-0142", 0.36, 0.6, 9.5, LT.H, 0.28, true),
+      tl("hello@brightsmiles.com", 0.36, 0.655, 9, LT.B, 0.28),
+      tl("123 Market St, Austin TX", 0.36, 0.71, 9, LT.B, 0.28),
+      tl("Mon–Fri 8–6 · Sat 9–2", 0.36, 0.8, 9, LT.B, 0.28),
       // back panel — services + proof
-      tl("OUR SERVICES", 0.045, 0.1, 11.5, ACC, 0.27, true),
-      tl("• New-patient exams\n• Cleanings & whitening\n• Invisalign® aligners\n• Crowns & implants\n• Root canals\n• Emergency visits", 0.045, 0.18, 9, LT.B, 0.28),
-      tl("WHY PATIENTS LOVE US", 0.045, 0.62, 11, ACC, 0.27, true),
-      tl("★★★★★ 500+ 5-star reviews\nSame-day appointments\nFinancing available", 0.045, 0.7, 9, LT.B, 0.28),
+      tl("OUR SERVICES", 0.08, 0.1, 11, ACC, 0.25, true),
+      tl("• New-patient exams\n• Cleanings & whitening\n• Invisalign® aligners\n• Crowns & implants\n• Root canals\n• Emergency visits", 0.08, 0.18, 9, LT.B, 0.25),
+      tl("WHY PATIENTS LOVE US", 0.08, 0.62, 10.5, ACC, 0.25, true),
+      tl("★★★★★ 500+ 5-star reviews\nSame-day appointments\nFinancing available", 0.08, 0.7, 9, LT.B, 0.25),
     ],
   },
   postcard: {
     eyebrow: "YOU’RE INVITED",
-    headline: "Spring Open House",
+    headline: "Spring\nOpen House",
     sub: "Sunday, May 4 · 1–4 PM",
     cta: "RSVP today →",
-    pos: { eyebrow: { x: 0.07, y: 0.12 }, headline: { x: 0.07, y: 0.3 }, sub: { x: 0.07, y: 0.54 }, cta: { x: 0.07, y: 0.84 } },
-    styles: { eyebrow: { size: 12 }, headline: { size: 32 }, sub: { size: 15 }, cta: { size: 13 } },
+    pos: { eyebrow: { x: 0.07, y: 0.12 }, headline: { x: 0.07, y: 0.26 }, sub: { x: 0.07, y: 0.62 }, cta: { x: 0.07, y: 0.82 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 32 }, sub: { size: 14 }, cta: { size: 13 } },
+    shapes: [sh(0.6, 0, 0.4, 1, ACC)],
     texts: [
-      tl("Tour our new space, meet the team, and enjoy refreshments & live music.", 0.07, 0.66, 12, DK.B, 0.66),
-      tl("RSVP", 0.63, 0.16, 12, ACC, 0.3, true),
-      tl("rsvp@brightsmiles.com\n(404) 555-0142", 0.63, 0.26, 11, DK.B, 0.34),
-      tl("123 Market St\nAustin, TX 78701", 0.63, 0.5, 11, DK.B, 0.34),
+      tl("Tour our new space, meet\nthe team & enjoy refreshments.", 0.07, 0.72, 11.5, DK.B, 0.5),
+      tl("RSVP", 0.66, 0.18, 13, WHITE, 0.28, true),
+      tl("rsvp@brightsmiles.com\n(404) 555-0142", 0.66, 0.3, 11, WHITE, 0.3),
+      tl("123 Market St\nAustin, TX 78701", 0.66, 0.56, 11, "rgba(255,255,255,0.9)", 0.3),
     ],
   },
 };
@@ -236,6 +251,7 @@ interface CanvasProps {
   onRegenerate?: (details: string) => void;
   onBuildEditable?: (details: string) => void;
   onElementAssist?: (el: ElementKey) => void;
+  onPlaceholderGenerate?: (layer: ImageLayer) => void;
   brandColors?: string[];
   brandContact?: BrandContact;
   brandLogo?: string | null;
@@ -267,8 +283,9 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
     if (f.group === "paper") {
       const sample = PRINT_SAMPLES[key] ?? {};
       const accent = canvas.value.accent;
-      // Swap the "@accent" colour sentinel in sample text for the real brand accent.
+      // Swap the "@accent" colour sentinel (text + blocks) for the real brand accent.
       const texts = (sample.texts ?? []).map((t) => (t.style?.color === "@accent" ? { ...t, style: { ...t.style, color: accent } } : t));
+      const shapes = (sample.shapes ?? []).map((s) => (s.color === "@accent" ? { ...s, color: accent } : s));
       canvas.onChange({
         ...canvas.value,
         ...sample,
@@ -276,7 +293,9 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
         size: f.sizes[0].v,
         style: f.defaultStyle ?? canvas.value.style,
         texts,
-        images: [], contacts: [],
+        shapes,
+        images: sample.images ?? [],
+        contacts: [],
         imageUrl: undefined, bgImageUrl: undefined, generating: false,
       });
     }

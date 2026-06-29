@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,7 +18,14 @@ export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
 export interface Pos { x: number; y: number } // fraction 0..1 of the poster
 export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right"; bg?: string }
 export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
-export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string; loadError?: boolean }
+export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string; loadError?: boolean;
+  // Photo PLACEHOLDER: an empty slot the user fills via AI-generate (contextual)
+  // or upload. `label` = what it's for ("Team photo"), `genHint` = a generation
+  // hint, `aspect` = w/h so the slot keeps a fixed footprint before/after fill.
+  placeholder?: boolean; label?: string; genHint?: string; aspect?: number }
+// A colored BLOCK/panel that sits BEHIND the text — the building block of
+// designed backgrounds (accent panels, sidebars, color bands), like a brochure.
+export interface ShapeLayer { id: string; x: number; y: number; w: number; h: number; color: string; radius?: number; opacity?: number }
 
 // Brand contact details + social handles a user can drop onto the design.
 export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "youtube" | "tiktok";
@@ -35,7 +42,7 @@ export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number; 
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
-  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[];
+  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[];
   imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
@@ -118,12 +125,13 @@ function posterTheme(style: string | undefined, accent: string): { bg: string; g
 }
 
 // A selection points at a core element, a free-text layer, or an image.
-type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | null;
+type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | null;
 
 export function designCanvasContext(d: DesignDoc): string {
   const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
   const st = (k: ElementKey) => { const s = d.styles?.[k]; if (!s) return ""; const bits = [s.color ? `color ${s.color}` : "", s.size ? `${s.size}px` : "", s.bold ? "bold" : "", s.align ? s.align : ""].filter(Boolean); return bits.length ? ` [${bits.join(", ")}]` : ""; };
-  const imgs = (d.images || []).filter((i) => !i.local && i.url);
+  const imgs = (d.images || []).filter((i) => !i.local && i.url && !i.placeholder);
+  const slots = (d.images || []).filter((i) => i.placeholder);
   const extra = (d.texts || []).map((t) => JSON.stringify(t.text)).filter(Boolean);
   const contacts = (d.contacts || []).map((c) => `${c.type}: ${c.value}`);
   return [
@@ -139,6 +147,9 @@ export function designCanvasContext(d: DesignDoc): string {
     contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
     `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
     imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
+    slots.length ? `- empty PHOTO SLOTS to fill (ids): ${slots.map((i) => `"${i.id}" (${i.label || "photo"}${i.genHint ? ` — ${i.genHint}` : ""})`).join("; ")}. To fill one, generate a fitting PHOTO with add_canvas_object type "photo" passing slotId=<that id> (it drops into that exact slot). If it's unclear what a slot's photo should show, ask the user ONE quick question first.` : "",
+    (d.shapes || []).length ? `- ${(d.shapes || []).length} background BLOCK(s)/panel(s) behind the text — preserve them; they create the designed background.` : "",
+    "BACKGROUND DESIGN: this canvas has colored BLOCKS (`shapes`) that sit BEHIND the text — use them to make a designed, magazine/brochure-style background instead of a plain page (an accent side-panel, a color band behind a heading, a footer bar). Set the whole `shapes` array via update_canvas: each block is { id, x, y, w, h (all 0..1 fractions of the canvas), color (hex), radius? (px), opacity? (0..1) }. Put bold copy on a colored block in a contrasting color. Keep blocks tasteful and on-brand (use the accent / brand colors).",
     "EDITING RULES:",
     "• TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') → call update_canvas with ONLY that field; never rewrite the others.",
     "• IMPROVE / REDESIGN / 'make it look better' the WHOLE canvas → do a COORDINATED rebuild in ONE update_canvas patch: rewrite the copy (eyebrow + headline + sub + cta), set accent to one of the user's REAL brand colors, pick the best `style` theme, and use `pos` + `styles` to balance the layout and give the text on-brand, high-contrast colors that match the background. A redesign that only swaps a word is a failure — change several things together so it visibly looks redesigned. If a background helps, add ONE brand-aware background via add_canvas_object (it auto-uses the brand palette) — and pass the design's accent in its `accent` field so it harmonizes.",
@@ -166,6 +177,14 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
       next.images = [...(next.images || []), layer];
     }
   }
+  // Fill a PHOTO PLACEHOLDER slot in place: the agent generated a photo for the
+  // slot id and we drop the url into that exact layer (keeps its position/size).
+  if (patch.fillImageLayer && typeof patch.fillImageLayer === "object") {
+    const f = patch.fillImageLayer as { id?: string; url?: string };
+    if (typeof f.id === "string" && typeof f.url === "string" && f.url) {
+      next.images = (next.images || []).map((i) => (i.id === f.id ? { ...i, url: f.url as string, placeholder: false, processing: false, error: false, loadError: false, local: false } : i));
+    }
+  }
   if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
   // Per-element text styling (color/size/bold/align) — merged so the agent can
   // recolor/resize the type to match the redesign without wiping the user's
@@ -179,6 +198,7 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
   if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
+  if (Array.isArray(patch.shapes)) next.shapes = patch.shapes as ShapeLayer[];
   return next;
 }
 
@@ -420,6 +440,27 @@ function ImageControls({ img, index, count, onArrange, onRemoveBg, onDelete }: {
   );
 }
 
+/** Background-block controls (fill color / opacity / corner radius / delete). */
+function ShapeControls({ shape, brandColors, onChange, onDelete }: { shape: ShapeLayer; brandColors?: string[]; onChange: (p: Partial<ShapeLayer>) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  const op = Math.round((shape.opacity ?? 1) * 100);
+  return (
+    <>
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (shape.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={shape.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ opacity: clamp((shape.opacity ?? 1) - 0.1, 0.1, 1) })} title="Less opaque" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">−</button>
+      <span title="Opacity" className="min-w-[30px] text-center text-[10.5px] tabular-nums">{op}%</span>
+      <button onClick={() => onChange({ opacity: clamp((shape.opacity ?? 1) + 0.1, 0.1, 1) })} title="More opaque" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">+</button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ radius: Math.max(0, (shape.radius ?? 0) - 4) })} title="Sharper corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Square className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onChange({ radius: Math.min(80, (shape.radius ?? 0) + 4) })} title="Rounder corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Circle className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete block" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
 // A saved design as returned by the library API.
 export interface SavedDesign { id: string; name: string; size: string; style?: string | null; imageUrl?: string | null; updatedAt: string; doc: DesignDoc }
 
@@ -458,9 +499,12 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
         <img src={doc.bgImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
       )}
       {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
-      {(doc?.images || []).map((img) => (
+      {(doc?.shapes || []).map((sh) => (
+        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
+      ))}
+      {(doc?.images || []).filter((i) => i.url && !i.placeholder).map((img) => (
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={img.id} src={img.url} alt="" className="absolute" style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%` }} />
+        <img key={img.id} src={img.url} alt="" className="absolute" style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%`, ...(img.aspect ? { aspectRatio: String(img.aspect), objectFit: "cover" as const } : {}) }} />
       ))}
       {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
         const s = doc?.styles?.[k] ?? {};
@@ -616,8 +660,8 @@ function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel, draftKey }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, onPlaceholderGenerate, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel, draftKey }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; onPlaceholderGenerate?: (layer: ImageLayer) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
   // Print mode (optional): print size presets + bleed/safe/fold guides + a "back
   // to formats" affordance. Absent → the canvas is the normal social studio.
   sizePresets?: SizePreset[]; guides?: PrintGuides; onBack?: () => void; formatLabel?: string;
@@ -662,11 +706,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const imagesRef = useRef<ImageLayer[]>(value.images || []);
   const textsRef = useRef<TextLayer[]>(value.texts || []);
   const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
+  const shapesRef = useRef<ShapeLayer[]>(value.shapes || []);
   const valueRef = useRef(value);
   valueRef.current = value;
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
   useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
   useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
+  useEffect(() => { shapesRef.current = value.shapes || []; }, [value.shapes]);
   // Nudge the selected element with the keyboard arrows (Shift = bigger step).
   // Ignored while typing in an input / editing text in place.
   useEffect(() => {
@@ -687,6 +733,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       else if (sel.kind === "text") onChange({ ...v, texts: (v.texts || []).map((t) => (t.id === sel.id ? { ...t, x: nx(t.x), y: ny(t.y) } : t)) });
       else if (sel.kind === "contact") onChange({ ...v, contacts: (v.contacts || []).map((c) => (c.id === sel.id ? { ...c, x: nx(c.x), y: ny(c.y) } : c)) });
       else if (sel.kind === "image") onChange({ ...v, images: (v.images || []).map((i) => (i.id === sel.id ? { ...i, x: nx(i.x), y: ny(i.y) } : i)) });
+      else if (sel.kind === "shape") onChange({ ...v, shapes: (v.shapes || []).map((sp) => (sp.id === sel.id ? { ...sp, x: nx(sp.x), y: ny(sp.y) } : sp)) });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -734,6 +781,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const setImages = (imgs: ImageLayer[]) => onChange({ ...value, images: imgs });
   const setTexts = (t: TextLayer[]) => onChange({ ...value, texts: t });
   const setContacts = (c: ContactLayer[]) => onChange({ ...value, contacts: c });
+  const setShapes = (s: ShapeLayer[]) => onChange({ ...value, shapes: s });
+  const patchShape = (id: string, patch: Partial<ShapeLayer>) => setShapes(shapesRef.current.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const removeShape = (id: string) => { setShapes(shapesRef.current.filter((s) => s.id !== id)); setSel((p) => (p?.kind === "shape" && p.id === id ? null : p)); };
+  const addShape = () => { const id = newId("shape"); onChange({ ...value, shapes: [...shapesRef.current, { id, x: 0.06, y: 0.06, w: 0.32, h: 0.5, color: value.accent, radius: 12, opacity: 1 }] }); setSel({ kind: "shape", id }); };
+  // Resize a block by the px-delta (both dimensions) relative to the poster size.
+  const resizeShape = (id: string, dx: number, dy: number, startW: number, startH: number) => {
+    const r = posterRef.current?.getBoundingClientRect();
+    patchShape(id, { w: clamp(startW + dx / (r?.width || baseW), 0.04, 1), h: clamp(startH + dy / (r?.height || height), 0.03, 1) });
+  };
   const patchImage = (id: string, patch: Partial<ImageLayer>) => setImages(imagesRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const patchText = (id: string, patch: Partial<TextLayer>) => setTexts(textsRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const patchContact = (id: string, patch: Partial<ContactLayer>) => setContacts(contactsRef.current.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -921,13 +977,29 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     if (ok) setLogoSavePrompt(null);
   };
   const addText = () => { const id = newId("txt"); onChange({ ...value, texts: [...textsRef.current, { id, text: "New text", x: 0.3, y: 0.4, w: 0.5, style: { size: 18, color: "#ffffff" } }] }); setSel({ kind: "text", id }); };
+  // Add an empty PHOTO SLOT the user fills via AI-generate or upload.
+  const addPhotoSlot = () => { const id = newId("slot"); onChange({ ...value, images: [...imagesRef.current, { id, url: "", x: 0.32, y: 0.3, w: 0.4, kind: "photo", placeholder: true, label: "Photo", aspect: 1.4 }] }); setSel({ kind: "image", id }); };
+  // Photo-slot fill: generate a contextual photo via the agent, or upload one.
+  const slotFileRef = useRef<HTMLInputElement>(null);
+  const slotUploadId = useRef<string | null>(null);
+  const genPlaceholder = (img: ImageLayer) => { patchImage(img.id, { processing: true }); onPlaceholderGenerate?.(img); };
+  const uploadToSlot = (id: string) => { slotUploadId.current = id; slotFileRef.current?.click(); };
+  const onSlotFile = (f: File | undefined) => {
+    const id = slotUploadId.current; slotUploadId.current = null;
+    if (!f || !id) return;
+    const local = URL.createObjectURL(f);
+    patchImage(id, { url: local, placeholder: false, local: true, processing: false });
+    void uploadImage(f).then((real) => { if (real) patchImage(id, { url: real, local: false }); else patchImage(id, { error: true }); });
+  };
 
   const images = value.images || [];
   const texts = value.texts || [];
   const contacts = value.contacts || [];
+  const shapes = value.shapes || [];
   const showAiImage = !!value.imageUrl;
   const anyLocalErr = images.some((i) => i.error);
   const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
+  const selShape = sel?.kind === "shape" ? shapes.find((s) => s.id === sel.id) : null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -982,14 +1054,48 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 )}
                 {theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
 
+                {/* background BLOCKS / panels — sit behind everything, drag to move, corner to resize */}
+                {shapes.map((sh) => {
+                  const selected = sel?.kind === "shape" && sel.id === sh.id;
+                  return (
+                    <Draggable key={sh.id} pos={{ x: sh.x, y: sh.y }} onMove={(p) => patchShape(sh.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "shape", id: sh.id })} posterRef={posterRef} style={{ width: `${sh.w * 100}%`, height: `${sh.h * 100}%` }}>
+                      <div className={cn("relative h-full w-full", selected && "outline outline-2 outline-brand-400")} style={{ background: sh.color, borderRadius: sh.radius ?? 0, opacity: sh.opacity ?? 1 }}>
+                        {selected && <ResizeHandle onStart={() => { (sh as ShapeLayer & { _sw?: number; _sh?: number })._sw = sh.w; (sh as ShapeLayer & { _sw?: number; _sh?: number })._sh = sh.h; }} onResize={(dx, dy) => resizeShape(sh.id, dx, dy, (sh as ShapeLayer & { _sw?: number })._sw ?? sh.w, (sh as ShapeLayer & { _sh?: number })._sh ?? sh.h)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
                 {images.map((img) => {
                   const selected = sel?.kind === "image" && sel.id === img.id;
                   return (
                     <Draggable key={img.id} pos={{ x: img.x, y: img.y }} onMove={(p) => patchImage(img.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "image", id: img.id })} posterRef={posterRef} className={cn("group", selected && "z-10")} style={{ width: `${img.w * 100}%` }}>
                       <div className={cn("relative", selected && "outline outline-2 outline-brand-400 rounded-xl")}>
-                        {img.loadError ? (
+                        {img.placeholder ? (
+                          // Empty PHOTO SLOT — generate a contextual photo with AI, or upload one.
+                          <div className="grid w-full place-items-center rounded-xl border-2 border-dashed border-brand-400/70 bg-brand-500/[0.08] text-center" style={{ aspectRatio: String(img.aspect ?? 1.4) }}>
+                            {img.processing ? (
+                              <span className="flex flex-col items-center gap-1 text-brand-200"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-[8.5px] font-semibold">Generating…</span></span>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1.5 px-2">
+                                <ImagePlus className="h-5 w-5 text-brand-300" />
+                                <span className="text-[9.5px] font-bold leading-tight text-white/90">{img.label || "Photo"}</span>
+                                <div className="flex gap-1">
+                                  <button onClick={(e) => { e.stopPropagation(); genPlaceholder(img); }} title="Generate a photo from the design context" className="inline-flex items-center gap-0.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 px-1.5 py-1 text-[8.5px] font-bold text-white shadow-sm"><Sparkles className="h-2.5 w-2.5" /> Generate</button>
+                                  <button onClick={(e) => { e.stopPropagation(); uploadToSlot(img.id); }} title="Upload a photo" className="inline-flex items-center gap-0.5 rounded-md border border-white/30 bg-black/35 px-1.5 py-1 text-[8.5px] font-semibold text-white">Upload</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : img.loadError ? (
                           <div className={cn("pointer-events-none grid w-full place-items-center bg-white/[0.06] text-center text-[8.5px] text-white/70", img.kind === "logo" ? "aspect-[3/1] rounded-md" : "aspect-[4/5] rounded-xl")}>
                             <span className="px-2"><ImagePlus className="mx-auto mb-0.5 h-4 w-4 opacity-60" />{img.kind} unavailable — re-add it</span>
+                          </div>
+                        ) : img.aspect ? (
+                          // A filled slot keeps its footprint: cover the fixed-aspect box.
+                          <div className="w-full overflow-hidden rounded-xl" style={{ aspectRatio: String(img.aspect) }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className="pointer-events-none h-full w-full object-cover" />
                           </div>
                         ) : (
                           // Logos use object-contain so a wide wordmark isn't cropped; photos cover.
@@ -997,7 +1103,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                           <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className="pointer-events-none w-full" />
                         )}
                         <button onClick={() => removeImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
-                        {img.processing && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
+                        {img.processing && !img.placeholder && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
                         {img.bgError ? (
                           <span className="absolute bottom-1.5 left-1.5 max-w-[88%] rounded bg-black/72 px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-amber-300">{img.bgError}</span>
                         ) : img.local ? (
@@ -1059,9 +1165,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
 
           {/* selection toolbar — a SIBLING of the scaled design, so it stays a
               readable size at any zoom, positioned over the top of the design */}
-          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage) && (
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape) && (
             <FloatingToolbar>
-              {sel.kind === "image" && selIsImage ? (
+              {selShape ? (
+                <ShapeControls shape={selShape} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onDelete={() => removeShape(selShape.id)} />
+              ) : sel.kind === "image" && selIsImage ? (
                 <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
               ) : (
                 <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : sel.kind === "contact" ? () => removeContact(sel.id) : undefined} />
@@ -1138,6 +1246,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                       <button onClick={() => photoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Add photo</button>
                       <button onClick={() => (brandLogo ? addBrandLogo(brandLogo) : logoRef.current?.click())} title={brandLogo ? "Add your brand logo" : "Upload a logo"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
                     </div>
+                    <div className="mt-1.5 flex gap-1.5">
+                      <button onClick={addPhotoSlot} title="Drop an empty photo slot — fill it with AI-generate or an upload" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Photo slot</button>
+                      <button onClick={addShape} title="Add a colored background block/panel (sits behind the text)" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Square className="h-3.5 w-3.5" /> Color block</button>
+                    </div>
                     {images.length > 0 ? (
                       <div className="mt-2 space-y-1.5">{images.map((img) => (
                         <button key={img.id} onClick={() => setSel({ kind: "image", id: img.id })} className={cn("flex w-full items-center gap-2 rounded-lg border bg-background/60 p-1.5 text-left", selIsImage?.id === img.id ? "border-brand-500" : "border-border")}>
@@ -1203,6 +1315,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
 
       <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files, "photo"); e.target.value = ""; }} />
       <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files, "logo"); e.target.value = ""; }} />
+      <input ref={slotFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onSlotFile(e.target.files?.[0]); e.target.value = ""; }} />
     </div>
   );
 }

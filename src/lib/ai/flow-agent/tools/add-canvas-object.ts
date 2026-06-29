@@ -91,10 +91,11 @@ export const addCanvasObject: FlowAgentTool = {
     type: "object",
     properties: {
       planId: { type: "string", description: "REQUIRED — the planId from a confirmed propose_plan. Call propose_plan first (with the step + credit cost), wait for the user to confirm, then call this with that planId." },
-      type: { type: "string", description: "'element' (an isolated cut-out object to place on the canvas) or 'background' (a backdrop behind the current design)." },
-      prompt: { type: "string", description: "What to generate. For an element, just the subject ('a sleek modern laptop, screen on'). For a background, describe the mood/scene/texture you want (e.g. 'soft modern gradient with subtle geometric shapes') — do NOT bother spelling out hex colors; the tool already injects the user's brand palette. Keep it consistent with the user's current design style." },
-      size: { type: "string", description: "The canvas size for a BACKGROUND, e.g. '1080×1350' (read it from the canvas context). Ignored for elements." },
-      accent: { type: "string", description: "For a BACKGROUND: the design's current accent hex from the canvas context (e.g. '#0ea5e9'). The tool blends it with the brand palette so the backdrop harmonizes with the on-canvas accent. Ignored for elements." },
+      type: { type: "string", description: "'element' (an isolated cut-out object), 'background' (a backdrop behind the current design), or 'photo' (a full real photograph to fill a photo SLOT — pass slotId)." },
+      prompt: { type: "string", description: "What to generate. For an element, just the subject ('a sleek modern laptop, screen on'). For a background, the mood/scene/texture (e.g. 'soft modern gradient with subtle geometric shapes'). For a photo, describe the scene/subject of the photograph (e.g. 'a friendly dentist smiling with a patient in a bright modern clinic'). Don't spell out hex colors for backgrounds — the tool injects the brand palette. Keep it consistent with the design's style." },
+      size: { type: "string", description: "The canvas size for a BACKGROUND, e.g. '1080×1350' (read it from the canvas context). Ignored for elements/photos." },
+      accent: { type: "string", description: "For a BACKGROUND: the design's current accent hex from the canvas context (e.g. '#0ea5e9'). The tool blends it with the brand palette so the backdrop harmonizes with the on-canvas accent. Ignored for elements/photos." },
+      slotId: { type: "string", description: "For type 'photo' ONLY: the id of the empty photo SLOT to fill (from the canvas context's 'empty PHOTO SLOTS' list). The generated photo drops into that exact slot, keeping its position & size." },
       tier: { type: "string", description: "'standard' (default) or 'premium' (sharper). Read live prices from list_my_features." },
     },
     required: ["planId", "type", "prompt"],
@@ -103,10 +104,14 @@ export const addCanvasObject: FlowAgentTool = {
   costKey: "AGENT_PROPOSE_PLAN", // base 0 — the handler charges the image cost itself
   mutating: true,
   handler: async (input, ctx) => {
-    const type = input.type === "background" ? "background" : "element";
+    const type = input.type === "background" ? "background" : input.type === "photo" ? "photo" : "element";
+    const slotId = type === "photo" && typeof input.slotId === "string" && input.slotId.trim() ? input.slotId.trim() : undefined;
     const promptText = typeof input.prompt === "string" ? input.prompt.trim() : "";
     if (!promptText) {
       return { ok: false, error_code: "missing_input", message: "prompt (what to generate) is required." };
+    }
+    if (type === "photo" && !slotId) {
+      return { ok: false, error_code: "missing_input", message: "type 'photo' needs a slotId (the empty photo slot to fill — see the canvas context)." };
     }
     const tier = input.tier === "premium" ? "premium" : "standard";
     const costKey = tier === "premium" ? "AGENT_GENERATE_IMAGE_PREMIUM" : "AGENT_GENERATE_IMAGE_STANDARD";
@@ -121,12 +126,15 @@ export const addCanvasObject: FlowAgentTool = {
       }
     }
 
-    // Size: elements render square (they're a layer); backgrounds match the canvas.
+    // Size: elements render square (they're a layer); backgrounds match the canvas;
+    // photos are landscape (the slot crops them to fit with object-cover).
     let width = 1024, height = 1024;
     if (type === "background") {
       const [sw, sh] = (typeof input.size === "string" ? input.size : "").split(/[×x]/).map((n) => parseInt(n, 10));
       width = clampDim(sw, 1080);
       height = clampDim(sh, 1350);
+    } else if (type === "photo") {
+      width = 1216; height = 832;
     }
 
     // Backgrounds are made BRAND-AWARE automatically: pull the user's palette
@@ -138,7 +146,9 @@ export const addCanvasObject: FlowAgentTool = {
     const wantsWhite = /\b(white|plain|blank|minimal|clean white|pure white)\b/i.test(promptText);
 
     const enrichedPrompt =
-      type === "element"
+      type === "photo"
+        ? `${promptText}. A high-quality, professional, photorealistic PHOTOGRAPH — natural lighting, realistic depth of field, editorial quality, suitable to print. No text, no words, no watermark, no logo.`
+        : type === "element"
         ? `${promptText}. A single isolated subject, centered, professional studio product shot on a plain solid neutral background, full subject in frame, soft even lighting, no text, no extra props, no logo.`
         : [
             `${promptText}.`,
@@ -226,7 +236,7 @@ export const addCanvasObject: FlowAgentTool = {
           previewImageUrl: url,
         });
 
-        return { output: { url, objectType: type, link: "/home/create" } };
+        return { output: { url, objectType: type, slotId, link: "/home/create" } };
       },
     });
 
@@ -234,7 +244,7 @@ export const addCanvasObject: FlowAgentTool = {
       type: "task_started",
       taskId,
       kind: "canvas_object",
-      summary: type === "background" ? "Generating a background…" : "Generating your element…",
+      summary: type === "background" ? "Generating a background…" : type === "photo" ? "Generating the photo…" : "Generating your element…",
     });
 
     return {
@@ -242,8 +252,9 @@ export const addCanvasObject: FlowAgentTool = {
       data: {
         taskId,
         objectType: type,
+        slotId,
         creditCostQuoted: cost,
-        userMessage: `Started generating a ${type} (${tier}). It will drop onto the OPEN canvas as a ${type === "background" ? "backdrop behind the current design" : "draggable, resizable object"} when ready — the existing layout is preserved. Tell the user you're adding it and you'll place it on the canvas shortly. Do NOT call create_branded_design.`,
+        userMessage: `Started generating a ${type} (${tier}). It will ${type === "photo" ? `drop into the photo slot "${slotId}"` : type === "background" ? "sit as a backdrop behind the current design" : "drop onto the OPEN canvas as a draggable, resizable object"} when ready — the existing layout is preserved. Tell the user you're adding it and you'll place it shortly. Do NOT call create_branded_design.`,
       },
     };
   },
