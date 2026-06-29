@@ -10,6 +10,24 @@ import path from "path";
 import os from "os";
 import sharp from "sharp";
 
+/**
+ * Upload to S3, but if storage isn't configured/reachable (e.g. local dev), fall
+ * back to persisting the file under /public and serving it directly. Keeps media
+ * upload working everywhere instead of failing with a 500 "credential" error.
+ */
+async function uploadOrLocal(key: string, buffer: Buffer, mime: string): Promise<string> {
+  try {
+    return await uploadToS3(key, buffer, mime);
+  } catch (err) {
+    console.warn("[media] S3 upload failed; serving from /public:", err instanceof Error ? err.message : err);
+    const rel = key.replace(/^\/+/, "");
+    const abs = path.join(process.cwd(), "public", "uploads", rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, buffer);
+    return `/uploads/${rel}`;
+  }
+}
+
 // Allow large uploads (100MB for videos)
 export const maxDuration = 120; // 2 min timeout for large uploads + processing
 
@@ -442,7 +460,7 @@ export async function POST(request: NextRequest) {
     // Upload (optimized) file to S3 + image thumbnail variants in parallel.
     // Medium (800px) and small (240px) WebP versions cut feed/library payload
     // from a 4096px master to ~50-200 KB and ~5-30 KB respectively.
-    const mainUploadP = uploadToS3(`media/${filename}`, buffer, uploadMimeType);
+    const mainUploadP = uploadOrLocal(`media/${filename}`, buffer, uploadMimeType);
 
     let thumbMdUploadP: Promise<string | null> = Promise.resolve(null);
     let thumbSmUploadP: Promise<string | null> = Promise.resolve(null);
@@ -453,7 +471,7 @@ export async function POST(request: NextRequest) {
         .resize({ width: 800, withoutEnlargement: true })
         .webp({ quality: 80 })
         .toBuffer()
-        .then((buf) => uploadToS3(mdKey, buf, "image/webp"))
+        .then((buf) => uploadOrLocal(mdKey, buf, "image/webp"))
         .catch((err) => {
           console.error("[media] medium thumbnail failed:", err);
           return null;
@@ -462,7 +480,7 @@ export async function POST(request: NextRequest) {
         .resize({ width: 240, withoutEnlargement: true })
         .webp({ quality: 78 })
         .toBuffer()
-        .then((buf) => uploadToS3(smKey, buf, "image/webp"))
+        .then((buf) => uploadOrLocal(smKey, buf, "image/webp"))
         .catch((err) => {
           console.error("[media] small thumbnail failed:", err);
           return null;
@@ -483,7 +501,7 @@ export async function POST(request: NextRequest) {
       const thumbBuffer = await generateVideoThumbnail(buffer, videoExt);
       if (thumbBuffer) {
         const thumbKey = `media/thumbs/${baseId}.jpg`;
-        const thumbUrl = await uploadToS3(thumbKey, thumbBuffer, "image/jpeg");
+        const thumbUrl = await uploadOrLocal(thumbKey, thumbBuffer, "image/jpeg");
         metadata.thumbnailUrl = thumbUrl;
       }
     }
