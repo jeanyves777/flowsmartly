@@ -423,8 +423,8 @@ function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete,
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, brandContact, working }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; working?: boolean;
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean;
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
@@ -440,6 +440,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const [libOpen, setLibOpen] = useState(false);
   const [libDesigns, setLibDesigns] = useState<SavedDesign[]>([]);
   const [libLoading, setLibLoading] = useState(false);
+  // After uploading a logo when the brand has none yet, offer to save it.
+  const [logoSavePrompt, setLogoSavePrompt] = useState<{ url: string } | null>(null);
+  const [logoSaving, setLogoSaving] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const posterRef = useRef<HTMLDivElement>(null);
@@ -574,8 +577,26 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
       const layer: ImageLayer = { id, url: localUrl, x: isLogo ? 0.06 : clamp(0.24 + idx * 0.04, 0, 0.6), y: isLogo ? 0.06 : clamp(0.22 + idx * 0.04, 0, 0.6), w: isLogo ? 0.2 : 0.46, kind, local: true, file };
       onChange({ ...value, images: [...imagesRef.current, layer] });
       setSel({ kind: "image", id });
-      void uploadImage(file).then((real) => { if (real) patchImage(id, { url: real, local: false, error: false }); else patchImage(id, { error: true }); });
+      void uploadImage(file).then((real) => {
+        if (real) { patchImage(id, { url: real, local: false, error: false });
+          // First logo ever + they have no brand logo → offer to save it.
+          if (isLogo && !brandLogo && onSaveBrandLogo) setLogoSavePrompt({ url: real });
+        } else patchImage(id, { error: true });
+      });
     });
+  };
+  // "Add logo" drops the user's EXISTING brand logo straight onto the canvas.
+  const addBrandLogo = (url: string) => {
+    const id = newId("img");
+    onChange({ ...value, images: [...imagesRef.current, { id, url, x: 0.06, y: 0.06, w: 0.2, kind: "logo", local: false }] });
+    setSel({ kind: "image", id });
+  };
+  const saveBrandLogoNow = async () => {
+    if (!logoSavePrompt || !onSaveBrandLogo) { setLogoSavePrompt(null); return; }
+    setLogoSaving(true);
+    const ok = await onSaveBrandLogo(logoSavePrompt.url);
+    setLogoSaving(false);
+    if (ok) setLogoSavePrompt(null);
   };
   const addText = () => { const id = newId("txt"); onChange({ ...value, texts: [...textsRef.current, { id, text: "New text", x: 0.3, y: 0.4, w: 0.5, style: { size: 18, color: "#ffffff" } }] }); setSel({ kind: "text", id }); };
 
@@ -752,7 +773,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                   <ControlGroup title="Images & logo">
                     <div className="mt-1.5 flex gap-1.5">
                       <button onClick={() => photoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Add photo</button>
-                      <button onClick={() => logoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
+                      <button onClick={() => (brandLogo ? addBrandLogo(brandLogo) : logoRef.current?.click())} title={brandLogo ? "Add your brand logo" : "Upload a logo"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
                     </div>
                     {images.length > 0 ? (
                       <div className="mt-2 space-y-1.5">{images.map((img) => (
@@ -785,6 +806,16 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
 
       {libOpen && (
         <DesignLibrary designs={libDesigns} loading={libLoading} currentId={designId} onClose={() => setLibOpen(false)} onLoad={loadDesign} onDelete={deleteDesign} onNew={newDesign} />
+      )}
+
+      {logoSavePrompt && (
+        <div className="absolute bottom-4 left-1/2 z-40 flex max-w-[92vw] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-border bg-popover px-3.5 py-2.5 shadow-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSavePrompt.url} alt="" className="h-7 w-7 rounded-md object-contain" />
+          <span className="text-[12.5px] font-medium">Save this as your brand logo?</span>
+          <button onClick={saveBrandLogoNow} disabled={logoSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[11.5px] font-semibold text-white shadow-sm disabled:opacity-60">{logoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />} {logoSaving ? "Saving…" : "Save to brand"}</button>
+          <button onClick={() => setLogoSavePrompt(null)} className="rounded-lg px-2 py-1.5 text-[11.5px] text-muted-foreground hover:text-foreground">Not now</button>
+        </div>
       )}
 
       <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files, "photo"); e.target.value = ""; }} />

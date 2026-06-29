@@ -259,6 +259,7 @@ export function AgentHome() {
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -288,6 +289,7 @@ export function AgentHome() {
           if (!alive || !b?.success) return;
           const bk = b.data?.brandKit;
           if (bk?.name) setBrandName(bk.name);
+          setBrandLogo(typeof bk?.logo === "string" && bk.logo ? bk.logo : null);
           // Contact details + social handles → the canvas "Contact" tab.
           const addr = [bk?.city, bk?.state].filter(Boolean).join(", ") || bk?.address || undefined;
           const h = (bk?.handles && typeof bk.handles === "object") ? bk.handles : {};
@@ -425,6 +427,20 @@ export function AgentHome() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2000);
   }, []);
+
+  // Persist an uploaded logo to the brand kit (preserving the rest of the kit).
+  const handleSaveBrandLogo = useCallback(async (url: string): Promise<boolean> => {
+    try {
+      const cur = await fetch("/api/brand").then((r) => r.json()).catch(() => null);
+      const bk = cur?.data?.brandKit;
+      const payload = bk ? { ...bk, logo: url } : { name: brandName || "My Brand", logo: url };
+      const res = await fetch("/api/brand", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) { showToast("Couldn't save the logo to your brand"); return false; }
+      setBrandLogo(url);
+      showToast("Saved to your brand kit");
+      return true;
+    } catch { showToast("Couldn't save the logo to your brand"); return false; }
+  }, [brandName, showToast]);
 
   const switchToClient = useCallback(async (clientId: string) => {
     try {
@@ -656,6 +672,8 @@ export function AgentHome() {
                     onChange={setDesign}
                     brandColors={brandColors}
                     brandContact={brandContact ?? undefined}
+                    brandLogo={brandLogo}
+                    onSaveBrandLogo={handleSaveBrandLogo}
                     working={sending}
                     onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
