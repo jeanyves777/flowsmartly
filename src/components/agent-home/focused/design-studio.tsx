@@ -42,6 +42,9 @@ const DEFAULT_COLOR: Record<ElementKey, string> = { eyebrow: "rgba(255,255,255,0
 // Per-tab autosave key for the in-progress design (shared with agent-home so a
 // "new design" can clear it synchronously and a reload restores the right doc).
 export const DESIGN_DRAFT_KEY = "fs-design-draft";
+// Multi-page: the extra pages of the working design are autosaved here (the active
+// page is the one in DESIGN_DRAFT_KEY / the parent's design state).
+const PAGES_DRAFT_KEY = "fs-design-pages";
 
 export const DEFAULT_DESIGN: DesignDoc = {
   eyebrow: "FLOWSMARTLY · LIMITED TIME",
@@ -499,6 +502,29 @@ function DesignThumb({ doc }: { doc: DesignDoc }) {
   );
 }
 
+/** Multi-page strip — page thumbnails + a "+" to add a page; one design, many pages. */
+function PageStrip({ pages, active, onSelect, onAdd, onDelete }: {
+  pages: DesignDoc[]; active: number; onSelect: (i: number) => void; onAdd: () => void; onDelete: (i: number) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-border bg-card/40 px-3 py-2">
+      {pages.map((p, i) => (
+        <div key={i} className="group relative shrink-0">
+          <button onClick={() => onSelect(i)} title={`Page ${i + 1}`} className={cn("block h-16 w-12 overflow-hidden rounded-md border-2 bg-muted transition", i === active ? "border-brand-500" : "border-border hover:border-brand-500/50")}>
+            <DesignThumb doc={p} />
+          </button>
+          <span className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[8.5px] font-bold leading-tight text-white">{i + 1}</span>
+          {pages.length > 1 && (
+            <button onClick={() => onDelete(i)} title="Delete page" className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-rose-600 text-white opacity-0 shadow transition group-hover:opacity-100 hover:bg-rose-700"><X className="h-2.5 w-2.5" /></button>
+          )}
+        </div>
+      ))}
+      <button onClick={onAdd} title="Add a page" className="grid h-16 w-12 shrink-0 place-items-center rounded-md border-2 border-dashed border-border text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-4 w-4" /></button>
+      <span className="ms-1 hidden whitespace-nowrap text-[10.5px] text-muted-foreground sm:inline">{pages.length} {pages.length === 1 ? "page" : "pages"}</span>
+    </div>
+  );
+}
+
 /** The design library overlay — saved canvases the user can reopen and keep working on. */
 function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete, onNew }: {
   designs: SavedDesign[]; loading: boolean; currentId: string | null;
@@ -552,6 +578,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   // Extra direction for the two AI generate modes (editable rebuild vs flat image).
   const [genDetails, setGenDetails] = useState("");
+  // Multi-page: `value` is always the ACTIVE page; the other pages live in `pages`.
+  // Switching saves the current edits into the active slot, then loads the target.
+  const [pages, setPages] = useState<DesignDoc[]>([value]);
+  const [active, setActive] = useState(0);
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
   const [sel, setSel] = useState<Sel>(null);
   // Design library (saved canvases).
@@ -691,7 +721,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     try {
       const r = await fetch(`/api/agent-designs/${id}`); const j = await r.json().catch(() => null);
       const doc = j?.data?.design?.doc as DesignDoc | undefined;
-      if (doc && typeof doc === "object") { onChange(doc); setDesignId(id); setDesignName(j.data.design.name || "Untitled design"); setSel(null); }
+      if (doc && typeof doc === "object") { onChange(doc); setPages([doc]); setActive(0); setDesignId(id); setDesignName(j.data.design.name || "Untitled design"); setSel(null); }
     } catch { /* ignore */ } finally { setLibOpen(false); }
   };
   const deleteDesign = async (id: string) => {
@@ -706,9 +736,48 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     const blank: DesignDoc = { ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
     try { sessionStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(blank)); } catch { /* ignore */ }
     onChange(blank);
+    setPages([blank]); setActive(0);
     setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false);
   };
   const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
+
+  // ── Multi-page: switch / add / delete pages ──
+  const mpReady = useRef(false);
+  // Persist all pages (active slot merged with its latest edits). Skipped until the
+  // restore below has settled so it can't clobber stored pages on first mount.
+  useEffect(() => {
+    if (!mpReady.current) return;
+    const merged = pages.map((p, i) => (i === active ? value : p));
+    try { sessionStorage.setItem(PAGES_DRAFT_KEY, JSON.stringify({ pages: merged, active })); } catch { /* ignore */ }
+  }, [pages, active, value]);
+  // Restore the extra pages once on mount (the active page comes from the parent).
+  useEffect(() => {
+    try {
+      const obj = JSON.parse(sessionStorage.getItem(PAGES_DRAFT_KEY) || "null");
+      if (obj && Array.isArray(obj.pages) && obj.pages.length > 1) {
+        const a = Math.min(Math.max(0, Number(obj.active) || 0), obj.pages.length - 1);
+        setPages(obj.pages as DesignDoc[]); setActive(a); onChange(obj.pages[a]);
+      }
+    } catch { /* ignore */ } finally { mpReady.current = true; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const goToPage = (i: number) => {
+    if (i === active || i < 0 || i >= pages.length) return;
+    const target = pages[i];
+    setPages((ps) => ps.map((p, idx) => (idx === active ? value : p)));
+    setActive(i); onChange(target); setSel(null);
+  };
+  const addPage = () => {
+    const blank: DesignDoc = { ...DEFAULT_DESIGN, size: value.size, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
+    setPages((ps) => [...ps.map((p, idx) => (idx === active ? value : p)), blank]);
+    setActive(pages.length); onChange(blank); setSel(null);
+  };
+  const deletePage = (i: number) => {
+    if (pages.length <= 1) return;
+    const next = pages.map((p, idx) => (idx === active ? value : p)).filter((_, idx) => idx !== i);
+    const newActive = Math.min(i < active ? active - 1 : i === active ? Math.max(0, i - 1) : active, next.length - 1);
+    setPages(next); setActive(newActive); onChange(next[newActive]); setSel(null);
+  };
 
   // per-element style read/write (core elements via value.styles, free text via the layer)
   const coreStyle = (k: ElementKey): TextStyle => value.styles?.[k] ?? {};
@@ -805,6 +874,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       </div>
 
       <div className="relative flex min-h-0 flex-1">
+        {/* canvas COLUMN — the design area + the multi-page strip below it */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div ref={canvasRef} className="relative flex min-h-0 min-w-0 flex-1 overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
           {/* spacer reserves the zoomed footprint; m-auto centers it AND keeps the
               edges reachable when zoomed past the viewport */}
@@ -919,6 +990,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
             <button onClick={() => setManualZoom(null)} title="Fit to screen" className="min-w-[42px] rounded-full px-1 text-center text-[11.5px] font-semibold tabular-nums text-foreground hover:bg-muted">{Math.round(zoom * 100)}%</button>
             <button onClick={() => zoomBy(0.1)} title="Zoom in" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><ZoomIn className="h-4 w-4" /></button>
           </div>
+        </div>
+
+        {/* multi-page strip — thumbnails + add a page */}
+        <PageStrip pages={pages.map((p, i) => (i === active ? value : p))} active={active} onSelect={goToPage} onAdd={addPage} onDelete={deletePage} />
         </div>
 
         {toolsOpen && (
