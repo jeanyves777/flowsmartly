@@ -568,8 +568,8 @@ function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete,
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean;
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
@@ -778,6 +778,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     const newActive = Math.min(i < active ? active - 1 : i === active ? Math.max(0, i - 1) : active, next.length - 1);
     setPages(next); setActive(newActive); onChange(next[newActive]); setSel(null);
   };
+  // Expose the page ops so the AGENT can build multi-page designs (add_design_page
+  // routes through the parent into addPage). Reassigned each render → fresh closures.
+  useEffect(() => { if (pageOpsRef) pageOpsRef.current = { addPage, goToPage }; });
 
   // per-element style read/write (core elements via value.styles, free text via the layer)
   const coreStyle = (k: ElementKey): TextStyle => value.styles?.[k] ?? {};

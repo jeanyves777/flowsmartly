@@ -418,9 +418,20 @@ export function AgentHome() {
 
   useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
 
+  // Page controls the design studio exposes so the AGENT can build multi-page /
+  // multi-slide designs (add_design_page routes here via the canvas_update event).
+  const pageOpsRef = useRef<{ addPage: () => void; goToPage: (i: number) => void } | null>(null);
   // Apply agent-driven canvas edits (update_canvas → canvas_update event) live.
   useEffect(() => {
-    canvasUpdateRef.current = (patch) => setDesign((d) => applyDesignPatch(d, patch));
+    canvasUpdateRef.current = (patch) => {
+      const pageCmd = (patch as { __page?: unknown }).__page;
+      if (pageCmd !== undefined) {
+        if (pageCmd === "add") pageOpsRef.current?.addPage();
+        else if (typeof pageCmd === "number") pageOpsRef.current?.goToPage(pageCmd);
+        return;
+      }
+      setDesign((d) => applyDesignPatch(d, patch));
+    };
   }, [canvasUpdateRef]);
 
   // Track unsaved changes in the active focused view so navigation can guard.
@@ -711,6 +722,7 @@ export function AgentHome() {
                   <FocusedDesignStudio
                     value={design}
                     onChange={setDesign}
+                    pageOpsRef={pageOpsRef}
                     brandColors={brandColors}
                     brandContact={brandContact ?? undefined}
                     brandLogo={brandLogo}
