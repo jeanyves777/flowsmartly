@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, Sparkles, Send, ArrowRight, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ArrowRight, ChevronLeft, Upload, Wand2, Image as ImageIcon, Loader2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey } from "./design-studio";
 
 /**
  * Print Studio — a playground-style surface (same look as the Video playground &
  * Design studio) for designing PRINT products: flyers/posters, business cards,
- * table tents, folded brochures, postcards — and (next) product-print mockups.
+ * table tents, folded brochures, postcards — and product-print mockups (apparel,
+ * hi-vis workwear, drinkware).
  *
- * It REUSES the Design Studio canvas verbatim: a print product is just a
- * DesignDoc at a print SIZE with bleed/safe/fold GUIDES. Picking a format (or the
- * agent calling start_print_project) sets the canvas size/style/guides and opens
- * the SAME editor — so every print is fully agent-drivable via the existing
- * update_canvas / add_design_page tools, with no parallel engine.
+ * Paper formats REUSE the Design Studio canvas verbatim (a print product is just
+ * a DesignDoc at a print SIZE with bleed/safe/fold GUIDES). Product formats open
+ * a mockup stage where artwork sits in a print area on the garment/object, front
+ * & back. Both are agent-drivable: paper via update_canvas / add_design_page +
+ * start_print_project; products via place_design_on_product.
  * [[new-design-no-legacy]] [[agent-operates-account-full-crud]]
  */
+
+export type ProductKind = "tee" | "vest" | "mug" | "tote";
 
 export interface PrintFormat {
   key: string;
@@ -25,12 +28,12 @@ export interface PrintFormat {
   group: "paper" | "product";
   Icon: LucideIcon;
   chips: string[];
-  /** First entry is the default size opened for this format. */
+  /** First entry is the default size opened (paper formats). */
   sizes: SizePreset[];
   defaultStyle?: string;
   guides?: PrintGuides;
-  /** Product mockups land in a follow-up — shown but not yet openable. */
-  soon?: boolean;
+  /** Product formats open the mockup stage at this default garment/object. */
+  productKind?: ProductKind;
 }
 
 // Pixel sizes are the preview footprint (≈96dpi); the real print size is in the
@@ -105,11 +108,67 @@ export const PRINT_FORMATS: PrintFormat[] = [
     ],
     defaultStyle: "bold", guides: { bleed: true, safe: true },
   },
-  // ── Product prints — coming in the follow-up (mockup overlay + place_design_on_product).
-  { key: "apparel", name: "Apparel & T-shirts", group: "product", Icon: Shirt, desc: "Drop your design onto a front/back print area on a real garment mockup.", chips: ["Tee", "Hoodie", "Tote"], sizes: [{ label: "Tee", v: "1080×1080" }], soon: true },
-  { key: "workwear", name: "Workwear & hi-vis", group: "product", Icon: HardHat, desc: "Safety vests, caps & uniforms — logo + back-panel print zones.", chips: ["Hi-vis vest", "Cap", "Polo"], sizes: [{ label: "Vest", v: "1080×1080" }], soon: true },
-  { key: "drinkware", name: "Drinkware & gifts", group: "product", Icon: Coffee, desc: "Mugs, bottles & merch — wrap-around print area with safe margins.", chips: ["Mug", "Bottle", "Sticker"], sizes: [{ label: "Mug", v: "1080×1080" }], soon: true },
+  // ── Product prints — open the mockup stage (place artwork on the object).
+  { key: "apparel", name: "Apparel & T-shirts", group: "product", Icon: Shirt, desc: "Drop your design onto a front/back print area on a real garment mockup.", chips: ["Tee", "Tote", "Front + Back"], sizes: [{ label: "Tee", v: "1080×1080" }], productKind: "tee" },
+  { key: "workwear", name: "Workwear & hi-vis", group: "product", Icon: HardHat, desc: "Safety vests & uniforms — left-chest logo + a big back-panel print zone.", chips: ["Hi-vis vest", "Front + Back"], sizes: [{ label: "Vest", v: "1080×1080" }], productKind: "vest" },
+  { key: "drinkware", name: "Drinkware & gifts", group: "product", Icon: Coffee, desc: "Mugs & merch — a wrap-around print area with safe margins.", chips: ["Mug", "Wrap"], sizes: [{ label: "Mug", v: "1080×1080" }], productKind: "mug" },
 ];
+
+// A format-appropriate STARTER design loaded when a paper format is opened, so a
+// flyer looks like a flyer and a card like a card (not the social-graphic default).
+// Positions/sizes are tuned per the format's aspect ratio; accent stays the user's.
+const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
+  flyer: {
+    eyebrow: "GRAND OPENING · SAT JUNE 28",
+    headline: "Summer\nBlock Party",
+    sub: "Live music, food trucks & family fun.\n12–6pm at Riverside Park — free entry.",
+    cta: "Get free tickets →",
+    pos: { eyebrow: { x: 0.07, y: 0.07 }, headline: { x: 0.07, y: 0.33 }, sub: { x: 0.07, y: 0.66 }, cta: { x: 0.07, y: 0.86 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 44 }, sub: { size: 15 }, cta: { size: 14 } },
+  },
+  card: {
+    eyebrow: "ACME ROOFING CO.",
+    headline: "Jordan Rivera",
+    sub: "Operations Manager",
+    cta: "hello@acmeroofing.com · (404) 555-0142",
+    pos: { eyebrow: { x: 0.08, y: 0.18 }, headline: { x: 0.08, y: 0.37 }, sub: { x: 0.08, y: 0.6 }, cta: { x: 0.08, y: 0.8 } },
+    styles: { eyebrow: { size: 11, bold: true }, headline: { size: 26 }, sub: { size: 13 }, cta: { size: 11 } },
+  },
+  tent: {
+    eyebrow: "TODAY ONLY",
+    headline: "Happy Hour\n4 – 6 PM",
+    sub: "$5 house wines · half-price appetizers",
+    cta: "Ask your server",
+    pos: { eyebrow: { x: 0.1, y: 0.16 }, headline: { x: 0.1, y: 0.36 }, sub: { x: 0.1, y: 0.66 }, cta: { x: 0.1, y: 0.82 } },
+    styles: { eyebrow: { size: 13 }, headline: { size: 36 }, sub: { size: 14 }, cta: { size: 13 } },
+  },
+  // Brochure covers live in the right-most panel; sizes/positions are tuned so the
+  // headline fits that narrow panel (core headlines have a fixed max width).
+  bifold: {
+    eyebrow: "WELCOME TO",
+    headline: "Bright Smiles\nDental",
+    sub: "Modern, gentle care\nfor the whole family.",
+    cta: "Book your visit →",
+    pos: { eyebrow: { x: 0.53, y: 0.3 }, headline: { x: 0.53, y: 0.42 }, sub: { x: 0.53, y: 0.68 }, cta: { x: 0.53, y: 0.84 } },
+    styles: { eyebrow: { size: 11 }, headline: { size: 24 }, sub: { size: 12 }, cta: { size: 12 } },
+  },
+  trifold: {
+    eyebrow: "WELCOME TO",
+    headline: "Bright\nSmiles\nDental",
+    sub: "Gentle, modern\ncare for families.",
+    cta: "Book a visit →",
+    pos: { eyebrow: { x: 0.68, y: 0.3 }, headline: { x: 0.68, y: 0.4 }, sub: { x: 0.68, y: 0.68 }, cta: { x: 0.68, y: 0.84 } },
+    styles: { eyebrow: { size: 9 }, headline: { size: 22 }, sub: { size: 10 }, cta: { size: 10.5 } },
+  },
+  postcard: {
+    eyebrow: "YOU’RE INVITED",
+    headline: "Spring Open House",
+    sub: "Sunday, May 4 · 1–4pm\n123 Market St — refreshments served.",
+    cta: "RSVP today →",
+    pos: { eyebrow: { x: 0.07, y: 0.13 }, headline: { x: 0.07, y: 0.35 }, sub: { x: 0.07, y: 0.62 }, cta: { x: 0.07, y: 0.84 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 36 }, sub: { size: 14 }, cta: { size: 13 } },
+  },
+};
 
 // The canvas props we forward straight to the reused Design Studio.
 interface CanvasProps {
@@ -127,19 +186,36 @@ interface CanvasProps {
   pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
 }
 
-export function FocusedPrintStudio({ onAsk, printOpsRef, ...canvas }: CanvasProps & {
+export interface ProductOps { setProduct: (patch: Record<string, unknown>) => void }
+
+export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canvas }: CanvasProps & {
   onAsk: (prompt: string) => void;
   /** The agent's start_print_project routes here (via the canvas_update __print marker). */
   printOpsRef?: { current: { selectFormat: (key: string) => void } | null };
+  /** The agent's place_design_on_product routes here (via the __product marker). */
+  productOpsRef?: { current: ProductOps | null };
 }) {
   const [fmtKey, setFmtKey] = useState<string | null>(null);
   const fmt = PRINT_FORMATS.find((f) => f.key === fmtKey) ?? null;
 
-  // Open a format: set the canvas to its default print size + style, keep content.
+  // Open a format: paper loads a format-appropriate STARTER design (right size,
+  // style, layout — not the leftover social graphic) so it looks intentional and
+  // fills the canvas; product opens the mockup. Keeps the user's brand accent.
   const selectFormat = (key: string) => {
     const f = PRINT_FORMATS.find((x) => x.key === key);
-    if (!f || f.soon) return;
-    canvas.onChange({ ...canvas.value, size: f.sizes[0].v, style: f.defaultStyle ?? canvas.value.style });
+    if (!f) return;
+    if (f.group === "paper") {
+      const sample = PRINT_SAMPLES[key] ?? {};
+      canvas.onChange({
+        ...canvas.value,
+        ...sample,
+        accent: canvas.value.accent,
+        size: f.sizes[0].v,
+        style: f.defaultStyle ?? canvas.value.style,
+        images: [], texts: [], contacts: [],
+        imageUrl: undefined, bgImageUrl: undefined, generating: false,
+      });
+    }
     setFmtKey(key);
   };
   // Expose to the agent — reassigned each render so the closure stays fresh
@@ -148,6 +224,9 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, ...canvas }: CanvasProp
     if (printOpsRef) printOpsRef.current = { selectFormat };
   });
 
+  if (fmt && fmt.group === "product") {
+    return <ProductMode initialKind={fmt.productKind ?? "tee"} brandLogo={canvas.brandLogo} onAsk={onAsk} onBack={() => setFmtKey(null)} productOpsRef={productOpsRef} />;
+  }
   if (fmt) {
     return (
       <FocusedDesignStudio
@@ -162,7 +241,7 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, ...canvas }: CanvasProp
   return <PrintHero onPick={selectFormat} onAsk={onAsk} />;
 }
 
-/** The format-chooser hero — playground stage with an agent ask-bar + format tiles. */
+/* ── Format-chooser hero ──────────────────────────────────────────────── */
 function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (prompt: string) => void }) {
   const [q, setQ] = useState("");
   const paper = PRINT_FORMATS.filter((f) => f.group === "paper");
@@ -184,14 +263,13 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
           Pick a format to open a full editable canvas — the same controls as the Design studio — or just tell the agent what you need and it builds the whole thing for you, print-ready.
         </p>
 
-        {/* agent ask-bar */}
         <div className="mt-5 flex items-center gap-2.5 rounded-2xl border border-border bg-card p-2.5 shadow-lg shadow-black/5">
           <Sparkles className="ms-1 h-[18px] w-[18px] shrink-0 text-brand-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
-            placeholder="e.g. “Design a tri-fold brochure for my dental clinic” or “business cards for Acme Roofing”"
+            placeholder="e.g. “Design a tri-fold brochure for my dental clinic” or “put my logo on a hi-vis vest”"
             className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground"
           />
           <button onClick={ask} aria-label="Ask the agent" className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-sm">
@@ -210,7 +288,7 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
         </div>
 
         <div className="mt-5 rounded-xl border border-brand-500/25 bg-brand-500/[0.06] p-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
-          <span className="font-semibold text-foreground">Same canvas, print-ready:</span> every format opens the Design studio editor (drag, resize, edit text in place, photos, logo, multi-page) — Print Studio adds the print size presets and the bleed / safe-area / fold guides. The agent designs it for you with the same tools.
+          <span className="font-semibold text-foreground">Same canvas, print-ready:</span> paper formats open the Design studio editor (drag, resize, edit text in place, photos, logo, multi-page) with print size presets + bleed/safe/fold guides. Product prints open a mockup with a print area you drop artwork into. The agent designs either one for you.
         </div>
       </div>
     </div>
@@ -226,24 +304,321 @@ function FormatTile({ f, onPick }: { f: PrintFormat; onPick: (key: string) => vo
   return (
     <button
       onClick={() => onPick(f.key)}
-      disabled={f.soon}
-      className={cn(
-        "group relative overflow-hidden rounded-2xl border border-border bg-card p-4 text-left transition",
-        f.soon ? "cursor-default opacity-70" : "hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-xl hover:shadow-black/10",
-      )}
+      className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-xl hover:shadow-black/10"
     >
-      {f.soon && <span className="absolute right-3 top-3 rounded-md bg-muted px-1.5 py-0.5 text-[9.5px] font-bold text-muted-foreground">Soon</span>}
       <span className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500">
         <Icon className="h-[21px] w-[21px]" />
       </span>
       <h3 className="mt-2.5 flex items-center gap-1 text-[14px] font-bold">
         {f.name}
-        {!f.soon && <ArrowRight className="h-3.5 w-3.5 -translate-x-1 text-muted-foreground opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />}
+        <ArrowRight className="h-3.5 w-3.5 -translate-x-1 text-muted-foreground opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />
       </h3>
       <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{f.desc}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {f.chips.map((c) => <span key={c} className="rounded-md border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{c}</span>)}
       </div>
     </button>
+  );
+}
+
+/* ── Product-print mockup mode ────────────────────────────────────────── */
+
+export interface ProductState {
+  kind: ProductKind;
+  color: string;
+  face: "front" | "back";
+  placement: string;
+  artworkFront?: string;
+  artworkBack?: string;
+}
+
+interface PlacementDef { key: string; label: string; hint?: string; face: "front" | "back"; area: { l: number; t: number; w: number; h: number } }
+interface ProductDef {
+  label: string;
+  Icon: LucideIcon;
+  faces: ("front" | "back")[];
+  colors: string[];
+  defaultColor: string;
+  placements: PlacementDef[];
+  // The garment/object artwork, drawn behind the print area; `color` tints it.
+  Svg: (p: { color: string; face: "front" | "back" }) => React.ReactElement;
+}
+
+const GARMENT_COLORS = ["#2563eb", "#111827", "#f5d90a", "#10b981", "#e5e7eb", "#dc2626", "#7c3aed"];
+
+const PRODUCTS: Record<ProductKind, ProductDef> = {
+  tee: {
+    label: "T-shirt", Icon: Shirt, faces: ["front", "back"], colors: GARMENT_COLORS, defaultColor: "#111827",
+    placements: [
+      { key: "left-chest", label: "Left chest", hint: "logo · 3 in", face: "front", area: { l: 55, t: 25, w: 15, h: 12 } },
+      { key: "full-front", label: "Full front", hint: "11 × 14 in", face: "front", area: { l: 31, t: 30, w: 38, h: 40 } },
+      { key: "full-back", label: "Full back", hint: "12 × 16 in", face: "back", area: { l: 29, t: 22, w: 42, h: 46 } },
+    ],
+    Svg: TeeSvg,
+  },
+  vest: {
+    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], colors: ["#2563eb", "#f5d90a", "#f97316", "#10b981", "#dc2626"], defaultColor: "#2563eb",
+    placements: [
+      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 33, w: 16, h: 11 } },
+      { key: "full-back", label: "Full back", hint: "large", face: "back", area: { l: 30, t: 26, w: 40, h: 30 } },
+    ],
+    Svg: VestSvg,
+  },
+  mug: {
+    label: "Mug", Icon: Coffee, faces: ["front"], colors: ["#e5e7eb", "#111827", "#2563eb", "#dc2626", "#10b981"], defaultColor: "#e5e7eb",
+    placements: [
+      { key: "wrap", label: "Wrap-around", hint: "full", face: "front", area: { l: 30, t: 36, w: 40, h: 34 } },
+      { key: "badge", label: "Badge", hint: "small", face: "front", area: { l: 38, t: 42, w: 24, h: 22 } },
+    ],
+    Svg: MugSvg,
+  },
+  tote: {
+    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], colors: ["#e5e7eb", "#d6c8a8", "#111827", "#2563eb", "#10b981"], defaultColor: "#d6c8a8",
+    placements: [
+      { key: "center", label: "Center", hint: "main", face: "front", area: { l: 29, t: 40, w: 42, h: 36 } },
+    ],
+    Svg: ToteSvg,
+  },
+};
+
+async function uploadArtwork(file: File): Promise<string | null> {
+  try {
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: fd });
+    const j = await r.json().catch(() => null);
+    return (r.ok && (j?.data?.file?.url || j?.data?.url)) || null;
+  } catch { return null; }
+}
+
+function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
+  initialKind: ProductKind;
+  brandLogo?: string | null;
+  onAsk: (prompt: string) => void;
+  onBack: () => void;
+  productOpsRef?: { current: ProductOps | null };
+}) {
+  const def0 = PRODUCTS[initialKind];
+  const [st, setSt] = useState<ProductState>({ kind: initialKind, color: def0.defaultColor, face: "front", placement: def0.placements[0].key });
+  const [dir, setDir] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const def = PRODUCTS[st.kind];
+  const placement = def.placements.find((p) => p.key === st.placement) ?? def.placements[0];
+  const facePlacements = def.placements.filter((p) => p.face === st.face);
+  const area = placement.area;
+  const artwork = st.face === "front" ? st.artworkFront : st.artworkBack;
+
+  // Apply a UI patch to the product. Switching kind/face re-homes the placement
+  // to a valid one for the new state; an `artworkUrl` targets the current face.
+  const patchProduct = (patch: Partial<ProductState> & { artworkUrl?: string }) => {
+    setSt((s) => {
+      const { artworkUrl, ...rest } = patch;
+      const next: ProductState = { ...s, ...rest };
+      const d = PRODUCTS[next.kind];
+      if (rest.kind && !d.faces.includes(next.face)) next.face = d.faces[0];
+      const valid = d.placements.some((p) => p.key === next.placement && p.face === next.face);
+      if (!valid) next.placement = (d.placements.find((p) => p.face === next.face) ?? d.placements[0]).key;
+      if (artworkUrl) { if (next.face === "front") next.artworkFront = artworkUrl; else next.artworkBack = artworkUrl; }
+      return next;
+    });
+  };
+  // Validate + coerce the agent's loose patch, then apply it (place_design_on_product).
+  const applyAgentPatch = (raw: Record<string, unknown>) => {
+    const p: Partial<ProductState> & { artworkUrl?: string } = {};
+    if (typeof raw.kind === "string" && (["tee", "vest", "mug", "tote"] as string[]).includes(raw.kind)) p.kind = raw.kind as ProductKind;
+    if (raw.face === "front" || raw.face === "back") p.face = raw.face;
+    if (typeof raw.placement === "string") p.placement = raw.placement;
+    if (typeof raw.color === "string") p.color = raw.color;
+    if (typeof raw.artworkUrl === "string") p.artworkUrl = raw.artworkUrl;
+    patchProduct(p);
+  };
+  // Expose to the agent (place_design_on_product routes here).
+  useEffect(() => { if (productOpsRef) productOpsRef.current = { setProduct: applyAgentPatch }; });
+
+  const setFace = (face: "front" | "back") => patchProduct({ face });
+  const setPlacement = (key: string) => { const p = def.placements.find((x) => x.key === key); patchProduct({ placement: key, ...(p ? { face: p.face } : {}) }); };
+  const setKind = (kind: ProductKind) => patchProduct({ kind });
+  const setColor = (color: string) => patchProduct({ color });
+  const setArtwork = (url: string | undefined) => setSt((s) => (s.face === "front" ? { ...s, artworkFront: url } : { ...s, artworkBack: url }));
+
+  const onUpload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    const local = URL.createObjectURL(file);
+    setArtwork(local);
+    const url = await uploadArtwork(file);
+    setUploading(false);
+    if (url) setArtwork(url);
+  };
+
+  const askPlace = (extra?: string) => {
+    onAsk(
+      `I'm in the Print Studio designing a ${def.label} (${st.face}). Generate an on-brand design/logo and place it on the ${placement.label.toLowerCase()} print area with place_design_on_product (product "${st.kind}", face "${st.face}", placement "${placement.key}"). ${extra ?? dir.trim()} Generate the artwork first (transparent PNG if it's a logo/graphic), then place it. Confirm in one short sentence.`.trim(),
+    );
+    setDir("");
+  };
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* slim print header */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
+        <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
+        <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground sm:inline-block">{def.label}</span>
+        {def.faces.length > 1 && (
+          <div className="ms-1 inline-flex overflow-hidden rounded-lg border border-border">
+            {def.faces.map((f) => (
+              <button key={f} onClick={() => setFace(f)} className={cn("px-3 py-1.5 text-[12px] font-semibold capitalize transition", st.face === f ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{f}</button>
+            ))}
+          </div>
+        )}
+        <span className="ms-auto text-[11px] text-muted-foreground">Mockup preview · place your artwork in the print area</span>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1">
+        {/* stage */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="relative grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
+            <div>
+              <div className="relative mx-auto" style={{ width: 460, maxWidth: "82vw" }}>
+                <def.Svg color={st.color} face={st.face} />
+                {/* print area */}
+                <div
+                  className="absolute grid place-items-center overflow-hidden rounded-[4px] border-2 border-dashed border-sky-400/80 bg-sky-400/[0.06]"
+                  style={{ left: `${area.l}%`, top: `${area.t}%`, width: `${area.w}%`, height: `${area.h}%` }}
+                >
+                  {artwork ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={artwork} alt="artwork" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="px-1 text-center text-[10px] font-bold leading-tight text-sky-500/90">{placement.face === "back" ? "ADD YOUR DESIGN" : "LOGO / DESIGN"}<span className="block text-[8.5px] font-semibold opacity-70">drop · upload · generate</span></span>
+                  )}
+                </div>
+              </div>
+              {/* variant switcher */}
+              <div className="mt-5 flex items-center justify-center gap-2">
+                {(Object.keys(PRODUCTS) as ProductKind[]).map((k) => {
+                  const P = PRODUCTS[k];
+                  return (
+                    <button key={k} onClick={() => setKind(k)} title={P.label} className={cn("grid h-11 w-11 place-items-center rounded-xl border transition", st.kind === k ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40 hover:text-foreground")}>
+                      <P.Icon className="h-[22px] w-[22px]" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* right controls */}
+        <div className="z-30 flex w-full shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[280px] max-lg:max-w-[86%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[272px] lg:border-s lg:border-border">
+          <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
+            <ControlGroup title="Print placement">
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                {facePlacements.map((p) => (
+                  <button key={p.key} onClick={() => setPlacement(p.key)} className={cn("rounded-lg border px-2.5 py-1.5 text-left text-[11.5px]", st.placement === p.key ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>
+                    {p.label}{p.hint && <span className="block text-[9px] font-normal text-muted-foreground">{p.hint}</span>}
+                  </button>
+                ))}
+              </div>
+              {def.faces.length > 1 && <p className="mt-1.5 text-[10.5px] text-muted-foreground">Switch front/back in the header to print on both sides.</p>}
+            </ControlGroup>
+
+            <ControlGroup title="Garment colour">
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {def.colors.map((c) => (
+                  <button key={c} onClick={() => setColor(c)} className={cn("h-6 w-6 rounded-lg border-2", st.color === c ? "border-foreground" : "border-transparent")} style={{ background: c }} aria-label={c} />
+                ))}
+              </div>
+            </ControlGroup>
+
+            <ControlGroup title="Artwork">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <button onClick={() => fileRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Upload
+                </button>
+                {brandLogo && (
+                  <button onClick={() => setArtwork(brandLogo)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImageIcon className="h-3.5 w-3.5" /> My logo</button>
+                )}
+                <button onClick={() => askPlace("Use my brand logo/colors.")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Wand2 className="h-3.5 w-3.5 text-brand-500" /> Generate</button>
+                {artwork && <button onClick={() => setArtwork(undefined)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:text-rose-500">Clear</button>}
+              </div>
+              <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">Upload art, use your logo, or ask the agent to generate & place a design. PNGs with transparency look best on garments.</p>
+            </ControlGroup>
+          </div>
+
+          {/* build-with-AI footer */}
+          <div className="shrink-0 space-y-1.5 border-t border-border p-3">
+            <div className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-brand-500" /><span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Place with AI</span></div>
+            <textarea value={dir} onChange={(e) => setDir(e.target.value)} rows={2} placeholder="e.g. “our logo on the left chest and ‘Safety First’ across the back in reflective white”" className="w-full resize-none rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+            <button onClick={() => askPlace()} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm"><Wand2 className="h-3.5 w-3.5" /> Place on product</button>
+          </div>
+        </div>
+      </div>
+
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+function ControlGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="mb-4"><h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>{children}</div>;
+}
+
+/* ── Flat, colourable product SVGs (recognisable mockups; print area sits on top). */
+function shade(hex: string, amt: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, Math.min(255, ((n >> 16) & 255) + amt));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt));
+  const b = Math.max(0, Math.min(255, (n & 255) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+function TeeSvg({ color, face }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color, -40);
+  const collar = face === "front"
+    ? "M104 16 C112 40 188 40 196 16"
+    : "M104 16 C112 30 188 30 196 16";
+  return (
+    <svg viewBox="0 0 300 348" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
+      <path d="M104 16 L150 36 L196 16 L240 38 L276 96 L232 126 L224 114 L224 330 L76 330 L76 114 L68 126 L24 96 L60 38 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d={collar} fill="none" stroke={stroke} strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+function VestSvg({ color, face }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color, -50);
+  const strip = "#dfe7ef";
+  return (
+    <svg viewBox="0 0 300 348" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
+      <path d="M95 22 L60 42 L30 96 L60 126 L82 110 L82 330 L218 330 L218 110 L240 126 L270 96 L240 42 L205 22 C190 48 110 48 95 22 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      {/* reflective strips */}
+      <rect x="104" y="128" width="18" height="200" fill={strip} opacity="0.92" />
+      <rect x="178" y="128" width="18" height="200" fill={strip} opacity="0.92" />
+      <rect x="82" y="176" width="136" height="16" fill={strip} opacity="0.92" />
+      {face === "front" && <line x1="150" y1="48" x2="150" y2="330" stroke={stroke} strokeWidth="2" />}
+    </svg>
+  );
+}
+
+function MugSvg({ color }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color === "#e5e7eb" ? "#cbd5e1" : color, -50);
+  return (
+    <svg viewBox="0 0 300 300" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.4))" }} xmlns="http://www.w3.org/2000/svg">
+      <path d="M64 96 H196 V236 a30 30 0 0 1 -30 30 H94 a30 30 0 0 1 -30 -30 Z" fill={color} stroke={stroke} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M196 126 h26 a36 36 0 0 1 0 72 h-26" fill="none" stroke={stroke} strokeWidth="14" />
+      <ellipse cx="130" cy="96" rx="66" ry="14" fill={shade(color, -16)} stroke={stroke} strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+function ToteSvg({ color }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color === "#d6c8a8" ? "#b9a87f" : color, -45);
+  return (
+    <svg viewBox="0 0 300 320" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.4))" }} xmlns="http://www.w3.org/2000/svg">
+      <path d="M70 92 L62 304 H238 L230 92 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M104 92 V66 a46 46 0 0 1 92 0 V92" fill="none" stroke={stroke} strokeWidth="9" strokeLinecap="round" />
+      <path d="M70 92 H230" stroke={stroke} strokeWidth="2" opacity=".6" />
+    </svg>
   );
 }

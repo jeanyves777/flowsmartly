@@ -697,14 +697,27 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const theme = posterTheme(value.style, value.accent);
   void w;
 
-  // Keep the design fitting the canvas width unless the user has zoomed manually.
+  // Keep the design fitting the canvas unless the user has zoomed manually. In
+  // PRINT mode the page should FILL the stage (fit to width AND height, and scale
+  // up past 100%) so a flyer/brochure isn't a tiny rectangle in the middle; the
+  // social studio keeps its width-only, never-upscale behavior.
+  const printMode = !!sizePresets;
   useEffect(() => {
     const el = canvasRef.current; if (!el) return;
-    const measure = () => setFitZoom(Math.max(0.2, Math.min(1, (el.clientWidth - 48) / baseW)));
+    const measure = () => {
+      const availW = el.clientWidth - 48;
+      if (printMode) {
+        const availH = el.clientHeight - 56;
+        const fit = Math.min(availW / baseW, availH / height);
+        setFitZoom(Math.max(0.3, Math.min(2.6, fit)));
+      } else {
+        setFitZoom(Math.max(0.2, Math.min(1, availW / baseW)));
+      }
+    };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(el);
     return () => ro.disconnect();
-  }, [baseW]);
+  }, [baseW, height, printMode]);
   const zoom = manualZoom ?? fitZoom;
   const zoomBy = (d: number) => setManualZoom((z) => Math.max(0.25, Math.min(3, Number((((z ?? fitZoom) + d)).toFixed(2)))));
 

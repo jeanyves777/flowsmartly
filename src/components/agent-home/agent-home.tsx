@@ -429,9 +429,17 @@ export function AgentHome() {
   // Print Studio controls — the agent's start_print_project opens a print format
   // here (via the canvas_update `__print` marker), same mechanism as pages.
   const printOpsRef = useRef<{ selectFormat: (key: string) => void } | null>(null);
+  // Product-print mockup controls — the agent's place_design_on_product routes
+  // here (via the canvas_update `__product` marker).
+  const productOpsRef = useRef<{ setProduct: (patch: Record<string, unknown>) => void } | null>(null);
   // Apply agent-driven canvas edits (update_canvas → canvas_update event) live.
   useEffect(() => {
     canvasUpdateRef.current = (patch) => {
+      const productCmd = (patch as { __product?: unknown }).__product;
+      if (productCmd && typeof productCmd === "object") {
+        productOpsRef.current?.setProduct(productCmd as Record<string, unknown>);
+        return;
+      }
       const printCmd = (patch as { __print?: unknown }).__print;
       if (printCmd && typeof printCmd === "object") {
         const fmt = (printCmd as { format?: unknown }).format;
@@ -819,6 +827,7 @@ export function AgentHome() {
                     onChange={setDesign}
                     pageOpsRef={pageOpsRef}
                     printOpsRef={printOpsRef}
+                    productOpsRef={productOpsRef}
                     onAsk={sendAction}
                     brandColors={brandColors}
                     brandContact={brandContact ?? undefined}
