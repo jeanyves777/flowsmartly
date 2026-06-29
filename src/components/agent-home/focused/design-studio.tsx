@@ -978,22 +978,22 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 </>
               )}
             </div>
-            <div className="shrink-0 space-y-2 border-t border-border p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Build with AI</p>
+            <div className="shrink-0 space-y-1.5 border-t border-border p-3">
+              <div className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-brand-500" /><span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Build with AI</span></div>
               <textarea
-                value={genDetails} onChange={(e) => setGenDetails(e.target.value)} rows={2}
-                placeholder="Add direction — tone, audience, the offer, what to emphasize… (optional)"
-                className={cn(FIELD, "min-h-[44px]")}
+                value={genDetails} onChange={(e) => setGenDetails(e.target.value)} rows={1}
+                placeholder="Add direction (optional) — tone, audience, offer…"
+                className={cn(FIELD, "py-1.5")}
               />
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || !onBuildEditable} title="Rebuild a better design you can still edit" className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2.5 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
-                  {value.generating ? <FlowLoader size={15} tone="white" /> : <Wand2 className="h-4 w-4" />} Editable design
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || !onBuildEditable} title="Editable design — rebuild a better design you can still drag-to-edit" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                  {value.generating ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Editable
                 </button>
-                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || !onRegenerate} title="Render a flat on-brand image" className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-border bg-background/60 px-2 py-2.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
-                  {value.generating ? <FlowLoader size={15} /> : <Sparkles className="h-4 w-4 text-brand-500" />} {value.imageUrl ? "Re-render" : "Flat image"}
+                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || !onRegenerate} title="Flat image — render a finished on-brand picture" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-border bg-background/60 px-2 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                  {value.generating ? <FlowLoader size={14} /> : <Sparkles className="h-3.5 w-3.5 text-brand-500" />} {value.imageUrl ? "Re-render" : "Image"}
                 </button>
               </div>
-              <p className="text-[10.5px] leading-snug text-muted-foreground"><span className="font-semibold text-foreground">Editable design</span> rebuilds your copy, colors &amp; layout — every element stays drag-to-edit. <span className="font-semibold text-foreground">Flat image</span> renders a finished on-brand picture{images.length ? " using your images" : ""}.</p>
+              <p className="text-[10px] leading-snug text-muted-foreground"><span className="font-medium text-foreground">Editable</span> = drag-to-edit rebuild · <span className="font-medium text-foreground">Image</span> = finished picture</p>
             </div>
           </div>
           </>
