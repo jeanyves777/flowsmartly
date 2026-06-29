@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -349,6 +349,80 @@ function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemov
   );
 }
 
+// A saved design as returned by the library API.
+export interface SavedDesign { id: string; name: string; size: string; style?: string | null; imageUrl?: string | null; updatedAt: string; doc: DesignDoc }
+
+function timeAgo(iso: string): string {
+  const d = new Date(iso).getTime(); if (isNaN(d)) return "";
+  const s = Math.max(0, (Date.now() - d) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 604800) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** A tiny live preview of a saved design (no screenshot needed). */
+function DesignThumb({ doc }: { doc: DesignDoc }) {
+  if (doc?.imageUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={doc.imageUrl} alt="" className="h-full w-full object-cover" />;
+  }
+  const theme = posterTheme(doc?.style, doc?.accent || "#0ea5e9");
+  const head = (doc?.headline || "").split("\n")[0];
+  return (
+    <div className="relative h-full w-full overflow-hidden" style={{ background: theme.bg }}>
+      {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 76%, ${doc?.accent || "#0ea5e9"}, transparent 60%)` }} />}
+      <div className="absolute inset-x-1.5 bottom-1.5">
+        <div className={cn("truncate text-[9.5px] font-extrabold leading-tight", theme.serif && "font-serif")} style={{ color: theme.headInk }}>{head || "Design"}</div>
+      </div>
+    </div>
+  );
+}
+
+/** The design library overlay — saved canvases the user can reopen and keep working on. */
+function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete, onNew }: {
+  designs: SavedDesign[]; loading: boolean; currentId: string | null;
+  onClose: () => void; onLoad: (id: string) => void; onDelete: (id: string) => void; onNew: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="text-[14px] font-bold leading-tight">My designs</h3>
+          <p className="truncate text-[11.5px] text-muted-foreground">Your saved canvases — open one to keep working on it.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><FilePlus2 className="h-3.5 w-3.5" /> New design</button>
+          <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {loading ? (
+          <div className="grid h-full place-items-center"><FlowLoader size={28} withMark label="Loading your designs…" /></div>
+        ) : designs.length === 0 ? (
+          <div className="grid h-full place-items-center text-center">
+            <div className="max-w-xs"><FolderOpen className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-2 text-[13px] font-semibold">No saved designs yet</p><p className="mt-1 text-[12px] text-muted-foreground">Hit <span className="font-semibold text-foreground">Save</span> on a design and it’ll show up here to revisit anytime.</p></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {designs.map((d) => (
+              <div key={d.id} className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-brand-500/60 hover:shadow-lg">
+                <button onClick={() => onLoad(d.id)} className="block w-full text-left">
+                  <div className="aspect-[4/5] w-full overflow-hidden bg-muted"><DesignThumb doc={d.doc} /></div>
+                  <div className="p-2"><div className="truncate text-[12px] font-semibold leading-tight">{d.name}</div><div className="mt-0.5 text-[10.5px] text-muted-foreground">{d.size} · {timeAgo(d.updatedAt)}</div></div>
+                </button>
+                <button onClick={() => onDelete(d.id)} title="Delete design" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                {currentId === d.id && <span className="absolute left-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">Open</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, brandContact, working }: {
   value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; working?: boolean;
 }) {
@@ -359,6 +433,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
   const [sel, setSel] = useState<Sel>(null);
+  // Design library (saved canvases).
+  const [designId, setDesignId] = useState<string | null>(null);
+  const [designName, setDesignName] = useState("Untitled design");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [libOpen, setLibOpen] = useState(false);
+  const [libDesigns, setLibDesigns] = useState<SavedDesign[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const posterRef = useRef<HTMLDivElement>(null);
@@ -401,6 +482,49 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
     setSel({ kind: "contact", id });
   };
   const exportImage = () => { if (value.imageUrl) window.open(value.imageUrl, "_blank", "noopener,noreferrer"); };
+
+  // ── Design library: save / open / delete / new ──
+  const saveDesign = async () => {
+    if (saveState === "saving") return;
+    setSaveState("saving");
+    try {
+      const name = designName.trim() || "Untitled design";
+      if (designId) {
+        const r = await fetch(`/api/agent-designs/${designId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc: value, name }) });
+        if (!r.ok) throw new Error("save failed");
+      } else {
+        const r = await fetch("/api/agent-designs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc: value, name }) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j?.data?.design?.id) throw new Error("save failed");
+        setDesignId(j.data.design.id);
+      }
+      onSave?.();
+      setSaveState("saved");
+      setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1800);
+    } catch {
+      setSaveState("idle");
+    }
+  };
+  const openLibrary = async () => {
+    setLibOpen(true);
+    setLibLoading(true);
+    try { const r = await fetch("/api/agent-designs"); const j = await r.json().catch(() => null); setLibDesigns(j?.data?.designs ?? []); } catch { setLibDesigns([]); } finally { setLibLoading(false); }
+  };
+  const loadDesign = async (id: string) => {
+    try {
+      const r = await fetch(`/api/agent-designs/${id}`); const j = await r.json().catch(() => null);
+      const doc = j?.data?.design?.doc as DesignDoc | undefined;
+      if (doc && typeof doc === "object") { onChange(doc); setDesignId(id); setDesignName(j.data.design.name || "Untitled design"); setSel(null); }
+    } catch { /* ignore */ } finally { setLibOpen(false); }
+  };
+  const deleteDesign = async (id: string) => {
+    try { await fetch(`/api/agent-designs/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
+    setLibDesigns((ds) => ds.filter((d) => d.id !== id));
+    if (designId === id) setDesignId(null);
+  };
+  // Pass a COPY (not the DEFAULT_DESIGN reference) so the autosave persists the
+  // blank canvas instead of skipping it and restoring the old draft on reload.
+  const newDesign = () => { onChange({ ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {} }); setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false); };
   const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
 
   // per-element style read/write (core elements via value.styles, free text via the layer)
@@ -463,14 +587,17 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Undo"><Undo2 className="h-4 w-4" /></button>
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Redo"><Redo2 className="h-4 w-4" /></button>
         <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
-        <span className="ms-1 hidden text-[11.5px] text-muted-foreground sm:inline">{value.size} · {value.generating ? "rendering…" : value.imageUrl ? "rendered" : "draft"}</span>
+        <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
+        <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[160px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
         <div className="ms-auto flex items-center gap-1.5">
-          <button onClick={onSave} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground"><Save className="h-3.5 w-3.5" /> Save</button>
+          <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-emerald-500/60 text-emerald-500" : "border-border hover:text-foreground")} title="Save to your design library">
+            {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
+          </button>
           <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
           <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
         </div>
@@ -655,6 +782,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
           </>
         )}
       </div>
+
+      {libOpen && (
+        <DesignLibrary designs={libDesigns} loading={libLoading} currentId={designId} onClose={() => setLibOpen(false)} onLoad={loadDesign} onDelete={deleteDesign} onNew={newDesign} />
+      )}
 
       <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files, "photo"); e.target.value = ""; }} />
       <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files, "logo"); e.target.value = ""; }} />
