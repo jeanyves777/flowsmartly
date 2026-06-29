@@ -394,20 +394,89 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-/** A tiny live preview of a saved design (no screenshot needed). */
-function DesignThumb({ doc }: { doc: DesignDoc }) {
-  if (doc?.imageUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={doc.imageUrl} alt="" className="h-full w-full object-cover" />;
-  }
+/** A faithful, non-interactive replica of a design's poster — every element at
+ * its real position/style — rendered at a fixed reference width so a thumbnail
+ * looks like the actual design (two same-style designs no longer look alike). */
+function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
+  const [a, b] = (doc?.size || "1080×1350").split(/[×x]/).map(Number);
+  const ratio = a && b ? a / b : 0.8;
+  const baseH = Math.round(baseW / ratio);
   const theme = posterTheme(doc?.style, doc?.accent || "#0ea5e9");
-  const head = (doc?.headline || "").split("\n")[0];
-  return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: theme.bg }}>
-      {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 76%, ${doc?.accent || "#0ea5e9"}, transparent 60%)` }} />}
-      <div className="absolute inset-x-1.5 bottom-1.5">
-        <div className={cn("truncate text-[9.5px] font-extrabold leading-tight", theme.serif && "font-serif")} style={{ color: theme.headInk }}>{head || "Design"}</div>
+  const box: CSSProperties = { width: baseW, height: baseH };
+  if (doc?.imageUrl) {
+    return (
+      <div className="relative overflow-hidden" style={box}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={doc.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
       </div>
+    );
+  }
+  const ink = (k: ElementKey) => (k === "eyebrow" ? theme.eyeInk : k === "headline" ? theme.headInk : k === "sub" ? theme.subInk : DEFAULT_COLOR.cta);
+  return (
+    <div className="relative overflow-hidden" style={{ ...box, background: theme.bg }}>
+      {doc?.bgImageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={doc.bgImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
+      {(doc?.images || []).map((img) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={img.id} src={img.url} alt="" className={cn("absolute", img.kind === "logo" ? "object-contain" : "rounded-xl object-cover")} style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%`, ...(img.kind === "logo" ? {} : { aspectRatio: "4 / 5" }) }} />
+      ))}
+      {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
+        const s = doc?.styles?.[k] ?? {};
+        const sz = s.size ?? DEFAULT_SIZE[k];
+        const baseClass = k === "headline" ? "font-extrabold leading-[1.05] tracking-tight" : k === "eyebrow" ? "font-semibold uppercase tracking-[2.5px]" : k === "cta" ? "rounded-full px-3.5 py-2 font-extrabold" : "leading-snug";
+        const fill = k === "cta" ? (s.bg !== undefined ? s.bg : doc?.accent) : s.bg;
+        return (
+          <div key={k} className={cn("absolute whitespace-pre-line", baseClass, theme.serif && k !== "cta" && "font-serif")}
+            style={{ ...pct(posOf(doc, k)), width: "max-content", maxWidth: `${Math.round(baseW * (k === "headline" ? 0.9 : 0.86))}px`, fontSize: sz, fontWeight: s.bold ? 800 : undefined, color: s.color ?? ink(k), textAlign: s.align, background: fill || undefined }}>
+            {doc[k]}
+          </div>
+        );
+      })}
+      {(doc?.texts || []).map((t) => (
+        <div key={t.id} className="absolute whitespace-pre-line font-semibold" style={{ ...pct({ x: t.x, y: t.y }), width: "max-content", maxWidth: `${Math.round(baseW * (t.w ?? 0.6))}px`, fontSize: t.style?.size ?? 16, fontWeight: t.style?.bold ? 800 : 600, color: t.style?.color ?? "#ffffff", textAlign: t.style?.align, background: t.style?.bg || undefined }}>
+          {t.text}
+        </div>
+      ))}
+      {(doc?.contacts || []).map((c) => {
+        const Icon = CONTACT_META[c.type].Icon; const s = c.style ?? {}; const sz = s.size ?? 13; const inkc = s.color ?? theme.subInk;
+        return (
+          <div key={c.id} className="absolute inline-flex items-center gap-1.5 rounded-[6px] px-1 py-0.5" style={{ ...pct({ x: c.x, y: c.y }), background: s.bg || undefined }}>
+            <Icon style={{ width: Math.round(sz * 1.05), height: Math.round(sz * 1.05), color: inkc }} />
+            <span className="whitespace-nowrap" style={{ fontSize: sz, fontWeight: s.bold ? 700 : 600, color: inkc }}>{c.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Renders the real design poster, measured + scaled to fit (contain) the card. */
+function DesignThumb({ doc }: { doc: DesignDoc }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const [a, b] = (doc?.size || "1080×1350").split(/[×x]/).map(Number);
+  const ratio = a && b ? a / b : 0.8;
+  const BASE_W = 480;
+  const baseH = Math.round(BASE_W / ratio);
+  const scale = size.w && size.h ? Math.min(size.w / BASE_W, size.h / baseH) : 0;
+  return (
+    <div ref={ref} className="relative h-full w-full overflow-hidden bg-muted">
+      {scale > 0 && (
+        <div className="absolute left-1/2 top-1/2" style={{ width: BASE_W, height: baseH, transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: "center" }}>
+          <DesignPosterStatic doc={doc} baseW={BASE_W} />
+        </div>
+      )}
     </div>
   );
 }
