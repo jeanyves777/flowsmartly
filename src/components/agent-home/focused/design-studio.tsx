@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -567,6 +567,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const logoRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const posterRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  // Zoom: `fitZoom` keeps the design fitting the canvas width by default; the user
+  // can override with the +/- controls (`manualZoom`); "Fit" resets to auto.
+  const [manualZoom, setManualZoom] = useState<number | null>(null);
+  const [fitZoom, setFitZoom] = useState(1);
   const imagesRef = useRef<ImageLayer[]>(value.images || []);
   const textsRef = useRef<TextLayer[]>(value.texts || []);
   const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
@@ -612,6 +617,17 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const height = Math.round(baseW / ratio);
   const theme = posterTheme(value.style, value.accent);
   void w;
+
+  // Keep the design fitting the canvas width unless the user has zoomed manually.
+  useEffect(() => {
+    const el = canvasRef.current; if (!el) return;
+    const measure = () => setFitZoom(Math.max(0.2, Math.min(1, (el.clientWidth - 48) / baseW)));
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(el);
+    return () => ro.disconnect();
+  }, [baseW]);
+  const zoom = manualZoom ?? fitZoom;
+  const zoomBy = (d: number) => setManualZoom((z) => Math.max(0.25, Math.min(3, Number((((z ?? fitZoom) + d)).toFixed(2)))));
 
   const set = (patch: Partial<DesignDoc>) => onChange({ ...value, ...patch });
   const move = (k: ElementKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
@@ -789,11 +805,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       </div>
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="grid min-h-0 min-w-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
-          {/* Non-clipping wrapper sized to the poster — the floating toolbar lives
-              here (a sibling of the poster) so it's never cut off by overflow-hidden. */}
-          <div className="relative" style={{ width: baseW, maxWidth: "100%" }}>
-          <div ref={posterRef} className="relative overflow-hidden rounded-[18px] shadow-2xl" style={{ width: baseW, height, maxWidth: "100%", background: theme.bg }}
+        <div ref={canvasRef} className="relative flex min-h-0 min-w-0 flex-1 overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
+          {/* spacer reserves the zoomed footprint; m-auto centers it AND keeps the
+              edges reachable when zoomed past the viewport */}
+          <div className="relative m-auto" style={{ width: baseW * zoom, height: height * zoom }}>
+          {/* the design (poster), scaled from the top-left by the zoom level */}
+          <div className="origin-top-left" style={{ transform: `scale(${zoom})` }}>
+          <div ref={posterRef} className="relative overflow-hidden rounded-[18px] shadow-2xl" style={{ width: baseW, height, background: theme.bg }}
             onPointerDown={(e) => { if (e.target === e.currentTarget) setSel(null); }}
             onDragOver={(e) => { if (!showAiImage) e.preventDefault(); }}
             onDrop={(e) => { if (!showAiImage) { e.preventDefault(); addFiles(e.dataTransfer.files, "photo"); } }}
@@ -880,9 +898,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
             )}
             {value.imageUrl && <span className="absolute bottom-2 left-2 hidden" aria-hidden />}
           </div>
+          </div>
 
-          {/* draggable toolbar — sits OUTSIDE the clipped poster so it's never cut
-              off, and can extend past the poster edges into the canvas area */}
+          {/* selection toolbar — a SIBLING of the scaled design, so it stays a
+              readable size at any zoom, positioned over the top of the design */}
           {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage) && (
             <FloatingToolbar>
               {sel.kind === "image" && selIsImage ? (
@@ -892,6 +911,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
               )}
             </FloatingToolbar>
           )}
+          </div>
+
+          {/* zoom controls — bottom-right of the canvas */}
+          <div className="absolute bottom-3 right-3 z-20 flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-lg backdrop-blur">
+            <button onClick={() => zoomBy(-0.1)} title="Zoom out" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><ZoomOut className="h-4 w-4" /></button>
+            <button onClick={() => setManualZoom(null)} title="Fit to screen" className="min-w-[42px] rounded-full px-1 text-center text-[11.5px] font-semibold tabular-nums text-foreground hover:bg-muted">{Math.round(zoom * 100)}%</button>
+            <button onClick={() => zoomBy(0.1)} title="Zoom in" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><ZoomIn className="h-4 w-4" /></button>
           </div>
         </div>
 
