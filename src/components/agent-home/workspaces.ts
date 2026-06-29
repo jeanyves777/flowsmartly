@@ -8,6 +8,7 @@ import {
   Handshake,
   Search,
   SlidersHorizontal,
+  Printer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,15 @@ export const WORKSPACES: Workspace[] = [
       { label: "Logo generator", route: "/logo-generator", viewKey: "logo", desc: "Generate a logo for your brand" },
       { label: "Video studio", route: "/video-studio", viewKey: "video", desc: "Make ads, promos, reels & animations" },
       { label: "Media library", route: "/media", viewKey: "media", desc: "All your images & videos in one place" },
+    ],
+  },
+  {
+    key: "print",
+    label: "Print",
+    icon: Printer,
+    route: "/home/print",
+    items: [
+      { label: "Print studio", route: "/home/print", viewKey: "print", desc: "Flyers, posters, cards, brochures & product prints" },
     ],
   },
   {

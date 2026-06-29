@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -25,6 +25,12 @@ export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "you
 export type ContactType = "email" | "phone" | "website" | "address" | SocialKey;
 export interface ContactLayer { id: string; type: ContactType; value: string; x: number; y: number; style?: TextStyle }
 export interface BrandContact { email?: string; phone?: string; website?: string; address?: string; handles?: Partial<Record<SocialKey, string>> }
+
+// Print-mode extras for the SAME canvas: swap the social size presets for print
+// sizes and overlay bleed / safe-area / fold guides. All optional — when unset
+// the canvas behaves exactly as the social Design Studio. [[new-design-no-legacy]]
+export interface SizePreset { label: string; v: string; hint?: string }
+export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number }
 
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
@@ -581,13 +587,43 @@ function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete,
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef }: {
+/** Non-interactive print guide overlay: dashed trim/bleed edge, safe-area, and
+ * fold lines. Lives inside the poster (which is the trim size); true bleed is
+ * applied at export. Shown only in print mode (when `guides` is provided). */
+function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
+  const folds = Math.max(0, Math.min(4, guides.folds ?? 0));
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[6]">
+      {guides.bleed && <div className="absolute inset-0 rounded-[18px] border border-dashed border-rose-400/70" />}
+      {guides.safe && (
+        <div className="absolute inset-[6.5%] border border-dashed border-sky-400/70">
+          <span className="absolute -top-[7px] left-0 -translate-y-full rounded-[3px] bg-sky-400/90 px-1 text-[8px] font-bold leading-tight text-white">SAFE</span>
+        </div>
+      )}
+      {Array.from({ length: folds }).map((_, i) => {
+        const left = ((i + 1) / (folds + 1)) * 100;
+        return (
+          <div key={i} className="absolute bottom-0 top-0 border-l border-dashed border-violet-400/80" style={{ left: `${left}%` }}>
+            <span className="absolute left-0 top-1 -translate-x-1/2 rounded-[3px] bg-violet-400/90 px-1 text-[8px] font-bold leading-tight text-white">FOLD</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel }: {
   value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
+  // Print mode (optional): print size presets + bleed/safe/fold guides + a "back
+  // to formats" affordance. Absent → the canvas is the normal social studio.
+  sizePresets?: SizePreset[]; guides?: PrintGuides; onBack?: () => void; formatLabel?: string;
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
   const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
   const [toolsOpen, setToolsOpen] = useState(true);
+  // Print mode: bleed/safe/fold guides on by default; the toolbar toggles them.
+  const [showGuides, setShowGuides] = useState(true);
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   // Extra direction for the two AI generate modes (editable rebuild vs flat image).
   const [genDetails, setGenDetails] = useState("");
@@ -875,12 +911,22 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
+        {onBack && (
+          <>
+            <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
+            {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground sm:inline-block">{formatLabel}</span>}
+            <span className="mx-0.5 h-5 w-px bg-border" />
+          </>
+        )}
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Undo"><Undo2 className="h-4 w-4" /></button>
         <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Redo"><Redo2 className="h-4 w-4" /></button>
         <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
         <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
         <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[160px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
         <div className="ms-auto flex items-center gap-1.5">
+          {guides && (
+            <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
+          )}
           <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-emerald-500/60 text-emerald-500" : "border-border hover:text-foreground")} title="Save to your design library">
             {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
           </button>
@@ -975,6 +1021,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 ))}
 
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
+
+                {/* print guides (bleed / safe-area / fold) — non-interactive overlay */}
+                {guides && showGuides && <PrintGuideOverlay guides={guides} />}
               </>
             )}
 
@@ -1091,7 +1140,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                     <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">Ask the agent to “add a laptop” or “generate a new background” — it drops the object on the canvas (or a backdrop behind it) without redoing your design.</p>
                   </ControlGroup>
                   <ControlGroup title={brandColors?.length ? "Brand accent" : "Accent color"}><div className="mt-1.5 flex flex-wrap items-center gap-2">{accentSwatches.map((a) => <button key={a} onClick={() => set({ accent: a })} className={cn("h-6 w-6 rounded-lg border-2", value.accent === a ? "border-foreground" : "border-transparent")} style={{ background: a }} aria-label={a} />)}<ColorPicker value={value.accent} onChange={(c) => set({ accent: c })} className="h-6 w-6 rounded-lg border border-border" iconClass="h-3 w-3" /></div>{brandColors?.length ? <p className="mt-1.5 text-[10.5px] text-muted-foreground">Your brand colors lead — or pick any with the picker.</p> : null}</ControlGroup>
-                  <ControlGroup title="Size"><div className="mt-1.5 flex flex-wrap gap-1.5">{SIZES.map((sz) => <button key={sz.v} onClick={() => set({ size: sz.v })} className={cn("rounded-lg border px-2.5 py-1.5 text-[11.5px]", value.size === sz.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>{sz.label}</button>)}</div></ControlGroup>
+                  <ControlGroup title={sizePresets ? "Print size" : "Size"}><div className={cn("mt-1.5 gap-1.5", sizePresets ? "grid grid-cols-2" : "flex flex-wrap")}>{(sizePresets ?? SIZES).map((sz) => <button key={sz.v} onClick={() => set({ size: sz.v })} className={cn("rounded-lg border px-2.5 py-1.5 text-left text-[11.5px]", value.size === sz.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>{sz.label}{(sz as SizePreset).hint && <span className="block text-[9px] font-normal text-muted-foreground">{(sz as SizePreset).hint}</span>}</button>)}</div></ControlGroup>
                 </>
               )}
             </div>

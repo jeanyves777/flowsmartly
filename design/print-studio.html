@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FlowSmartly · Print Studio — mockup</title>
+<style>
+  :root{
+    --bg:#0a0a0b; --card:#161618; --card2:#1d1d20; --border:#2a2a2e;
+    --fg:#fafafa; --muted:#a1a1aa; --muted2:#71717a;
+    --brand:#0ea5e9; --violet:#8b5cf6; --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e;
+    --bleed:#f43f5e; --safe:#38bdf8; --fold:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  .app{display:flex;height:100vh;overflow:hidden}
+
+  /* ── Left rail ─────────────────────────────────── */
+  .rail{width:84px;flex-shrink:0;border-right:1px solid var(--border);background:#101012;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0}
+  .rail .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center;font-weight:800;margin-bottom:8px}
+  .rail button{width:64px;height:54px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted2);font-size:9.5px;font-weight:600}
+  .rail button svg{width:21px;height:21px}
+  .rail button:hover{color:var(--fg);background:#19191c}
+  .rail button.active{color:var(--brand);background:rgba(14,165,233,.12)}
+
+  /* ── Main column ───────────────────────────────── */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;overflow:hidden}
+
+  /* top toolbar */
+  .toolbar{z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--border);background:rgba(22,22,24,.5);backdrop-filter:blur(8px);padding:9px 16px}
+  .toolbar .title{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700}
+  .toolbar .title svg{width:17px;height:17px;color:var(--brand)}
+  .toolbar .sep{width:1px;height:18px;background:var(--border)}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:9px;padding:5px 9px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  .pill:hover{border-color:rgba(14,165,233,.6);color:var(--fg)}
+  .pill.on{border-color:var(--brand);color:var(--brand);background:rgba(14,165,233,.08)}
+  .btn-secondary{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:10px;padding:6px 11px;font-size:12px;font-weight:600;color:var(--fg)}
+  .btn-secondary:hover{border-color:rgba(14,165,233,.6)}
+  .btn-primary{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--brand),var(--violet));box-shadow:0 4px 14px rgba(14,165,233,.3)}
+  .grow{flex:1}
+  .toolbar svg.ic{width:14px;height:14px}
+
+  /* stage */
+  .stage{position:relative;flex:1;min-height:0;overflow:auto;background:
+      radial-gradient(520px 320px at 38% -5%, rgba(14,165,233,.14), transparent 70%),
+      radial-gradient(circle, rgba(130,130,150,.10) 1px, transparent 1px);
+      background-size:auto, 22px 22px}
+
+  /* ── Hero / format chooser ─────────────────────── */
+  .hero{max-width:1080px;margin:0 auto;padding:34px 26px 120px}
+  .hero h1{font-size:23px;font-weight:800;margin:0 0 4px;letter-spacing:-.01em}
+  .hero p.sub{color:var(--muted);font-size:13.5px;margin:0 0 22px;max-width:640px;line-height:1.55}
+  .hero .askbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:11px 13px;margin-bottom:26px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  .hero .askbar svg{width:18px;height:18px;color:var(--brand);flex-shrink:0}
+  .hero .askbar input{flex:1;background:none;border:none;outline:none;color:var(--fg);font-size:13.5px}
+  .hero .askbar input::placeholder{color:var(--muted2)}
+  .hero .askbar .send{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center}
+  .hero .askbar .send svg{color:#fff;width:15px;height:15px}
+
+  .grouplabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);margin:18px 2px 11px}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+  @media(max-width:900px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  .tile{text-align:left;border:1px solid var(--border);background:var(--card);border-radius:16px;padding:16px;transition:.15s;position:relative;overflow:hidden}
+  .tile:hover{border-color:rgba(14,165,233,.6);transform:translateY(-2px);box-shadow:0 14px 34px rgba(0,0,0,.3)}
+  .tile .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(14,165,233,.18),rgba(139,92,246,.18));color:var(--brand);margin-bottom:11px}
+  .tile .ico svg{width:21px;height:21px}
+  .tile h3{font-size:14px;font-weight:700;margin:0 0 3px}
+  .tile p{font-size:11.5px;color:var(--muted);margin:0 0 9px;line-height:1.5}
+  .tile .sizes{display:flex;flex-wrap:wrap;gap:5px}
+  .tile .sizes span{font-size:10px;font-weight:600;color:var(--muted2);border:1px solid var(--border);border-radius:6px;padding:2px 6px}
+  .tile .badge{position:absolute;top:13px;right:13px;font-size:9.5px;font-weight:700;color:var(--brand);background:rgba(14,165,233,.12);border-radius:6px;padding:2px 7px}
+
+  /* ── Editor (canvas) view ──────────────────────── */
+  .editor{display:none;position:absolute;inset:0;flex-direction:column}
+  .editor.show{display:flex}
+  .editor-body{display:flex;flex:1;min-height:0}
+  .canvas-col{flex:1;min-width:0;display:flex;flex-direction:column}
+  .canvaswrap{flex:1;min-height:0;overflow:auto;display:grid;place-items:center;padding:30px;position:relative}
+
+  /* the paper */
+  .paper-outer{position:relative}
+  .paper{position:relative;background:#fff;color:#0a0a0b;box-shadow:0 18px 60px rgba(0,0,0,.5);overflow:hidden}
+  /* guide overlays */
+  .guide{position:absolute;pointer-events:none;border-style:dashed}
+  .g-bleed{inset:-12px;border:1.5px dashed var(--bleed)}
+  .g-trim{inset:0;border:1px solid rgba(0,0,0,.25)}
+  .g-safe{inset:24px;border:1.5px dashed var(--safe)}
+  .guide-tag{position:absolute;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;color:#fff}
+  .tag-bleed{top:-12px;left:-12px;transform:translateY(-115%);background:var(--bleed)}
+  .tag-safe{top:24px;left:24px;transform:translateY(-115%);background:var(--safe)}
+  .fold{position:absolute;top:0;bottom:0;width:0;border-left:1.5px dashed var(--fold)}
+  .fold-tag{position:absolute;top:6px;font-size:9px;font-weight:700;color:#fff;background:var(--fold);padding:1px 5px;border-radius:4px;transform:translateX(-50%)}
+
+  /* sample flyer content */
+  .flyer-bg{position:absolute;inset:0;background:linear-gradient(150deg,#0ea5e9,#0369a1 60%,#0c4a6e)}
+  .flyer-wave{position:absolute;right:-8%;top:-10%;width:62%;height:120%;background:radial-gradient(circle at 70% 30%, rgba(255,255,255,.18), transparent 60%)}
+  .el{position:absolute;cursor:move}
+  .el.sel{outline:2px solid var(--brand);outline-offset:2px}
+  .el .h{position:absolute;width:9px;height:9px;background:#fff;border:1.5px solid var(--brand);border-radius:2px}
+  .el .h.tl{left:-5px;top:-5px}.el .h.tr{right:-5px;top:-5px}.el .h.bl{left:-5px;bottom:-5px}.el .h.br{right:-5px;bottom:-5px}
+
+  /* floating selection toolbar */
+  .floattb{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:3px;background:#18181b;border-radius:11px;padding:5px 6px;box-shadow:0 12px 34px rgba(0,0,0,.5);box-shadow:0 0 0 1px rgba(255,255,255,.12), 0 12px 34px rgba(0,0,0,.5);z-index:30}
+  .floattb button{width:30px;height:28px;border-radius:7px;display:grid;place-items:center;color:#e4e4e7}
+  .floattb button:hover{background:rgba(255,255,255,.12)}
+  .floattb button svg{width:15px;height:15px}
+  .floattb .vsep{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 2px}
+  .floattb .grip{cursor:grab;color:#71717a;padding:0 3px}
+
+  /* page strip */
+  .pagestrip{display:flex;align-items:center;gap:9px;border-top:1px solid var(--border);background:rgba(22,22,24,.6);padding:9px 14px;overflow-x:auto}
+  .pagethumb{width:54px;height:70px;border-radius:7px;border:1.5px solid var(--border);background:#fff;flex-shrink:0;position:relative;overflow:hidden}
+  .pagethumb.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(14,165,233,.3)}
+  .pagethumb .lbl{position:absolute;bottom:0;left:0;right:0;font-size:8px;font-weight:700;text-align:center;background:rgba(0,0,0,.5);color:#fff;padding:1px}
+  .addpage{width:54px;height:70px;border-radius:7px;border:1.5px dashed var(--border);color:var(--muted2);display:grid;place-items:center;flex-shrink:0}
+  .addpage:hover{border-color:var(--brand);color:var(--brand)}
+
+  /* right control panel */
+  .controls{width:272px;flex-shrink:0;border-left:1px solid var(--border);background:rgba(29,29,32,.4);display:flex;flex-direction:column;overflow-y:auto}
+  .tabs{display:flex;gap:3px;padding:8px;border-bottom:1px solid var(--border)}
+  .tabs button{flex:1;border-radius:9px;padding:7px;font-size:11.5px;font-weight:700;color:var(--muted)}
+  .tabs button.active{background:rgba(14,165,233,.1);color:var(--brand)}
+  .ctl{padding:13px}
+  .ctl h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);margin:0 0 8px}
+  .ctl .sec{margin-bottom:18px}
+  .sizegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+  .sizebtn{border:1px solid var(--border);border-radius:9px;padding:7px;font-size:11px;font-weight:600;color:var(--muted);text-align:left}
+  .sizebtn small{display:block;color:var(--muted2);font-size:9.5px;font-weight:500;margin-top:1px}
+  .sizebtn.active{border-color:var(--brand);background:rgba(14,165,233,.08);color:var(--fg)}
+  .toggle{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+  .toggle:last-child{border-bottom:none}
+  .toggle span{font-size:12px}
+  .toggle .sw{width:36px;height:20px;border-radius:99px;background:#3a3a3e;position:relative;transition:.15s}
+  .toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:#fff;transition:.15s}
+  .toggle .sw.on{background:var(--brand)}
+  .toggle .sw.on::after{left:18px}
+  .swatches{display:flex;gap:6px;flex-wrap:wrap}
+  .swatch{width:26px;height:26px;border-radius:8px;border:2px solid transparent}
+  .swatch.active{border-color:#fff}
+  .aibuild{margin-top:auto;border-top:1px solid var(--border);padding:13px;background:rgba(14,165,233,.04)}
+  .aibuild textarea{width:100%;resize:none;border:1px solid var(--border);background:var(--card);border-radius:9px;padding:8px;font-size:12px;color:var(--fg);outline:none}
+  .aibuild .row{display:flex;gap:6px;margin-top:8px}
+  .aibuild .row button{flex:1;border-radius:9px;padding:8px;font-size:11.5px;font-weight:700}
+  .aibuild .b1{background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff}
+  .aibuild .b2{border:1px solid var(--border);color:var(--fg)}
+
+  /* ── Product print mode ─────────────────────────── */
+  .product-stage{flex:1;min-height:0;overflow:auto;display:grid;place-items:center;padding:24px}
+  .product-frame{position:relative}
+  .product-img{width:430px;max-width:80vw;display:block;filter:drop-shadow(0 20px 50px rgba(0,0,0,.5))}
+  .printarea{position:absolute;border:2px dashed var(--safe);border-radius:6px;display:grid;place-items:center;background:rgba(56,189,248,.06)}
+  .printarea .ph{font-size:11px;font-weight:700;color:#38bdf8;text-align:center;line-height:1.4}
+  .printarea .art{width:100%;height:100%;display:grid;place-items:center;overflow:hidden}
+  .variant-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+  .variant{width:46px;height:46px;border-radius:10px;border:1.5px solid var(--border);display:grid;place-items:center;background:var(--card);color:var(--muted)}
+  .variant.active{border-color:var(--brand);color:var(--brand)}
+  .variant svg{width:22px;height:22px}
+  .fb-tabs{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:4px}
+  .fb-tabs button{padding:6px 16px;font-size:12px;font-weight:700;color:var(--muted)}
+  .fb-tabs button.active{background:rgba(14,165,233,.12);color:var(--brand)}
+
+  /* bottom agent composer (editor) */
+  .composer{border-top:1px solid var(--border);background:rgba(16,16,18,.85);backdrop-filter:blur(8px);padding:10px 16px;display:flex;align-items:center;gap:10px}
+  .composer .ava{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center;flex-shrink:0}
+  .composer .ava svg{width:15px;height:15px;color:#fff}
+  .composer input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:9px 12px;font-size:13px;color:var(--fg);outline:none}
+  .composer input::placeholder{color:var(--muted2)}
+  .composer .send{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--violet));display:grid;place-items:center}
+  .composer .send svg{width:16px;height:16px;color:#fff}
+
+  .backbtn{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--muted)}
+  .backbtn:hover{color:var(--fg)}
+  .backbtn svg{width:15px;height:15px}
+  .sizebadge{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--border);border-radius:7px;padding:3px 8px}
+
+  .note{max-width:1080px;margin:14px auto 0;padding:0 26px}
+  .note .card{background:rgba(14,165,233,.06);border:1px solid rgba(14,165,233,.25);border-radius:12px;padding:12px 14px;font-size:11.5px;color:var(--muted);line-height:1.6}
+  .note b{color:var(--fg)}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- LEFT RAIL -->
+  <nav class="rail">
+    <div class="logo">F</div>
+    <button><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8h6L15 12.3l1.9 5.8L12 14.6 7.1 18l1.9-5.7L4.1 8.8h6z"/></svg>Home</button>
+    <button><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 100 20 2.5 2.5 0 002-4 2.5 2.5 0 012-4 6 6 0 00-6-12z"/></svg>Create</button>
+    <button class="active"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Print</button>
+    <button><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 11l18-5v12L3 14v-3zM11.6 16.8a3 3 0 11-5.8-1.6"/></svg>Publish</button>
+    <button><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>Grow</button>
+    <button><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>Sell</button>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- TOP TOOLBAR -->
+    <div class="toolbar">
+      <div class="title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+        Print studio
+      </div>
+      <div id="editorTools" class="hide" style="display:flex;gap:8px;align-items:center">
+        <div class="sep"></div>
+        <button class="backbtn" onclick="showHero()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Formats</button>
+        <span class="sizebadge" id="sizeBadge">8.5 × 11 in · Letter</span>
+        <button class="pill on" id="guidesPill" onclick="toggleGuides()">◳ Guides</button>
+        <button class="pill" onclick="zoom(-10)">–</button>
+        <span class="pill" id="zoomLbl" style="pointer-events:none">72%</span>
+        <button class="pill" onclick="zoom(10)">+</button>
+      </div>
+      <div class="grow"></div>
+      <button class="btn-secondary"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Library</button>
+      <button class="btn-secondary"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export PDF</button>
+      <button class="btn-primary"><svg class="ic" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8h6L15 12.3l1.9 5.8L12 14.6 7.1 18l1.9-5.7L4.1 8.8h6z"/></svg>New print</button>
+    </div>
+
+    <!-- STAGE -->
+    <div class="stage">
+
+      <!-- ============ HERO / FORMAT CHOOSER ============ -->
+      <div id="hero" class="hero">
+        <h1>What are we printing today?</h1>
+        <p class="sub">Pick a format to open a full editable canvas — same controls as the Design studio — or just tell the agent what you need and it builds the whole thing for you, print-ready.</p>
+
+        <div class="askbar">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8h6L15 12.3l1.9 5.8L12 14.6 7.1 18l1.9-5.7L4.1 8.8h6z"/></svg>
+          <input placeholder="e.g. “Design a tri-fold brochure for my dental clinic” or “business cards for Acme Roofing”" />
+          <button class="send"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+
+        <div class="grouplabel">Paper &amp; signage</div>
+        <div class="tiles">
+          <button class="tile" onclick="openEditor('flyer')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></div>
+            <h3>Flyer &amp; Poster</h3>
+            <p>One-page promos, event posters, menus, hand-outs — full editable canvas.</p>
+            <div class="sizes"><span>Letter</span><span>A4</span><span>11×17</span><span>18×24</span><span>24×36</span></div>
+          </button>
+          <button class="tile" onclick="openEditor('card')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 14h5M15 10h3M15 14h3"/></svg></div>
+            <h3>Business card</h3>
+            <p>Double-sided cards with bleed &amp; safe-zone, pulled from your brand kit.</p>
+            <div class="sizes"><span>3.5×2 in</span><span>85×55 mm</span><span>Front + Back</span></div>
+          </button>
+          <button class="tile" onclick="openEditor('tent')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3L3 20h18L12 3zM12 3v17"/></svg></div>
+            <h3>Table tent / folder</h3>
+            <p>Folded table tents &amp; counter cards with fold guides on each panel.</p>
+            <div class="sizes"><span>4×6 tent</span><span>5×7</span><span>2 panels</span></div>
+          </button>
+          <button class="tile" onclick="openEditor('bifold')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M12 4v16"/></svg></div>
+            <h3>Bi-fold brochure</h3>
+            <p>4-panel brochure, fold lines marked, panels managed like pages.</p>
+            <div class="sizes"><span>8.5×11 → 8.5×5.5</span><span>4 panels</span></div>
+          </button>
+          <button class="tile" onclick="openEditor('trifold')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="1"/><path d="M9 5v14M15 5v14"/></svg></div>
+            <h3>Tri-fold brochure</h3>
+            <p>6-panel classic tri-fold with correct panel order &amp; fold marks.</p>
+            <div class="sizes"><span>11×8.5</span><span>6 panels</span></div>
+          </button>
+          <button class="tile" onclick="openEditor('postcard')">
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M14 5v14M17 9h2M17 12h2"/></svg></div>
+            <h3>Postcard</h3>
+            <p>Mailers &amp; invites, front + address back, EDDM-friendly sizes.</p>
+            <div class="sizes"><span>4×6</span><span>5×7</span><span>6×9</span></div>
+          </button>
+        </div>
+
+        <div class="grouplabel">Print on products</div>
+        <div class="tiles">
+          <button class="tile" onclick="openProduct('tee')">
+            <span class="badge">Mockup</span>
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7l4-4 4 2 4-2 4 4-3 3v9H7v-9L4 7z"/></svg></div>
+            <h3>Apparel &amp; T-shirts</h3>
+            <p>Drop your design onto a front/back print area on a real garment mockup.</p>
+            <div class="sizes"><span>Tee</span><span>Hoodie</span><span>Tote</span></div>
+          </button>
+          <button class="tile" onclick="openProduct('vest')">
+            <span class="badge">Mockup</span>
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 3l5 3 5-3 3 4-3 2v12H7V9L4 7z"/></svg></div>
+            <h3>Workwear &amp; hi-vis</h3>
+            <p>Safety vests, caps &amp; uniforms — logo + back panel print zones.</p>
+            <div class="sizes"><span>Hi-vis vest</span><span>Cap</span><span>Polo</span></div>
+          </button>
+          <button class="tile" onclick="openProduct('mug')">
+            <span class="badge">Mockup</span>
+            <div class="ico"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h12v9a4 4 0 01-4 4H8a4 4 0 01-4-4V6zM16 9h2a3 3 0 010 6h-2"/></svg></div>
+            <h3>Drinkware &amp; gifts</h3>
+            <p>Mugs, bottles & merch — wrap-around print area with safe margins.</p>
+            <div class="sizes"><span>Mug</span><span>Bottle</span><span>Sticker</span></div>
+          </button>
+        </div>
+
+        <div class="note"><div class="card">
+          <b>How it's built:</b> every format above opens the <b>same canvas engine as the Design studio</b> (drag, resize, edit text in place, photos, logo, multi-page) — we only add print <b>size presets</b>, <b>bleed / safe / fold guides</b>, and a <b>product-mockup overlay</b>. The agent drives it with the existing <code>update_canvas</code> + <code>add_design_page</code> tools, plus a thin <code>start_print_project</code> / <code>place_design_on_product</code> — so it's fully agentic with no parallel editor.
+        </div></div>
+      </div>
+
+      <!-- ============ EDITOR (paper canvas) ============ -->
+      <div id="editor" class="editor">
+        <div class="editor-body">
+          <div class="canvas-col">
+            <div class="canvaswrap">
+              <div class="paper-outer" id="paperOuter">
+                <div class="paper" id="paper" style="width:408px;height:528px">
+                  <!-- floating selection toolbar -->
+                  <div class="floattb">
+                    <span class="grip">⋮⋮</span>
+                    <button title="Font size"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg></button>
+                    <button title="Bold"><b style="font-size:13px">B</b></button>
+                    <button title="Color"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18"/></svg></button>
+                    <button title="Align"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h12M4 18h16"/></svg></button>
+                    <span class="vsep"></span>
+                    <button title="Bring forward"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="7" y="3" width="11" height="11" rx="1"/><path d="M3 10v9a1 1 0 001 1h9"/></svg></button>
+                    <button title="Send back"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="11" height="11" rx="1"/><path d="M21 10v9a1 1 0 01-1 1h-9"/></svg></button>
+                    <button title="Remove background"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3l18 18M21 15V5a2 2 0 00-2-2H9"/><path d="M3 9v10a2 2 0 002 2h10"/></svg></button>
+                    <span class="vsep"></span>
+                    <button title="Delete" style="color:#fda4af"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+                  </div>
+
+                  <!-- sample flyer art -->
+                  <div class="flyer-bg" id="flyerBg"></div>
+                  <div class="flyer-wave" id="flyerWave"></div>
+                  <div class="el" style="left:7%;top:8%;color:#fff;font-weight:800;font-size:11px;letter-spacing:.12em">SPRING EVENT · 2026</div>
+                  <div class="el sel" style="left:7%;top:24%;color:#fff;font-weight:900;font-size:30px;line-height:1.05;width:64%">Georgia<br>Aquarium<br>Night</div>
+                  <div class="el" style="left:7%;top:62%;color:#e0f2fe;font-size:12px;width:62%;line-height:1.5">Family &amp; friends welcome. Children 2 &amp; under free. Free campus parking &amp; shuttles.</div>
+                  <div class="el" style="left:7%;top:84%;background:#fff;color:#0369a1;font-weight:800;font-size:12px;padding:8px 14px;border-radius:8px">Buy tickets early →</div>
+                  <div class="el" style="right:7%;bottom:7%;color:#fff;font-size:10px;text-align:right;opacity:.9">404 / 413-1857<br>gsu.edu/studentevents</div>
+
+                  <!-- guides -->
+                  <div class="guides" id="guides">
+                    <div class="guide g-bleed"></div>
+                    <div class="guide g-trim"></div>
+                    <div class="guide g-safe"></div>
+                    <div class="guide-tag tag-bleed">BLEED 0.125"</div>
+                    <div class="guide-tag tag-safe">SAFE</div>
+                  </div>
+                  <!-- fold lines (brochures only) -->
+                  <div id="folds"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- page strip -->
+            <div class="pagestrip" id="pageStrip">
+              <div class="pagethumb active"><span class="lbl">Front</span></div>
+              <button class="addpage" title="Add page">＋</button>
+            </div>
+          </div>
+
+          <!-- right controls -->
+          <div class="controls">
+            <div class="tabs">
+              <button class="active">Design</button>
+              <button>Style</button>
+              <button>Print</button>
+            </div>
+            <div class="ctl">
+              <div class="sec">
+                <h4>Size · <span id="fmtName">Flyer</span></h4>
+                <div class="sizegrid" id="sizeGrid"></div>
+              </div>
+              <div class="sec">
+                <h4>Guides</h4>
+                <div class="toggle"><span style="color:#f43f5e">● Bleed (0.125")</span><div class="sw on"></div></div>
+                <div class="toggle"><span style="color:#38bdf8">● Safe area</span><div class="sw on"></div></div>
+                <div class="toggle"><span style="color:#a78bfa">● Fold lines</span><div class="sw" id="foldSw"></div></div>
+                <div class="toggle"><span>Snap to guides</span><div class="sw on"></div></div>
+              </div>
+              <div class="sec">
+                <h4>Accent</h4>
+                <div class="swatches">
+                  <div class="swatch active" style="background:#0ea5e9"></div>
+                  <div class="swatch" style="background:#8b5cf6"></div>
+                  <div class="swatch" style="background:#10b981"></div>
+                  <div class="swatch" style="background:#f59e0b"></div>
+                  <div class="swatch" style="background:#f43f5e"></div>
+                  <div class="swatch" style="background:#111827"></div>
+                </div>
+              </div>
+              <div class="sec">
+                <h4>Add</h4>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">＋ Text</button>
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">＋ Photo</button>
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">＋ Logo</button>
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">＋ QR</button>
+                </div>
+              </div>
+            </div>
+            <div class="aibuild">
+              <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);margin:0 0 8px">Build with AI</h4>
+              <textarea rows="2" placeholder="Add direction (optional) — tone, audience, offer…"></textarea>
+              <div class="row">
+                <button class="b1">Editable</button>
+                <button class="b2">Print image</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- agent composer -->
+        <div class="composer">
+          <div class="ava"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8h6L15 12.3l1.9 5.8L12 14.6 7.1 18l1.9-5.7L4.1 8.8h6z"/></svg></div>
+          <input placeholder="Ask the agent — “make the headline bolder”, “add a QR to the registration page”, “turn this into a tri-fold”…" />
+          <button class="send"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
+      <!-- ============ PRODUCT MOCKUP MODE ============ -->
+      <div id="product" class="editor">
+        <div class="editor-body">
+          <div class="canvas-col">
+            <div class="product-stage">
+              <div style="text-align:center">
+                <div class="fb-tabs">
+                  <button class="active" onclick="setFace(this,'front')">Front</button>
+                  <button onclick="setFace(this,'back')">Back</button>
+                </div>
+                <div class="product-frame" style="margin-top:14px">
+                  <!-- a simple SVG garment as the mockup base -->
+                  <svg class="product-img" id="prodSvg" viewBox="0 0 300 340" fill="#1f6feb" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M95 20 L60 40 L30 90 L60 120 L80 105 L80 320 L220 320 L220 105 L240 120 L270 90 L240 40 L205 20 C190 45 110 45 95 20Z" fill="#2563eb" stroke="#1e3a8a" stroke-width="2"/>
+                    <!-- reflective strips to read as hi-vis vest -->
+                    <rect x="105" y="120" width="18" height="200" fill="#c7d2fe" opacity=".7"/>
+                    <rect x="177" y="120" width="18" height="200" fill="#c7d2fe" opacity=".7"/>
+                    <rect x="80" y="170" width="140" height="16" fill="#c7d2fe" opacity=".7"/>
+                  </svg>
+                  <!-- print area overlay -->
+                  <div class="printarea" id="printArea" style="left:38%;top:34%;width:24%;height:18%">
+                    <div class="ph" id="printPh">LOGO<br><small style="font-weight:600;opacity:.8">drop / generate</small></div>
+                  </div>
+                </div>
+                <div class="variant-row">
+                  <button class="variant active" title="Vest"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 3l5 3 5-3 3 4-3 2v12H7V9L4 7z"/></svg></button>
+                  <button class="variant" title="Tee"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7l4-4 4 2 4-2 4 4-3 3v9H7v-9L4 7z"/></svg></button>
+                  <button class="variant" title="Cap"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 14a10 10 0 0120 0M4 14h16v3H4z"/></svg></button>
+                  <button class="variant" title="Mug"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h12v9a4 4 0 01-4 4H8a4 4 0 01-4-4V6zM16 9h2a3 3 0 010 6h-2"/></svg></button>
+                  <button class="variant" title="Tote"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 8V6a6 6 0 0112 0v2M4 8h16l-1 13H5z"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="tabs"><button class="active">Print</button><button>Garment</button><button>Design</button></div>
+            <div class="ctl">
+              <div class="sec">
+                <h4>Print placement</h4>
+                <div class="sizegrid">
+                  <button class="sizebtn active">Left chest<small>logo · 3 in</small></button>
+                  <button class="sizebtn">Full front<small>11 × 14 in</small></button>
+                  <button class="sizebtn">Full back<small>12 × 16 in</small></button>
+                  <button class="sizebtn">Sleeve<small>2 × 3 in</small></button>
+                </div>
+              </div>
+              <div class="sec">
+                <h4>Garment colour</h4>
+                <div class="swatches">
+                  <div class="swatch active" style="background:#2563eb"></div>
+                  <div class="swatch" style="background:#111827"></div>
+                  <div class="swatch" style="background:#f59e0b"></div>
+                  <div class="swatch" style="background:#10b981"></div>
+                  <div class="swatch" style="background:#e5e7eb"></div>
+                </div>
+              </div>
+              <div class="sec">
+                <h4>Artwork</h4>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">Upload</button>
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">From library</button>
+                  <button class="btn-secondary" style="font-size:11px;padding:6px 9px">✨ Generate</button>
+                </div>
+              </div>
+            </div>
+            <div class="aibuild">
+              <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);margin:0 0 8px">Build with AI</h4>
+              <textarea rows="2" placeholder="“Put our logo on the left chest and ‘Safety First’ across the back in reflective white”"></textarea>
+              <div class="row"><button class="b1">Place on product</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="ava"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8h6L15 12.3l1.9 5.8L12 14.6 7.1 18l1.9-5.7L4.1 8.8h6z"/></svg></div>
+          <input placeholder="Ask the agent — “add our logo to the front and the slogan on the back”, “make it a black tee”…" />
+          <button class="send"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
+    </div><!-- /stage -->
+  </div><!-- /main -->
+</div>
+
+<script>
+  const FORMATS = {
+    flyer:    {name:"Flyer",        badge:"8.5 × 11 in · Letter", w:408, h:528, folds:0, faces:["Front"],
+               sizes:[["Letter","8.5×11 in"],["A4","210×297 mm"],["Tabloid","11×17 in"],["Poster S","18×24 in"],["Poster L","24×36 in"],["A5","148×210 mm"]]},
+    postcard: {name:"Postcard",     badge:"6 × 4 in", w:540, h:360, folds:0, faces:["Front","Address"],
+               sizes:[["4×6","standard"],["5×7","invite"],["6×9","jumbo"],["6×11","EDDM"]]},
+    card:     {name:"Business card", badge:"3.5 × 2 in", w:525, h:300, folds:0, faces:["Front","Back"],
+               sizes:[["US","3.5×2 in"],["EU","85×55 mm"],["Square","2.5×2.5 in"],["Rounded","3.5×2 in"]]},
+    tent:     {name:"Table tent",   badge:"4 × 6 in tent", w:380, h:540, folds:1, faces:["Panel A","Panel B"],
+               sizes:[["4×6 tent","folded"],["5×7 tent","folded"],["A-frame","large"]]},
+    bifold:   {name:"Bi-fold",      badge:"8.5 × 11 in → 8.5 × 5.5", w:560, h:430, folds:1, faces:["Outside","Inside"],
+               sizes:[["Letter bi","8.5×11"],["A4 bi","210×297"],["Square","8×8 in"]]},
+    trifold:  {name:"Tri-fold",     badge:"11 × 8.5 in · 6 panel", w:600, h:390, folds:2, faces:["Outside","Inside"],
+               sizes:[["Letter tri","11×8.5"],["Legal tri","14×8.5"],["A4 tri","297×210"]]},
+  };
+  let cur = "flyer", zoomVal = 72, guidesOn = true;
+
+  function showHero(){
+    document.getElementById('hero').style.display='block';
+    document.getElementById('editor').classList.remove('show');
+    document.getElementById('product').classList.remove('show');
+    document.getElementById('editorTools').classList.add('hide');
+  }
+  function openEditor(fmt){
+    cur = fmt; const f = FORMATS[fmt];
+    document.getElementById('hero').style.display='none';
+    document.getElementById('product').classList.remove('show');
+    document.getElementById('editor').classList.add('show');
+    const tools = document.getElementById('editorTools'); tools.classList.remove('hide'); tools.style.display='flex';
+    document.getElementById('sizeBadge').textContent = f.badge;
+    document.getElementById('fmtName').textContent = f.name;
+    // paper size
+    const paper = document.getElementById('paper');
+    paper.style.width = f.w*(zoomVal/72)*0 + f.w + 'px';
+    paper.style.height = f.h + 'px';
+    paper.style.width = f.w + 'px';
+    applyZoom();
+    // brochure look: hide the flyer art for multi-panel, show plain
+    const isBrochure = f.folds>0;
+    document.getElementById('flyerBg').style.opacity = isBrochure ? .12 : 1;
+    document.getElementById('flyerWave').style.display = isBrochure ? 'none':'block';
+    // size grid
+    const grid = document.getElementById('sizeGrid'); grid.innerHTML='';
+    f.sizes.forEach((s,i)=>{const b=document.createElement('button');b.className='sizebtn'+(i===0?' active':'');b.innerHTML=s[0]+'<small>'+s[1]+'</small>';b.onclick=()=>{grid.querySelectorAll('.sizebtn').forEach(x=>x.classList.remove('active'));b.classList.add('active')};grid.appendChild(b)});
+    // fold lines
+    renderFolds(f.folds);
+    document.getElementById('foldSw').classList.toggle('on', f.folds>0);
+    // page strip faces
+    const strip = document.getElementById('pageStrip'); strip.innerHTML='';
+    f.faces.forEach((face,i)=>{const t=document.createElement('div');t.className='pagethumb'+(i===0?' active':'');t.innerHTML='<span class="lbl">'+face+'</span>';t.onclick=()=>{strip.querySelectorAll('.pagethumb').forEach(x=>x.classList.remove('active'));t.classList.add('active')};strip.appendChild(t)});
+    const add=document.createElement('button');add.className='addpage';add.title='Add page';add.textContent='＋';strip.appendChild(add);
+  }
+  function renderFolds(n){
+    const host = document.getElementById('folds'); host.innerHTML='';
+    if(!n || !guidesOn) return;
+    const f = FORMATS[cur];
+    for(let i=1;i<=n;i++){
+      const pct = (i/(n+1))*100;
+      const line=document.createElement('div');line.className='fold';line.style.left=pct+'%';
+      const tag=document.createElement('div');tag.className='fold-tag';tag.style.left=pct+'%';tag.textContent='FOLD';
+      host.appendChild(line);host.appendChild(tag);
+    }
+  }
+  function openProduct(kind){
+    document.getElementById('hero').style.display='none';
+    document.getElementById('editor').classList.remove('show');
+    document.getElementById('product').classList.add('show');
+    const tools = document.getElementById('editorTools'); tools.classList.remove('hide'); tools.style.display='flex';
+    document.getElementById('sizeBadge').textContent = 'Product mockup · ' + (kind==='vest'?'Hi-vis vest':kind==='tee'?'T-shirt':'Mug');
+    document.getElementById('guidesPill').style.display='none';
+  }
+  function setFace(btn,face){
+    btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const area = document.getElementById('printArea'); const ph = document.getElementById('printPh');
+    if(face==='back'){area.style.left='28%';area.style.top='26%';area.style.width='44%';area.style.height='34%';ph.innerHTML='ADD YOUR<br>OWN DESIGN<br><small style="font-weight:600;opacity:.8">drop / generate</small>';}
+    else {area.style.left='38%';area.style.top='34%';area.style.width='24%';area.style.height='18%';ph.innerHTML='LOGO<br><small style="font-weight:600;opacity:.8">drop / generate</small>';}
+  }
+  function toggleGuides(){
+    guidesOn=!guidesOn;
+    document.getElementById('guidesPill').classList.toggle('on',guidesOn);
+    document.getElementById('guides').style.display = guidesOn?'block':'none';
+    renderFolds(FORMATS[cur].folds);
+  }
+  function zoom(d){ zoomVal=Math.max(30,Math.min(160,zoomVal+d)); applyZoom(); }
+  function applyZoom(){
+    document.getElementById('zoomLbl').textContent=zoomVal+'%';
+    document.getElementById('paperOuter').style.transform='scale('+(zoomVal/72)+')';
+  }
+  // start on hero
+  showHero();
+</script>
+</body>
+</html>

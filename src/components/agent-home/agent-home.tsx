@@ -551,7 +551,10 @@ export function AgentHome() {
   // A button-driven agent action: the instruction is INTERNAL (not shown as a
   // user message) — the user just sees the agent work + respond. Carries the
   // current surface context so the agent acts in place.
-  const sendAction = (p: string) => send(p, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  // Carry the design canvas context on the design AND print surfaces, so the
+  // agent's canvas tools (update_canvas / add_design_page / start_print_project)
+  // stay exposed when a button-driven action fires from the Print Studio hero.
+  const sendAction = (p: string) => send(p, false, (focused === "create" || focused === "print") ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -729,7 +732,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm) => send(t, sm, focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm) => send(t, sm, (focused === "create" || focused === "print") ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }
@@ -805,6 +808,60 @@ export function AgentHome() {
                       } finally {
                         setDesign((d) => (d.building ? { ...d, building: false } : d));
                       }
+                    }}
+                  />
+                ) : focused === "print" ? (
+                  // Print Studio reuses the SAME design canvas (via FocusedPrintStudio),
+                  // so the agent drives it with the same update_canvas / add_design_page
+                  // tools. Print-flavoured AI handlers below. [[new-design-no-legacy]]
+                  <FocusedPrintStudio
+                    value={design}
+                    onChange={setDesign}
+                    pageOpsRef={pageOpsRef}
+                    printOpsRef={printOpsRef}
+                    onAsk={sendAction}
+                    brandColors={brandColors}
+                    brandContact={brandContact ?? undefined}
+                    brandLogo={brandLogo}
+                    onSaveBrandLogo={handleSaveBrandLogo}
+                    working={sending}
+                    onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
+                    onElementAssist={(el) => {
+                      const label = el === "headline" ? "headline" : el === "sub" ? "subtext / details" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action";
+                      send(
+                        `Suggest 3 distinct, genuinely punchier on-brand options for the ${label} of my open PRINT design — short and high-impact. Use ask_choice to show them as a clickable card (label = the exact new text, sublabel = the angle in 2-4 words). Do NOT change the canvas yet. When I tap one, apply ONLY the "${el}" field via update_canvas and keep everything else EXACTLY as is, then confirm in one short sentence.`,
+                        false, designCanvasContext(design), undefined, { hidden: true },
+                      );
+                    }}
+                    onRegenerate={(details) => {
+                      const refs = (design.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
+                      send(
+                        [
+                          `Render my open PRINT design as a finished, print-ready image, using the CURRENT layout/copy as the inspiration (keep the structure):`,
+                          `- headline: ${JSON.stringify(design.headline)}; subtext: ${JSON.stringify(design.sub)}; cta: ${JSON.stringify(design.cta)}`,
+                          `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          refs.length ? `- USE MY images and PRESERVE them — pass these in referenceImageUrls: ${refs.join("; ")}` : "",
+                          details.trim() ? `- extra direction from me: ${details.trim()}` : "",
+                          `Keep important content inside the safe margins. Ask the tier (standard or premium) if I haven't said, then generate — it renders on this canvas.`,
+                        ].filter(Boolean).join("\n"),
+                        false, designCanvasContext(design), undefined, { hidden: true },
+                      );
+                    }}
+                    onBuildEditable={(details) => {
+                      const base = { ...design, imageUrl: undefined };
+                      setDesign(base);
+                      const refs = (base.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
+                      send(
+                        [
+                          `Rebuild my OPEN print canvas as a better, FULLY EDITABLE print design — use update_canvas (and add_canvas_object for a background), NOT create_branded_design, and do NOT bake a flat image.`,
+                          `Rewrite the copy punchier and on-brand, pick the best accent from my brand colors + a fitting style, and balance the layout with pos/styles so it reads cleanly — keeping important content inside the safe area (mind the fold lines on folded formats).`,
+                          details.trim() ? `Extra direction from me: ${details.trim()}` : "",
+                          `Current design — headline: ${JSON.stringify(design.headline)}; subtext: ${JSON.stringify(design.sub)}; cta: ${JSON.stringify(design.cta)}; accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          refs.length ? `- keep my image objects: ${refs.join("; ")}` : "",
+                          `Confirm in one short sentence when done.`,
+                        ].filter(Boolean).join("\n"),
+                        false, designCanvasContext(base), undefined, { hidden: true },
+                      );
                     }}
                   />
                 ) : focused === "account" ? (

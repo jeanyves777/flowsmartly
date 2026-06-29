@@ -138,6 +138,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { recall } = await import("./tools/recall");
   const { updateCanvas } = await import("./tools/update-canvas");
   const { addDesignPage } = await import("./tools/add-design-page");
+  const { startPrintProject } = await import("./tools/start-print-project");
   const { webFetch } = await import("./tools/web-fetch");
   // NOTE: web_search is now Anthropic's NATIVE server-side tool
   // (`web_search_20250305`) — registered in agent-loop.ts as a server tool
@@ -206,6 +207,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(recall);
   flowAgentTools.register(updateCanvas);
   flowAgentTools.register(addDesignPage);
+  flowAgentTools.register(startPrintProject);
 
   // Web browsing:
   //  - web_fetch    → client tool, always registered (no provider dep)
