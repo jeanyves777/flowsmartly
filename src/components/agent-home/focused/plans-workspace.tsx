@@ -53,14 +53,14 @@ export function FocusedPlans({ refreshKey, onBack }: { refreshKey?: number; onBa
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-4 flex items-center gap-2">
+      <div className="w-full">
+        <div className="mb-5 flex items-center gap-2.5">
           {onBack && (
-            <button onClick={onBack} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" aria-label="Back to billing"><ChevronLeft className="h-4 w-4" /></button>
+            <button onClick={onBack} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Back to billing"><ChevronLeft className="h-4 w-4" /></button>
           )}
           <div>
-            <h2 className="text-[18px] font-extrabold leading-tight">Choose your plan</h2>
-            <p className="text-[13px] text-muted-foreground">More monthly credits and features. Securely processed by Stripe — cancel anytime.</p>
+            <h2 className="text-[19px] font-extrabold leading-tight">Compare &amp; upgrade your plan</h2>
+            <p className="text-[13px] text-muted-foreground">More monthly credits and features as you grow. Securely processed by Stripe — cancel anytime.</p>
           </div>
         </div>
         <InlineUpgrade
