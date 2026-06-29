@@ -356,85 +356,87 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/30 px-4 py-2.5">
-        <div className="inline-flex rounded-[10px] border border-border p-0.5">
-          <ViewTab active={view === "list"} onClick={() => setView("list")} icon={List} label="Upcoming" />
-          <ViewTab active={view === "day"} onClick={() => setView("day")} icon={CalendarRange} label="Day" />
-          <ViewTab active={view === "week"} onClick={() => setView("week")} icon={Columns3} label="Week" />
-          <ViewTab active={view === "month"} onClick={() => setView("month")} icon={LayoutGrid} label="Month" />
-        </div>
-        <button onClick={() => onOpenView?.("compose")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
-          <Sparkles className="h-3.5 w-3.5" /> Schedule a post
-        </button>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl space-y-4">
-          {/* KPIs */}
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi icon={CalendarClock} label="Scheduled" value={counts.scheduled.toLocaleString()} />
-            <Kpi icon={CheckCircle2} label="Published" value={counts.published.toLocaleString()} />
-            <Kpi icon={FileEdit} label="Drafts" value={counts.drafts.toLocaleString()} />
-          </div>
+        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+          {/* LEFT: sticky controls — schedule, view menu, counts, filters */}
+          <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[264px] lg:shrink-0">
+            <button onClick={() => onOpenView?.("compose")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+              <Sparkles className="h-4 w-4" /> Schedule a post
+            </button>
 
-          {/* Search + filters — narrow the calendar by caption, status, and channel */}
-          {(posts.length > 0 || filtersActive) && (
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-2.5">
-              <div className="relative min-w-[180px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search captions or channels…"
-                  className="w-full rounded-[10px] border border-input bg-background py-2 pl-9 pr-3 text-[13px] outline-none focus:border-brand-500/60"
-                />
-              </div>
-              <div className="inline-flex items-center gap-1.5 text-muted-foreground">
-                <Filter className="h-3.5 w-3.5" />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium outline-none focus:border-brand-500/60"
-                aria-label="Filter by status"
-              >
-                <option value="ALL">All statuses</option>
-                <option value="SCHEDULED">Scheduled</option>
-                <option value="PUBLISHED">Published</option>
-                <option value="DRAFT">Drafts</option>
-              </select>
-              <select
-                value={platformFilter}
-                onChange={(e) => setPlatformFilter(e.target.value)}
-                className="rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium capitalize outline-none focus:border-brand-500/60"
-                aria-label="Filter by channel"
-              >
-                <option value="ALL">All channels</option>
-                {platformOptions.map((p) => (
-                  <option key={p} value={p}>{prettyPlatform(p)}</option>
-                ))}
-              </select>
-              {filtersActive && (
+            <nav className="rounded-2xl border border-border bg-card p-1.5">
+              {([["list", "Upcoming", List], ["day", "Day", CalendarRange], ["week", "Week", Columns3], ["month", "Month", LayoutGrid]] as const).map(([id, label, Icon]) => (
                 <button
-                  onClick={() => { setQuery(""); setStatusFilter("ALL"); setPlatformFilter("ALL"); }}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-2 text-[12px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"
+                  key={id}
+                  onClick={() => setView(id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", view === id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
                 >
-                  <X className="h-3.5 w-3.5" /> Clear
+                  <Icon className="h-4 w-4 shrink-0" /> <span className="flex-1 text-start">{label}</span>
                 </button>
-              )}
-              {filtersActive && (
-                <span className="ms-auto w-full text-[11.5px] text-muted-foreground sm:w-auto">
-                  {filtered.length} of {posts.length} {posts.length === 1 ? "post" : "posts"}
-                </span>
-              )}
-            </div>
-          )}
+              ))}
+            </nav>
 
-          {error && (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-[12.5px] text-rose-500">{error}</div>
-          )}
+            <div className="grid grid-cols-3 gap-2">
+              <Kpi icon={CalendarClock} label="Scheduled" value={counts.scheduled.toLocaleString()} />
+              <Kpi icon={CheckCircle2} label="Published" value={counts.published.toLocaleString()} />
+              <Kpi icon={FileEdit} label="Drafts" value={counts.drafts.toLocaleString()} />
+            </div>
+
+            {(posts.length > 0 || filtersActive) && (
+              <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+                <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><Filter className="h-3.5 w-3.5" /> Filter</div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search posts…"
+                    className="w-full rounded-[10px] border border-input bg-background py-2 pl-9 pr-3 text-[12.5px] outline-none focus:border-brand-500/60"
+                  />
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                  className="w-full rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium outline-none focus:border-brand-500/60"
+                  aria-label="Filter by status"
+                >
+                  <option value="ALL">All statuses</option>
+                  <option value="SCHEDULED">Scheduled</option>
+                  <option value="PUBLISHED">Published</option>
+                  <option value="DRAFT">Drafts</option>
+                </select>
+                <select
+                  value={platformFilter}
+                  onChange={(e) => setPlatformFilter(e.target.value)}
+                  className="w-full rounded-[10px] border border-input bg-background px-2.5 py-2 text-[12.5px] font-medium capitalize outline-none focus:border-brand-500/60"
+                  aria-label="Filter by channel"
+                >
+                  <option value="ALL">All channels</option>
+                  {platformOptions.map((p) => (
+                    <option key={p} value={p}>{prettyPlatform(p)}</option>
+                  ))}
+                </select>
+                {filtersActive && (
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <span className="text-[11px] text-muted-foreground">{filtered.length} of {posts.length}</span>
+                    <button
+                      onClick={() => { setQuery(""); setStatusFilter("ALL"); setPlatformFilter("ALL"); }}
+                      className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" /> Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+
+          {/* RIGHT: the calendar / list — full width */}
+          <div className="min-w-0 flex-1 space-y-4">
+            {error && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-[12.5px] text-rose-500">{error}</div>
+            )}
 
           {view === "month" ? (
             <section className="rounded-2xl border border-border bg-card p-3 sm:p-4">
@@ -600,6 +602,7 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
               )}
             </>
           )}
+          </div>
         </div>
       </div>
 
@@ -649,19 +652,6 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
 
 // ── View toggle tab ─────────────────────────────────────────────────────────────
 
-function ViewTab({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: ElementType; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition",
-        active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-3.5 w-3.5" /> {label}
-    </button>
-  );
-}
 
 // ── Week / Day hour-by-hour timeline ────────────────────────────────────────────
 

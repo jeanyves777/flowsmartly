@@ -149,7 +149,7 @@ function statusGroupKey(status: string): string {
 
 const SELECT = "rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] font-medium outline-none focus:border-brand-500/60";
 
-type Tab = "listings" | "reviews" | "insights";
+type Tab = "overview" | "listings" | "reviews" | "insights";
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -189,12 +189,13 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
   const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("listings");
+  const [tab, setTab] = useState<Tab>("overview");
   const [editing, setEditing] = useState(false);
   // Priority-actions banner jumps to the Listings tab pre-filtered to a status.
   const [jump, setJump] = useState<{ status: string; nonce: number }>({ status: "", nonce: 0 });
   const focusListings = useCallback((status: string) => {
     setJump((j) => ({ status, nonce: j.nonce + 1 }));
+    setEditing(false);
     setTab("listings");
   }, []);
 
@@ -259,137 +260,159 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
   const unscannedCount = statusCounts.unverified ?? 0;
   const unrepliedCount = Math.max(0, totalReviews - Math.round((responseRate / 100) * totalReviews));
 
+  const nav: { id: Tab; label: string; icon: ElementType; count?: number }[] = [
+    { id: "overview", label: "Overview", icon: Gauge },
+    { id: "listings", label: "Listings", icon: ListTree, count: totalListings },
+    { id: "reviews", label: "Reviews", icon: MessageSquare, count: totalReviews },
+    { id: "insights", label: "Insights", icon: BarChart3 },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* business / presence header + KPIs */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><MapPin className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[16px] font-bold">{profile?.businessName || "Your business"}</h2>
-                <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", liveListings > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{liveListings > 0 ? `${liveListings} live` : "Setting up"}</span>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky identity + menu card */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[300px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><MapPin className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">{profile?.businessName || "Your business"}</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">{location ? `${location} · ` : ""}{totalListings} {totalListings === 1 ? "directory" : "directories"}</p>
               </div>
-              <p className="truncate text-[12px] text-muted-foreground">{location ? `${location} · ` : ""}{totalListings} {totalListings === 1 ? "directory" : "directories"}</p>
             </div>
-            <button
-              onClick={() => setEditing((v) => !v)}
-              className={cn(
-                "ms-auto inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12px] font-semibold transition-colors",
-                editing ? "border-brand-500/60 text-brand-500" : "border-border hover:border-brand-500/60 hover:text-foreground"
-              )}
-            >
-              <Pencil className="h-3.5 w-3.5" /> {editing ? "Close" : "Edit profile"}
-            </button>
+            <div className="mt-2.5 flex items-center gap-2">
+              <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", liveListings > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{liveListings > 0 ? `${liveListings} live` : "Setting up"}</span>
+              <button
+                onClick={() => setEditing((v) => !v)}
+                className={cn("ms-auto inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1 text-[11.5px] font-semibold transition-colors", editing ? "border-brand-500/60 text-brand-500" : "border-border hover:border-brand-500/60 hover:text-foreground")}
+              >
+                <Pencil className="h-3 w-3" /> {editing ? "Close" : "Edit"}
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col items-center">
+              <ScoreGauge score={citation} />
+              <span className="mt-1 text-[11px] font-medium text-muted-foreground">Local-SEO score</span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <MiniStat label="Rating" value={rating ? rating.toFixed(1) : "—"} />
+              <MiniStat label="Reviews" value={totalReviews.toLocaleString()} />
+              <MiniStat label="Replied" value={`${responseRate}%`} />
+            </div>
           </div>
 
-          {editing && profile && (
+          {/* section menu */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = tab === n.id && !editing;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => { setEditing(false); setTab(n.id); }}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {typeof n.count === "number" && n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* priority actions */}
+          {(missingCount > 0 || unscannedCount > 0 || unrepliedCount > 0) && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3">
+              <div className="mb-2 flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /><span className="text-[11px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">Next best actions</span></div>
+              <div className="space-y-1">
+                {missingCount > 0 && <PriorityRow tone="amber" onClick={() => focusListings("missing")} label={`${missingCount} ${missingCount === 1 ? "directory needs" : "directories need"} setup`} />}
+                {unscannedCount > 0 && <PriorityRow tone="muted" onClick={() => focusListings("unverified")} label={`${unscannedCount} to scan`} />}
+                {unrepliedCount > 0 && <PriorityRow tone="brand" onClick={() => { setEditing(false); setTab("reviews"); }} label={`${unrepliedCount} ${unrepliedCount === 1 ? "reply" : "replies"} waiting`} />}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {editing && profile ? (
             <ProfileEditor
               profile={profile}
               onSaved={(p) => { setProfile(p); setEditing(false); }}
               onCancel={() => setEditing(false)}
             />
-          )}
-
-          {/* Local-SEO health: a circular score gauge beside the component bars. */}
-          <div className="mt-4 flex flex-col items-stretch gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center">
-            <div className="flex shrink-0 flex-col items-center gap-1 sm:w-32">
-              <ScoreGauge score={citation} />
-              <span className="text-[11px] font-medium text-muted-foreground">Local-SEO score</span>
-            </div>
-            <div className="min-w-0 flex-1 space-y-2.5">
-              <div className="flex items-center gap-2"><ListChecks className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12px] font-semibold">What makes up your score</span></div>
-              {seoBars.map((b) => (
-                <div key={b.label} className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 text-[12px] font-medium text-muted-foreground">{b.label}</span>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, Math.min(100, b.value))}%` }} />
-                  </div>
-                  <span className="w-10 shrink-0 text-end text-[12px] font-semibold tabular-nums">{Math.round(b.value)}</span>
+          ) : tab === "overview" ? (
+            <>
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-brand-500" /><h3 className="text-[14px] font-bold">What makes up your score</h3></div>
+                <div className="mt-3.5 space-y-3">
+                  {seoBars.map((b) => (
+                    <div key={b.label} className="flex items-center gap-3">
+                      <span className="w-28 shrink-0 text-[12.5px] font-medium text-muted-foreground">{b.label}</span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, Math.min(100, b.value))}%` }} />
+                      </div>
+                      <span className="w-10 shrink-0 text-end text-[12.5px] font-semibold tabular-nums">{Math.round(b.value)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </section>
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <Kpi icon={Star} label="Avg rating" value={rating ? rating.toFixed(1) : "—"} />
-            <Kpi icon={MessageSquare} label="Reviews" value={totalReviews.toLocaleString()} />
-            <Kpi icon={Reply} label="Response rate" value={`${responseRate}%`} />
-          </div>
-
-          {/* Priority actions: only when there is something worth doing. */}
-          {(missingCount > 0 || unscannedCount > 0 || unrepliedCount > 0) && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-2.5">
-              <Zap className="h-4 w-4 shrink-0 text-amber-500" />
-              <span className="text-[12px] font-semibold text-amber-600 dark:text-amber-400">Next best actions</span>
-              <div className="ms-auto flex flex-wrap items-center gap-1.5">
-                {missingCount > 0 && (
-                  <button onClick={() => focusListings("missing")} className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/25 dark:text-amber-300">
-                    {missingCount} need {missingCount === 1 ? "setup" : "setup"} <ArrowRight className="h-3 w-3" />
-                  </button>
-                )}
-                {unscannedCount > 0 && (
-                  <button onClick={() => focusListings("unverified")} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted/70">
-                    {unscannedCount} to scan <ArrowRight className="h-3 w-3" />
-                  </button>
-                )}
-                {unrepliedCount > 0 && (
-                  <button onClick={() => setTab("reviews")} className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2.5 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/20">
-                    {unrepliedCount} {unrepliedCount === 1 ? "reply" : "replies"} waiting <ArrowRight className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* per-tier coverage: live vs total on each directory tier */}
-          {tierCoverage.length > 0 && (
-            <div className="mt-4 border-t border-border pt-4">
-              <div className="mb-2.5 flex items-center gap-2"><Layers className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12px] font-semibold">Coverage by tier</span></div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {tierCoverage.map((t) => (
-                  <div key={t.tier} className="rounded-xl border border-border bg-muted/30 p-2.5">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="truncate text-[11px] font-semibold">Tier {t.tier}</span>
-                      <span className="shrink-0 text-[10.5px] font-semibold tabular-nums text-muted-foreground">{t.live}/{t.total}</span>
-                    </div>
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{TIER_NAMES[t.tier] ?? "Other"}</p>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className={cn("h-full rounded-full", t.percentage >= 60 ? "bg-emerald-500" : t.percentage > 0 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.max(3, Math.min(100, t.percentage))}%` }} />
-                    </div>
+              {tierCoverage.length > 0 && (
+                <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <div className="mb-3 flex items-center gap-2"><Layers className="h-4 w-4 text-brand-500" /><h3 className="text-[14px] font-bold">Coverage by tier</h3></div>
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {tierCoverage.map((t) => (
+                      <div key={t.tier} className="rounded-xl border border-border bg-muted/30 p-3">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="truncate text-[12px] font-semibold">Tier {t.tier}</span>
+                          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">{t.live}/{t.total}</span>
+                        </div>
+                        <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{TIER_NAMES[t.tier] ?? "Other"}</p>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className={cn("h-full rounded-full", t.percentage >= 60 ? "bg-emerald-500" : t.percentage > 0 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.max(3, Math.min(100, t.percentage))}%` }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* tabs */}
-        <div className="flex gap-1.5">
-          {([["listings", "Listings", ListTree], ["reviews", "Reviews", MessageSquare], ["insights", "Insights", BarChart3]] as const).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[12.5px] font-semibold transition-colors",
-                tab === id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground"
+                </section>
               )}
-            >
-              <Icon className="h-3.5 w-3.5" /> {label}
-            </button>
-          ))}
+            </>
+          ) : tab === "listings" ? (
+            <ListingsPanel refreshKey={refreshKey} onScanned={refreshAnalytics} focusStatus={jump.status} focusNonce={jump.nonce} />
+          ) : tab === "reviews" ? (
+            <ReviewsPanel onAsk={onAsk} refreshKey={refreshKey} onChanged={load} />
+          ) : (
+            <InsightsPanel analytics={a} refreshKey={refreshKey} />
+          )}
         </div>
-
-        {tab === "listings" ? (
-          <ListingsPanel refreshKey={refreshKey} onScanned={refreshAnalytics} focusStatus={jump.status} focusNonce={jump.nonce} />
-        ) : tab === "reviews" ? (
-          <ReviewsPanel onAsk={onAsk} refreshKey={refreshKey} onChanged={load} />
-        ) : (
-          <InsightsPanel analytics={a} refreshKey={refreshKey} />
-        )}
       </div>
     </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[16px] font-extrabold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function PriorityRow({ label, onClick, tone }: { label: string; onClick: () => void; tone: "amber" | "muted" | "brand" }) {
+  const tones: Record<typeof tone, string> = {
+    amber: "text-amber-700 hover:bg-amber-500/15 dark:text-amber-300",
+    muted: "text-foreground hover:bg-muted",
+    brand: "text-brand-500 hover:bg-brand-500/10",
+  };
+  return (
+    <button onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold transition-colors", tones[tone])}>
+      <span className="flex-1 text-start">{label}</span>
+      <ArrowRight className="h-3 w-3 shrink-0" />
+    </button>
   );
 }
 
@@ -1408,11 +1431,3 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
-    </div>
-  );
-}
