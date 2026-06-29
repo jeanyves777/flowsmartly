@@ -227,6 +227,23 @@ const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connect
 // deep-link remount never throws away unsaved edits (per-tab, survives reloads).
 const DESIGN_DRAFT_KEY = "fs-design-draft";
 
+/**
+ * Update the address bar WITHOUT going through Next's router. The App Router
+ * instruments `window.history.replaceState`, and that patch can turn an in-page
+ * URL tweak (e.g. adding ?conversationId after the first message) into a soft
+ * navigation that occasionally falls back to a FULL PAGE RELOAD. The instance
+ * method is patched; `History.prototype.replaceState` is the untouched native
+ * one — call it directly so the URL stays in sync for deep-links/bookmarks with
+ * zero navigation.
+ */
+function silentReplaceUrl(url: string) {
+  try {
+    History.prototype.replaceState.call(window.history, window.history.state, "", url);
+  } catch {
+    try { window.history.replaceState(window.history.state, "", url); } catch { /* noop */ }
+  }
+}
+
 export function AgentHome() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -382,7 +399,7 @@ export function AgentHome() {
     url.pathname = focused ? `/home/${focused}` : "/home";
     if (conversationId) url.searchParams.set("conversationId", conversationId);
     else url.searchParams.delete("conversationId");
-    if (url.toString() !== window.location.href) window.history.replaceState({}, "", url.toString());
+    if (url.toString() !== window.location.href) silentReplaceUrl(url.toString());
   }, [focused, conversationId]);
 
   // Autosave the in-progress design so a reload/remount restores unsaved edits.
