@@ -73,7 +73,7 @@ export const PRINT_FORMATS: PrintFormat[] = [
       { label: "4 × 6 tent", v: "720×1080", hint: "folded" },
       { label: "5 × 7 tent", v: "750×1050", hint: "folded" },
     ],
-    defaultStyle: "modern", guides: { bleed: true, safe: true, folds: 1 },
+    defaultStyle: "modern", guides: { bleed: true, safe: true, folds: 1, foldDir: "h" },
   },
   {
     key: "bifold", name: "Bi-fold brochure", group: "paper", Icon: BookOpen,
@@ -184,6 +184,8 @@ interface CanvasProps {
   onSaveBrandLogo?: (url: string) => Promise<boolean>;
   working?: boolean;
   pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
+  /** Scopes the canvas autosave keys (passed straight to FocusedDesignStudio). */
+  draftKey?: string;
 }
 
 export interface ProductOps { setProduct: (patch: Record<string, unknown>) => void }

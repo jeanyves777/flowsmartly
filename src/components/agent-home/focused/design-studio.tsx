@@ -30,7 +30,7 @@ export interface BrandContact { email?: string; phone?: string; website?: string
 // sizes and overlay bleed / safe-area / fold guides. All optional — when unset
 // the canvas behaves exactly as the social Design Studio. [[new-design-no-legacy]]
 export interface SizePreset { label: string; v: string; hint?: string }
-export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number }
+export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number; foldDir?: "v" | "h" }
 
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
@@ -48,9 +48,8 @@ const DEFAULT_COLOR: Record<ElementKey, string> = { eyebrow: "rgba(255,255,255,0
 // Per-tab autosave key for the in-progress design (shared with agent-home so a
 // "new design" can clear it synchronously and a reload restores the right doc).
 export const DESIGN_DRAFT_KEY = "fs-design-draft";
-// Multi-page: the extra pages of the working design are autosaved here (the active
-// page is the one in DESIGN_DRAFT_KEY / the parent's design state).
-const PAGES_DRAFT_KEY = "fs-design-pages";
+// Multi-page: the extra pages of the working design are autosaved under a key
+// scoped by `draftKey` (fs-<draftKey>-pages) so Create & Print never collide.
 
 export const DEFAULT_DESIGN: DesignDoc = {
   eyebrow: "FLOWSMARTLY · LIMITED TIME",
@@ -592,6 +591,7 @@ function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete,
  * applied at export. Shown only in print mode (when `guides` is provided). */
 function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
   const folds = Math.max(0, Math.min(4, guides.folds ?? 0));
+  const horizontal = guides.foldDir === "h"; // table tents fold across the middle
   return (
     <div className="pointer-events-none absolute inset-0 z-[6]">
       {guides.bleed && <div className="absolute inset-0 rounded-[18px] border border-dashed border-rose-400/70" />}
@@ -601,9 +601,13 @@ function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
         </div>
       )}
       {Array.from({ length: folds }).map((_, i) => {
-        const left = ((i + 1) / (folds + 1)) * 100;
-        return (
-          <div key={i} className="absolute bottom-0 top-0 border-l border-dashed border-violet-400/80" style={{ left: `${left}%` }}>
+        const at = ((i + 1) / (folds + 1)) * 100;
+        return horizontal ? (
+          <div key={i} className="absolute inset-x-0 border-t border-dashed border-violet-400/80" style={{ top: `${at}%` }}>
+            <span className="absolute left-1 top-0 -translate-y-1/2 rounded-[3px] bg-violet-400/90 px-1 text-[8px] font-bold leading-tight text-white">FOLD</span>
+          </div>
+        ) : (
+          <div key={i} className="absolute bottom-0 top-0 border-l border-dashed border-violet-400/80" style={{ left: `${at}%` }}>
             <span className="absolute left-0 top-1 -translate-x-1/2 rounded-[3px] bg-violet-400/90 px-1 text-[8px] font-bold leading-tight text-white">FOLD</span>
           </div>
         );
@@ -612,12 +616,16 @@ function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel }: {
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel, draftKey }: {
   value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
   // Print mode (optional): print size presets + bleed/safe/fold guides + a "back
   // to formats" affordance. Absent → the canvas is the normal social studio.
   sizePresets?: SizePreset[]; guides?: PrintGuides; onBack?: () => void; formatLabel?: string;
+  // Scope the autosave keys so separate canvases (Create vs Print) never collide.
+  draftKey?: string;
 }) {
+  const pagesKey = `fs-${draftKey ?? "design"}-pages`;
+  const selfDraftKey = `fs-${draftKey ?? "design"}-draft`;
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
   const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
@@ -796,7 +804,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   // restore the previous design's data (the "new design shows old data" bug).
   const newDesign = () => {
     const blank: DesignDoc = { ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
-    try { sessionStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(blank)); } catch { /* ignore */ }
+    try { sessionStorage.setItem(selfDraftKey, JSON.stringify(blank)); } catch { /* ignore */ }
     onChange(blank);
     setPages([blank]); setActive(0);
     setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false);
@@ -810,12 +818,12 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   useEffect(() => {
     if (!mpReady.current) return;
     const merged = pages.map((p, i) => (i === active ? value : p));
-    try { sessionStorage.setItem(PAGES_DRAFT_KEY, JSON.stringify({ pages: merged, active })); } catch { /* ignore */ }
+    try { sessionStorage.setItem(pagesKey, JSON.stringify({ pages: merged, active })); } catch { /* ignore */ }
   }, [pages, active, value]);
   // Restore the extra pages once on mount (the active page comes from the parent).
   useEffect(() => {
     try {
-      const obj = JSON.parse(sessionStorage.getItem(PAGES_DRAFT_KEY) || "null");
+      const obj = JSON.parse(sessionStorage.getItem(pagesKey) || "null");
       if (obj && Array.isArray(obj.pages) && obj.pages.length > 1) {
         const a = Math.min(Math.max(0, Number(obj.active) || 0), obj.pages.length - 1);
         setPages(obj.pages as DesignDoc[]); setActive(a); onChange(obj.pages[a]);

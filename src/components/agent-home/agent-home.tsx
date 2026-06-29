@@ -23,6 +23,10 @@ import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { FocusedPrintStudio } from "./focused/print-studio";
+
+// The Print Studio canvas autosaves under its own key, fully separate from the
+// Create design draft (DESIGN_DRAFT_KEY) so the two never bleed into each other.
+const PRINT_DRAFT_KEY = "fs-print-draft";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
@@ -279,6 +283,10 @@ export function AgentHome() {
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
+  // The Print Studio canvas is a SEPARATE document from the Create design — they
+  // must not share state or a draft key, or opening a print format would pollute
+  // Create (and vice-versa). Its own state + storage keeps them fully isolated.
+  const [printDesign, setPrintDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
@@ -420,6 +428,14 @@ export function AgentHome() {
     if (design === DEFAULT_DESIGN) return;
     try { sessionStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(design)); } catch { /* ignore */ }
   }, [design]);
+  // Same restore/persist for the Print Studio canvas, under its OWN key.
+  useEffect(() => {
+    try { const s = sessionStorage.getItem(PRINT_DRAFT_KEY); if (s) { setPrintDesign({ ...(JSON.parse(s) as DesignDoc), generating: false, building: false }); } } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (printDesign === DEFAULT_DESIGN) return;
+    try { sessionStorage.setItem(PRINT_DRAFT_KEY, JSON.stringify(printDesign)); } catch { /* ignore */ }
+  }, [printDesign]);
 
   useEffect(() => { if (conversationId) refreshConversations(); }, [conversationId, refreshConversations]);
 
@@ -432,6 +448,9 @@ export function AgentHome() {
   // Product-print mockup controls — the agent's place_design_on_product routes
   // here (via the canvas_update `__product` marker).
   const productOpsRef = useRef<{ setProduct: (patch: Record<string, unknown>) => void } | null>(null);
+  // Which canvas is live, for routing agent patches to the right document.
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
   // Apply agent-driven canvas edits (update_canvas → canvas_update event) live.
   useEffect(() => {
     canvasUpdateRef.current = (patch) => {
@@ -452,7 +471,9 @@ export function AgentHome() {
         else if (typeof pageCmd === "number") pageOpsRef.current?.goToPage(pageCmd);
         return;
       }
-      setDesign((d) => applyDesignPatch(d, patch));
+      // Route the edit to whichever canvas is open (Print has its own document).
+      const apply = (d: DesignDoc) => applyDesignPatch(d, patch);
+      if (focusedRef.current === "print") setPrintDesign(apply); else setDesign(apply);
     };
   }, [canvasUpdateRef]);
 
@@ -562,7 +583,7 @@ export function AgentHome() {
   // Carry the design canvas context on the design AND print surfaces, so the
   // agent's canvas tools (update_canvas / add_design_page / start_print_project)
   // stay exposed when a button-driven action fires from the Print Studio hero.
-  const sendAction = (p: string) => send(p, false, (focused === "create" || focused === "print") ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  const sendAction = (p: string) => send(p, false, focused === "print" ? designCanvasContext(printDesign) : focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   const openProfile = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setActiveWs("business"); setFocused("profile"); };
 
   const handleNewChat = () => { newConversation(); setFocused(null); setActiveWs("home"); setPanelKey(null); setHistoryOpen(false); setDrawerOpen(false); };
@@ -740,7 +761,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm) => send(t, sm, (focused === "create" || focused === "print") ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm) => send(t, sm, focused === "print" ? designCanvasContext(printDesign) : focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }
@@ -819,12 +840,14 @@ export function AgentHome() {
                     }}
                   />
                 ) : focused === "print" ? (
-                  // Print Studio reuses the SAME design canvas (via FocusedPrintStudio),
-                  // so the agent drives it with the same update_canvas / add_design_page
-                  // tools. Print-flavoured AI handlers below. [[new-design-no-legacy]]
+                  // Print Studio reuses the design canvas (via FocusedPrintStudio) but on
+                  // its OWN document (printDesign) + draft key, so it never bleeds into the
+                  // Create design. The agent drives it with the same canvas tools, routed
+                  // to printDesign by focusedRef. [[new-design-no-legacy]]
                   <FocusedPrintStudio
-                    value={design}
-                    onChange={setDesign}
+                    value={printDesign}
+                    onChange={setPrintDesign}
+                    draftKey="print"
                     pageOpsRef={pageOpsRef}
                     printOpsRef={printOpsRef}
                     productOpsRef={productOpsRef}
@@ -834,38 +857,37 @@ export function AgentHome() {
                     brandLogo={brandLogo}
                     onSaveBrandLogo={handleSaveBrandLogo}
                     working={sending}
-                    onSave={() => { savedDesignRef.current = design; dirtyRef.current = false; }}
                     onElementAssist={(el) => {
                       const label = el === "headline" ? "headline" : el === "sub" ? "subtext / details" : el === "eyebrow" ? "eyebrow / tagline" : "call-to-action";
                       send(
                         `Suggest 3 distinct, genuinely punchier on-brand options for the ${label} of my open PRINT design — short and high-impact. Use ask_choice to show them as a clickable card (label = the exact new text, sublabel = the angle in 2-4 words). Do NOT change the canvas yet. When I tap one, apply ONLY the "${el}" field via update_canvas and keep everything else EXACTLY as is, then confirm in one short sentence.`,
-                        false, designCanvasContext(design), undefined, { hidden: true },
+                        false, designCanvasContext(printDesign), undefined, { hidden: true },
                       );
                     }}
                     onRegenerate={(details) => {
-                      const refs = (design.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
+                      const refs = (printDesign.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
                       send(
                         [
                           `Render my open PRINT design as a finished, print-ready image, using the CURRENT layout/copy as the inspiration (keep the structure):`,
-                          `- headline: ${JSON.stringify(design.headline)}; subtext: ${JSON.stringify(design.sub)}; cta: ${JSON.stringify(design.cta)}`,
-                          `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          `- headline: ${JSON.stringify(printDesign.headline)}; subtext: ${JSON.stringify(printDesign.sub)}; cta: ${JSON.stringify(printDesign.cta)}`,
+                          `- accent: ${printDesign.accent}; style: ${printDesign.style || "modern"}; size: ${printDesign.size}`,
                           refs.length ? `- USE MY images and PRESERVE them — pass these in referenceImageUrls: ${refs.join("; ")}` : "",
                           details.trim() ? `- extra direction from me: ${details.trim()}` : "",
                           `Keep important content inside the safe margins. Ask the tier (standard or premium) if I haven't said, then generate — it renders on this canvas.`,
                         ].filter(Boolean).join("\n"),
-                        false, designCanvasContext(design), undefined, { hidden: true },
+                        false, designCanvasContext(printDesign), undefined, { hidden: true },
                       );
                     }}
                     onBuildEditable={(details) => {
-                      const base = { ...design, imageUrl: undefined };
-                      setDesign(base);
+                      const base = { ...printDesign, imageUrl: undefined };
+                      setPrintDesign(base);
                       const refs = (base.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
                       send(
                         [
                           `Rebuild my OPEN print canvas as a better, FULLY EDITABLE print design — use update_canvas (and add_canvas_object for a background), NOT create_branded_design, and do NOT bake a flat image.`,
                           `Rewrite the copy punchier and on-brand, pick the best accent from my brand colors + a fitting style, and balance the layout with pos/styles so it reads cleanly — keeping important content inside the safe area (mind the fold lines on folded formats).`,
                           details.trim() ? `Extra direction from me: ${details.trim()}` : "",
-                          `Current design — headline: ${JSON.stringify(design.headline)}; subtext: ${JSON.stringify(design.sub)}; cta: ${JSON.stringify(design.cta)}; accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          `Current design — headline: ${JSON.stringify(printDesign.headline)}; subtext: ${JSON.stringify(printDesign.sub)}; cta: ${JSON.stringify(printDesign.cta)}; accent: ${printDesign.accent}; style: ${printDesign.style || "modern"}; size: ${printDesign.size}`,
                           refs.length ? `- keep my image objects: ${refs.join("; ")}` : "",
                           `Confirm in one short sentence when done.`,
                         ].filter(Boolean).join("\n"),
