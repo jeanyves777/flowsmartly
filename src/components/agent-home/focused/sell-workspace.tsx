@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
-import { StoreCallToAction, STORE_BUILD_PROMPT } from "./store-cta";
+import { StoreCallToAction } from "./store-cta";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -358,7 +358,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
         <div className="mx-auto mt-[2vh] max-w-lg">
-          <StoreCallToAction onBuild={() => onAsk(STORE_BUILD_PROMPT)} />
+          <StoreCallToAction onBuild={(p) => onAsk(p)} />
         </div>
       </div>
     );

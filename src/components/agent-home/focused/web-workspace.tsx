@@ -21,10 +21,10 @@ interface WebsitePage { id: string; title?: string; slug?: string; isHomePage?: 
 interface Website { id: string; name?: string; slug?: string; status?: string; buildStatus?: string; lastBuildError?: string | null; pageCount?: number; totalViews?: number; customDomain?: string | null; pages?: WebsitePage[]; }
 interface Landing { id: string; title?: string; status?: string; thumbnailUrl?: string | null; views?: number; submissions?: number; conversionRate?: number; }
 
-const BUILD_PAGE_PROMPT = "Help me create a landing page — ask me the goal, offer, and audience, then generate it.";
-
 const SITE_PAGES = ["Home", "About", "Services", "Pricing", "Contact", "Gallery", "Testimonials", "FAQ", "Blog"];
 const SITE_STYLES = ["Modern", "Bold", "Minimal", "Elegant", "Playful", "Corporate"];
+const LANDING_GOALS = ["Lead capture", "Sell a product", "Event signup", "Waitlist", "Book a call", "Download"];
+const LANDING_STYLES = ["Modern", "Bold", "Minimal", "Elegant", "Playful"];
 const WB_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
 // The builder cycles buildStatus through idle → building → deploying → built/error.
@@ -518,6 +518,7 @@ function EditCore({ site, onCancel, onSaved, onBuildStarted }: {
 export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
   const [pages, setPages] = useState<Landing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [building, setBuilding] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -542,9 +543,10 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
       <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
         {/* LEFT: sticky summary + primary action */}
         <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
-          {/* New page is GENERATIVE — the agent designs & generates the page. */}
+          {/* New page is GENERATIVE — but gather the brief in the UI FIRST, then
+              spin the agent with the full details (no back-and-forth in chat). */}
           <button
-            onClick={() => onAsk(BUILD_PAGE_PROMPT)}
+            onClick={() => setBuilding(true)}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
           >
             <Sparkles className="h-4 w-4" /> New page
@@ -571,13 +573,16 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
           </nav>
         </aside>
 
-        {/* RIGHT: the landing-page grid, full width */}
+        {/* RIGHT: the landing-page grid OR the inline brief builder, full width */}
         <div className="min-w-0 flex-1 space-y-4">
+          {building ? (
+            <LandingBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); onAsk(prompt); }} />
+          ) : (
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <LayoutTemplate className="h-4 w-4 text-brand-500" />
               <h3 className="text-[13px] font-bold">Your landing pages</h3>
-              {pages.length > 0 && <NewBtn className="ms-auto" label="New page" onClick={() => onAsk(BUILD_PAGE_PROMPT)} />}
+              {pages.length > 0 && <NewBtn className="ms-auto" label="New page" onClick={() => setBuilding(true)} />}
             </div>
             {pages.length ? (
               <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -601,12 +606,93 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
                 ))}
               </div>
             ) : (
-              <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk(BUILD_PAGE_PROMPT)} />
+              <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => setBuilding(true)} />
             )}
           </section>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/* ── Landing-page builder — an INLINE brief in the view; gathers details, THEN
+      spins the agent (not a modal — renders in the right pane). ──────────────── */
+function LandingBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild: (prompt: string) => void }) {
+  const [title, setTitle] = useState("");
+  const [goal, setGoal] = useState("Lead capture");
+  const [offer, setOffer] = useState("");
+  const [audience, setAudience] = useState("");
+  const [cta, setCta] = useState("");
+  const [style, setStyle] = useState("Modern");
+  const [brand, setBrand] = useState("");
+  const [error, setError] = useState("");
+
+  // Prefill a brand name from the Brand Kit so the page is on-brand by default.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setBrand((b) => b || String(j.data.brandKit.name)); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const build = () => {
+    if (!title.trim()) { setError("Give your landing page a title / name."); return; }
+    if (!offer.trim()) { setError("Tell the agent what you're promoting (the offer)."); return; }
+    const prompt = [
+      "Build me ONE high-converting LANDING PAGE now using my brand kit. I've given you everything below — do NOT ask me questions; design and build it, write the copy, and generate + publish a preview.",
+      `- Page title / name: ${title.trim()}`,
+      `- Goal: ${goal}`,
+      `- The offer (what I'm promoting + the hook): ${offer.trim()}`,
+      audience.trim() ? `- Target audience: ${audience.trim()}` : "",
+      cta.trim() ? `- Primary call-to-action: ${cta.trim()}` : "",
+      `- Style / vibe: ${style}`,
+      brand.trim() ? `- Brand: ${brand.trim()}` : "",
+      "Confirm in ONE short sentence when it's live.",
+    ].filter(Boolean).join("\n");
+    onBuild(prompt);
+  };
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <button onClick={onCancel} aria-label="Back" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold leading-tight">New landing page</h3>
+          <p className="text-[11.5px] text-muted-foreground">Fill the brief — the agent builds it with these details, no back-and-forth.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
+        <Field label="Page title / name *"><input value={title} onChange={(e) => setTitle(e.target.value)} className={WB_FIELD} placeholder="Spring Launch · Free SEO Guide" /></Field>
+        <Field label="Primary call-to-action"><input value={cta} onChange={(e) => setCta(e.target.value)} className={WB_FIELD} placeholder='e.g. "Get the free guide"' /></Field>
+        <div className="sm:col-span-2">
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Goal</p>
+          <div className="flex flex-wrap gap-1.5">
+            {LANDING_GOALS.map((g) => (
+              <button key={g} onClick={() => setGoal(g)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", goal === g ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{g}</button>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="The offer * — what you're promoting + the hook"><textarea value={offer} onChange={(e) => setOffer(e.target.value)} rows={2} className={cn(WB_FIELD, "resize-y")} placeholder="e.g. a free 10-page SEO checklist that gets local businesses to page 1 — sign up to download it" /></Field>
+        </div>
+        <Field label="Target audience"><input value={audience} onChange={(e) => setAudience(e.target.value)} className={WB_FIELD} placeholder="Small business owners in Austin" /></Field>
+        <Field label="Brand"><input value={brand} onChange={(e) => setBrand(e.target.value)} className={WB_FIELD} placeholder="Your brand / business name" /></Field>
+        <div className="sm:col-span-2">
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Style / vibe</p>
+          <div className="flex flex-wrap gap-1.5">
+            {LANDING_STYLES.map((s) => (
+              <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
+            ))}
+          </div>
+        </div>
+        {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build my page</button>
+        <button onClick={onCancel} className="rounded-[11px] px-3 py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+        <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
+      </div>
+    </section>
   );
 }
 

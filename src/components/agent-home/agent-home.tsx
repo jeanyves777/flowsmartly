@@ -51,7 +51,7 @@ import { FocusedCalendar } from "./focused/calendar-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
-import { StoreCallToAction, STORE_BUILD_PROMPT } from "./focused/store-cta";
+import { StoreCallToAction } from "./focused/store-cta";
 import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
@@ -1053,7 +1053,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
       </div>
       {sellNoStore ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
-          <StoreCallToAction compact onBuild={() => onAsk(STORE_BUILD_PROMPT)} />
+          <StoreCallToAction compact onBuild={(p) => onAsk(p)} />
         </div>
       ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
