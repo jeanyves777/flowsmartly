@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { resolveStyle, DESIGN_STYLES, STYLE_CATEGORIES, type StyleDef, type StyleFrame } from "./design-styles";
 
 /**
  * The design document — a real in-canvas editor. Everything is DRAGGABLE and
@@ -68,14 +69,6 @@ export const DEFAULT_DESIGN: DesignDoc = {
   style: "modern",
 };
 
-const STYLES: { v: string; label: string; desc: string }[] = [
-  { v: "modern", label: "Modern", desc: "Clean, bold, gradient" },
-  { v: "photorealistic", label: "Photo", desc: "Real photography look" },
-  { v: "minimalist", label: "Minimal", desc: "White space, thin type" },
-  { v: "bold", label: "Bold", desc: "High-contrast, huge type" },
-  { v: "elegant", label: "Elegant", desc: "Serif, refined, gold" },
-  { v: "playful", label: "Playful", desc: "Bright, rounded, fun" },
-];
 const ACCENTS = ["#0ea5e9", "#8b5cf6", "#eccb93", "#10b981", "#ef4444"];
 
 const CONTACT_TYPES: ContactType[] = ["email", "phone", "website", "address", "instagram", "twitter", "linkedin", "facebook", "youtube", "tiktok"];
@@ -113,15 +106,17 @@ let _seq = 0;
 const newId = (p: string) => `${p}-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
 
 /** The live poster look per selected style — so picking a style changes the canvas instantly. */
-function posterTheme(style: string | undefined, accent: string): { bg: string; glow: boolean; headInk: string; subInk: string; eyeInk: string; serif: boolean } {
-  switch (style) {
-    case "minimalist": return { bg: "#f6f6f4", glow: false, headInk: "#0a0a0a", subInk: "#3f3f46", eyeInk: "#71717a", serif: false };
-    case "photorealistic": return { bg: "linear-gradient(160deg,#4b5563,#0b0f17)", glow: true, headInk: "#ffffff", subInk: "rgba(255,255,255,0.85)", eyeInk: "rgba(255,255,255,0.7)", serif: false };
-    case "bold": return { bg: "linear-gradient(160deg,#0a0a0a,#000000)", glow: true, headInk: "#ffffff", subInk: "rgba(255,255,255,0.82)", eyeInk: accent, serif: false };
-    case "elegant": return { bg: "linear-gradient(160deg,#1a1410,#0c0907)", glow: false, headInk: "#f5e9d0", subInk: "rgba(245,233,208,0.82)", eyeInk: "#eccb93", serif: true };
-    case "playful": return { bg: "linear-gradient(135deg,#7c3aed,#ec4899,#f59e0b)", glow: false, headInk: "#ffffff", subInk: "rgba(255,255,255,0.92)", eyeInk: "rgba(255,255,255,0.88)", serif: false };
-    default: return { bg: "linear-gradient(160deg,#0b2447,#0a1b3a)", glow: true, headInk: "#ffffff", subInk: "rgba(255,255,255,0.85)", eyeInk: "rgba(255,255,255,0.75)", serif: false };
-  }
+// Theme resolution lives in design-styles.ts (the full library). Kept as a thin
+// alias so existing call sites read the same.
+const posterTheme = resolveStyle;
+
+/** The decorative FRAME overlay for a style (outer + optional inner rule). */
+function FrameOverlay({ frame }: { frame: StyleFrame }) {
+  return (
+    <div className="pointer-events-none absolute z-[5]" style={{ inset: frame.inset ?? 0, border: frame.border, borderRadius: frame.radius ?? 0 }}>
+      {frame.innerBorder && <div className="absolute" style={{ inset: (frame.innerInset ?? 0) - (frame.inset ?? 0), border: frame.innerBorder, borderRadius: Math.max(0, (frame.radius ?? 0) - 2) }} />}
+    </div>
+  );
 }
 
 // A selection points at a core element, a free-text layer, or an image.
@@ -146,6 +141,7 @@ export function designCanvasContext(d: DesignDoc): string {
     extra.length ? `- extra text: ${extra.join("; ")}` : "",
     contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
     `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
+    `- STYLE LIBRARY (set \`style\` to any of these keys via update_canvas — each has its own background + frame; pick one that fits the brand/message): ${DESIGN_STYLES.map((s) => s.key).join(", ")}.`,
     imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
     slots.length ? `- empty PHOTO SLOTS to fill (ids): ${slots.map((i) => `"${i.id}" (${i.label || "photo"}${i.genHint ? ` — ${i.genHint}` : ""})`).join("; ")}. To fill one, generate a fitting PHOTO with add_canvas_object type "photo" passing slotId=<that id> (it drops into that exact slot). If it's unclear what a slot's photo should show, ask the user ONE quick question first.` : "",
     (d.shapes || []).length ? `- ${(d.shapes || []).length} background BLOCK(s)/panel(s) behind the text — preserve them; they create the designed background.` : "",
@@ -211,16 +207,21 @@ async function uploadImage(file: File): Promise<string | null> {
   } catch { return null; }
 }
 
-function StylePreview({ v, accent }: { v: string; accent: string }) {
-  const base = "relative h-[58px] w-full overflow-hidden rounded-md";
-  switch (v) {
-    case "minimalist": return <div className={cn(base, "bg-white")}><div className="absolute left-2 top-2 text-[9px] font-medium tracking-tight text-zinc-900">Aa Headline</div><div className="absolute bottom-2 left-2 h-[3px] w-6 rounded-full" style={{ background: accent }} /></div>;
-    case "bold": return <div className={base} style={{ background: accent }}><div className="absolute inset-0 grid place-items-center text-[15px] font-black text-white">BOLD</div></div>;
-    case "elegant": return <div className={cn(base, "bg-[#1a1410]")}><div className="absolute left-2.5 top-3 font-serif text-[11px] italic text-[#eccb93]">Elegant</div><div className="absolute bottom-2.5 left-2.5 h-px w-9" style={{ background: "#eccb93" }} /></div>;
-    case "playful": return <div className={base} style={{ background: "linear-gradient(135deg,#f472b6,#facc15,#22d3ee)" }}><div className="absolute inset-0 grid place-items-center text-[13px] font-extrabold text-white drop-shadow">Fun!</div></div>;
-    case "photorealistic": return <div className={base} style={{ background: "linear-gradient(160deg,#6b7280,#111827)" }}><div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 76% 72%, ${accent}aa, transparent 70%)` }} /><div className="absolute bottom-1.5 left-2 text-[9px] font-bold text-white">Photo</div></div>;
-    default: return <div className={base} style={{ background: "linear-gradient(160deg,#0b2447,#0a1b3a)" }}><div className="absolute inset-0" style={{ background: `radial-gradient(52px 52px at 80% 74%, ${accent}, transparent 66%)` }} /><div className="absolute bottom-2 left-2 text-[10px] font-extrabold text-white">Modern</div></div>;
-  }
+/** A faithful mini-poster preview of any library style (bg + frame + sample). */
+function StylePreview({ def, accent }: { def: StyleDef; accent: string }) {
+  const t = resolveStyle(def.key, accent);
+  return (
+    <div className="relative h-[58px] w-full overflow-hidden rounded-md" style={{ background: t.bg }}>
+      {t.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 78%, ${accent}, transparent 70%)` }} />}
+      {t.frame && (
+        <div className="pointer-events-none absolute" style={{ inset: Math.min(6, (t.frame.inset ?? 0) / 2), border: t.frame.border, borderRadius: t.frame.radius ?? 0 }} />
+      )}
+      <div className={cn("absolute left-2 top-2 text-[9px] font-bold leading-tight", t.serif && "font-serif")} style={{ color: t.eyeInk }}>•</div>
+      <div className={cn("absolute left-2 top-3.5 text-[11px] font-extrabold leading-tight", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
+      <div className="absolute bottom-2 left-2 h-[3px] w-6 rounded-full" style={{ background: t.eyeInk }} />
+      <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+    </div>
+  );
 }
 
 /** A corner resize grip — reports the cumulative drag delta from where it was grabbed. */
@@ -532,6 +533,7 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
           </div>
         );
       })}
+      {theme.frame && <FrameOverlay frame={theme.frame} />}
     </div>
   );
 }
@@ -1150,6 +1152,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
 
                 {/* print guides (bleed / safe-area / fold) — non-interactive overlay */}
+                {theme.frame && <FrameOverlay frame={theme.frame} />}
                 {guides && showGuides && <PrintGuideOverlay guides={guides} />}
               </>
             )}
@@ -1222,14 +1225,19 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 </>
               ) : tab === "style" ? (
                 <>
-                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Pick a visual style — the AI renders the full design in this look.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {STYLES.map((s) => { const selSt = (value.style || "modern") === s.v; return (
-                      <button key={s.v} onClick={() => set({ style: s.v })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", selSt ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
-                        <StylePreview v={s.v} accent={value.accent} /><div className="mt-1.5 px-0.5"><p className={cn("text-[12px] font-bold", selSt && "text-brand-500")}>{s.label}</p><p className="text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
-                      </button>
-                    ); })}
-                  </div>
+                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Pick a visual style — each has its own background &amp; frame. The accent uses your brand color.</p>
+                  {STYLE_CATEGORIES.map((cat) => (
+                    <div key={cat} className="mb-4">
+                      <h5 className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{cat}</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        {DESIGN_STYLES.filter((s) => s.category === cat).map((s) => { const selSt = (value.style || "modern") === s.key; return (
+                          <button key={s.key} onClick={() => set({ style: s.key })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", selSt ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
+                            <StylePreview def={s} accent={value.accent} /><div className="mt-1.5 px-0.5"><p className={cn("truncate text-[12px] font-bold", selSt && "text-brand-500")}>{s.label}</p><p className="truncate text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
+                          </button>
+                        ); })}
+                      </div>
+                    </div>
+                  ))}
                 </>
               ) : (
                 <>
