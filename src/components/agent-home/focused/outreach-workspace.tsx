@@ -40,6 +40,7 @@ interface ListSummary {
 }
 
 type StatusFilter = "all" | "active" | "unsubscribed";
+type Section = "contacts" | "lists" | "more";
 
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", phone: "", company: "", city: "", state: "", tags: "", birthday: "", address: "" };
@@ -122,8 +123,8 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
   const [bulkListId, setBulkListId] = useState("");
 
-  // Lists panel
-  const [listsOpen, setListsOpen] = useState(false);
+  // Active left-menu section (master/detail)
+  const [section, setSection] = useState<Section>("contacts");
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -545,52 +546,156 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
 
   const totalContacts = pagination.total || stats.total || contacts.length;
   const activeListName = listId ? lists.find((l) => l.id === listId)?.name : null;
+  const hasFilters = !!(search || status !== "all" || listId);
+
+  const nav: { id: Section; label: string; icon: ElementType; count?: number }[] = [
+    { id: "contacts", label: "Contacts", icon: Users, count: stats.total ?? totalContacts },
+    { id: "lists", label: "Lists & segments", icon: Layers, count: lists.length },
+    { id: "more", label: "More outreach", icon: ArrowRight },
+  ];
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onPickFile} className="hidden" />
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* KPIs */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi icon={Users} label="Contacts" value={(stats.total ?? totalContacts).toLocaleString()} />
-          <Kpi icon={Check} label="Active" value={(stats.active ?? 0).toLocaleString()} />
-          <Kpi icon={Mail} label="Email opt-in" value={(stats.emailOptedIn ?? 0).toLocaleString()} />
-          <Kpi icon={MessageSquare} label="SMS opt-in" value={(stats.smsOptedIn ?? 0).toLocaleString()} />
-        </div>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + section menu + actions + filters */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* summary KPIs */}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><Users className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Audience</span></div>
+            <div className="space-y-1.5">
+              <SummaryStat icon={Users} label="Contacts" value={(stats.total ?? totalContacts).toLocaleString()} />
+              <SummaryStat icon={Check} label="Active" value={(stats.active ?? 0).toLocaleString()} />
+              <SummaryStat icon={Mail} label="Email opt-in" value={(stats.emailOptedIn ?? 0).toLocaleString()} />
+              <SummaryStat icon={MessageSquare} label="SMS opt-in" value={(stats.smsOptedIn ?? 0).toLocaleString()} />
+            </div>
+          </div>
 
-        {/* Lists / segments management */}
-        <ListsPanel
-          open={listsOpen}
-          onToggle={() => setListsOpen((v) => !v)}
-          lists={lists}
-          activeListId={listId}
-          onFilterByList={(id) => { setListId(id); setPage(1); }}
-          onChanged={refresh}
-          flash={flash}
-        />
+          {/* section menu */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = section === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setSection(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {typeof n.count === "number" && n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
-        {/* Contacts */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          {/* primary actions */}
+          <div className="rounded-2xl border border-border bg-card p-3 space-y-2">
+            <button onClick={() => { setSection("contacts"); setAdding(true); setError(""); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12.5px] font-semibold text-white shadow-sm"><UserPlus className="h-4 w-4" /> Add contact</button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => { setSection("contacts"); fileRef.current?.click(); }} disabled={importing} className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                <Upload className="h-3.5 w-3.5" /> Import
+              </button>
+              <button
+                onClick={exportCsv}
+                disabled={exporting || (contacts.length === 0 && !hasFilters)}
+                title={hasFilters ? "Export the contacts matching your current filters" : "Export all contacts"}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60"
+              >
+                {exporting ? <FlowLoader size={14} /> : <Download className="h-3.5 w-3.5" />} Export
+              </button>
+            </div>
+          </div>
+
+          {/* global filters (apply to the contacts list) */}
+          <div className="rounded-2xl border border-border bg-card p-3 space-y-2">
+            <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"><ListFilter className="h-3.5 w-3.5" /> Filters</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => { setSearchInput(e.target.value); setSection("contacts"); }}
+                placeholder="Search name, email, phone…"
+                aria-label="Search contacts"
+                className="w-full rounded-[10px] border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-[12px] outline-none transition placeholder:text-muted-foreground focus:border-brand-500/60"
+              />
+              {searchInput && (
+                <button type="button" onClick={() => setSearchInput("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <ListFilter className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={status}
+                onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); setSection("contacts"); }}
+                aria-label="Filter by status"
+                className="w-full appearance-none rounded-[10px] border border-border bg-muted/30 py-1.5 pl-7 pr-7 text-[12px] font-medium outline-none transition focus:border-brand-500/60"
+              >
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="unsubscribed">Unsubscribed</option>
+              </select>
+            </div>
+            <div className="relative">
+              <Layers className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={listId}
+                onChange={(e) => { setListId(e.target.value); setPage(1); setSection("contacts"); }}
+                aria-label="Filter by list"
+                className="w-full appearance-none rounded-[10px] border border-border bg-muted/30 py-1.5 pl-7 pr-7 text-[12px] font-medium outline-none transition focus:border-brand-500/60"
+              >
+                <option value="">All lists</option>
+                {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(""); setSearch(""); setStatus("all"); setListId(""); setPage(1); }}
+                className="inline-flex w-full items-center justify-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground transition hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </button>
+            )}
+          </div>
+        </aside>
+
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {section === "lists" ? (
+            <ListsPanel
+              lists={lists}
+              activeListId={listId}
+              onFilterByList={(id) => { setListId(id); setPage(1); setSection("contacts"); }}
+              onChanged={refresh}
+              flash={flash}
+            />
+          ) : section === "more" ? (
+            /* More outreach — each card opens its actual feature, not a chat prompt */
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <h3 className="mb-3 text-[13px] font-bold">More outreach</h3>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <Quick icon={Search} title="Find leads" desc="Find local businesses to pitch or propose to." onClick={() => onOpenView("leads")} />
+                <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => onOpenView("reviews")} />
+                <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => onOpenView("pitch")} />
+                <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => onOpenView("automations")} />
+                <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => onOpenView("forms")} />
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="flex items-center gap-2 text-[13px] font-bold">
               Contacts
               {fetching && <FlowLoader size={14} />}
             </h3>
             {notice && <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-500"><Check className="h-3.5 w-3.5" /> {notice}</span>}
-            <div className="ms-auto flex items-center gap-1.5">
-              <button
-                onClick={exportCsv}
-                disabled={exporting || (contacts.length === 0 && !(search || status !== "all" || listId))}
-                title={(search || status !== "all" || listId) ? "Export the contacts matching your current filters" : "Export all contacts"}
-                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60"
-              >
-                {exporting ? <FlowLoader size={14} /> : <Download className="h-3.5 w-3.5" />} Export
-              </button>
-              <button onClick={() => fileRef.current?.click()} disabled={importing} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
-                <Upload className="h-3.5 w-3.5" /> Import
-              </button>
-              <button onClick={() => { setAdding((v) => { if (v) resetAddForm(); return !v; }); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><UserPlus className="h-3.5 w-3.5" /> Add contact</button>
-            </div>
+            <button onClick={() => { setAdding((v) => { if (v) resetAddForm(); return !v; }); setError(""); }} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><UserPlus className="h-3.5 w-3.5" /> Add contact</button>
           </div>
 
           {/* Import wizard (inline, multi-step) */}
@@ -612,60 +717,6 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
               onRun={runImport}
             />
           )}
-
-          {/* Search + filters */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative min-w-0 flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search name, email, phone…"
-                aria-label="Search contacts"
-                className="w-full rounded-[10px] border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-[12px] outline-none transition placeholder:text-muted-foreground focus:border-brand-500/60"
-              />
-              {searchInput && (
-                <button type="button" onClick={() => setSearchInput("")} aria-label="Clear search" className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="relative">
-              <ListFilter className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <select
-                value={status}
-                onChange={(e) => { setStatus(e.target.value as StatusFilter); setPage(1); }}
-                aria-label="Filter by status"
-                className="appearance-none rounded-[10px] border border-border bg-muted/30 py-1.5 pl-7 pr-7 text-[12px] font-medium outline-none transition focus:border-brand-500/60"
-              >
-                <option value="all">All statuses</option>
-                <option value="active">Active</option>
-                <option value="unsubscribed">Unsubscribed</option>
-              </select>
-            </div>
-            <div className="relative">
-              <Layers className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <select
-                value={listId}
-                onChange={(e) => { setListId(e.target.value); setPage(1); }}
-                aria-label="Filter by list"
-                className="appearance-none rounded-[10px] border border-border bg-muted/30 py-1.5 pl-7 pr-7 text-[12px] font-medium outline-none transition focus:border-brand-500/60"
-              >
-                <option value="">All lists</option>
-                {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-            {(search || status !== "all" || listId) && (
-              <button
-                type="button"
-                onClick={() => { setSearchInput(""); setSearch(""); setStatus("all"); setListId(""); setPage(1); }}
-                className="inline-flex items-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground transition hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" /> Clear
-              </button>
-            )}
-          </div>
 
           {/* inline add form */}
           {adding && (
@@ -939,19 +990,9 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
               </div>
             </div>
           ) : null}
-        </section>
-
-        {/* Other outreach — each card opens its actual feature, not a chat prompt */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-[13px] font-bold">More outreach</h3>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <Quick icon={Search} title="Find leads" desc="Find local businesses to pitch or propose to." onClick={() => onOpenView("leads")} />
-            <Quick icon={Star} title="Reviews & local SEO" desc="Get more reviews and fix your listings." onClick={() => onOpenView("reviews")} />
-            <Quick icon={FileText} title="Pitch & proposals" desc="Draft a winning proposal for a client." onClick={() => onOpenView("pitch")} />
-            <Quick icon={Mail} title="Follow-ups" desc="Set up automated follow-up sequences." onClick={() => onOpenView("automations")} />
-            <Quick icon={CalendarDays} title="Forms & events" desc="Collect leads with a form or event page." onClick={() => onOpenView("forms")} />
-          </div>
-        </section>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -959,10 +1000,8 @@ export function FocusedOutreach({ refreshKey, onOpenView }: { refreshKey?: numbe
 
 // ── Lists / segments panel ──────────────────────────────────────────────────────
 function ListsPanel({
-  open, onToggle, lists, activeListId, onFilterByList, onChanged, flash,
+  lists, activeListId, onFilterByList, onChanged, flash,
 }: {
-  open: boolean;
-  onToggle: () => void;
   lists: ListSummary[];
   activeListId: string;
   onFilterByList: (id: string) => void;
@@ -1024,11 +1063,10 @@ function ListsPanel({
   return (
     <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={onToggle} className="flex items-center gap-2 text-[13px] font-bold">
+        <span className="flex items-center gap-2 text-[13px] font-bold">
           <Layers className="h-4 w-4 text-brand-500" /> Lists & segments
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{lists.length}</span>
-          <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition", open && "rotate-90")} />
-        </button>
+        </span>
         <div className="ms-auto">
           <button onClick={() => { setCreating((v) => !v); setNewName(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
             <Plus className="h-3.5 w-3.5" /> New list
@@ -1053,8 +1091,7 @@ function ListsPanel({
         </div>
       )}
 
-      {open && (
-        <div className="mt-3">
+      <div className="mt-3">
           {lists.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border px-4 py-6 text-center">
               <p className="text-[12.5px] font-medium">No lists yet</p>
@@ -1113,8 +1150,7 @@ function ListsPanel({
               })}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </section>
   );
 }
@@ -1251,11 +1287,12 @@ function OptInToggle({ icon: Icon, label, checked, onChange }: { icon: ElementTy
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function SummaryStat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
-      <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }

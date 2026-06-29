@@ -176,6 +176,9 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Which right-pane section is showing (vertical nav in the left aside).
+  const [section, setSection] = useState<"blasts" | "registration">("blasts");
+
   // Load number status (+ aggregate stats not narrowed by the list filter).
   const loadNumber = useCallback(async () => {
     const nj = await fetch("/api/sms/numbers?action=current").then((r) => r.json()).catch(() => null);
@@ -410,77 +413,148 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* number / credit status hero */}
-        <section className={cn(
-          "rounded-2xl border p-5",
-          hasNumber
-            ? "border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent"
-            : "border-border bg-card"
-        )}>
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/25 to-violet-500/20 text-brand-500"><Phone className="h-6 w-6" /></span>
-            {hasNumber ? (
-              <div className="min-w-0">
-                <p className="text-[12px] font-medium text-muted-foreground">Your SMS number</p>
-                <p className="text-[24px] font-extrabold leading-none">{number?.phoneNumber}</p>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky number summary + section menu + primary action + filters */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* number / verification summary */}
+          <div className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/25 to-violet-500/20 text-brand-500"><Phone className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium text-muted-foreground">Your SMS number</p>
+                <p className="truncate text-[17px] font-extrabold leading-tight">{number?.phoneNumber}</p>
               </div>
-            ) : (
-              <div className="min-w-0">
-                <p className="text-[15px] font-bold">No SMS number yet</p>
-                <p className="text-[12.5px] text-muted-foreground">Get a verified number to start sending blasts.</p>
+            </div>
+            <span className={cn(
+              "mt-2.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+              number?.verified ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500"
+            )}>
+              {number?.verified ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+              {number?.verified ? "Verified" : "Verification pending"}
+            </span>
+
+            {monthlyLimit > 0 && (
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5"><Gauge className="h-3 w-3" /> This month</span>
+                  <span className="tabular-nums text-foreground">{sentThisMonth.toLocaleString()} / {monthlyLimit.toLocaleString()}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, usagePct)}%` }} />
+                </div>
               </div>
             )}
-            {hasNumber && (
-              <span className={cn(
-                "ms-auto inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold",
-                number?.verified ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500"
-              )}>
-                {number?.verified ? <ShieldCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                {number?.verified ? "Verified" : "Verification pending"}
-              </span>
-            )}
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <MiniStat label="Sent" value={(stats.sent ?? 0).toLocaleString()} />
+              <MiniStat label="Delivered" value={totalDelivered.toLocaleString()} />
+              <MiniStat label="Delivery" value={`${deliveryRate}%`} />
+              <MiniStat label="Blasts" value={(stats.total ?? campaigns.length).toLocaleString()} />
+            </div>
           </div>
 
-          {hasNumber && monthlyLimit > 0 && (
-            <div className="mt-4">
-              <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-medium text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5"><Gauge className="h-3.5 w-3.5" /> Sent this month</span>
-                <span className="tabular-nums text-foreground">{sentThisMonth.toLocaleString()} / {monthlyLimit.toLocaleString()}</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, usagePct)}%` }} />
+          {/* primary action */}
+          <button onClick={askNew} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <Sparkles className="h-4 w-4" /> New SMS blast
+          </button>
+
+          {/* section menu */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {([
+              { id: "blasts" as const, label: "SMS blasts", icon: MessageSquare, count: stats.total ?? campaigns.length },
+              { id: "registration" as const, label: "Carrier registration", icon: ShieldCheck },
+            ]).map((n) => {
+              const active = section === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setSection(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {typeof n.count === "number" && n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+            {!isTollFreeNumber && a2p?.isApproved && (
+              <p className="mt-1 px-3 pb-1 pt-0.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-500"><CheckCircle2 className="h-3 w-3" /> Carrier approved</p>
+            )}
+          </nav>
+
+          {/* filters (drive the blasts list) */}
+          {section === "blasts" && (
+            <div className="rounded-2xl border border-border bg-card p-3 space-y-2.5">
+              <form
+                onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}
+                className="relative"
+              >
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onBlur={() => setSearch(searchInput.trim())}
+                  placeholder="Search blasts…"
+                  className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-8 text-[12.5px] outline-none focus:border-brand-500/50"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchInput(""); setSearch(""); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </form>
+              <div className="flex flex-wrap items-center gap-1">
+                <ListFilter className="mr-0.5 h-3.5 w-3.5 text-muted-foreground" />
+                {STATUS_FILTERS.map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setStatusFilter(f.value)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
+                      statusFilter === f.value
+                        ? "border-brand-500/40 bg-brand-500/10 text-brand-500"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+                {listLoading && <FlowLoader size={16} />}
               </div>
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button onClick={askNew} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-              <Sparkles className="h-4 w-4" /> {hasNumber ? "New SMS blast" : "Set up SMS"}
-            </button>
-            {hasNumber && (
-              confirmRelease ? (
-                <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2.5 py-1.5">
-                  <span className="text-[11.5px] font-medium">Release {number?.phoneNumber}? This frees the number — you&apos;ll need to rent a new one to send again.</span>
-                  <button onClick={releaseNumber} disabled={releaseBusy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
-                    {releaseBusy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Release
-                  </button>
-                  <button onClick={() => { setConfirmRelease(false); setReleaseError(null); }} disabled={releaseBusy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Keep</button>
-                </span>
-              ) : (
-                <button onClick={() => { setReleaseError(null); setConfirmRelease(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] font-medium text-muted-foreground hover:text-rose-500">
-                  <Trash2 className="h-3.5 w-3.5" /> Release number
+          {/* release number (kept in the aside, always available) */}
+          {confirmRelease ? (
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-3">
+              <p className="text-[11.5px] font-medium">Release {number?.phoneNumber}? This frees the number — you&apos;ll need to rent a new one to send again.</p>
+              <div className="mt-2 flex items-center gap-2">
+                <button onClick={releaseNumber} disabled={releaseBusy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                  {releaseBusy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Release
                 </button>
-              )
-            )}
-          </div>
-          {releaseError && (
-            <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {releaseError}</p>
+                <button onClick={() => { setConfirmRelease(false); setReleaseError(null); }} disabled={releaseBusy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Keep</button>
+              </div>
+              {releaseError && (
+                <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {releaseError}</p>
+              )}
+            </div>
+          ) : (
+            <button onClick={() => { setReleaseError(null); setConfirmRelease(true); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[12.5px] font-medium text-muted-foreground hover:text-rose-500">
+              <Trash2 className="h-3.5 w-3.5" /> Release number
+            </button>
           )}
-        </section>
+        </aside>
 
-        {/* carrier registration / compliance detail */}
-        {hasNumber && (
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+        {section === "registration" ? (
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h3 className="inline-flex items-center gap-1.5 text-[13px] font-bold"><ShieldCheck className="h-4 w-4 text-brand-500" /> Carrier registration</h3>
@@ -546,69 +620,29 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
             {regError && (
               <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {regError}</p>
             )}
+
+            {/* compliance hint — SMS sending is gated on carrier approval; no legacy link */}
+            {!number?.verified && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-500"><AlertTriangle className="h-[18px] w-[18px]" /></span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold">Carrier verification in progress</p>
+                  <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">Your number is registered and pending carrier approval. Sending unlocks once it&apos;s verified — the agent will let you know.</p>
+                </div>
+              </div>
+            )}
+
+            <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <ExternalLink className="h-3 w-3 shrink-0" /> SMS rates and carrier rules vary by country. Recipients must opt in.
+            </p>
           </section>
-        )}
-
-        {/* KPIs */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi icon={MessageSquare} label="Blasts" value={(stats.total ?? campaigns.length).toLocaleString()} />
-          <Kpi icon={Send} label="Sent" value={(stats.sent ?? 0).toLocaleString()} />
-          <Kpi icon={Users} label="Messages delivered" value={totalDelivered.toLocaleString()} />
-          <Kpi icon={CheckCircle2} label="Delivery rate" value={`${deliveryRate}%`} />
-        </div>
-
-        {/* campaigns */}
+        ) : (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-[13px] font-bold">SMS blasts</h3>
             <button onClick={askNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> New blast
             </button>
-          </div>
-
-          {/* search + status filter */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <form
-              onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}
-              className="relative min-w-0 flex-1"
-            >
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onBlur={() => setSearch(searchInput.trim())}
-                placeholder="Search blasts…"
-                className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-8 text-[12.5px] outline-none focus:border-brand-500/50"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => { setSearchInput(""); setSearch(""); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label="Clear search"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </form>
-            <div className="flex flex-wrap items-center gap-1">
-              <ListFilter className="mr-0.5 h-3.5 w-3.5 text-muted-foreground" />
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setStatusFilter(f.value)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
-                    statusFilter === f.value
-                      ? "border-brand-500/40 bg-brand-500/10 text-brand-500"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            {listLoading && <FlowLoader size={16} />}
           </div>
 
           {campaigns.length ? (
@@ -775,21 +809,8 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
             </div>
           )}
         </section>
-
-        {/* compliance hint — SMS sending is gated on carrier approval; no legacy link */}
-        {hasNumber && !number?.verified && (
-          <section className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-500"><AlertTriangle className="h-[18px] w-[18px]" /></span>
-            <div className="min-w-0">
-              <p className="text-[13px] font-semibold">Carrier verification in progress</p>
-              <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">Your number is registered and pending carrier approval. Sending unlocks once it&apos;s verified — the agent will let you know.</p>
-            </div>
-          </section>
         )}
-
-        <p className="flex items-center justify-center gap-1.5 pb-1 text-center text-[11.5px] text-muted-foreground">
-          <ExternalLink className="h-3 w-3" /> SMS rates and carrier rules vary by country. Recipients must opt in.
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -870,11 +891,11 @@ function SetupStep({ n, title, desc }: { n: number; title: string; desc: string 
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
-      <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[15px] font-extrabold leading-none tabular-nums">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
     </div>
   );
 }

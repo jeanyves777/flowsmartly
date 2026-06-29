@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { StoreCallToAction, STORE_BUILD_PROMPT } from "./store-cta";
@@ -49,6 +49,8 @@ const NEXT_STATUS: Record<string, { label: string; to: string }> = {
 // Statuses a seller can cancel from (matches server-side allowedTransitions → CANCELLED).
 const CANCELLABLE = new Set(["PENDING", "CONFIRMED", "PROCESSING"]);
 
+type Section = "products" | "orders";
+
 const ORDER_STATUS_FILTERS = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"];
 const PAYMENT_STATUS_FILTERS = ["pending", "paid", "failed", "refunded"];
 // Categories the store can list under (mirrors PRODUCT_CATEGORIES). Kept local so this surface owns its own copy.
@@ -79,6 +81,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats>({});
   const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<Section>("products");
 
   // Product form: "new" (add), a product id (edit), or null (closed).
   const [editing, setEditing] = useState<"new" | string | null>(null);
@@ -157,7 +160,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     return () => { alive = false; };
   }, [loadData, refreshKey]);
 
-  const openAdd = () => { setForm(EMPTY_FORM); setError(""); setEditing("new"); };
+  const openAdd = () => { setForm(EMPTY_FORM); setError(""); setEditing("new"); setSection("products"); };
   const openEdit = (p: Product) => {
     setForm({
       name: p.name ?? "", price: p.priceCents ? String((p.priceCents / 100)) : "", description: p.description ?? "",
@@ -376,35 +379,84 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     && detail.paymentStatus === "paid"
     && (detail.status || "").toUpperCase() !== "REFUNDED";
 
+  const productCount = store?.productCount ?? products.length;
+  const orderCount = stats.totalOrders ?? store?.orderCount ?? 0;
+
+  const nav: { id: Section; label: string; icon: ElementType; count: number }[] = [
+    { id: "products", label: "Products", icon: Package, count: productCount },
+    { id: "orders", label: "Orders", icon: ShoppingBag, count: orderCount },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* store header */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Store className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[16px] font-bold">{store?.name}</h2>
-                <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", store?.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{store?.isActive ? "Live" : "Draft"}</span>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky store identity + KPIs + section menu */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Store className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">{store?.name}</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">{store?.region ? `${store.region} · ` : ""}{cur}</p>
               </div>
-              <p className="truncate text-[12px] text-muted-foreground">{store?.region ? `${store.region} · ` : ""}{cur}</p>
             </div>
-            {store?.slug && (
-              <a href={`/store/${store.slug}`} target="_blank" rel="noreferrer" className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                <ExternalLink className="h-3.5 w-3.5" /> View storefront
-              </a>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={Package} label="Products" value={String(store?.productCount ?? products.length)} />
-            <Kpi icon={ShoppingBag} label="Orders" value={String(stats.totalOrders ?? store?.orderCount ?? 0)} />
-            <Kpi icon={Coins} label="Revenue" value={money(stats.totalRevenueCents ?? store?.totalRevenueCents, cur)} />
-            <Kpi icon={Clock} label="Pending" value={String(stats.pendingCount ?? 0)} />
-          </div>
-        </section>
+            <div className="mt-2.5 flex items-center gap-2">
+              <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", store?.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{store?.isActive ? "Live" : "Draft"}</span>
+              {store?.slug && (
+                <a href={`/store/${store.slug}`} target="_blank" rel="noreferrer" className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] border border-border px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                  <ExternalLink className="h-3 w-3" /> Storefront
+                </a>
+              )}
+            </div>
 
-        {/* products */}
+            <div className="mt-4 space-y-1.5">
+              <StatRow icon={Coins} label="Revenue" value={money(stats.totalRevenueCents ?? store?.totalRevenueCents, cur)} />
+              <StatRow icon={Package} label="Products" value={String(productCount)} />
+              <StatRow icon={ShoppingBag} label="Orders" value={String(orderCount)} />
+              <StatRow icon={Clock} label="Pending" value={String(stats.pendingCount ?? 0)} />
+            </div>
+          </div>
+
+          {/* primary action */}
+          <button
+            onClick={openAdd}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Plus className="h-4 w-4" /> Add product
+          </button>
+
+          {/* section menu */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = section === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setSection(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => onOpenView("customers")}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-start">Customers</span>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60" />
+            </button>
+          </nav>
+        </aside>
+
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+        {section === "products" ? (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-bold">Products</h3>
@@ -481,7 +533,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
           )}
 
           {products.length ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {products.map((p) => (
                 <button key={p.id} onClick={() => openEdit(p)} className="group overflow-hidden rounded-xl border border-border bg-muted/30 text-left transition hover:border-brand-500/60">
                   <div className="relative grid aspect-square place-items-center bg-background">
@@ -507,12 +559,11 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
             </div>
           ) : null}
         </section>
-
-        {/* orders */}
+        ) : (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-bold">Orders</h3>
-            <button onClick={() => onOpenView("customers")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">View customers</button>
+            <button onClick={() => onOpenView("customers")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Users className="h-3.5 w-3.5" /> View customers</button>
           </div>
 
           {/* order search + filters */}
@@ -713,16 +764,19 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
             </div>
           )}
         </section>
+        )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function StatRow({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }
