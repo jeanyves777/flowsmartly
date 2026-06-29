@@ -830,7 +830,7 @@ export function AgentHome() {
                             `Do ALL of this in ONE update_canvas patch so it visibly looks redesigned:`,
                             `1. Rewrite the eyebrow, headline, subtext and CTA punchier and on-brand (don't leave the old copy).`,
                             `2. Set the accent to one of my REAL brand colors: ${brandList}.`,
-                            `3. Pick the best style theme (modern/photorealistic/minimalist/bold/elegant/playful) for my brand + message.`,
+                            `3. Pick the best \`style\` key from the STYLE LIBRARY in the canvas context (NOT just "modern") — choose one whose vibe + background fits my brand & message (e.g. luxury, editorial, bold, mesh, retro…).`,
                             `4. Use pos + styles to balance the layout and give each text element an on-brand, HIGH-CONTRAST color/size that reads cleanly on the background — colors, type and spacing must all MATCH as one cohesive look.`,
                             `Keep my image objects on the canvas.`,
                             details.trim() ? `Extra direction from me: ${details.trim()}` : "",

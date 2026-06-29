@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { resolveStyle, DESIGN_STYLES, STYLE_CATEGORIES, type StyleDef, type StyleFrame } from "./design-styles";
@@ -148,7 +148,7 @@ export function designCanvasContext(d: DesignDoc): string {
     "BACKGROUND DESIGN: this canvas has colored BLOCKS (`shapes`) that sit BEHIND the text — use them to make a designed, magazine/brochure-style background instead of a plain page (an accent side-panel, a color band behind a heading, a footer bar). Set the whole `shapes` array via update_canvas: each block is { id, x, y, w, h (all 0..1 fractions of the canvas), color (hex), radius? (px), opacity? (0..1) }. Put bold copy on a colored block in a contrasting color. Keep blocks tasteful and on-brand (use the accent / brand colors).",
     "EDITING RULES:",
     "• TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') → call update_canvas with ONLY that field; never rewrite the others.",
-    "• IMPROVE / REDESIGN / 'make it look better' the WHOLE canvas → do a COORDINATED rebuild in ONE update_canvas patch: rewrite the copy (eyebrow + headline + sub + cta), set accent to one of the user's REAL brand colors, pick the best `style` theme, and use `pos` + `styles` to balance the layout and give the text on-brand, high-contrast colors that match the background. A redesign that only swaps a word is a failure — change several things together so it visibly looks redesigned. If a background helps, add ONE brand-aware background via add_canvas_object (it auto-uses the brand palette) — and pass the design's accent in its `accent` field so it harmonizes.",
+    "• IMPROVE / REDESIGN / 'make it look better' the WHOLE canvas → do a COORDINATED rebuild in ONE update_canvas patch: rewrite the copy (eyebrow + headline + sub + cta), set accent to one of the user's REAL brand colors, PICK A FITTING `style` KEY FROM THE STYLE LIBRARY above (don't leave it on the default 'modern' unless that genuinely fits — match the vibe: luxury/elegant for premium, editorial/minimal for clean, bold/neon for loud, retro/organic/mesh where it suits; each style brings its own background + frame so this is the biggest visual lever), and use `pos` + `styles` to balance the layout with on-brand, high-contrast text colors that read on that style's background. A redesign that only swaps a word is a failure — change several things together so it visibly looks redesigned. You usually do NOT need add_canvas_object for a background — the chosen style already provides one; only add a generated background image if the user explicitly wants a photo backdrop.",
     "• Only when the user wants a FLAT rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
   ].filter(Boolean).join("\n");
 }
@@ -678,6 +678,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const [toolsOpen, setToolsOpen] = useState(true);
   // Print mode: bleed/safe/fold guides on by default; the toolbar toggles them.
   const [showGuides, setShowGuides] = useState(true);
+  // Style tab search — the library is large, so let the user filter by name/vibe.
+  const [styleQuery, setStyleQuery] = useState("");
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   // Extra direction for the two AI generate modes (editable rebuild vs flat image).
   const [genDetails, setGenDetails] = useState("");
@@ -1225,19 +1227,32 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 </>
               ) : tab === "style" ? (
                 <>
-                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Pick a visual style — each has its own background &amp; frame. The accent uses your brand color.</p>
-                  {STYLE_CATEGORIES.map((cat) => (
-                    <div key={cat} className="mb-4">
-                      <h5 className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{cat}</h5>
-                      <div className="grid grid-cols-2 gap-2">
-                        {DESIGN_STYLES.filter((s) => s.category === cat).map((s) => { const selSt = (value.style || "modern") === s.key; return (
-                          <button key={s.key} onClick={() => set({ style: s.key })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", selSt ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
-                            <StylePreview def={s} accent={value.accent} /><div className="mt-1.5 px-0.5"><p className={cn("truncate text-[12px] font-bold", selSt && "text-brand-500")}>{s.label}</p><p className="truncate text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
-                          </button>
-                        ); })}
+                  <p className="mb-2 text-[11px] leading-snug text-muted-foreground">Pick a visual style — each has its own background &amp; frame. The accent uses your brand color.</p>
+                  <div className="relative mb-3">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input value={styleQuery} onChange={(e) => setStyleQuery(e.target.value)} placeholder="Search styles — luxury, mesh, retro…" className={cn(FIELD, "py-1.5 pl-8 pr-7")} />
+                    {styleQuery && <button onClick={() => setStyleQuery("")} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
+                  </div>
+                  {(() => {
+                    const q = styleQuery.trim().toLowerCase();
+                    const card = (s: StyleDef) => { const selSt = (value.style || "modern") === s.key; return (
+                      <button key={s.key} onClick={() => set({ style: s.key })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", selSt ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
+                        <StylePreview def={s} accent={value.accent} /><div className="mt-1.5 px-0.5"><p className={cn("truncate text-[12px] font-bold", selSt && "text-brand-500")}>{s.label}</p><p className="truncate text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
+                      </button>
+                    ); };
+                    if (q) {
+                      const matches = DESIGN_STYLES.filter((s) => `${s.label} ${s.desc} ${s.category}`.toLowerCase().includes(q));
+                      return matches.length
+                        ? <><p className="mb-1.5 text-[10px] text-muted-foreground">{matches.length} style{matches.length === 1 ? "" : "s"}</p><div className="grid grid-cols-2 gap-2">{matches.map(card)}</div></>
+                        : <p className="py-6 text-center text-[12px] text-muted-foreground">No styles match “{styleQuery.trim()}”.</p>;
+                    }
+                    return STYLE_CATEGORIES.map((cat) => (
+                      <div key={cat} className="mb-4">
+                        <h5 className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{cat}</h5>
+                        <div className="grid grid-cols-2 gap-2">{DESIGN_STYLES.filter((s) => s.category === cat).map(card)}</div>
                       </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </>
               ) : (
                 <>
