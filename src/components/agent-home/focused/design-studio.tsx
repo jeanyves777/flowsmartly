@@ -542,14 +542,16 @@ function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete,
   );
 }
 
-export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working }: {
-  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: () => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean;
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, brandColors, brandContact, brandLogo, onSaveBrandLogo, working }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean;
 }) {
   // Accent swatches lead with the user's real brand colors, then sensible
   // fallbacks; the current accent is always present so it stays selected.
   const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
   const [toolsOpen, setToolsOpen] = useState(true);
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
+  // Extra direction for the two AI generate modes (editable rebuild vs flat image).
+  const [genDetails, setGenDetails] = useState("");
   const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
   const [sel, setSel] = useState<Sel>(null);
   // Design library (saved canvases).
@@ -976,11 +978,22 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                 </>
               )}
             </div>
-            <div className="shrink-0 border-t border-border p-3.5">
-              <button onClick={onRegenerate} disabled={value.generating} className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
-                {value.generating ? <FlowLoader size={16} tone="white" /> : <Sparkles className="h-4 w-4" />} {value.generating ? "Rendering…" : value.imageUrl ? "Regenerate full design" : "Generate full design with AI"}
-              </button>
-              <p className="mt-2 text-[11px] leading-snug text-muted-foreground">Renders a real on-brand image using THIS layout{images.length ? " + your images" : ""} as the inspiration reference.</p>
+            <div className="shrink-0 space-y-2 border-t border-border p-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Build with AI</p>
+              <textarea
+                value={genDetails} onChange={(e) => setGenDetails(e.target.value)} rows={2}
+                placeholder="Add direction — tone, audience, the offer, what to emphasize… (optional)"
+                className={cn(FIELD, "min-h-[44px]")}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || !onBuildEditable} title="Rebuild a better design you can still edit" className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2.5 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
+                  {value.generating ? <FlowLoader size={15} tone="white" /> : <Wand2 className="h-4 w-4" />} Editable design
+                </button>
+                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || !onRegenerate} title="Render a flat on-brand image" className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-border bg-background/60 px-2 py-2.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                  {value.generating ? <FlowLoader size={15} /> : <Sparkles className="h-4 w-4 text-brand-500" />} {value.imageUrl ? "Re-render" : "Flat image"}
+                </button>
+              </div>
+              <p className="text-[10.5px] leading-snug text-muted-foreground"><span className="font-semibold text-foreground">Editable design</span> rebuilds your copy, colors &amp; layout — every element stays drag-to-edit. <span className="font-semibold text-foreground">Flat image</span> renders a finished on-brand picture{images.length ? " using your images" : ""}.</p>
             </div>
           </div>
           </>

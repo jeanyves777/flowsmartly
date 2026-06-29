@@ -726,7 +726,7 @@ export function AgentHome() {
                         false, designCanvasContext(design), undefined, { hidden: true },
                       );
                     }}
-                    onRegenerate={() => {
+                    onRegenerate={(details) => {
                       const refs = (design.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
                       send(
                         [
@@ -737,9 +737,34 @@ export function AgentHome() {
                           `- button (CTA): ${JSON.stringify(design.cta)}`,
                           `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
                           refs.length ? `- USE MY images and PRESERVE them — pass these in referenceImageUrls: ${refs.join("; ")}` : "",
+                          details.trim() ? `- extra direction from me: ${details.trim()}` : "",
                           `Ask me the tier (standard or premium) if I haven't said, then generate it — it renders right on this canvas.`,
                         ].filter(Boolean).join("\n"),
                         false, designCanvasContext(design), undefined, { hidden: true },
+                      );
+                    }}
+                    onBuildEditable={(details) => {
+                      // Editable mode: drop any flat render so the editable elements
+                      // show, then drive the agent to rebuild a BETTER editable design
+                      // (update_canvas keeps everything drag-to-edit; no baked image).
+                      const base = { ...design, imageUrl: undefined };
+                      setDesign(base);
+                      const refs = (base.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
+                      send(
+                        [
+                          `Rebuild the OPEN canvas as a better, FULLY EDITABLE design. Keep every element editable — use update_canvas (and add_canvas_object for a background), NOT create_branded_design, and do NOT bake a flat image.`,
+                          `Improve on my current design: rewrite the eyebrow, headline, subtext and CTA punchier and on-brand; pick the best accent (from my brand colors), style and size; and reposition/restyle the elements for a polished, balanced layout. Keep my image objects.`,
+                          details.trim() ? `Extra direction from me: ${details.trim()}` : "",
+                          `Current design to improve on:`,
+                          `- eyebrow: ${JSON.stringify(design.eyebrow)}`,
+                          `- headline: ${JSON.stringify(design.headline)}`,
+                          `- subtext: ${JSON.stringify(design.sub)}`,
+                          `- button (CTA): ${JSON.stringify(design.cta)}`,
+                          `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                          refs.length ? `- my image objects (keep them on the canvas): ${refs.join("; ")}` : "",
+                          `If it would make it look more designed, also generate ONE on-brand background that fits (add_canvas_object type "background") — the text stays editable on top. Confirm in one short sentence when done.`,
+                        ].filter(Boolean).join("\n"),
+                        false, designCanvasContext(base), undefined, { hidden: true },
                       );
                     }}
                   />
