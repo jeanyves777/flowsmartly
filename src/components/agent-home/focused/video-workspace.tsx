@@ -6,7 +6,7 @@ import {
   Clapperboard, Sparkles, Type as TypeIcon, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, Layers, ChevronUp, Wand2, AlertTriangle,
   Trash2, RotateCcw, Send, ChevronRight, ArrowUp, ArrowDown, Film,
-  ThumbsUp, Loader2, Share2, RefreshCw,
+  ThumbsUp, Loader2, Share2, RefreshCw, FolderOpen,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -137,6 +137,7 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [error, setError] = useState("");
   const [play, setPlay] = useState<{ url: string; title?: string; poster?: string | null } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [libOpen, setLibOpen] = useState(false);
 
   // Brief node / bottom-sheet state.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -203,6 +204,13 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   const openSheet = () => { setSubmitted(false); setSheetOpen(true); };
 
+  // Delete a render from the library (optimistic, then reconcile).
+  const deleteCampaign = useCallback(async (id: string) => {
+    setCampaigns((cs) => cs.filter((c) => c.id !== id));
+    try { await fetch(`/api/ai/story-ad-campaign/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
+    load();
+  }, [load]);
+
   const stats = useMemo(() => {
     let ready = 0, rendering = 0;
     for (const c of campaigns) {
@@ -220,9 +228,14 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
           <Dot /> {stats.total} renders <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
         </span>
-        <button onClick={openSheet} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
-          <Sparkles className="h-3.5 w-3.5" /> New video
-        </button>
+        <div className="ms-auto flex items-center gap-2">
+          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your videos">
+            <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
+          </button>
+          <button onClick={openSheet} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <Sparkles className="h-3.5 w-3.5" /> New video
+          </button>
+        </div>
       </div>
 
       {/* dotted canvas */}
@@ -373,6 +386,18 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         />
       )}
 
+      {/* library — a clean gallery of every render (mirrors the design-studio library) */}
+      {libOpen && (
+        <VideoLibrary
+          campaigns={campaigns}
+          onClose={() => setLibOpen(false)}
+          onPlay={(p) => setPlay(p)}
+          onOpen={(id) => { setLibOpen(false); setDetailId(id); }}
+          onDelete={deleteCampaign}
+          onNew={() => { setLibOpen(false); openSheet(); }}
+        />
+      )}
+
       {/* inline player */}
       {play && (
         <div className="absolute inset-0 z-40 grid place-items-center bg-black/70 p-4" onClick={() => setPlay(null)}>
@@ -428,6 +453,102 @@ function RenderNode({ c, onPlay, onOpen }: { c: Campaign; onPlay: () => void; on
         <button onClick={onOpen} className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11.5px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500">
           <Film className="h-3.5 w-3.5" /> Open scenes <ChevronRight className="h-3.5 w-3.5" />
         </button>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// Library — a gallery of every render (play / open scenes / delete)
+// =============================================================
+
+function VideoLibrary({ campaigns, onClose, onPlay, onOpen, onDelete, onNew }: {
+  campaigns: Campaign[];
+  onClose: () => void;
+  onPlay: (p: { url: string; title?: string; poster?: string | null }) => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onNew: () => void;
+}) {
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="text-[14px] font-bold leading-tight">My videos</h3>
+          <p className="truncate text-[11.5px] text-muted-foreground">Every render — play it, open its scenes, or remove it.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New video</button>
+          <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {campaigns.length === 0 ? (
+          <div className="grid h-full place-items-center text-center">
+            <div className="max-w-xs">
+              <Clapperboard className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-2 text-[13px] font-semibold">No videos yet</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">Build a video from the brief and it’ll show up here to replay anytime.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {campaigns.map((c) => {
+              const b = statusBadge(c.status);
+              const BadgeIcon = b.icon;
+              const ready = (c.status || "").toUpperCase() === "COMPLETED" && isPlayable(c.videoUrl);
+              const pct = Math.max(0, Math.min(100, Math.round(c.progress ?? 0)));
+              return (
+                <div key={c.id} className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-brand-500/60 hover:shadow-lg">
+                  <div className="relative aspect-[9/16] w-full bg-background">
+                    {c.thumbnailUrl ? (
+                      <Image src={c.thumbnailUrl} alt="" fill sizes="(max-width:640px) 45vw, 220px" className="object-cover" unoptimized />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><Clapperboard className="h-7 w-7" /></div>
+                    )}
+                    {ready && (
+                      <button onClick={() => onPlay({ url: c.videoUrl!, title: c.title, poster: c.thumbnailUrl })} className="absolute inset-0 grid place-items-center bg-black/20 transition hover:bg-black/35">
+                        <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-brand-600 shadow-lg"><Play className="h-5 w-5 translate-x-0.5 fill-current" /></span>
+                      </button>
+                    )}
+                    <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}>
+                      <BadgeIcon className={cn("h-3 w-3", b.spin && "animate-spin")} /> {b.label}
+                    </span>
+                    <button onClick={() => setConfirmDel(c.id)} title="Delete video" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                    {isRendering(c.status) && (
+                      <div className="absolute inset-x-1.5 bottom-1.5">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/40">
+                          <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${pct || 6}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="line-clamp-1 text-[12px] font-semibold">{c.title || "Story-Ad"}</p>
+                    <div className="mt-0.5 flex items-center gap-x-2 text-[10.5px] text-muted-foreground">
+                      {c.style && <span>{STYLE_LABEL[c.style] || c.style}</span>}
+                      {typeof c.clipCount === "number" && c.clipCount > 0 && <span className="inline-flex items-center gap-1"><Layers className="h-3 w-3" /> {c.clipCount}</span>}
+                    </div>
+                    <button onClick={() => onOpen(c.id)} className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Film className="h-3.5 w-3.5" /> Open scenes</button>
+                  </div>
+                  {confirmDel === c.id && (
+                    <div className="absolute inset-0 z-10 grid place-items-center bg-background/92 p-3 text-center">
+                      <div>
+                        <p className="text-[11.5px] font-semibold">Delete this video?</p>
+                        <p className="mt-0.5 text-[10.5px] text-muted-foreground">Permanently removes the render.</p>
+                        <div className="mt-2 flex items-center justify-center gap-1.5">
+                          <button onClick={() => setConfirmDel(null)} className="rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:text-foreground">Keep</button>
+                          <button onClick={() => { setConfirmDel(null); onDelete(c.id); }} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white"><Trash2 className="h-3 w-3" /> Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
