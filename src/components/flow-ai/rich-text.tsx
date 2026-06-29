@@ -183,10 +183,22 @@ function renderBlock(block: Block, key: number): React.ReactNode {
           ))}
         </ul>
       );
-    case "table":
+    case "table": {
+      // Right-align + keep-on-one-line ONLY when the last column is numeric (a
+      // financial/totals table). For text tables (e.g. brand info) the value
+      // column left-aligns and WRAPS so it fits the narrow chat instead of
+      // forcing the whole message wide. The wrapper still scrolls truly wide ones.
+      const lastIdx = block.headers.length - 1;
+      const lastNumeric =
+        block.rows.length > 0 &&
+        block.rows.every((r) => {
+          const v = (r[r.length - 1] ?? "").replace(/\*\*/g, "").trim();
+          return v === "" || /^[$€£]?\s*[\d.,%+\-\s]+$/.test(v);
+        });
+      const lastCellAlign = lastNumeric ? "text-right whitespace-nowrap" : "text-left";
       return (
-        <div key={key} className="my-1.5 w-full overflow-x-auto rounded-lg border border-border">
-          <table className="w-full border-collapse text-xs">
+        <div key={key} className="my-1.5 max-w-full overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-0 border-collapse text-xs">
             {block.headers.length > 0 && (
               <thead>
                 <tr className="bg-muted/60">
@@ -196,7 +208,7 @@ function renderBlock(block: Block, key: number): React.ReactNode {
                       className={cn(
                         "px-2.5 py-1.5 font-semibold text-foreground border-b border-border",
                         j > 0 ? "border-l" : "",
-                        j === block.headers.length - 1 ? "text-right" : "text-left",
+                        j === lastIdx ? (lastNumeric ? "text-right" : "text-left") : "text-left",
                       )}
                     >
                       {renderInline(h)}
@@ -214,9 +226,9 @@ function renderBlock(block: Block, key: number): React.ReactNode {
                       <td
                         key={ci}
                         className={cn(
-                          "px-2.5 py-1.5 text-foreground border-t border-border align-top",
+                          "px-2.5 py-1.5 text-foreground border-t border-border align-top break-words",
                           ci > 0 ? "border-l" : "",
-                          ci === row.length - 1 ? "text-right whitespace-nowrap" : "text-left",
+                          ci === row.length - 1 ? lastCellAlign : "text-left",
                         )}
                       >
                         {renderInline(c)}
@@ -229,6 +241,7 @@ function renderBlock(block: Block, key: number): React.ReactNode {
           </table>
         </div>
       );
+    }
     case "ol":
       return (
         <ol key={key} className="list-decimal pl-5 space-y-0.5">

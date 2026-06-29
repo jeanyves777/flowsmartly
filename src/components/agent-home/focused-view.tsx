@@ -53,7 +53,7 @@ export function FocusedView({
       {/* CHAT column (left) */}
       <div
         className={cn(
-          "min-h-0 flex-col border-e border-border bg-card/35",
+          "min-h-0 min-w-0 flex-col border-e border-border bg-card/35",
           "max-md:absolute max-md:inset-0 max-md:z-20",
           mobileChat ? "max-md:flex" : "max-md:hidden",
           collapsed ? "md:hidden" : "md:flex",
