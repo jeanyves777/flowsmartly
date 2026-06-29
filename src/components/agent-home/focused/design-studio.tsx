@@ -333,7 +333,7 @@ function FloatingToolbar({ children }: { children: ReactNode }) {
   const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d) return; pos.current = { x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) }; apply(); };
   const onUp = (e: React.PointerEvent) => { if (!drag.current) return; drag.current = null; setCommitted({ ...pos.current }); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ } };
   return (
-    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex max-w-[94vw] items-center gap-1 rounded-lg bg-zinc-900/92 px-1 py-1 text-white shadow-xl ring-1 ring-white/10 backdrop-blur"
+    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex max-w-[94vw] items-center gap-1 rounded-lg bg-zinc-900 px-1 py-1 text-white shadow-2xl ring-1 ring-white/15"
       style={{ transform: `translate(calc(-50% + ${committed.x}px), ${committed.y}px)` }}>
       <button title="Drag the toolbar" className="grid h-6 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-white/45 hover:bg-white/10 hover:text-white/80 active:cursor-grabbing"
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
@@ -380,7 +380,7 @@ function ImageControls({ img, index, count, onArrange, onRemoveBg, onDelete }: {
   const isBack = index <= 0;
   return (
     <>
-      <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
+      <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
         {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Bg Removal"}
       </button>
       {/* Arrange — z-order relative to the other objects (only when there's more than one). */}
@@ -439,7 +439,7 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
       {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
       {(doc?.images || []).map((img) => (
         // eslint-disable-next-line @next/next/no-img-element
-        <img key={img.id} src={img.url} alt="" className={cn("absolute", img.kind === "logo" ? "object-contain" : "rounded-xl object-cover")} style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%`, ...(img.kind === "logo" ? {} : { aspectRatio: "4 / 5" }) }} />
+        <img key={img.id} src={img.url} alt="" className="absolute" style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%` }} />
       ))}
       {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
         const s = doc?.styles?.[k] ?? {};
@@ -820,7 +820,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                         ) : (
                           // Logos use object-contain so a wide wordmark isn't cropped; photos cover.
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className={cn("pointer-events-none w-full shadow-lg", img.kind === "logo" ? "rounded-md object-contain" : "aspect-[4/5] rounded-xl object-cover")} />
+                          <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className="pointer-events-none w-full" />
                         )}
                         <button onClick={() => removeImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
                         {img.processing && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
