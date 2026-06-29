@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AgentToolCardData,
   AgentTaskCardData,
@@ -62,6 +62,20 @@ export function useHomeAgent() {
 
   const taskStreamsRef = useRef<Map<string, AbortController>>(new Map());
   const resolvedPlansRef = useRef<Map<string, PlanProposalCardData["status"]>>(new Map());
+  // Canvas tasks already reflected in the UI — so the polling fallback doesn't
+  // re-process them (canvas patches are idempotent, but this avoids churn).
+  const settledTasksRef = useRef<Set<string>>(new Set());
+
+  // Apply a finished canvas task's result to the open canvas (idempotent).
+  const applyCanvasTask = useCallback((kind: string, output: unknown) => {
+    if (kind === "create_branded_design") {
+      const url = (output as { url?: string } | null | undefined)?.url;
+      canvasUpdateRef.current?.(url ? { generating: false, imageUrl: url } : { generating: false });
+    } else if (kind === "canvas_object") {
+      const out = output as { url?: string; objectType?: string } | null | undefined;
+      if (out?.url) canvasUpdateRef.current?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+    }
+  }, []);
 
   const appendCompletionMessage = useCallback((msg: { id: string; content: string }) => {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }]));
@@ -301,7 +315,37 @@ export function useHomeAgent() {
   const newConversation = useCallback(() => {
     setMessages([]);
     setConversationId(null);
+    settledTasksRef.current.clear();
   }, []);
+
+  // Polling fallback for finished tasks the live SSE missed. A long generation
+  // (image gen, etc.) can drop the per-task stream, leaving the task stuck on
+  // "running" with its result never applied. While any task is in-flight, poll
+  // the conversation and reconcile finished ones — flip the card to completed
+  // AND drop the result onto the open canvas (canvas patches are idempotent).
+  const hasInflightTask = messages.some((m) => m.agentTasks?.some((t) => t.status === "running" || t.status === "pending"));
+  useEffect(() => {
+    if (!conversationId || !hasInflightTask) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      let cards;
+      try { cards = await fetchConversationCards(conversationId); } catch { return; }
+      const settled: AgentTaskCardData[] = [];
+      cards.tasksByMsg.forEach((arr) => arr.forEach((t) => { if (t.status === "completed" || t.status === "failed" || t.status === "canceled") settled.push(t); }));
+      for (const t of settled) {
+        if (settledTasksRef.current.has(t.id)) continue;
+        settledTasksRef.current.add(t.id);
+        if (t.status === "completed") applyCanvasTask(t.kind, t.output);
+        setMessages((prev) => prev.map((m) => (m.agentTasks?.some((x) => x.id === t.id)
+          ? { ...m, agentTasks: (m.agentTasks ?? []).map((x) => (x.id === t.id ? { ...x, status: t.status, output: t.output ?? x.output, progress: 100 } : x)) }
+          : m)));
+      }
+    };
+    void tick();
+    const iv = setInterval(tick, 3500);
+    return () => { stopped = true; clearInterval(iv); };
+  }, [conversationId, hasInflightTask, applyCanvasTask]);
 
   return {
     messages,
