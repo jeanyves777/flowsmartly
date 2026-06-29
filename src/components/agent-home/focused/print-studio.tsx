@@ -114,36 +114,66 @@ export const PRINT_FORMATS: PrintFormat[] = [
   { key: "drinkware", name: "Drinkware & gifts", group: "product", Icon: Coffee, desc: "Mugs & merch — a wrap-around print area with safe margins.", chips: ["Mug", "Wrap"], sizes: [{ label: "Mug", v: "1080×1080" }], productKind: "mug" },
 ];
 
-// A format-appropriate STARTER design loaded when a paper format is opened, so a
-// flyer looks like a flyer and a card like a card (not the social-graphic default).
-// Positions/sizes are tuned per the format's aspect ratio; accent stays the user's.
+// A format-appropriate, FULLY-BUILT starter design loaded when a paper format is
+// opened — every panel/area is populated (headings, body, bullet lists, contact
+// blocks) like a finished template, so the user edits a complete piece (or asks
+// the agent to rebuild it from a description). Core elements (eyebrow/headline/
+// sub/cta) carry the focal copy; free-text layers fill the rest. "@accent" in a
+// text colour is swapped for the user's brand accent on open.
+type SampleText = NonNullable<DesignDoc["texts"]>[number];
+let _smp = 0;
+const tl = (text: string, x: number, y: number, size: number, color: string, w: number, bold?: boolean): SampleText =>
+  ({ id: `smp-${_smp++}`, text, x, y, w, style: { size, color, ...(bold ? { bold: true } : {}) } });
+const ACC = "@accent";
+const DK = { H: "#ffffff", B: "rgba(255,255,255,0.86)", M: "rgba(255,255,255,0.62)" }; // on dark
+const LT = { H: "#18181b", B: "#3f3f46", M: "#71717a" };                               // on white
+
 const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
   flyer: {
     eyebrow: "GRAND OPENING · SAT JUNE 28",
     headline: "Summer\nBlock Party",
-    sub: "Live music, food trucks & family fun.\n12–6pm at Riverside Park — free entry.",
+    sub: "A free afternoon of music, food &\nfamily fun — everyone’s welcome.",
     cta: "Get free tickets →",
-    pos: { eyebrow: { x: 0.07, y: 0.07 }, headline: { x: 0.07, y: 0.33 }, sub: { x: 0.07, y: 0.66 }, cta: { x: 0.07, y: 0.86 } },
-    styles: { eyebrow: { size: 12 }, headline: { size: 44 }, sub: { size: 15 }, cta: { size: 14 } },
+    pos: { eyebrow: { x: 0.07, y: 0.06 }, headline: { x: 0.07, y: 0.15 }, sub: { x: 0.07, y: 0.52 }, cta: { x: 0.07, y: 0.88 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 40 }, sub: { size: 14 }, cta: { size: 14 } },
+    texts: [
+      tl("12–6 PM · RIVERSIDE PARK", 0.07, 0.45, 14, ACC, 0.82, true),
+      tl("WHAT’S ON", 0.07, 0.64, 12, ACC, 0.82, true),
+      tl("• 12+ local food trucks\n• Live bands all afternoon\n• Kids’ games & face painting\n• Free giveaways every hour", 0.07, 0.7, 12.5, DK.B, 0.84),
+      tl("500 River Rd · free entry · all ages · yourbrand.com/events", 0.07, 0.94, 10, DK.M, 0.86),
+    ],
   },
   card: {
     eyebrow: "ACME ROOFING CO.",
     headline: "Jordan Rivera",
     sub: "Operations Manager",
-    cta: "hello@acmeroofing.com · (404) 555-0142",
-    pos: { eyebrow: { x: 0.08, y: 0.18 }, headline: { x: 0.08, y: 0.37 }, sub: { x: 0.08, y: 0.6 }, cta: { x: 0.08, y: 0.8 } },
-    styles: { eyebrow: { size: 11, bold: true }, headline: { size: 26 }, sub: { size: 13 }, cta: { size: 11 } },
+    cta: "Free estimate →",
+    pos: { eyebrow: { x: 0.07, y: 0.17 }, headline: { x: 0.07, y: 0.33 }, sub: { x: 0.07, y: 0.55 }, cta: { x: 0.6, y: 0.75 } },
+    styles: { eyebrow: { size: 11, bold: true }, headline: { size: 23 }, sub: { size: 12 }, cta: { size: 10 } },
+    texts: [
+      tl("Roofing · gutters · storm repair", 0.07, 0.7, 9.5, LT.M, 0.5),
+      tl("(404) 555-0142", 0.6, 0.22, 12, LT.H, 0.36, true),
+      tl("hello@acmeroofing.com", 0.6, 0.33, 10, LT.B, 0.38),
+      tl("acmeroofing.com", 0.6, 0.42, 10, LT.B, 0.38),
+      tl("Austin, TX 78701", 0.6, 0.51, 10, LT.B, 0.38),
+      tl("Licensed & insured · 20-yr warranty", 0.6, 0.62, 9, LT.M, 0.38),
+    ],
   },
   tent: {
     eyebrow: "TODAY ONLY",
     headline: "Happy Hour\n4 – 6 PM",
     sub: "$5 house wines · half-price appetizers",
     cta: "Ask your server",
-    pos: { eyebrow: { x: 0.1, y: 0.16 }, headline: { x: 0.1, y: 0.36 }, sub: { x: 0.1, y: 0.66 }, cta: { x: 0.1, y: 0.82 } },
-    styles: { eyebrow: { size: 13 }, headline: { size: 36 }, sub: { size: 14 }, cta: { size: 13 } },
+    pos: { eyebrow: { x: 0.1, y: 0.1 }, headline: { x: 0.1, y: 0.18 }, sub: { x: 0.1, y: 0.37 }, cta: { x: 0.1, y: 0.44 } },
+    styles: { eyebrow: { size: 13 }, headline: { size: 34 }, sub: { size: 13 }, cta: { size: 12 } },
+    texts: [
+      tl("TONIGHT’S SPECIALS", 0.1, 0.56, 14, ACC, 0.8, true),
+      tl("• $5 house reds & whites\n• ½-price wings & nachos\n• $7 signature cocktails\n• $6 craft drafts", 0.1, 0.64, 14, DK.B, 0.82),
+      tl("Ask your server · cash & card welcome", 0.1, 0.9, 10.5, DK.M, 0.82),
+    ],
   },
-  // Brochure covers live in the right-most panel; sizes/positions are tuned so the
-  // headline fits that narrow panel (core headlines have a fixed max width).
+  // Brochure covers sit in the right-most panel; the other panels are filled with
+  // free-text so the whole flat sheet reads as a finished brochure.
   bifold: {
     eyebrow: "WELCOME TO",
     headline: "Bright Smiles\nDental",
@@ -151,6 +181,13 @@ const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
     cta: "Book your visit →",
     pos: { eyebrow: { x: 0.53, y: 0.3 }, headline: { x: 0.53, y: 0.42 }, sub: { x: 0.53, y: 0.68 }, cta: { x: 0.53, y: 0.84 } },
     styles: { eyebrow: { size: 11 }, headline: { size: 24 }, sub: { size: 12 }, cta: { size: 12 } },
+    texts: [
+      tl("ABOUT US", 0.05, 0.12, 12, ACC, 0.4, true),
+      tl("Bright Smiles Dental brings gentle, modern dentistry to Austin families — with honest pricing and same-day care since 2008.", 0.05, 0.2, 11, LT.B, 0.4),
+      tl("OUR SERVICES", 0.05, 0.46, 12, ACC, 0.4, true),
+      tl("• Exams, cleanings & whitening\n• Invisalign® clear aligners\n• Crowns, bridges & implants\n• Emergency visits", 0.05, 0.54, 10.5, LT.B, 0.4),
+      tl("(404) 555-0142 · brightsmiles.com", 0.05, 0.86, 10.5, LT.H, 0.42, true),
+    ],
   },
   trifold: {
     eyebrow: "WELCOME TO",
@@ -159,14 +196,35 @@ const PRINT_SAMPLES: Record<string, Partial<DesignDoc>> = {
     cta: "Book a visit →",
     pos: { eyebrow: { x: 0.68, y: 0.3 }, headline: { x: 0.68, y: 0.4 }, sub: { x: 0.68, y: 0.68 }, cta: { x: 0.68, y: 0.84 } },
     styles: { eyebrow: { size: 9 }, headline: { size: 22 }, sub: { size: 10 }, cta: { size: 10.5 } },
+    texts: [
+      // middle panel — who we are + contact
+      tl("WHO WE ARE", 0.37, 0.1, 11.5, ACC, 0.27, true),
+      tl("Bright Smiles Dental has cared for Austin families since 2008 — gentle, modern dentistry with honest, transparent pricing.", 0.37, 0.18, 9, LT.B, 0.28),
+      tl("CONTACT US", 0.37, 0.52, 11.5, ACC, 0.27, true),
+      tl("(404) 555-0142", 0.37, 0.6, 9.5, LT.H, 0.28, true),
+      tl("hello@brightsmiles.com", 0.37, 0.655, 9, LT.B, 0.28),
+      tl("123 Market St, Austin TX", 0.37, 0.71, 9, LT.B, 0.28),
+      tl("Mon–Fri 8–6 · Sat 9–2", 0.37, 0.8, 9, LT.B, 0.28),
+      // back panel — services + proof
+      tl("OUR SERVICES", 0.045, 0.1, 11.5, ACC, 0.27, true),
+      tl("• New-patient exams\n• Cleanings & whitening\n• Invisalign® aligners\n• Crowns & implants\n• Root canals\n• Emergency visits", 0.045, 0.18, 9, LT.B, 0.28),
+      tl("WHY PATIENTS LOVE US", 0.045, 0.62, 11, ACC, 0.27, true),
+      tl("★★★★★ 500+ 5-star reviews\nSame-day appointments\nFinancing available", 0.045, 0.7, 9, LT.B, 0.28),
+    ],
   },
   postcard: {
     eyebrow: "YOU’RE INVITED",
     headline: "Spring Open House",
-    sub: "Sunday, May 4 · 1–4pm\n123 Market St — refreshments served.",
+    sub: "Sunday, May 4 · 1–4 PM",
     cta: "RSVP today →",
-    pos: { eyebrow: { x: 0.07, y: 0.13 }, headline: { x: 0.07, y: 0.35 }, sub: { x: 0.07, y: 0.62 }, cta: { x: 0.07, y: 0.84 } },
-    styles: { eyebrow: { size: 12 }, headline: { size: 36 }, sub: { size: 14 }, cta: { size: 13 } },
+    pos: { eyebrow: { x: 0.07, y: 0.12 }, headline: { x: 0.07, y: 0.3 }, sub: { x: 0.07, y: 0.54 }, cta: { x: 0.07, y: 0.84 } },
+    styles: { eyebrow: { size: 12 }, headline: { size: 32 }, sub: { size: 15 }, cta: { size: 13 } },
+    texts: [
+      tl("Tour our new space, meet the team, and enjoy refreshments & live music.", 0.07, 0.66, 12, DK.B, 0.66),
+      tl("RSVP", 0.63, 0.16, 12, ACC, 0.3, true),
+      tl("rsvp@brightsmiles.com\n(404) 555-0142", 0.63, 0.26, 11, DK.B, 0.34),
+      tl("123 Market St\nAustin, TX 78701", 0.63, 0.5, 11, DK.B, 0.34),
+    ],
   },
 };
 
@@ -208,13 +266,17 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
     if (!f) return;
     if (f.group === "paper") {
       const sample = PRINT_SAMPLES[key] ?? {};
+      const accent = canvas.value.accent;
+      // Swap the "@accent" colour sentinel in sample text for the real brand accent.
+      const texts = (sample.texts ?? []).map((t) => (t.style?.color === "@accent" ? { ...t, style: { ...t.style, color: accent } } : t));
       canvas.onChange({
         ...canvas.value,
         ...sample,
-        accent: canvas.value.accent,
+        accent,
         size: f.sizes[0].v,
         style: f.defaultStyle ?? canvas.value.style,
-        images: [], texts: [], contacts: [],
+        texts,
+        images: [], contacts: [],
         imageUrl: undefined, bgImageUrl: undefined, generating: false,
       });
     }
