@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
 import {
   Clapperboard,
@@ -70,6 +70,18 @@ function statusBadge(status: string): { label: string; cls: string; icon: Elemen
 const NEW_STORYAD_PROMPT =
   "Make me a new Story-Ad video campaign — ask me what to advertise, the vibe/style, and how long it should be, then build the whole story-ad (characters, scenes, and the final movie).";
 
+// Statuses that count as "still rendering" (matches the StoryAdCard working state).
+const RENDERING_STATUSES = ["PROCESSING", "COMPOSITING", "BATCH_QUEUED"];
+
+type FilterId = "all" | "ready" | "rendering";
+
+// Left-nav sections — filter the campaign grid by render state.
+const FILTERS: { id: FilterId; label: string; icon: ElementType }[] = [
+  { id: "all", label: "All story-ads", icon: Film },
+  { id: "ready", label: "Ready", icon: CheckCircle2 },
+  { id: "rendering", label: "Rendering", icon: Clock },
+];
+
 function isPlayable(url?: string | null): url is string {
   return typeof url === "string" && /^https?:\/\//i.test(url);
 }
@@ -88,6 +100,16 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState<Campaign | null>(null);
+  const [filter, setFilter] = useState<FilterId>("all");
+
+  const readyCount = useMemo(() => campaigns.filter((c) => (c.status || "").toUpperCase() === "COMPLETED").length, [campaigns]);
+  const renderingCount = useMemo(() => campaigns.filter((c) => RENDERING_STATUSES.includes((c.status || "").toUpperCase())).length, [campaigns]);
+  const visible = useMemo(() => {
+    if (filter === "ready") return campaigns.filter((c) => (c.status || "").toUpperCase() === "COMPLETED");
+    if (filter === "rendering") return campaigns.filter((c) => RENDERING_STATUSES.includes((c.status || "").toUpperCase()));
+    return campaigns;
+  }, [campaigns, filter]);
+  const activeFilter = FILTERS.find((f) => f.id === filter) ?? FILTERS[0];
 
   const load = useCallback(async () => {
     try {
@@ -119,9 +141,6 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
     );
   }
 
-  const ready = campaigns.filter((c) => (c.status || "").toUpperCase() === "COMPLETED");
-  const rendering = campaigns.filter((c) => ["PROCESSING", "COMPOSITING", "BATCH_QUEUED"].includes((c.status || "").toUpperCase()));
-
   // Empty state — creating a story-ad is a heavy generative build, so the agent runs it.
   if (!campaigns.length) {
     return (
@@ -150,49 +169,79 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* header + KPIs */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500">
-              <Clapperboard className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-bold">Story-Ad movies</h2>
-              <p className="truncate text-[12px] text-muted-foreground">Cinematic AI ad films, directed by your agent.</p>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + section nav + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Clapperboard className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">Story-Ad movies</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">Cinematic AI ad films, directed by your agent.</p>
+              </div>
             </div>
-            {onAsk && (
-              <button
-                onClick={() => onAsk(NEW_STORYAD_PROMPT)}
-                className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm"
-              >
-                <Sparkles className="h-3.5 w-3.5" /> New story-ad
-              </button>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <MiniStat label="Campaigns" value={String(campaigns.length)} />
+              <MiniStat label="Ready" value={String(readyCount)} />
+              <MiniStat label="Rendering" value={String(renderingCount)} />
+            </div>
+          </div>
+
+          {onAsk && (
+            <button
+              onClick={() => onAsk(NEW_STORYAD_PROMPT)}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+            >
+              <Sparkles className="h-4 w-4" /> New story-ad
+            </button>
+          )}
+
+          {/* section nav (filter by render state) */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {FILTERS.map((f) => {
+              const active = filter === f.id;
+              const count = f.id === "all" ? campaigns.length : f.id === "ready" ? readyCount : renderingCount;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <f.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{f.label}</span>
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{count}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* RIGHT: campaigns grid, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {error && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
+          )}
+
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-[13px] font-bold">{activeFilter.label}</h3>
+              <span className="text-[11.5px] text-muted-foreground">{visible.length}</span>
+            </div>
+            {visible.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Film className="h-6 w-6" /></span>
+                <p className="mt-3 text-[13px] font-medium">Nothing here yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-[12px] text-muted-foreground">No story-ads are {filter === "ready" ? "ready to play" : "rendering"} right now.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visible.map((c) => (
+                  <StoryAdCard key={c.id} campaign={c} onPlay={() => setPlaying(c)} />
+                ))}
+              </div>
             )}
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <Kpi icon={Film} label="Campaigns" value={String(campaigns.length)} />
-            <Kpi icon={CheckCircle2} label="Ready" value={String(ready.length)} />
-            <Kpi icon={Clock} label="Rendering" value={String(rendering.length)} />
-          </div>
-        </section>
-
-        {error && (
-          <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
-        )}
-
-        {/* grid of campaigns */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-[13px] font-bold">Your story-ads</h3>
-            <span className="text-[11.5px] text-muted-foreground">{campaigns.length}</span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {campaigns.map((c) => (
-              <StoryAdCard key={c.id} campaign={c} onPlay={() => setPlaying(c)} />
-            ))}
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
 
       {/* inline player overlay */}
@@ -325,11 +374,11 @@ function StoryAdCard({ campaign: c, onPlay }: { campaign: Campaign; onPlay: () =
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[16px] font-extrabold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
     </div>
   );
 }

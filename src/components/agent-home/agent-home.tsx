@@ -670,7 +670,7 @@ export function AgentHome() {
         </nav>
 
         {/* main */}
-        <main className="relative flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-x-clip">
           {/* setup prompts live in the main column so the rail stays full-height; CTAs drive the agent, never legacy links */}
           <SetupBanners onPrompt={(t) => { setFocused(null); setActiveWs("home"); send(t, false, undefined, undefined, { hidden: true }); }} onOpenBrand={openBrand} refreshKey={actionCount} />
           {focused ? (

@@ -44,6 +44,9 @@ interface Analytics {
   topPosts?: Array<{ id: string; content?: string; views?: number; likes?: number; comments?: number; shares?: number; clicks?: number }>;
 }
 
+/** Vertical section nav buckets the surface into focused master/detail views. */
+type Section = "overview" | "performance" | "channels" | "activity";
+
 /** Chart display modes mirror the legacy /analytics surface, driven off chartData. */
 type ChartMode = "views" | "engagement" | "distribution";
 const CHART_MODES: Array<{ id: ChartMode; label: string }> = [
@@ -130,6 +133,7 @@ const STATUS_META: Record<HealthStatus, { label: string; icon: LucideIcon; tone:
 
 export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: number; onOpenView?: (key: string) => void }) {
   const [range, setRange] = useState<Range>("30d");
+  const [section, setSection] = useState<Section>("overview");
   const [chartMode, setChartMode] = useState<ChartMode>("views");
   const [dash, setDash] = useState<Dash | null>(null);
   const [an, setAn] = useState<Analytics | null>(null);
@@ -222,19 +226,33 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
   );
   const bvo = an?.boostedVsOrganic ?? null;
   const ads = an?.adStats ?? null;
+  const platformCount = (an?.platformStats ?? []).length;
+
+  const nav: { id: Section; label: string; icon: ElementType }[] = [
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "performance", label: "Performance", icon: Megaphone },
+    { id: "channels", label: "Channels", icon: RadioTower },
+    { id: "activity", label: "Activity", icon: Activity },
+  ];
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-4">
-        {/* range toggle + live refresh */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[13px] text-muted-foreground">Performance &amp; usage at a glance.</p>
-          <div className="flex items-center gap-2">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky controls + summary + section nav */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* range toggle + live refresh */}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <p className="px-1 text-[11.5px] text-muted-foreground">Performance &amp; usage at a glance.</p>
+            <div className="mt-2.5 inline-flex w-full rounded-[10px] border border-border p-0.5">
+              {(["7d", "30d", "90d"] as Range[]).map((r) => (
+                <button key={r} onClick={() => setRange(r)} className={cn("flex-1 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", range === r ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{r}</button>
+              ))}
+            </div>
             <button
               onClick={refreshLive}
               disabled={refreshing}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold transition",
+                "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold transition",
                 refreshing ? "cursor-not-allowed text-muted-foreground" : "hover:border-brand-500/60 hover:text-brand-500"
               )}
               title="Pull the latest followers, reach &amp; engagement from your connected platforms"
@@ -242,206 +260,258 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
               {refreshing ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />}
               {refreshing ? "Syncing…" : "Refresh live"}
             </button>
-            <div className="inline-flex rounded-[10px] border border-border p-0.5">
-              {(["7d", "30d", "90d"] as Range[]).map((r) => (
-                <button key={r} onClick={() => setRange(r)} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", range === r ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{r}</button>
-              ))}
+
+            {/* live refresh summary */}
+            {refreshSummary && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px]">
+                <span className="inline-flex w-full items-center gap-1.5 font-semibold"><RadioTower className="h-3.5 w-3.5 text-brand-500" />Live sync complete.</span>
+                <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" />{refreshSummary.synced} synced</span>
+                {refreshSummary.partial > 0 && <span className="inline-flex items-center gap-1 text-amber-500"><Activity className="h-3.5 w-3.5" />{refreshSummary.partial} partial</span>}
+                {refreshSummary.blocked > 0 && <span className="inline-flex items-center gap-1 text-rose-500"><AlertTriangle className="h-3.5 w-3.5" />{refreshSummary.blocked} need attention</span>}
+              </div>
+            )}
+          </div>
+
+          {/* headline KPI summary */}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><BarChart3 className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Headline</span></div>
+            <div className="space-y-1.5">
+              <StatRow icon={Eye} label="Views" value={(an?.stats?.views ?? 0).toLocaleString()} delta={an?.stats?.viewsChange} />
+              <StatRow icon={Heart} label="Engagement" value={`${(an?.stats?.engagementRate ?? 0).toFixed(1)}%`} delta={an?.stats?.likesChange} />
+              <StatRow icon={Users} label="Followers" value={(an?.stats?.followers ?? dash?.stats?.followers ?? 0).toLocaleString()} delta={an?.stats?.followersChange} />
+              <StatRow icon={Coins} label="Credits" value={credits.toLocaleString()} sub={`${usedThisMonth.toLocaleString()} used this month`} />
             </div>
           </div>
-        </div>
 
-        {/* live refresh summary */}
-        {refreshSummary && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[12px]">
-            <RadioTower className="h-3.5 w-3.5 text-brand-500" />
-            <span className="font-semibold">Live sync complete.</span>
-            <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" />{refreshSummary.synced} synced</span>
-            {refreshSummary.partial > 0 && <span className="inline-flex items-center gap-1 text-amber-500"><Activity className="h-3.5 w-3.5" />{refreshSummary.partial} partial</span>}
-            {refreshSummary.blocked > 0 && <span className="inline-flex items-center gap-1 text-rose-500"><AlertTriangle className="h-3.5 w-3.5" />{refreshSummary.blocked} need attention</span>}
-          </div>
-        )}
-
-        {/* Grow tools — entry to the marketing channels */}
-        {onOpenView && (
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <h3 className="mb-3 text-[13px] font-bold">Grow tools</h3>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <GrowTool icon={Mail} label="Email" onClick={() => onOpenView("email")} />
-              <GrowTool icon={MessageSquare} label="SMS" onClick={() => onOpenView("sms")} />
-              <GrowTool icon={MessageCircle} label="WhatsApp" onClick={() => onOpenView("whatsapp")} />
-              <GrowTool icon={Workflow} label="Follow-ups" onClick={() => onOpenView("automations")} />
-            </div>
-          </section>
-        )}
-
-        {/* KPI cards */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi icon={Coins} label="Credits" value={credits.toLocaleString()} sub={`${usedThisMonth.toLocaleString()} used this month`} />
-          <Kpi icon={Eye} label="Views" value={(an?.stats?.views ?? 0).toLocaleString()} delta={an?.stats?.viewsChange} />
-          <Kpi icon={Heart} label="Engagement" value={`${(an?.stats?.engagementRate ?? 0).toFixed(1)}%`} delta={an?.stats?.likesChange} />
-          <Kpi icon={FileText} label="Posts" value={posts.toLocaleString()} sub={`${an?.stats?.postsThisPeriod ?? 0} this period`} />
-        </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi icon={Users} label="Followers" value={(an?.stats?.followers ?? dash?.stats?.followers ?? 0).toLocaleString()} delta={an?.stats?.followersChange} />
-          <Kpi icon={MousePointerClick} label="Clicks" value={(an?.stats?.clicks ?? 0).toLocaleString()} delta={an?.stats?.clicksChange} sub="feed taps & CTA clicks" />
-          <Kpi icon={Heart} label="Likes" value={(an?.stats?.likes ?? 0).toLocaleString()} delta={an?.stats?.likesChange} />
-          <Kpi icon={Target} label="Strategy score" value={score?.hasStrategy ? `${score.score}/100` : "—"} sub={score?.hasStrategy ? undefined : "No strategy yet"} />
-          <Kpi icon={BarChart3} label="Platforms" value={String((an?.platformStats ?? []).length)} sub="connected" />
-        </div>
-
-        {/* chart with mode toggle */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-brand-500" />
-              <h3 className="text-[13px] font-bold">
-                {chartMode === "views" ? "Views over time" : chartMode === "engagement" ? "Engagement over time" : "Boosted vs organic"}
-              </h3>
-              {anLoading && <FlowLoader size={14} className="ms-1" />}
-            </div>
-            <div className="inline-flex rounded-[10px] border border-border p-0.5">
-              {CHART_MODES.map((m) => (
+          {/* section nav */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = section === n.id;
+              return (
                 <button
-                  key={m.id}
-                  onClick={() => setChartMode(m.id)}
-                  className={cn("rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold transition", chartMode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
+                  key={n.id}
+                  onClick={() => setSection(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
                 >
-                  {m.label}
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
                 </button>
-              ))}
-            </div>
-          </div>
-          {series.some((v) => v > 0) ? (
-            chartMode === "views" ? (
-              <AreaChart points={series} />
-            ) : (
-              <ModeBars data={chartData} mode={chartMode} />
-            )
-          ) : (
-            <Empty
-              text={
-                chartMode === "views"
-                  ? "No view data for this range yet — it fills in as your content gets seen."
-                  : chartMode === "engagement"
-                    ? "No engagement yet — likes, comments, shares and clicks show here as people interact."
-                    : "No boosted or organic activity yet for this range."
-              }
-            />
-          )}
-        </section>
+              );
+            })}
+          </nav>
 
-        {/* boosted vs organic distribution + ad spend / earnings */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-brand-500" />
-              <h3 className="text-[13px] font-bold">Boosted vs organic</h3>
-            </div>
-            <BoostedOrganicMix data={bvo} />
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-brand-500" />
-              <h3 className="text-[13px] font-bold">Ad spend &amp; earnings</h3>
-            </div>
-            <AdSummary data={ads} />
-          </section>
-        </div>
-
-        {/* connected account health */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <RadioTower className="h-4 w-4 text-brand-500" />
-              <h3 className="text-[13px] font-bold">Connected account health</h3>
-              {(healthLoading || refreshing) && <FlowLoader size={14} className="ms-1" />}
-            </div>
-            {health.length > 0 && (
-              <button
-                onClick={refreshLive}
-                disabled={refreshing}
-                className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold transition", refreshing ? "cursor-not-allowed text-muted-foreground" : "text-brand-500 hover:text-brand-600")}
-              >
-                <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
-                Sync now
-              </button>
-            )}
-          </div>
-          {healthLoading ? (
-            <div className="grid place-items-center py-8"><FlowLoader size={22} /></div>
-          ) : health.length ? (
-            <div className="space-y-2.5">
-              {health.map((a) => (
-                <AccountHealthRow key={a.id} account={a} />
-              ))}
-            </div>
-          ) : (
-            <Empty text="Connect a social account to track followers, reach, engagement and sync status here." />
-          )}
-        </section>
-
-        {/* platform + top posts */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <h3 className="mb-3 text-[13px] font-bold">By platform</h3>
-            {(an?.platformStats ?? []).length ? (
-              <div className="space-y-2">
-                {an!.platformStats!.map((p) => (
-                  <div key={p.platform} className="rounded-xl border border-border bg-muted/30 px-3 py-2">
-                    <div className="flex items-center justify-between text-[13px]">
-                      <span className="font-medium capitalize">{p.platform.replace(/_/g, " ")}</span>
-                      <span className="text-[11px] text-muted-foreground">{(p.posts ?? 0).toLocaleString()} posts</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{(p.views ?? 0).toLocaleString()}</span>
-                      <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{(p.likes ?? 0).toLocaleString()}</span>
-                      <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" />{(p.clicks ?? 0).toLocaleString()} clicks</span>
-                    </div>
-                  </div>
-                ))}
+          {/* Grow tools — entry to the marketing channels */}
+          {onOpenView && (
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <p className="px-1 pb-2 text-[12.5px] font-bold">Grow tools</p>
+              <div className="grid grid-cols-2 gap-2">
+                <GrowTool icon={Mail} label="Email" onClick={() => onOpenView("email")} />
+                <GrowTool icon={MessageSquare} label="SMS" onClick={() => onOpenView("sms")} />
+                <GrowTool icon={MessageCircle} label="WhatsApp" onClick={() => onOpenView("whatsapp")} />
+                <GrowTool icon={Workflow} label="Follow-ups" onClick={() => onOpenView("automations")} />
               </div>
-            ) : (
-              <Empty text="Connect a social account to see per-platform performance." />
-            )}
-          </section>
+            </div>
+          )}
+        </aside>
 
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <h3 className="mb-3 text-[13px] font-bold">Top content</h3>
-            {(an?.topPosts ?? []).length ? (
-              <div className="space-y-2">
-                {an!.topPosts!.slice(0, 5).map((p) => (
-                  <div key={p.id} className="rounded-xl border border-border bg-muted/30 px-3 py-2">
-                    <p className="truncate text-[13px]">{p.content || "Untitled post"}</p>
-                    <p className="mt-0.5 text-[11.5px] text-muted-foreground">{(p.views ?? 0).toLocaleString()} views · {(p.likes ?? 0).toLocaleString()} likes · {(p.comments ?? 0).toLocaleString()} comments</p>
-                  </div>
-                ))}
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {section === "overview" ? (
+            <>
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                <Kpi icon={Coins} label="Credits" value={credits.toLocaleString()} sub={`${usedThisMonth.toLocaleString()} used this month`} />
+                <Kpi icon={Eye} label="Views" value={(an?.stats?.views ?? 0).toLocaleString()} delta={an?.stats?.viewsChange} />
+                <Kpi icon={Heart} label="Engagement" value={`${(an?.stats?.engagementRate ?? 0).toFixed(1)}%`} delta={an?.stats?.likesChange} />
+                <Kpi icon={FileText} label="Posts" value={posts.toLocaleString()} sub={`${an?.stats?.postsThisPeriod ?? 0} this period`} />
+                <Kpi icon={Users} label="Followers" value={(an?.stats?.followers ?? dash?.stats?.followers ?? 0).toLocaleString()} delta={an?.stats?.followersChange} />
+                <Kpi icon={MousePointerClick} label="Clicks" value={(an?.stats?.clicks ?? 0).toLocaleString()} delta={an?.stats?.clicksChange} sub="feed taps & CTA clicks" />
+                <Kpi icon={Heart} label="Likes" value={(an?.stats?.likes ?? 0).toLocaleString()} delta={an?.stats?.likesChange} />
+                <Kpi icon={Target} label="Strategy score" value={score?.hasStrategy ? `${score.score}/100` : "—"} sub={score?.hasStrategy ? undefined : "No strategy yet"} />
+                <Kpi icon={BarChart3} label="Platforms" value={String(platformCount)} sub="connected" />
               </div>
-            ) : (
-              <Empty text="Your best-performing posts will show up here." />
-            )}
-          </section>
-        </div>
 
-        {/* recent activity */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-[13px] font-bold">Recent activity</h3>
-          {(dash?.recentActivity ?? []).length ? (
-            <div className="space-y-2">
-              {dash!.recentActivity!.slice(0, 6).map((a) => (
-                <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2">
-                  {a.mediaUrl ? <Image src={a.mediaUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" unoptimized /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><FileText className="h-4 w-4" /></span>}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">{a.title || a.content || "Activity"}</p>
-                    <p className="text-[11.5px] text-muted-foreground">{(a.views ?? 0).toLocaleString()} views · {(a.likes ?? 0).toLocaleString()} likes</p>
+              {/* chart with mode toggle */}
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-brand-500" />
+                    <h3 className="text-[13px] font-bold">
+                      {chartMode === "views" ? "Views over time" : chartMode === "engagement" ? "Engagement over time" : "Boosted vs organic"}
+                    </h3>
+                    {anLoading && <FlowLoader size={14} className="ms-1" />}
+                  </div>
+                  <div className="inline-flex rounded-[10px] border border-border p-0.5">
+                    {CHART_MODES.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => setChartMode(m.id)}
+                        className={cn("rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold transition", chartMode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
+                {series.some((v) => v > 0) ? (
+                  chartMode === "views" ? (
+                    <AreaChart points={series} />
+                  ) : (
+                    <ModeBars data={chartData} mode={chartMode} />
+                  )
+                ) : (
+                  <Empty
+                    text={
+                      chartMode === "views"
+                        ? "No view data for this range yet — it fills in as your content gets seen."
+                        : chartMode === "engagement"
+                          ? "No engagement yet — likes, comments, shares and clicks show here as people interact."
+                          : "No boosted or organic activity yet for this range."
+                    }
+                  />
+                )}
+              </section>
+            </>
+          ) : section === "performance" ? (
+            /* boosted vs organic distribution + ad spend / earnings */
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <Megaphone className="h-4 w-4 text-brand-500" />
+                  <h3 className="text-[13px] font-bold">Boosted vs organic</h3>
+                </div>
+                <BoostedOrganicMix data={bvo} />
+              </section>
+
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-brand-500" />
+                  <h3 className="text-[13px] font-bold">Ad spend &amp; earnings</h3>
+                </div>
+                <AdSummary data={ads} />
+              </section>
             </div>
+          ) : section === "channels" ? (
+            <>
+              {/* connected account health */}
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <RadioTower className="h-4 w-4 text-brand-500" />
+                    <h3 className="text-[13px] font-bold">Connected account health</h3>
+                    {(healthLoading || refreshing) && <FlowLoader size={14} className="ms-1" />}
+                  </div>
+                  {health.length > 0 && (
+                    <button
+                      onClick={refreshLive}
+                      disabled={refreshing}
+                      className={cn("inline-flex items-center gap-1 text-[11.5px] font-semibold transition", refreshing ? "cursor-not-allowed text-muted-foreground" : "text-brand-500 hover:text-brand-600")}
+                    >
+                      <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
+                      Sync now
+                    </button>
+                  )}
+                </div>
+                {healthLoading ? (
+                  <div className="grid place-items-center py-8"><FlowLoader size={22} /></div>
+                ) : health.length ? (
+                  <div className="grid gap-2.5 xl:grid-cols-2">
+                    {health.map((a) => (
+                      <AccountHealthRow key={a.id} account={a} />
+                    ))}
+                  </div>
+                ) : (
+                  <Empty text="Connect a social account to track followers, reach, engagement and sync status here." />
+                )}
+              </section>
+
+              {/* platform + top posts */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="mb-3 text-[13px] font-bold">By platform</h3>
+                  {(an?.platformStats ?? []).length ? (
+                    <div className="space-y-2">
+                      {an!.platformStats!.map((p) => (
+                        <div key={p.platform} className="rounded-xl border border-border bg-muted/30 px-3 py-2">
+                          <div className="flex items-center justify-between text-[13px]">
+                            <span className="font-medium capitalize">{p.platform.replace(/_/g, " ")}</span>
+                            <span className="text-[11px] text-muted-foreground">{(p.posts ?? 0).toLocaleString()} posts</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{(p.views ?? 0).toLocaleString()}</span>
+                            <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{(p.likes ?? 0).toLocaleString()}</span>
+                            <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" />{(p.clicks ?? 0).toLocaleString()} clicks</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty text="Connect a social account to see per-platform performance." />
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="mb-3 text-[13px] font-bold">Top content</h3>
+                  {(an?.topPosts ?? []).length ? (
+                    <div className="space-y-2">
+                      {an!.topPosts!.slice(0, 5).map((p) => (
+                        <div key={p.id} className="rounded-xl border border-border bg-muted/30 px-3 py-2">
+                          <p className="truncate text-[13px]">{p.content || "Untitled post"}</p>
+                          <p className="mt-0.5 text-[11.5px] text-muted-foreground">{(p.views ?? 0).toLocaleString()} views · {(p.likes ?? 0).toLocaleString()} likes · {(p.comments ?? 0).toLocaleString()} comments</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty text="Your best-performing posts will show up here." />
+                  )}
+                </section>
+              </div>
+            </>
           ) : (
-            <Empty text="Create your first post or design — activity shows up here." />
+            /* recent activity */
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <h3 className="mb-3 text-[13px] font-bold">Recent activity</h3>
+              {(dash?.recentActivity ?? []).length ? (
+                <div className="space-y-2">
+                  {dash!.recentActivity!.slice(0, 6).map((a) => (
+                    <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2">
+                      {a.mediaUrl ? <Image src={a.mediaUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" unoptimized /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><FileText className="h-4 w-4" /></span>}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium">{a.title || a.content || "Activity"}</p>
+                        <p className="text-[11.5px] text-muted-foreground">{(a.views ?? 0).toLocaleString()} views · {(a.likes ?? 0).toLocaleString()} likes</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty text="Create your first post or design — activity shows up here." />
+              )}
+            </section>
           )}
-        </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Compact summary row for the sticky left rail; optional % delta indicator. */
+function StatRow({ icon: Icon, label, value, sub, delta }: { icon: ElementType; label: string; value: string; sub?: string; delta?: number }) {
+  const hasDelta = typeof delta === "number" && Number.isFinite(delta) && delta !== 0;
+  const up = (delta ?? 0) >= 0;
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+        {sub && <p className="truncate text-[10px] text-muted-foreground/80">{sub}</p>}
+      </div>
+      <div className="flex shrink-0 items-baseline gap-1.5">
+        <span className="text-[15px] font-extrabold tabular-nums">{value}</span>
+        {hasDelta && (
+          <span className={cn("inline-flex items-center gap-0.5 text-[10.5px] font-semibold", up ? "text-emerald-500" : "text-rose-500")}>
+            {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{Math.abs(delta!).toFixed(0)}%
+          </span>
+        )}
       </div>
     </div>
   );
@@ -449,9 +519,9 @@ export function FocusedAnalytics({ refreshKey, onOpenView }: { refreshKey?: numb
 
 function GrowTool({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/30 p-3 text-left transition hover:border-brand-500/60">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
-      <span className="text-[13px] font-semibold">{label}</span>
+    <button onClick={onClick} className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 py-2 text-left transition hover:border-brand-500/60">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Icon className="h-4 w-4" /></span>
+      <span className="truncate text-[12px] font-semibold">{label}</span>
     </button>
   );
 }

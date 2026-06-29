@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ElementType } from "react";
 import {
   Globe, Plus, X, Check, Star, Trash2, ShieldCheck, ShieldAlert, ExternalLink,
-  Link2, Server, BadgeCheck, Clock, AlertTriangle, RefreshCw, Search, ShoppingCart,
+  Link2, Server, BadgeCheck, Clock, RefreshCw, Search, ShoppingCart,
   ChevronDown, ChevronUp, CreditCard, Settings2, ListTree, Wand2, Store, Mail,
 } from "lucide-react";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -130,6 +130,9 @@ export function FocusedDomains({ refreshKey }: { refreshKey?: number }) {
   // per-domain expander
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // left-nav section: the owned-domains list, or the search/connect surface.
+  const [section, setSection] = useState<"mine" | "find">("mine");
+
   const load = useCallback(async () => {
     try {
       const j = await fetch("/api/domains").then((r) => r.json());
@@ -146,7 +149,7 @@ export function FocusedDomains({ refreshKey }: { refreshKey?: number }) {
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  const openAdd = () => { setValue(""); setError(""); setNotice(""); setAdding(true); };
+  const openAdd = () => { setValue(""); setError(""); setNotice(""); setAdding(true); setSection("find"); };
 
   const connect = async () => {
     const domain = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -297,240 +300,306 @@ export function FocusedDomains({ refreshKey }: { refreshKey?: number }) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your domains…" /></div>;
   }
 
+  const ownedCount = summary.total ?? domains.length;
+  const verifiedCount = summary.verified ?? domains.filter(isVerified).length;
+  const sslCount = summary.sslReady ?? domains.filter((d) => sslReady(d.sslStatus)).length;
+  const needsAction = summary.needsAction ?? 0;
+
+  const nav: { id: "mine" | "find"; label: string; icon: ElementType; count?: number }[] = [
+    { id: "mine", label: "My domains", icon: Globe, count: ownedCount },
+    { id: "find", label: "Find a domain", icon: Search },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* header */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Globe className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-bold">Domains</h2>
-              <p className="truncate text-[12px] text-muted-foreground">
-                {summary.primary ? <>Primary: <span className="font-medium text-foreground">{summary.primary}</span></> : "Register a new domain, or connect one you already own."}
-              </p>
-            </div>
-            <button onClick={openAdd} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60">
-              <Plus className="h-3.5 w-3.5" /> Connect domain
-            </button>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={Globe} label="Domains" value={String(summary.total ?? domains.length)} />
-            <Kpi icon={BadgeCheck} label="Verified" value={String(summary.verified ?? domains.filter(isVerified).length)} />
-            <Kpi icon={ShieldCheck} label="SSL ready" value={String(summary.sslReady ?? domains.filter((d) => sslReady(d.sslStatus)).length)} />
-            <Kpi icon={AlertTriangle} label="Need action" value={String(summary.needsAction ?? 0)} tone={(summary.needsAction ?? 0) > 0 ? "text-amber-500" : undefined} />
-          </div>
-        </section>
-
-        {/* search & buy */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Wand2 className="h-4 w-4" /></span>
-            <div className="min-w-0">
-              <h3 className="text-[13px] font-bold">Find a new domain</h3>
-              <p className="text-[11.5px] text-muted-foreground">Search a name and register it instantly.</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-end gap-2.5">
-            <label className="block min-w-[200px] flex-1">
-              <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Name to register</span>
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-                placeholder="mybrand"
-                className={FIELD}
-              />
-            </label>
-            <button onClick={runSearch} disabled={searching} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-              {searching ? <FlowLoader size={15} tone="white" /> : <Search className="h-3.5 w-3.5" />} Search
-            </button>
-          </div>
-          {searchError && <p className="mt-2 text-[12px] text-rose-500">{searchError}</p>}
-
-          {results && (
-            <div className="mt-3 space-y-2">
-              {results.length === 0 && (
-                <p className="rounded-xl border border-dashed border-border px-3.5 py-4 text-center text-[12px] text-muted-foreground">No matches — try another name.</p>
-              )}
-              {results.map((res) => {
-                const full = `${res.domain}.${res.tld}`;
-                const isBuying = buying === full;
-                return (
-                  <div key={full} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-muted/30 p-3">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><Globe className="h-4 w-4" /></span>
-                    <div className="min-w-0">
-                      <span className="truncate text-[13px] font-semibold">{full}</span>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        {res.available ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-500"><Check className="h-3 w-3" /> Available</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"><X className="h-3 w-3" /> Taken</span>
-                        )}
-                        {res.available && (
-                          <span className="text-[11px] font-semibold text-foreground">
-                            {res.isFreeEligible ? "Free" : `${priceLabel(res.retailCents)}/yr`}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {res.available && (
-                      <button
-                        onClick={() => buy(res)}
-                        disabled={!!buying || !!registering}
-                        className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60"
-                      >
-                        {isBuying ? <FlowLoader size={13} tone="white" /> : res.isFreeEligible ? <Star className="h-3.5 w-3.5" /> : <ShoppingCart className="h-3.5 w-3.5" />}
-                        {res.isFreeEligible ? "Claim free" : "Buy"}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* inline Stripe payment panel for a paid purchase */}
-          {payment && (
-            <div className="mt-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5 sm:p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-brand-500" />
-                <p className="text-[12.5px] font-semibold">Pay &amp; register <span className="text-foreground">{payment.domainName}</span></p>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + section nav + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Globe className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">Domains</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">
+                  {summary.primary ? <>Primary: <span className="font-medium text-foreground">{summary.primary}</span></> : "Register or connect a domain."}
+                </p>
               </div>
-              <Elements stripe={stripePromise} options={{ clientSecret: payment.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#6366f1", borderRadius: "8px" } } }}>
-                <PaymentPanel
-                  domainName={payment.domainName}
-                  onSuccess={() => onPaid(payment.domainName)}
-                  onCancel={() => setPayment(null)}
-                />
-              </Elements>
             </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <MiniStat label="Domains" value={String(ownedCount)} />
+              <MiniStat label="Verified" value={String(verifiedCount)} />
+              <MiniStat label="SSL ready" value={String(sslCount)} />
+              <MiniStat label="Need action" value={String(needsAction)} tone={needsAction > 0 ? "text-amber-500" : undefined} />
+            </div>
+          </div>
+
+          {/* section nav */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = section === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => { setSection(n.id); if (n.id !== "find") setAdding(false); }}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {typeof n.count === "number" && n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* primary action */}
+          <button
+            onClick={() => setSection("find")}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Search className="h-4 w-4" /> Find a domain
+          </button>
+        </aside>
+
+        {/* RIGHT: the selected section, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {notice && (
+            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2.5 text-[12.5px] text-emerald-600 dark:text-emerald-400">{notice}</p>
+          )}
+          {!adding && error && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2.5 text-[12.5px] text-rose-500">{error}</p>
           )}
 
-          {registering && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3.5 py-2.5 text-[12.5px] text-brand-500">
-              <FlowLoader size={15} /> Registering {registering}…
-            </p>
-          )}
-        </section>
-
-        {/* inline connect form — a click opens this, not a chat prompt */}
-        {adding && (
-          <section className="rounded-2xl border border-brand-500/30 bg-brand-500/5 p-4 sm:p-5">
-            <p className="mb-2.5 text-[12.5px] font-semibold">Connect a domain you own</p>
-            <div className="flex flex-wrap items-end gap-2.5">
-              <label className="block min-w-[200px] flex-1">
-                <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Domain</span>
-                <input
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") connect(); }}
-                  placeholder="example.com"
-                  autoFocus
-                  className={FIELD}
-                />
-              </label>
-              <button onClick={connect} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                {saving ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} Connect
-              </button>
-              <button onClick={() => { setAdding(false); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
-            </div>
-            <p className="mt-2 text-[11.5px] text-muted-foreground">After connecting, you&apos;ll add a FlowSmartly TXT record at your DNS provider, then verify ownership here.</p>
-            {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
-          </section>
-        )}
-
-        {notice && (
-          <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2.5 text-[12.5px] text-emerald-600 dark:text-emerald-400">{notice}</p>
-        )}
-        {!adding && error && (
-          <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2.5 text-[12.5px] text-rose-500">{error}</p>
-        )}
-
-        {/* list */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h3 className="mb-3 text-[13px] font-bold">Your domains</h3>
-          {domains.length ? (
-            <div className="space-y-2.5">
-              {domains.map((d) => {
-                const verified = isVerified(d);
-                const ssl = sslReady(d.sslStatus);
-                const exp = expiryLabel(d.daysUntilExpiry);
-                const open = expanded === d.id;
-                return (
-                  <div key={d.id} className="rounded-xl border border-border bg-muted/30">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3.5">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><Globe className="h-4.5 w-4.5" /></span>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="truncate text-[13.5px] font-semibold">{d.domainName}</span>
-                          {d.isPrimary && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500"><Star className="h-3 w-3" /> Primary</span>
-                          )}
-                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", d.isConnected ? "bg-violet-500/10 text-violet-500" : "bg-muted text-muted-foreground")}>
-                            {d.isConnected ? <Link2 className="h-3 w-3" /> : <Server className="h-3 w-3" />}{d.isConnected ? "Connected" : "Registered"}
-                          </span>
-                          {d.isFree && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-500">Free</span>
-                          )}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                          <StatusPill ok={verified} okLabel="Verified" badLabel={d.verificationStatus === "failed" ? "Verify failed" : "Unverified"} okIcon={BadgeCheck} badIcon={ShieldAlert} />
-                          <StatusPill ok={ssl} okLabel="SSL active" badLabel="SSL pending" okIcon={ShieldCheck} badIcon={Clock} />
-                          {exp && (
-                            <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", d.daysUntilExpiry != null && d.daysUntilExpiry <= 0 ? "text-rose-500" : "text-amber-500")}>
-                              <Clock className="h-3 w-3" /> {exp}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* primary actions + expander */}
-                      <div className="ms-auto flex flex-wrap items-center gap-1.5">
-                        <a href={`https://${d.domainName}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">
-                          <ExternalLink className="h-3.5 w-3.5" /> Visit
-                        </a>
-                        <button
-                          onClick={() => setExpanded(open ? null : d.id)}
-                          aria-expanded={open}
-                          className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60", open ? "border-brand-500/60 text-foreground" : "border-border")}
-                        >
-                          <Settings2 className="h-3.5 w-3.5" /> Manage {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-
-                      {/* next-action hint from the API */}
-                      {d.nextAction && d.nextAction.priority <= 2 && d.nextAction.type !== "healthy" && (
-                        <p className="mt-1 flex w-full items-start gap-1.5 rounded-lg bg-background px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                          <RefreshCw className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" /> {d.nextAction.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {open && (
-                      <DomainManager
-                        domain={d}
-                        verified={verified}
-                        busy={busy}
-                        onAct={act}
-                        onChanged={load}
-                        notify={(m) => { setNotice(m); setError(""); }}
-                        fail={(m) => { setError(m); setNotice(""); }}
-                      />
-                    )}
+          {section === "find" ? (
+            <>
+              {/* search & buy */}
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Wand2 className="h-4 w-4" /></span>
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-bold">Find a new domain</h3>
+                    <p className="text-[11.5px] text-muted-foreground">Search a name and register it instantly.</p>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-end gap-2.5">
+                  <label className="block min-w-[200px] flex-1">
+                    <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Name to register</span>
+                    <input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
+                      placeholder="mybrand"
+                      className={FIELD}
+                    />
+                  </label>
+                  <button onClick={runSearch} disabled={searching} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+                    {searching ? <FlowLoader size={15} tone="white" /> : <Search className="h-3.5 w-3.5" />} Search
+                  </button>
+                </div>
+                {searchError && <p className="mt-2 text-[12px] text-rose-500">{searchError}</p>}
+
+                {results && (
+                  <div className="mt-3 space-y-2">
+                    {results.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-border px-3.5 py-4 text-center text-[12px] text-muted-foreground">No matches — try another name.</p>
+                    )}
+                    {results.map((res) => {
+                      const full = `${res.domain}.${res.tld}`;
+                      const isBuying = buying === full;
+                      return (
+                        <div key={full} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><Globe className="h-4 w-4" /></span>
+                          <div className="min-w-0">
+                            <span className="truncate text-[13px] font-semibold">{full}</span>
+                            <div className="mt-0.5 flex items-center gap-2">
+                              {res.available ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-500"><Check className="h-3 w-3" /> Available</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"><X className="h-3 w-3" /> Taken</span>
+                              )}
+                              {res.available && (
+                                <span className="text-[11px] font-semibold text-foreground">
+                                  {res.isFreeEligible ? "Free" : `${priceLabel(res.retailCents)}/yr`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {res.available && (
+                            <button
+                              onClick={() => buy(res)}
+                              disabled={!!buying || !!registering}
+                              className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60"
+                            >
+                              {isBuying ? <FlowLoader size={13} tone="white" /> : res.isFreeEligible ? <Star className="h-3.5 w-3.5" /> : <ShoppingCart className="h-3.5 w-3.5" />}
+                              {res.isFreeEligible ? "Claim free" : "Buy"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* inline Stripe payment panel for a paid purchase */}
+                {payment && (
+                  <div className="mt-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5 sm:p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-brand-500" />
+                      <p className="text-[12.5px] font-semibold">Pay &amp; register <span className="text-foreground">{payment.domainName}</span></p>
+                    </div>
+                    <Elements stripe={stripePromise} options={{ clientSecret: payment.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#6366f1", borderRadius: "8px" } } }}>
+                      <PaymentPanel
+                        domainName={payment.domainName}
+                        onSuccess={() => onPaid(payment.domainName)}
+                        onCancel={() => setPayment(null)}
+                      />
+                    </Elements>
+                  </div>
+                )}
+
+                {registering && (
+                  <p className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3.5 py-2.5 text-[12.5px] text-brand-500">
+                    <FlowLoader size={15} /> Registering {registering}…
+                  </p>
+                )}
+              </section>
+
+              {/* connect a domain you already own */}
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-500/10 text-violet-500"><Link2 className="h-4 w-4" /></span>
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-bold">Connect a domain you own</h3>
+                    <p className="text-[11.5px] text-muted-foreground">Bring an existing domain and verify ownership.</p>
+                  </div>
+                  {!adding && (
+                    <button onClick={openAdd} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                      <Plus className="h-3.5 w-3.5" /> Connect domain
+                    </button>
+                  )}
+                </div>
+
+                {adding && (
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-end gap-2.5">
+                      <label className="block min-w-[200px] flex-1">
+                        <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Domain</span>
+                        <input
+                          value={value}
+                          onChange={(e) => setValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") connect(); }}
+                          placeholder="example.com"
+                          autoFocus
+                          className={FIELD}
+                        />
+                      </label>
+                      <button onClick={connect} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+                        {saving ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} Connect
+                      </button>
+                      <button onClick={() => { setAdding(false); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                    </div>
+                    <p className="mt-2 text-[11.5px] text-muted-foreground">After connecting, you&apos;ll add a FlowSmartly TXT record at your DNS provider, then verify ownership here.</p>
+                    {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+                  </div>
+                )}
+              </section>
+            </>
           ) : (
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/15 to-violet-500/10 text-brand-500"><Globe className="h-6 w-6" /></span>
-              <p className="mt-3 text-[13px] font-medium">No custom domains yet</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">Search above to register a brand-new domain, or connect one you already own.</p>
-              <button onClick={openAdd} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Plus className="h-4 w-4" /> Connect a domain</button>
-            </div>
+            /* My domains list */
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-[13px] font-bold">Your domains</h3>
+                {domains.length > 0 && (
+                  <button onClick={openAdd} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                    <Plus className="h-3.5 w-3.5" /> Connect domain
+                  </button>
+                )}
+              </div>
+              {domains.length ? (
+                <div className="space-y-2.5">
+                  {domains.map((d) => {
+                    const verified = isVerified(d);
+                    const ssl = sslReady(d.sslStatus);
+                    const exp = expiryLabel(d.daysUntilExpiry);
+                    const open = expanded === d.id;
+                    return (
+                      <div key={d.id} className="rounded-xl border border-border bg-muted/30">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-background text-brand-500"><Globe className="h-4.5 w-4.5" /></span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="truncate text-[13.5px] font-semibold">{d.domainName}</span>
+                              {d.isPrimary && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500"><Star className="h-3 w-3" /> Primary</span>
+                              )}
+                              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", d.isConnected ? "bg-violet-500/10 text-violet-500" : "bg-muted text-muted-foreground")}>
+                                {d.isConnected ? <Link2 className="h-3 w-3" /> : <Server className="h-3 w-3" />}{d.isConnected ? "Connected" : "Registered"}
+                              </span>
+                              {d.isFree && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-500">Free</span>
+                              )}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                              <StatusPill ok={verified} okLabel="Verified" badLabel={d.verificationStatus === "failed" ? "Verify failed" : "Unverified"} okIcon={BadgeCheck} badIcon={ShieldAlert} />
+                              <StatusPill ok={ssl} okLabel="SSL active" badLabel="SSL pending" okIcon={ShieldCheck} badIcon={Clock} />
+                              {exp && (
+                                <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", d.daysUntilExpiry != null && d.daysUntilExpiry <= 0 ? "text-rose-500" : "text-amber-500")}>
+                                  <Clock className="h-3 w-3" /> {exp}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* primary actions + expander */}
+                          <div className="ms-auto flex flex-wrap items-center gap-1.5">
+                            <a href={`https://${d.domainName}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">
+                              <ExternalLink className="h-3.5 w-3.5" /> Visit
+                            </a>
+                            <button
+                              onClick={() => setExpanded(open ? null : d.id)}
+                              aria-expanded={open}
+                              className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60", open ? "border-brand-500/60 text-foreground" : "border-border")}
+                            >
+                              <Settings2 className="h-3.5 w-3.5" /> Manage {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+
+                          {/* next-action hint from the API */}
+                          {d.nextAction && d.nextAction.priority <= 2 && d.nextAction.type !== "healthy" && (
+                            <p className="mt-1 flex w-full items-start gap-1.5 rounded-lg bg-background px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+                              <RefreshCw className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" /> {d.nextAction.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {open && (
+                          <DomainManager
+                            domain={d}
+                            verified={verified}
+                            busy={busy}
+                            onAct={act}
+                            onChanged={load}
+                            notify={(m) => { setNotice(m); setError(""); }}
+                            fail={(m) => { setError(m); setNotice(""); }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                  <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/15 to-violet-500/10 text-brand-500"><Globe className="h-6 w-6" /></span>
+                  <p className="mt-3 text-[13px] font-medium">No custom domains yet</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">Register a brand-new domain, or connect one you already own.</p>
+                  <button onClick={() => setSection("find")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Search className="h-4 w-4" /> Find a domain</button>
+                </div>
+              )}
+            </section>
           )}
-        </section>
+        </div>
       </div>
     </div>
   );
@@ -903,11 +972,11 @@ function Toggle({
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone }: { icon: ElementType; label: string; value: string; tone?: string }) {
+function MiniStat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className={cn("flex items-center gap-1.5 text-muted-foreground", tone)}><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className={cn("mt-1 text-[18px] font-extrabold leading-none", tone)}>{value}</p>
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className={cn("text-[16px] font-extrabold leading-none", tone)}>{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
     </div>
   );
 }

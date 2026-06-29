@@ -553,108 +553,134 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-4">
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-3">
-          <Kpi icon={LayoutGrid} label="Total assets" value={counts.total.toLocaleString()} />
-          <Kpi icon={ImageIcon} label="Images" value={counts.images.toLocaleString()} />
-          <Kpi icon={Film} label="Videos" value={counts.videos.toLocaleString()} />
-        </div>
-
-        {/* Library */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-[13px] font-bold">Media library</h3>
-            <div className="ms-auto flex items-center gap-1.5">
-              <button
-                onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); setBulkConfirmDelete(false); }}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12px] font-semibold transition",
-                  selectMode ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CheckSquare className="h-3.5 w-3.5" /> {selectMode ? "Done" : "Select"}
-              </button>
-              <button onClick={() => setUploadOpen((v) => !v)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
-                <ImagePlay className="h-3.5 w-3.5" /> Upload
-              </button>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + type nav + actions + folder navigation */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* summary card */}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><LayoutGrid className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Media library</span></div>
+            <div className="grid grid-cols-3 gap-2">
+              <SummaryStat label="Total" value={counts.total.toLocaleString()} />
+              <SummaryStat label="Images" value={counts.images.toLocaleString()} />
+              <SummaryStat label="Videos" value={counts.videos.toLocaleString()} />
             </div>
+          </div>
+
+          {/* primary actions — Upload (real input) + Select (multi-select) */}
+          <div className="space-y-2">
+            <button onClick={() => setUploadOpen((v) => !v)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+              <ImagePlay className="h-4 w-4" /> Upload
+            </button>
+            <button
+              onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); setBulkConfirmDelete(false); }}
+              className={cn(
+                "inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border px-3.5 py-2 text-[12.5px] font-semibold transition",
+                selectMode ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"
+              )}
+            >
+              <CheckSquare className="h-3.5 w-3.5" /> {selectMode ? "Done selecting" : "Select files"}
+            </button>
           </div>
 
           {/* search */}
-          <div className="mb-3 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search files by name…"
-                className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-9 pr-9 text-[13px] outline-none transition focus:border-brand-500/60"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Clear search">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {fetching && <FlowLoader size={18} />}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search files…"
+              className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-9 pr-9 text-[13px] outline-none transition focus:border-brand-500/60"
+            />
+            {search ? (
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Clear search">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : fetching ? (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2"><FlowLoader size={16} /></span>
+            ) : null}
           </div>
 
-          {/* breadcrumb + folder controls (hidden in a global view — search/tag span all) */}
+          {/* type filter nav — vertical, one row per type */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {activeFilters.map((f) => {
+              const n = f.key === "all" ? counts.total : (counts.by[f.key] ?? 0);
+              const active = filter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition-colors",
+                    active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  <span className="flex-1 text-start">{f.label}</span>
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* folder navigation — breadcrumb + new-folder (hidden in a global view) */}
           {!globalView && (
-            <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[12px]">
-              <button
-                onClick={() => setScope("root")}
-                className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-semibold transition", scope === "root" ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
-              >
-                <Home className="h-3.5 w-3.5" /> Library
-              </button>
-              {breadcrumb.map((f) => (
-                <span key={f.id} className="inline-flex items-center gap-1.5">
-                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  <button
-                    onClick={() => setScope(f.id)}
-                    className={cn("rounded-md px-1.5 py-1 font-semibold transition", scope === f.id ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
-                  >
-                    {f.name}
-                  </button>
-                </span>
-              ))}
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+                <button
+                  onClick={() => setScope("root")}
+                  className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-semibold transition", scope === "root" ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                >
+                  <Home className="h-3.5 w-3.5" /> Library
+                </button>
+                {breadcrumb.map((f) => (
+                  <span key={f.id} className="inline-flex min-w-0 items-center gap-1">
+                    <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <button
+                      onClick={() => setScope(f.id)}
+                      className={cn("min-w-0 truncate rounded-md px-1.5 py-1 font-semibold transition", scope === f.id ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    >
+                      {f.name}
+                    </button>
+                  </span>
+                ))}
+              </div>
               <button
                 onClick={() => { setNewFolderOpen((v) => !v); setNewFolderName(""); }}
-                className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"
+                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"
               >
                 <FolderPlus className="h-3.5 w-3.5" /> New folder
               </button>
+              {/* new folder inline form */}
+              {newFolderOpen && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-xl border border-brand-500/30 bg-brand-500/5 p-2">
+                  <FolderPlus className="h-4 w-4 shrink-0 text-brand-500" />
+                  <input
+                    autoFocus
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setNewFolderOpen(false); }}
+                    placeholder={currentFolder ? `In ${currentFolder.name}` : "Folder name"}
+                    className="min-w-0 flex-1 rounded-[10px] border border-border bg-background px-2 py-1.5 text-[12.5px] outline-none transition focus:border-brand-500/60"
+                  />
+                  <button
+                    onClick={createFolder}
+                    disabled={folderBusy || !newFolderName.trim()}
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 text-white shadow-sm disabled:opacity-50"
+                    aria-label="Create folder"
+                  >
+                    {folderBusy ? <FlowLoader size={14} tone="white" /> : <Check className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              )}
             </div>
           )}
+        </aside>
 
-          {/* new folder inline form */}
-          {!globalView && newFolderOpen && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 p-2.5">
-              <FolderPlus className="h-4 w-4 shrink-0 text-brand-500" />
-              <input
-                autoFocus
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setNewFolderOpen(false); }}
-                placeholder={currentFolder ? `New folder in ${currentFolder.name}` : "New folder name"}
-                className="flex-1 rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[13px] outline-none transition focus:border-brand-500/60"
-              />
-              <button
-                onClick={createFolder}
-                disabled={folderBusy || !newFolderName.trim()}
-                className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"
-              >
-                {folderBusy ? <FlowLoader size={14} tone="white" /> : <Check className="h-3.5 w-3.5" />} Create
-              </button>
-              <button onClick={() => setNewFolderOpen(false)} className="rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
-            </div>
-          )}
-
+        {/* RIGHT: folders + gallery grid — full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           {/* folder rail — subfolders of the current scope */}
           {!globalView && childFolders.length > 0 && (
-            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {childFolders.map((f) => (
                 <div key={f.id} className="group/folder relative rounded-xl border border-border bg-muted/30 transition hover:border-brand-500/60">
                   {renamingId === f.id ? (
@@ -703,26 +729,6 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             </div>
           )}
 
-          {/* filter pills — type filters apply to the loaded view */}
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            {activeFilters.map((f) => {
-              const n = f.key === "all" ? counts.total : (counts.by[f.key] ?? 0);
-              return (
-                <button
-                  key={f.key}
-                  onClick={() => setFilter(f.key)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition",
-                    filter === f.key ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {f.label}
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold", filter === f.key ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n}</span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* active tag filter banner (set from a file's tag chip) */}
           {tagFilter && (
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2">
@@ -765,7 +771,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               <button onClick={() => { setLoading(true); Promise.all([load(), loadFolders()]).finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
             </div>
           ) : visible.length ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {visible.map((m) => {
                 const thumb = thumbOf(m);
                 const isVideo = m.type === "video";
@@ -873,7 +879,8 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               </div>
             </div>
           )}
-        </section>
+          </section>
+        </div>
       </div>
 
       {/* floating bulk action bar — appears when files are selected */}
@@ -1155,11 +1162,11 @@ function FolderPicker({
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
-      <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[16px] font-extrabold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
     </div>
   );
 }
