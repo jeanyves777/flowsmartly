@@ -267,6 +267,9 @@ export function AgentHome() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
+  // Rail category to restore when a browse panel is closed WITHOUT navigating —
+  // so opening a menu over a focused view and closing it returns you to that view.
+  const panelReturnWs = useRef("home");
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -486,19 +489,26 @@ export function AgentHome() {
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
-    // clears the conversation, exits the focused view, closes panels.
+    // clears the conversation, exits the focused view, closes panels. This LEAVES
+    // the current view, so it's guarded for unsaved changes.
     if (key === "home") {
-      newConversation();
-      setFocused(null);
-      setActiveWs("home");
-      setPanelKey(null);
-      setHistoryOpen(false);
-      setDrawerOpen(false);
+      guardNav(() => {
+        newConversation();
+        setFocused(null);
+        setActiveWs("home");
+        setPanelKey(null);
+        setHistoryOpen(false);
+        setDrawerOpen(false);
+      });
       return;
     }
     // Leads opens its full surface directly (search + saved lists), not a panel.
-    if (key === "leads") { openFocused("leads"); return; }
-    setFocused(null);
+    if (key === "leads") { guardNav(() => openFocused("leads")); return; }
+    // Browsing a category just opens its menu panel on the RIGHT — it does NOT
+    // leave the current focused view (the view stays mounted behind the panel).
+    // Only picking an item (onOpenView) or Home/Leads actually navigates away, so
+    // there's no guard here. Remember where to return if the panel is closed.
+    if (!panelKey) panelReturnWs.current = focused ? activeWs : "home";
     setActiveWs(key);
     setPanelKey(key);
     setDrawerOpen(false);
@@ -658,7 +668,7 @@ export function AgentHome() {
             const active = activeWs === w.key;
             return (
               <div key={w.key} className="contents">
-                <button onClick={() => guardNav(() => openWorkspace(w.key))} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <button onClick={() => openWorkspace(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                   {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
@@ -854,21 +864,24 @@ export function AgentHome() {
             <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
 
-          {/* workspace panel — full-screen on mobile, side panel on desktop */}
+            </>
+          )}
+
+          {/* workspace panel — slides over the CURRENT view (home or any focused
+              surface). Browsing it never resets the open view; closing returns to
+              it. Only picking an item navigates (guarded for unsaved changes). */}
           <aside className={cn("fixed inset-0 z-30 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-auto md:right-0 md:w-[440px] md:border-s md:border-border md:shadow-2xl", panelKey ? "translate-x-0" : "translate-x-full")}>
             {panelKey && (
               <WorkspacePanel
                 panelKey={panelKey}
                 label={s.ws[panelKey] ?? panelKey}
                 hasStore={hasStore}
-                onClose={() => { setPanelKey(null); setActiveWs("home"); }}
-                onAsk={(q) => { setPanelKey(null); setActiveWs("home"); send(q, false, undefined, undefined, { hidden: true }); }}
-                onOpenView={openView}
+                onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
+                onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true }); }}
+                onOpenView={(k) => guardNav(() => openView(k))}
               />
             )}
           </aside>
-            </>
-          )}
 
           {/* history panel — available in home and focused view */}
           <aside className={cn("fixed inset-0 z-30 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-auto md:right-0 md:w-[360px] md:border-s md:border-border md:shadow-2xl", historyOpen ? "translate-x-0" : "translate-x-full")}>
@@ -907,7 +920,7 @@ export function AgentHome() {
               {WORKSPACES.map((w) => {
                 const Icon = w.icon;
                 return (
-                  <button key={w.key} onClick={() => guardNav(() => openWorkspace(w.key))} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[w.key] ?? w.label}
                   </button>
                 );
