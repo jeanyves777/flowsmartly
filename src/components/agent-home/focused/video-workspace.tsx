@@ -31,7 +31,6 @@ import { cn } from "@/lib/utils/cn";
 
 type Style = "cinematic" | "3d" | "narrated";
 type Length = 30 | 60 | 90;
-type Filter = "all" | "ready" | "rendering";
 
 const STYLES: { v: Style; label: string; hint: string }[] = [
   { v: "cinematic", label: "Cinematic", hint: "live-action" },
@@ -138,7 +137,6 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [error, setError] = useState("");
   const [play, setPlay] = useState<{ url: string; title?: string; poster?: string | null } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("all");
 
   // Brief node / bottom-sheet state.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -214,114 +212,75 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     return { total: campaigns.length, ready, rendering };
   }, [campaigns]);
 
-  // Section nav doubles as a status filter over the render grid.
-  const sections: { id: Filter; label: string; icon: ElementType; count: number }[] = [
-    { id: "all", label: "All videos", icon: Film, count: stats.total },
-    { id: "ready", label: "Ready", icon: CheckCircle2, count: stats.ready },
-    { id: "rendering", label: "Rendering", icon: Loader2, count: stats.rendering },
-  ];
-  const visible = useMemo(() => {
-    if (filter === "ready") return campaigns.filter((c) => (c.status || "").toUpperCase() === "COMPLETED");
-    if (filter === "rendering") return campaigns.filter((c) => isRendering(c.status));
-    return campaigns;
-  }, [campaigns, filter]);
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
-          {/* LEFT: sticky summary + section nav + new video + brief */}
-          <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
-            <button
-              onClick={openSheet}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
-            >
-              <Sparkles className="h-4 w-4" /> New video
-            </button>
+      {/* toolbar */}
+      <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Clapperboard className="h-4 w-4 text-brand-500" /> Video playground</span>
+        <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
+          <Dot /> {stats.total} renders <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
+        </span>
+        <button onClick={openSheet} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+          <Sparkles className="h-3.5 w-3.5" /> New video
+        </button>
+      </div>
 
-            <div className="rounded-2xl border border-border bg-card p-3">
-              <div className="flex items-center gap-2 px-1 pb-2"><Clapperboard className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Video studio</span></div>
-              <div className="grid grid-cols-3 gap-2">
-                <MiniStat label="Renders" value={stats.total.toLocaleString()} />
-                <MiniStat label="Ready" value={stats.ready.toLocaleString()} />
-                <MiniStat label="Rendering" value={stats.rendering.toLocaleString()} />
-              </div>
+      {/* dotted canvas */}
+      <div
+        className="relative min-h-0 flex-1 overflow-auto"
+        style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+      >
+        <div className="min-h-full p-5 sm:p-8">
+          {/* Brief node — the entry point */}
+          <button onClick={openSheet} className="group block w-full max-w-[320px] rounded-2xl border border-brand-500/40 bg-card/90 p-0 text-left shadow-lg shadow-brand-500/5 transition hover:border-brand-500/70">
+            <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2.5">
+              <TypeIcon className="h-4 w-4 text-brand-500" />
+              <b className="text-[13px]">Campaign brief</b>
+              <span className="ms-auto rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand-500">brief</span>
+              <span className="grid h-4 w-4 place-items-center rounded-full border border-brand-500/50 text-brand-500"><span className="h-1.5 w-1.5 rounded-full bg-brand-500" /></span>
             </div>
+            <div className="px-3.5 py-3">
+              <p className="line-clamp-2 text-[12.5px] text-muted-foreground">{brief.trim() ? brief.trim() : "Describe the ad + pick a length"}</p>
+              <span className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500"><ChevronUp className="h-3.5 w-3.5 rotate-180 transition group-hover:translate-y-0.5" /> Open brief</span>
+            </div>
+          </button>
 
-            {/* section nav (status filter) */}
-            <nav className="rounded-2xl border border-border bg-card p-1.5">
-              {sections.map((s) => {
-                const active = filter === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setFilter(s.id)}
-                    className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
-                  >
-                    <s.icon className={cn("h-4 w-4 shrink-0", s.id === "rendering" && stats.rendering > 0 && "animate-spin")} />
-                    <span className="flex-1 text-start">{s.label}</span>
-                    {s.count > 0 && (
-                      <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{s.count}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
+          {submitted && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2 text-[12px] text-foreground">
+              <FlowLoader size={15} /> The agent is on it — confirm the plan in the chat on the left and your render will appear here.
+            </div>
+          )}
 
-            {/* brief preview / open */}
-            <button onClick={openSheet} className="group block w-full rounded-2xl border border-brand-500/40 bg-card p-0 text-left shadow-sm transition hover:border-brand-500/70">
-              <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2.5">
-                <TypeIcon className="h-4 w-4 text-brand-500" />
-                <b className="text-[12.5px]">Campaign brief</b>
-                <span className="ms-auto rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand-500">brief</span>
-              </div>
-              <div className="px-3.5 py-3">
-                <p className="line-clamp-2 text-[12px] text-muted-foreground">{brief.trim() ? brief.trim() : "Describe the ad + pick a length"}</p>
-                <span className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500"><ChevronUp className="h-3.5 w-3.5 rotate-180 transition group-hover:translate-y-0.5" /> Open brief</span>
-              </div>
-            </button>
+          {/* connector spine */}
+          <div className="ms-6 h-6 w-px bg-gradient-to-b from-brand-500/50 to-transparent" />
 
-            {submitted && (
-              <div className="flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2 text-[12px] text-foreground">
-                <FlowLoader size={15} /> The agent is on it — confirm the plan in the chat and your render will appear here.
-              </div>
-            )}
-          </aside>
-
-          {/* RIGHT: the render grid, full width */}
-          <div className="min-w-0 flex-1 space-y-4">
-            {loading ? (
-              <div className="grid place-items-center py-16"><FlowLoader size={32} withMark label="Loading your videos…" /></div>
-            ) : error && campaigns.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card/70 px-4 py-12 text-center">
-                <p className="text-[13px] font-medium">{error}</p>
-                <button onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
-              </div>
-            ) : visible.length ? (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {visible.map((c) => (
-                  <RenderNode
-                    key={c.id}
-                    c={c}
-                    onPlay={() => isPlayable(c.videoUrl) && setPlay({ url: c.videoUrl, title: c.title, poster: c.thumbnailUrl })}
-                    onOpen={() => setDetailId(c.id)}
-                  />
-                ))}
-              </div>
-            ) : campaigns.length ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card/70 px-4 py-12 text-center">
-                <p className="text-[13px] font-medium">No {filter === "ready" ? "ready" : "rendering"} videos</p>
-                <p className="mt-1 text-[12px] text-muted-foreground">Switch to “All videos” to see everything in your studio.</p>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-card/70 px-4 py-12 text-center">
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-6 w-6" /></span>
-                <p className="mt-3 text-[13.5px] font-semibold">No videos yet</p>
-                <p className="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-muted-foreground">Open the brief, describe your ad and pick a length, then build it — the agent renders the movie and it lands here.</p>
-                <button onClick={openSheet} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
-              </div>
-            )}
-          </div>
+          {/* render nodes */}
+          {loading ? (
+            <div className="grid place-items-center py-16"><FlowLoader size={32} withMark label="Loading your playground…" /></div>
+          ) : error && campaigns.length === 0 ? (
+            <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 px-4 py-8 text-center">
+              <p className="text-[13px] font-medium">{error}</p>
+              <button onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
+            </div>
+          ) : campaigns.length ? (
+            <div className="flex flex-wrap gap-4">
+              {campaigns.map((c) => (
+                <RenderNode
+                  key={c.id}
+                  c={c}
+                  onPlay={() => isPlayable(c.videoUrl) && setPlay({ url: c.videoUrl, title: c.title, poster: c.thumbnailUrl })}
+                  onOpen={() => setDetailId(c.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 p-5">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-5 w-5" /></span>
+              <p className="mt-2.5 text-[13.5px] font-semibold">No renders on the canvas yet</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Open the brief, describe your ad and pick a length, then build it — the agent renders the movie and it lands here.</p>
+              <button onClick={openSheet} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -436,10 +395,10 @@ function RenderNode({ c, onPlay, onOpen }: { c: Campaign; onPlay: () => void; on
   const ready = (c.status || "").toUpperCase() === "COMPLETED" && isPlayable(c.videoUrl);
   const pct = Math.max(0, Math.min(100, Math.round(c.progress ?? 0)));
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:border-brand-500/50">
+    <div className="w-[230px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:border-brand-500/50">
       <div className="relative aspect-[9/16] w-full bg-background">
         {c.thumbnailUrl ? (
-          <Image src={c.thumbnailUrl} alt="" fill sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw" className="object-cover" unoptimized />
+          <Image src={c.thumbnailUrl} alt="" fill sizes="230px" className="object-cover" unoptimized />
         ) : (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><Clapperboard className="h-7 w-7" /></div>
         )}
@@ -1014,11 +973,4 @@ function Cost({ label, v }: { label: string; v: number }) {
   return <span><span className="font-medium text-foreground">{v}</span> {label}</span>;
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
-      <p className="text-[16px] font-extrabold leading-none">{value}</p>
-      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
-    </div>
-  );
-}
+function Dot() { return <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />; }
