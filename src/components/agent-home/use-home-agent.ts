@@ -165,8 +165,20 @@ export function useHomeAgent() {
           },
           onTaskCompleted: (task) => {
             const existing = tasksById.get(task.id);
-            tasksById.set(task.id, { ...(existing ?? task), ...task });
+            const merged = { ...(existing ?? task), ...task };
+            tasksById.set(task.id, merged);
             flushMessage();
+            // Apply the result to the open canvas here too — the live stream may
+            // deliver completion before/instead of the per-task subscription
+            // (and aborting the subscription below would otherwise drop it).
+            // addImageLayer is de-duped by url so this can't double-insert.
+            if (merged.kind === "create_branded_design") {
+              const url = (merged.output as { url?: string } | null | undefined)?.url;
+              canvasUpdateRef.current?.(url ? { generating: false, imageUrl: url } : { generating: false });
+            } else if (merged.kind === "canvas_object") {
+              const out = merged.output as { url?: string; objectType?: string } | null | undefined;
+              if (out?.url) canvasUpdateRef.current?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+            }
             taskStreamsRef.current.get(task.id)?.abort();
             taskStreamsRef.current.delete(task.id);
           },
@@ -325,24 +337,30 @@ function startTaskSubscription(
     const current = tasksById.get(taskId);
     if (!current) return;
     let next: AgentTaskCardData = current;
+    // Apply a finished task's result to the OPEN canvas. A branded design renders
+    // as the full image; an element drops on as a new draggable layer; a
+    // background sits behind the design (addImageLayer is de-duped by url, so a
+    // snapshot+completed double-fire can never add it twice).
+    const applyCanvasResult = (kind: string, output: unknown) => {
+      if (kind === "create_branded_design") {
+        const url = (output as { url?: string } | null | undefined)?.url;
+        onCanvasImage?.(url ? { generating: false, imageUrl: url } : { generating: false });
+      } else if (kind === "canvas_object") {
+        const out = output as { url?: string; objectType?: string } | null | undefined;
+        if (out?.url) onCanvasImage?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+      }
+    };
     if (event.type === "snapshot") {
       next = { ...current, status: event.status, output: event.output ?? current.output, error: event.error ?? current.error, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
+      // The task may already be DONE when we connect — the stream sends a
+      // *completed snapshot* (not a separate completed event) and closes, so we
+      // must apply the canvas result here too or it's silently dropped.
+      if (event.status === "completed") applyCanvasResult(current.kind, next.output);
     } else if (event.type === "progress") {
       next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage };
     } else if (event.type === "completed") {
       next = { ...current, status: "completed", output: event.output ?? current.output, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
-      // A finished branded design renders into the open canvas.
-      if (current.kind === "create_branded_design") {
-        const url = (next.output as { url?: string } | null | undefined)?.url;
-        onCanvasImage?.(url ? { generating: false, imageUrl: url } : { generating: false });
-      }
-      // A generated element/background drops onto the OPEN canvas without
-      // replacing it: an element becomes a new draggable layer, a background
-      // sits behind the existing design.
-      if (current.kind === "canvas_object") {
-        const out = next.output as { url?: string; objectType?: string } | null | undefined;
-        if (out?.url) onCanvasImage?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
-      }
+      applyCanvasResult(current.kind, next.output);
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else if (event.type === "failed") {

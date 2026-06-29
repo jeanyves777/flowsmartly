@@ -141,9 +141,11 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (typeof patch.bgImageUrl === "string" && patch.bgImageUrl) next.bgImageUrl = patch.bgImageUrl;
   if (typeof patch.generating === "boolean") next.generating = patch.generating;
   // Append a freshly-generated object (e.g. a laptop) as a new draggable layer.
+  // De-duped by url so applying the same result twice (completed snapshot + a
+  // later completed event) never inserts it twice.
   if (patch.addImageLayer && typeof patch.addImageLayer === "object") {
     const a = patch.addImageLayer as Partial<ImageLayer>;
-    if (typeof a.url === "string" && a.url) {
+    if (typeof a.url === "string" && a.url && !(next.images || []).some((i) => i.url === a.url)) {
       const layer: ImageLayer = { id: newId("img"), url: a.url, x: a.x ?? 0.3, y: a.y ?? 0.34, w: a.w ?? 0.44, kind: a.kind === "logo" ? "logo" : "photo", local: false };
       next.images = [...(next.images || []), layer];
     }

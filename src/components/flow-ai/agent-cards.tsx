@@ -507,6 +507,11 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
   // store, etc.) — tools put it on output.link. Lets the user open it.
   const resultLink =
     typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
+  // A canvas object/background is INSERTED into the open design — show a preview
+  // and an "added" note, never an "Open" link (which would navigate away).
+  const isCanvasObject = task.kind === "canvas_object";
+  const objectUrl = typeof task.output?.url === "string" && task.output.url ? task.output.url : null;
+  const objectIsBg = (task.output as { objectType?: string } | null | undefined)?.objectType === "background";
 
   return (
     <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
@@ -550,7 +555,18 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           </p>
         </div>
       )}
-      {isDone && mediaUrl && (
+      {isDone && isCanvasObject && objectUrl && (
+        <div className="bg-muted/30">
+          <div className="grid place-items-center bg-[repeating-conic-gradient(#80808022_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={objectUrl} alt={objectIsBg ? "Generated background" : "Generated element"} className="max-h-44 w-auto rounded-lg object-contain" />
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-border px-3.5 py-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3.5 w-3.5" /> {objectIsBg ? "Added as your canvas background" : "Added to your canvas — drag, resize & restyle it"}
+          </div>
+        </div>
+      )}
+      {isDone && mediaUrl && !isCanvasObject && (
         <div className="bg-muted/30">
           {isVideo ? (
             <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
@@ -593,7 +609,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           </div>
         </div>
       )}
-      {isDone && !mediaUrl && (
+      {isDone && !mediaUrl && !(isCanvasObject && objectUrl) && (
         <div className="px-3.5 py-3 flex items-center justify-between gap-2">
           {resultLink ? (
             <>
