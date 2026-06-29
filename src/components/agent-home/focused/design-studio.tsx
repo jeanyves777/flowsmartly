@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -373,12 +373,26 @@ function TextControls({ style, defaultSize, brandColors, defaultBg, onChange, on
 }
 
 /** Image controls (background removal / delete) for the floating toolbar. */
-function ImageControls({ img, onRemoveBg, onDelete }: { img: ImageLayer; onRemoveBg: () => void; onDelete: () => void }) {
+type Arrange = "front" | "forward" | "backward" | "back";
+
+function ImageControls({ img, index, count, onArrange, onRemoveBg, onDelete }: { img: ImageLayer; index: number; count: number; onArrange: (where: Arrange) => void; onRemoveBg: () => void; onDelete: () => void }) {
+  const isFront = index >= count - 1;
+  const isBack = index <= 0;
   return (
     <>
       <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 items-center gap-1.5 rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
         {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Bg Removal"}
       </button>
+      {/* Arrange — z-order relative to the other objects (only when there's more than one). */}
+      {count > 1 && (
+        <>
+          <span className="mx-0.5 h-4 w-px bg-white/20" />
+          <button onClick={() => onArrange("forward")} disabled={isFront} title="Bring forward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("backward")} disabled={isBack} title="Send backward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronDown className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("front")} disabled={isFront} title="Bring to front" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronsUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("back")} disabled={isBack} title="Send to back" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronsDown className="h-3.5 w-3.5" /></button>
+        </>
+      )}
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={onDelete} title="Delete image" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
     </>
@@ -606,6 +620,17 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const patchText = (id: string, patch: Partial<TextLayer>) => setTexts(textsRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const patchContact = (id: string, patch: Partial<ContactLayer>) => setContacts(contactsRef.current.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const removeImage = (id: string) => { setImages(imagesRef.current.filter((i) => i.id !== id)); setSel((s) => (s?.kind === "image" && s.id === id ? null : s)); };
+  // Restack an image in the z-order — images render in array order (later = on top).
+  const arrangeImage = (id: string, where: Arrange) => {
+    const arr = imagesRef.current;
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = arr.slice();
+    const [item] = next.splice(i, 1);
+    const j = where === "back" ? 0 : where === "front" ? next.length : where === "backward" ? Math.max(0, i - 1) : Math.min(next.length, i + 1);
+    next.splice(j, 0, item);
+    setImages(next);
+  };
   const removeText = (id: string) => { setTexts(textsRef.current.filter((t) => t.id !== id)); setSel((s) => (s?.kind === "text" && s.id === id ? null : s)); };
   const removeContact = (id: string) => { setContacts(contactsRef.current.filter((c) => c.id !== id)); setSel((s) => (s?.kind === "contact" && s.id === id ? null : s)); };
   const addContact = (type: ContactType) => {
@@ -859,7 +884,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
           {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage) && (
             <FloatingToolbar>
               {sel.kind === "image" && selIsImage ? (
-                <ImageControls img={selIsImage} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
+                <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
               ) : (
                 <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : sel.kind === "contact" ? () => removeContact(sel.id) : undefined} />
               )}
