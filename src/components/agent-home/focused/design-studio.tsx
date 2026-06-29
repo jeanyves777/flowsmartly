@@ -18,7 +18,7 @@ export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
 export interface Pos { x: number; y: number } // fraction 0..1 of the poster
 export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right"; bg?: string }
 export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
-export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string }
+export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string; loadError?: boolean }
 
 // Brand contact details + social handles a user can drop onto the design.
 export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "youtube" | "tiktok";
@@ -661,8 +661,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                   return (
                     <Draggable key={img.id} pos={{ x: img.x, y: img.y }} onMove={(p) => patchImage(img.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "image", id: img.id })} posterRef={posterRef} className={cn("group", selected && "z-10")} style={{ width: `${img.w * 100}%` }}>
                       <div className={cn("relative", selected && "outline outline-2 outline-brand-400 rounded-xl")}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.url} alt={img.kind} className={cn("pointer-events-none w-full object-cover shadow-lg", img.kind === "logo" ? "rounded-md" : "aspect-[4/5] rounded-xl")} />
+                        {img.loadError ? (
+                          <div className={cn("pointer-events-none grid w-full place-items-center bg-white/[0.06] text-center text-[8.5px] text-white/70", img.kind === "logo" ? "aspect-[3/1] rounded-md" : "aspect-[4/5] rounded-xl")}>
+                            <span className="px-2"><ImagePlus className="mx-auto mb-0.5 h-4 w-4 opacity-60" />{img.kind} unavailable — re-add it</span>
+                          </div>
+                        ) : (
+                          // Logos use object-contain so a wide wordmark isn't cropped; photos cover.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className={cn("pointer-events-none w-full shadow-lg", img.kind === "logo" ? "rounded-md object-contain" : "aspect-[4/5] rounded-xl object-cover")} />
+                        )}
                         <button onClick={() => removeImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
                         {img.processing && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
                         {img.bgError ? (

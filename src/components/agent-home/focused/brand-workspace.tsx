@@ -183,8 +183,8 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
             </div>
             <Field label="Description" className="mt-3"><textarea rows={2} value={kit.description} onChange={(e) => set("description", e.target.value)} className={FIELD} placeholder="What you do, for whom, and why it matters." /></Field>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <Field label="Full logo"><MediaUploader value={kit.logo ? [kit.logo] : []} onChange={(u) => set("logo", u[0] ?? "")} variant="large" placeholder="Logo" showButtons /></Field>
-              <Field label="Icon / mark"><MediaUploader value={kit.iconLogo ? [kit.iconLogo] : []} onChange={(u) => set("iconLogo", u[0] ?? "")} variant="large" placeholder="Icon" showButtons /></Field>
+              <Field label="Full logo"><MediaUploader value={kit.logo ? [kit.logo] : []} onChange={(u) => set("logo", u[0] ?? "")} variant="large" fit="contain" placeholder="Logo" showButtons /></Field>
+              <Field label="Icon / mark"><MediaUploader value={kit.iconLogo ? [kit.iconLogo] : []} onChange={(u) => set("iconLogo", u[0] ?? "")} variant="large" fit="contain" placeholder="Icon" showButtons /></Field>
             </div>
           </Section>
 

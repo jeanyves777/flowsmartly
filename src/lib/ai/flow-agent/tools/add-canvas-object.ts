@@ -18,6 +18,21 @@ const clampDim = (n: number, def: number) => {
   return Math.max(256, Math.min(1920, v || def));
 };
 
+// Upload to S3, or fall back to /public when storage isn't configured (local dev)
+// so the generated object still lands on the canvas instead of failing.
+async function uploadOrLocal(key: string, buffer: Buffer, mime: string): Promise<string> {
+  try {
+    return await uploadToS3(key, buffer, mime);
+  } catch (err) {
+    console.warn("[canvas_object] S3 upload failed; serving from /public:", err instanceof Error ? err.message : err);
+    const rel = key.replace(/^\/+/, "");
+    const abs = path.join(process.cwd(), "public", "uploads", rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, buffer);
+    return `/uploads/${rel}`;
+  }
+}
+
 /**
  * add_canvas_object — generate a SINGLE element or a background for the OPEN
  * design canvas, and add it as a new object the user can keep manipulating —
@@ -124,7 +139,7 @@ export const addCanvasObject: FlowAgentTool = {
 
         publishTaskEvent({ type: "progress", taskId, progress: 85, message: "Uploading…" });
         const key = `flow-ai/${ctx.userId}/${ctx.conversationId}-obj-${Date.now()}.${ext}`;
-        const url = await uploadToS3(key, buffer, mime);
+        const url = await uploadOrLocal(key, buffer, mime);
 
         await saveToMediaLibrary({
           userId: ctx.userId,
