@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, X, RefreshCw, Lock, Sparkles, Check, AlertTriangle, Infinity as InfinityIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { PLATFORM_META } from "@/components/shared/social-platform-icons";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -246,7 +247,9 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
             const accounts = p.accounts ?? [];
-            const color = COLORS[p.platform] ?? "#0ea5e9";
+            const meta = PLATFORM_META[p.platform];
+            const PIcon = meta?.icon ?? Plus;
+            const color = meta?.color ?? COLORS[p.platform] ?? "#0ea5e9";
             const unlockKey = `unlock:${p.platform}`;
             const isUnlocking = busy === unlockKey;
             const showUnlock = atLimit; // only when no free slot remains
@@ -254,8 +257,8 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
             return (
               <div key={p.platform} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-center gap-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-                  <h3 className="text-[14px] font-bold">{p.name || NAMES[p.platform] || p.platform}</h3>
+                  <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", meta?.bgClass ?? "bg-muted")} style={{ color }}><PIcon className="h-[18px] w-[18px]" /></span>
+                  <h3 className="text-[14px] font-bold">{meta?.label || p.name || NAMES[p.platform] || p.platform}</h3>
                   {platformUnlocked > 0 && (
                     <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-600 dark:text-amber-400">
                       <Sparkles className="h-2.5 w-2.5" /> {platformUnlocked} unlocked

@@ -24,9 +24,12 @@
     --input: 240 5.9% 90%;
     --ring: 199 89% 48%;
     --radius: 0.625rem;
+    /* Make native controls (select dropdowns, date pickers, scrollbars) match the theme. */
+    color-scheme: light;
   }
 
   .dark {
+    color-scheme: dark;
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
@@ -53,6 +56,7 @@
      (light text on dark surfaces) but a lifted charcoal instead of near-black.
      Tailwind `dark:` variants also fire under .grey (see darkMode config). */
   .grey {
+    color-scheme: dark;
     --background: 240 6% 14%;
     --foreground: 0 0% 96%;
     --card: 240 5% 17%;
@@ -84,6 +88,14 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Native <select> dropdowns: theme the option list (color-scheme handles most
+     browsers; this is the explicit fallback so options aren't OS-light on dark). */
+  select option,
+  select optgroup {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
   }
 
   /* Custom scrollbar */
