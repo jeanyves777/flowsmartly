@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ElementType, type ReactN
 import Image from "next/image";
 import {
   Globe, Sparkles, ExternalLink, LayoutTemplate, Eye, MousePointerClick, FileStack, BarChart3,
-  RefreshCw, Trash2, Pencil, ChevronDown, FileText, AlertTriangle, Check, X, Link2, Rocket,
+  RefreshCw, Trash2, Pencil, ChevronDown, FileText, AlertTriangle, Check, X, Link2, Rocket, ArrowLeft,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -126,8 +126,11 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
           </nav>
         </aside>
 
-        {/* RIGHT: the website list, full width */}
+        {/* RIGHT: the website list OR the inline brief builder, full width */}
         <div className="min-w-0 flex-1 space-y-4">
+          {building ? (
+            <WebsiteBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); onAsk(prompt); }} />
+          ) : (
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <Globe className="h-4 w-4 text-brand-500" />
@@ -152,21 +155,16 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
               <Empty title="No website yet" sub="Tell us a few details and the agent builds a branded multi-page site." cta="Create a website" onCta={() => setBuilding(true)} />
             )}
           </section>
+          )}
         </div>
       </div>
-
-      {building && (
-        <WebsiteBuilder
-          onClose={() => setBuilding(false)}
-          onBuild={(prompt) => { setBuilding(false); onAsk(prompt); }}
-        />
-      )}
     </div>
   );
 }
 
-/* ── Website builder — gathers the brief in the UI, THEN spins the agent ───── */
-function WebsiteBuilder({ onClose, onBuild }: { onClose: () => void; onBuild: (prompt: string) => void }) {
+/* ── Website builder — an INLINE brief in the view; gathers details, THEN spins
+      the agent (not a modal — renders in the right pane). ───────────────────── */
+function WebsiteBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild: (prompt: string) => void }) {
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [pages, setPages] = useState<string[]>(["Home", "About", "Services", "Contact"]);
@@ -202,48 +200,47 @@ function WebsiteBuilder({ onClose, onBuild }: { onClose: () => void; onBuild: (p
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Globe className="h-4 w-4" /></span>
-          <div className="min-w-0">
-            <h3 className="text-[14px] font-bold leading-tight">New website</h3>
-            <p className="text-[11.5px] text-muted-foreground">Fill the brief — the agent builds it with these details, no back-and-forth.</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="ms-auto grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto p-4">
-          <Field label="Business / site name *"><input value={name} onChange={(e) => setName(e.target.value)} className={WB_FIELD} placeholder="Acme Plumbing" /></Field>
-          <Field label="What's the site for? *"><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(WB_FIELD, "resize-y")} placeholder="e.g. a plumbing business in Austin that takes booking requests and shows services & reviews" /></Field>
-          <div>
-            <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Pages to include</p>
-            <div className="flex flex-wrap gap-1.5">
-              {SITE_PAGES.map((p) => (
-                <button key={p} onClick={() => togglePage(p)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", pages.includes(p) ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{p}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Style / vibe</p>
-            <div className="flex flex-wrap gap-1.5">
-              {SITE_STYLES.map((s) => (
-                <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
-              ))}
-            </div>
-          </div>
-          <Field label="Main call-to-action"><input value={cta} onChange={(e) => setCta(e.target.value)} className={WB_FIELD} placeholder="Book a call · Get a quote · Shop now" /></Field>
-          <Field label="Anything to highlight? (optional)"><textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={2} className={cn(WB_FIELD, "resize-y")} placeholder="Services, offers, hours, what makes you different…" /></Field>
-          {error && <p className="text-[12px] text-rose-500">{error}</p>}
-        </div>
-        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
-          <p className="hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</p>
-          <div className="ms-auto flex items-center gap-2">
-            <button onClick={onClose} className="rounded-[10px] px-3 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
-            <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build my website</button>
-          </div>
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <button onClick={onCancel} aria-label="Back" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold leading-tight">New website</h3>
+          <p className="text-[11.5px] text-muted-foreground">Fill the brief — the agent builds it with these details, no back-and-forth.</p>
         </div>
       </div>
-    </div>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
+        <Field label="Business / site name *"><input value={name} onChange={(e) => setName(e.target.value)} className={WB_FIELD} placeholder="Acme Plumbing" /></Field>
+        <Field label="Main call-to-action"><input value={cta} onChange={(e) => setCta(e.target.value)} className={WB_FIELD} placeholder="Book a call · Get a quote · Shop now" /></Field>
+        <div className="sm:col-span-2">
+          <Field label="What's the site for? *"><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(WB_FIELD, "resize-y")} placeholder="e.g. a plumbing business in Austin that takes booking requests and shows services & reviews" /></Field>
+        </div>
+        <div className="sm:col-span-2">
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Pages to include</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SITE_PAGES.map((p) => (
+              <button key={p} onClick={() => togglePage(p)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", pages.includes(p) ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{p}</button>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Style / vibe</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SITE_STYLES.map((s) => (
+              <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Anything to highlight? (optional)"><textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={2} className={cn(WB_FIELD, "resize-y")} placeholder="Services, offers, hours, what makes you different…" /></Field>
+        </div>
+        {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build my website</button>
+        <button onClick={onCancel} className="rounded-[11px] px-3 py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+        <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
+      </div>
+    </section>
   );
 }
 
