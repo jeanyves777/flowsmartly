@@ -587,6 +587,20 @@ export function AgentHome() {
           )}
         </div>
 
+        {/* Quick access to the Brand Kit (identity that powers all AI) — not just
+            via the setup banner. */}
+        <button
+          onClick={() => guardNav(openBrand)}
+          title="Brand Kit — your identity (logo, colors, voice) that powers all AI"
+          className={cn(
+            "ms-1.5 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] transition md:flex",
+            isBrandFocus ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-card hover:border-brand-500/60 hover:text-foreground",
+          )}
+        >
+          <Palette className="h-3.5 w-3.5 text-brand-500" />
+          <span className="font-medium">Brand Kit</span>
+        </button>
+
         <div className="flex-1" />
 
         <button onClick={() => guardNav(openBilling)} title="Billing & credits" className="flex items-center gap-1 rounded-full border border-border bg-gradient-to-r from-brand-500/15 to-violet-500/15 px-2.5 py-1.5 text-[12.5px] transition hover:border-brand-500/60 sm:px-3">
@@ -613,6 +627,9 @@ export function AgentHome() {
               </div>
               <button onClick={() => guardNav(openProfile)} className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <User className="h-4 w-4 text-muted-foreground" /> Profile
+              </button>
+              <button onClick={() => { setUserMenuOpen(false); guardNav(openBrand); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <Palette className="h-4 w-4 text-muted-foreground" /> Brand Kit
               </button>
               <button onClick={() => guardNav(openAccount)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
                 <Settings className="h-4 w-4 text-muted-foreground" /> Account &amp; settings
