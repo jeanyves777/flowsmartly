@@ -6,24 +6,30 @@ import {
   ShieldCheck, ThumbsUp, ThumbsDown, Minus, Search, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, Clock, HelpCircle, Send, X, Flag, Archive, Wand2,
   Filter, BadgeCheck, ListTree, RefreshCw, Pencil, Building2, Save, Layers,
+  TrendingUp, Lightbulb, Zap, Globe, Inbox, ArrowRight, Coins, BarChart3,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Reviews & local SEO — the deep new-design ListSmartly surface (the Reviews
- * workspace canvas). When the user has NO presence yet, it shows the generative
- * "Set up my presence" CTA (heavy build → the agent runs it via onAsk). Once set
- * up it becomes a full workspace, all real in-surface UI (no legacy links):
- *   • Local-SEO health score + KPI summary (/analytics).
+ * workspace canvas). When the user has NO presence yet, it shows a real in-surface
+ * SETUP FORM (business profile + transparent charges → activates directly via
+ * POST /activate + PUT /profile — it does NOT fire a chat prompt at the agent).
+ * Once set up it's a full workspace, all real in-surface UI (no legacy links):
+ *   • A circular local-SEO health gauge + KPI summary + per-tier coverage, with a
+ *     priority-actions banner when directories need work (/analytics).
  *   • A browsable directory LISTINGS list — per-directory status badge grouped by
- *     workflow state + tier, NAP correctness, with search + status + tier filters
- *     and pagination (/listings).
+ *     workflow state + tier, NAP correctness, search + status + tier filters,
+ *     pagination, an in-surface directory SCAN and a direct AI AUTO-FIX (/listings).
  *   • A REVIEWS list with platform / sentiment / responded filters and an
  *     in-surface Reply action (AI-draft → edit → post), plus flag / archive
  *     (/reviews + /reviews/[id]/reply + PUT /reviews/[id]).
- * Generative setup + "request reviews" drive the agent via onAsk; everything
- * else is direct UI. [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
+ *   • An INSIGHTS tab — sentiment + platform breakdown, monthly trend, and a
+ *     direct one-click AI presence report with recommendations (/ai/presence-report).
+ * Every button is a direct UI action; only the genuinely-generative "Request
+ * reviews" campaign drives the agent (the user explicitly asks for it).
+ * [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
  */
 
 interface TierCoverage { tier: number; live: number; total: number; percentage: number }
@@ -34,6 +40,7 @@ interface Analytics {
   reviews?: {
     total?: number; averageRating?: number; responseRate?: number;
     sentimentCounts?: Record<string, number>; byPlatform?: Record<string, number>;
+    monthlyTrend?: Record<string, number>;
   };
 }
 interface Listing {
@@ -86,6 +93,10 @@ interface Pagination { page: number; limit: number; total: number; totalPages: n
 // "live"-ish listing statuses that count as a real presence on a directory.
 const LIVE_STATUSES = ["live", "submitted", "claimed", "verified"];
 const LISTINGS_PER_PAGE = 30;
+// Transparent charges shown on the setup CTA (mirrors LISTSMARTLY_UNLOCK_CREDIT_COST
+// + AI_PRESENCE_REPORT in lib/constants/listsmartly + lib/credits/costs).
+const UNLOCK_COST = 500;
+const PRESENCE_REPORT_COST = 15;
 
 const TIER_NAMES: Record<number, string> = {
   1: "Critical", 2: "Major", 3: "Industry", 4: "Reviews", 5: "Maps", 6: "Social", 7: "Local",
@@ -138,7 +149,7 @@ function statusGroupKey(status: string): string {
 
 const SELECT = "rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] font-medium outline-none focus:border-brand-500/60";
 
-type Tab = "listings" | "reviews";
+type Tab = "listings" | "reviews" | "insights";
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -180,6 +191,12 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("listings");
   const [editing, setEditing] = useState(false);
+  // Priority-actions banner jumps to the Listings tab pre-filtered to a status.
+  const [jump, setJump] = useState<{ status: string; nonce: number }>({ status: "", nonce: 0 });
+  const focusListings = useCallback((status: string) => {
+    setJump((j) => ({ status, nonce: j.nonce + 1 }));
+    setTab("listings");
+  }, []);
 
   const load = useCallback(async () => {
     const pj = await fetch("/api/listsmartly/profile").then((r) => r.json()).catch(() => null);
@@ -208,22 +225,14 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your reviews…" /></div>;
   }
 
-  // No ListSmartly profile yet → setting up the presence is a heavy generative
-  // build, so the agent runs it (gated empty state).
+  // No ListSmartly profile yet → a REAL in-surface setup form (no agent prompt):
+  // the user fills their business profile, sees the exact charges, and activates
+  // directly. [[surface-buttons-are-ui-actions]] [[unprovisioned-feature-shows-cta]]
   if (!hasProfile) {
     return (
-      <div className="grid min-h-0 flex-1 place-items-center p-8 text-center">
-        <div className="max-w-md">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Star className="h-8 w-8" /></span>
-          <h2 className="mt-4 text-[20px] font-extrabold">Get found everywhere</h2>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">Tell the agent about your business and it builds your local presence — listings across the top directories, review tracking, and a local-SEO health score.</p>
-          {onAsk && (
-            <button onClick={() => onAsk("Set up my business listings and local SEO presence — get me listed on the top directories and start tracking my reviews.")} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
-              <Sparkles className="h-4 w-4" /> Set up my presence
-            </button>
-          )}
-        </div>
-      </div>
+      <PresenceSetup
+        onActivated={(p) => { setProfile(p); setHasProfile(true); setLoading(true); load().finally(() => setLoading(false)); }}
+      />
     );
   }
 
@@ -244,6 +253,11 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
   ];
 
   const tierCoverage = (a?.listingsByTier ?? []).filter((t) => t.total > 0);
+
+  // Priority actions: directories that need work + reviews waiting on a reply.
+  const missingCount = (statusCounts.missing ?? 0) + (statusCounts.needs_update ?? 0);
+  const unscannedCount = statusCounts.unverified ?? 0;
+  const unrepliedCount = Math.max(0, totalReviews - Math.round((responseRate / 100) * totalReviews));
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -278,24 +292,56 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
             />
           )}
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={Gauge} label="SEO score" value={citation ? `${citation}` : "—"} />
+          {/* Local-SEO health: a circular score gauge beside the component bars. */}
+          <div className="mt-4 flex flex-col items-stretch gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 flex-col items-center gap-1 sm:w-32">
+              <ScoreGauge score={citation} />
+              <span className="text-[11px] font-medium text-muted-foreground">Local-SEO score</span>
+            </div>
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <div className="flex items-center gap-2"><ListChecks className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12px] font-semibold">What makes up your score</span></div>
+              {seoBars.map((b) => (
+                <div key={b.label} className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 text-[12px] font-medium text-muted-foreground">{b.label}</span>
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, Math.min(100, b.value))}%` }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-end text-[12px] font-semibold tabular-nums">{Math.round(b.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
             <Kpi icon={Star} label="Avg rating" value={rating ? rating.toFixed(1) : "—"} />
             <Kpi icon={MessageSquare} label="Reviews" value={totalReviews.toLocaleString()} />
             <Kpi icon={Reply} label="Response rate" value={`${responseRate}%`} />
           </div>
-          <div className="mt-4 space-y-2.5">
-            <div className="flex items-center gap-2"><ListChecks className="h-3.5 w-3.5 text-brand-500" /><span className="text-[12px] font-semibold">Local SEO health</span></div>
-            {seoBars.map((b) => (
-              <div key={b.label} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 text-[12px] font-medium text-muted-foreground">{b.label}</span>
-                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, Math.min(100, b.value))}%` }} />
-                </div>
-                <span className="w-10 shrink-0 text-end text-[12px] font-semibold tabular-nums">{Math.round(b.value)}</span>
+
+          {/* Priority actions: only when there is something worth doing. */}
+          {(missingCount > 0 || unscannedCount > 0 || unrepliedCount > 0) && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-2.5">
+              <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+              <span className="text-[12px] font-semibold text-amber-600 dark:text-amber-400">Next best actions</span>
+              <div className="ms-auto flex flex-wrap items-center gap-1.5">
+                {missingCount > 0 && (
+                  <button onClick={() => focusListings("missing")} className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/25 dark:text-amber-300">
+                    {missingCount} need {missingCount === 1 ? "setup" : "setup"} <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
+                {unscannedCount > 0 && (
+                  <button onClick={() => focusListings("unverified")} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted/70">
+                    {unscannedCount} to scan <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
+                {unrepliedCount > 0 && (
+                  <button onClick={() => setTab("reviews")} className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2.5 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/20">
+                    {unrepliedCount} {unrepliedCount === 1 ? "reply" : "replies"} waiting <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
           {/* per-tier coverage: live vs total on each directory tier */}
           {tierCoverage.length > 0 && (
@@ -321,7 +367,7 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
 
         {/* tabs */}
         <div className="flex gap-1.5">
-          {([["listings", "Listings", ListTree], ["reviews", "Reviews", MessageSquare]] as const).map(([id, label, Icon]) => (
+          {([["listings", "Listings", ListTree], ["reviews", "Reviews", MessageSquare], ["insights", "Insights", BarChart3]] as const).map(([id, label, Icon]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -336,9 +382,11 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
         </div>
 
         {tab === "listings" ? (
-          <ListingsPanel onAsk={onAsk} refreshKey={refreshKey} onScanned={refreshAnalytics} />
-        ) : (
+          <ListingsPanel refreshKey={refreshKey} onScanned={refreshAnalytics} focusStatus={jump.status} focusNonce={jump.nonce} />
+        ) : tab === "reviews" ? (
           <ReviewsPanel onAsk={onAsk} refreshKey={refreshKey} onChanged={load} />
+        ) : (
+          <InsightsPanel analytics={a} refreshKey={refreshKey} />
         )}
       </div>
     </div>
@@ -349,7 +397,7 @@ export function FocusedReviews({ refreshKey, onAsk }: { refreshKey?: number; onA
 
 interface ScanSummary { total: number; live: number; missing: number; unverified: number; inconsistent: number; errors: number; searched: number }
 
-function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) => void; refreshKey?: number; onScanned: () => void }) {
+function ListingsPanel({ refreshKey, onScanned, focusStatus, focusNonce }: { refreshKey?: number; onScanned: () => void; focusStatus?: string; focusNonce?: number }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -365,6 +413,17 @@ function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) =
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanSummary | null>(null);
   const [scanError, setScanError] = useState("");
+
+  // AI auto-fix: corrects NAP inconsistencies on live listings to match the
+  // master profile — a direct API action (no agent prompt).
+  const [fixing, setFixing] = useState(false);
+  const [fixResult, setFixResult] = useState<{ fixed: number; totalChecked: number } | null>(null);
+
+  // Jump from the priority-actions banner pre-filters this list to a status.
+  useEffect(() => {
+    if (focusNonce) { setStatus(focusStatus ?? ""); setSearch(""); setTier(""); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNonce]);
 
   // Debounce the search box.
   useEffect(() => { const t = setTimeout(() => setDebounced(search.trim()), 300); return () => clearTimeout(t); }, [search]);
@@ -407,6 +466,25 @@ function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) =
     }
   }, [load, onScanned]);
 
+  const autoFix = useCallback(async () => {
+    setFixing(true); setScanError(""); setFixResult(null);
+    try {
+      const r = await fetch("/api/listsmartly/ai/auto-fix", { method: "POST" });
+      const j = await r.json();
+      if (r.ok && j?.success && j.data) {
+        setFixResult({ fixed: j.data.fixed ?? 0, totalChecked: j.data.totalChecked ?? 0 });
+        await load();
+        onScanned();
+      } else {
+        setScanError(j?.error?.message || (r.status === 402 ? "Not enough credits to auto-fix." : "Could not auto-fix listings."));
+      }
+    } catch {
+      setScanError("Could not auto-fix listings.");
+    } finally {
+      setFixing(false);
+    }
+  }, [load, onScanned]);
+
   // Group the current page by workflow state, then by tier within each group.
   const grouped = useMemo(() => {
     const out: Record<string, Record<number, Listing[]>> = {};
@@ -438,11 +516,10 @@ function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) =
               {scanning ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />} {scanning ? "Scanning…" : "Scan directories"}
             </button>
           )}
-          {onAsk && (
-            <button onClick={() => onAsk("Scan my business across the directories and fix any missing or inconsistent listings.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-              <Wand2 className="h-3.5 w-3.5" /> Auto-fix
-            </button>
-          )}
+          {/* Direct AI auto-fix: corrects NAP mismatches on live listings. */}
+          <button onClick={autoFix} disabled={fixing || scanning} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60" title="Correct any NAP mismatches on your live listings (uses credits per fix)">
+            {fixing ? <FlowLoader size={13} /> : <Wand2 className="h-3.5 w-3.5" />} {fixing ? "Fixing…" : "Auto-fix"}
+          </button>
         </div>
       </div>
 
@@ -454,6 +531,13 @@ function ListingsPanel({ onAsk, refreshKey, onScanned }: { onAsk?: (p: string) =
       {scanResult && (
         <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">
           Scan complete — {scanResult.total} directories checked: {scanResult.live} live, {scanResult.missing} missing, {scanResult.inconsistent} inconsistent{scanResult.errors ? `, ${scanResult.errors} errors` : ""}.
+        </p>
+      )}
+      {fixResult && (
+        <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">
+          {fixResult.fixed > 0
+            ? `Auto-fix corrected ${fixResult.fixed} ${fixResult.fixed === 1 ? "listing" : "listings"} to match your profile.`
+            : `Checked ${fixResult.totalChecked} live ${fixResult.totalChecked === 1 ? "listing" : "listings"} — everything's already consistent.`}
         </p>
       )}
       {scanError && (
@@ -958,6 +1042,356 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+/* ------------------------------ Presence setup ------------------------------ */
+
+const SETUP_BENEFITS: { icon: ElementType; title: string; desc: string }[] = [
+  { icon: Globe, title: "Listed across 150+ directories", desc: "Google, Apple Maps, Bing, Yelp, Facebook and the long tail — organized into 7 tiers of impact." },
+  { icon: ShieldCheck, title: "NAP consistency tracking", desc: "Catch a wrong phone or address anywhere it's published and correct it from one place." },
+  { icon: Gauge, title: "A local-SEO health score", desc: "One number built from coverage, consistency and reviews — with the full breakdown." },
+  { icon: Inbox, title: "All your reviews in one inbox", desc: "Google, Yelp and more with sentiment — reply with an on-brand AI draft in a click." },
+  { icon: Lightbulb, title: "AI presence insights", desc: "A one-click report on what to fix next and where you're already winning." },
+  { icon: Zap, title: "One-click auto-fix", desc: "Push your correct details to every live listing automatically." },
+];
+
+function PresenceSetup({ onActivated }: { onActivated: (p: Profile) => void }) {
+  const [form, setForm] = useState({
+    businessName: "", industry: "", phone: "", email: "", website: "",
+    address: "", city: "", state: "", zip: "", country: "US", description: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Prefill from the Brand Kit (best-effort) so the user rarely types from scratch.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      if (!alive || !j?.success) return;
+      const bk = j.data?.brandKit;
+      if (!bk) return;
+      setForm((f) => ({
+        ...f,
+        businessName: f.businessName || str(bk.name),
+        industry: f.industry || str(bk.industry),
+        phone: f.phone || str(bk.phone),
+        email: f.email || str(bk.email),
+        website: f.website || str(bk.website),
+        address: f.address || str(bk.address),
+        city: f.city || str(bk.city),
+        state: f.state || str(bk.state),
+        zip: f.zip || str(bk.zip),
+        country: f.country || str(bk.country) || "US",
+        description: f.description || str(bk.description),
+      }));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const activate = async () => {
+    if (!form.businessName.trim()) { setError("Add your business name to continue."); return; }
+    setSubmitting(true); setError("");
+    try {
+      const r = await fetch("/api/listsmartly/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName: form.businessName.trim(), industry: form.industry.trim() || undefined }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.success) {
+        const code = j?.error?.code;
+        setError(
+          code === "INSUFFICIENT_CREDITS" ? `You need ${UNLOCK_COST} credits to activate your presence.`
+          : code === "PAYMENT_METHOD_REQUIRED" ? "Add a payment method to your account before activating."
+          : (j?.error?.message || "Could not activate. Please try again.")
+        );
+        setSubmitting(false);
+        return;
+      }
+      // Save the full NAP onto the freshly-created profile (best-effort).
+      let saved = j.data?.profile;
+      try {
+        const pr = await fetch("/api/listsmartly/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessName: form.businessName.trim(), industry: form.industry.trim(),
+            phone: form.phone.trim(), email: form.email.trim(), website: form.website.trim(),
+            address: form.address.trim(), city: form.city.trim(), state: form.state.trim(),
+            zip: form.zip.trim(), country: form.country.trim(), description: form.description.trim(),
+            setupComplete: true,
+          }),
+        });
+        const pj = await pr.json();
+        if (pr.ok && pj?.success && pj.data?.profile) saved = pj.data.profile;
+      } catch { /* keep the activate profile */ }
+      onActivated(parseProfile(saved));
+    } catch {
+      setError("Could not activate. Please try again.");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl space-y-4">
+        {/* hero */}
+        <div className="text-center">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MapPin className="h-7 w-7" /></span>
+          <h2 className="mt-3 text-[22px] font-extrabold">Get found everywhere</h2>
+          <p className="mx-auto mt-1.5 max-w-lg text-[13.5px] leading-relaxed text-muted-foreground">
+            Build your local presence — listed across the top directories, every review in one inbox, and a live local-SEO health score. Fill in your business once and activate.
+          </p>
+        </div>
+
+        {/* benefits */}
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {SETUP_BENEFITS.map((b) => (
+            <div key={b.title} className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3">
+              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><b.icon className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-semibold">{b.title}</p>
+                <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{b.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* transparent charges */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3.5 py-2.5">
+          <Coins className="h-4 w-4 shrink-0 text-brand-500" />
+          <span className="text-[12px] font-semibold">{UNLOCK_COST} credits</span>
+          <span className="text-[12px] text-muted-foreground">one-time to unlock & map your presence.</span>
+          <span className="text-[11.5px] text-muted-foreground">AI replies, descriptions & insights use a few credits each as you go; ~250 credits/mo keeps monitoring active.</span>
+        </div>
+
+        {/* business profile form */}
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-3 flex items-center gap-2"><Building2 className="h-4 w-4 text-brand-500" /><span className="text-[13px] font-bold">Your business</span><span className="text-[11px] text-muted-foreground">Prefilled from your Brand Kit — edit anything.</span></div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Field label="Business name *"><input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} className={FIELD} placeholder="Acme Plumbing" /></Field>
+            <Field label="Industry"><input value={form.industry} onChange={(e) => set("industry", e.target.value)} className={FIELD} placeholder="Plumbing" /></Field>
+            <Field label="Phone"><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={FIELD} placeholder="(555) 123-4567" inputMode="tel" /></Field>
+            <Field label="Email"><input value={form.email} onChange={(e) => set("email", e.target.value)} className={FIELD} placeholder="hello@acme.com" inputMode="email" /></Field>
+            <Field label="Website"><input value={form.website} onChange={(e) => set("website", e.target.value)} className={FIELD} placeholder="https://acme.com" inputMode="url" /></Field>
+            <Field label="Street address"><input value={form.address} onChange={(e) => set("address", e.target.value)} className={FIELD} placeholder="123 Main St" /></Field>
+            <Field label="City"><input value={form.city} onChange={(e) => set("city", e.target.value)} className={FIELD} placeholder="Austin" /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="State"><input value={form.state} onChange={(e) => set("state", e.target.value)} className={FIELD} placeholder="TX" /></Field>
+              <Field label="ZIP"><input value={form.zip} onChange={(e) => set("zip", e.target.value)} className={FIELD} placeholder="78701" inputMode="numeric" /></Field>
+            </div>
+          </div>
+          <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">What you do</p>
+          <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className={cn(FIELD, "resize-y")} placeholder="A short description of what your business offers…" />
+
+          {error && <p className="mt-2.5 text-[12px] text-rose-500">{error}</p>}
+          <button onClick={activate} disabled={submitting} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60 sm:w-auto">
+            {submitting ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {submitting ? "Activating…" : `Activate my presence · ${UNLOCK_COST} credits`}
+          </button>
+          <p className="mt-2 text-[11px] text-muted-foreground">After activating, run a directory scan to detect where you&apos;re already listed.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- Score gauge ------------------------------- */
+
+function ScoreGauge({ score, size = 96 }: { score: number; size?: number }) {
+  const v = Math.max(0, Math.min(100, Math.round(score)));
+  const stroke = 9;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const off = circ * (1 - v / 100);
+  const tone = v >= 70 ? "#10b981" : v >= 40 ? "#f59e0b" : "#f43f5e";
+  const label = v >= 70 ? "Strong" : v >= 40 ? "Building" : v > 0 ? "Needs work" : "Not scored";
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} stroke="rgba(125,125,135,0.18)" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} stroke={tone} strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" style={{ transition: "stroke-dashoffset .6s ease" }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[24px] font-extrabold leading-none tabular-nums">{v || "—"}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wide" style={{ color: tone }}>{label}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------- Insights tab ------------------------------- */
+
+const SENTIMENT_BAR: Record<string, { label: string; color: string }> = {
+  positive: { label: "Positive", color: "bg-emerald-500" },
+  neutral: { label: "Neutral", color: "bg-muted-foreground/40" },
+  negative: { label: "Negative", color: "bg-rose-500" },
+};
+
+function recText(rec: unknown): string {
+  if (typeof rec === "string") return rec;
+  const o = asObject(rec);
+  return str(o.title) || str(o.text) || str(o.recommendation) || str(o.description) || str(o.action) || "";
+}
+function monthLabel(key: string): string {
+  const [y, m] = key.split("-");
+  const idx = Number(m) - 1;
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return names[idx] ? `${names[idx]} ${String(y).slice(2)}` : key;
+}
+
+function InsightsPanel({ analytics }: { analytics?: Analytics | null; refreshKey?: number }) {
+  const [report, setReport] = useState<{ overallScore: number; summary: string; recommendations: unknown[]; creditsUsed?: number } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  const generate = async () => {
+    setGenerating(true); setError("");
+    try {
+      const r = await fetch("/api/listsmartly/ai/presence-report", { method: "POST" });
+      const j = await r.json();
+      if (r.ok && j?.success && j.data) {
+        setReport({
+          overallScore: Math.round(j.data.overallScore ?? j.data.citationScore ?? 0),
+          summary: str(j.data.summary),
+          recommendations: Array.isArray(j.data.recommendations) ? j.data.recommendations : [],
+          creditsUsed: typeof j.data.creditsUsed === "number" ? j.data.creditsUsed : undefined,
+        });
+      } else {
+        setError(j?.error?.message || (r.status === 402 ? `Not enough credits — an AI report uses ${PRESENCE_REPORT_COST}.` : "Could not generate the report."));
+      }
+    } catch {
+      setError("Could not generate the report.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const rv = analytics?.reviews;
+  const sentiment = rv?.sentimentCounts ?? {};
+  const sentTotal = (["positive", "neutral", "negative"] as const).reduce((s, k) => s + (sentiment[k] ?? 0), 0);
+  const byPlatform = Object.entries(rv?.byPlatform ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  const platformMax = Math.max(1, ...byPlatform.map(([, n]) => n));
+  const trend = Object.entries(rv?.monthlyTrend ?? {}).sort((a, b) => a[0].localeCompare(b[0])).slice(-8);
+  const trendMax = Math.max(1, ...trend.map(([, n]) => n));
+  const hasReviewData = sentTotal > 0 || byPlatform.length > 0 || trend.length > 0;
+
+  return (
+    <section className="space-y-4">
+      {/* AI presence report — a direct one-click insight (no agent prompt) */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Lightbulb className="h-4 w-4" /></span>
+          <div className="min-w-0">
+            <h3 className="text-[13px] font-bold">AI presence report</h3>
+            <p className="text-[11.5px] text-muted-foreground">An expert read on your local presence with the top moves to make next.</p>
+          </div>
+          <button onClick={generate} disabled={generating} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+            {generating ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} {generating ? "Analyzing…" : report ? "Regenerate" : `Generate · ${PRESENCE_REPORT_COST} credits`}
+          </button>
+        </div>
+
+        {error && <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2 text-[12px] text-rose-500">{error}</p>}
+
+        {report && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3.5">
+              <ScoreGauge score={report.overallScore} size={76} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Summary</p>
+                <p className="mt-1 whitespace-pre-line text-[12.5px] leading-relaxed text-foreground/90">{report.summary || "No summary available."}</p>
+              </div>
+            </div>
+            {report.recommendations.length > 0 && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold"><ListChecks className="h-3.5 w-3.5 text-brand-500" /> Recommended next steps</p>
+                <ul className="space-y-1.5">
+                  {report.recommendations.map((rec, i) => {
+                    const t = recText(rec);
+                    if (!t) return null;
+                    return (
+                      <li key={i} className="flex items-start gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2 text-[12.5px] leading-snug">
+                        <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" /> <span>{t}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+            {report.creditsUsed ? <p className="text-[11px] text-muted-foreground">Used {report.creditsUsed} credits.</p> : null}
+          </div>
+        )}
+      </div>
+
+      {/* Review analytics */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <h3 className="mb-3 flex items-center gap-1.5 text-[13px] font-bold"><BarChart3 className="h-4 w-4 text-brand-500" /> Review analytics</h3>
+        {!hasReviewData ? (
+          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            No review data yet. Run a directory scan to pull in existing reviews, or ask the agent to request reviews from recent customers.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {/* sentiment breakdown */}
+            {sentTotal > 0 && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Sentiment</p>
+                <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                  {(["positive", "neutral", "negative"] as const).map((k) => {
+                    const pct = ((sentiment[k] ?? 0) / sentTotal) * 100;
+                    return pct > 0 ? <div key={k} className={SENTIMENT_BAR[k].color} style={{ width: `${pct}%` }} title={`${SENTIMENT_BAR[k].label}: ${sentiment[k]}`} /> : null;
+                  })}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  {(["positive", "neutral", "negative"] as const).map((k) => (
+                    <span key={k} className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                      <span className={cn("h-2 w-2 rounded-full", SENTIMENT_BAR[k].color)} /> {SENTIMENT_BAR[k].label} <span className="font-semibold tabular-nums text-foreground">{sentiment[k] ?? 0}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* by platform */}
+            {byPlatform.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">By platform</p>
+                <div className="space-y-1.5">
+                  {byPlatform.map(([p, n]) => (
+                    <div key={p} className="flex items-center gap-3">
+                      <span className="w-24 shrink-0 truncate text-[12px] font-medium">{platformLabel(p)}</span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(4, (n / platformMax) * 100)}%` }} />
+                      </div>
+                      <span className="w-8 shrink-0 text-end text-[12px] font-semibold tabular-nums">{n}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* monthly trend */}
+            {trend.length > 0 && (
+              <div>
+                <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><TrendingUp className="h-3.5 w-3.5" /> New reviews / month</p>
+                <div className="flex items-end gap-2" style={{ height: 88 }}>
+                  {trend.map(([m, n]) => (
+                    <div key={m} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                      <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">{n}</span>
+                      <div className="flex w-full items-end justify-center" style={{ height: 56 }}>
+                        <div className="w-full max-w-[26px] rounded-t-md bg-gradient-to-t from-brand-500/60 to-violet-500" style={{ height: `${Math.max(6, (n / trendMax) * 100)}%` }} />
+                      </div>
+                      <span className="truncate text-[9.5px] text-muted-foreground">{monthLabel(m)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
