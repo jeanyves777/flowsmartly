@@ -171,8 +171,10 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl space-y-4">
-        <p className="text-[13px] text-muted-foreground">Connect your accounts to publish and cross-post. We use each platform’s official login — you’ll come right back here after authorizing.</p>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: intro + connection-slot usage */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[300px] lg:shrink-0">
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">Connect your accounts to publish and cross-post. We use each platform’s official login — you’ll come right back here after authorizing.</p>
 
         {/* Slot usage / limit awareness */}
         {slots && (
@@ -221,7 +223,10 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
             )}
           </div>
         )}
+        </aside>
 
+        {/* RIGHT: connect feedback + the platform grid (full width) */}
+        <div className="min-w-0 flex-1 space-y-4">
         {/* Mutation feedback */}
         {notice && (
           <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[12px] text-emerald-700 dark:text-emerald-300">
@@ -238,7 +243,7 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
             const accounts = p.accounts ?? [];
             const color = COLORS[p.platform] ?? "#0ea5e9";
@@ -327,6 +332,7 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
               </div>
             );
           })}
+        </div>
         </div>
       </div>
     </div>

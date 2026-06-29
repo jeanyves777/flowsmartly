@@ -75,7 +75,9 @@ export function FocusedBilling({ refreshKey, onOpenView }: { refreshKey?: number
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: balance + usage summary */}
+        <aside className="space-y-4 lg:sticky lg:top-0 lg:w-[320px] lg:shrink-0">
         {/* balance hero */}
         <section className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent p-5">
           <div className="flex flex-wrap items-center gap-4">
@@ -95,13 +97,6 @@ export function FocusedBilling({ refreshKey, onOpenView }: { refreshKey?: number
             </button>
           </div>
         </section>
-
-        {/* KPIs (recent) */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <Kpi icon={ArrowDownRight} tone="text-rose-500" label="Spent (recent)" value={spent.toLocaleString()} />
-          <Kpi icon={ArrowUpRight} tone="text-emerald-500" label="Added (recent)" value={added.toLocaleString()} />
-          <Kpi icon={Receipt} tone="text-muted-foreground" label="Transactions" value={txns.length.toLocaleString()} />
-        </div>
 
         {/* usage by type */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
@@ -125,7 +120,16 @@ export function FocusedBilling({ refreshKey, onOpenView }: { refreshKey?: number
             <Empty text="No credit activity yet — your usage breakdown shows up here once you start creating." />
           )}
         </section>
+        </aside>
 
+        {/* RIGHT: recent KPIs + transaction ledger (full width) */}
+        <div className="min-w-0 flex-1 space-y-4">
+        {/* KPIs (recent) */}
+        <div className="grid grid-cols-3 gap-3">
+          <Kpi icon={ArrowDownRight} tone="text-rose-500" label="Spent (recent)" value={spent.toLocaleString()} />
+          <Kpi icon={ArrowUpRight} tone="text-emerald-500" label="Added (recent)" value={added.toLocaleString()} />
+          <Kpi icon={Receipt} tone="text-muted-foreground" label="Transactions" value={txns.length.toLocaleString()} />
+        </div>
         {/* ledger */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <h3 className="mb-3 text-[13px] font-bold">Recent transactions</h3>
@@ -150,6 +154,7 @@ export function FocusedBilling({ refreshKey, onOpenView }: { refreshKey?: number
             <Empty text="No transactions yet." />
           )}
         </section>
+        </div>
       </div>
     </div>
   );

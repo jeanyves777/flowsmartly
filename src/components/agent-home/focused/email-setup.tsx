@@ -75,7 +75,7 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="w-full">
       {/* header */}
       <div className="flex items-center gap-3">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Mail className="h-6 w-6" /></span>
@@ -85,9 +85,9 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
-        {/* LEFT — provider picker only */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="mt-4 flex flex-col items-start gap-4 lg:flex-row">
+        {/* LEFT — provider picker (narrow) */}
+        <div className="w-full rounded-2xl border border-border bg-card p-5 lg:w-[320px] lg:shrink-0">
           <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">1 · Sending provider</p>
           <div className="space-y-1.5">
             {PROVIDERS.map((p) => (
@@ -103,10 +103,10 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {/* RIGHT — credentials for the chosen provider + sender + actions */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        {/* RIGHT — credentials for the chosen provider + sender + actions (full width) */}
+        <div className="w-full min-w-0 flex-1 rounded-2xl border border-border bg-card p-5">
           <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">2 · {def.label} credentials</p>
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
             {def.fields.map((f) => (
               <div key={f.key}>
                 <label className="mb-1 block text-[11.5px] font-semibold">{f.label}</label>
@@ -120,7 +120,7 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
           </div>
 
           <p className="mb-2.5 mt-4 border-t border-border/70 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">3 · Sender</p>
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-[11.5px] font-semibold">From name</label>
               <input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Your brand" className={FIELD} />
