@@ -21,6 +21,7 @@ import {
   Navigation,
   Banknote,
   Link2,
+  ListChecks,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -28,12 +29,15 @@ import { cn } from "@/lib/utils/cn";
 /**
  * Delivery — a new-design fulfilment surface (the Delivery workspace canvas):
  * orders that need delivery with their delivery status + driver assignment, plus
- * the store's delivery drivers. The data actions are REAL UI — assign a driver
+ * the store's delivery drivers. Full-width master/detail — a sticky left card
+ * (summary stats + a vertical status nav + driver count) and a right pane that
+ * shows the deliveries list (filtered by the selected status) above the drivers.
+ * The data actions are REAL UI — assign a driver
  * (POST /api/ecommerce/delivery/[orderId]), advance the delivery status
  * (PATCH /api/ecommerce/delivery/[orderId]/status), add a driver
  * (POST /api/ecommerce/drivers). A click means do-it-in-the-UI, not a chat
  * prompt. Store creation stays agent-driven (a heavy generative build). No
- * legacy links. [[surface-buttons-are-ui-actions]]
+ * legacy links. [[surface-buttons-are-ui-actions]] [[full-width-left-menu-layout]]
  */
 
 interface DriverRef { id: string; name?: string; phone?: string | null; }
@@ -101,6 +105,18 @@ const DELIVERY_LABEL: Record<string, string> = {
   delivered: "Delivered",
   failed: "Failed",
 };
+
+// Which left-nav bucket an order falls into, by its delivery state. Drives the
+// status filter on the deliveries list.
+type DeliveryFilter = "all" | "pending" | "transit" | "delivered" | "cod";
+const IN_TRANSIT_STATUSES = new Set(["assigned", "picked_up", "in_transit"]);
+function orderBucket(o: Order): Exclude<DeliveryFilter, "all" | "cod"> {
+  const ds = o.deliveryAssignment?.status;
+  const od = (o.status || "").toUpperCase();
+  if (od === "DELIVERED" || ds === "delivered") return "delivered";
+  if (ds && IN_TRANSIT_STATUSES.has(ds)) return "transit";
+  return "pending";
+}
 
 function deliveryTone(status?: string): string {
   switch (status) {
@@ -187,6 +203,9 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
 
   // Which driver's tracking link was just copied (for the transient "Copied" state).
   const [copiedDriverId, setCopiedDriverId] = useState<string | null>(null);
+
+  // Left-nav status filter for the deliveries list.
+  const [statusFilter, setStatusFilter] = useState<DeliveryFilter>("all");
 
   const loadData = useCallback(async () => {
     const sj = await fetch("/api/ecommerce/store").then((r) => r.json()).catch(() => null);
@@ -341,51 +360,85 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
   const driverById = new Map(drivers.map((d) => [d.id, d]));
 
   // KPIs across fulfilment-relevant orders.
-  const inTransitStatuses = new Set(["assigned", "picked_up", "in_transit"]);
-  const delivered = orders.filter((o) => o.deliveryAssignment?.status === "delivered" || (o.status || "").toUpperCase() === "DELIVERED").length;
-  const inTransit = orders.filter((o) => o.deliveryAssignment && inTransitStatuses.has(o.deliveryAssignment.status)).length;
-  const pending = orders.filter((o) => {
-    const ds = o.deliveryAssignment?.status;
-    const od = (o.status || "").toUpperCase();
-    return od !== "DELIVERED" && ds !== "delivered" && !(ds && inTransitStatuses.has(ds));
-  }).length;
+  const delivered = orders.filter((o) => orderBucket(o) === "delivered").length;
+  const inTransit = orders.filter((o) => orderBucket(o) === "transit").length;
+  const pending = orders.filter((o) => orderBucket(o) === "pending").length;
   // Cash-on-delivery still owed to the store (assigned, not yet collected).
   const codPendingOrders = orders.filter((o) => isCodPending(o.deliveryAssignment));
   const codPendingCount = codPendingOrders.length;
   const codPendingCents = codPendingOrders.reduce((sum, o) => sum + (o.deliveryAssignment?.codAmountCents || 0), 0);
 
+  // The deliveries shown in the right pane, narrowed by the left-nav filter.
+  const visibleOrders = orders.filter((o) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "cod") return isCodPending(o.deliveryAssignment);
+    return orderBucket(o) === statusFilter;
+  });
+
+  const statusNav: { id: DeliveryFilter; label: string; icon: ElementType; count: number; tone?: "amber" }[] = [
+    { id: "all", label: "All deliveries", icon: ListChecks, count: orders.length },
+    { id: "pending", label: "Pending", icon: Clock, count: pending },
+    { id: "transit", label: "In transit", icon: Truck, count: inTransit },
+    { id: "delivered", label: "Delivered", icon: CheckCircle2, count: delivered },
+    { id: "cod", label: "COD to collect", icon: Banknote, count: codPendingCount, tone: "amber" },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* header + KPIs */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Truck className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-bold">Delivery</h2>
-              <p className="truncate text-[12px] text-muted-foreground">Fulfilment &amp; driver tracking for {store?.name}</p>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + status nav */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Truck className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">Delivery</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">Fulfilment for {store?.name}</p>
+              </div>
             </div>
+            {codPendingCount > 0 && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-amber-600 dark:text-amber-400">
+                <Banknote className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-[11.5px] font-semibold">{money(codPendingCents, cur)} cash to collect</span>
+              </div>
+            )}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={Clock} label="Pending" value={String(pending)} />
-            <Kpi icon={Truck} label="In transit" value={String(inTransit)} />
-            <Kpi icon={CheckCircle2} label="Delivered" value={String(delivered)} />
-            <Kpi icon={Banknote} label="COD to collect" value={String(codPendingCount)} hint={codPendingCount ? money(codPendingCents, cur) : undefined} tone={codPendingCount ? "amber" : undefined} />
-          </div>
-        </section>
 
+          {/* status nav */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {statusNav.map((n) => {
+              const active = statusFilter === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setStatusFilter(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className={cn("h-4 w-4 shrink-0", !active && n.tone === "amber" && "text-amber-500")} />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : n.tone === "amber" ? "bg-amber-500/15 text-amber-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* RIGHT: deliveries + drivers, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
         {/* deliveries */}
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-[13px] font-bold">Deliveries</h3>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{orders.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{visibleOrders.length}</span>
           </div>
 
           {rowError && <p className="mb-2 text-[12px] text-rose-500">{rowError}</p>}
 
-          {orders.length ? (
+          {visibleOrders.length ? (
             <div className="space-y-2.5">
-              {orders.map((o) => {
+              {visibleOrders.map((o) => {
                 const a = o.deliveryAssignment;
                 const next = a ? NEXT_DELIVERY[a.status] : null;
                 const isBusy = busy === o.id;
@@ -483,6 +536,11 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
                 );
               })}
             </div>
+          ) : statusFilter !== "all" && orders.length ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+              <p className="text-[13px] font-medium">No deliveries in this status</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">Pick another status on the left to see the rest.</p>
+            </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <p className="text-[13px] font-medium">Nothing to deliver right now</p>
@@ -577,17 +635,8 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
             </div>
           ) : null}
         </section>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Kpi({ icon: Icon, label, value, hint, tone }: { icon: ElementType; label: string; value: string; hint?: string; tone?: "amber" }) {
-  return (
-    <div className={cn("rounded-xl border bg-muted/30 p-3", tone === "amber" ? "border-amber-500/30 bg-amber-500/5" : "border-border")}>
-      <div className={cn("flex items-center gap-1.5 text-muted-foreground", tone === "amber" && "text-amber-500")}><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className={cn("mt-1 text-[18px] font-extrabold leading-none", tone === "amber" && "text-amber-500")}>{value}</p>
-      {hint && <p className="mt-1 text-[11px] font-semibold text-amber-500">{hint}</p>}
     </div>
   );
 }

@@ -48,6 +48,7 @@ export function FocusedTeams({ refreshKey }: { refreshKey?: number }) {
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [hasTeam, setHasTeam] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<"members" | "invites">("members");
 
   const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState("");
@@ -333,40 +334,44 @@ export function FocusedTeams({ refreshKey }: { refreshKey?: number }) {
   }
 
   const members = team.members;
-  const owners = members.filter((m) => m.role?.toUpperCase() === "OWNER").length;
-  const admins = members.filter((m) => m.role?.toUpperCase() === "ADMIN").length;
+  const memberTotal = team.memberCount ?? members.length;
+
+  const sectionsWithInvites = canManage && invites.length > 0;
+  const activeSection = sectionsWithInvites ? section : "members";
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* team header */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Users className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-bold">{team.name}</h2>
-              <p className="truncate text-[12px] text-muted-foreground">{(team.memberCount ?? members.length).toLocaleString()} {(team.memberCount ?? members.length) === 1 ? "member" : "members"}{myRole ? ` · you're ${roleMeta(myRole).label.toLowerCase()}` : ""}</p>
-            </div>
-            <div className="ms-auto flex items-center gap-2">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky team identity + summary + section nav + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Users className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">{team.name}</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">{myRole ? `You're ${roleMeta(myRole).label.toLowerCase()}` : "Team"}</p>
+              </div>
               {isOwnerMe && (
-                <button onClick={() => { editing ? setEditing(false) : openEdit(); }} title="Edit team" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">
-                  <Settings2 className="h-3.5 w-3.5" /> Edit
+                <button onClick={() => { editing ? setEditing(false) : openEdit(); }} title="Edit team" className={cn("inline-flex shrink-0 items-center gap-1 rounded-[9px] border px-2 py-1 text-[11px] font-semibold transition-colors", editing ? "border-brand-500/60 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground")}>
+                  <Settings2 className="h-3 w-3" /> {editing ? "Close" : "Edit"}
                 </button>
               )}
-              {canManage && (
-                <button onClick={() => { setInviting((v) => !v); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm">
-                  <UserPlus className="h-3.5 w-3.5" /> Invite member
-                </button>
-              )}
+            </div>
+
+            {team.description && (
+              <p className="mt-2.5 line-clamp-3 text-[11.5px] leading-relaxed text-muted-foreground">{team.description}</p>
+            )}
+
+            <div className="mt-3 space-y-1.5">
+              <SummaryStat icon={Users} label="Members" value={memberTotal.toLocaleString()} />
+              <SummaryStat icon={Clock} label="Pending invites" value={invites.length.toLocaleString()} />
+              <SummaryStat icon={Shield} label="Seats used" value={memberTotal.toLocaleString()} />
             </div>
           </div>
-          {team.description && !editing && (
-            <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{team.description}</p>
-          )}
 
           {/* inline edit team form (owner only) */}
           {isOwnerMe && editing && (
-            <div className="mt-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
+            <div className="rounded-2xl border border-brand-500/30 bg-brand-500/5 p-3.5">
               <p className="mb-2.5 text-[12.5px] font-semibold">Team details</p>
               <div className="space-y-2.5">
                 <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Name *</span><input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Team name" className={FIELD} /></label>
@@ -375,213 +380,247 @@ export function FocusedTeams({ refreshKey }: { refreshKey?: number }) {
               {teamError && <p className="mt-2 text-[12px] text-rose-500">{teamError}</p>}
               <div className="mt-3 flex items-center gap-2">
                 <button onClick={saveTeam} disabled={savingTeam} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                  {savingTeam ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} Save changes
+                  {savingTeam ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} Save
                 </button>
                 <button onClick={() => { setEditing(false); setTeamError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
               </div>
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={Users} label="Members" value={(team.memberCount ?? members.length).toLocaleString()} />
-            <Kpi icon={Crown} label="Owners" value={owners.toLocaleString()} />
-            <Kpi icon={Shield} label="Admins" value={admins.toLocaleString()} />
-            <Kpi icon={Clock} label="Pending" value={invites.length.toLocaleString()} />
-          </div>
-        </section>
-
-        {/* members + invite */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-[13px] font-bold">Members</h3>
-            {notice && <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-500"><Check className="h-3.5 w-3.5" /> {notice}</span>}
-            {canManage && (
-              <div className="ms-auto flex items-center gap-2">
-                <button onClick={openBulk} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                  <ListChecks className="h-3.5 w-3.5" /> Invite from list
-                </button>
-                <button onClick={() => { setInviting((v) => !v); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                  <UserPlus className="h-3.5 w-3.5" /> Invite
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* bulk invite from a contact list */}
-          {canManage && bulkOpen && (
-            <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
-              <p className="mb-1 text-[12.5px] font-semibold">Invite everyone in a contact list</p>
-              <p className="mb-2.5 text-[11.5px] text-muted-foreground">We&apos;ll email an invite to every contact with an address. Existing members and people already invited are skipped automatically.</p>
-              {listsLoading ? (
-                <div className="flex items-center gap-2 py-2 text-[12px] text-muted-foreground"><FlowLoader size={15} /> Loading your contact lists…</div>
-              ) : lists.length === 0 ? (
-                <p className="py-2 text-[12px] text-muted-foreground">No contact lists found yet. Create a list of contacts first, then come back to bulk-invite them.</p>
-              ) : (
-                <>
-                  <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
-                    <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Contact list *</span>
-                      <div className="relative">
-                        <select value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)} className={cn(FIELD, "appearance-none pr-8")}>
-                          <option value="">Choose a list…</option>
-                          {lists.map((l) => <option key={l.id} value={l.id}>{l.name}{typeof l.contactCount === "number" ? ` (${l.contactCount})` : ""}</option>)}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      </div>
-                    </label>
-                    <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Role</span>
-                      <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as AssignRole)} className={cn(FIELD, "sm:w-40")}>
-                        {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  {bulkError && <p className="mt-2 text-[12px] text-rose-500">{bulkError}</p>}
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={bulkInvite} disabled={bulkRunning || !selectedListId} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                      {bulkRunning ? <FlowLoader size={15} tone="white" /> : <Mail className="h-3.5 w-3.5" />} Invite the list
-                    </button>
-                    <button onClick={() => { setBulkOpen(false); setBulkError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* inline invite form — clicking "Invite" opens this, not a chat prompt */}
-          {canManage && inviting && (
-            <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
-              <p className="mb-2.5 text-[12.5px] font-semibold">Invite a teammate</p>
-              <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Email *</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@email.com" type="email" className={FIELD} /></label>
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Role</span>
-                  <select value={role} onChange={(e) => setRole(e.target.value as AssignRole)} className={cn(FIELD, "sm:w-40")}>
-                    {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
-                  </select>
-                </label>
-              </div>
-              {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
-              <div className="mt-3 flex items-center gap-2">
-                <button onClick={invite} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                  {saving ? <FlowLoader size={15} tone="white" /> : <Mail className="h-3.5 w-3.5" />} Send invite
-                </button>
-                <button onClick={() => { setInviting(false); setEmail(""); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {members.length ? (
-            <div className="space-y-2">
-              {members.map((m) => {
-                const rm = roleMeta(m.role);
-                const isOwner = m.role?.toUpperCase() === "OWNER";
-                const name = m.user.name || m.user.email || "Teammate";
+          {/* section nav (only when there are pending invites to switch to) */}
+          {sectionsWithInvites && (
+            <nav className="rounded-2xl border border-border bg-card p-1.5">
+              {([
+                { id: "members" as const, label: "Members", icon: Users, count: members.length },
+                { id: "invites" as const, label: "Pending invites", icon: Mail, count: invites.length },
+              ]).map((n) => {
+                const active = activeSection === n.id;
                 return (
-                  <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                    {m.user.avatarUrl ? (
-                      <Image src={m.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-full object-cover" unoptimized />
-                    ) : (
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-500/30 text-[12px] font-bold text-brand-500">{name.slice(0, 1).toUpperCase()}</span>
+                  <button
+                    key={n.id}
+                    onClick={() => setSection(n.id)}
+                    className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                  >
+                    <n.icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 text-start">{n.label}</span>
+                    {n.count > 0 && (
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium">{name}</p>
-                      <p className="truncate text-[11.5px] text-muted-foreground">{m.user.email || (m.joinedAt ? `Joined ${whenLabel(m.joinedAt)}` : "")}</p>
-                    </div>
-                    {isOwnerMe && !isOwner ? (
-                      <select value={(m.role || "MEMBER").toUpperCase()} onChange={(e) => changeRole(m, e.target.value)} disabled={busyId === m.id} title="Change role" className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[11px] font-semibold outline-none focus:border-brand-500/60 disabled:opacity-60">
-                        {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
-                      </select>
-                    ) : (
-                      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
-                    )}
-                    {canManage && !isOwner && (
-                      <button onClick={() => removeMember(m)} disabled={busyId === m.id} title="Remove member" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-rose-500/60 hover:text-rose-500 disabled:opacity-60">
-                        {busyId === m.id ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-              <p className="text-[13px] font-medium">No members yet</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">{canManage ? "Invite a teammate by email to get started." : "Your team has no members listed yet."}</p>
-              {canManage && (
-                <button onClick={() => { setInviting(true); setError(""); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><UserPlus className="h-4 w-4" /> Invite a member</button>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* pending invitations (managers only) */}
-        {canManage && invites.length > 0 && (
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <h3 className="mb-3 text-[13px] font-bold">Pending invitations</h3>
-            <div className="space-y-2">
-              {invites.map((inv) => {
-                const rm = roleMeta(inv.role);
-                return (
-                  <div key={inv.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-3 py-2.5">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-500"><Mail className="h-4 w-4" /></span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium">{inv.email}</p>
-                      <p className="truncate text-[11.5px] text-muted-foreground">{inv.inviterName ? `Invited by ${inv.inviterName}` : "Invited"}{inv.expiresAt ? ` · expires ${whenLabel(inv.expiresAt)}` : ""}</p>
-                    </div>
-                    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
-                    <button onClick={() => resendInvite(inv)} disabled={busyId === inv.id} title="Resend invitation" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-60">
-                      {busyId === inv.id ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    </button>
-                    <button onClick={() => cancelInvite(inv)} disabled={busyId === inv.id} title="Cancel invitation" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-rose-500/60 hover:text-rose-500 disabled:opacity-60">
-                      {busyId === inv.id ? <FlowLoader size={13} /> : <X className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* danger zone — owner only */}
-        {isOwnerMe && (
-          <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 sm:p-5">
-            <button onClick={() => { setDangerOpen((v) => !v); setConfirmDelete(false); }} className="flex w-full items-center gap-2 text-left">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-500/10 text-rose-500"><AlertTriangle className="h-4 w-4" /></span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-bold text-rose-500">Danger zone</span>
-                <span className="block truncate text-[11.5px] text-muted-foreground">Permanently delete this team and remove every member.</span>
-              </span>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", dangerOpen && "rotate-180")} />
-            </button>
-            {dangerOpen && (
-              <div className="mt-3 rounded-xl border border-rose-500/30 bg-card p-3.5">
-                <p className="text-[12.5px] font-semibold">Delete {team.name}</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">This can&apos;t be undone. All members lose access to this team and its shared work. Pending invitations are voided.</p>
-                {!confirmDelete ? (
-                  <button onClick={() => setConfirmDelete(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 px-3.5 py-2 text-[12.5px] font-semibold text-rose-500 transition hover:bg-rose-500/10">
-                    <Trash2 className="h-3.5 w-3.5" /> Delete this team
                   </button>
-                ) : (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-[12px] font-medium text-rose-500">Are you sure? This is permanent.</span>
-                    <button onClick={deleteTeam} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                      {deleting ? <FlowLoader size={15} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Yes, delete
-                    </button>
-                    <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"><X className="h-3.5 w-3.5" /> Cancel</button>
-                  </div>
+                );
+              })}
+            </nav>
+          )}
+
+          {/* primary action */}
+          {canManage && (
+            <div className="space-y-2">
+              <button onClick={() => { setInviting(true); setSection("members"); setError(""); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                <UserPlus className="h-4 w-4" /> Invite member
+              </button>
+              <button onClick={() => { openBulk(); setSection("members"); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                <ListChecks className="h-3.5 w-3.5" /> Invite from list
+              </button>
+            </div>
+          )}
+        </aside>
+
+        {/* RIGHT: members / invites lists, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {notice && (
+            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2 text-[12px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {notice}</span>
+            </p>
+          )}
+
+          {activeSection === "members" ? (
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-[13px] font-bold">Members</h3>
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{members.length}</span>
+                {canManage && (
+                  <button onClick={() => { setInviting((v) => !v); setError(""); }} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                    <UserPlus className="h-3.5 w-3.5" /> Invite
+                  </button>
                 )}
               </div>
-            )}
-          </section>
-        )}
+
+              {/* bulk invite from a contact list */}
+              {canManage && bulkOpen && (
+                <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
+                  <p className="mb-1 text-[12.5px] font-semibold">Invite everyone in a contact list</p>
+                  <p className="mb-2.5 text-[11.5px] text-muted-foreground">We&apos;ll email an invite to every contact with an address. Existing members and people already invited are skipped automatically.</p>
+                  {listsLoading ? (
+                    <div className="flex items-center gap-2 py-2 text-[12px] text-muted-foreground"><FlowLoader size={15} /> Loading your contact lists…</div>
+                  ) : lists.length === 0 ? (
+                    <p className="py-2 text-[12px] text-muted-foreground">No contact lists found yet. Create a list of contacts first, then come back to bulk-invite them.</p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
+                        <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Contact list *</span>
+                          <div className="relative">
+                            <select value={selectedListId} onChange={(e) => setSelectedListId(e.target.value)} className={cn(FIELD, "appearance-none pr-8")}>
+                              <option value="">Choose a list…</option>
+                              {lists.map((l) => <option key={l.id} value={l.id}>{l.name}{typeof l.contactCount === "number" ? ` (${l.contactCount})` : ""}</option>)}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          </div>
+                        </label>
+                        <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Role</span>
+                          <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value as AssignRole)} className={cn(FIELD, "sm:w-40")}>
+                            {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      {bulkError && <p className="mt-2 text-[12px] text-rose-500">{bulkError}</p>}
+                      <div className="mt-3 flex items-center gap-2">
+                        <button onClick={bulkInvite} disabled={bulkRunning || !selectedListId} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+                          {bulkRunning ? <FlowLoader size={15} tone="white" /> : <Mail className="h-3.5 w-3.5" />} Invite the list
+                        </button>
+                        <button onClick={() => { setBulkOpen(false); setBulkError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* inline invite form — clicking "Invite" opens this, not a chat prompt */}
+              {canManage && inviting && (
+                <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
+                  <p className="mb-2.5 text-[12.5px] font-semibold">Invite a teammate</p>
+                  <div className="grid gap-2.5 sm:grid-cols-[1fr_auto]">
+                    <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Email *</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@email.com" type="email" className={FIELD} /></label>
+                    <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Role</span>
+                      <select value={role} onChange={(e) => setRole(e.target.value as AssignRole)} className={cn(FIELD, "sm:w-40")}>
+                        {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={invite} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+                      {saving ? <FlowLoader size={15} tone="white" /> : <Mail className="h-3.5 w-3.5" />} Send invite
+                    </button>
+                    <button onClick={() => { setInviting(false); setEmail(""); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {members.length ? (
+                <div className="space-y-2">
+                  {members.map((m) => {
+                    const rm = roleMeta(m.role);
+                    const isOwner = m.role?.toUpperCase() === "OWNER";
+                    const name = m.user.name || m.user.email || "Teammate";
+                    return (
+                      <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+                        {m.user.avatarUrl ? (
+                          <Image src={m.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-full object-cover" unoptimized />
+                        ) : (
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-500/30 text-[12px] font-bold text-brand-500">{name.slice(0, 1).toUpperCase()}</span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium">{name}</p>
+                          <p className="truncate text-[11.5px] text-muted-foreground">{m.user.email || (m.joinedAt ? `Joined ${whenLabel(m.joinedAt)}` : "")}</p>
+                        </div>
+                        {isOwnerMe && !isOwner ? (
+                          <select value={(m.role || "MEMBER").toUpperCase()} onChange={(e) => changeRole(m, e.target.value)} disabled={busyId === m.id} title="Change role" className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[11px] font-semibold outline-none focus:border-brand-500/60 disabled:opacity-60">
+                            {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{roleMeta(r).label}</option>)}
+                          </select>
+                        ) : (
+                          <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
+                        )}
+                        {canManage && !isOwner && (
+                          <button onClick={() => removeMember(m)} disabled={busyId === m.id} title="Remove member" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-rose-500/60 hover:text-rose-500 disabled:opacity-60">
+                            {busyId === m.id ? <FlowLoader size={13} /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                  <p className="text-[13px] font-medium">No members yet</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">{canManage ? "Invite a teammate by email to get started." : "Your team has no members listed yet."}</p>
+                  {canManage && (
+                    <button onClick={() => { setInviting(true); setError(""); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><UserPlus className="h-4 w-4" /> Invite a member</button>
+                  )}
+                </div>
+              )}
+            </section>
+          ) : (
+            /* pending invitations (managers only) */
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <h3 className="mb-3 text-[13px] font-bold">Pending invitations</h3>
+              <div className="space-y-2">
+                {invites.map((inv) => {
+                  const rm = roleMeta(inv.role);
+                  return (
+                    <div key={inv.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-500"><Mail className="h-4 w-4" /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium">{inv.email}</p>
+                        <p className="truncate text-[11.5px] text-muted-foreground">{inv.inviterName ? `Invited by ${inv.inviterName}` : "Invited"}{inv.expiresAt ? ` · expires ${whenLabel(inv.expiresAt)}` : ""}</p>
+                      </div>
+                      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", rm.tone)}><rm.icon className="h-3 w-3" /> {rm.label}</span>
+                      <button onClick={() => resendInvite(inv)} disabled={busyId === inv.id} title="Resend invitation" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-60">
+                        {busyId === inv.id ? <FlowLoader size={13} /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      </button>
+                      <button onClick={() => cancelInvite(inv)} disabled={busyId === inv.id} title="Cancel invitation" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition hover:border-rose-500/60 hover:text-rose-500 disabled:opacity-60">
+                        {busyId === inv.id ? <FlowLoader size={13} /> : <X className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* danger zone — owner only */}
+          {isOwnerMe && (
+            <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 sm:p-5">
+              <button onClick={() => { setDangerOpen((v) => !v); setConfirmDelete(false); }} className="flex w-full items-center gap-2 text-left">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-500/10 text-rose-500"><AlertTriangle className="h-4 w-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-rose-500">Danger zone</span>
+                  <span className="block truncate text-[11.5px] text-muted-foreground">Permanently delete this team and remove every member.</span>
+                </span>
+                <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", dangerOpen && "rotate-180")} />
+              </button>
+              {dangerOpen && (
+                <div className="mt-3 rounded-xl border border-rose-500/30 bg-card p-3.5">
+                  <p className="text-[12.5px] font-semibold">Delete {team.name}</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">This can&apos;t be undone. All members lose access to this team and its shared work. Pending invitations are voided.</p>
+                  {!confirmDelete ? (
+                    <button onClick={() => setConfirmDelete(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/40 px-3.5 py-2 text-[12.5px] font-semibold text-rose-500 transition hover:bg-rose-500/10">
+                      <Trash2 className="h-3.5 w-3.5" /> Delete this team
+                    </button>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-[12px] font-medium text-rose-500">Are you sure? This is permanent.</span>
+                      <button onClick={deleteTeam} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
+                        {deleting ? <FlowLoader size={15} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Yes, delete
+                      </button>
+                      <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"><X className="h-3.5 w-3.5" /> Cancel</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function SummaryStat({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }

@@ -181,106 +181,137 @@ export function FocusedPitch({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const total = stats.total ?? pitches.length;
   const shown = pitches.filter((p) => docFilter === "all" || (p.documentType || "pitch") === docFilter);
 
+  // Status-filter strip → vertical nav in the left rail. Counts come from stats
+  // (proposals) / the loaded list (pitches), so the menu reflects real numbers.
+  const proposalsCount = stats.proposals ?? pitches.filter((p) => p.documentType === "service_proposal").length;
+  const pitchesCount = Math.max(0, total - proposalsCount);
+  const nav: { id: "all" | "pitch" | "service_proposal"; label: string; icon: ElementType; count: number }[] = [
+    { id: "all", label: "All documents", icon: FileText, count: total },
+    { id: "pitch", label: "Pitches", icon: FileText, count: pitchesCount },
+    { id: "service_proposal", label: "Proposals", icon: Presentation, count: proposalsCount },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* header */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-bold">Pitch board</h2>
-              <p className="truncate text-[12px] text-muted-foreground">Your sales proposals & outreach pitches</p>
-            </div>
-            {onAsk && (
-              <button onClick={startNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
-                <Plus className="h-3.5 w-3.5" /> New proposal
-              </button>
-            )}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi icon={FileText} label="Total" value={total.toLocaleString()} />
-            <Kpi icon={Presentation} label="Proposals" value={(stats.proposals ?? 0).toLocaleString()} />
-            <Kpi icon={CheckCircle2} label="Ready" value={(stats.ready ?? 0).toLocaleString()} />
-            <Kpi icon={Send} label="Sent" value={(stats.sent ?? 0).toLocaleString()} />
-          </div>
-        </section>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + section nav + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {onAsk && (
+            <button
+              onClick={startNew}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+            >
+              <Plus className="h-4 w-4" /> New proposal
+            </button>
+          )}
 
-        {/* list */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-[13px] font-bold">Your pitches</h3>
-            <div className="inline-flex rounded-[10px] border border-border p-0.5">
-              {([["all", "All"], ["pitch", "Pitches"], ["service_proposal", "Proposals"]] as const).map(([k, lbl]) => (
-                <button key={k} onClick={() => setDocFilter(k)} className={cn("rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition", docFilter === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>
-              ))}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-start gap-2.5 px-1 pb-2">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-[18px] w-[18px]" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[14px] font-bold">Pitch board</h2>
+                <p className="truncate text-[11px] text-muted-foreground">Proposals & outreach pitches</p>
+              </div>
             </div>
-            {(stats.pending ?? 0) > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500"><Clock className="h-3 w-3" /> {stats.pending} in progress</span>
-            )}
-            {onAsk && (
-              <button onClick={startNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-brand-500" /> New proposal
-              </button>
-            )}
+            <div className="space-y-1.5">
+              <StatRow icon={CheckCircle2} label="Ready" value={(stats.ready ?? 0).toLocaleString()} />
+              <StatRow icon={Send} label="Sent" value={(stats.sent ?? 0).toLocaleString()} sub={(stats.pending ?? 0) > 0 ? `${stats.pending} in progress` : undefined} />
+            </div>
           </div>
 
-          {shown.length ? (
-            <div className="space-y-2">
-              {shown.map((p) => {
-                const m = statusMeta(p.status);
-                const isProposal = p.documentType === "service_proposal";
-                const isOpen = openId === p.id;
-                return (
-                  <div key={p.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
-                    <button onClick={() => open(p)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
-                      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", isProposal ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>
-                        {isProposal ? <Presentation className="h-[18px] w-[18px]" /> : <FileText className="h-[18px] w-[18px]" />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium">{p.businessName || "Untitled pitch"}</p>
-                        <p className="truncate text-[11.5px] text-muted-foreground">
-                          {[isProposal ? "Proposal" : "Pitch", p.recipientName || p.recipientEmail, whenLabel(p.createdAt)].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", m.cls)}>
-                        {m.spin ? <FlowLoader size={11} /> : <m.icon className="h-3 w-3" />} {m.label}
-                      </span>
-                      <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", isOpen && "rotate-180")} />
-                    </button>
+          {/* section nav (was the status-filter strip) */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = docFilter === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => setDocFilter(n.id)}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-                    {/* inline detail — opening a pitch expands it here, no navigation */}
-                    {isOpen && (
-                      <div className="border-t border-border/70 px-3 py-3">
-                        {detailLoading ? (
-                          <div className="py-3"><FlowLoader size={18} label="Opening pitch…" /></div>
-                        ) : (
-                          <PitchDetailView
-                            pitch={p}
-                            detail={detail}
-                            onChanged={() => onChanged(p.id)}
-                            onDeleted={() => onDeleted(p.id)}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Trophy className="h-7 w-7" /></span>
-              <p className="mt-3 text-[14px] font-semibold">No pitches yet</p>
-              <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Win more deals — let the agent research a prospect and draft a tailored proposal for you.</p>
+        {/* RIGHT: the pitch/proposal list, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h3 className="text-[13px] font-bold">{nav.find((n) => n.id === docFilter)?.label ?? "Your pitches"}</h3>
+              {(stats.pending ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-brand-500"><Clock className="h-3 w-3" /> {stats.pending} in progress</span>
+              )}
               {onAsk && (
-                <button onClick={startNew} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-                  <Sparkles className="h-4 w-4" /> Draft my first proposal
+                <button onClick={startNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-brand-500" /> New proposal
                 </button>
               )}
             </div>
-          )}
-        </section>
+
+            {shown.length ? (
+              <div className="space-y-2">
+                {shown.map((p) => {
+                  const m = statusMeta(p.status);
+                  const isProposal = p.documentType === "service_proposal";
+                  const isOpen = openId === p.id;
+                  return (
+                    <div key={p.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
+                      <button onClick={() => open(p)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+                        <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", isProposal ? "bg-violet-500/10 text-violet-500" : "bg-brand-500/10 text-brand-500")}>
+                          {isProposal ? <Presentation className="h-[18px] w-[18px]" /> : <FileText className="h-[18px] w-[18px]" />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium">{p.businessName || "Untitled pitch"}</p>
+                          <p className="truncate text-[11.5px] text-muted-foreground">
+                            {[isProposal ? "Proposal" : "Pitch", p.recipientName || p.recipientEmail, whenLabel(p.createdAt)].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", m.cls)}>
+                          {m.spin ? <FlowLoader size={11} /> : <m.icon className="h-3 w-3" />} {m.label}
+                        </span>
+                        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", isOpen && "rotate-180")} />
+                      </button>
+
+                      {/* inline detail — opening a pitch expands it here, no navigation */}
+                      {isOpen && (
+                        <div className="border-t border-border/70 px-3 py-3">
+                          {detailLoading ? (
+                            <div className="py-3"><FlowLoader size={18} label="Opening pitch…" /></div>
+                          ) : (
+                            <PitchDetailView
+                              pitch={p}
+                              detail={detail}
+                              onChanged={() => onChanged(p.id)}
+                              onDeleted={() => onDeleted(p.id)}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Trophy className="h-7 w-7" /></span>
+                <p className="mt-3 text-[14px] font-semibold">No pitches yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Win more deals — let the agent research a prospect and draft a tailored proposal for you.</p>
+                {onAsk && (
+                  <button onClick={startNew} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                    <Sparkles className="h-4 w-4" /> Draft my first proposal
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -554,11 +585,15 @@ function PitchDetailView({
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function StatRow({ icon: Icon, label, value, sub }: { icon: ElementType; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+        {sub && <p className="truncate text-[10px] text-muted-foreground/80">{sub}</p>}
+      </div>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }

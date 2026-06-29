@@ -175,63 +175,80 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
 
   const refetch = () => setReload((n) => n + 1);
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card/30 px-4 py-2.5">
-        <div className="inline-flex rounded-[10px] border border-border p-0.5">
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => { setStatus(t.id); setOpenId(null); setQuery(""); setPlatformFilter("ALL"); }} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-semibold transition", status === t.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t.label}</button>
-          ))}
-        </div>
-        <button onClick={() => onOpenView("compose")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
-          <Sparkles className="h-3.5 w-3.5" /> New post
-        </button>
-      </div>
+  // Compact left-rail summary counts over the loaded pages.
+  const scheduledCount = posts.filter((p) => p.status?.toUpperCase() === "SCHEDULED").length;
+  const publishedCount = posts.filter((p) => p.status?.toUpperCase() === "PUBLISHED").length;
+  const draftCount = posts.filter((p) => p.status?.toUpperCase() === "DRAFT").length;
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl space-y-4">
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + section nav + primary action + filters */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <button
+            onClick={() => onOpenView("compose")}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Sparkles className="h-4 w-4" /> New post
+          </button>
+
+          {/* summary stats */}
+          <div className="grid grid-cols-3 gap-2">
+            <MiniStat label="Scheduled" value={scheduledCount.toLocaleString()} />
+            <MiniStat label="Published" value={publishedCount.toLocaleString()} />
+            <MiniStat label="Drafts" value={draftCount.toLocaleString()} />
+          </div>
+
+          {/* status section nav */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {TABS.map((t) => {
+              const active = status === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => { setStatus(t.id); setOpenId(null); setQuery(""); setPlatformFilter("ALL"); }}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <span className="flex-1 text-start">{t.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
           {/* connected accounts */}
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="mb-2.5 flex items-center gap-2 px-1">
               <Plug className="h-4 w-4 text-brand-500" />
-              <h3 className="text-[13px] font-bold">Connected accounts</h3>
+              <h3 className="text-[12.5px] font-bold">Connected accounts</h3>
             </div>
             {connected.length ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {connected.map((a) => (
-                  <span key={a.platform} className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-[12.5px]">
-                    {a.avatarUrl ? <Image src={a.avatarUrl} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" unoptimized /> : <Link2 className="h-3.5 w-3.5 text-muted-foreground" />}
+                  <span key={a.platform} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11.5px]">
+                    {a.avatarUrl ? <Image src={a.avatarUrl} alt="" width={16} height={16} className="h-4 w-4 rounded-full object-cover" unoptimized /> : <Link2 className="h-3 w-3 text-muted-foreground" />}
                     <span className="font-medium capitalize">{a.name || a.platform}</span>
                     {a.username && <span className="text-muted-foreground">@{a.username}</span>}
                   </span>
                 ))}
               </div>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-4">
-                <p className="text-[12.5px] text-muted-foreground">No social accounts connected — you can still post to your in-app feed. Connect Instagram, Facebook, X… to cross-post.</p>
-                <button onClick={onConnect} className="shrink-0 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Connect</button>
+              <div className="rounded-xl border border-dashed border-border px-3 py-3">
+                <p className="text-[11.5px] text-muted-foreground">No social accounts connected — you can still post to your in-app feed. Connect Instagram, Facebook, X… to cross-post.</p>
+                <button onClick={onConnect} className="mt-2 w-full rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">Connect</button>
               </div>
             )}
-          </section>
+          </div>
 
-          {/* posts */}
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <h3 className="text-[13px] font-bold">{status === "ALL" ? "Your posts" : TABS.find((t) => t.id === status)?.label}</h3>
-              {pagination && <span className="text-[11.5px] text-muted-foreground">{filtering ? `${visiblePosts.length} of ${posts.length} loaded` : `${posts.length} of ${pagination.total}`}</span>}
-              {postsLoading && <FlowLoader size={14} className="ms-1" />}
-            </div>
-
-            {/* search + platform filter (in-surface narrowing over loaded pages) */}
-            {(posts.length > 0 || filtering) && (
-              <div className="mb-3 space-y-2">
+          {/* search + platform filter (in-surface narrowing over loaded pages) */}
+          {(posts.length > 0 || filtering) && (
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <div className="space-y-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search captions, hashtags, platforms…"
+                    placeholder="Search captions, hashtags…"
                     className="w-full rounded-[10px] border border-border bg-background ps-9 pe-9 py-2 text-[12.5px] outline-none focus:border-brand-500/60"
                   />
                   {query && (
@@ -250,7 +267,18 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
                   </div>
                 )}
               </div>
-            )}
+            </div>
+          )}
+        </aside>
+
+        {/* RIGHT: posts list — full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-[13px] font-bold">{status === "ALL" ? "Your posts" : TABS.find((t) => t.id === status)?.label}</h3>
+              {pagination && <span className="text-[11.5px] text-muted-foreground">{filtering ? `${visiblePosts.length} of ${posts.length} loaded` : `${posts.length} of ${pagination.total}`}</span>}
+              {postsLoading && <FlowLoader size={14} className="ms-1" />}
+            </div>
 
             {visiblePosts.length ? (
               <>
@@ -686,6 +714,15 @@ function PostRow({
 }
 
 /* ── small presentational helpers ─────────────────────────────────────── */
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[16px] font-extrabold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
+    </div>
+  );
+}
 
 function ActionBtn({ icon: Icon, label, onClick }: { icon: ElementType; label: string; onClick: () => void }) {
   return (
