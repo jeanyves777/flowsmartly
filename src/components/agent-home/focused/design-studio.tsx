@@ -198,24 +198,44 @@ function Draggable({ pos, onMove, onSelect, posterRef, disabled, className, styl
   // Drag only begins after the pointer MOVES past a threshold — so a plain click
   // or double-click (to edit) is never swallowed by the drag handler.
   const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; active: boolean } | null>(null);
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
+  // Track the drag on the WINDOW (not the element) so it keeps following the
+  // pointer even when it leaves the small element — fixes the jumpy/sticky drag
+  // and the "keeps moving after release" bug (no reliance on pointer-capture
+  // staying on a tiny target).
+  const win = useRef<{ move: (e: PointerEvent) => void; up: () => void } | null>(null);
+  if (!win.current) {
+    win.current = {
+      move: (e: PointerEvent) => {
+        const d = drag.current; const p = posterRef.current; if (!d || !p) return;
+        if (!d.active) {
+          if (Math.abs(e.clientX - d.sx) < 4 && Math.abs(e.clientY - d.sy) < 4) return;
+          d.active = true;
+        }
+        const r = p.getBoundingClientRect();
+        onMoveRef.current({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, 0, 0.96), y: clamp(d.oy + (e.clientY - d.sy) / r.height, 0, 0.96) });
+      },
+      up: () => {
+        drag.current = null;
+        window.removeEventListener("pointermove", win.current!.move);
+        window.removeEventListener("pointerup", win.current!.up);
+        window.removeEventListener("pointercancel", win.current!.up);
+      },
+    };
+  }
+  useEffect(() => () => { const w = win.current; if (w) { window.removeEventListener("pointermove", w.move); window.removeEventListener("pointerup", w.up); window.removeEventListener("pointercancel", w.up); } }, []);
   const onDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
     onSelect?.();
     if (disabled) return;
     drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, active: false };
+    const w = win.current!;
+    window.addEventListener("pointermove", w.move);
+    window.addEventListener("pointerup", w.up);
+    window.addEventListener("pointercancel", w.up);
   };
-  const onMoveP = (e: React.PointerEvent) => {
-    const d = drag.current; const p = posterRef.current; if (!d || !p) return;
-    if (!d.active) {
-      if (Math.abs(e.clientX - d.sx) < 4 && Math.abs(e.clientY - d.sy) < 4) return;
-      d.active = true;
-      try { ref.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
-    }
-    const r = p.getBoundingClientRect();
-    onMove({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, 0, 0.96), y: clamp(d.oy + (e.clientY - d.sy) / r.height, 0, 0.96) });
-  };
-  const onUp = (e: React.PointerEvent) => { drag.current = null; try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ } };
-  return <div ref={ref} onPointerDown={onDown} onPointerMove={onMoveP} onPointerUp={onUp} className={cn("absolute touch-none select-none", !disabled && "cursor-move", className)} style={{ ...pct(pos), ...style }}>{children}</div>;
+  return <div ref={ref} onPointerDown={onDown} className={cn("absolute touch-none select-none", !disabled && "cursor-move", className)} style={{ ...pct(pos), ...style }}>{children}</div>;
 }
 
 /** A selectable, draggable, resizable, double-click-editable styled text element. */
@@ -459,9 +479,35 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
   const imagesRef = useRef<ImageLayer[]>(value.images || []);
   const textsRef = useRef<TextLayer[]>(value.texts || []);
   const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
+  const valueRef = useRef(value);
+  valueRef.current = value;
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
   useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
   useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
+  // Nudge the selected element with the keyboard arrows (Shift = bigger step).
+  // Ignored while typing in an input / editing text in place.
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.key.startsWith("Arrow")) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      const step = e.shiftKey ? 0.04 : 0.008;
+      const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+      const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+      if (!dx && !dy) return;
+      e.preventDefault();
+      const v = valueRef.current;
+      const nx = (x: number) => clamp(x + dx, 0, 0.96);
+      const ny = (y: number) => clamp(y + dy, 0, 0.96);
+      if (sel.kind === "core") { const p = v.pos?.[sel.id] ?? DEFAULT_POS[sel.id]; onChange({ ...v, pos: { ...v.pos, [sel.id]: { x: nx(p.x), y: ny(p.y) } } }); }
+      else if (sel.kind === "text") onChange({ ...v, texts: (v.texts || []).map((t) => (t.id === sel.id ? { ...t, x: nx(t.x), y: ny(t.y) } : t)) });
+      else if (sel.kind === "contact") onChange({ ...v, contacts: (v.contacts || []).map((c) => (c.id === sel.id ? { ...c, x: nx(c.x), y: ny(c.y) } : c)) });
+      else if (sel.kind === "image") onChange({ ...v, images: (v.images || []).map((i) => (i.id === sel.id ? { ...i, x: nx(i.x), y: ny(i.y) } : i)) });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sel, onChange]);
   // On small screens the controls are a slide-over drawer — start it closed so it
   // doesn't cover the canvas on load (it's open by default on desktop).
   useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setToolsOpen(false); }, []);
