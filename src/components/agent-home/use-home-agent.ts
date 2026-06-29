@@ -336,6 +336,13 @@ function startTaskSubscription(
         const url = (next.output as { url?: string } | null | undefined)?.url;
         onCanvasImage?.(url ? { generating: false, imageUrl: url } : { generating: false });
       }
+      // A generated element/background drops onto the OPEN canvas without
+      // replacing it: an element becomes a new draggable layer, a background
+      // sits behind the existing design.
+      if (current.kind === "canvas_object") {
+        const out = next.output as { url?: string; objectType?: string } | null | undefined;
+        if (out?.url) onCanvasImage?.(out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+      }
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else if (event.type === "failed") {

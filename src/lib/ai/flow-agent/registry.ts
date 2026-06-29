@@ -96,6 +96,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { presentDesignTemplates } = await import("./tools/present-design-templates");
   const { askChoice } = await import("./tools/ask-choice");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
+  const { addCanvasObject } = await import("./tools/add-canvas-object");
   const { editImage } = await import("./tools/edit-image");
   const { exportImage } = await import("./tools/export-image");
   const { readImage } = await import("./tools/read-image");
@@ -158,6 +159,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(presentDesignTemplates);
   flowAgentTools.register(askChoice);
   flowAgentTools.register(createBrandedDesign);
+  flowAgentTools.register(addCanvasObject);
   flowAgentTools.register(editImage);
   flowAgentTools.register(exportImage);
   flowAgentTools.register(readImage);

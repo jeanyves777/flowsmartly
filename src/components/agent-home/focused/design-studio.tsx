@@ -30,7 +30,7 @@ export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
   images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[];
-  imageUrl?: string; generating?: boolean;
+  imageUrl?: string; bgImageUrl?: string; generating?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
 }
@@ -116,6 +116,7 @@ export function designCanvasContext(d: DesignDoc): string {
   return [
     "A Design Studio canvas is OPEN; the user can drag, resize, edit text in place, restyle text, add text, and drop photos/a logo.",
     d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design.",
+    d.bgImageUrl ? "It has a generated background image behind the design." : "",
     "Current design — this layout IS the inspiration; keep the structure:",
     `- eyebrow: ${JSON.stringify(d.eyebrow)} at ${c("eyebrow")}`,
     `- headline: ${JSON.stringify(d.headline)} at ${c("headline")}`,
@@ -137,7 +138,16 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
     const v = patch[k]; if (typeof v === "string" && v) next[k] = TEXT_KEYS.has(k) ? v.replace(/\\n/g, "\n") : v;
   }
   if (typeof patch.imageUrl === "string" && patch.imageUrl) next.imageUrl = patch.imageUrl;
+  if (typeof patch.bgImageUrl === "string" && patch.bgImageUrl) next.bgImageUrl = patch.bgImageUrl;
   if (typeof patch.generating === "boolean") next.generating = patch.generating;
+  // Append a freshly-generated object (e.g. a laptop) as a new draggable layer.
+  if (patch.addImageLayer && typeof patch.addImageLayer === "object") {
+    const a = patch.addImageLayer as Partial<ImageLayer>;
+    if (typeof a.url === "string" && a.url) {
+      const layer: ImageLayer = { id: newId("img"), url: a.url, x: a.x ?? 0.3, y: a.y ?? 0.34, w: a.w ?? 0.44, kind: a.kind === "logo" ? "logo" : "photo", local: false };
+      next.images = [...(next.images || []), layer];
+    }
+  }
   if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
   if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
@@ -639,6 +649,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
               <img src={value.imageUrl} alt="Generated design" className="absolute inset-0 h-full w-full object-cover" />
             ) : (
               <>
+                {value.bgImageUrl && (
+                  // A generated backdrop sits behind everything; the layout/text stay on top.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={value.bgImageUrl} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+                )}
                 {theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
 
                 {images.map((img) => {
@@ -787,6 +802,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
                       ))}</div>
                     ) : <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Add or drop photos + logo — drag each on the canvas to place it.</p>}
                     {anyLocalErr && <p className="mt-1.5 text-[10.5px] leading-snug text-amber-500">Some images couldn’t reach your library (storage isn’t reachable) — they show here but won’t be used by AI generation until the upload succeeds.</p>}
+                    {value.bgImageUrl && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background/60 p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={value.bgImageUrl} alt="" className="h-9 w-9 rounded-md object-cover" />
+                        <span className="flex-1 truncate text-[11px] text-muted-foreground">AI backdrop</span>
+                        <button onClick={() => set({ bgImageUrl: undefined })} title="Remove backdrop" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:text-rose-500"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    )}
+                    <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">Ask the agent to “add a laptop” or “generate a new background” — it drops the object on the canvas (or a backdrop behind it) without redoing your design.</p>
                   </ControlGroup>
                   <ControlGroup title={brandColors?.length ? "Brand accent" : "Accent color"}><div className="mt-1.5 flex flex-wrap items-center gap-2">{accentSwatches.map((a) => <button key={a} onClick={() => set({ accent: a })} className={cn("h-6 w-6 rounded-lg border-2", value.accent === a ? "border-foreground" : "border-transparent")} style={{ background: a }} aria-label={a} />)}<ColorPicker value={value.accent} onChange={(c) => set({ accent: c })} className="h-6 w-6 rounded-lg border border-border" iconClass="h-3 w-3" /></div>{brandColors?.length ? <p className="mt-1.5 text-[10.5px] text-muted-foreground">Your brand colors lead — or pick any with the picker.</p> : null}</ControlGroup>
                   <ControlGroup title="Size"><div className="mt-1.5 flex flex-wrap gap-1.5">{SIZES.map((sz) => <button key={sz.v} onClick={() => set({ size: sz.v })} className={cn("rounded-lg border px-2.5 py-1.5 text-[11.5px]", value.size === sz.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>{sz.label}</button>)}</div></ControlGroup>

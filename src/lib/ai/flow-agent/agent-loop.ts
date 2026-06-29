@@ -128,7 +128,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // Gate the canvas tool: only expose it to the model when a design canvas is
   // actually open (focused view). Other surfaces never see it, so the agent
   // can't call it out of context.
-  const exposedTools = input.canvasContext ? tools : tools.filter((t) => t.name !== "update_canvas");
+  const exposedTools = input.canvasContext ? tools : tools.filter((t) => t.name !== "update_canvas" && t.name !== "add_canvas_object");
   const clientToolDefs = exposedTools.map((t) => ({
     name: t.name,
     description: t.description,
@@ -169,7 +169,8 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   if (input.canvasContext) {
     systemPrompt +=
       `\n\n## Active design canvas (focused view)\n${input.canvasContext}\n\n` +
-      "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.";
+      "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.\n" +
+      "When the user asks to ADD or place something on the canvas — an object/element ('add a laptop', 'put my product in', 'add an illustration') or a new background ('give it a nicer background') — call `add_canvas_object` (type 'element' or 'background'), NOT create_branded_design. It generates just that piece and drops it onto the OPEN canvas, keeping the user's current text/layout/coordinates. For a background pass the `size` from the canvas context and keep the prompt consistent with the current design. Only use create_branded_design when the user explicitly wants the WHOLE design re-rendered as a new image — never assume that from an 'add X' request.";
   }
 
   // Surface awareness: the user opened a specific workspace (Brand, Sell, …).
