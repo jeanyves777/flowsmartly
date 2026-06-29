@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -22,6 +22,7 @@ import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
+import { FocusedPrintStudio } from "./focused/print-studio";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
@@ -80,6 +81,7 @@ const WS_DESC: Record<string, string> = {
 // always the design canvas.
 const FOCUS_CHAT_HINT: Record<string, string> = {
   create: "Ask the agent to create or change the design on the right — e.g. “make a summer sale graphic” or “use gold and a punchier headline”.",
+  print: "Ask the agent to design something to print — e.g. “make a flyer for my grand opening” or “design double-sided business cards”. Pick a format on the right or let the agent choose.",
   brand: "Ask the agent to set up or refine your brand — e.g. “set up my brand from this: …”, “make the voice playful”, or “add these keywords”. It fills the kit and you confirm.",
   analytics: "Ask the agent about your performance — e.g. “how did last week’s posts do?” or “what should I post more of?”.",
   billing: "Ask the agent about credits & billing — e.g. “how many credits do I have left?”, “what did I spend on this week?”, or “which plan fits me?”.",
@@ -119,6 +121,7 @@ const DEFAULT_CHAT_HINT = "Ask the agent to help with this surface — it can ac
 // Header label / subtitle / icon for the sub-surfaces that aren't top-level rail
 // workspaces (built as their own /home/<view> focused views).
 const FOCUS_META: Record<string, { label: string; subtitle: string; icon: LucideIcon }> = {
+  print: { label: "Print studio", subtitle: "Flyers, posters, cards & brochures — print-ready, on the canvas", icon: Printer },
   landing: { label: "Landing pages", subtitle: "High-converting pages for campaigns & offers", icon: LayoutTemplate },
   domains: { label: "Domains", subtitle: "Connect & manage your custom domains", icon: Globe },
   pitch: { label: "Pitch board", subtitle: "Your sales proposals & outreach pitches", icon: FileText },
@@ -196,6 +199,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user is on the **Logo studio** (their generated logos + brand logo). Generating a logo is a generative task — use the logo tool when they ask.`;
     case "video":
       return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
+    case "print":
+      return `The user is in the **Print Studio** designing something to PRINT (flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard). If no print canvas is open yet, FIRST call start_print_project with the right format to open the editable print canvas, then design it with update_canvas (copy, accent, print size) and add_design_page for multi-page/panel pieces (card front/back, brochure panels) — exactly like the design canvas, but keep content inside the safe area and mind the fold lines. Pick a fitting print size for the format (the canvas shows bleed/safe/fold guides). Confirm in one short sentence when it's ready.`;
     case "delivery":
       return `The user is on the **Delivery** surface (order delivery + drivers). Help them with delivery status, assignments, and fulfillment.`;
     case "adbuilder":
@@ -221,7 +226,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -405,7 +410,7 @@ export function AgentHome() {
   // Autosave the in-progress design so a reload/remount restores unsaved edits.
   // Restore once on mount…
   useEffect(() => {
-    try { const s = sessionStorage.getItem(DESIGN_DRAFT_KEY); if (s) { const d = JSON.parse(s) as DesignDoc; setDesign(d); savedDesignRef.current = d; } } catch { /* ignore */ }
+    try { const s = sessionStorage.getItem(DESIGN_DRAFT_KEY); if (s) { const parsed = JSON.parse(s) as DesignDoc; const d = { ...parsed, generating: false, building: false }; setDesign(d); savedDesignRef.current = d; } } catch { /* ignore */ }
   }, []);
   // …and persist every real change. We SKIP the pristine initial doc (it is
   // reference-equal to DEFAULT_DESIGN) so the first render — which runs before
@@ -421,9 +426,18 @@ export function AgentHome() {
   // Page controls the design studio exposes so the AGENT can build multi-page /
   // multi-slide designs (add_design_page routes here via the canvas_update event).
   const pageOpsRef = useRef<{ addPage: () => void; goToPage: (i: number) => void } | null>(null);
+  // Print Studio controls — the agent's start_print_project opens a print format
+  // here (via the canvas_update `__print` marker), same mechanism as pages.
+  const printOpsRef = useRef<{ selectFormat: (key: string) => void } | null>(null);
   // Apply agent-driven canvas edits (update_canvas → canvas_update event) live.
   useEffect(() => {
     canvasUpdateRef.current = (patch) => {
+      const printCmd = (patch as { __print?: unknown }).__print;
+      if (printCmd && typeof printCmd === "object") {
+        const fmt = (printCmd as { format?: unknown }).format;
+        if (typeof fmt === "string") printOpsRef.current?.selectFormat(fmt);
+        return;
+      }
       const pageCmd = (patch as { __page?: unknown }).__page;
       if (pageCmd !== undefined) {
         if (pageCmd === "add") pageOpsRef.current?.addPage();
@@ -515,6 +529,8 @@ export function AgentHome() {
     }
     // Leads opens its full surface directly (search + saved lists), not a panel.
     if (key === "leads") { guardNav(() => openFocused("leads")); return; }
+    // Print opens the studio directly (its hero IS the format chooser), not a panel.
+    if (key === "print") { guardNav(() => openFocused("print")); return; }
     // Browsing a category just opens its menu panel on the RIGHT — it does NOT
     // leave the current focused view (the view stays mounted behind the panel).
     // Only picking an item (onOpenView) or Home/Leads actually navigates away, so
@@ -755,29 +771,40 @@ export function AgentHome() {
                         false, designCanvasContext(design), undefined, { hidden: true },
                       );
                     }}
-                    onBuildEditable={(details) => {
+                    onBuildEditable={async (details) => {
                       // Editable mode: drop any flat render so the editable elements
-                      // show, then drive the agent to rebuild a BETTER editable design
-                      // (update_canvas keeps everything drag-to-edit; no baked image).
+                      // show, flip on the "Redesigning…" loader, then drive the agent to
+                      // rebuild a BETTER editable design (update_canvas keeps everything
+                      // drag-to-edit; no baked image). The loader clears when the turn ends.
                       const base = { ...design, imageUrl: undefined };
-                      setDesign(base);
+                      setDesign({ ...base, building: true });
                       const refs = (base.images ?? []).filter((i) => !i.local && i.url).map((i) => `${i.kind}: ${i.url}`);
-                      send(
-                        [
-                          `Rebuild the OPEN canvas as a better, FULLY EDITABLE design. Keep every element editable — use update_canvas (and add_canvas_object for a background), NOT create_branded_design, and do NOT bake a flat image.`,
-                          `Improve on my current design: rewrite the eyebrow, headline, subtext and CTA punchier and on-brand; pick the best accent (from my brand colors), style and size; and reposition/restyle the elements for a polished, balanced layout. Keep my image objects.`,
-                          details.trim() ? `Extra direction from me: ${details.trim()}` : "",
-                          `Current design to improve on:`,
-                          `- eyebrow: ${JSON.stringify(design.eyebrow)}`,
-                          `- headline: ${JSON.stringify(design.headline)}`,
-                          `- subtext: ${JSON.stringify(design.sub)}`,
-                          `- button (CTA): ${JSON.stringify(design.cta)}`,
-                          `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
-                          refs.length ? `- my image objects (keep them on the canvas): ${refs.join("; ")}` : "",
-                          `If it would make it look more designed, also generate ONE on-brand background that fits (add_canvas_object type "background") — the text stays editable on top. Confirm in one short sentence when done.`,
-                        ].filter(Boolean).join("\n"),
-                        false, designCanvasContext(base), undefined, { hidden: true },
-                      );
+                      const brandList = brandColors.length ? brandColors.join(", ") : "(none set — use get_brand_identity)";
+                      try {
+                        await send(
+                          [
+                            `Rebuild the OPEN canvas as a better, FULLY EDITABLE design — you are the art director of a live editable canvas, so do a REAL coordinated redesign, not a one-line tweak. Use update_canvas (and add_canvas_object for a background), NOT create_branded_design, and do NOT bake a flat image.`,
+                            `Do ALL of this in ONE update_canvas patch so it visibly looks redesigned:`,
+                            `1. Rewrite the eyebrow, headline, subtext and CTA punchier and on-brand (don't leave the old copy).`,
+                            `2. Set the accent to one of my REAL brand colors: ${brandList}.`,
+                            `3. Pick the best style theme (modern/photorealistic/minimalist/bold/elegant/playful) for my brand + message.`,
+                            `4. Use pos + styles to balance the layout and give each text element an on-brand, HIGH-CONTRAST color/size that reads cleanly on the background — colors, type and spacing must all MATCH as one cohesive look.`,
+                            `Keep my image objects on the canvas.`,
+                            details.trim() ? `Extra direction from me: ${details.trim()}` : "",
+                            `Current design to improve on:`,
+                            `- eyebrow: ${JSON.stringify(design.eyebrow)}`,
+                            `- headline: ${JSON.stringify(design.headline)}`,
+                            `- subtext: ${JSON.stringify(design.sub)}`,
+                            `- button (CTA): ${JSON.stringify(design.cta)}`,
+                            `- accent: ${design.accent}; style: ${design.style || "modern"}; size: ${design.size}`,
+                            refs.length ? `- my image objects (keep them on the canvas): ${refs.join("; ")}` : "",
+                            `Then, if a backdrop would lift it, add ONE on-brand background with add_canvas_object type "background" — pass the canvas size AND accent "${design.accent}" so it uses my brand palette (never plain white); the text stays editable on top. Confirm in one short sentence when done.`,
+                          ].filter(Boolean).join("\n"),
+                          false, designCanvasContext(base), undefined, { hidden: true },
+                        );
+                      } finally {
+                        setDesign((d) => (d.building ? { ...d, building: false } : d));
+                      }
                     }}
                   />
                 ) : focused === "account" ? (

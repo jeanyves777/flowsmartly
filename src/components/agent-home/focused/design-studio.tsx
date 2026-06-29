@@ -30,7 +30,7 @@ export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
   images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[];
-  imageUrl?: string; bgImageUrl?: string; generating?: boolean;
+  imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
 }
@@ -117,23 +117,27 @@ type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { k
 
 export function designCanvasContext(d: DesignDoc): string {
   const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
+  const st = (k: ElementKey) => { const s = d.styles?.[k]; if (!s) return ""; const bits = [s.color ? `color ${s.color}` : "", s.size ? `${s.size}px` : "", s.bold ? "bold" : "", s.align ? s.align : ""].filter(Boolean); return bits.length ? ` [${bits.join(", ")}]` : ""; };
   const imgs = (d.images || []).filter((i) => !i.local && i.url);
   const extra = (d.texts || []).map((t) => JSON.stringify(t.text)).filter(Boolean);
   const contacts = (d.contacts || []).map((c) => `${c.type}: ${c.value}`);
   return [
-    "A Design Studio canvas is OPEN; the user can drag, resize, edit text in place, restyle text, add text, and drop photos/a logo.",
+    "A Design Studio canvas is OPEN; the user can drag, resize, edit text in place, restyle text, add text, and drop photos/a logo. It is FULLY EDITABLE — you can restyle it like a designer through update_canvas (text, accent, style theme, per-element position via `pos`, per-element color/size via `styles`) WITHOUT baking a flat image.",
     d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design.",
-    d.bgImageUrl ? "It has a generated background image behind the design." : "",
+    d.bgImageUrl ? "It has a generated background image behind the design — any new text color must read clearly on it." : "",
     "Current design — this layout IS the inspiration; keep the structure:",
-    `- eyebrow: ${JSON.stringify(d.eyebrow)} at ${c("eyebrow")}`,
-    `- headline: ${JSON.stringify(d.headline)} at ${c("headline")}`,
-    `- sub: ${JSON.stringify(d.sub)} at ${c("sub")}`,
-    `- cta (button): ${JSON.stringify(d.cta)} at ${c("cta")}`,
+    `- eyebrow: ${JSON.stringify(d.eyebrow)} at ${c("eyebrow")}${st("eyebrow")}`,
+    `- headline: ${JSON.stringify(d.headline)} at ${c("headline")}${st("headline")}`,
+    `- sub: ${JSON.stringify(d.sub)} at ${c("sub")}${st("sub")}`,
+    `- cta (button): ${JSON.stringify(d.cta)} at ${c("cta")}${st("cta")}`,
     extra.length ? `- extra text: ${extra.join("; ")}` : "",
     contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
     `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
     imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
-    "EDITING RULES: For a TARGETED change to ONE core element ('improve the CTA', 'punchier headline', 'make it gold') call update_canvas with ONLY that field — never rewrite the others. Only when the user wants a full rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
+    "EDITING RULES:",
+    "• TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') → call update_canvas with ONLY that field; never rewrite the others.",
+    "• IMPROVE / REDESIGN / 'make it look better' the WHOLE canvas → do a COORDINATED rebuild in ONE update_canvas patch: rewrite the copy (eyebrow + headline + sub + cta), set accent to one of the user's REAL brand colors, pick the best `style` theme, and use `pos` + `styles` to balance the layout and give the text on-brand, high-contrast colors that match the background. A redesign that only swaps a word is a failure — change several things together so it visibly looks redesigned. If a background helps, add ONE brand-aware background via add_canvas_object (it auto-uses the brand palette) — and pass the design's accent in its `accent` field so it harmonizes.",
+    "• Only when the user wants a FLAT rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
   ].filter(Boolean).join("\n");
 }
 
@@ -158,6 +162,15 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
     }
   }
   if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
+  // Per-element text styling (color/size/bold/align) — merged so the agent can
+  // recolor/resize the type to match the redesign without wiping the user's
+  // other element styles. Mirrors `pos`'s merge semantics.
+  if (patch.styles && typeof patch.styles === "object") {
+    const incoming = patch.styles as Partial<Record<ElementKey, TextStyle>>;
+    const merged = { ...next.styles };
+    for (const k of Object.keys(incoming) as ElementKey[]) merged[k] = { ...merged[k], ...incoming[k] };
+    next.styles = merged;
+  }
   if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
   if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
@@ -965,9 +978,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
               </>
             )}
 
-            {value.generating && (
+            {(value.generating || value.building) && (
               <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px]">
-                <div className="flex flex-col items-center gap-2.5 text-center"><FlowLoader size={36} withMark tone="white" /><p className="text-[12.5px] font-semibold text-white">Rendering your design…</p><p className="text-[11px] text-white/70">Using your layout{images.length ? " + your images" : ""} as the reference.</p></div>
+                <div className="flex flex-col items-center gap-2.5 text-center"><FlowLoader size={36} withMark tone="white" /><p className="text-[12.5px] font-semibold text-white">{value.building ? "Redesigning your canvas…" : "Rendering your design…"}</p><p className="text-[11px] text-white/70">{value.building ? "Restyling the copy, colors, layout & background — stays fully editable." : `Using your layout${images.length ? " + your images" : ""} as the reference.`}</p></div>
               </div>
             )}
             {value.imageUrl && <span className="absolute bottom-2 left-2 hidden" aria-hidden />}
@@ -1090,10 +1103,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 className={cn(FIELD, "py-1.5")}
               />
               <div className="grid grid-cols-2 gap-1.5">
-                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || !onBuildEditable} title="Editable design — rebuild a better design you can still drag-to-edit" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
-                  {value.generating ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Editable
+                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || value.building || !onBuildEditable} title="Editable design — rebuild a better design you can still drag-to-edit" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                  {value.building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} {value.building ? "Redesigning…" : "Editable"}
                 </button>
-                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || !onRegenerate} title="Flat image — render a finished on-brand picture" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-border bg-background/60 px-2 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || value.building || !onRegenerate} title="Flat image — render a finished on-brand picture" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-border bg-background/60 px-2 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
                   {value.generating ? <FlowLoader size={14} /> : <Sparkles className="h-3.5 w-3.5 text-brand-500" />} {value.imageUrl ? "Re-render" : "Image"}
                 </button>
               </div>

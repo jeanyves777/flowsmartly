@@ -3,12 +3,31 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { readFile } from "fs/promises";
 import path from "path";
 
+// Static credentials are the configured path for this app (env file on the VPS;
+// .env locally). We attach them ONLY when BOTH are present — passing
+// `{ accessKeyId: undefined, secretAccessKey: undefined }` makes the AWS SDK v3
+// throw the cryptic "Resolved credential object is not valid" the instant it
+// signs a request. Omitting `credentials` instead lets the SDK fall back to its
+// default provider chain (or surface a clearer "could not load credentials"),
+// and lets callers detect the unconfigured state via `isS3Configured()` and use
+// a local fallback rather than crashing a whole job.
+const HAS_STATIC_CREDS = Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+
+/** True when S3 has usable static credentials. Callers without S3 should fall back to local /public storage. */
+export function isS3Configured(): boolean {
+  return HAS_STATIC_CREDS;
+}
+
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-east-2",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
+  ...(HAS_STATIC_CREDS
+    ? {
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+        },
+      }
+    : {}),
 });
 
 const BUCKET = process.env.S3_BUCKET || "flowsmartly-media";
@@ -37,6 +56,12 @@ export async function uploadToS3(
   opts?: { acl?: "private" | "public-read"; cacheControl?: string }
 ): Promise<string> {
   void opts?.acl; // ACLs disabled by bucket ownership; access is policy-driven.
+  // Fail fast with a clear, catchable message instead of the AWS SDK's cryptic
+  // "Resolved credential object is not valid" — callers with a local fallback
+  // (e.g. the canvas-object tool) catch this and serve from /public.
+  if (!HAS_STATIC_CREDS) {
+    throw new Error("S3 is not configured (missing AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)");
+  }
   const cacheControl = opts?.cacheControl ?? "public, max-age=31536000, immutable";
   await s3.send(
     new PutObjectCommand({
