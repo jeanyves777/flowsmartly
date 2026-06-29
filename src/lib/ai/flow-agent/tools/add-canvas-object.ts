@@ -52,16 +52,17 @@ async function uploadOrLocal(key: string, buffer: Buffer, mime: string): Promise
 export const addCanvasObject: FlowAgentTool = {
   name: "add_canvas_object",
   description:
-    "Add ONE generated object to the OPEN design canvas without redrawing the whole design. type='element' generates an isolated, cut-out subject (a laptop, phone, product, icon, illustration) that drops on as a transparent, draggable image the user can move/resize; type='background' generates a polished backdrop sized to the user's current canvas that sits BEHIND the existing text/images (their layout & coordinates are kept). Use this whenever the user asks to ADD or place something ('add a laptop', 'put my product in', 'give it a nicer background', 'add an illustration') — do NOT use create_branded_design for that (it replaces the entire canvas). For a background, pass the canvas `size` from the canvas context, and write a prompt that fits the user's current design (branded with their colors only if they want it). Runs in the background and lands on the canvas when ready.",
+    "Add ONE generated object to the OPEN design canvas without redrawing the whole design. type='element' generates an isolated, cut-out subject (a laptop, phone, product, icon, illustration) that drops on as a transparent, draggable image the user can move/resize; type='background' generates a polished backdrop sized to the user's current canvas that sits BEHIND the existing text/images (their layout & coordinates are kept). Use this whenever the user asks to ADD or place something ('add a laptop', 'put my product in', 'give it a nicer background', 'add an illustration') — do NOT use create_branded_design for that (it replaces the entire canvas), and NEVER tell the user to open a separate/legacy studio — THIS canvas is the studio. It's a paid action: call `propose_plan` FIRST (one step + the credit cost), wait for the user to confirm, then call this with `planId` set to the confirmed plan's id. For a background, pass the canvas `size` from the canvas context, and write a prompt that fits the user's current design (branded with their colors only if they want it). Runs in the background and lands on the canvas when ready.",
   input_schema: {
     type: "object",
     properties: {
+      planId: { type: "string", description: "REQUIRED — the planId from a confirmed propose_plan. Call propose_plan first (with the step + credit cost), wait for the user to confirm, then call this with that planId." },
       type: { type: "string", description: "'element' (an isolated cut-out object to place on the canvas) or 'background' (a backdrop behind the current design)." },
       prompt: { type: "string", description: "What to generate. For an element, just the subject ('a sleek modern laptop, screen on'). For a background, describe the backdrop and whether it should pick up the brand colors/mood; keep it consistent with the user's current design style." },
       size: { type: "string", description: "The canvas size for a BACKGROUND, e.g. '1080×1350' (read it from the canvas context). Ignored for elements." },
       tier: { type: "string", description: "'standard' (default) or 'premium' (sharper). Read live prices from list_my_features." },
     },
-    required: ["type", "prompt"],
+    required: ["planId", "type", "prompt"],
   },
   plans: null,
   costKey: "AGENT_PROPOSE_PLAN", // base 0 — the handler charges the image cost itself

@@ -60,10 +60,12 @@ class ToolRegistry {
     return Array.from(this.tools.values());
   }
 
-  /** Tools the given plan can call. Used to build the per-request tool set. */
-  forPlan(plan: string): FlowAgentTool[] {
-    const upper = plan.toUpperCase() as PlanTier;
-    return this.all().filter((t) => !t.plans || t.plans.includes(upper));
+  /** Tools available to build the per-request tool set. The platform moved from
+   * plan-gating to full CREDIT-gating — every tool is available to everyone, and
+   * access is enforced by credits inside each tool's handler (the `plans` field
+   * is retained for metadata but no longer restricts availability). */
+  forPlan(_plan: string): FlowAgentTool[] {
+    return this.all();
   }
 }
 

@@ -39,6 +39,10 @@ const DEFAULT_POS: Record<ElementKey, Pos> = { eyebrow: { x: 0.05, y: 0.05 }, he
 const DEFAULT_SIZE: Record<ElementKey, number> = { eyebrow: 9, headline: 27, sub: 12, cta: 11 };
 const DEFAULT_COLOR: Record<ElementKey, string> = { eyebrow: "rgba(255,255,255,0.75)", headline: "#ffffff", sub: "rgba(255,255,255,0.85)", cta: "#06121f" };
 
+// Per-tab autosave key for the in-progress design (shared with agent-home so a
+// "new design" can clear it synchronously and a reload restores the right doc).
+export const DESIGN_DRAFT_KEY = "fs-design-draft";
+
 export const DEFAULT_DESIGN: DesignDoc = {
   eyebrow: "FLOWSMARTLY · LIMITED TIME",
   headline: "Summer Sale\nup to 40% off",
@@ -652,9 +656,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onE
     setLibDesigns((ds) => ds.filter((d) => d.id !== id));
     if (designId === id) setDesignId(null);
   };
-  // Pass a COPY (not the DEFAULT_DESIGN reference) so the autosave persists the
-  // blank canvas instead of skipping it and restoring the old draft on reload.
-  const newDesign = () => { onChange({ ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {} }); setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false); };
+  // Start a TRULY fresh design. Explicitly clears the AI image / backdrop and
+  // writes the blank to the autosave key SYNCHRONOUSLY, so a remount can't
+  // restore the previous design's data (the "new design shows old data" bug).
+  const newDesign = () => {
+    const blank: DesignDoc = { ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
+    try { sessionStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(blank)); } catch { /* ignore */ }
+    onChange(blank);
+    setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false);
+  };
   const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
 
   // per-element style read/write (core elements via value.styles, free text via the layer)

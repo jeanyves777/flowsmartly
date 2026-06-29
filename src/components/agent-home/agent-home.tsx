@@ -21,7 +21,7 @@ import { HomeMessageView } from "./home-message";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
-import { FocusedDesignStudio, DEFAULT_DESIGN, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
+import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { SettingsWorkspace } from "@/components/settings/settings-workspace";
 import { FocusedBrand } from "./focused/brand-workspace";
 import { FocusedAnalytics } from "./focused/analytics-workspace";
@@ -223,9 +223,6 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
 // Focused surfaces that get their own traceable path (/home/<view>).
 const FOCUS_VIEWS = new Set(["create", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
-// The in-progress design canvas is autosaved here so an unexpected reload or a
-// deep-link remount never throws away unsaved edits (per-tab, survives reloads).
-const DESIGN_DRAFT_KEY = "fs-design-draft";
 
 /**
  * Update the address bar WITHOUT going through Next's router. The App Router
