@@ -20,9 +20,12 @@ import { cn } from "@/lib/utils/cn";
  * beyond the first page (GET …/submissions|…/responses?page=&search=), and forms
  * can SYNC their submissions into a contact list — new or existing — in place
  * (POST /api/data-forms/[id]/sync-contacts). The list itself is searchable +
- * status-filterable. Building a NEW form/survey is a generative job, so that one
- * drives the agent. Only the live public page opens in a new tab.
- * [[surface-buttons-are-ui-actions]]
+ * status-filterable. Building a NEW form/survey is a REAL in-surface builder that
+ * creates it directly (POST /api/{data-forms|surveys}) — design the fields/
+ * questions inline; an optional "draft it with AI" hands the design off to the
+ * agent. Only the live public page opens in a new tab. Full-width master/detail:
+ * a sticky left menu (KPIs + kind/section nav + New + filters) and a right pane.
+ * [[surface-buttons-are-ui-actions]] [[full-width-left-menu-layout]]
  */
 
 // A form and a survey are different models but present identically here, so we
@@ -174,6 +177,10 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   // Which item is expanded, and which panel within it (submissions / edit / send).
   const [openId, setOpenId] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>("entries");
+
+  // Right pane shows the create builder instead of the list when set.
+  const [creating, setCreating] = useState<Kind | null>(null);
+  const [notice, setNotice] = useState("");
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
@@ -439,7 +446,22 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     }
   }, [load]);
 
-  const newForm = () => onAsk?.("Create a new lead-capture form to collect contact details from my audience. Suggest the right fields and a thank-you message.");
+  // "New form" is now a REAL in-surface builder (POST /api/{data-forms|surveys}),
+  // not an agent prompt. The agent stays opt-in via the builder's "draft with AI".
+  const openCreate = useCallback((kind: Kind) => {
+    setCreating(kind);
+    setNotice("");
+    setOpenId(null);
+    setConfirmDelete(null);
+  }, []);
+  // Optional generative assist — kept as the only onAsk, hands field design to
+  // the agent (genuinely generative). Closes the builder so its task surfaces.
+  const draftWithAi = useCallback((kind: Kind) => {
+    setCreating(null);
+    onAsk?.(kind === "form"
+      ? "Create a new lead-capture form to collect contact details from my audience. Suggest the right fields and a thank-you message."
+      : "Create a new survey to gather feedback from my audience. Suggest the right questions and a thank-you message.");
+  }, [onAsk]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your forms…" /></div>;
@@ -447,30 +469,52 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* KPIs */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi icon={ClipboardList} label="Forms & surveys" value={stats.total.toLocaleString()} />
-          <Kpi icon={Inbox} label="Submissions" value={stats.submissions.toLocaleString()} />
-          <Kpi icon={Send} label="Sent" value={stats.sent.toLocaleString()} />
-          <Kpi icon={Power} label="Live now" value={stats.live.toLocaleString()} />
-        </div>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky menu — KPIs + kind nav + New + filters */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <button
+            onClick={() => openCreate(kindFilter === "survey" ? "survey" : "form")}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Plus className="h-4 w-4" /> New {kindFilter === "survey" ? "survey" : "form"}
+          </button>
 
-        {/* List */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-[13px] font-bold">Your forms & surveys</h3>
-            {onAsk && (
-              <button onClick={newForm} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" /> New form
-              </button>
-            )}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><ClipboardList className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Overview</span></div>
+            <div className="space-y-1.5">
+              <SummaryRow icon={ClipboardList} label="Forms & surveys" value={stats.total.toLocaleString()} />
+              <SummaryRow icon={Inbox} label="Submissions" value={stats.submissions.toLocaleString()} />
+              <SummaryRow icon={Send} label="Sent" value={stats.sent.toLocaleString()} />
+              <SummaryRow icon={Power} label="Live now" value={stats.live.toLocaleString()} />
+            </div>
           </div>
 
-          {/* Search + status/kind filters (name/status) */}
+          {/* kind section nav (vertical) */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {(["ALL", "form", "survey"] as const).map((k) => {
+              const active = kindFilter === k && !creating;
+              const count = k === "ALL" ? items.length : items.filter((it) => it.kind === k).length;
+              const Icon = k === "form" ? FileText : k === "survey" ? MessageSquareText : ClipboardList;
+              return (
+                <button
+                  key={k}
+                  onClick={() => { setCreating(null); setKindFilter(k); }}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{k === "ALL" ? "All" : k === "form" ? "Forms" : "Surveys"}</span>
+                  {count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* filters: search + status */}
           {!loadError && items.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[180px] flex-1">
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={query}
@@ -482,17 +526,10 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                   <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
                 )}
               </div>
-              <div className="flex items-center gap-1 rounded-[10px] border border-border bg-background p-0.5">
-                {(["ALL", "form", "survey"] as const).map((k) => (
-                  <button key={k} onClick={() => setKindFilter(k)} className={cn("rounded-[8px] px-2.5 py-1 text-[11.5px] font-semibold", kindFilter === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
-                    {k === "ALL" ? "All" : k === "form" ? "Forms" : "Surveys"}
-                  </button>
-                ))}
-              </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60"
+                className="mt-2 w-full rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60"
               >
                 <option value="ALL">Any status</option>
                 <option value="ACTIVE">Live</option>
@@ -501,6 +538,29 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               </select>
             </div>
           )}
+        </aside>
+
+        {/* RIGHT: create builder OR the list — full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {creating ? (
+            <CreateForm
+              kind={creating}
+              onCancel={() => setCreating(null)}
+              onCreated={(msg) => { setCreating(null); setNotice(msg); void load(); }}
+              onDraftWithAi={onAsk ? () => draftWithAi(creating) : undefined}
+            />
+          ) : (
+            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-[13px] font-bold">Your forms & surveys</h3>
+                {items.length > 0 && (
+                  <button onClick={() => openCreate(kindFilter === "survey" ? "survey" : "form")} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                    <Plus className="h-3.5 w-3.5" /> New {kindFilter === "survey" ? "survey" : "form"}
+                  </button>
+                )}
+              </div>
+
+              {notice && <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">{notice}</p>}
 
           {loadError ? (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
@@ -634,15 +694,15 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><ClipboardList className="h-7 w-7" /></span>
               <p className="mt-3 text-[14px] font-semibold">No forms or surveys yet</p>
-              <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Build a lead-capture form or a quick survey, share the link, and collect submissions — the agent designs the fields for you.</p>
-              {onAsk && (
-                <button onClick={newForm} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-                  <Plus className="h-4 w-4" /> Create a form
-                </button>
-              )}
+              <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Build a lead-capture form or a quick survey, share the link, and collect submissions — design the fields yourself or let the agent draft them.</p>
+              <button onClick={() => openCreate("form")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                <Plus className="h-4 w-4" /> Create a form
+              </button>
             </div>
           )}
-        </section>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -967,37 +1027,129 @@ function SyncPanel({ item, lists, onSync }: {
   );
 }
 
+// Shared CSS for the form-builder inputs/labels, reused by the field editor,
+// EditPanel and CreateForm.
+const BUILDER_LABEL = "block text-[11px] font-medium text-muted-foreground mb-1";
+const BUILDER_INPUT = "w-full rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60";
+
+function makeFieldId() { return `f_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`; }
+
+// Normalize editable fields → the API payload shape (trimmed labels, pruned
+// empty options). Shared by EditPanel (save) and CreateForm (create).
+function serializeFields(fields: EditField[]): EditField[] {
+  return fields.map((f) => ({
+    id: f.id,
+    type: f.type,
+    label: f.label.trim(),
+    required: f.required,
+    ...(f.placeholder ? { placeholder: f.placeholder } : {}),
+    ...(OPTION_TYPES.has(f.type) ? { options: (f.options || []).filter((o) => o.trim() !== "") } : {}),
+    ...(f.helpText ? { helpText: f.helpText } : {}),
+  }));
+}
+
+// The reorderable field/question builder — drives editing the fields list for
+// both EditPanel and CreateForm.
+function FieldsEditor({ kind, fields, onChange }: { kind: Kind; fields: EditField[]; onChange: (next: EditField[]) => void }) {
+  const noun = kind === "form" ? "field" : "question";
+  const types = fieldTypesFor(kind);
+  const [showAdd, setShowAdd] = useState(false);
+
+  const update = (id: string, patch: Partial<EditField>) =>
+    onChange(fields.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  const remove = (id: string) => onChange(fields.filter((f) => f.id !== id));
+  const move = (index: number, dir: -1 | 1) => {
+    const arr = [...fields];
+    const j = index + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[index], arr[j]] = [arr[j], arr[index]];
+    onChange(arr);
+  };
+  const add = (type: string) => {
+    onChange([
+      ...fields,
+      { id: makeFieldId(), type, label: "", required: false, placeholder: "", ...(OPTION_TYPES.has(type) ? { options: ["Option 1", "Option 2"] } : {}) },
+    ]);
+    setShowAdd(false);
+  };
+
+  return (
+    <div>
+      <p className="mb-1.5 text-[11.5px] font-semibold">{kind === "form" ? "Fields" : "Questions"}</p>
+      {fields.length === 0 ? (
+        <p className="rounded-[10px] border border-dashed border-border px-3 py-4 text-center text-[11.5px] text-muted-foreground">No {noun}s yet — add one below.</p>
+      ) : (
+        <div className="space-y-2">
+          {fields.map((f, i) => (
+            <div key={f.id} className="rounded-[10px] border border-border bg-card p-2.5">
+              <div className="flex items-start gap-2">
+                <div className="flex flex-col gap-0.5 pt-0.5">
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => move(i, 1)} disabled={i === fields.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <input value={f.label} onChange={(e) => update(f.id, { label: e.target.value })} className={BUILDER_INPUT} placeholder={`${kind === "form" ? "Field" : "Question"} label`} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select value={f.type} onChange={(e) => {
+                      const type = e.target.value;
+                      update(f.id, { type, options: OPTION_TYPES.has(type) ? (f.options && f.options.length ? f.options : ["Option 1", "Option 2"]) : undefined });
+                    }} className="rounded-[9px] border border-border bg-card px-2 py-1 text-[11.5px] outline-none focus:border-brand-500/60">
+                      {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11.5px]">
+                      <input type="checkbox" checked={f.required} onChange={(e) => update(f.id, { required: e.target.checked })} className="rounded" />
+                      Required
+                    </label>
+                  </div>
+                  {OPTION_TYPES.has(f.type) && (
+                    <div className="space-y-1.5">
+                      <span className={BUILDER_LABEL}>Options</span>
+                      {(f.options || []).map((opt, oi) => (
+                        <div key={oi} className="flex items-center gap-1.5">
+                          <input value={opt} onChange={(e) => {
+                            const next = [...(f.options || [])]; next[oi] = e.target.value; update(f.id, { options: next });
+                          }} className={BUILDER_INPUT} placeholder={`Option ${oi + 1}`} />
+                          <button onClick={() => update(f.id, { options: (f.options || []).filter((_, idx) => idx !== oi) })} className="text-muted-foreground hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => update(f.id, { options: [...(f.options || []), `Option ${(f.options?.length || 0) + 1}`] })} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500 hover:underline">
+                        <Plus className="h-3 w-3" /> Add option
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => remove(f.id)} title={`Remove ${noun}`} className="shrink-0 text-muted-foreground hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="relative mt-2">
+        <button onClick={() => setShowAdd((s) => !s)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60">
+          <Plus className="h-3.5 w-3.5" /> Add {noun}
+        </button>
+        {showAdd && (
+          <div className="absolute left-0 top-full z-10 mt-1.5 w-64 rounded-[10px] border border-border bg-card p-2 shadow-lg">
+            <div className="grid grid-cols-2 gap-1">
+              {types.map((t) => (
+                <button key={t.value} onClick={() => add(t.value)} className="rounded-[8px] px-2 py-1.5 text-left text-[11.5px] font-medium hover:bg-muted/60">{t.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditPanel({ item, onSave, onClose }: { item: Item; onSave: (it: Item, patch: { title: string; description: string; fields: EditField[]; thankYouMessage: string }) => Promise<void>; onClose: () => void }) {
-  const noun = item.kind === "form" ? "field" : "question";
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description || "");
   const [thankYou, setThankYou] = useState(item.thankYouMessage || "");
   const [fields, setFields] = useState<EditField[]>(() => item.fields.map((f) => ({ ...f, options: f.options ? [...f.options] : undefined })));
-  const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const types = fieldTypesFor(item.kind);
-  const genId = () => `f_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-
-  const update = (id: string, patch: Partial<EditField>) =>
-    setFields((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
-  const remove = (id: string) => setFields((prev) => prev.filter((f) => f.id !== id));
-  const move = (index: number, dir: -1 | 1) =>
-    setFields((prev) => {
-      const arr = [...prev];
-      const j = index + dir;
-      if (j < 0 || j >= arr.length) return prev;
-      [arr[index], arr[j]] = [arr[j], arr[index]];
-      return arr;
-    });
-  const add = (type: string) => {
-    setFields((prev) => [
-      ...prev,
-      { id: genId(), type, label: "", required: false, placeholder: "", ...(OPTION_TYPES.has(type) ? { options: ["Option 1", "Option 2"] } : {}) },
-    ]);
-    setShowAdd(false);
-  };
 
   const save = async () => {
     if (!title.trim()) { setErr("Title can't be empty"); return; }
@@ -1007,15 +1159,7 @@ function EditPanel({ item, onSave, onClose }: { item: Item; onSave: (it: Item, p
         title: title.trim(),
         description: description.trim(),
         thankYouMessage: thankYou.trim(),
-        fields: fields.map((f) => ({
-          id: f.id,
-          type: f.type,
-          label: f.label.trim(),
-          required: f.required,
-          ...(f.placeholder ? { placeholder: f.placeholder } : {}),
-          ...(OPTION_TYPES.has(f.type) ? { options: (f.options || []).filter((o) => o.trim() !== "") } : {}),
-          ...(f.helpText ? { helpText: f.helpText } : {}),
-        })),
+        fields: serializeFields(fields),
       });
       onClose();
     } catch (e) {
@@ -1025,92 +1169,24 @@ function EditPanel({ item, onSave, onClose }: { item: Item; onSave: (it: Item, p
     }
   };
 
-  const fieldLabelCls = "block text-[11px] font-medium text-muted-foreground mb-1";
-  const inputCls = "w-full rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60";
-
   return (
     <div className="space-y-3 border-t border-border bg-background/50 px-3 py-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={fieldLabelCls}>Title</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} placeholder={`${item.kind === "form" ? "Form" : "Survey"} title`} />
+          <label className={BUILDER_LABEL}>Title</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className={BUILDER_INPUT} placeholder={`${item.kind === "form" ? "Form" : "Survey"} title`} />
         </div>
         <div>
-          <label className={fieldLabelCls}>Description (optional)</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Shown to respondents" />
+          <label className={BUILDER_LABEL}>Description (optional)</label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} className={BUILDER_INPUT} placeholder="Shown to respondents" />
         </div>
       </div>
 
-      <div>
-        <p className="mb-1.5 text-[11.5px] font-semibold">{item.kind === "form" ? "Fields" : "Questions"}</p>
-        {fields.length === 0 ? (
-          <p className="rounded-[10px] border border-dashed border-border px-3 py-4 text-center text-[11.5px] text-muted-foreground">No {noun}s yet — add one below.</p>
-        ) : (
-          <div className="space-y-2">
-            {fields.map((f, i) => (
-              <div key={f.id} className="rounded-[10px] border border-border bg-card p-2.5">
-                <div className="flex items-start gap-2">
-                  <div className="flex flex-col gap-0.5 pt-0.5">
-                    <button onClick={() => move(i, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => move(i, 1)} disabled={i === fields.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <input value={f.label} onChange={(e) => update(f.id, { label: e.target.value })} className={inputCls} placeholder={`${item.kind === "form" ? "Field" : "Question"} label`} />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select value={f.type} onChange={(e) => {
-                        const type = e.target.value;
-                        update(f.id, { type, options: OPTION_TYPES.has(type) ? (f.options && f.options.length ? f.options : ["Option 1", "Option 2"]) : undefined });
-                      }} className="rounded-[9px] border border-border bg-card px-2 py-1 text-[11.5px] outline-none focus:border-brand-500/60">
-                        {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                      <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11.5px]">
-                        <input type="checkbox" checked={f.required} onChange={(e) => update(f.id, { required: e.target.checked })} className="rounded" />
-                        Required
-                      </label>
-                    </div>
-                    {OPTION_TYPES.has(f.type) && (
-                      <div className="space-y-1.5">
-                        <span className={fieldLabelCls}>Options</span>
-                        {(f.options || []).map((opt, oi) => (
-                          <div key={oi} className="flex items-center gap-1.5">
-                            <input value={opt} onChange={(e) => {
-                              const next = [...(f.options || [])]; next[oi] = e.target.value; update(f.id, { options: next });
-                            }} className={inputCls} placeholder={`Option ${oi + 1}`} />
-                            <button onClick={() => update(f.id, { options: (f.options || []).filter((_, idx) => idx !== oi) })} className="text-muted-foreground hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </div>
-                        ))}
-                        <button onClick={() => update(f.id, { options: [...(f.options || []), `Option ${(f.options?.length || 0) + 1}`] })} className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500 hover:underline">
-                          <Plus className="h-3 w-3" /> Add option
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => remove(f.id)} title={`Remove ${noun}`} className="shrink-0 text-muted-foreground hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="relative mt-2">
-          <button onClick={() => setShowAdd((s) => !s)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60">
-            <Plus className="h-3.5 w-3.5" /> Add {noun}
-          </button>
-          {showAdd && (
-            <div className="absolute left-0 top-full z-10 mt-1.5 w-64 rounded-[10px] border border-border bg-card p-2 shadow-lg">
-              <div className="grid grid-cols-2 gap-1">
-                {types.map((t) => (
-                  <button key={t.value} onClick={() => add(t.value)} className="rounded-[8px] px-2 py-1.5 text-left text-[11.5px] font-medium hover:bg-muted/60">{t.label}</button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <FieldsEditor kind={item.kind} fields={fields} onChange={setFields} />
 
       <div>
-        <label className={fieldLabelCls}>Thank-you message</label>
-        <input value={thankYou} onChange={(e) => setThankYou(e.target.value)} className={inputCls} placeholder="Shown after submitting" />
+        <label className={BUILDER_LABEL}>Thank-you message</label>
+        <input value={thankYou} onChange={(e) => setThankYou(e.target.value)} className={BUILDER_INPUT} placeholder="Shown after submitting" />
       </div>
 
       {err && <p className="text-[11.5px] font-medium text-red-500">{err}</p>}
@@ -1124,6 +1200,110 @@ function EditPanel({ item, onSave, onClose }: { item: Item; onSave: (it: Item, p
         </button>
       </div>
     </div>
+  );
+}
+
+// New form/survey builder — a REAL in-surface create that designs the fields
+// inline and POSTs to /api/{data-forms|surveys}. An optional "draft with AI"
+// hands the (genuinely generative) field design off to the agent instead.
+function CreateForm({ kind, onCancel, onCreated, onDraftWithAi }: {
+  kind: Kind;
+  onCancel: () => void;
+  onCreated: (msg: string) => void;
+  onDraftWithAi?: () => void;
+}) {
+  const [k, setK] = useState<Kind>(kind);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [thankYou, setThankYou] = useState("");
+  const [fields, setFields] = useState<EditField[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const create = async () => {
+    if (!title.trim()) { setErr("Give your " + k + " a title."); return; }
+    setSubmitting(true); setErr(null);
+    const serialized = serializeFields(fields);
+    const body: Record<string, unknown> = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      thankYouMessage: thankYou.trim() || undefined,
+      ...(k === "form" ? { fields: serialized } : { questions: serialized }),
+    };
+    try {
+      const r = await fetch(apiBase(k), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) {
+        const live = serialized.length > 0;
+        onCreated(`“${title.trim()}” created${live ? " and live" : " as a draft"} — ${serialized.length} ${k === "form" ? "field" : "question"}${serialized.length === 1 ? "" : "s"}.`);
+      } else {
+        setErr(j?.error?.message || `Couldn't create the ${k}. Try again.`);
+        setSubmitting(false);
+      }
+    } catch {
+      setErr(`Couldn't create the ${k}. Try again.`);
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <button onClick={onCancel} className="grid h-8 w-8 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[15px] font-bold">New {k}</h3>
+          <p className="text-[11.5px] text-muted-foreground">Design the {k === "form" ? "fields" : "questions"} — it goes live the moment you add at least one, otherwise it saves as a draft.</p>
+        </div>
+        {onDraftWithAi && (
+          <button onClick={onDraftWithAi} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Let the agent design the fields for you">
+            <Sparkles className="h-3.5 w-3.5" /> Draft with AI
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {/* kind toggle */}
+        <div className="flex items-center gap-1 rounded-[10px] border border-border bg-background p-0.5 w-fit">
+          {(["form", "survey"] as const).map((kk) => (
+            <button key={kk} onClick={() => setK(kk)} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1 text-[11.5px] font-semibold", k === kk ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+              {kk === "form" ? <FileText className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
+              {kk === "form" ? "Form" : "Survey"}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className={BUILDER_LABEL}>Title *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className={BUILDER_INPUT} placeholder={k === "form" ? "e.g. Contact us" : "e.g. Customer feedback"} />
+          </div>
+          <div>
+            <label className={BUILDER_LABEL}>Description (optional)</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className={BUILDER_INPUT} placeholder="Shown to respondents" />
+          </div>
+        </div>
+
+        <FieldsEditor kind={k} fields={fields} onChange={setFields} />
+
+        <div>
+          <label className={BUILDER_LABEL}>Thank-you message (optional)</label>
+          <input value={thankYou} onChange={(e) => setThankYou(e.target.value)} className={BUILDER_INPUT} placeholder="Shown after submitting" />
+        </div>
+
+        {err && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{err}</p>}
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          <button onClick={create} disabled={submitting || !title.trim()} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
+            {submitting ? <FlowLoader size={15} tone="white" /> : <Save className="h-4 w-4" />} {submitting ? "Creating…" : `Create ${k}`}
+          </button>
+          <button onClick={onCancel} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-[11px] px-3 py-2.5 text-[13px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1270,11 +1450,12 @@ function fmtValue(v: unknown): string {
   return String(v);
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function SummaryRow({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
-      <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }

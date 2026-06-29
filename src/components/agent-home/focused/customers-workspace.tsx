@@ -234,23 +234,21 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-3">
-          <Kpi icon={Users} label="Customers" value={totalCount.toLocaleString()} />
-          <Kpi icon={Repeat} label="Repeat buyers" value={repeat.toLocaleString()} />
-          <Kpi icon={Coins} label="Revenue" value={money(revenueCents)} />
-        </div>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky KPIs + search */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><Users className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Summary</span></div>
+            <div className="space-y-1.5">
+              <StatRow icon={Users} label="Customers" value={totalCount.toLocaleString()} />
+              <StatRow icon={Repeat} label="Repeat buyers" value={repeat.toLocaleString()} />
+              <StatRow icon={Coins} label="Revenue" value={money(revenueCents)} />
+            </div>
+          </div>
 
-        {/* Customers list */}
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <h3 className="flex items-center gap-2 text-[13px] font-bold">
-              Your customers
-              {fetching && <FlowLoader size={14} />}
-            </h3>
-            {/* Search by name / email — debounced, drives the `search` query param. */}
-            <div className="relative w-full sm:w-64">
+          {/* Search by name / email — debounced, drives the `search` query param. */}
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
@@ -272,7 +270,18 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
               )}
             </div>
           </div>
-          {customers.length ? (
+        </aside>
+
+        {/* RIGHT: customers list — full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <h3 className="flex items-center gap-2 text-[13px] font-bold">
+                Your customers
+                {fetching && <FlowLoader size={14} />}
+              </h3>
+            </div>
+            {customers.length ? (
             <div className="space-y-2">
               {/* Select-all + bulk action bar. The select-all checkbox toggles every
                   not-yet-added row on the page; the bar appears once anything is picked. */}
@@ -418,18 +427,20 @@ export function FocusedCustomers({ refreshKey }: { refreshKey?: number }) {
                 </button>
               </div>
             </div>
-          )}
-        </section>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function StatRow({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-4 w-4" /><span className="text-[11.5px] font-medium">{label}</span></div>
-      <p className="mt-1.5 text-[22px] font-extrabold leading-none">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }

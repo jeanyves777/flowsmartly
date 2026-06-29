@@ -77,36 +77,77 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
 
   const totalPages = sites.reduce((n, s) => n + (s.pageCount ?? 0), 0);
   const totalViews = sites.reduce((n, s) => n + (s.totalViews ?? 0), 0);
+  const liveSites = sites.filter((s) => s.status?.toUpperCase() === "PUBLISHED").length;
+  const buildingSites = sites.filter((s) => isBuildingStatus(s.buildStatus)).length;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {sites.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi icon={Globe} label="Sites" value={String(sites.length)} />
-            <Kpi icon={FileStack} label="Pages" value={String(totalPages)} />
-            <Kpi icon={BarChart3} label="Views" value={totalViews.toLocaleString()} />
-          </div>
-        )}
-        <Section title="Your websites" icon={Globe} action={<NewBtn label="New website" onClick={() => onAsk(BUILD_SITE_PROMPT)} />}>
-          {sites.length ? (
-            <div className="space-y-2.5">
-              {sites.map((s) => (
-                <SiteRow
-                  key={s.id}
-                  site={s}
-                  open={openId === s.id}
-                  onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
-                  onChanged={load}
-                  onBuildStarted={startPoll}
-                  onOpenView={onOpenView}
-                />
-              ))}
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* New website is GENERATIVE — the agent designs & builds the site. */}
+          <button
+            onClick={() => onAsk(BUILD_SITE_PROMPT)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Sparkles className="h-4 w-4" /> New website
+          </button>
+
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><Globe className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Your websites</span></div>
+            <div className="space-y-1.5">
+              <StatRow icon={Globe} label="Sites" value={String(sites.length)} sub={liveSites ? `${liveSites} live` : buildingSites ? `${buildingSites} building` : undefined} />
+              <StatRow icon={FileStack} label="Pages" value={String(totalPages)} />
+              <StatRow icon={BarChart3} label="Views" value={totalViews.toLocaleString()} />
             </div>
-          ) : (
-            <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => onAsk(BUILD_SITE_PROMPT)} />
-          )}
-        </Section>
+          </div>
+
+          {/* vertical section menu (single section today; sticky-menu pattern) */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            <button
+              className="flex w-full items-center gap-2.5 rounded-xl bg-brand-500/10 px-3 py-2.5 text-[13px] font-semibold text-brand-500"
+            >
+              <Globe className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-start">Websites</span>
+              {sites.length > 0 && <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-brand-500">{sites.length}</span>}
+            </button>
+            <button
+              onClick={() => onOpenView?.("domains")}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            >
+              <Link2 className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-start">Domains</span>
+            </button>
+          </nav>
+        </aside>
+
+        {/* RIGHT: the website list, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Globe className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Your websites</h3>
+              {sites.length > 0 && <NewBtn className="ms-auto" label="New website" onClick={() => onAsk(BUILD_SITE_PROMPT)} />}
+            </div>
+            {sites.length ? (
+              <div className="space-y-2.5">
+                {sites.map((s) => (
+                  <SiteRow
+                    key={s.id}
+                    site={s}
+                    open={openId === s.id}
+                    onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
+                    onChanged={load}
+                    onBuildStarted={startPoll}
+                    onOpenView={onOpenView}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Empty title="No website yet" sub="The agent builds a branded multi-page site in minutes." cta="Create a website" onCta={() => onAsk(BUILD_SITE_PROMPT)} />
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -403,74 +444,99 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
 
   const totalViews = pages.reduce((n, p) => n + (p.views ?? 0), 0);
   const totalSubs = pages.reduce((n, p) => n + (p.submissions ?? 0), 0);
+  const livePages = pages.filter((p) => p.status?.toUpperCase() === "PUBLISHED").length;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {pages.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi icon={LayoutTemplate} label="Pages" value={String(pages.length)} />
-            <Kpi icon={Eye} label="Views" value={totalViews.toLocaleString()} />
-            <Kpi icon={MousePointerClick} label="Leads" value={totalSubs.toLocaleString()} />
-          </div>
-        )}
-        <Section title="Your landing pages" icon={LayoutTemplate} action={<NewBtn label="New page" onClick={() => onAsk(BUILD_PAGE_PROMPT)} />}>
-          {pages.length ? (
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              {pages.map((p) => (
-                <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-muted/30">
-                  <div className="grid aspect-[16/9] place-items-center bg-background">
-                    {p.thumbnailUrl ? <Image src={p.thumbnailUrl} alt="" width={320} height={180} className="h-full w-full object-cover" unoptimized /> : <LayoutTemplate className="h-6 w-6 text-muted-foreground" />}
-                  </div>
-                  <div className="p-3">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-[12.5px] font-semibold">{p.title || "Untitled page"}</p>
-                      <StatusBadge status={p.status} />
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-x-3 text-[11px] text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" /> {(p.views ?? 0).toLocaleString()}</span>
-                      <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" /> {(p.submissions ?? 0).toLocaleString()}</span>
-                      {typeof p.conversionRate === "number" && <span>{p.conversionRate.toFixed(1)}% conv.</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky summary + primary action */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          {/* New page is GENERATIVE — the agent designs & generates the page. */}
+          <button
+            onClick={() => onAsk(BUILD_PAGE_PROMPT)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+          >
+            <Sparkles className="h-4 w-4" /> New page
+          </button>
+
+          <div className="rounded-2xl border border-border bg-card p-3">
+            <div className="flex items-center gap-2 px-1 pb-2"><LayoutTemplate className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Your landing pages</span></div>
+            <div className="space-y-1.5">
+              <StatRow icon={LayoutTemplate} label="Pages" value={String(pages.length)} sub={livePages ? `${livePages} live` : undefined} />
+              <StatRow icon={Eye} label="Views" value={totalViews.toLocaleString()} />
+              <StatRow icon={MousePointerClick} label="Leads" value={totalSubs.toLocaleString()} />
             </div>
-          ) : (
-            <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk(BUILD_PAGE_PROMPT)} />
-          )}
-        </Section>
+          </div>
+
+          {/* vertical section menu (single section; sticky-menu pattern) */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            <button
+              className="flex w-full items-center gap-2.5 rounded-xl bg-brand-500/10 px-3 py-2.5 text-[13px] font-semibold text-brand-500"
+            >
+              <LayoutTemplate className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-start">Landing pages</span>
+              {pages.length > 0 && <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-brand-500">{pages.length}</span>}
+            </button>
+          </nav>
+        </aside>
+
+        {/* RIGHT: the landing-page grid, full width */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <LayoutTemplate className="h-4 w-4 text-brand-500" />
+              <h3 className="text-[13px] font-bold">Your landing pages</h3>
+              {pages.length > 0 && <NewBtn className="ms-auto" label="New page" onClick={() => onAsk(BUILD_PAGE_PROMPT)} />}
+            </div>
+            {pages.length ? (
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {pages.map((p) => (
+                  <div key={p.id} className="overflow-hidden rounded-xl border border-border bg-muted/30">
+                    <div className="grid aspect-[16/9] place-items-center bg-background">
+                      {p.thumbnailUrl ? <Image src={p.thumbnailUrl} alt="" width={320} height={180} className="h-full w-full object-cover" unoptimized /> : <LayoutTemplate className="h-6 w-6 text-muted-foreground" />}
+                    </div>
+                    <div className="p-3">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[12.5px] font-semibold">{p.title || "Untitled page"}</p>
+                        <StatusBadge status={p.status} />
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-x-3 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" /> {(p.views ?? 0).toLocaleString()}</span>
+                        <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" /> {(p.submissions ?? 0).toLocaleString()}</span>
+                        {typeof p.conversionRate === "number" && <span>{p.conversionRate.toFixed(1)}% conv.</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => onAsk(BUILD_PAGE_PROMPT)} />
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ── shared ───────────────────────────────────────────────────────────── */
-function Kpi({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+// Compact summary row for the sticky left card (mirrors adbuilder StatRow).
+function StatRow({ icon: Icon, label, value, sub }: { icon: ElementType; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex items-center gap-1.5 text-muted-foreground"><Icon className="h-3.5 w-3.5" /><span className="text-[11px] font-medium">{label}</span></div>
-      <p className="mt-1 text-[18px] font-bold">{value}</p>
+    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+        {sub && <p className="truncate text-[10px] text-muted-foreground/80">{sub}</p>}
+      </div>
+      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
     </div>
   );
 }
 
-function Section({ title, icon: Icon, action, children }: { title: string; icon: ElementType; action?: ReactNode; children: ReactNode }) {
+function NewBtn({ label, onClick, className }: { label: string; onClick: () => void; className?: string }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-brand-500" />
-        <h3 className="text-[13px] font-bold">{title}</h3>
-        {action && <span className="ms-auto">{action}</span>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function NewBtn({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
+    <button onClick={onClick} className={cn("inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm", className)}>
       <Sparkles className="h-3.5 w-3.5" /> {label}
     </button>
   );

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X, Eye, Download, BarChart3, ShieldAlert, TrendingUp, Code2, AlertTriangle, CheckCircle2, AlertCircle, ChevronUp, Zap, Trophy, Users, Clock, Target, ListTodo } from "lucide-react";
+import { useCallback, useEffect, useState, type ElementType } from "react";
+import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X, Eye, Download, BarChart3, ShieldAlert, TrendingUp, Code2, AlertTriangle, CheckCircle2, AlertCircle, ChevronUp, Zap, Trophy, Users, Clock, Target, ListTodo, UserPlus } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { computeDigitalScore, scoreColor, scoreBg } from "@/components/pitch/score-utils";
@@ -10,11 +10,19 @@ import type { ResearchData } from "@/lib/pitch/pitch-detail-types";
 
 /**
  * Lead finder — its own dedicated surface (split from the legacy pitch-board).
+ * Full-width master/detail: a sticky LEFT card (KPIs + section menu + primary
+ * actions + a status filter) and a RIGHT pane that shows the search results, the
+ * saved-list grid, or an open list's leads.
  * Search local businesses (Google Places), build + save named/categorized LEAD
  * LISTS, return to them, and work each lead (status, pitch/proposal, delete).
  * Dedicated SavedLead system: /api/leads/search, /api/leads/lists[/id],
- * /api/leads/saved[/id]. Pitch/Proposal are generative → the agent runs them.
+ * /api/leads/saved[/id].
+ * Direct UI actions (no agent prompt): SAVE search results to a list, ADD a lead
+ * by hand (POST /api/leads/saved), EDIT a saved lead's contact details
+ * (PATCH /api/leads/saved/[id]), set status, delete.
+ * Pitch/Proposal are genuinely generative → the agent runs them via onAsk.
  * No legacy links. [[surface-buttons-are-ui-actions]] [[new-design-no-legacy]]
+ * [[full-width-left-menu-layout]]
  */
 
 interface BusinessLead {
@@ -33,6 +41,9 @@ const statusCls = (s?: string) => ({ NEW: "bg-muted text-muted-foreground", CONT
 
 export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
   const [tab, setTab] = useState<"search" | "lists">("search");
+  // Open-list status filter (left aside) + manual "add lead" form (right pane).
+  const [statusFilter, setStatusFilter] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   // ── search ──
   const [query, setQuery] = useState("");
@@ -108,19 +119,123 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
     try { await fetch(`/api/leads/lists/${l.id}`, { method: "DELETE" }); setOpenList(null); loadLists(); } catch { /* ignore */ }
   };
 
+  // Add a hand-entered lead straight into the open list — a direct UI action
+  // (POST /api/leads/saved with a single lead), no agent prompt.
+  const addLead = async (fields: { name: string; phone?: string; website?: string; address?: string }) => {
+    if (!openList) return false;
+    const j = await fetch("/api/leads/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listId: openList.id, leads: [fields] }),
+    }).then((r) => r.json()).catch(() => null);
+    if (j?.success) { await showList(openList); loadLists(); return true; }
+    return false;
+  };
+
+  // Save an inline edit to a saved lead's contact details (PATCH …/saved/[id]).
+  const patchLead = async (lead: SavedLead, fields: { name: string; phone: string; website: string; address: string }) => {
+    const j = await fetch(`/api/leads/saved/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    }).then((r) => r.json()).catch(() => null);
+    if (j?.success) { setListLeads((ls) => ls.map((x) => x.id === lead.id ? { ...x, ...fields } : x)); return true; }
+    return false;
+  };
+
   const pitchFor = (name: string, website?: string | null, address?: string | null) => onAsk(`Draft a cold-outreach pitch to ${name}${website ? ` (${website})` : ""}${address ? ` — a local business at ${address}` : ""}. Use my brand's services and a personalized hook.`);
   const proposalFor = (name: string, website?: string | null) => onAsk(`Write a branded service proposal for ${name}${website ? ` (${website})` : ""} offering my services. Use my Brand Kit's offerings.`);
 
+  // KPIs for the left summary card.
+  const totalLeadsSaved = lists.reduce((n, l) => n + (l.leadCount ?? 0), 0);
+  const wonCount = listLeads.filter((l) => (l.status || "").toUpperCase() === "WON").length;
+
+  // Apply the left-aside status filter to the open list's leads.
+  const visibleLeads = statusFilter ? listLeads.filter((l) => (l.status || "NEW").toUpperCase() === statusFilter) : listLeads;
+
+  // Vertical section nav (left aside).
+  const nav: { id: "search" | "lists"; label: string; icon: ElementType; count?: number }[] = [
+    { id: "search", label: "Find leads", icon: Search },
+    { id: "lists", label: "My lists", icon: Folder, count: lists.length },
+  ];
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
-        {/* tabs */}
-        <div className="inline-flex rounded-[10px] border border-border p-0.5">
-          {([["search", "Find leads", Search], ["lists", `My lists${lists.length ? ` (${lists.length})` : ""}`, Folder]] as const).map(([k, lbl, Icon]) => (
-            <button key={k} onClick={() => { setTab(k); if (k === "lists") setOpenList(null); }} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition", tab === k ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-3.5 w-3.5" /> {lbl}</button>
-          ))}
-        </div>
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+        {/* LEFT: sticky KPIs + section menu + primary action + filters */}
+        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-start gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Target className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold">Lead finder</h2>
+                <p className="truncate text-[11.5px] text-muted-foreground">{lists.length} {lists.length === 1 ? "list" : "lists"} · {totalLeadsSaved} saved</p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <MiniStat label="Lists" value={lists.length.toLocaleString()} />
+              <MiniStat label="Saved" value={totalLeadsSaved.toLocaleString()} />
+              <MiniStat label="Won" value={openList ? wonCount.toLocaleString() : "—"} />
+            </div>
+          </div>
 
+          {/* section menu */}
+          <nav className="rounded-2xl border border-border bg-card p-1.5">
+            {nav.map((n) => {
+              const active = tab === n.id;
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => { setTab(n.id); if (n.id === "lists") setOpenList(null); setAddOpen(false); }}
+                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
+                >
+                  <n.icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-start">{n.label}</span>
+                  {typeof n.count === "number" && n.count > 0 && (
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* primary action — context-aware */}
+          {tab === "search" ? (
+            <button onClick={() => { setTab("search"); setOpenList(null); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+              <Search className="h-4 w-4" /> Find leads
+            </button>
+          ) : openList ? (
+            <button onClick={() => setAddOpen((v) => !v)} className={cn("inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] px-3.5 py-2.5 text-[13px] font-semibold transition-colors", addOpen ? "border border-brand-500/60 text-brand-500" : "bg-gradient-to-r from-brand-500 to-violet-500 text-white shadow-lg shadow-brand-500/30")}>
+              {addOpen ? <><X className="h-4 w-4" /> Close form</> : <><UserPlus className="h-4 w-4" /> Add a lead</>}
+            </button>
+          ) : (
+            <button onClick={() => setTab("search")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+              <Search className="h-4 w-4" /> Find leads
+            </button>
+          )}
+
+          {/* status filter — only when a list is open */}
+          {tab === "lists" && openList && (
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <p className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"><ListChecks className="h-3.5 w-3.5" /> Filter by status</p>
+              <div className="space-y-0.5">
+                {(["", ...LEAD_STATUS] as const).map((s) => {
+                  const on = statusFilter === s;
+                  const label = s === "" ? "All leads" : s[0] + s.slice(1).toLowerCase();
+                  return (
+                    <button key={s || "all"} onClick={() => setStatusFilter(s)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition-colors", on ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+                      <span className="flex-1 text-start">{label}</span>
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", on ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{s === "" ? listLeads.length : listLeads.filter((l) => (l.status || "NEW").toUpperCase() === s).length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* RIGHT: search results / lists grid / list detail — full width */}
+        <div className="min-w-0 flex-1 space-y-4">
         {tab === "search" ? (
           <>
             {/* search box */}
@@ -206,10 +321,10 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
           // ── list detail ──
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => { setOpenList(null); setConfirmDelList(false); }} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Lists</button>
+              <button onClick={() => { setOpenList(null); setConfirmDelList(false); setAddOpen(false); setStatusFilter(""); }} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Lists</button>
               <div className="min-w-0">
                 <h3 className="truncate text-[14px] font-bold">{openList.name}</h3>
-                <p className="truncate text-[11.5px] text-muted-foreground">{openList.category ? `${openList.category} · ` : ""}{listLeads.length} lead{listLeads.length === 1 ? "" : "s"}</p>
+                <p className="truncate text-[11.5px] text-muted-foreground">{openList.category ? `${openList.category} · ` : ""}{statusFilter ? `${visibleLeads.length} of ${listLeads.length}` : `${listLeads.length} lead${listLeads.length === 1 ? "" : "s"}`}</p>
               </div>
               {confirmDelList ? (
                 <span className="ms-auto inline-flex items-center gap-1.5">
@@ -220,16 +335,22 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
                 <button onClick={() => setConfirmDelList(true)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete list</button>
               )}
             </div>
+            {/* Real in-surface "add a lead" form (direct POST — no agent prompt). */}
+            {addOpen && (
+              <AddLeadForm onAdd={addLead} onClose={() => setAddOpen(false)} />
+            )}
             {listLoading ? (
               <div className="py-8"><FlowLoader size={22} label="Loading leads…" /></div>
-            ) : listLeads.length ? (
+            ) : visibleLeads.length ? (
               <div className="space-y-2">
-                {listLeads.map((lead) => (
-                  <LeadRow key={lead.id} lead={lead} busy={busyLead === lead.id} onStatus={(s) => setLeadStatus(lead, s)} onRemove={() => removeLead(lead)} />
+                {visibleLeads.map((lead) => (
+                  <LeadRow key={lead.id} lead={lead} busy={busyLead === lead.id} onStatus={(s) => setLeadStatus(lead, s)} onRemove={() => removeLead(lead)} onEdit={(f) => patchLead(lead, f)} />
                 ))}
               </div>
+            ) : statusFilter ? (
+              <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No {statusFilter[0] + statusFilter.slice(1).toLowerCase()} leads in this list. Clear the filter to see all {listLeads.length}.</p>
             ) : (
-              <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No leads in this list yet — add some from the Find leads tab.</p>
+              <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No leads in this list yet — add one with “Add a lead”, or save some from the Find leads tab.</p>
             )}
           </section>
         ) : (
@@ -257,6 +378,54 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
             </section>
           )
         )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Compact summary stat used in the left identity card.
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center">
+      <p className="text-[16px] font-extrabold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+// Real in-surface form to add a hand-entered lead to the open list. Direct API
+// (POST /api/leads/saved) — no agent prompt. [[surface-buttons-are-ui-actions]]
+function AddLeadForm({ onAdd, onClose }: { onAdd: (f: { name: string; phone?: string; website?: string; address?: string }) => Promise<boolean>; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [website, setWebsite] = useState("");
+  const [address, setAddress] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Enter the business name."); return; }
+    setSaving(true); setError("");
+    const ok = await onAdd({ name: name.trim(), phone: phone.trim() || undefined, website: website.trim() || undefined, address: address.trim() || undefined });
+    setSaving(false);
+    if (ok) { setName(""); setPhone(""); setWebsite(""); setAddress(""); onClose(); }
+    else setError("Could not add the lead. Try again.");
+  };
+
+  return (
+    <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3">
+      <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold"><UserPlus className="h-3.5 w-3.5 text-brand-500" /> Add a lead to this list</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Business name *" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60 sm:col-span-2" />
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone (optional)" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+        <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Website (optional)" inputMode="url" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+        <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Address (optional)" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60 sm:col-span-2" />
+      </div>
+      {error && <p className="mt-2 text-[11.5px] text-rose-500">{error}</p>}
+      <div className="mt-2.5 flex items-center gap-1.5">
+        <button onClick={submit} disabled={saving || !name.trim()} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">{saving ? <FlowLoader size={13} tone="white" /> : <Plus className="h-3.5 w-3.5" />} Add lead</button>
+        <button onClick={onClose} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
       </div>
     </div>
   );
@@ -307,8 +476,12 @@ const EDIT_FIELDS: { key: string; label: string; long?: boolean }[] = [
 ];
 
 /** A saved lead in a list, expandable to its pitches/proposals with create/email/delete. */
-function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void }) {
+function LeadRow({ lead, busy, onStatus, onRemove, onEdit }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void; onEdit: (f: { name: string; phone: string; website: string; address: string }) => Promise<boolean> }) {
   const [open, setOpen] = useState(false);
+  // Inline edit of the lead's own contact details (PATCH …/saved/[id]).
+  const [leadEditOpen, setLeadEditOpen] = useState(false);
+  const [leadForm, setLeadForm] = useState({ name: "", phone: "", website: "", address: "" });
+  const [leadSaving, setLeadSaving] = useState(false);
   const [items, setItems] = useState<LeadPitch[]>([]);
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState(false);
@@ -330,6 +503,18 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
   const [downloading, setDownloading] = useState(false);
   const [confirmDelLead, setConfirmDelLead] = useState(false);
   const [confirmDelItem, setConfirmDelItem] = useState<string | null>(null);
+
+  const openLeadEdit = () => {
+    setLeadForm({ name: lead.name || "", phone: lead.phone || "", website: lead.website || "", address: lead.address || "" });
+    setLeadEditOpen(true); setConfirmDelLead(false);
+  };
+  const saveLeadEdit = async () => {
+    if (!leadForm.name.trim()) return;
+    setLeadSaving(true);
+    const ok = await onEdit({ name: leadForm.name.trim(), phone: leadForm.phone.trim(), website: leadForm.website.trim(), address: leadForm.address.trim() });
+    setLeadSaving(false);
+    if (ok) setLeadEditOpen(false);
+  };
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -429,15 +614,35 @@ function LeadRow({ lead, busy, onStatus, onRemove }: { lead: SavedLead; busy: bo
         <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => onStatus(e.target.value)} disabled={busy} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
           {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}
         </select>
+        <button onClick={() => leadEditOpen ? setLeadEditOpen(false) : openLeadEdit()} disabled={busy} className={cn("mt-1 shrink-0 hover:text-brand-500 disabled:opacity-60", leadEditOpen ? "text-brand-500" : "text-muted-foreground")} title="Edit lead details"><Pencil className="h-3.5 w-3.5" /></button>
         {confirmDelLead ? (
           <span className="mt-0.5 inline-flex shrink-0 items-center gap-1">
             <button onClick={onRemove} disabled={busy} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-500 px-2 py-1 text-[10.5px] font-semibold text-white disabled:opacity-60">{busy ? <FlowLoader size={11} tone="white" /> : <Trash2 className="h-3 w-3" />} Delete</button>
             <button onClick={() => setConfirmDelLead(false)} className="rounded-[8px] border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
           </span>
         ) : (
-          <button onClick={() => setConfirmDelLead(true)} disabled={busy} className="mt-1 shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete lead"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button onClick={() => { setLeadEditOpen(false); setConfirmDelLead(true); }} disabled={busy} className="mt-1 shrink-0 text-muted-foreground hover:text-rose-500 disabled:opacity-60" title="Delete lead"><Trash2 className="h-3.5 w-3.5" /></button>
         )}
       </div>
+
+      {/* Inline contact-detail edit (direct PATCH — no agent prompt). */}
+      {leadEditOpen && (
+        <div className="border-t border-border/70 px-3 py-2.5">
+          <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-2.5">
+            <p className="mb-2 flex items-center gap-1.5 text-[11.5px] font-semibold"><Pencil className="h-3.5 w-3.5 text-brand-500" /> Edit lead details</p>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <input value={leadForm.name} onChange={(e) => setLeadForm((f) => ({ ...f, name: e.target.value }))} placeholder="Business name *" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60 sm:col-span-2" />
+              <input value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+              <input value={leadForm.website} onChange={(e) => setLeadForm((f) => ({ ...f, website: e.target.value }))} placeholder="Website" inputMode="url" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+              <input value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} placeholder="Address" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60 sm:col-span-2" />
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <button onClick={saveLeadEdit} disabled={leadSaving || !leadForm.name.trim()} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">{leadSaving ? <FlowLoader size={13} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save</button>
+              <button onClick={() => setLeadEditOpen(false)} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-border/70 px-3 py-2.5">
