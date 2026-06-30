@@ -178,7 +178,9 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
     case "forms":
       return `The user is on the **Forms & surveys** surface (lead-capture forms/surveys + submissions). Help them build a new form/survey or read submissions when asked.`;
     case "automations":
-      return `The user is on the **Follow-ups** surface (automated sequences). Help them set up or adjust follow-up automations (welcome, birthday, abandoned-cart, re-engagement).`;
+      return `The user has the **Follow-ups flow playground** OPEN — a live canvas for building automated, PERSONALIZED sequences. When they ask you to build/create a flow, build it end to end into this canvas: pick the AUDIENCE (a single contact, multiple selected contacts, or a segment/list), draft the ordered message STEPS with timing/waits, and personalize each message per contact (use their real first name, company, history). Ask any genuinely-missing detail as ONE quick follow-up (audience? channel? the offer?), then propose_plan with the exact credit cost and, on confirm, create & schedule the sequence — it appears in their campaign Library here and the canvas reflects it. Don't reply with a generic menu; they're here to build a follow-up flow.`;
+    case "adbuilder":
+      return `The user has the **Ad builder flow playground** OPEN — a live canvas for building & launching ad campaigns. When they ask you to build/create/run an ad, build it end to end: what they're advertising (a STORE PRODUCT, a product/page LINK, or a described offer — if a product, generate the creative FROM it; if a link, read it), the ad CREATIVE (a scroll-stopping image + punchy headline & description + a strong CTA), the GOAL, the PLACEMENTS (only their ENABLED providers — FlowSmartly Feed / Meta / Google / TikTok / Spotlight), and the BUDGET + schedule. Ask any missing detail as ONE quick follow-up, then propose_plan with the exact credit cost; on confirm, create & launch it (it goes to review → live and appears in their campaign Library here). Don't reply with a generic menu; they're here to build an ad campaign.`;
     case "customers":
       return `The user is on the **Customers** surface (their store's buyers — orders, spend, last purchase). Help them segment, find top spenders, or re-engage repeat customers.`;
     case "reviews":
@@ -944,7 +946,7 @@ export function AgentHome() {
                 ) : focused === "forms" ? (
                   <FocusedForms onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "automations" ? (
-                  <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} />
                 ) : focused === "customers" ? (
                   <FocusedCustomers refreshKey={actionCount} />
                 ) : focused === "reviews" ? (
@@ -972,7 +974,7 @@ export function AgentHome() {
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "adbuilder" ? (
-                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} />
                 ) : focused === "storyad" ? (
                   <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "calendar" ? (

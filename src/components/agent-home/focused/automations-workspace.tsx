@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode, type PointerEvent as RPointerEvent } from "react";
 import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Wand2, Check, Target, GripVertical, ArrowLeftRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -141,7 +141,7 @@ const DEFAULT_STEPS = (): FlowStep[] => [
   { id: stepId(), channel: "EMAIL", subject: "", msg: "Hi {{first_name}}, ", wait: 0, personalize: true },
 ];
 
-export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedAutomations({ refreshKey, onAsk, agentBusy }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean }) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
@@ -270,16 +270,42 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
   const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
 
-  // Drag-to-reorder the step nodes on the horizontal canvas.
-  const dragFrom = useRef<number | null>(null);
-  const [dragOver, setDragOver] = useState<number | null>(null);
-  const reorderStep = (to: number) => {
-    const from = dragFrom.current;
-    dragFrom.current = null;
-    setDragOver(null);
-    if (from === null || from === to) return;
-    setSteps((prev) => { const n = [...prev]; const [m] = n.splice(from, 1); n.splice(to, 0, m); return n; });
+  // Pointer-based drag-to-reorder the step nodes (desktop + touch).
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ id: string; pointerId: number } | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const targetIndexAt = (clientX: number): number | null => {
+    const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
+    if (!cards) return null;
+    let target: number | null = null;
+    cards.forEach((card) => { const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = Number(card.dataset.stepIdx); });
+    return target;
   };
+  const stepDragHandlers = (i: number) => ({
+    onPointerDown: (e: RPointerEvent<HTMLElement>) => {
+      if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      dragState.current = { id: steps[i].id, pointerId: e.pointerId };
+      setDragIdx(i);
+    },
+    onPointerMove: (e: RPointerEvent<HTMLElement>) => {
+      const d = dragState.current; if (!d) return;
+      const target = targetIndexAt(e.clientX);
+      if (target === null) return;
+      setSteps((prev) => {
+        const from = prev.findIndex((s) => s.id === d.id);
+        if (from === -1 || from === target) return prev;
+        const n = [...prev]; const [m] = n.splice(from, 1); n.splice(target, 0, m); return n;
+      });
+      setDragIdx((v) => (v === target ? v : target));
+    },
+    onPointerUp: (e: RPointerEvent<HTMLElement>) => {
+      const d = dragState.current; if (!d) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
+      dragState.current = null;
+      setDragIdx(null);
+    },
+  });
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
@@ -307,7 +333,7 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
 
       {/* horizontal node canvas */}
       <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
-        <div className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
+        <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
 
           {/* AI brief node */}
           <div className="flex h-full items-start">
@@ -374,17 +400,12 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
               </div>
               <div
                 data-step-idx={i}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragFrom.current !== null && dragFrom.current !== i) setDragOver(i); }}
-                onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
-                onDrop={(e) => { e.preventDefault(); reorderStep(i); }}
-                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragOver === i ? "border-violet-500 ring-2 ring-violet-500/50" : "border-border")}
+                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragIdx === i ? "scale-[0.98] border-violet-500 opacity-70 ring-2 ring-violet-500/60" : "border-border")}
               >
                 <div
-                  draggable
-                  onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
-                  onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                  {...stepDragHandlers(i)}
                   title="Drag to reorder"
-                  className="flex cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                  className="flex touch-none cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
                 >
                   <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                   <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
@@ -475,10 +496,10 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
       )}
 
       {/* agent working banner */}
-      {working && (
-        <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl">
+      {(working || agentBusy) && (
+        <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2">
           <FlowLoader size={15} />
-          <span className="text-[12px]">The agent is building &amp; personalizing your flow — confirm the plan in the chat on the left.</span>
+          <span className="text-[12px]">The agent is building &amp; personalizing your flow — it’ll appear here. Reply in the chat to keep going.</span>
         </div>
       )}
 

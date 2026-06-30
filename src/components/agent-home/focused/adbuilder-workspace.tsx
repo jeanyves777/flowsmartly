@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as RPointerEvent } from "react";
 import Image from "next/image";
 import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, ArrowLeftRight, Wand2, Trash2, Pause, Play, X, Check, GripVertical } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -115,7 +115,7 @@ const STEP_DEFS: Record<StepKey, { kicker: string; title: string; icon: ElementT
 
 const FIELD = "w-full rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
-export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [hasRoas, setHasRoas] = useState(false);
@@ -132,12 +132,12 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Wizard: ordered (draggable) steps + which is active.
+  // Wizard: ordered (pointer-draggable) steps + which is active (frontier).
   const [order, setOrder] = useState<StepKey[]>(DEFAULT_ORDER);
   const [cur, setCur] = useState(0);
-  const dragFrom = useRef<number | null>(null);
-  const [dragOver, setDragOver] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ key: StepKey; pointerId: number } | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   // Builder state.
   const [name, setName] = useState("Untitled ad campaign");
@@ -332,21 +332,40 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     load();
   };
 
-  // Drag-to-reorder the step nodes.
-  const onDrop = (toIdx: number) => {
-    const from = dragFrom.current;
-    setDragOver(null);
-    dragFrom.current = null;
-    if (from === null || from === toIdx) return;
-    const activeKey = order[cur];
-    setOrder((prev) => {
-      const nextOrder = [...prev];
-      const [moved] = nextOrder.splice(from, 1);
-      nextOrder.splice(toIdx, 0, moved);
-      setCur(nextOrder.indexOf(activeKey));
-      return nextOrder;
-    });
+  // Pointer-based drag-to-reorder (works on desktop + touch, unlike HTML5 DnD).
+  // The frontier (cur) stays put; we just reorder the revealed nodes live.
+  const targetIndexAt = (clientX: number): number | null => {
+    const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
+    if (!cards) return null;
+    let target: number | null = null;
+    cards.forEach((card) => { const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = Number(card.dataset.stepIdx); });
+    return target;
   };
+  const dragHandlers = (i: number) => ({
+    onPointerDown: (e: RPointerEvent<HTMLElement>) => {
+      if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      dragState.current = { key: order[i], pointerId: e.pointerId };
+      setDragIdx(i);
+    },
+    onPointerMove: (e: RPointerEvent<HTMLElement>) => {
+      const d = dragState.current; if (!d) return;
+      const target = targetIndexAt(e.clientX);
+      if (target === null) return;
+      setOrder((prev) => {
+        const from = prev.indexOf(d.key);
+        if (from === -1 || from === target) return prev;
+        const n = [...prev]; const [m] = n.splice(from, 1); n.splice(target, 0, m); return n;
+      });
+      setDragIdx((v) => (v === target ? v : target));
+    },
+    onPointerUp: (e: RPointerEvent<HTMLElement>) => {
+      const d = dragState.current; if (!d) return;
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
+      dragState.current = null;
+      setDragIdx(null);
+    },
+  });
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
@@ -495,21 +514,16 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
                 {i > 0 && <div className="flex h-full items-center px-0.5"><div className={cn("h-0.5 w-6 rounded-full", i < cur ? "bg-emerald-500" : "bg-gradient-to-r from-brand-500/50 to-violet-500/45")} /></div>}
                 <div
                   data-step-idx={i}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragFrom.current !== null && dragFrom.current !== i) setDragOver(i); }}
-                  onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
-                  onDrop={(e) => { e.preventDefault(); onDrop(i); }}
                   className={cn(
                     "flex max-h-full w-[360px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300",
                     isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
-                    dragOver === i && "border-violet-500 ring-2 ring-violet-500/50",
+                    dragIdx === i && "scale-[0.98] opacity-70 ring-2 ring-violet-500/60",
                   )}
                 >
                   <div
-                    draggable
-                    onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
-                    onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                    {...dragHandlers(i)}
                     title="Drag to reorder"
-                    className="flex cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                    className="flex touch-none cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
                   >
                     <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                     <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", done ? "border-emerald-500 bg-emerald-500 text-white" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
@@ -546,7 +560,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
 
       {detailCampaign && <CampaignDetailDrawer campaign={detailCampaign} busy={busyId === detailCampaign.id} onToggle={() => toggleStatus(detailCampaign)} onDelete={() => { setDetailId(null); deleteCampaign(detailCampaign.id); }} onClose={() => setDetailId(null)} />}
 
-      {working && <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl"><FlowLoader size={15} /><span className="text-[12px]">The agent is generating your ad creative &amp; targeting — confirm the budget in the chat on the left.</span></div>}
+      {(working || agentBusy) && <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2"><FlowLoader size={15} /><span className="text-[12px]">The agent is working on your campaign — it’ll appear here. Reply in the chat to keep going.</span></div>}
     </div>
   );
 }
