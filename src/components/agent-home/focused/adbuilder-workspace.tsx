@@ -410,12 +410,15 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?
                 <>
                   <label className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">Product / page link</label>
                   <input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} inputMode="url" placeholder="https://your-store.com/..." className={FIELD} />
-                  <p className="mt-1.5 text-[10.5px] text-muted-foreground">Build with AI reads it and writes the ad.</p>
+                  <button onClick={buildWithAI} disabled={!onAsk || !destinationUrl.trim()} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Generate the ad from this link</button>
+                  <p className="mt-1.5 text-[10.5px] text-muted-foreground">The agent reads the page, writes the creative &amp; copy, and guides you in the chat.</p>
                 </>
               ) : (
                 <>
                   <label className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">Describe what to advertise</label>
                   <textarea value={describeText} onChange={(e) => setDescribeText(e.target.value)} rows={3} className={cn(FIELD, "resize-y leading-relaxed")} placeholder="e.g. cozy autumn home-decor sale, 20% off" />
+                  <button onClick={buildWithAI} disabled={!onAsk || !describeText.trim()} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Generate the ad with AI</button>
+                  <p className="mt-1.5 text-[10.5px] text-muted-foreground">The agent writes the headline, copy &amp; image from your description and guides you in the chat.</p>
                 </>
               )}
             </div>
@@ -575,8 +578,8 @@ function AdPreview({ mediaUrl, host, headline, description, cta, onAi, aiDisable
       </div>
       <div className="p-2.5">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{host}</div>
-        <div className="mt-0.5 text-[13.5px] font-bold leading-snug">{headline || "Your headline appears here"}</div>
-        <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{description || "A short, punchy description."}</div>
+        <div className={cn("mt-0.5 text-[13.5px] leading-snug", headline ? "font-bold" : "font-medium italic text-muted-foreground/50")}>{headline || "Headline — generate with AI"}</div>
+        <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{description || <span className="italic text-muted-foreground/50">Description — the AI writes this from your source</span>}</div>
         <span className="mt-2 inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-muted px-3 py-1.5 text-[11.5px] font-bold">{cta} <ArrowRight className="h-3 w-3" /></span>
       </div>
     </div>
