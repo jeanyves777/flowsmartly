@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ad builder — horizontal node wizard mockup</title>
+<style>
+  :root{
+    --bg:#0a0a0f; --card:#101017; --card2:#14141c; --border:#26262d;
+    --muted:#1b1b22; --muted-fg:#9a9aa4; --fg:#fafafa;
+    --brand:#0ea5e9; --brand-soft:rgba(14,165,233,.12); --violet:#8b5cf6;
+    --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e;
+    --grad:linear-gradient(90deg,#0ea5e9,#8b5cf6);
+    --grad-soft:linear-gradient(90deg,rgba(14,165,233,.14),rgba(139,92,246,.14));
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#06060a;color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  .frame{max-width:1280px;margin:22px auto;padding:0 16px}
+  .caption{color:var(--muted-fg);font-size:12.5px;margin:0 0 12px;max-width:1020px}
+  .app{height:760px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -24px rgba(0,0,0,.7)}
+  .spacer{margin-left:auto}
+  svg{display:block}
+
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:rgba(20,20,28,.4);backdrop-filter:blur(8px);z-index:10}
+  .tb-title{display:inline-flex;align-items:center;gap:7px;font-weight:650;font-size:12.5px}
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:transparent;color:var(--fg);font-weight:600;font-size:12.5px;padding:7px 12px;border-radius:10px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:rgba(14,165,233,.6)}
+  .btn.ghost{color:var(--muted-fg)}
+  .btn.grad{background:var(--grad);border:none;color:#fff;box-shadow:0 6px 18px -6px rgba(14,165,233,.55)}
+  .btn.sm{padding:5px 10px;font-size:11.5px;border-radius:9px}
+  .btn.xs{padding:3px 8px;font-size:11px;border-radius:8px}
+  .btn:disabled{opacity:.45;cursor:default}
+  .prov{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--muted);border-radius:99px;padding:3px 9px 3px 7px;font-size:11px;font-weight:600;color:var(--muted-fg)}
+  .prov.on{color:var(--fg);border-color:rgba(16,185,129,.35)}
+  .pdot{width:7px;height:7px;border-radius:99px;background:var(--muted-fg)}
+  .prov.on .pdot{background:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+  .pmark{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:9px;font-weight:800;color:#fff}
+
+  /* name + AI hero strip */
+  .topbar{display:flex;align-items:center;gap:12px;padding:12px 18px 4px}
+  .ic{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;flex:0 0 auto}
+  .ic.brand{background:var(--brand-soft);color:var(--brand)}
+  .ic.violet{background:rgba(139,92,246,.12);color:var(--violet)}
+  .flow-name{min-width:0;flex:0 1 320px;background:transparent;border:1px solid transparent;border-radius:9px;color:var(--fg);font-size:17px;font-weight:750;padding:5px 8px;outline:none}
+  .flow-name:hover{border-color:var(--border)}
+  .flow-name:focus{border-color:rgba(14,165,233,.6);background:var(--bg)}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:99px;font-size:10.5px;font-weight:650;padding:2px 8px}
+  .badge.draft{background:rgba(245,158,11,.1);color:var(--amber)}
+  .ai-badge{display:inline-flex;align-items:center;gap:5px;background:var(--grad);color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer}
+
+  .hint{padding:2px 18px 8px;font-size:11px;color:var(--muted-fg)}
+
+  /* horizontal node canvas */
+  .canvas{position:relative;flex:1;min-height:0;overflow-x:auto;overflow-y:hidden;background-image:radial-gradient(circle,rgba(140,140,160,.18) 1px,transparent 1px);background-size:22px 22px}
+  .track{display:flex;align-items:flex-start;gap:0;height:100%;padding:18px 22px 26px;min-width:max-content}
+  .conn{display:flex;align-items:center;align-self:center;padding:0 2px;color:var(--muted-fg);flex:0 0 auto}
+  .conn .l{width:26px;height:2px;background:linear-gradient(90deg,rgba(14,165,233,.5),rgba(139,92,246,.45))}
+  .conn.done .l{background:var(--emerald)}
+
+  /* node card */
+  .node{width:372px;flex:0 0 auto;display:flex;flex-direction:column;max-height:100%;border:1px solid var(--border);background:var(--card);border-radius:16px;overflow:hidden;transition:border-color .15s, box-shadow .15s, transform .12s;align-self:flex-start}
+  .node.active{border-color:rgba(14,165,233,.55);box-shadow:0 16px 50px -26px rgba(14,165,233,.5)}
+  .node.dragging{opacity:.5}
+  .node.dragover{border-color:var(--violet);box-shadow:0 0 0 2px rgba(139,92,246,.4)}
+  .nh{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--border);cursor:grab}
+  .nh:active{cursor:grabbing}
+  .grip{display:grid;grid-template-columns:repeat(2,3px);gap:3px;flex:0 0 auto;opacity:.5}
+  .grip i{width:3px;height:3px;border-radius:99px;background:var(--muted-fg);display:block}
+  .ring{width:26px;height:26px;border-radius:99px;display:grid;place-items:center;font-size:12px;font-weight:800;border:2px solid var(--border);background:var(--bg);color:var(--muted-fg);flex:0 0 auto}
+  .node.done .ring{background:var(--emerald);border-color:var(--emerald);color:#fff}
+  .node.active .ring{background:var(--grad);border-color:transparent;color:#fff}
+  .nh .nt{font-size:13px;font-weight:700;line-height:1.1}
+  .nh .nk{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-fg)}
+  .nb{padding:13px;overflow:auto}
+  .nf{display:flex;align-items:center;gap:8px;padding:10px 13px;border-top:1px solid var(--border);background:rgba(20,20,28,.4)}
+
+  .lbl{display:block;font-size:11px;font-weight:650;color:var(--muted-fg);margin:0 0 5px}
+  .field{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--fg);font-size:12.5px;padding:8px 10px;outline:none;font-family:inherit}
+  .field:focus{border-color:rgba(14,165,233,.6)}
+  textarea.field{resize:vertical;line-height:1.5}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+
+  .mode{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--muted);border-radius:10px;padding:9px 10px;cursor:pointer;margin-bottom:7px;transition:.12s}
+  .mode:hover{border-color:rgba(14,165,233,.4)}
+  .mode.sel{border-color:rgba(14,165,233,.6);background:var(--brand-soft);color:var(--brand)}
+  .mode .mt{font-size:12.5px;font-weight:700}
+  .mode .mh{font-size:10.5px;color:var(--muted-fg)}
+  .mode.sel .mh{color:rgba(14,165,233,.8)}
+
+  .prodsel{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--muted);border-radius:11px;padding:9px;margin-top:9px}
+  .pimg{width:48px;height:48px;border-radius:9px;background:linear-gradient(135deg,#1f2937,#0b0f17);flex:0 0 auto;display:grid;place-items:center;font-size:20px}
+  .price{font-weight:800;color:var(--emerald);font-size:12.5px}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .pcard{border:1px solid var(--border);background:var(--muted);border-radius:11px;overflow:hidden;cursor:pointer}
+  .pcard:hover{border-color:rgba(14,165,233,.6)}
+  .pcard .ph{aspect-ratio:1.3;background:linear-gradient(135deg,#1f2937,#0b0f17);display:grid;place-items:center;font-size:26px}
+  .pcard .pb{padding:7px 8px}
+
+  /* ad preview (stacked, narrow) */
+  .ad{border:1px solid var(--border);background:var(--bg);border-radius:12px;overflow:hidden}
+  .ad-media{aspect-ratio:1.91;background:linear-gradient(135deg,#0b2447,#1a1140);position:relative;display:grid;place-items:center;font-size:40px}
+  .ad-media .gen{position:absolute;right:7px;top:7px}
+  .ad-body{padding:10px 11px}
+  .ad-dom{font-size:10px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.04em}
+  .ad-head{font-size:13.5px;font-weight:750;margin:3px 0}
+  .ad-desc{font-size:11.5px;color:var(--muted-fg);line-height:1.4}
+  .ad-cta{margin-top:8px;display:inline-flex;align-items:center;gap:5px;background:var(--muted);border:1px solid var(--border);border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700}
+
+  .plc{display:flex;align-items:center;gap:9px;border:1px solid var(--border);background:var(--muted);border-radius:10px;padding:8px 10px;margin-top:7px}
+  .plc.disabled{opacity:.55}
+  .switch{position:relative;width:34px;height:19px;border-radius:99px;background:var(--muted);border:1px solid var(--border);cursor:pointer;flex:0 0 auto}
+  .switch.on{background:var(--grad);border-color:transparent}
+  .switch i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:99px;background:#fff;transition:.15s}
+  .switch.on i{left:16px}
+
+  .sumrow{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+  .sumrow:last-child{border-bottom:none}
+  .sumrow .sl{font-size:11px;color:var(--muted-fg);width:78px;flex:0 0 auto}
+  .sumrow .sv{font-size:12px;font-weight:600}
+  .est{margin-top:10px;border:1px solid rgba(14,165,233,.3);background:var(--brand-soft);border-radius:10px;padding:9px 11px;font-size:11.5px}
+
+  /* sheet + library */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none}
+  .scrim.open{display:block}
+  .sheet{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:720px;background:var(--card2);border:1px solid var(--border);border-bottom:none;border-radius:18px 18px 0 0;box-shadow:0 -24px 60px -24px rgba(0,0,0,.8);z-index:50;display:none;flex-direction:column;max-height:72%}
+  .sheet.open{display:flex}
+  .grip2{position:absolute;left:50%;top:7px;transform:translateX(-50%);width:38px;height:4px;border-radius:99px;background:var(--border)}
+  .sheet-h{display:flex;align-items:center;gap:8px;padding:15px 16px 8px}
+  .sheet-b{overflow:auto;padding:6px 16px 16px}
+  .x{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;border:1px solid var(--border);color:var(--muted-fg);cursor:pointer}
+  .x:hover{color:var(--fg)}
+  .lib{position:absolute;inset:0;z-index:60;background:rgba(8,8,12,.97);backdrop-filter:blur(6px);display:none;flex-direction:column}
+  .lib.open{display:flex}
+  .lib-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .lib-b{flex:1;min-height:0;overflow:auto;padding:16px}
+  .lib-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .kpi{border:1px solid var(--border);background:var(--card);border-radius:13px;padding:12px 14px}
+  .kpi .kn{font-size:22px;font-weight:800;line-height:1}
+  .kpi .kl{font-size:11px;color:var(--muted-fg);margin-top:5px}
+  .lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+  .lc{border:1px solid var(--border);background:var(--card);border-radius:14px;overflow:hidden}
+  .lc-top{display:flex;gap:10px;padding:12px 13px}
+  .lc-thumb{width:50px;height:50px;border-radius:9px;background:linear-gradient(135deg,#0b2447,#1a1140);flex:0 0 auto;display:grid;place-items:center;font-size:18px}
+  .lc-stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
+  .lc-stat{padding:9px 5px;text-align:center;border-right:1px solid var(--border)}
+  .lc-stat:last-child{border-right:none}
+  .lc-stat .v{font-size:14px;font-weight:800}
+  .lc-stat .l{font-size:9.5px;color:var(--muted-fg);margin-top:2px}
+  .muted{color:var(--muted-fg)}
+  .working{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:55;display:none;align-items:center;gap:10px;border:1px solid rgba(14,165,233,.4);background:var(--card2);border-radius:12px;padding:10px 14px;box-shadow:0 16px 40px -16px rgba(0,0,0,.7)}
+  .working.open{display:flex}
+  .spin{width:16px;height:16px;border:2px solid rgba(14,165,233,.3);border-top-color:var(--brand);border-radius:99px;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .scrollnote{position:absolute;right:14px;bottom:12px;z-index:8;font-size:10.5px;color:var(--muted-fg);background:rgba(16,16,23,.8);border:1px solid var(--border);border-radius:99px;padding:4px 10px}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="caption"><b style="color:#fafafa">Ad builder → a horizontal node wizard.</b> Steps live <b>inline, left→right, on a scrollable canvas</b> (scroll/drag sideways). Each step is a <b>draggable node</b> — grab a card’s header to <b>move &amp; rearrange</b> it, just like the native playground. Completed steps go green; the active one is highlighted. “Build with AI” skips it all and lets the agent do everything. <i>Drag the card headers to reorder · scroll sideways · click Continue.</i></p>
+
+  <div class="app" id="app">
+    <div class="toolbar">
+      <span class="tb-title">${MEGA}<span>Ad builder</span></span>
+      <span id="provs" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost sm" onclick="openLibrary()">${GRID}Library</button>
+      <button class="btn ghost sm" onclick="reset()">${PLUS}New</button>
+    </div>
+
+    <div class="topbar">
+      <span class="ic brand">${MEGA}</span>
+      <input class="flow-name" id="campName" value="Untitled ad campaign" />
+      <span class="badge draft">Draft</span>
+      <span class="spacer"></span>
+      <span class="ai-badge" onclick="aiBuild()">${SPK}Build with AI</span>
+    </div>
+    <p class="hint">Drag a node’s header to rearrange · scroll the canvas sideways to move along the flow.</p>
+
+    <div class="canvas" id="canvas">
+      <div class="track" id="track"></div>
+      <span class="scrollnote">${ARRLR} scroll &amp; drag sideways</span>
+    </div>
+
+    <!-- product picker -->
+    <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+    <div class="sheet" id="sheet"><div class="grip2"></div>
+      <div class="sheet-h"><span class="tb-title">${BOX}<span>Pick a product to advertise</span></span><span class="spacer"></span><span class="x" onclick="closeSheet()">${X}</span></div>
+      <div class="sheet-b" id="sheetBody"></div>
+    </div>
+
+    <!-- library -->
+    <div class="lib" id="lib">
+      <div class="lib-h"><span class="tb-title">${GRID}<span>Ad campaign library</span></span><span class="muted" style="font-size:11.5px">every campaign — status & statistics</span><span class="spacer"></span><span class="x" onclick="closeLibrary()">${X}</span></div>
+      <div class="lib-b"><div class="lib-kpis" id="libKpis"></div><div class="lib-grid" id="libGrid"></div></div>
+    </div>
+
+    <div class="working" id="working"><span class="spin"></span><span style="font-size:12px">The agent is generating your ad — confirm the budget in the chat on the left.</span></div>
+  </div>
+</div>
+
+<script>
+function svg(p,e){return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '+(e||'')+'>'+p+'</svg>'}
+const MEGA=svg('<path d="M3 11l14-6v14L3 13z"/><path d="M3 11v2a2 2 0 0 0 2 2h1"/><path d="M17 7a4 4 0 0 1 0 10"/>','style="color:#0ea5e9"');
+const SPK=svg('<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/>','width="14" height="14"');
+const PLUS=svg('<path d="M12 5v14M5 12h14"/>','width="15" height="15"');
+const X=svg('<path d="M18 6L6 18M6 6l12 12"/>','width="15" height="15"');
+const GRID=svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>','width="14" height="14"');
+const TARGET=svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>','width="16" height="16"');
+const BOX=svg('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>','width="14" height="14"');
+const LINK=svg('<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>','width="14" height="14"');
+const PEN=svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>','width="14" height="14"');
+const IMG=svg('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>','width="16" height="16"');
+const ROCKET=svg('<path d="M5 13c-1.5 2-1 5-1 5s3 .5 5-1m-4-4l3 3"/><path d="M14.5 3.5C18 5 19 9 19 9s-4 1-5.5 4.5C12 17 8 18 8 18s-1-4 2.5-5.5C12 7 14.5 3.5 14.5 3.5z"/>','width="16" height="16"');
+const COINS=svg('<circle cx="8" cy="8" r="5"/><path d="M16 8.5a5 5 0 1 1 0 9 5 5 0 0 1-3-1"/>','width="16" height="16"');
+const ARR=svg('<path d="M5 12h14M13 6l6 6-6 6"/>','width="12" height="12"');
+const ARRLR=svg('<path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/>','width="13" height="13"');
+const CHECK=svg('<path d="M20 6L9 17l-5-5"/>','width="14" height="14"');
+
+const PROVIDERS=[{id:'feed',name:'Feed',on:true,mark:'F',color:'#0ea5e9'},{id:'meta_ads',name:'Meta',on:true,mark:'M',color:'#0866ff'},{id:'google_ads',name:'Google',on:false,mark:'G',color:'#ea4335'},{id:'tiktok_ads',name:'TikTok',on:false,mark:'T',color:'#111'},{id:'spotlight',name:'Spotlight',on:true,mark:'★',color:'#8b5cf6'}];
+const PRODUCTS=[{id:'p1',name:'Aurora Table Lamp',price:48,emoji:'💡'},{id:'p2',name:'Cloud Lounge Chair',price:329,emoji:'🛋️'},{id:'p3',name:'Terra Ceramic Mug',price:24,emoji:'☕'},{id:'p4',name:'Linen Throw',price:62,emoji:'🧶'},{id:'p5',name:'Brass Clock',price:89,emoji:'🕐'},{id:'p6',name:'Sage Candle Set',price:34,emoji:'🕯️'}];
+const money=n=>'$'+(n||0).toLocaleString();
+
+const STEPDEFS={
+  source:{label:'Source',kicker:'What you\\'re advertising',icon:TARGET,title:'Source'},
+  creative:{label:'Creative',kicker:'Ad creative',icon:IMG,title:'Creative'},
+  placement:{label:'Goal & placement',kicker:'Goal & placement',icon:ROCKET,title:'Goal & placement'},
+  budget:{label:'Budget',kicker:'Budget & schedule',icon:COINS,title:'Budget'},
+  review:{label:'Review & launch',kicker:'Review',icon:ROCKET,title:'Review & launch'},
+};
+let order=['source','creative','placement','budget','review']; // reorderable
+let cur=0; // index into `order`
+const S={src:'product',product:'p1',head:'',desc:'',cta:'Shop Now',link:'',brief:'',goal:'Brand awareness',cat:'Retail & e-commerce',budget:'50',placements:{feed:true,meta_ads:true}};
+
+function genCreative(){const p=PRODUCTS.find(x=>x.id===S.product);if(S.src==='product'&&p){S.head=`Meet the ${p.name}`;S.desc=`${p.name} — now ${money(p.price)}. Free shipping this week only.`;}else if(!S.head){S.head='Get 20% off your first order';S.desc='Limited-time launch offer — shop today.';}}
+function renderProviders(){document.getElementById('provs').innerHTML='<span class="muted" style="font-size:11px;align-self:center">Providers:</span>'+PROVIDERS.map(p=>`<span class="prov ${p.on?'on':''}"><span class="pdot"></span><span class="pmark" style="background:${p.color}">${p.mark}</span>${p.name}</span>`).join('');}
+
+function bodyFor(key){
+  if(key==='source'){
+    let sb='';
+    if(S.src==='product'){const p=PRODUCTS.find(x=>x.id===S.product);sb=`<div class="prodsel"><span class="pimg">${p.emoji}</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">${p.name}</div><div class="price">${money(p.price)}</div></div><button class="btn xs" onclick="openProducts()">Change</button></div><p class="muted" style="font-size:10.5px;margin:8px 0 0">The ad auto-generates from this product.</p>`;}
+    else if(S.src==='link'){sb=`<label class="lbl">Product / page link</label><input class="field" value="${S.link}" oninput="S.link=this.value" placeholder="https://your-store.com/..." />`;}
+    else{sb=`<label class="lbl">Describe what to advertise</label><textarea class="field" rows="3" oninput="S.brief=this.value" placeholder="e.g. cozy autumn home-decor sale, 20% off">${S.brief}</textarea>`;}
+    return `<div class="mode ${S.src==='product'?'sel':''}" onclick="S.src='product';genCreative();render()">${BOX}<div><div class="mt">Store product</div><div class="mh">Pick & auto-generate</div></div></div>
+      <div class="mode ${S.src==='link'?'sel':''}" onclick="S.src='link';render()">${LINK}<div><div class="mt">Product / link</div><div class="mh">Paste a URL</div></div></div>
+      <div class="mode ${S.src==='brief'?'sel':''}" onclick="S.src='brief';render()">${PEN}<div><div class="mt">Describe it</div><div class="mh">Free brief</div></div></div>
+      <div style="margin-top:4px">${sb}</div>`;
+  }
+  if(key==='creative'){const p=PRODUCTS.find(x=>x.id===S.product);const emoji=S.src==='product'&&p?p.emoji:'🛍️';
+    return `<div class="ad"><div class="ad-media">${emoji}<span class="gen"><button class="btn xs grad" onclick="aiBuild()">${SPK}AI image</button></span></div>
+      <div class="ad-body"><div class="ad-dom">your-store.com</div><div class="ad-head" id="pvHead">${S.head||'Your headline'}</div><div class="ad-desc" id="pvDesc">${S.desc||'A short, punchy description.'}</div><div class="ad-cta" id="pvCta">${S.cta} ${ARR}</div></div></div>
+      <label class="lbl" style="margin-top:10px">Headline</label><input class="field" value="${S.head.replace(/"/g,'&quot;')}" oninput="S.head=this.value;pv()" />
+      <label class="lbl" style="margin-top:8px">Description</label><textarea class="field" rows="2" oninput="S.desc=this.value;pv()">${S.desc}</textarea>
+      <div class="row2" style="margin-top:8px"><div><label class="lbl">CTA</label><select class="field" onchange="S.cta=this.value;pv()">${['Shop Now','Learn More','Get Offer','Sign Up'].map(c=>`<option ${S.cta===c?'selected':''}>${c}</option>`).join('')}</select></div><div style="align-self:end"><button class="btn xs" style="width:100%" onclick="aiBuild()">${SPK}Regenerate</button></div></div>`;
+  }
+  if(key==='placement'){
+    return `<div class="row2"><div><label class="lbl">Goal</label><select class="field" onchange="S.goal=this.value">${['Brand awareness','Traffic / clicks','Conversions','Leads'].map(g=>`<option ${S.goal===g?'selected':''}>${g}</option>`).join('')}</select></div>
+      <div><label class="lbl">Category</label><select class="field" onchange="S.cat=this.value">${['Retail & e-commerce','Professional services','Food & beverage'].map(c=>`<option ${S.cat===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
+      <label class="lbl" style="margin-top:11px">Placements (enabled only)</label>
+      ${PROVIDERS.filter(p=>p.id!=='spotlight').map(p=>{const on=S.placements[p.id]&&p.on;return `<div class="plc ${p.on?'':'disabled'}"><span class="pmark" style="background:${p.color};width:22px;height:22px;border-radius:6px;font-size:11px">${p.mark}</span>
+        <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:650">${p.name} Ads</div><div class="muted" style="font-size:10px">${p.on?'Live':'Not connected'}</div></div>
+        ${p.on?`<span class="switch ${on?'on':''}" onclick="S.placements['${p.id}']=!S.placements['${p.id}'];this.classList.toggle('on')"><i></i></span>`:`<button class="btn xs" onclick="alert('Connect')">Connect</button>`}</div>`}).join('')}`;
+  }
+  if(key==='budget'){
+    return `<label class="lbl">Budget (credits)</label><input class="field" value="${S.budget}" oninput="S.budget=this.value.replace(/[^0-9]/g,'');document.getElementById('estr').textContent='~'+((parseInt(S.budget||0)*250)).toLocaleString()+'–'+((parseInt(S.budget||0)*360)).toLocaleString()" />
+      <div class="row2" style="margin-top:8px"><div><label class="lbl">Start</label><input class="field" type="date" /></div><div><label class="lbl">End</label><input class="field" type="date" /></div></div>
+      <div class="est">Est. reach <b id="estr">~12,500–18,000</b> impressions · reviewed before going live.</div>`;
+  }
+  const places=Object.keys(S.placements).filter(k=>S.placements[k]).map(k=>PROVIDERS.find(p=>p.id===k).name).join(', ');
+  const sumSrc=S.src==='product'?(()=>{const p=PRODUCTS.find(x=>x.id===S.product);return p?`${p.emoji} ${p.name}`:'Product'})():S.src==='link'?(S.link||'A link'):'Described';
+  return `<div class="ad"><div class="ad-media" style="font-size:34px">${S.src==='product'?(PRODUCTS.find(x=>x.id===S.product)||{}).emoji||'🛍️':'🛍️'}</div><div class="ad-body"><div class="ad-dom">your-store.com</div><div class="ad-head">${S.head||'Headline'}</div><div class="ad-desc">${S.desc||''}</div><div class="ad-cta">${S.cta} ${ARR}</div></div></div>
+    <div style="margin-top:10px"><div class="sumrow"><span class="sl">Advertising</span><span class="sv">${sumSrc}</span></div><div class="sumrow"><span class="sl">Goal</span><span class="sv">${S.goal}</span></div><div class="sumrow"><span class="sl">Placements</span><span class="sv">${places}</span></div><div class="sumrow"><span class="sl">Budget</span><span class="sv">${S.budget} credits</span></div></div>`;
+}
+
+function render(){
+  const track=document.getElementById('track');
+  track.innerHTML=order.map((key,i)=>{
+    const d=STEPDEFS[key];const done=i<cur,active=i===cur,last=i===order.length-1;
+    const conn=i>0?`<div class="conn ${i<=cur?'done':''}"><div class="l"></div></div>`:'';
+    return conn+`<div class="node ${active?'active':''} ${done?'done':''}" draggable="true" data-i="${i}"
+        ondragstart="onDrag(event,${i})" ondragover="onOver(event)" ondragleave="onLeave(event)" ondrop="onDrop(event,${i})" ondragend="onEnd(event)">
+      <div class="nh"><span class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="ring">${done?CHECK:(i+1)}</span>
+        <div style="flex:1;min-width:0"><div class="nk">${d.kicker}</div><div class="nt">${d.title}</div></div>
+      </div>
+      <div class="nb">${bodyFor(key)}</div>
+      <div class="nf"><button class="btn ghost xs" onclick="focusStep(${i})">Open</button><span class="spacer"></span>
+        ${last
+          ? `<button class="btn xs" onclick="alert('Launch · '+S.budget+' cr')">Launch · ${S.budget}cr</button><button class="btn grad xs" onclick="aiBuild()">${SPK}Build & launch</button>`
+          : `<button class="btn grad xs" onclick="next()">Continue ${ARR}</button>`}
+      </div></div>`;
+  }).join('');
+}
+function pv(){document.getElementById('pvHead').textContent=S.head||'Your headline';document.getElementById('pvDesc').textContent=S.desc||'A short, punchy description.';document.getElementById('pvCta').innerHTML=S.cta+' '+ARR;}
+function focusStep(i){cur=i;render();scrollTo(i);}
+function next(){if(cur<order.length-1){cur++;render();scrollTo(cur);}}
+function scrollTo(i){const n=document.querySelectorAll('.node')[i];if(n)n.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});}
+function reset(){order=['source','creative','placement','budget','review'];cur=0;render();document.getElementById('canvas').scrollTo({left:0,behavior:'smooth'});}
+
+/* drag-to-reorder */
+let dragFrom=null;
+function onDrag(e,i){dragFrom=i;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function onOver(e){e.preventDefault();const n=e.currentTarget;if(!n.classList.contains('dragging'))n.classList.add('dragover');}
+function onLeave(e){e.currentTarget.classList.remove('dragover');}
+function onEnd(e){document.querySelectorAll('.node').forEach(n=>n.classList.remove('dragging','dragover'));}
+function onDrop(e,i){e.preventDefault();if(dragFrom===null||dragFrom===i)return;const activeKey=order[cur];const moved=order.splice(dragFrom,1)[0];order.splice(i,0,moved);cur=order.indexOf(activeKey);render();dragFrom=null;}
+
+function openProducts(){document.getElementById('sheetBody').innerHTML=`<div class="pgrid">`+PRODUCTS.map(p=>`<div class="pcard" onclick="S.product='${p.id}';genCreative();closeSheet();render()"><div class="ph">${p.emoji}</div><div class="pb"><div style="font-size:11.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div><div class="price" style="margin-top:2px">${money(p.price)}</div></div></div>`).join('')+`</div>`;document.getElementById('scrim').classList.add('open');document.getElementById('sheet').classList.add('open');}
+function closeSheet(){document.getElementById('scrim').classList.remove('open');document.getElementById('sheet').classList.remove('open');}
+
+const CAMPS=[{name:'Aurora Lamp — spring',emoji:'💡',spend:128,impr:24300,clicks:612,roas:3.4},{name:'Lounge Chair launch',emoji:'🛋️',spend:0,impr:0,clicks:0,roas:0},{name:'Mug bundle promo',emoji:'☕',spend:46,impr:8800,clicks:190,roas:1.9}];
+function openLibrary(){document.getElementById('libKpis').innerHTML=[{n:3,l:'Campaigns'},{n:money(174),l:'Total spend'},{n:'33,100',l:'Impressions'},{n:'2.9×',l:'Portfolio ROAS'}].map(k=>`<div class="kpi"><div class="kn">${k.n}</div><div class="kl">${k.l}</div></div>`).join('');document.getElementById('libGrid').innerHTML=CAMPS.map(c=>`<div class="lc"><div class="lc-top"><span class="lc-thumb">${c.emoji}</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">${c.name}</div></div></div><div class="lc-stats"><div class="lc-stat"><div class="v" style="color:#10b981">${money(c.spend)}</div><div class="l">Spend</div></div><div class="lc-stat"><div class="v">${c.impr.toLocaleString()}</div><div class="l">Impr.</div></div><div class="lc-stat"><div class="v">${c.clicks}</div><div class="l">Clicks</div></div><div class="lc-stat"><div class="v" style="color:${c.roas?'#10b981':'inherit'}">${c.roas?c.roas+'×':'—'}</div><div class="l">ROAS</div></div></div></div>`).join('');document.getElementById('lib').classList.add('open');}
+function closeLibrary(){document.getElementById('lib').classList.remove('open');}
+function aiBuild(){const w=document.getElementById('working');w.classList.add('open');setTimeout(()=>w.classList.remove('open'),3200);}
+
+renderProviders();genCreative();render();
+</script>
+</body>
+</html>

@@ -1,27 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, Wand2, Trash2, Pause, Play, X } from "lucide-react";
+import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, ArrowLeftRight, Wand2, Trash2, Pause, Play, X, Check, GripVertical } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Ad builder — an AI-DRIVEN ad PLAYGROUND (the Video/Follow-ups canvas language).
- * The toolbar shows the ACTIVE ad providers (enabled vs. not connected, from
- * /api/ads/providers). The canvas builds a campaign: name it, choose a SOURCE —
- * a store product (the ad auto-generates from it via /api/ecommerce/promote
- * defaults), a product/page LINK, or a free DESCRIPTION — tune the AI ad-preview
- * creative, pick placements (only enabled providers), set budget/schedule, then
- * "Build & launch with AI" hands a structured brief to the agent (onAsk) which
- * generates the creative/targeting and launches; "Launch as-is" posts directly
- * (/api/ecommerce/promote for products, /api/ads for links).
+ * Ad builder — an AI-driven ad PLAYGROUND laid out as a HORIZONTAL NODE WIZARD:
+ * the build steps live inline on a left↔right scrollable dotted canvas as
+ * draggable node cards the user can move & rearrange (like the native node
+ * playground). Steps: Source → Creative → Goal & placement → Budget → Review &
+ * launch. A pinned "Build with AI" skips the steps and hands the whole thing to
+ * the agent (onAsk).
  *
- * The right rail shows live campaigns; the toolbar "Library" opens every
- * campaign with status + statistics (spend, impressions, clicks, ROAS). Clicking
- * a campaign opens an in-surface detail drawer with the creative, full metrics,
- * providers, ad-page link, and pause/activate (PATCH) / delete (DELETE). Read:
- * GET /api/ads + best-effort ROAS from GET /api/ecommerce/ads.
+ * Source can be a STORE PRODUCT (creative auto-fills from /api/ecommerce/promote
+ * defaults; products from /api/ecommerce/products), a product/page LINK, or a
+ * DESCRIPTION. The toolbar shows ACTIVE providers (/api/ads/providers, enabled
+ * flags). "Build & launch with AI" → agent handoff; "Launch as-is" posts to
+ * /api/ecommerce/promote (product) or /api/ads (link). The toolbar Library lists
+ * every campaign with status + statistics; a detail drawer offers pause/activate
+ * (PATCH) + delete (DELETE). Read: GET /api/ads + ROAS from GET /api/ecommerce/ads.
  * [[new-design-no-legacy]] [[agent-operates-account-full-crud]]
  */
 
@@ -73,6 +72,9 @@ function fmt(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 function todayStr(): string { try { return new Date().toISOString().slice(0, 10); } catch { return ""; } }
+function safeHost(url: string): string {
+  try { return new URL(url).host.replace(/^www\./, ""); } catch { return url.replace(/^https?:\/\//, "").split("/")[0] || "your-store.com"; }
+}
 
 function statusMeta(status?: string | null, approval?: string | null): { label: string; tone: string; icon: ElementType } {
   const s = (status || "").toUpperCase();
@@ -85,7 +87,6 @@ function statusMeta(status?: string | null, approval?: string | null): { label: 
   return { label: status ? status.replace(/_/g, " ").toLowerCase() : "Draft", tone: "bg-muted text-muted-foreground", icon: Clock };
 }
 
-// Provider id → a compact brand mark + color for the chips/marks.
 const PROVIDER_VIS: Record<string, { mark: string; color: string }> = {
   feed: { mark: "F", color: "#0ea5e9" },
   meta_ads: { mark: "M", color: "#0866ff" },
@@ -102,6 +103,17 @@ const AD_CATEGORIES = ["Retail & e-commerce", "Professional services", "Software
 
 type SourceMode = "product" | "link" | "describe";
 type LibFilter = "all" | "active" | "review" | "paused";
+type StepKey = "source" | "creative" | "placement" | "budget" | "review";
+const DEFAULT_ORDER: StepKey[] = ["source", "creative", "placement", "budget", "review"];
+const STEP_DEFS: Record<StepKey, { kicker: string; title: string; icon: ElementType }> = {
+  source: { kicker: "What you're advertising", title: "Source", icon: Target },
+  creative: { kicker: "Ad creative", title: "Creative", icon: ImageIcon },
+  placement: { kicker: "Goal & placement", title: "Goal & placement", icon: Rocket },
+  budget: { kicker: "Budget & schedule", title: "Budget", icon: Coins },
+  review: { kicker: "Review", title: "Review & launch", icon: Rocket },
+};
+
+const FIELD = "w-full rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
 export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -119,6 +131,13 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
   const [hasStore, setHasStore] = useState<boolean | null>(null);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Wizard: ordered (draggable) steps + which is active.
+  const [order, setOrder] = useState<StepKey[]>(DEFAULT_ORDER);
+  const [cur, setCur] = useState(0);
+  const dragFrom = useRef<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   // Builder state.
   const [name, setName] = useState("Untitled ad campaign");
@@ -161,21 +180,14 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
               const m = byId.get(c.id);
               if (!m) return c;
               any = true;
-              return {
-                ...c,
-                revenue: typeof m.revenueCents === "number" ? m.revenueCents / 100 : undefined,
-                roas: typeof m.roas === "number" ? m.roas : undefined,
-                orderCount: typeof m.orderCount === "number" ? m.orderCount : undefined,
-              };
+              return { ...c, revenue: typeof m.revenueCents === "number" ? m.revenueCents / 100 : undefined, roas: typeof m.roas === "number" ? m.roas : undefined, orderCount: typeof m.orderCount === "number" ? m.orderCount : undefined };
             });
             setHasRoas(any);
           }
         }
-      } catch { /* no store / not available */ }
+      } catch { /* no store */ }
       setCampaigns(merged);
-    } catch {
-      setError("Could not load your campaigns.");
-    }
+    } catch { setError("Could not load your campaigns."); }
   }, []);
 
   useEffect(() => {
@@ -184,14 +196,12 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  // Providers (enabled flags) + store/products for the source picker.
   useEffect(() => {
     let alive = true;
     fetch("/api/ads/providers").then((r) => r.json()).then((j) => {
       if (!alive || !j?.success || !Array.isArray(j.data?.providers)) return;
       const list = j.data.providers as Provider[];
       setProviders(list);
-      // Default: select all enabled non-spotlight placements.
       setPlacements(Object.fromEntries(list.filter((p) => p.enabled && p.id !== "spotlight").map((p) => [p.id, true])));
     }).catch(() => {});
     fetch("/api/ecommerce/products?limit=50").then(async (r) => {
@@ -205,9 +215,14 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     return () => { alive = false; };
   }, []);
 
+  // Scroll the active node into view as the user advances/edits.
+  useEffect(() => {
+    const el = trackRef.current?.querySelector(`[data-step-idx="${cur}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [cur, order]);
+
   const productById = useCallback((id: string) => products.find((p) => p.id === id), [products]);
 
-  // Pick a product → pull its promote defaults to prefill the creative.
   const pickProduct = async (id: string) => {
     setProductId(id);
     setPickerOpen(false);
@@ -216,21 +231,20 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
       const j = await fetch(`/api/ecommerce/promote?productId=${id}`).then((r) => r.json());
       if (j?.success && j.data) {
         const d = j.data as PromoteDefaults;
-        setName(d.name || name);
+        setName((n) => (n === "Untitled ad campaign" && d.name ? d.name : n));
         setHeadline(d.headline || "");
         setDescription(d.description || "");
         setCta(d.ctaText || "Shop Now");
         setDestinationUrl(d.destinationUrl || "");
         if (d.mediaUrl) setMediaUrl(d.mediaUrl);
       }
-    } catch { /* keep current creative */ }
+    } catch { /* keep current */ }
   };
 
   const selectedPlacementIds = useMemo(() => providers.filter((p) => placements[p.id] && p.enabled).map((p) => p.id), [providers, placements]);
   const budgetNum = Math.max(0, Math.round(Number(budget) || 0));
   const product = productId ? productById(productId) : null;
 
-  // Hand a structured brief to the agent and let it generate + launch.
   const buildWithAI = () => {
     if (!onAsk) return;
     let sourceLine = "";
@@ -252,7 +266,6 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     setTimeout(() => setWorking(false), 6000);
   };
 
-  // Direct launch (no agent): product → /api/ecommerce/promote, link → /api/ads.
   const launchAsIs = async () => {
     setLaunchError("");
     if (budgetNum < 1) { setLaunchError("Set a budget of at least 1 credit."); return; }
@@ -264,22 +277,13 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
         if (!productId) { setLaunchError("Pick a product to advertise."); setLaunching(false); return; }
         r = await fetch("/api/ecommerce/promote", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            productId, headline: headline.trim(), description: description.trim() || undefined, ctaText: cta,
-            budget: budgetNum, startDate: startDate || todayStr(), endDate: endDate || undefined,
-            targeting: { placementChannels: selectedPlacementIds },
-          }),
+          body: JSON.stringify({ productId, headline: headline.trim(), description: description.trim() || undefined, ctaText: cta, budget: budgetNum, startDate: startDate || todayStr(), endDate: endDate || undefined, targeting: { placementChannels: selectedPlacementIds } }),
         });
       } else if (source === "link") {
         if (!/^https?:\/\/.+/i.test(destinationUrl.trim())) { setLaunchError("Enter a destination URL (http:// or https://)."); setLaunching(false); return; }
         r = await fetch("/api/ads", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim() || "Untitled ad campaign", objective: goal, adType: "EXTERNAL_URL",
-            destinationUrl: destinationUrl.trim(), headline: headline.trim(), description: description.trim() || undefined,
-            ctaText: cta, adCategory: category, mediaUrl: mediaUrl || undefined,
-            budget: budgetNum, startDate: startDate || todayStr(), endDate: endDate || undefined,
-          }),
+          body: JSON.stringify({ name: name.trim() || "Untitled ad campaign", objective: goal, adType: "EXTERNAL_URL", destinationUrl: destinationUrl.trim(), headline: headline.trim(), description: description.trim() || undefined, ctaText: cta, adCategory: category, mediaUrl: mediaUrl || undefined, budget: budgetNum, startDate: startDate || todayStr(), endDate: endDate || undefined }),
         });
       } else {
         setLaunchError("“Describe it” has no link to send traffic to — use Build with AI, or switch to a product/link.");
@@ -295,11 +299,8 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
         const code = j?.error?.code;
         setLaunchError(code === "PLAN_UPGRADE_REQUIRED" ? "Ad campaigns need purchased credits — top up to launch." : (j?.error?.message || "Could not launch the campaign. Try again."));
       }
-    } catch {
-      setLaunchError("Could not launch the campaign. Try again.");
-    } finally {
-      setLaunching(false);
-    }
+    } catch { setLaunchError("Could not launch the campaign. Try again."); }
+    finally { setLaunching(false); }
   };
 
   const togglePlacement = (id: string) => setPlacements((p) => ({ ...p, [id]: !p[id] }));
@@ -308,25 +309,21 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     setName("Untitled ad campaign"); setBrief(""); setSource("product"); setProductId(null);
     setHeadline(""); setDescription(""); setCta("Shop Now"); setDestinationUrl(""); setDescribeText("");
     setMediaUrl(null); setGoal("AWARENESS"); setCategory(AD_CATEGORIES[0]); setBudget("50");
-    setStartDate(todayStr()); setEndDate(""); setLaunchError("");
+    setStartDate(todayStr()); setEndDate(""); setLaunchError(""); setOrder(DEFAULT_ORDER); setCur(0);
   };
 
-  // Pause/activate (PATCH status) — optimistic.
   const toggleStatus = async (c: Campaign) => {
-    const cur = (c.status || "").toUpperCase();
-    if (cur !== "ACTIVE" && cur !== "PAUSED") return;
-    const next = cur === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    const curS = (c.status || "").toUpperCase();
+    if (curS !== "ACTIVE" && curS !== "PAUSED") return;
+    const next = curS === "ACTIVE" ? "PAUSED" : "ACTIVE";
     setBusyId(c.id);
     setCampaigns((list) => list.map((x) => (x.id === c.id ? { ...x, status: next } : x)));
     try {
       const r = await fetch(`/api/ads/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
       if (!r.ok) setCampaigns((list) => list.map((x) => (x.id === c.id ? { ...x, status: c.status } : x)));
       else await load();
-    } catch {
-      setCampaigns((list) => list.map((x) => (x.id === c.id ? { ...x, status: c.status } : x)));
-    } finally {
-      setBusyId(null);
-    }
+    } catch { setCampaigns((list) => list.map((x) => (x.id === c.id ? { ...x, status: c.status } : x))); }
+    finally { setBusyId(null); }
   };
 
   const deleteCampaign = async (id: string) => {
@@ -335,26 +332,148 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
     load();
   };
 
+  // Drag-to-reorder the step nodes.
+  const onDrop = (toIdx: number) => {
+    const from = dragFrom.current;
+    setDragOver(null);
+    dragFrom.current = null;
+    if (from === null || from === toIdx) return;
+    const activeKey = order[cur];
+    setOrder((prev) => {
+      const nextOrder = [...prev];
+      const [moved] = nextOrder.splice(from, 1);
+      nextOrder.splice(toIdx, 0, moved);
+      setCur(nextOrder.indexOf(activeKey));
+      return nextOrder;
+    });
+  };
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
   }
 
-  const totalRevenue = campaigns.reduce((s, c) => s + (c.revenue ?? 0), 0);
-  const spentForRoas = campaigns.reduce((s, c) => s + (c.revenue != null ? (c.spent ?? 0) : 0), 0);
-  const portfolioRoas = spentForRoas > 0 ? totalRevenue / spentForRoas : 0;
   const total = stats.total ?? campaigns.length;
   const active = stats.active ?? campaigns.filter((c) => (c.status || "").toUpperCase() === "ACTIVE").length;
   const totalSpend = stats.totalSpent ?? campaigns.reduce((s, c) => s + (c.spent ?? 0), 0);
   const totalImpr = stats.totalImpressions ?? campaigns.reduce((s, c) => s + (c.impressions ?? 0), 0);
-  const enabledProviders = providers.filter((p) => p.enabled);
+  const totalRevenue = campaigns.reduce((s, c) => s + (c.revenue ?? 0), 0);
+  const spentForRoas = campaigns.reduce((s, c) => s + (c.revenue != null ? (c.spent ?? 0) : 0), 0);
+  const portfolioRoas = spentForRoas > 0 ? totalRevenue / spentForRoas : 0;
   const detailCampaign = campaigns.find((c) => c.id === detailId) || null;
-  const canDirect = source !== "describe";
+
+  const stepBody = (key: StepKey) => {
+    switch (key) {
+      case "source":
+        return (
+          <>
+            {([["product", "Store product", "Pick & auto-generate", Package], ["link", "Product / link", "Paste a URL", Link2], ["describe", "Describe it", "Free brief", PenLine]] as const).map(([m, t, h, Icon]) => (
+              <button key={m} onClick={() => setSource(m)} className={cn("mb-1.5 flex w-full items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left transition", source === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
+                <Icon className="h-4 w-4 shrink-0" /><span className="min-w-0"><span className="block text-[12.5px] font-bold leading-tight">{t}</span><span className="block text-[10.5px] text-muted-foreground">{h}</span></span>
+              </button>
+            ))}
+            <div className="mt-1">
+              {source === "product" ? (
+                hasStore === false ? (
+                  <div className="rounded-[11px] border border-dashed border-border bg-muted/40 px-3 py-4 text-center">
+                    <p className="text-[12px] font-semibold">No store yet</p>
+                    <button onClick={() => onAsk?.("Help me build my online store so I can advertise my products.")} disabled={!onAsk} className="mt-2 inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build a store</button>
+                  </div>
+                ) : product ? (
+                  <div className="flex items-center gap-2.5 rounded-[11px] border border-border bg-muted px-2.5 py-2.5">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[9px] bg-background">{mediaUrl ? <Image src={mediaUrl} alt="" width={48} height={48} className="h-full w-full object-cover" unoptimized /> : <Package className="h-5 w-5 text-muted-foreground" />}</span>
+                    <div className="min-w-0 flex-1"><div className="truncate text-[12.5px] font-bold">{product.name}</div><div className="text-[12.5px] font-extrabold text-emerald-500">{money(product.priceCents / 100)}</div></div>
+                    <button onClick={() => setPickerOpen(true)} className="shrink-0 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60">Change</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setPickerOpen(true)} className="flex w-full items-center justify-center gap-1.5 rounded-[11px] border border-dashed border-border bg-muted/40 px-3 py-3 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Package className="h-4 w-4" /> Pick a product</button>
+                )
+              ) : source === "link" ? (
+                <>
+                  <label className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">Product / page link</label>
+                  <input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} inputMode="url" placeholder="https://your-store.com/..." className={FIELD} />
+                  <p className="mt-1.5 text-[10.5px] text-muted-foreground">Build with AI reads it and writes the ad.</p>
+                </>
+              ) : (
+                <>
+                  <label className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">Describe what to advertise</label>
+                  <textarea value={describeText} onChange={(e) => setDescribeText(e.target.value)} rows={3} className={cn(FIELD, "resize-y leading-relaxed")} placeholder="e.g. cozy autumn home-decor sale, 20% off" />
+                </>
+              )}
+            </div>
+          </>
+        );
+      case "creative":
+        return (
+          <>
+            <AdPreview mediaUrl={mediaUrl} host={destinationUrl ? safeHost(destinationUrl) : "your-store.com"} headline={headline} description={description} cta={cta} onAi={buildWithAI} aiDisabled={!onAsk} />
+            <label className="mb-1 mt-2.5 block text-[11px] font-semibold text-muted-foreground">Headline</label>
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} placeholder="Get 20% off" className={FIELD} />
+            <label className="mb-1 mt-2 block text-[11px] font-semibold text-muted-foreground">Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={300} placeholder="Short line…" className={cn(FIELD, "resize-y")} />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div><label className="mb-1 block text-[11px] font-semibold text-muted-foreground">CTA</label><select value={cta} onChange={(e) => setCta(e.target.value)} className={FIELD}>{CTAS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="flex items-end"><button onClick={buildWithAI} disabled={!onAsk} className="inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-2 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground disabled:opacity-50"><Wand2 className="h-3.5 w-3.5" /> Regenerate</button></div>
+            </div>
+          </>
+        );
+      case "placement":
+        return (
+          <>
+            <div className="grid grid-cols-1 gap-2">
+              <div><label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Goal</label><select value={goal} onChange={(e) => setGoal(e.target.value)} className={FIELD}>{OBJECTIVES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+              <div><label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Category</label><select value={category} onChange={(e) => setCategory(e.target.value)} className={FIELD}>{AD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+            </div>
+            <label className="mb-1 mt-2.5 block text-[11px] font-semibold text-muted-foreground">Placements (enabled only)</label>
+            {providers.filter((p) => p.id !== "spotlight").map((p) => {
+              const v = provVis(p.id);
+              const on = !!placements[p.id] && p.enabled;
+              return (
+                <div key={p.id} className={cn("mt-1.5 flex items-center gap-2 rounded-[10px] border border-border bg-muted px-2.5 py-2", !p.enabled && "opacity-60")}>
+                  <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[6px] text-[11px] font-extrabold text-white" style={{ background: v.color }}>{v.mark}</span>
+                  <div className="min-w-0 flex-1"><div className="text-[12px] font-semibold">{p.name}</div><div className="text-[10px] text-muted-foreground">{p.enabled ? "Live" : "Not connected"}</div></div>
+                  {p.enabled ? (
+                    <button onClick={() => togglePlacement(p.id)} className={cn("relative h-[19px] w-[34px] shrink-0 rounded-full border transition", on ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500" : "border-border bg-muted")}><span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all", on ? "left-[16px]" : "left-0.5")} /></button>
+                  ) : <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">Off</span>}
+                </div>
+              );
+            })}
+          </>
+        );
+      case "budget":
+        return (
+          <>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Budget (credits)</label>
+            <input value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className={FIELD} />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div><label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Start</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={FIELD} /></div>
+              <div><label className="mb-1 block text-[11px] font-semibold text-muted-foreground">End</label><input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} className={FIELD} /></div>
+            </div>
+            <div className="mt-2.5 rounded-[10px] border border-brand-500/30 bg-brand-500/10 px-2.5 py-2 text-[11.5px]">Est. reach <b>~{(budgetNum * 250).toLocaleString()}–{(budgetNum * 360).toLocaleString()}</b> impressions · reviewed before going live.</div>
+          </>
+        );
+      case "review": {
+        const places = selectedPlacementIds.map(provName).join(", ") || "—";
+        return (
+          <>
+            <AdPreview mediaUrl={mediaUrl} host={destinationUrl ? safeHost(destinationUrl) : "your-store.com"} headline={headline} description={description} cta={cta} />
+            <div className="mt-2.5">
+              <SumRow label="Advertising" value={source === "product" ? (product?.name ?? "Product") : source === "link" ? (destinationUrl || "A link") : "Described"} />
+              <SumRow label="Goal" value={OBJECTIVES.find((o) => o[0] === goal)?.[1] ?? goal} />
+              <SumRow label="Placements" value={places} />
+              <SumRow label="Budget" value={`${budgetNum} credits`} />
+            </div>
+            {launchError && <p className="mt-2 rounded-[9px] border border-rose-500/30 bg-rose-500/5 px-2.5 py-1.5 text-[11.5px] text-rose-500">{launchError}</p>}
+          </>
+        );
+      }
+    }
+  };
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* toolbar */}
       <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Megaphone className="h-4 w-4 text-brand-500" /> Ad builder playground</span>
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Megaphone className="h-4 w-4 text-brand-500" /> Ad builder</span>
         {providers.length > 0 && (
           <span className="hidden flex-wrap items-center gap-1.5 md:inline-flex">
             <span className="text-[11px] text-muted-foreground">Providers:</span>
@@ -372,265 +491,105 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
         )}
         <div className="ms-auto flex items-center gap-2">
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
-          <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New campaign</button>
+          <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New</button>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        {/* canvas */}
-        <div className="relative min-h-0 flex-1 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
-          <div className="flex min-h-full flex-col items-center px-6 py-6">
-            <div className="w-full max-w-[560px]">
-              {/* name */}
-              <div className="mb-3.5 flex items-center gap-2.5">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Megaphone className="h-4 w-4" /></span>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500">Draft</span>
-              </div>
+      {/* name + AI shortcut */}
+      <div className="flex items-center gap-2.5 px-4 pb-1 pt-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Megaphone className="h-4 w-4" /></span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background sm:max-w-[360px] sm:flex-none" />
+        <span className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500 sm:inline">Draft</span>
+        <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+      </div>
+      <p className="px-4 pb-2 text-[11px] text-muted-foreground">Drag a node&apos;s header to rearrange · scroll the canvas sideways along the flow.</p>
+      {notice && <p className="mx-4 mb-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-500">{notice}</p>}
 
-              {notice && <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-500">{notice}</p>}
-
-              {/* AI hero */}
-              <div className="mb-4 rounded-2xl border border-brand-500/35 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[10.5px] font-bold text-white"><Sparkles className="h-3 w-3" /> Build with AI</span>
-                  <h3 className="text-[13px] font-bold">Describe it or pick a product — the agent builds the whole ad</h3>
-                </div>
-                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2}
-                  placeholder="e.g. Promote my Aurora Lamp to cozy-home-decor lovers — punchy creative, $50 budget, run on Feed + Meta."
-                  className="mt-2.5 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
-                <div className="mt-2.5 flex items-center gap-2">
-                  <span className="hidden text-[11px] text-muted-foreground sm:inline">Generates the creative + copy + targeting · suggests budget · launches on your enabled providers · you confirm cost first.</span>
-                  <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build the ad</button>
-                </div>
-              </div>
-
-              {/* SOURCE node */}
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Target className="h-[18px] w-[18px]" /></span>
-                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">What you&apos;re advertising</div><div className="text-[13px] font-bold">Pick the source — the ad generates from it</div></div>
-                  <span className="shrink-0 rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-500">source</span>
-                </div>
-                <div className="flex gap-1.5 px-3.5 pb-2.5">
-                  {([["product", "Store product", Package], ["link", "Product / link", Link2], ["describe", "Describe it", PenLine]] as const).map(([m, label, Icon]) => (
-                    <button key={m} onClick={() => setSource(m)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", source === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
-                      <Icon className="h-3.5 w-3.5" /> {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="px-3.5 pb-3.5">
-                  {source === "product" ? (
-                    hasStore === false ? (
-                      <div className="rounded-[11px] border border-dashed border-border bg-muted/40 px-4 py-5 text-center">
-                        <p className="text-[12.5px] font-semibold">No store yet</p>
-                        <p className="mt-1 text-[11.5px] text-muted-foreground">Build a store to advertise your products directly.</p>
-                        <button onClick={() => onAsk?.("Help me build my online store so I can advertise my products.")} disabled={!onAsk} className="mt-2.5 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build a store</button>
-                      </div>
-                    ) : product ? (
-                      <div className="flex items-center gap-3 rounded-[11px] border border-border bg-muted px-3 py-2.5">
-                        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[9px] bg-background">
-                          {mediaUrl ? <Image src={mediaUrl} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized /> : <Package className="h-5 w-5 text-muted-foreground" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-bold">{product.name}</div>
-                          <div className="text-[12.5px] font-extrabold text-emerald-500">{money(product.priceCents / 100)}</div>
-                          <div className="mt-0.5 text-[11px] text-muted-foreground">The ad generates its creative &amp; copy from this product.</div>
-                        </div>
-                        <button onClick={() => setPickerOpen(true)} className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-foreground">Change</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setPickerOpen(true)} className="flex w-full items-center justify-center gap-1.5 rounded-[11px] border border-dashed border-border bg-muted/40 px-4 py-4 text-[12.5px] font-semibold text-muted-foreground transition hover:border-brand-500/50 hover:text-foreground"><Package className="h-4 w-4" /> Pick a product to advertise</button>
-                    )
-                  ) : source === "link" ? (
-                    <>
-                      <label className="mb-1.5 block text-[11.5px] font-semibold text-muted-foreground">Product or page link</label>
-                      <input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} inputMode="url" placeholder="https://your-store.com/product/aurora-lamp" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
-                      <p className="mt-2 text-[11px] text-muted-foreground">Paste any product or landing-page URL — “Build with AI” reads it and writes the ad creative &amp; copy from it.</p>
-                    </>
-                  ) : (
-                    <>
-                      <label className="mb-1.5 block text-[11.5px] font-semibold text-muted-foreground">Describe what to advertise</label>
-                      <textarea value={describeText} onChange={(e) => setDescribeText(e.target.value)} rows={3} className="w-full resize-y rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60" placeholder="e.g. A cozy autumn sale on home decor — warm, inviting, 20% off everything." />
-                    </>
+      {/* horizontal node canvas */}
+      <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+        <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
+          {order.map((key, i) => {
+            const d = STEP_DEFS[key];
+            const done = i < cur, isActive = i === cur, last = i === order.length - 1;
+            const Icon = d.icon;
+            return (
+              <div key={key} className="flex h-full items-start">
+                {i > 0 && <div className="flex h-full items-center px-0.5"><div className={cn("h-0.5 w-6 rounded-full", i <= cur ? "bg-emerald-500" : "bg-gradient-to-r from-brand-500/50 to-violet-500/45")} /></div>}
+                <div
+                  data-step-idx={i}
+                  draggable
+                  onDragStart={() => { dragFrom.current = i; }}
+                  onDragOver={(e) => { e.preventDefault(); if (dragFrom.current !== i) setDragOver(i); }}
+                  onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
+                  onDrop={(e) => { e.preventDefault(); onDrop(i); }}
+                  onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                  className={cn(
+                    "flex max-h-full w-[372px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition",
+                    isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
+                    dragOver === i && "border-violet-500 ring-2 ring-violet-500/40",
                   )}
-                </div>
-              </div>
-
-              <Connector />
-
-              {/* CREATIVE node — ad preview */}
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-violet-500/10 text-violet-400"><ImageIcon className="h-[18px] w-[18px]" /></span>
-                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ad creative</div><div className="text-[13px] font-bold">Headline, copy &amp; image — AI-generated, editable</div></div>
-                  <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground disabled:opacity-50"><Wand2 className="h-3 w-3" /> Regenerate</button>
-                </div>
-                <div className="px-3.5 pb-3.5">
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    {/* preview */}
-                    <div className="min-w-0 flex-1 overflow-hidden rounded-[14px] border border-border bg-background">
-                      <div className="relative grid aspect-[1.91] w-full place-items-center bg-gradient-to-br from-brand-500/15 to-violet-500/15 text-muted-foreground">
-                        {mediaUrl ? <Image src={mediaUrl} alt="" fill sizes="360px" className="object-cover" unoptimized /> : <ImageIcon className="h-9 w-9" />}
-                        <button onClick={buildWithAI} disabled={!onAsk} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[10.5px] font-semibold text-white shadow disabled:opacity-50"><Sparkles className="h-3 w-3" /> AI image</button>
-                      </div>
-                      <div className="p-3">
-                        <div className="text-[10.5px] uppercase tracking-wide text-muted-foreground">{(destinationUrl || product?.name) ? (destinationUrl ? safeHost(destinationUrl) : "your store") : "your-store.com"}</div>
-                        <div className="mt-0.5 text-[14px] font-bold leading-snug">{headline || "Your headline appears here"}</div>
-                        <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{description || "A short, punchy description of the offer or product."}</div>
-                        <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-muted px-3 py-1.5 text-[12px] font-bold">{cta} <ArrowRight className="h-3 w-3" /></span>
-                      </div>
-                    </div>
-                    {/* inputs */}
-                    <div className="w-full shrink-0 sm:w-[170px]">
-                      <label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Headline</label>
-                      <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} placeholder="Get 20% off" className="w-full rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
-                      <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold text-muted-foreground">Description</label>
-                      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={300} placeholder="Short line…" className="w-full resize-y rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
-                      <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold text-muted-foreground">Call to action</label>
-                      <select value={cta} onChange={(e) => setCta(e.target.value)} className="w-full rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60">{CTAS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-                    </div>
+                >
+                  <div className="flex cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing">
+                    <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", done ? "border-emerald-500 bg-emerald-500 text-white" : isActive ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "border-border bg-background text-muted-foreground")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                    <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{d.kicker}</div><div className="truncate text-[13px] font-bold">{d.title}</div></div>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-3">{stepBody(key)}</div>
+                  <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
+                    <button onClick={() => setCur(i)} className="rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">Open</button>
+                    <span className="ms-auto" />
+                    {last ? (
+                      <>
+                        <button onClick={launchAsIs} disabled={launching || source === "describe"} title={source === "describe" ? "Describe-it has no destination — use Build with AI" : ""} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-50">{launching ? <FlowLoader size={12} /> : <Rocket className="h-3.5 w-3.5" />} Launch · {budgetNum}cr</button>
+                        <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build &amp; launch</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setCur((n) => Math.min(order.length - 1, n + 1))} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white">Continue <ArrowRight className="h-3.5 w-3.5" /></button>
+                    )}
                   </div>
                 </div>
               </div>
-
-              <Connector />
-
-              {/* GOAL + PLACEMENT node */}
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Rocket className="h-[18px] w-[18px]" /></span>
-                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Goal &amp; placement</div><div className="text-[13px] font-bold">Where it runs &amp; what it optimizes for</div></div>
-                </div>
-                <div className="px-3.5 pb-3.5">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div><label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Goal</label><select value={goal} onChange={(e) => setGoal(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60">{OBJECTIVES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-                    <div><label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Category</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60">{AD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
-                  </div>
-                  <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold text-muted-foreground">Placements — only your enabled providers can run</label>
-                  {providers.filter((p) => p.id !== "spotlight").map((p) => {
-                    const v = provVis(p.id);
-                    const on = !!placements[p.id] && p.enabled;
-                    return (
-                      <div key={p.id} className={cn("mt-2 flex items-center gap-2.5 rounded-[11px] border border-border bg-muted px-3 py-2.5", !p.enabled && "opacity-60")}>
-                        <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[6px] text-[11px] font-extrabold text-white" style={{ background: v.color }}>{v.mark}</span>
-                        <div className="min-w-0 flex-1"><div className="text-[12.5px] font-semibold">{p.name}</div><div className="text-[10.5px] text-muted-foreground">{p.enabled ? "Live — your approved ads run here" : "Not connected — an admin can enable it"}</div></div>
-                        {p.enabled ? (
-                          <button onClick={() => togglePlacement(p.id)} className={cn("relative h-5 w-9 shrink-0 rounded-full border transition", on ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500" : "border-border bg-muted")}><span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all", on ? "left-[18px]" : "left-0.5")} /></button>
-                        ) : (
-                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">Off</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <Connector />
-
-              {/* BUDGET node */}
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Coins className="h-[18px] w-[18px]" /></span>
-                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Budget &amp; schedule</div><div className="text-[13px] font-bold">What you spend &amp; when it runs</div></div>
-                </div>
-                <div className="px-3.5 pb-3.5">
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                    <div><label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Budget (credits)</label><input value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" /></div>
-                    <div><label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">Start date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" /></div>
-                    <div><label className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">End date</label><input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" /></div>
-                  </div>
-                  <p className="mt-2.5 text-[11px] text-muted-foreground">Est. reach <b className="text-foreground">~{(budgetNum * 250).toLocaleString()}–{(budgetNum * 360).toLocaleString()}</b> impressions · link &amp; product ads are reviewed before going live.</p>
-                </div>
-              </div>
-
-              {launchError && <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{launchError}</p>}
-
-              {/* LAUNCH node */}
-              <div className="mt-4 rounded-2xl border border-brand-500/40 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5 text-center">
-                <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch campaign</div>
-                <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the creative &amp; copy, sets targeting, and launches across your enabled providers. You confirm the budget &amp; cost first.</p>
-                <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
-                <div className="mt-2">
-                  <button onClick={launchAsIs} disabled={launching || !canDirect} title={canDirect ? "" : "“Describe it” has no destination — use Build with AI"} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-50">
-                    {launching ? <FlowLoader size={13} /> : <Rocket className="h-3.5 w-3.5" />} Launch as-is · {budgetNum} cr
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
-
-        {/* rail */}
-        <aside className="hidden w-[268px] shrink-0 flex-col border-l border-border bg-card/40 lg:flex">
-          <div className="flex items-center gap-2 border-b border-border px-3.5 py-3 text-[12px] font-bold"><Megaphone className="h-4 w-4 text-brand-500" /> Campaigns <span className="ms-auto rounded-full bg-muted px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground">{total}</span></div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-            {error && <p className="mb-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[11.5px] text-rose-500">{error}</p>}
-            {campaigns.length ? campaigns.map((c) => {
-              const meta = statusMeta(c.status, c.approvalStatus);
-              const media = c.mediaUrl || c.post?.mediaUrl || null;
-              return (
-                <button key={c.id} onClick={() => setDetailId(c.id)} className="mb-2 block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition hover:border-brand-500/50">
-                  <div className="flex gap-2.5 p-2.5">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-background">{media ? <Image src={media} alt="" width={40} height={40} className="h-full w-full object-cover" unoptimized /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5"><b className="min-w-0 flex-1 truncate text-[12.5px]">{c.name || c.headline || "Untitled"}</b><span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold", meta.tone)}><meta.icon className="h-2.5 w-2.5" /> {meta.label}</span></div>
-                      <div className="mt-1.5 flex gap-1">{(c.providers ?? []).slice(0, 4).map((pid) => { const v = provVis(pid); return <span key={pid} className="grid h-4 w-4 place-items-center rounded text-[8px] font-extrabold text-white" style={{ background: v.color }}>{v.mark}</span>; })}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 border-t border-border">
-                    <RailStat value={money(c.spent)} label="Spend" tone="emerald" />
-                    <RailStat value={num(c.impressions)} label="Impr." border />
-                    <RailStat value={c.roas != null && c.roas > 0 ? `${c.roas.toFixed(1)}×` : "—"} label="ROAS" />
-                  </div>
-                </button>
-              );
-            }) : <div className="rounded-xl border border-dashed border-border px-3 py-6 text-center"><p className="text-[12px] font-medium">No campaigns yet</p><p className="mt-1 text-[11px] text-muted-foreground">Build an ad on the canvas and launch it.</p></div>}
-          </div>
-        </aside>
+        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> scroll &amp; drag sideways</span>
       </div>
 
-      {/* product picker */}
-      {pickerOpen && (
-        <ProductPicker products={products} selected={productId} onPick={pickProduct} onClose={() => setPickerOpen(false)} />
-      )}
+      {pickerOpen && <ProductPicker products={products} selected={productId} onPick={pickProduct} onClose={() => setPickerOpen(false)} />}
 
-      {/* library */}
       {libOpen && (
-        <CampaignLibrary
-          campaigns={campaigns} filter={libFilter} busyId={busyId} hasRoas={hasRoas}
-          totals={{ total, active, totalSpend, totalImpr, portfolioRoas }}
-          onFilter={setLibFilter} onToggle={toggleStatus} onOpen={(id) => { setLibOpen(false); setDetailId(id); }}
-          onNew={() => { setLibOpen(false); newCampaign(); }} onClose={() => setLibOpen(false)}
-        />
+        <CampaignLibrary campaigns={campaigns} filter={libFilter} busyId={busyId} hasRoas={hasRoas} totals={{ total, active, totalSpend, totalImpr, portfolioRoas }} onFilter={setLibFilter} onToggle={toggleStatus} onOpen={(id) => { setLibOpen(false); setDetailId(id); }} onNew={() => { setLibOpen(false); newCampaign(); }} onClose={() => setLibOpen(false)} />
       )}
 
-      {/* detail drawer */}
-      {detailCampaign && (
-        <CampaignDetailDrawer campaign={detailCampaign} busy={busyId === detailCampaign.id} onToggle={() => toggleStatus(detailCampaign)} onDelete={() => { setDetailId(null); deleteCampaign(detailCampaign.id); }} onClose={() => setDetailId(null)} />
-      )}
+      {detailCampaign && <CampaignDetailDrawer campaign={detailCampaign} busy={busyId === detailCampaign.id} onToggle={() => toggleStatus(detailCampaign)} onDelete={() => { setDetailId(null); deleteCampaign(detailCampaign.id); }} onClose={() => setDetailId(null)} />}
 
-      {/* agent working banner */}
-      {working && (
-        <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl"><FlowLoader size={15} /><span className="text-[12px]">The agent is generating your ad creative &amp; targeting — confirm the budget in the chat on the left.</span></div>
-      )}
+      {working && <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl"><FlowLoader size={15} /><span className="text-[12px]">The agent is generating your ad creative &amp; targeting — confirm the budget in the chat on the left.</span></div>}
     </div>
   );
 }
 
-function safeHost(url: string): string {
-  try { return new URL(url).host.replace(/^www\./, ""); } catch { return url.replace(/^https?:\/\//, "").split("/")[0] || "your-store.com"; }
-}
-
-function Connector() {
-  return <div className="flex flex-col items-center"><div className="h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" /><div className="h-4 w-0.5 bg-gradient-to-b from-violet-500/40 to-brand-500/50" /></div>;
-}
-
-function RailStat({ value, label, tone, border }: { value: string; label: string; tone?: "emerald"; border?: boolean }) {
+function AdPreview({ mediaUrl, host, headline, description, cta, onAi, aiDisabled }: { mediaUrl: string | null; host: string; headline: string; description: string; cta: string; onAi?: () => void; aiDisabled?: boolean }) {
   return (
-    <div className={cn("px-2 py-1.5 text-center", border && "border-x border-border")}>
-      <div className={cn("text-[13px] font-extrabold tabular-nums", tone === "emerald" && "text-emerald-500")}>{value}</div>
-      <div className="text-[9.5px] text-muted-foreground">{label}</div>
+    <div className="overflow-hidden rounded-[12px] border border-border bg-background">
+      <div className="relative grid aspect-[1.91] w-full place-items-center bg-gradient-to-br from-brand-500/15 to-violet-500/15 text-muted-foreground">
+        {mediaUrl ? <Image src={mediaUrl} alt="" fill sizes="340px" className="object-cover" unoptimized /> : <ImageIcon className="h-8 w-8" />}
+        {onAi && <button onClick={onAi} disabled={aiDisabled} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[10px] font-semibold text-white shadow disabled:opacity-50"><Sparkles className="h-3 w-3" /> AI image</button>}
+      </div>
+      <div className="p-2.5">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{host}</div>
+        <div className="mt-0.5 text-[13.5px] font-bold leading-snug">{headline || "Your headline appears here"}</div>
+        <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{description || "A short, punchy description."}</div>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-muted px-3 py-1.5 text-[11.5px] font-bold">{cta} <ArrowRight className="h-3 w-3" /></span>
+      </div>
+    </div>
+  );
+}
+
+function SumRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 border-b border-border py-1.5 last:border-b-0">
+      <span className="w-[78px] shrink-0 text-[11px] text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{value}</span>
     </div>
   );
 }
@@ -670,8 +629,7 @@ function ProductPicker({ products, selected, onPick, onClose }: { products: Prod
 }
 
 // ---------------------------------------------------------------------------
-// Campaign library — every campaign with KPIs, status filter, and per-campaign
-// status + statistics (spend / impressions / clicks / ROAS).
+// Campaign library.
 // ---------------------------------------------------------------------------
 
 function CampaignLibrary({ campaigns, filter, busyId, hasRoas, totals, onFilter, onToggle, onOpen, onNew, onClose }: {
@@ -693,12 +651,7 @@ function CampaignLibrary({ campaigns, filter, busyId, hasRoas, totals, onFilter,
     if (f === "paused") return s === "PAUSED";
     return a === "PENDING" || s === "PENDING_REVIEW" || s === "PENDING";
   };
-  const counts = {
-    all: campaigns.length,
-    active: campaigns.filter((c) => isStatus(c, "active")).length,
-    review: campaigns.filter((c) => isStatus(c, "review")).length,
-    paused: campaigns.filter((c) => isStatus(c, "paused")).length,
-  };
+  const counts = { all: campaigns.length, active: campaigns.filter((c) => isStatus(c, "active")).length, review: campaigns.filter((c) => isStatus(c, "review")).length, paused: campaigns.filter((c) => isStatus(c, "paused")).length };
   const list = campaigns.filter((c) => filter === "all" ? true : isStatus(c, filter));
   const kpis = [
     { n: totals.total.toLocaleString(), l: "Campaigns" },
@@ -777,8 +730,7 @@ function LibStat({ value, label, tone, border }: { value: string; label: string;
 }
 
 // ---------------------------------------------------------------------------
-// Detail drawer — the ad creative, full metrics, providers, ad-page link, and
-// pause/activate + delete (two-step). Renders from the campaign object.
+// Detail drawer.
 // ---------------------------------------------------------------------------
 
 function CampaignDetailDrawer({ campaign: c, busy, onToggle, onDelete, onClose }: { campaign: Campaign; busy: boolean; onToggle: () => void; onDelete: () => void; onClose: () => void }) {
@@ -799,11 +751,8 @@ function CampaignDetailDrawer({ campaign: c, busy, onToggle, onDelete, onClose }
           </div>
           <button onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {c.rejectionReason && <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-2.5 py-1.5 text-[11.5px] text-rose-500"><span className="font-semibold">Rejected:</span> {c.rejectionReason}</p>}
-
-          {/* ad preview */}
           <div className="overflow-hidden rounded-[14px] border border-border bg-background">
             <div className="relative grid aspect-[1.91] w-full place-items-center bg-gradient-to-br from-brand-500/15 to-violet-500/15 text-muted-foreground">{media ? <Image src={media} alt="" fill sizes="420px" className="object-cover" unoptimized /> : <ImageIcon className="h-9 w-9" />}</div>
             <div className="p-3">
@@ -813,8 +762,6 @@ function CampaignDetailDrawer({ campaign: c, busy, onToggle, onDelete, onClose }
               {c.ctaText && <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-muted px-3 py-1.5 text-[12px] font-bold">{c.ctaText} <ArrowRight className="h-3 w-3" /></span>}
             </div>
           </div>
-
-          {/* metrics */}
           <h4 className="mb-2 mt-4 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Performance</h4>
           <div className="grid grid-cols-3 gap-2">
             <Metric icon={Coins} label="Spend" value={`${money(c.spent)}${c.budget ? ` / ${money(c.budget)}` : ""}`} />
@@ -825,8 +772,6 @@ function CampaignDetailDrawer({ campaign: c, busy, onToggle, onDelete, onClose }
             {c.roas != null ? <Metric icon={TrendingUp} label="ROAS" value={`${c.roas.toFixed(2)}×`} /> : <Metric icon={Coins} label="Daily" value={c.dailyBudget ? money(c.dailyBudget) : "—"} />}
           </div>
           {c.revenue != null && <div className="mt-2"><Metric icon={Coins} label="Revenue" value={money(c.revenue)} /></div>}
-
-          {/* providers */}
           {(c.providers?.length || c.objective) && (
             <>
               <h4 className="mb-2 mt-4 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Placements</h4>
@@ -835,10 +780,8 @@ function CampaignDetailDrawer({ campaign: c, busy, onToggle, onDelete, onClose }
               </div>
             </>
           )}
-
           {live && <a href={live} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /> View ad page</a>}
         </div>
-
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           {confirmDelete ? (
             <>
