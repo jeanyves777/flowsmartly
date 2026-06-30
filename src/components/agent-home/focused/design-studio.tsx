@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, Shapes, Minus, RectangleHorizontal, Star, Heart, ArrowRight, Sun, Zap, Crown, Award, ShieldCheck, Gift, ThumbsUp, Flame, Quote, Smile, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, Shapes, Minus, RectangleHorizontal, Star, Heart, ArrowRight, Sun, Zap, Crown, Award, ShieldCheck, Gift, ThumbsUp, Flame, Quote, Smile, QrCode, Table2, type LucideIcon } from "lucide-react";
+import QRCode from "qrcode";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -34,6 +35,10 @@ export interface ShapeLayer { id: string; x: number; y: number; w: number; h: nu
   front?: boolean }
 /** A standalone ICON element (social or popular) the user can drop & restyle. */
 export interface IconLayer { id: string; name: string; x: number; y: number; size: number; color: string }
+/** A QR-code element — generated live from `value` (a URL or text). */
+export interface QrLayer { id: string; x: number; y: number; w: number; value: string; fg?: string; bg?: string }
+/** A simple editable TABLE element (rows × cols of text). First row = header. */
+export interface TableLayer { id: string; x: number; y: number; w: number; rows: string[][]; head?: boolean; color?: string; accent?: string; fontSize?: number }
 export interface BackgroundAdjust { hue?: number; saturation?: number; brightness?: number; contrast?: number; tint?: string; tintOpacity?: number }
 
 // Brand contact details + social handles a user can drop onto the design.
@@ -52,7 +57,7 @@ export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
   bgAdjust?: BackgroundAdjust;
-  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[]; icons?: IconLayer[];
+  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[]; icons?: IconLayer[]; qrs?: QrLayer[]; tables?: TableLayer[];
   imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
@@ -160,7 +165,7 @@ function BackgroundTint({ adjust }: { adjust?: BackgroundAdjust }) {
 }
 
 // A selection points at a core element, a free-text layer, or an image.
-type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | { kind: "icon"; id: string } | null;
+type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | { kind: "icon"; id: string } | { kind: "qr"; id: string } | { kind: "table"; id: string } | null;
 
 export function designCanvasContext(d: DesignDoc): string {
   const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
@@ -237,6 +242,8 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
   if (Array.isArray(patch.shapes)) next.shapes = patch.shapes as ShapeLayer[];
   if (Array.isArray(patch.icons)) next.icons = patch.icons as IconLayer[];
+  if (Array.isArray(patch.qrs)) next.qrs = patch.qrs as QrLayer[];
+  if (Array.isArray(patch.tables)) next.tables = patch.tables as TableLayer[];
   if (patch.bgAdjust && typeof patch.bgAdjust === "object") next.bgAdjust = { ...DEFAULT_BG_ADJUST, ...(patch.bgAdjust as Partial<BackgroundAdjust>) };
   return next;
 }
@@ -627,6 +634,95 @@ function IconControls({ icon, brandColors, onChange, onResize, onDelete }: { ico
   );
 }
 
+/** Renders a QR code generated client-side from its value (URL/text). */
+function QrImg({ value, fg, bg }: { value: string; fg?: string; bg?: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let alive = true;
+    QRCode.toDataURL(value || "https://flowsmartly.com", { margin: 1, width: 360, color: { dark: fg || "#000000", light: bg || "#ffffff" } })
+      .then((u) => { if (alive) setUrl(u); })
+      .catch(() => { if (alive) setUrl(""); });
+    return () => { alive = false; };
+  }, [value, fg, bg]);
+  if (!url) return <div className="aspect-square w-full rounded-md bg-white/10" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="QR code" className="pointer-events-none block w-full rounded-[3px]" />;
+}
+
+/** QR-element controls — edit the URL/text, fg/bg color, size, delete. */
+function QrControls({ qr, onChange, onResize, onDelete }: { qr: QrLayer; onChange: (p: Partial<QrLayer>) => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  return (
+    <>
+      <input value={qr.value} onChange={(e) => onChange({ value: e.target.value })} placeholder="https://…" className="h-6 w-[150px] rounded bg-white/10 px-2 text-[11px] text-white outline-none placeholder:text-white/40" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <span title="QR color" className="text-[10px] text-white/60">QR</span>
+      <ColorPicker value={qr.fg} onChange={(c) => onChange({ fg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span title="Background" className="text-[10px] text-white/60">Bg</span>
+      <ColorPicker value={qr.bg} onChange={(c) => onChange({ bg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onResize(-0.03)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.03)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete QR" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+/** An editable TABLE element — cells are contentEditable; first row optional header. */
+function TableEl({ table, selected, accent, onEditCell }: { table: TableLayer; selected: boolean; accent: string; onEditCell: (r: number, c: number, v: string) => void }) {
+  const head = table.head !== false;
+  const ink = table.color || "#18181b";
+  const acc = table.accent || accent;
+  const fs = table.fontSize ?? 13;
+  return (
+    <div className={cn("w-full overflow-hidden rounded-[6px] border", selected && "outline outline-2 outline-brand-400")} style={{ borderColor: `${acc}55` }}>
+      <table className="w-full border-collapse" style={{ fontSize: fs }}>
+        <tbody>
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, c) => (
+                <td key={c} className="border px-2 py-1 align-top" style={{ borderColor: `${acc}33`, background: head && r === 0 ? acc : r % 2 ? "rgba(0,0,0,0.03)" : "transparent" }}>
+                  <div role="textbox" contentEditable suppressContentEditableWarning onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => { const t = e.currentTarget.innerText.replace(/\s+/g, " ").trim(); if (t !== cell) onEditCell(r, c, t); }}
+                    className="min-w-[18px] cursor-text whitespace-pre-wrap outline-none"
+                    style={{ color: head && r === 0 ? "#ffffff" : ink, fontWeight: head && r === 0 ? 700 : 400 }}>
+                    {cell}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Table controls — add/remove rows & cols, header toggle, color, size, delete. */
+function TableControls({ table, brandColors, onChange, onAddRow, onAddCol, onDelRow, onDelCol, onResize, onDelete }: { table: TableLayer; brandColors?: string[]; onChange: (p: Partial<TableLayer>) => void; onAddRow: () => void; onAddCol: () => void; onDelRow: () => void; onDelCol: () => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 5);
+  const fs = table.fontSize ?? 13;
+  return (
+    <>
+      <button onClick={onAddRow} title="Add row" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronDown className="h-3.5 w-3.5" /></button>
+      <button onClick={onDelRow} title="Remove row" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronUp className="h-3.5 w-3.5" /></button>
+      <button onClick={onAddCol} title="Add column" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronsUp className="h-3.5 w-3.5 rotate-90" /></button>
+      <button onClick={onDelCol} title="Remove column" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronsDown className="h-3.5 w-3.5 rotate-90" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ head: table.head === false })} title="Toggle header row" className={cn("grid h-6 px-1.5 place-items-center rounded text-[10px] font-bold hover:bg-white/15", table.head !== false && "bg-white/20")}>Hdr</button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {colors.map((c) => <button key={c} onClick={() => onChange({ accent: c })} className={cn("h-4 w-4 rounded-full border", (table.accent ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ fontSize: clamp(fs - 1, 7, 28) })} title="Smaller text" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A−</button>
+      <button onClick={() => onChange({ fontSize: clamp(fs + 1, 7, 28) })} title="Bigger text" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A+</button>
+      <button onClick={() => onResize(-0.04)} title="Narrower" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.04)} title="Wider" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete table" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
 // A saved design as returned by the library API.
 export interface SavedDesign { id: string; name: string; size: string; style?: string | null; imageUrl?: string | null; updatedAt: string; doc: DesignDoc }
 
@@ -704,6 +800,23 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
         );
       })}
       {(doc?.icons || []).map((ic) => { const Icon = ICON_BY_NAME[ic.name] || Star; return <div key={ic.id} className="absolute" style={pct({ x: ic.x, y: ic.y })}><Icon style={{ width: ic.size, height: ic.size, color: ic.color }} /></div>; })}
+      {(doc?.qrs || []).map((q) => (
+        <div key={q.id} className="absolute" style={{ ...pct({ x: q.x, y: q.y }), width: `${q.w * 100}%` }}><QrImg value={q.value} fg={q.fg} bg={q.bg} /></div>
+      ))}
+      {(doc?.tables || []).map((t) => {
+        const head = t.head !== false; const acc = t.accent || doc?.accent || "#2563eb"; const ink = t.color || "#18181b"; const fs = t.fontSize ?? 13;
+        return (
+          <div key={t.id} className="absolute overflow-hidden rounded-[6px] border" style={{ ...pct({ x: t.x, y: t.y }), width: `${t.w * 100}%`, borderColor: `${acc}55` }}>
+            <table className="w-full border-collapse" style={{ fontSize: fs }}><tbody>
+              {t.rows.map((row, r) => (
+                <tr key={r}>{row.map((cell, c) => (
+                  <td key={c} className="border px-2 py-1 align-top" style={{ borderColor: `${acc}33`, background: head && r === 0 ? acc : r % 2 ? "rgba(0,0,0,0.03)" : "transparent", color: head && r === 0 ? "#fff" : ink, fontWeight: head && r === 0 ? 700 : 400 }}>{cell}</td>
+                ))}</tr>
+              ))}
+            </tbody></table>
+          </div>
+        );
+      })}
       {theme.frame && <FrameOverlay frame={theme.frame} />}
     </div>
   );
@@ -885,6 +998,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
   const shapesRef = useRef<ShapeLayer[]>(value.shapes || []);
   const iconsRef = useRef<IconLayer[]>(value.icons || []);
+  const qrsRef = useRef<QrLayer[]>(value.qrs || []);
+  const tablesRef = useRef<TableLayer[]>(value.tables || []);
   const valueRef = useRef(value);
   valueRef.current = value;
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
@@ -892,6 +1007,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
   useEffect(() => { shapesRef.current = value.shapes || []; }, [value.shapes]);
   useEffect(() => { iconsRef.current = value.icons || []; }, [value.icons]);
+  useEffect(() => { qrsRef.current = value.qrs || []; }, [value.qrs]);
+  useEffect(() => { tablesRef.current = value.tables || []; }, [value.tables]);
   // Nudge the selected element with the keyboard arrows (Shift = bigger step).
   // Ignored while typing in an input / editing text in place.
   useEffect(() => {
@@ -914,6 +1031,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       else if (sel.kind === "image") onChange({ ...v, images: (v.images || []).map((i) => (i.id === sel.id ? { ...i, x: nx(i.x), y: ny(i.y) } : i)) });
       else if (sel.kind === "shape") onChange({ ...v, shapes: (v.shapes || []).map((sp) => (sp.id === sel.id ? { ...sp, x: nx(sp.x), y: ny(sp.y) } : sp)) });
       else if (sel.kind === "icon") onChange({ ...v, icons: (v.icons || []).map((ic) => (ic.id === sel.id ? { ...ic, x: nx(ic.x), y: ny(ic.y) } : ic)) });
+      else if (sel.kind === "qr") onChange({ ...v, qrs: (v.qrs || []).map((q) => (q.id === sel.id ? { ...q, x: nx(q.x), y: ny(q.y) } : q)) });
+      else if (sel.kind === "table") onChange({ ...v, tables: (v.tables || []).map((t) => (t.id === sel.id ? { ...t, x: nx(t.x), y: ny(t.y) } : t)) });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -980,6 +1099,23 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const removeIcon = (id: string) => { setIcons(iconsRef.current.filter((i) => i.id !== id)); setSel((p) => (p?.kind === "icon" && p.id === id ? null : p)); };
   const addIcon = (name: string) => { const id = newId("icon"); onChange({ ...value, icons: [...iconsRef.current, { id, name, x: 0.4, y: 0.42, size: 64, color: value.accent }] }); setSel({ kind: "icon", id }); };
   const resizeIcon = (id: string, dx: number, dy: number, startSize: number) => patchIcon(id, { size: clamp(startSize + (dx + dy) / 2 * 0.6, 12, 480) });
+  // ── QR elements ──
+  const setQrs = (q: QrLayer[]) => onChange({ ...value, qrs: q });
+  const patchQr = (id: string, patch: Partial<QrLayer>) => setQrs(qrsRef.current.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  const removeQr = (id: string) => { setQrs(qrsRef.current.filter((q) => q.id !== id)); setSel((p) => (p?.kind === "qr" && p.id === id ? null : p)); };
+  const addQr = () => { const id = newId("qr"); const url = brandContactValue(brandContact, "website") || "flowsmartly.com"; onChange({ ...value, qrs: [...qrsRef.current, { id, x: 0.7, y: 0.7, w: 0.18, value: url.startsWith("http") ? url : `https://${url}` }] }); setSel({ kind: "qr", id }); };
+  const resizeQr = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchQr(id, { w: clamp(startW + dx / pw, 0.06, 0.7) }); };
+  // ── Table elements ──
+  const setTables = (t: TableLayer[]) => onChange({ ...value, tables: t });
+  const patchTable = (id: string, patch: Partial<TableLayer>) => setTables(tablesRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const removeTable = (id: string) => { setTables(tablesRef.current.filter((t) => t.id !== id)); setSel((p) => (p?.kind === "table" && p.id === id ? null : p)); };
+  const addTable = () => { const id = newId("tbl"); const rows = [["Item", "Price"], ["Service A", "$25"], ["Service B", "$40"]]; onChange({ ...value, tables: [...tablesRef.current, { id, x: 0.1, y: 0.4, w: 0.5, rows, head: true, accent: value.accent }] }); setSel({ kind: "table", id }); };
+  const editCell = (id: string, r: number, c: number, v: string) => patchTable(id, { rows: (tablesRef.current.find((t) => t.id === id)?.rows ?? []).map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? v : cell)) : row)) });
+  const addTableRow = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t) return; patchTable(id, { rows: [...t.rows, t.rows[0].map(() => "")] }); };
+  const delTableRow = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t || t.rows.length <= 1) return; patchTable(id, { rows: t.rows.slice(0, -1) }); };
+  const addTableCol = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t) return; patchTable(id, { rows: t.rows.map((row) => [...row, ""]) }); };
+  const delTableCol = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t || (t.rows[0]?.length ?? 0) <= 1) return; patchTable(id, { rows: t.rows.map((row) => row.slice(0, -1)) }); };
+  const resizeTable = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchTable(id, { w: clamp(startW + dx / pw, 0.12, 1) }); };
   // Resize a block by the px-delta (both dimensions) relative to the poster size.
   const resizeShape = (id: string, dx: number, dy: number, startW: number, startH: number) => {
     const r = posterRef.current?.getBoundingClientRect();
@@ -1281,11 +1417,15 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const contacts = value.contacts || [];
   const shapes = value.shapes || [];
   const icons = value.icons || [];
+  const qrs = value.qrs || [];
+  const tables = value.tables || [];
   const showAiImage = !!value.imageUrl;
   const anyLocalErr = images.some((i) => i.error);
   const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
   const selShape = sel?.kind === "shape" ? shapes.find((s) => s.id === sel.id) : null;
   const selIcon = sel?.kind === "icon" ? icons.find((i) => i.id === sel.id) : null;
+  const selQr = sel?.kind === "qr" ? qrs.find((q) => q.id === sel.id) : null;
+  const selTable = sel?.kind === "table" ? tables.find((t) => t.id === sel.id) : null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1443,6 +1583,32 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                   );
                 })}
 
+                {/* QR-code elements — drag, resize, recolor, edit target */}
+                {qrs.map((q) => {
+                  const selected = sel?.kind === "qr" && sel.id === q.id;
+                  return (
+                    <Draggable key={q.id} pos={{ x: q.x, y: q.y }} onMove={(p) => patchQr(q.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "qr", id: q.id })} posterRef={posterRef} className="z-[3]" style={{ width: `${q.w * 100}%` }}>
+                      <div className={cn("relative", selected && "rounded-md outline outline-2 outline-brand-400")}>
+                        <QrImg value={q.value} fg={q.fg} bg={q.bg} />
+                        {selected && <ResizeHandle onStart={() => { (q as QrLayer & { _sw?: number })._sw = q.w; }} onResize={(dx) => resizeQr(q.id, dx, (q as QrLayer & { _sw?: number })._sw ?? q.w)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
+                {/* table elements — editable cells, header row, recolor */}
+                {tables.map((t) => {
+                  const selected = sel?.kind === "table" && sel.id === t.id;
+                  return (
+                    <Draggable key={t.id} pos={{ x: t.x, y: t.y }} onMove={(p) => patchTable(t.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "table", id: t.id })} posterRef={posterRef} className="z-[3]" style={{ width: `${t.w * 100}%` }}>
+                      <div className="relative">
+                        <TableEl table={t} selected={selected} accent={value.accent || "#2563eb"} onEditCell={(r, c, v) => editCell(t.id, r, c, v)} />
+                        {selected && <ResizeHandle onStart={() => { (t as TableLayer & { _sw?: number })._sw = t.w; }} onResize={(dx) => resizeTable(t.id, dx, (t as TableLayer & { _sw?: number })._sw ?? t.w)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
 
                 {/* print guides (bleed / safe-area / fold) — non-interactive overlay */}
@@ -1462,9 +1628,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
 
           {/* selection toolbar — a SIBLING of the scaled design, so it stays a
               readable size at any zoom, positioned over the top of the design */}
-          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape || !!selIcon) && (
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape || !!selIcon || !!selQr || !!selTable) && (
             <FloatingToolbar>
-              {selIcon ? (
+              {selQr ? (
+                <QrControls qr={selQr} onChange={(p) => patchQr(selQr.id, p)} onResize={(d) => patchQr(selQr.id, { w: clamp(selQr.w + d, 0.06, 0.7) })} onDelete={() => removeQr(selQr.id)} />
+              ) : selTable ? (
+                <TableControls table={selTable} brandColors={brandColors} onChange={(p) => patchTable(selTable.id, p)} onAddRow={() => addTableRow(selTable.id)} onAddCol={() => addTableCol(selTable.id)} onDelRow={() => delTableRow(selTable.id)} onDelCol={() => delTableCol(selTable.id)} onResize={(d) => patchTable(selTable.id, { w: clamp(selTable.w + d, 0.12, 1) })} onDelete={() => removeTable(selTable.id)} />
+              ) : selIcon ? (
                 <IconControls icon={selIcon} brandColors={brandColors} onChange={(p) => patchIcon(selIcon.id, p)} onResize={(d) => patchIcon(selIcon.id, { size: clamp(selIcon.size + d, 12, 480) })} onDelete={() => removeIcon(selIcon.id)} />
               ) : selShape ? (
                 <ShapeControls shape={selShape} count={shapes.length} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onArrange={(w) => arrangeShape(selShape.id, w)} onDelete={() => removeShape(selShape.id)} />
@@ -1589,6 +1759,17 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                         <button key={s.label} onClick={s.on} className="inline-flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 px-1 py-2 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"><s.Icon className="h-4 w-4" /> {s.label}</button>
                       ))}
                     </div>
+                  </ControlGroup>
+                  <ControlGroup title="Data & codes">
+                    <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                      {([
+                        { label: "QR code", Icon: QrCode, on: addQr },
+                        { label: "Table", Icon: Table2, on: addTable },
+                      ] as const).map((s) => (
+                        <button key={s.label} onClick={s.on} className="inline-flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 px-1 py-2 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"><s.Icon className="h-4 w-4" /> {s.label}</button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">QR points at your site by default — edit it in the toolbar. Tables have editable cells + a header row.</p>
                   </ControlGroup>
                   {ICON_GROUPS.map((g) => (
                     <ControlGroup key={g.label} title={`${g.label} icons`}>
