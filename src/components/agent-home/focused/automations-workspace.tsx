@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode, type PointerEvent as RPointerEvent } from "react";
-import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Wand2, Check, Target, GripVertical, ArrowLeftRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Check, Target, ArrowLeft, ArrowRight, ArrowLeftRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -268,50 +268,17 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
   };
   const patchStep = (id: string, patch: Partial<FlowStep>) => setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
-  const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
+  const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); setCur(0); };
 
-  // Drag-to-reorder tracked on the WINDOW (not pointer-capture, which is flaky on
-  // small handles) — the proven pattern from the design studio. The grabbed step
-  // lifts and follows the cursor; it drops into the nearest slot on release.
+  // Progressive wizard: reveal ONE node at a time. `cur` is the frontier/active
+  // index into the virtual node list [audience(0), ...messages(1..N), launch(N+1)].
+  // Only nodes 0..cur render; Continue/Back move the frontier.
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: string; idx: number; target: number } | null>(null);
-  const [drag, setDrag] = useState<{ idx: number; dx: number; target: number } | null>(null);
-  const targetIndexAt = (clientX: number, exclude: number): number | null => {
-    const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
-    if (!cards) return null;
-    let target: number | null = null;
-    cards.forEach((card) => { const idx = Number(card.dataset.stepIdx); if (idx === exclude) return; const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = idx; });
-    return target;
-  };
-  const startDrag = (i: number) => (e: RPointerEvent<HTMLElement>) => {
-    if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
-    e.preventDefault();
-    const startX = e.clientX;
-    dragRef.current = { id: steps[i].id, idx: i, target: i };
-    setDrag({ idx: i, dx: 0, target: i });
-    const move = (ev: PointerEvent) => {
-      const d = dragRef.current; if (!d) return;
-      const t = targetIndexAt(ev.clientX, d.idx);
-      if (t !== null) d.target = t;
-      setDrag({ idx: d.idx, dx: ev.clientX - startX, target: d.target });
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      const d = dragRef.current;
-      if (d && d.target !== d.idx) {
-        setSteps((prev) => {
-          const from = prev.findIndex((s) => s.id === d.id);
-          if (from === -1 || from === d.target) return prev;
-          const n = [...prev]; const [m] = n.splice(from, 1); n.splice(d.target, 0, m); return n;
-        });
-      }
-      dragRef.current = null;
-      setDrag(null);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+  const [cur, setCur] = useState(0);
+  useEffect(() => {
+    const el = trackRef.current?.querySelector(`[data-vi="${cur}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [cur, steps.length]);
 
   // ── Live agent-fill bridge ─────────────────────────────────────────────
   // getContext serializes the open flow (tagged [FOLLOWUP]) for the agent;
@@ -347,6 +314,7 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
       })).filter((s) => s.msg.trim());
       if (mapped.length) {
         setSteps(mapped);
+        setCur(mapped.length + 1); // reveal all the messages the agent wrote + launch
         setFlashSteps(true);
         if (flashTimer.current) clearTimeout(flashTimer.current);
         flashTimer.current = setTimeout(() => setFlashSteps(false), 1500);
@@ -367,6 +335,12 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
   const active = stats.active ?? automations.filter((a) => a.enabled).length;
   const totalSent = stats.totalSent ?? automations.reduce((sum, a) => sum + (a.totalSent ?? 0), 0);
   const editing = steps.find((s) => s.id === editingStep) || null;
+  // Wizard validation: a node must be complete before Continue advances.
+  const N = steps.length;
+  const audienceValid = mode === "single" ? !!single : mode === "multi" ? selected.length > 0 : !!segment;
+  const audienceHint = mode === "single" ? "Pick a contact to continue" : mode === "multi" ? "Select at least one contact" : "Pick a segment to continue";
+  const msgValid = (i: number) => (steps[i]?.msg.trim().length ?? 0) > 0;
+  const launchVi = N + 1;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -387,13 +361,12 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
       <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
 
-          {/* audience node */}
-          <div className="flex h-full items-start">
-            <div className="flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-border bg-card">
+          {/* AUDIENCE node (vi 0) — always the first step */}
+          <div data-vi={0} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card", cur === 0 ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border")}>
               <div className="flex items-center gap-2.5 px-3.5 py-3">
-                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Users className="h-[18px] w-[18px]" /></span>
+                <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", cur > 0 ? "border-emerald-500 bg-emerald-500 text-white" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{cur > 0 ? <Check className="h-3.5 w-3.5" /> : 1}</span>
                 <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Audience</div><div className="text-[13px] font-bold">Who this targets</div></div>
-                <span className="shrink-0 rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-500">start</span>
               </div>
               <div className="flex gap-1.5 px-3.5 pb-2.5">
                 {([["single", "Single", User], ["multi", "Selected", Users], ["segment", "Segment", Layers]] as const).map(([m, label, Icon]) => (
@@ -402,7 +375,7 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
                   </button>
                 ))}
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3.5">
+              <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3">
                 {mode === "single" ? (
                   <AudienceCard icon={single ? undefined : <User className="h-4 w-4" />} avatar={single ? contactById(single)?.name : undefined} title={single ? (contactById(single)?.name ?? "Contact") : "No contact picked"} sub={single ? (contactById(single)?.email ?? contactById(single)?.phone ?? "") : "Choose who to message"} onPick={() => setPickerOpen(true)} />
                 ) : mode === "segment" ? (
@@ -425,68 +398,76 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
                   </>
                 )}
               </div>
+              {cur === 0 && (
+                <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
+                  <span className={cn("min-w-0 truncate text-[10.5px]", audienceValid ? "text-muted-foreground" : "text-amber-500")}>{audienceValid ? "Step 1 of " + (N + 2) : audienceHint}</span>
+                  <button onClick={() => audienceValid && setCur(1)} disabled={!audienceValid} title={audienceValid ? "" : audienceHint} className={cn("ms-auto inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white", !audienceValid && "cursor-not-allowed opacity-50")}>Continue <ArrowRight className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* step nodes (draggable, with wait connectors) */}
-          {steps.map((s, i) => (
-            <div key={s.id} className="flex h-full items-start">
-              <div className="flex h-full flex-col items-center justify-center px-1">
-                <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[10.5px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"><Clock className="h-3 w-3" /> {i === 0 ? (s.wait === 0 ? "Start" : `${s.wait}d in`) : waitLabel(s.wait)}</button>
-              </div>
-              <div
-                data-step-idx={i}
-                style={drag?.idx === i ? { transform: `translateX(${drag.dx}px)`, zIndex: 50 } : undefined}
-                className={cn(
-                  "flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card animate-in fade-in slide-in-from-right-4 duration-300",
-                  drag?.idx === i ? "cursor-grabbing scale-[1.03] border-violet-500 opacity-95 shadow-2xl ring-2 ring-violet-500/70 transition-none" : "border-border transition",
-                  drag && drag.idx !== i && drag.target === i && "ring-2 ring-violet-500/50",
-                  flashSteps && !drag && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
-                )}
-              >
-                <div
-                  onPointerDown={startDrag(i)}
-                  title="Drag to reorder"
-                  className="flex touch-none cursor-grab select-none items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
-                >
-                  <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                  <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
-                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div><div className="truncate text-[12.5px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div></div>
-                  <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
-                  {steps.length > 1 && <button onClick={() => removeStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
+          {/* MESSAGE step nodes — revealed one at a time up to cur */}
+          {steps.map((s, i) => {
+            const vi = i + 1;
+            if (vi > cur) return null;
+            const isActive = vi === cur;
+            const isLast = i === N - 1;
+            return (
+              <div key={s.id} data-vi={vi} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="flex h-full flex-col items-center justify-center px-1">
+                  <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[10.5px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"><Clock className="h-3 w-3" /> {i === 0 ? (s.wait === 0 ? "Start" : `${s.wait}d in`) : waitLabel(s.wait)}</button>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                  <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
-                    {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
-                    <Highlighted text={s.msg} />
+                <div className={cn(
+                  "flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition",
+                  isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
+                  flashSteps && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
+                )}>
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[11px] font-extrabold", isActive ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "border-emerald-500 bg-emerald-500 text-white")}>{isActive ? i + 2 : <Check className="h-3.5 w-3.5" />}</span>
+                    <span className={cn("grid h-[28px] w-[28px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
+                    <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div><div className="truncate text-[12.5px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div></div>
+                    <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
+                    {steps.length > 1 && <button onClick={() => { removeStep(s.id); setCur((c) => Math.max(1, Math.min(c, steps.length - 1 + 1))); }} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
-                  {s.personalize && <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized</span>}
-                  <button onClick={() => setEditingStep(s.id)} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Wand2 className="h-3 w-3" /> Edit</button>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
+                      {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
+                      <Highlighted text={s.msg} />
+                    </div>
+                    {s.personalize && <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized</span>}
+                  </div>
+                  {isActive && (
+                    <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
+                      <button onClick={() => setCur((c) => Math.max(0, c - 1))} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>
+                      <span className={cn("min-w-0 truncate text-[10.5px]", msgValid(i) ? "text-muted-foreground" : "text-amber-500")}>{msgValid(i) ? `Step ${i + 2}` : "Write the message (or Build with AI)"}</span>
+                      <span className="ms-auto" />
+                      {isLast && (
+                        <button onClick={() => { if (!msgValid(i)) return; addStep(); setCur(N + 1); }} disabled={!msgValid(i)} className={cn("inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground", !msgValid(i) && "cursor-not-allowed opacity-50")}><Plus className="h-3.5 w-3.5" /> Add step</button>
+                      )}
+                      <button onClick={() => msgValid(i) && setCur((c) => c + 1)} disabled={!msgValid(i)} className={cn("inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white", !msgValid(i) && "cursor-not-allowed opacity-50")}>Continue <ArrowRight className="h-3.5 w-3.5" /></button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* add step node */}
-          <div className="flex h-full items-start">
-            <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-brand-500/50 to-violet-500/45" /></div>
-            <button onClick={addStep} className="flex h-[120px] w-[150px] shrink-0 flex-col items-center justify-center gap-1.5 self-center rounded-2xl border border-dashed border-border bg-card/60 text-muted-foreground transition hover:border-brand-500/50 hover:text-foreground"><Plus className="h-5 w-5" /><span className="text-[12px] font-semibold">Add step</span></button>
-          </div>
-
-          {/* launch node */}
-          <div className="flex h-full items-start">
-            <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-violet-500/45 to-brand-500/50" /></div>
-            <div className="flex w-[300px] shrink-0 flex-col self-center rounded-2xl border border-brand-500/40 bg-gradient-to-b from-brand-500/10 to-violet-500/10 p-4 text-center">
-              <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
-              <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message</b>, and schedules the steps. You confirm cost first.</p>
-              <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
+          {/* LAUNCH node — revealed once every step is done */}
+          {cur >= launchVi && (
+            <div data-vi={launchVi} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-violet-500/45 to-brand-500/50" /></div>
+              <div className="flex w-[320px] shrink-0 flex-col self-start rounded-2xl border border-brand-500/40 bg-gradient-to-b from-brand-500/10 to-violet-500/10 p-4 text-center">
+                <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
+                <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message</b>, and schedules the steps. You confirm cost first.</p>
+                <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
+                <button onClick={() => setCur((c) => Math.max(0, c - 1))} className="mx-auto mt-2 inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
-        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> scroll &amp; drag sideways</span>
+        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> Next / Back to move through · scroll sideways</span>
       </div>
 
       {/* step editor sheet */}
