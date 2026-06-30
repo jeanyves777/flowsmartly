@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 // Static credentials are the configured path for this app (env file on the VPS;
@@ -56,11 +56,18 @@ export async function uploadToS3(
   opts?: { acl?: "private" | "public-read"; cacheControl?: string }
 ): Promise<string> {
   void opts?.acl; // ACLs disabled by bucket ownership; access is policy-driven.
-  // Fail fast with a clear, catchable message instead of the AWS SDK's cryptic
-  // "Resolved credential object is not valid" — callers with a local fallback
-  // (e.g. the canvas-object tool) catch this and serve from /public.
+  // No S3 (local dev): write to /public/uploads and serve from there, returning a
+  // /uploads/<key> URL the app already understands (resolveToLocalPath /
+  // extractS3Key handle it, and presignAllUrls leaves it untouched). Production
+  // always has static creds, so this fallback is dev-only — it keeps image jobs
+  // (branded designs, exports, media saves) from crashing instead of failing the
+  // whole task on a cryptic credential error. [[dev-env-and-testing]]
   if (!HAS_STATIC_CREDS) {
-    throw new Error("S3 is not configured (missing AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)");
+    const rel = key.replace(/^\/+/, "");
+    const abs = path.join(process.cwd(), "public", "uploads", rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, body);
+    return `/uploads/${rel}`;
   }
   const cacheControl = opts?.cacheControl ?? "public, max-age=31536000, immutable";
   await s3.send(
