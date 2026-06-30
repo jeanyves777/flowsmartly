@@ -115,7 +115,9 @@ const STEP_DEFS: Record<StepKey, { kicker: string; title: string; icon: ElementT
 
 const FIELD = "w-full rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
-export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean }) {
+type CanvasBridge = { getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void };
+
+export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: CanvasBridge | null } }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [hasRoas, setHasRoas] = useState(false);
@@ -138,6 +140,9 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?
   const trackRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ key: StepKey; pointerId: number } | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  // Nodes the agent just filled — briefly ringed so the user SEES it land.
+  const [flashKeys, setFlashKeys] = useState<Set<StepKey>>(() => new Set());
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Builder state.
   const [name, setName] = useState("Untitled ad campaign");
@@ -367,6 +372,67 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?
     },
   });
 
+  // ── Live agent-fill bridge ─────────────────────────────────────────────
+  // getContext serializes the open canvas (tagged [ADBUILDER]) for the agent;
+  // applyPatch lands the agent's update_ad_canvas fields live — revealing &
+  // flashing the nodes it touches so the user watches the ad build itself.
+  const flash = (keys: StepKey[]) => {
+    setFlashKeys(new Set(keys));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashKeys(new Set()), 1400);
+  };
+  const buildAdContext = (): string => {
+    const enabled = providers.filter((p) => p.enabled).map((p) => `${p.id} (${p.name})`).join(", ") || "feed (FlowSmartly Feed)";
+    const prodNames = products.slice(0, 30).map((p) => p.name).join("; ");
+    const placed = providers.filter((p) => placements[p.id] && p.enabled).map((p) => p.id);
+    const srcDetail = source === "product" ? (product ? ` (product: ${product.name})` : " (no product picked)")
+      : source === "link" ? (destinationUrl ? ` (link: ${destinationUrl})` : " (no link yet)")
+        : (describeText ? ` (described: ${describeText})` : " (no description yet)");
+    return [
+      "[ADBUILDER] The Ad builder canvas is OPEN. Build it live with update_ad_canvas — fill the fields and they appear on screen.",
+      `Campaign name: ${JSON.stringify(name)}.`,
+      `Source mode: ${source}${srcDetail}.`,
+      `Creative now — headline: ${JSON.stringify(headline)}; description: ${JSON.stringify(description)}; cta: ${JSON.stringify(cta)}.`,
+      `Goal: ${goal}; category: ${JSON.stringify(category)}; budget: ${budgetNum} credits.`,
+      `Placements selected: ${placed.join(", ") || "none yet"}.`,
+      `ENABLED providers you may set as placements: ${enabled}.`,
+      hasStore && products.length ? `Store PRODUCTS the user can advertise (pass productName to pick one): ${prodNames}.` : "No store products available — use a link or a description.",
+    ].join("\n");
+  };
+  const applyAdPatch = (p: Record<string, unknown>) => {
+    const touched: StepKey[] = [];
+    const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+    if (str(p.name) !== undefined) setName(str(p.name)!);
+    if (p.source === "product" || p.source === "link" || p.source === "describe") { setSource(p.source); touched.push("source"); }
+    if (str(p.productName)) {
+      const q = str(p.productName)!.toLowerCase();
+      const match = products.find((pr) => pr.name.toLowerCase() === q) || products.find((pr) => pr.name.toLowerCase().includes(q));
+      if (match) { setSource("product"); setProductId(match.id); setMediaUrl(match.images?.[0]?.url ?? null); touched.push("source"); }
+    }
+    if (str(p.destinationUrl) !== undefined) { setDestinationUrl(str(p.destinationUrl)!); if (source !== "product") touched.push("source"); }
+    if (str(p.headline) !== undefined) { setHeadline(str(p.headline)!); touched.push("creative"); }
+    if (str(p.description) !== undefined) { setDescription(str(p.description)!); touched.push("creative"); }
+    if (str(p.cta) !== undefined) { setCta(str(p.cta)!); touched.push("creative"); }
+    if (str(p.goal) !== undefined) { setGoal(str(p.goal)!); touched.push("placement"); }
+    if (str(p.category) !== undefined) { setCategory(str(p.category)!); touched.push("placement"); }
+    if (typeof p.budget === "number") { setBudget(String(Math.max(1, Math.round(p.budget)))); touched.push("budget"); }
+    if (Array.isArray(p.placements)) {
+      const ids = (p.placements as unknown[]).filter((x): x is string => typeof x === "string");
+      setPlacements((prev) => { const next = { ...prev }; for (const id of ids) next[id] = true; return next; });
+      touched.push("placement");
+    }
+    if (touched.length) {
+      const maxIdx = touched.reduce((m, k) => Math.max(m, order.indexOf(k)), cur);
+      setCur((n) => Math.max(n, maxIdx));
+      flash(Array.from(new Set(touched)));
+    }
+  };
+  useEffect(() => {
+    if (!canvasRef) return;
+    canvasRef.current = { getContext: buildAdContext, applyPatch: applyAdPatch };
+    return () => { if (canvasRef) canvasRef.current = null; };
+  });
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
   }
@@ -520,6 +586,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?
                   className={cn(
                     "flex max-h-full w-[360px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300",
                     isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
+                    flashKeys.has(key) && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
                     dragIdx === i && "scale-[0.98] opacity-70 ring-2 ring-violet-500/60",
                   )}
                 >

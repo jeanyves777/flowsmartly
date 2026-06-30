@@ -125,10 +125,21 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   await ensureToolsRegistered();
 
   const tools = flowAgentTools.forPlan(input.plan);
-  // Gate the canvas tool: only expose it to the model when a design canvas is
-  // actually open (focused view). Other surfaces never see it, so the agent
-  // can't call it out of context.
-  const exposedTools = input.canvasContext ? tools : tools.filter((t) => t.name !== "update_canvas" && t.name !== "add_canvas_object" && t.name !== "add_design_page" && t.name !== "start_print_project" && t.name !== "place_design_on_product");
+  // Gate the canvas-write tools by WHICH canvas is open (focused view). The
+  // canvasContext is tagged: `[ADBUILDER]…` for the Ad builder, `[FOLLOWUP]…` for
+  // Follow-ups, otherwise it's the design canvas. Each surface only sees its own
+  // live-fill tool so the agent can't call one out of context.
+  const cc = input.canvasContext || "";
+  const isAdCanvas = cc.startsWith("[ADBUILDER]");
+  const isFollowupCanvas = cc.startsWith("[FOLLOWUP]");
+  const isDesignCanvas = !!cc && !isAdCanvas && !isFollowupCanvas;
+  const DESIGN_CANVAS_TOOLS = new Set(["update_canvas", "add_canvas_object", "add_design_page", "start_print_project", "place_design_on_product"]);
+  const exposedTools = tools.filter((t) => {
+    if (DESIGN_CANVAS_TOOLS.has(t.name)) return isDesignCanvas;
+    if (t.name === "update_ad_canvas") return isAdCanvas;
+    if (t.name === "update_followup_canvas") return isFollowupCanvas;
+    return true;
+  });
   const clientToolDefs = exposedTools.map((t) => ({
     name: t.name,
     description: t.description,
@@ -166,9 +177,17 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   });
 
   // Focused-view canvas: tell the model what's on screen + how to edit it live.
-  if (input.canvasContext) {
+  if (isAdCanvas) {
     systemPrompt +=
-      `\n\n## Active design canvas (focused view)\n${input.canvasContext}\n\n` +
+      `\n\n## Active Ad builder canvas (focused view)\n${cc}\n\n` +
+      "The user has the Ad builder canvas OPEN. When they ask you to build / generate / write / run the ad — or they hand you a description or a link — FILL THE CANVAS LIVE with `update_ad_canvas` so it appears on screen as you work: set the source (product/link/describe), write a strong, specific, on-brand HEADLINE + a punchy description + a fitting CTA (NEVER a placeholder), pick the goal/category and ONLY their ENABLED placements, and set a sensible budget. Do this FIRST (in one or a few update_ad_canvas calls), then reply in ONE short sentence. Ask a single follow-up only if you genuinely cannot proceed. When the user wants to LAUNCH, call propose_plan with the exact credit cost; on confirm, create & launch it (it goes to review → live and shows in their Library). It's FREE and instant — fill the canvas first, talk second.";
+  } else if (isFollowupCanvas) {
+    systemPrompt +=
+      `\n\n## Active Follow-ups flow canvas (focused view)\n${cc}\n\n` +
+      "The user has the Follow-ups flow canvas OPEN. When they ask you to build / generate / write the follow-up sequence, FILL THE CANVAS LIVE with `update_followup_canvas` so it appears on screen: set the audience mode and write the ordered, genuinely-good PERSONALIZED message steps (use {{first_name}} / {{company}} merge fields; set each step's channel, timing/waitDays and copy — never leave a step empty). Do this FIRST, then reply in ONE short sentence. Ask a single follow-up only if needed. When they want it live, call propose_plan; on confirm, create & schedule it. It's FREE and instant — fill the canvas first, talk second.";
+  } else if (isDesignCanvas) {
+    systemPrompt +=
+      `\n\n## Active design canvas (focused view)\n${cc}\n\n` +
       "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.\n" +
       "When the user asks to ADD or place something on the canvas — an object/element ('add a laptop', 'put my product in', 'add an illustration') or a new background ('give it a nicer background') — call `add_canvas_object` (type 'element' or 'background'), NOT create_branded_design. It generates just that piece and drops it onto the OPEN canvas, keeping the user's current text/layout/coordinates. For a background pass the `size` from the canvas context and keep the prompt consistent with the current design. Only use create_branded_design when the user explicitly wants the WHOLE design re-rendered as a new image — never assume that from an 'add X' request.\n" +
       "MULTI-PAGE / MULTI-SLIDE: this canvas supports multiple pages. When the user asks for a PRESENTATION, a deck, a carousel, or a multi-page design, build EACH page in turn: design the current page (update_canvas for the copy/accent/size, add_canvas_object for visuals), then call `add_design_page` to start the next slide, fill it, and repeat until you've built every page they asked for. Use a consistent style/accent across the set; pick a fitting size first (e.g. 1080×1080 for a carousel). Briefly say how many pages you built when done.\n" +

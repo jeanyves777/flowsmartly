@@ -141,7 +141,7 @@ const DEFAULT_STEPS = (): FlowStep[] => [
   { id: stepId(), channel: "EMAIL", subject: "", msg: "Hi {{first_name}}, ", wait: 0, personalize: true },
 ];
 
-export function FocusedAutomations({ refreshKey, onAsk, agentBusy }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean }) {
+export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: { getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null } }) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
@@ -307,6 +307,52 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy }: { refreshKe
     },
   });
 
+  // ── Live agent-fill bridge ─────────────────────────────────────────────
+  // getContext serializes the open flow (tagged [FOLLOWUP]) for the agent;
+  // applyPatch lands the agent's update_followup_canvas fields live (name,
+  // audience mode, the personalized steps) so the user watches it build.
+  const [flashSteps, setFlashSteps] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buildFollowupContext = (): string => {
+    const segs = lists.slice(0, 20).map((l) => `${l.name} (${l.totalCount} contacts)`).join("; ");
+    const aud = mode === "single" ? (single ? `single contact ${contactById(single)?.name ?? ""}` : "a single contact (none picked)")
+      : mode === "multi" ? `${selected.length} selected contacts`
+        : `segment ${segment ? (lists.find((l) => l.id === segment)?.name ?? "") : "(none picked)"}`;
+    const stepsDesc = steps.map((s, i) => `${i + 1}. [${s.channel}] wait ${s.wait}d — ${s.channel === "EMAIL" && s.subject ? `subject ${JSON.stringify(s.subject)}; ` : ""}${JSON.stringify(s.msg)}${s.personalize ? " (personalized)" : ""}`).join("  |  ");
+    return [
+      "[FOLLOWUP] The Follow-ups flow canvas is OPEN. Build it live with update_followup_canvas — set the audience mode and write the personalized steps; they appear on screen.",
+      `Campaign name: ${JSON.stringify(name)}.`,
+      `Audience mode: ${mode} — ${aud}.`,
+      `Steps now: ${stepsDesc || "(none yet)"}.`,
+      lists.length ? `Available segments/lists (for 'segment' mode): ${segs}.` : "No contact lists yet — use 'multi' selected contacts or 'single'.",
+    ].join("\n");
+  };
+  const applyFollowupPatch = (p: Record<string, unknown>) => {
+    if (typeof p.name === "string") setName(p.name);
+    if (p.audienceMode === "single" || p.audienceMode === "multi" || p.audienceMode === "segment") setMode(p.audienceMode);
+    if (Array.isArray(p.steps)) {
+      const mapped: FlowStep[] = (p.steps as Array<Record<string, unknown>>).map((s) => ({
+        id: stepId(),
+        channel: (s.channel === "SMS" ? "SMS" : "EMAIL") as Channel,
+        subject: typeof s.subject === "string" ? s.subject : "",
+        msg: typeof s.msg === "string" ? s.msg : (typeof s.message === "string" ? s.message : ""),
+        wait: typeof s.wait === "number" ? s.wait : (typeof s.waitDays === "number" ? s.waitDays : 0),
+        personalize: s.personalize !== false,
+      })).filter((s) => s.msg.trim());
+      if (mapped.length) {
+        setSteps(mapped);
+        setFlashSteps(true);
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlashSteps(false), 1500);
+      }
+    }
+  };
+  useEffect(() => {
+    if (!canvasRef) return;
+    canvasRef.current = { getContext: buildFollowupContext, applyPatch: applyFollowupPatch };
+    return () => { if (canvasRef) canvasRef.current = null; };
+  });
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
   }
@@ -400,7 +446,7 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy }: { refreshKe
               </div>
               <div
                 data-step-idx={i}
-                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragIdx === i ? "scale-[0.98] border-violet-500 opacity-70 ring-2 ring-violet-500/60" : "border-border")}
+                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragIdx === i ? "scale-[0.98] border-violet-500 opacity-70 ring-2 ring-violet-500/60" : "border-border", flashSteps && dragIdx !== i && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]")}
               >
                 <div
                   {...stepDragHandlers(i)}

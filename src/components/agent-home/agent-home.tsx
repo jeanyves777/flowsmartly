@@ -450,6 +450,12 @@ export function AgentHome() {
   // Product-print mockup controls — the agent's place_design_on_product routes
   // here (via the canvas_update `__product` marker).
   const productOpsRef = useRef<{ setProduct: (patch: Record<string, unknown>) => void } | null>(null);
+  // Live-fill bridges for the Ad builder + Follow-ups canvases: the focused
+  // component populates getContext (the [ADBUILDER]/[FOLLOWUP]-tagged state we
+  // send the agent) + applyPatch (the agent's update_ad_canvas / update_followup_
+  // canvas fields, routed here via the `__ad` / `__followup` markers).
+  const adOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
+  const followupOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
   // Which canvas is live, for routing agent patches to the right document.
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
@@ -473,6 +479,10 @@ export function AgentHome() {
         else if (typeof pageCmd === "number") pageOpsRef.current?.goToPage(pageCmd);
         return;
       }
+      const adCmd = (patch as { __ad?: unknown }).__ad;
+      if (adCmd && typeof adCmd === "object") { adOpsRef.current?.applyPatch(adCmd as Record<string, unknown>); return; }
+      const followupCmd = (patch as { __followup?: unknown }).__followup;
+      if (followupCmd && typeof followupCmd === "object") { followupOpsRef.current?.applyPatch(followupCmd as Record<string, unknown>); return; }
       // Route the edit to whichever canvas is open (Print has its own document).
       const apply = (d: DesignDoc) => applyDesignPatch(d, patch);
       if (focusedRef.current === "print") setPrintDesign(apply); else setDesign(apply);
@@ -585,7 +595,15 @@ export function AgentHome() {
   // Carry the design canvas context on the design AND print surfaces, so the
   // agent's canvas tools (update_canvas / add_design_page / start_print_project)
   // stay exposed when a button-driven action fires from the Print Studio hero.
-  const sendAction = (p: string) => send(p, false, focused === "print" ? designCanvasContext(printDesign) : focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  // The live-fill surfaces (Ad builder / Follow-ups) supply their own tagged
+  // canvasContext via their ref bridge so the agent can write into them.
+  const canvasCtxFor = (): string | undefined =>
+    focused === "print" ? designCanvasContext(printDesign)
+      : focused === "create" ? designCanvasContext(design)
+        : focused === "adbuilder" ? (adOpsRef.current?.getContext() || undefined)
+          : focused === "automations" ? (followupOpsRef.current?.getContext() || undefined)
+            : undefined;
+  const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   // A photo SLOT's "Generate" button — drive the agent to generate a contextual
   // photo and drop it into that exact slot (it may ask one clarifying question).
   const sendFillSlot = (layer: { id: string; label?: string; genHint?: string }, doc: DesignDoc) => send(
@@ -773,7 +791,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm) => send(t, sm, focused === "print" ? designCanvasContext(printDesign) : focused === "create" ? designCanvasContext(design) : undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }
@@ -946,7 +964,7 @@ export function AgentHome() {
                 ) : focused === "forms" ? (
                   <FocusedForms onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "automations" ? (
-                  <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} />
+                  <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={followupOpsRef} />
                 ) : focused === "customers" ? (
                   <FocusedCustomers refreshKey={actionCount} />
                 ) : focused === "reviews" ? (
@@ -974,7 +992,7 @@ export function AgentHome() {
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "adbuilder" ? (
-                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} />
+                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={adOpsRef} />
                 ) : focused === "storyad" ? (
                   <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "calendar" ? (
