@@ -138,8 +138,8 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
   const [order, setOrder] = useState<StepKey[]>(DEFAULT_ORDER);
   const [cur, setCur] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ key: StepKey; pointerId: number } | null>(null);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const dragRef = useRef<{ key: StepKey; startX: number; pointerId: number; idx: number; target: number } | null>(null);
+  const [drag, setDrag] = useState<{ idx: number; dx: number; target: number } | null>(null);
   // Nodes the agent just filled — briefly ringed so the user SEES it land.
   const [flashKeys, setFlashKeys] = useState<Set<StepKey>>(() => new Set());
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -337,38 +337,41 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
     load();
   };
 
-  // Pointer-based drag-to-reorder (works on desktop + touch, unlike HTML5 DnD).
-  // The frontier (cur) stays put; we just reorder the revealed nodes live.
-  const targetIndexAt = (clientX: number): number | null => {
+  // Pointer-based drag-to-reorder (desktop + touch). The grabbed node LIFTS and
+  // follows the cursor (translateX) so it's obviously draggable even when there's
+  // nothing yet to reorder; it drops into the nearest slot on release.
+  const targetIndexAt = (clientX: number, exclude: number): number | null => {
     const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
     if (!cards) return null;
     let target: number | null = null;
-    cards.forEach((card) => { const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = Number(card.dataset.stepIdx); });
+    cards.forEach((card) => { const idx = Number(card.dataset.stepIdx); if (idx === exclude) return; const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = idx; });
     return target;
   };
   const dragHandlers = (i: number) => ({
     onPointerDown: (e: RPointerEvent<HTMLElement>) => {
       if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      dragState.current = { key: order[i], pointerId: e.pointerId };
-      setDragIdx(i);
+      dragRef.current = { key: order[i], startX: e.clientX, pointerId: e.pointerId, idx: i, target: i };
+      setDrag({ idx: i, dx: 0, target: i });
     },
     onPointerMove: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragState.current; if (!d) return;
-      const target = targetIndexAt(e.clientX);
-      if (target === null) return;
-      setOrder((prev) => {
-        const from = prev.indexOf(d.key);
-        if (from === -1 || from === target) return prev;
-        const n = [...prev]; const [m] = n.splice(from, 1); n.splice(target, 0, m); return n;
-      });
-      setDragIdx((v) => (v === target ? v : target));
+      const d = dragRef.current; if (!d) return;
+      const t = targetIndexAt(e.clientX, d.idx);
+      if (t !== null) d.target = t;
+      setDrag({ idx: d.idx, dx: e.clientX - d.startX, target: d.target });
     },
     onPointerUp: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragState.current; if (!d) return;
+      const d = dragRef.current; if (!d) return;
       try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
-      dragState.current = null;
-      setDragIdx(null);
+      if (d.target !== d.idx) {
+        setOrder((prev) => {
+          const from = prev.indexOf(d.key);
+          if (from === -1 || from === d.target) return prev;
+          const n = [...prev]; const [m] = n.splice(from, 1); n.splice(d.target, 0, m); return n;
+        });
+      }
+      dragRef.current = null;
+      setDrag(null);
     },
   });
 
@@ -610,11 +613,13 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
                 {i > 0 && <div className="flex h-full items-center px-0.5"><div className={cn("h-0.5 w-6 rounded-full", i < cur ? "bg-emerald-500" : "bg-gradient-to-r from-brand-500/50 to-violet-500/45")} /></div>}
                 <div
                   data-step-idx={i}
+                  style={drag?.idx === i ? { transform: `translateX(${drag.dx}px)`, zIndex: 50 } : undefined}
                   className={cn(
-                    "flex max-h-full w-[360px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300",
+                    "flex max-h-full w-[360px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card animate-in fade-in slide-in-from-right-4 duration-300",
+                    drag?.idx === i ? "cursor-grabbing scale-[1.03] opacity-95 shadow-2xl ring-2 ring-violet-500/70 transition-none" : "transition",
                     isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
                     flashKeys.has(key) && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
-                    dragIdx === i && "scale-[0.98] opacity-70 ring-2 ring-violet-500/60",
+                    drag && drag.idx !== i && drag.target === i && "ring-2 ring-violet-500/50",
                   )}
                 >
                   <div

@@ -270,40 +270,43 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
   const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
 
-  // Pointer-based drag-to-reorder the step nodes (desktop + touch).
+  // Pointer-based drag-to-reorder the step nodes (desktop + touch). The grabbed
+  // node LIFTS and follows the cursor, then drops into the nearest slot.
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ id: string; pointerId: number } | null>(null);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const targetIndexAt = (clientX: number): number | null => {
+  const dragRef = useRef<{ id: string; startX: number; pointerId: number; idx: number; target: number } | null>(null);
+  const [drag, setDrag] = useState<{ idx: number; dx: number; target: number } | null>(null);
+  const targetIndexAt = (clientX: number, exclude: number): number | null => {
     const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
     if (!cards) return null;
     let target: number | null = null;
-    cards.forEach((card) => { const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = Number(card.dataset.stepIdx); });
+    cards.forEach((card) => { const idx = Number(card.dataset.stepIdx); if (idx === exclude) return; const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = idx; });
     return target;
   };
   const stepDragHandlers = (i: number) => ({
     onPointerDown: (e: RPointerEvent<HTMLElement>) => {
       if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      dragState.current = { id: steps[i].id, pointerId: e.pointerId };
-      setDragIdx(i);
+      dragRef.current = { id: steps[i].id, startX: e.clientX, pointerId: e.pointerId, idx: i, target: i };
+      setDrag({ idx: i, dx: 0, target: i });
     },
     onPointerMove: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragState.current; if (!d) return;
-      const target = targetIndexAt(e.clientX);
-      if (target === null) return;
-      setSteps((prev) => {
-        const from = prev.findIndex((s) => s.id === d.id);
-        if (from === -1 || from === target) return prev;
-        const n = [...prev]; const [m] = n.splice(from, 1); n.splice(target, 0, m); return n;
-      });
-      setDragIdx((v) => (v === target ? v : target));
+      const d = dragRef.current; if (!d) return;
+      const t = targetIndexAt(e.clientX, d.idx);
+      if (t !== null) d.target = t;
+      setDrag({ idx: d.idx, dx: e.clientX - d.startX, target: d.target });
     },
     onPointerUp: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragState.current; if (!d) return;
+      const d = dragRef.current; if (!d) return;
       try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
-      dragState.current = null;
-      setDragIdx(null);
+      if (d.target !== d.idx) {
+        setSteps((prev) => {
+          const from = prev.findIndex((s) => s.id === d.id);
+          if (from === -1 || from === d.target) return prev;
+          const n = [...prev]; const [m] = n.splice(from, 1); n.splice(d.target, 0, m); return n;
+        });
+      }
+      dragRef.current = null;
+      setDrag(null);
     },
   });
 
@@ -381,22 +384,6 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
       <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
 
-          {/* AI brief node */}
-          <div className="flex h-full items-start">
-            <div className="flex max-h-full w-[320px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-brand-500/35 bg-gradient-to-b from-brand-500/10 to-violet-500/10">
-              <div className="flex items-center gap-2.5 border-b border-border/60 px-3.5 py-3">
-                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 text-white"><Sparkles className="h-[18px] w-[18px]" /></span>
-                <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Build with AI</div><div className="text-[13px] font-bold">Describe the flow</div></div>
-              </div>
-              <div className="p-3">
-                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} placeholder="e.g. A 3-step win-back for quiet customers: a check-in, a 15% offer 2 days later, then a last-call SMS. Personalize each." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] leading-relaxed outline-none focus:border-brand-500/60" />
-                <button onClick={buildWithAI} disabled={!onAsk} className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build the flow</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex h-full items-center px-0.5"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-brand-500/50 to-violet-500/45" /></div>
-
           {/* audience node */}
           <div className="flex h-full items-start">
             <div className="flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-border bg-card">
@@ -446,7 +433,13 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
               </div>
               <div
                 data-step-idx={i}
-                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragIdx === i ? "scale-[0.98] border-violet-500 opacity-70 ring-2 ring-violet-500/60" : "border-border", flashSteps && dragIdx !== i && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]")}
+                style={drag?.idx === i ? { transform: `translateX(${drag.dx}px)`, zIndex: 50 } : undefined}
+                className={cn(
+                  "flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card animate-in fade-in slide-in-from-right-4 duration-300",
+                  drag?.idx === i ? "cursor-grabbing scale-[1.03] border-violet-500 opacity-95 shadow-2xl ring-2 ring-violet-500/70 transition-none" : "border-border transition",
+                  drag && drag.idx !== i && drag.target === i && "ring-2 ring-violet-500/50",
+                  flashSteps && !drag && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
+                )}
               >
                 <div
                   {...stepDragHandlers(i)}
