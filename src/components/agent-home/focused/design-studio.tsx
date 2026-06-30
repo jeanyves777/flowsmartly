@@ -1664,7 +1664,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
             {/* On small screens the controls are a slide-over drawer (so they don't
                 steal horizontal space and push the canvas off-screen); inline column at lg+. */}
             <button aria-label="Close controls" onClick={() => setToolsOpen(false)} className="absolute inset-0 z-20 bg-black/40 lg:hidden" />
-          <div className="z-30 flex shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[280px] max-lg:max-w-[86%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[272px] lg:border-s lg:border-border">
+          <div className="z-30 flex shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[300px] max-lg:max-w-[88%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[300px] lg:border-s lg:border-border">
             <div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
               <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
               <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
@@ -1885,7 +1885,18 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
 }
 
 function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Palette; label: string }) {
-  return <button onClick={onClick} className={cn("inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[11.5px] font-semibold transition", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}><Icon className="h-[15px] w-[15px] shrink-0" /> {label}</button>;
+  // Compact segmented tabs: the active tab grows to show its label; the rest stay
+  // icon-only (with a tooltip) so all four always fit without truncating.
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] font-semibold transition",
+        active ? "flex-1 bg-brand-500/10 px-2 text-brand-500" : "h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}>
+      <Icon className="h-[15px] w-[15px] shrink-0" />
+      {active && <span className="truncate">{label}</span>}
+    </button>
+  );
 }
 function ControlGroup({ title, children }: { title: string; children: ReactNode }) {
   return <div className="mb-4"><h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>{children}</div>;
