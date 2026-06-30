@@ -358,7 +358,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
         <div className="mx-auto mt-[2vh] max-w-lg">
-          <StoreCallToAction onBuild={(p) => onAsk(p)} />
+          <StoreCallToAction onBuild={(p) => onAsk(p)} onTopUp={() => onOpenView("credits")} />
         </div>
       </div>
     );

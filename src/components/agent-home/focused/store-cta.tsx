@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, ArrowLeft } from "lucide-react";
+import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, ArrowLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils/cn";
  * of showing empty Products/Orders/Customers menus, a user without a store sees
  * what they get and exactly what it costs, then one button that reveals an INLINE
  * brief. Only the brief's final "Build my store" button spins the agent with the
- * gathered details (mirrors the website builder — gather the brief in the UI
- * FIRST, then spin the agent; no back-and-forth in chat). Used by the Sell side
- * panel and the Sell focused view. [[new-design-no-legacy]]
+ * gathered details. Used by the Sell side panel and the Sell focused view.
+ *
+ * Pricing is NEVER hardcoded — the AI store-build credit cost is read live from
+ * /api/credits/costs (admin-editable; could be 0). The "Build my store" button is
+ * DISABLED when the user can't afford it, with a top-up CTA. [[credit-based-not-plan-based]]
  */
 
 // What the store gives them — grounded in the real ecommerce feature set.
@@ -23,22 +25,33 @@ const BENEFITS = [
   "AI product copy, images & ad creatives on tap",
 ];
 
-// What it costs — exact, no surprises.
-const CHARGES: { icon: typeof Gift; label: string; value: string; good?: boolean }[] = [
-  { icon: Gift, label: "Activation & hosting", value: "Free — no monthly fee", good: true },
-  { icon: BadgePercent, label: "Platform fee per sale", value: "3% of each order" },
-  { icon: CreditCard, label: "Card processing", value: "Stripe 2.9% + $0.30" },
-  { icon: Wallet, label: "AI store build", value: "~500 credits ($5) once" },
-];
-
 const STORE_STYLES = ["Modern", "Bold", "Minimal", "Elegant", "Playful"];
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "INR", "ZAR"];
 const SC_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
-export function StoreCallToAction({ onBuild, compact }: { onBuild: (prompt: string) => void; compact?: boolean }) {
+// 1 credit = $0.01 — show the $ equivalent without trailing ".00".
+function usd(credits: number): string {
+  const d = credits / 100;
+  return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
+}
+
+export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean }) {
   // The CTA gathers a brief in the UI BEFORE spinning the agent. "Create my
   // store" reveals the inline form; only "Build my store" calls onBuild().
   const [briefing, setBriefing] = useState(false);
+  // Live pricing + balance (no hardcoded prices). null = still loading.
+  const [cost, setCost] = useState<number | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Can't afford only when we KNOW both numbers and the cost is > 0.
+  const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
 
   return (
     <div className={compact ? "w-full" : "mx-auto w-full max-w-lg"}>
@@ -65,7 +78,7 @@ export function StoreCallToAction({ onBuild, compact }: { onBuild: (prompt: stri
         )}
 
         {briefing ? (
-          <StoreBrief onBuild={onBuild} />
+          <StoreBrief onBuild={onBuild} onTopUp={onTopUp} cost={cost} balance={balance} shortfall={shortfall} />
         ) : (
           <>
             {/* benefits */}
@@ -78,8 +91,8 @@ export function StoreCallToAction({ onBuild, compact }: { onBuild: (prompt: stri
               ))}
             </ul>
 
-            {/* charges — transparent, exact */}
-            <Charges />
+            {/* charges — transparent, live (no hardcoded prices) */}
+            <Charges cost={cost} />
 
             <button onClick={() => setBriefing(true)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <Sparkles className="h-4 w-4" /> Create my store
@@ -92,13 +105,20 @@ export function StoreCallToAction({ onBuild, compact }: { onBuild: (prompt: stri
   );
 }
 
-/* ── The transparent charges block (kept visible per the store-CTA product rule). */
-function Charges({ className }: { className?: string }) {
+/* ── The transparent charges block — the AI-build credit cost is read LIVE. */
+function Charges({ cost, className }: { cost: number | null; className?: string }) {
+  const buildValue = cost == null ? "Loading…" : cost === 0 ? "Free" : `${cost.toLocaleString()} credits · ${usd(cost)} once`;
+  const rows: { icon: typeof Gift; label: string; value: string; good?: boolean }[] = [
+    { icon: Gift, label: "Activation & hosting", value: "Free — no monthly fee", good: true },
+    { icon: BadgePercent, label: "Platform fee per sale", value: "Small % of each order" },
+    { icon: CreditCard, label: "Card processing", value: "Standard Stripe fees" },
+    { icon: Wallet, label: "AI store build", value: buildValue, good: cost === 0 },
+  ];
   return (
     <div className={cn("mt-4 rounded-xl border border-border bg-muted/30 p-3 text-left", className)}>
       <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">What it costs</p>
       <div className="space-y-1.5">
-        {CHARGES.map((c) => {
+        {rows.map((c) => {
           const Icon = c.icon;
           return (
             <div key={c.label} className="flex items-center gap-2.5">
@@ -115,8 +135,8 @@ function Charges({ className }: { className?: string }) {
 }
 
 /* ── The inline brief — gathered in the UI, then assembled into a detailed prompt
-      and handed to the agent via onBuild(). Mirrors the WebsiteBuilder pattern. */
-function StoreBrief({ onBuild }: { onBuild: (prompt: string) => void }) {
+      and handed to the agent via onBuild(). */
+function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (prompt: string) => void; onTopUp?: () => void; cost: number | null; balance: number | null; shortfall: boolean }) {
   const [name, setName] = useState("");
   const [sells, setSells] = useState("");
   const [products, setProducts] = useState("");
@@ -132,6 +152,7 @@ function StoreBrief({ onBuild }: { onBuild: (prompt: string) => void }) {
   }, []);
 
   const build = () => {
+    if (shortfall) return; // guarded — the button is disabled anyway
     if (!name.trim()) { setError("Add your store name."); return; }
     if (!sells.trim()) { setError("Tell the agent what you sell."); return; }
     const prompt = [
@@ -141,7 +162,7 @@ function StoreBrief({ onBuild }: { onBuild: (prompt: string) => void }) {
       products.trim() ? `- Starter products to add (with prices): ${products.trim()}` : "",
       `- Store style / vibe: ${style}`,
       `- Currency: ${currency}`,
-      "Set up secure Stripe checkout (cards + Cash-on-Delivery). Before you bill anything, confirm the EXACT charges (the ~500-credit / $5 one-time AI store build, 3% platform fee per sale, and Stripe 2.9% + $0.30 card processing) and get my OK first. Confirm in ONE short sentence when the store is ready.",
+      "Set up secure Stripe checkout (cards + Cash-on-Delivery). Before you bill anything, confirm the EXACT charges (the one-time AI store-build credit cost, the platform fee per sale, and card processing) and get my OK first. Confirm in ONE short sentence when the store is ready.",
     ].filter(Boolean).join("\n");
     onBuild(prompt);
   };
@@ -172,11 +193,20 @@ function StoreBrief({ onBuild }: { onBuild: (prompt: string) => void }) {
         {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
       </div>
 
-      {/* Keep the transparent charges visible so the user sees exact costs. */}
-      <Charges />
+      {/* Keep the transparent charges visible so the user sees the live costs. */}
+      <Charges cost={cost} />
+
+      {/* Not enough credits → can't build; offer a top-up instead of a dead button. */}
+      {shortfall && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">Building costs <span className="font-bold">{cost?.toLocaleString()} credits</span> — you have <span className="font-bold">{balance?.toLocaleString()}</span>. Top up to continue.</span>
+          {onTopUp && <button onClick={onTopUp} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><CreditCard className="h-3.5 w-3.5" /> Buy credits</button>}
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build my store</button>
+        <button onClick={build} disabled={shortfall} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", shortfall && "cursor-not-allowed opacity-50 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}><Sparkles className="h-4 w-4" /> Build my store</button>
         <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
       </div>
     </>
