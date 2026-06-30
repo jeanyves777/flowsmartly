@@ -292,32 +292,18 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* toolbar */}
-      <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Workflow className="h-4 w-4 text-brand-500" /> Follow-ups playground</span>
-        <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
-          <Dot /> {total} campaigns <Dot /> {active} active <Dot /> {steps.length}-step draft
-        </span>
+      {/* compact header — campaign name + actions */}
+      <div className="z-10 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2 backdrop-blur">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] bg-brand-500/10 text-brand-500"><Workflow className="h-4 w-4" /></span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[200px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[14px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
         <div className="ms-auto flex items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11.5px] text-muted-foreground sm:inline-flex"><Send className="h-3.5 w-3.5" /> <b className="font-bold tabular-nums text-foreground">{totalSent.toLocaleString()}</b> sent</span>
-          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse every campaign">
-            <LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}
-          </button>
-          <button onClick={newFlow} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
-            <Plus className="h-3.5 w-3.5" /> New flow
-          </button>
+          <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
+          <button onClick={newFlow} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
         </div>
       </div>
-
-      {/* name + AI shortcut */}
-      <div className="flex items-center gap-2.5 px-4 pb-1 pt-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Workflow className="h-4 w-4" /></span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background sm:max-w-[360px] sm:flex-none" />
-        <span className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500 sm:inline">Draft</span>
-        <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
-      </div>
-      <p className="px-4 pb-2 text-[11px] text-muted-foreground">Drag a step node&apos;s header to reorder · scroll the canvas sideways along the flow.</p>
-      {error && <p className="mx-4 mb-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>}
+      {error && <p className="mx-4 mb-2 mt-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>}
 
       {/* horizontal node canvas */}
       <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
@@ -388,16 +374,19 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
               </div>
               <div
                 data-step-idx={i}
-                draggable
-                onDragStart={() => { dragFrom.current = i; }}
-                onDragOver={(e) => { e.preventDefault(); if (dragFrom.current !== i) setDragOver(i); }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragFrom.current !== null && dragFrom.current !== i) setDragOver(i); }}
                 onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
                 onDrop={(e) => { e.preventDefault(); reorderStep(i); }}
-                onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
-                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition", dragOver === i ? "border-violet-500 ring-2 ring-violet-500/40" : "border-border")}
+                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300", dragOver === i ? "border-violet-500 ring-2 ring-violet-500/50" : "border-border")}
               >
-                <div className="flex cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing">
-                  <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                <div
+                  draggable
+                  onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
+                  onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                  title="Drag to reorder"
+                  className="flex cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                   <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
                   <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div><div className="truncate text-[12.5px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div></div>
                   <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>

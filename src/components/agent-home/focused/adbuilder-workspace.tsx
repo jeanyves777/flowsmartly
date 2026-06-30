@@ -471,88 +471,71 @@ export function FocusedAdBuilder({ refreshKey, onAsk }: { refreshKey?: number; o
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* toolbar */}
-      <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Megaphone className="h-4 w-4 text-brand-500" /> Ad builder</span>
-        {providers.length > 0 && (
-          <span className="hidden flex-wrap items-center gap-1.5 md:inline-flex">
-            <span className="text-[11px] text-muted-foreground">Providers:</span>
-            {providers.map((p) => {
-              const v = provVis(p.id);
-              return (
-                <span key={p.id} title={p.enabled ? "Live" : "Not connected"} className={cn("inline-flex items-center gap-1.5 rounded-full border bg-muted py-0.5 pe-2.5 ps-1.5 text-[11px] font-semibold", p.enabled ? "border-emerald-500/35 text-foreground" : "border-border text-muted-foreground")}>
-                  <span className={cn("h-1.5 w-1.5 rounded-full", p.enabled ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]" : "bg-muted-foreground")} />
-                  <span className="grid h-4 w-4 place-items-center rounded text-[8px] font-extrabold text-white" style={{ background: v.color }}>{v.mark}</span>
-                  {p.name.replace(/ Ads$/, "")}
-                </span>
-              );
-            })}
-          </span>
-        )}
+      {/* compact header — campaign name + actions (providers live in the Goal & placement step) */}
+      <div className="z-10 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2 backdrop-blur">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] bg-brand-500/10 text-brand-500"><Megaphone className="h-4 w-4" /></span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[200px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[14px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
         <div className="ms-auto flex items-center gap-2">
-          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
-          <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New</button>
+          <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
+          <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
         </div>
       </div>
-
-      {/* name + AI shortcut */}
-      <div className="flex items-center gap-2.5 px-4 pb-1 pt-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Megaphone className="h-4 w-4" /></span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background sm:max-w-[360px] sm:flex-none" />
-        <span className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500 sm:inline">Draft</span>
-        <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
-      </div>
-      <p className="px-4 pb-2 text-[11px] text-muted-foreground">Drag a node&apos;s header to rearrange · scroll the canvas sideways along the flow.</p>
       {notice && <p className="mx-4 mb-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-500">{notice}</p>}
 
       {/* horizontal node canvas */}
       <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
-          {order.map((key, i) => {
+          {order.slice(0, cur + 1).map((key, i) => {
             const d = STEP_DEFS[key];
             const done = i < cur, isActive = i === cur, last = i === order.length - 1;
-            const Icon = d.icon;
             return (
               <div key={key} className="flex h-full items-start">
-                {i > 0 && <div className="flex h-full items-center px-0.5"><div className={cn("h-0.5 w-6 rounded-full", i <= cur ? "bg-emerald-500" : "bg-gradient-to-r from-brand-500/50 to-violet-500/45")} /></div>}
+                {i > 0 && <div className="flex h-full items-center px-0.5"><div className={cn("h-0.5 w-6 rounded-full", i < cur ? "bg-emerald-500" : "bg-gradient-to-r from-brand-500/50 to-violet-500/45")} /></div>}
                 <div
                   data-step-idx={i}
-                  draggable
-                  onDragStart={() => { dragFrom.current = i; }}
-                  onDragOver={(e) => { e.preventDefault(); if (dragFrom.current !== i) setDragOver(i); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragFrom.current !== null && dragFrom.current !== i) setDragOver(i); }}
                   onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
                   onDrop={(e) => { e.preventDefault(); onDrop(i); }}
-                  onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
                   className={cn(
-                    "flex max-h-full w-[372px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition",
+                    "flex max-h-full w-[360px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition animate-in fade-in slide-in-from-right-4 duration-300",
                     isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
-                    dragOver === i && "border-violet-500 ring-2 ring-violet-500/40",
+                    dragOver === i && "border-violet-500 ring-2 ring-violet-500/50",
                   )}
                 >
-                  <div className="flex cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing">
-                    <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", done ? "border-emerald-500 bg-emerald-500 text-white" : isActive ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "border-border bg-background text-muted-foreground")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <div
+                    draggable
+                    onDragStart={(e) => { dragFrom.current = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
+                    onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                    title="Drag to reorder"
+                    className="flex cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", done ? "border-emerald-500 bg-emerald-500 text-white" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
                     <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{d.kicker}</div><div className="truncate text-[13px] font-bold">{d.title}</div></div>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto p-3">{stepBody(key)}</div>
-                  <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
-                    <button onClick={() => setCur(i)} className="rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">Open</button>
-                    <span className="ms-auto" />
-                    {last ? (
-                      <>
-                        <button onClick={launchAsIs} disabled={launching || source === "describe"} title={source === "describe" ? "Describe-it has no destination — use Build with AI" : ""} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-50">{launching ? <FlowLoader size={12} /> : <Rocket className="h-3.5 w-3.5" />} Launch · {budgetNum}cr</button>
-                        <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build &amp; launch</button>
-                      </>
-                    ) : (
-                      <button onClick={() => setCur((n) => Math.min(order.length - 1, n + 1))} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white">Continue <ArrowRight className="h-3.5 w-3.5" /></button>
-                    )}
-                  </div>
+                  {isActive && (
+                    <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
+                      <span className="text-[10.5px] text-muted-foreground">{last ? "Final step" : `Step ${i + 1} of ${order.length}`}</span>
+                      <span className="ms-auto" />
+                      {last ? (
+                        <>
+                          <button onClick={launchAsIs} disabled={launching || source === "describe"} title={source === "describe" ? "Describe-it has no destination — use Build with AI" : ""} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-50">{launching ? <FlowLoader size={12} /> : <Rocket className="h-3.5 w-3.5" />} Launch · {budgetNum}cr</button>
+                          <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build &amp; launch</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setCur((n) => Math.min(order.length - 1, n + 1))} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white">Continue <ArrowRight className="h-3.5 w-3.5" /></button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
-        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> scroll &amp; drag sideways</span>
+        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> drag a node&apos;s header to reorder · scroll sideways</span>
       </div>
 
       {pickerOpen && <ProductPicker products={products} selected={productId} onPick={pickProduct} onClose={() => setPickerOpen(false)} />}
