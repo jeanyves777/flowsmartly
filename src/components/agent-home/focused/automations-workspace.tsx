@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
-import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Wand2, Check, Target } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Wand2, Check, Target, GripVertical, ArrowLeftRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -270,6 +270,17 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
   const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
 
+  // Drag-to-reorder the step nodes on the horizontal canvas.
+  const dragFrom = useRef<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const reorderStep = (to: number) => {
+    const from = dragFrom.current;
+    dragFrom.current = null;
+    setDragOver(null);
+    if (from === null || from === to) return;
+    setSteps((prev) => { const n = [...prev]; const [m] = n.splice(from, 1); n.splice(to, 0, m); return n; });
+  };
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
   }
@@ -298,168 +309,132 @@ export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number;
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        {/* canvas — the flow builder */}
-        <div className="relative min-h-0 flex-1 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
-          <div className="flex min-h-full flex-col items-center px-6 py-6">
-            <div className="w-full max-w-[540px]">
-              {/* campaign name */}
-              <div className="mb-3.5 flex items-center gap-2.5">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Workflow className="h-4 w-4" /></span>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500">Draft</span>
+      {/* name + AI shortcut */}
+      <div className="flex items-center gap-2.5 px-4 pb-1 pt-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Workflow className="h-4 w-4" /></span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background sm:max-w-[360px] sm:flex-none" />
+        <span className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500 sm:inline">Draft</span>
+        <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+      </div>
+      <p className="px-4 pb-2 text-[11px] text-muted-foreground">Drag a step node&apos;s header to reorder · scroll the canvas sideways along the flow.</p>
+      {error && <p className="mx-4 mb-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>}
+
+      {/* horizontal node canvas */}
+      <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+        <div className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
+
+          {/* AI brief node */}
+          <div className="flex h-full items-start">
+            <div className="flex max-h-full w-[320px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-brand-500/35 bg-gradient-to-b from-brand-500/10 to-violet-500/10">
+              <div className="flex items-center gap-2.5 border-b border-border/60 px-3.5 py-3">
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 text-white"><Sparkles className="h-[18px] w-[18px]" /></span>
+                <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Build with AI</div><div className="text-[13px] font-bold">Describe the flow</div></div>
               </div>
-
-              {/* AI hero */}
-              <div className="mb-4 rounded-2xl border border-brand-500/35 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[10.5px] font-bold text-white"><Sparkles className="h-3 w-3" /> Build with AI</span>
-                  <h3 className="text-[13px] font-bold">Describe it — the agent builds the whole flow</h3>
-                </div>
-                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2}
-                  placeholder="e.g. A 3-step win-back for my quiet customers: a friendly check-in, a 15% offer 2 days later, then a last-call SMS. Personalize each to the contact."
-                  className="mt-2.5 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
-                <div className="mt-2.5 flex items-center gap-2">
-                  <span className="hidden text-[11px] text-muted-foreground sm:inline">Targets the audience below · personalizes every message · you confirm before anything sends.</span>
-                  <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
-                    <Sparkles className="h-3.5 w-3.5" /> Build the flow
-                  </button>
-                </div>
-              </div>
-
-              {/* audience node */}
-              <div className="rounded-2xl border border-border bg-card transition hover:border-brand-500/45">
-                <div className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Users className="h-[18px] w-[18px]" /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Audience</div>
-                    <div className="text-[13px] font-bold">Who this flow targets</div>
-                  </div>
-                  <span className="shrink-0 rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-500">start</span>
-                </div>
-                <div className="flex gap-1.5 px-3.5 pb-2.5">
-                  {([["single", "Single", User], ["multi", "Selected", Users], ["segment", "Segment", Layers]] as const).map(([m, label, Icon]) => (
-                    <button key={m} onClick={() => setMode(m)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", mode === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
-                      <Icon className="h-3.5 w-3.5" /> {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="px-3.5 pb-3.5">
-                  {mode === "single" ? (
-                    <AudienceCard
-                      icon={single ? undefined : <User className="h-4 w-4" />}
-                      avatar={single ? contactById(single)?.name : undefined}
-                      title={single ? (contactById(single)?.name ?? "Contact") : "No contact picked"}
-                      sub={single ? (contactById(single)?.email ?? contactById(single)?.phone ?? "") : "Choose who to message"}
-                      onPick={() => setPickerOpen(true)}
-                    />
-                  ) : mode === "segment" ? (
-                    <AudienceCard
-                      icon={<Layers className="h-4 w-4" />}
-                      violet
-                      title={segment ? (lists.find((l) => l.id === segment)?.name ?? "Segment") : "No segment picked"}
-                      sub={segment ? `${(lists.find((l) => l.id === segment)?.totalCount ?? 0).toLocaleString()} contacts match` : "Choose a list/segment"}
-                      onPick={() => setPickerOpen(true)}
-                    />
-                  ) : (
-                    <>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {selected.map((id, i) => {
-                          const c = contactById(id);
-                          return (
-                            <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted py-0.5 pe-2.5 ps-0.5 text-[11.5px] font-semibold">
-                              <span className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c?.name ?? "?")}</span>
-                              {c?.name ?? "Contact"}
-                            </span>
-                          );
-                        })}
-                        <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">
-                          <Plus className="h-3 w-3" /> {selected.length ? "Add / change" : "Select contacts"}
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">Each contact gets their own personalized copy of every message.</p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* steps with wait connectors */}
-              {steps.map((s, i) => (
-                <div key={s.id}>
-                  <Connector onAdd={() => addStep()}>
-                    <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground">
-                      <Clock className="h-3.5 w-3.5" /> {i === 0 ? (s.wait === 0 ? "Start: immediately" : `Start: ${s.wait}d in`) : waitLabel(s.wait)}
-                    </button>
-                  </Connector>
-                  <div className="rounded-2xl border border-border bg-card transition hover:border-brand-500/45">
-                    <div className="flex items-center gap-2.5 px-3.5 py-3">
-                      <span className={cn("grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>
-                        {s.channel === "EMAIL" ? <Mail className="h-[18px] w-[18px]" /> : <MessageSquare className="h-[18px] w-[18px]" />}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div>
-                        <div className="truncate text-[13px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div>
-                      </div>
-                      <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
-                      {steps.length > 1 && <button onClick={() => removeStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
-                    </div>
-                    <div className="px-3.5 pb-3">
-                      <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
-                        {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
-                        <Highlighted text={s.msg} />
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
-                      {s.personalize && <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2.5 py-1 text-[10.5px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized per contact</span>}
-                      <button onClick={() => { setEditingStep(s.id); if (onAsk && !s.msg.trim()) { /* hint only */ } }} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Wand2 className="h-3 w-3" /> Edit copy</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* add step */}
-              <Connector onAdd={() => addStep()} />
-
-              {/* launch */}
-              <div className="rounded-2xl border border-brand-500/40 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5 text-center">
-                <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
-                <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message to the contact</b>, and schedules the steps. You confirm the plan &amp; cost first.</p>
-                <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
+              <div className="p-3">
+                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} placeholder="e.g. A 3-step win-back for quiet customers: a check-in, a 15% offer 2 days later, then a last-call SMS. Personalize each." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] leading-relaxed outline-none focus:border-brand-500/60" />
+                <button onClick={buildWithAI} disabled={!onAsk} className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build the flow</button>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* rail — live campaigns */}
-        <aside className="hidden w-[266px] shrink-0 flex-col border-l border-border bg-card/40 lg:flex">
-          <div className="flex items-center gap-2 border-b border-border px-3.5 py-3 text-[12px] font-bold"><Workflow className="h-4 w-4 text-brand-500" /> Live campaigns <span className="ms-auto rounded-full bg-muted px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground">{total}</span></div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-            {error && <p className="mb-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[11.5px] text-rose-500">{error}</p>}
-            {automations.length ? automations.map((a) => {
-              const m = typeMeta(a.type);
-              const isEmail = (a.campaignType || "EMAIL").toUpperCase() === "EMAIL";
-              return (
-                <button key={a.id} onClick={() => setOpenId(a.id)} className="mb-2 block w-full rounded-xl border border-border bg-card p-2.5 text-left transition hover:border-brand-500/50">
-                  <div className="flex items-center gap-2">
-                    <m.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <b className="min-w-0 flex-1 truncate text-[12.5px]">{a.name}</b>
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
-                    <Dot />
-                    <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> <b className="font-bold text-foreground">{(a.totalSent ?? 0).toLocaleString()}</b></span>
-                  </div>
-                </button>
-              );
-            }) : (
-              <div className="rounded-xl border border-dashed border-border px-3 py-6 text-center">
-                <p className="text-[12px] font-medium">No live campaigns yet</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">Build a flow on the canvas and launch it — it shows up here.</p>
+          <div className="flex h-full items-center px-0.5"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-brand-500/50 to-violet-500/45" /></div>
+
+          {/* audience node */}
+          <div className="flex h-full items-start">
+            <div className="flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="flex items-center gap-2.5 px-3.5 py-3">
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Users className="h-[18px] w-[18px]" /></span>
+                <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Audience</div><div className="text-[13px] font-bold">Who this targets</div></div>
+                <span className="shrink-0 rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-500">start</span>
               </div>
-            )}
+              <div className="flex gap-1.5 px-3.5 pb-2.5">
+                {([["single", "Single", User], ["multi", "Selected", Users], ["segment", "Segment", Layers]] as const).map(([m, label, Icon]) => (
+                  <button key={m} onClick={() => setMode(m)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", mode === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </button>
+                ))}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3.5">
+                {mode === "single" ? (
+                  <AudienceCard icon={single ? undefined : <User className="h-4 w-4" />} avatar={single ? contactById(single)?.name : undefined} title={single ? (contactById(single)?.name ?? "Contact") : "No contact picked"} sub={single ? (contactById(single)?.email ?? contactById(single)?.phone ?? "") : "Choose who to message"} onPick={() => setPickerOpen(true)} />
+                ) : mode === "segment" ? (
+                  <AudienceCard icon={<Layers className="h-4 w-4" />} violet title={segment ? (lists.find((l) => l.id === segment)?.name ?? "Segment") : "No segment picked"} sub={segment ? `${(lists.find((l) => l.id === segment)?.totalCount ?? 0).toLocaleString()} contacts match` : "Choose a list/segment"} onPick={() => setPickerOpen(true)} />
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {selected.map((id, i) => {
+                        const c = contactById(id);
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted py-0.5 pe-2.5 ps-0.5 text-[11.5px] font-semibold">
+                            <span className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c?.name ?? "?")}</span>
+                            {c?.name ?? "Contact"}
+                          </span>
+                        );
+                      })}
+                      <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3 w-3" /> {selected.length ? "Add / change" : "Select contacts"}</button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">Each contact gets their own personalized copy of every message.</p>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-        </aside>
+
+          {/* step nodes (draggable, with wait connectors) */}
+          {steps.map((s, i) => (
+            <div key={s.id} className="flex h-full items-start">
+              <div className="flex h-full flex-col items-center justify-center px-1">
+                <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[10.5px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"><Clock className="h-3 w-3" /> {i === 0 ? (s.wait === 0 ? "Start" : `${s.wait}d in`) : waitLabel(s.wait)}</button>
+              </div>
+              <div
+                data-step-idx={i}
+                draggable
+                onDragStart={() => { dragFrom.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); if (dragFrom.current !== i) setDragOver(i); }}
+                onDragLeave={() => setDragOver((v) => (v === i ? null : v))}
+                onDrop={(e) => { e.preventDefault(); reorderStep(i); }}
+                onDragEnd={() => { dragFrom.current = null; setDragOver(null); }}
+                className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition", dragOver === i ? "border-violet-500 ring-2 ring-violet-500/40" : "border-border")}
+              >
+                <div className="flex cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing">
+                  <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                  <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
+                  <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div><div className="truncate text-[12.5px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div></div>
+                  <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
+                  {steps.length > 1 && <button onClick={() => removeStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                  <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
+                    {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
+                    <Highlighted text={s.msg} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
+                  {s.personalize && <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized</span>}
+                  <button onClick={() => setEditingStep(s.id)} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Wand2 className="h-3 w-3" /> Edit</button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* add step node */}
+          <div className="flex h-full items-start">
+            <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-brand-500/50 to-violet-500/45" /></div>
+            <button onClick={addStep} className="flex h-[120px] w-[150px] shrink-0 flex-col items-center justify-center gap-1.5 self-center rounded-2xl border border-dashed border-border bg-card/60 text-muted-foreground transition hover:border-brand-500/50 hover:text-foreground"><Plus className="h-5 w-5" /><span className="text-[12px] font-semibold">Add step</span></button>
+          </div>
+
+          {/* launch node */}
+          <div className="flex h-full items-start">
+            <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-violet-500/45 to-brand-500/50" /></div>
+            <div className="flex w-[300px] shrink-0 flex-col self-center rounded-2xl border border-brand-500/40 bg-gradient-to-b from-brand-500/10 to-violet-500/10 p-4 text-center">
+              <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
+              <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message</b>, and schedules the steps. You confirm cost first.</p>
+              <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
+            </div>
+          </div>
+
+        </div>
+        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> scroll &amp; drag sideways</span>
       </div>
 
       {/* step editor sheet */}
@@ -538,18 +513,6 @@ function mergeContacts(prev: ContactOption[], next: ContactOption[]): ContactOpt
 }
 
 function Dot() { return <span className="inline-block h-[3px] w-[3px] rounded-full bg-current opacity-50" />; }
-
-function Connector({ onAdd, children }: { onAdd: () => void; children?: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
-      {children ?? (
-        <button onClick={onAdd} title="Add a step" className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-border bg-background text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"><Plus className="h-3.5 w-3.5" /></button>
-      )}
-      <div className="h-4 w-0.5 bg-gradient-to-b from-violet-500/40 to-brand-500/50" />
-    </div>
-  );
-}
 
 function AudienceCard({ icon, avatar, title, sub, violet, onPick }: { icon?: ReactNode; avatar?: string; title: string; sub: string; violet?: boolean; onPick: () => void }) {
   return (
