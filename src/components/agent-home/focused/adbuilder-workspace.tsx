@@ -138,7 +138,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
   const [order, setOrder] = useState<StepKey[]>(DEFAULT_ORDER);
   const [cur, setCur] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ key: StepKey; startX: number; pointerId: number; idx: number; target: number } | null>(null);
+  const dragRef = useRef<{ key: StepKey; idx: number; target: number } | null>(null);
   const [drag, setDrag] = useState<{ idx: number; dx: number; target: number } | null>(null);
   // Nodes the agent just filled — briefly ringed so the user SEES it land.
   const [flashKeys, setFlashKeys] = useState<Set<StepKey>>(() => new Set());
@@ -337,9 +337,9 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
     load();
   };
 
-  // Pointer-based drag-to-reorder (desktop + touch). The grabbed node LIFTS and
-  // follows the cursor (translateX) so it's obviously draggable even when there's
-  // nothing yet to reorder; it drops into the nearest slot on release.
+  // Drag-to-reorder tracked on the WINDOW (not pointer-capture, which is flaky on
+  // small handles) — the proven pattern from the design studio. The grabbed node
+  // lifts and follows the cursor; it drops into the nearest slot on release.
   const targetIndexAt = (clientX: number, exclude: number): number | null => {
     const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
     if (!cards) return null;
@@ -347,23 +347,23 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
     cards.forEach((card) => { const idx = Number(card.dataset.stepIdx); if (idx === exclude) return; const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = idx; });
     return target;
   };
-  const dragHandlers = (i: number) => ({
-    onPointerDown: (e: RPointerEvent<HTMLElement>) => {
-      if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      dragRef.current = { key: order[i], startX: e.clientX, pointerId: e.pointerId, idx: i, target: i };
-      setDrag({ idx: i, dx: 0, target: i });
-    },
-    onPointerMove: (e: RPointerEvent<HTMLElement>) => {
+  const startDrag = (i: number) => (e: RPointerEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    dragRef.current = { key: order[i], idx: i, target: i };
+    setDrag({ idx: i, dx: 0, target: i });
+    const move = (ev: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
-      const t = targetIndexAt(e.clientX, d.idx);
+      const t = targetIndexAt(ev.clientX, d.idx);
       if (t !== null) d.target = t;
-      setDrag({ idx: d.idx, dx: e.clientX - d.startX, target: d.target });
-    },
-    onPointerUp: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragRef.current; if (!d) return;
-      try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
-      if (d.target !== d.idx) {
+      setDrag({ idx: d.idx, dx: ev.clientX - startX, target: d.target });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const d = dragRef.current;
+      if (d && d.target !== d.idx) {
         setOrder((prev) => {
           const from = prev.indexOf(d.key);
           if (from === -1 || from === d.target) return prev;
@@ -372,8 +372,10 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
       }
       dragRef.current = null;
       setDrag(null);
-    },
-  });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   // ── Live agent-fill bridge ─────────────────────────────────────────────
   // getContext serializes the open canvas (tagged [ADBUILDER]) for the agent;
@@ -623,9 +625,9 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
                   )}
                 >
                   <div
-                    {...dragHandlers(i)}
+                    onPointerDown={startDrag(i)}
                     title="Drag to reorder"
-                    className="flex touch-none cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                    className="flex touch-none cursor-grab select-none items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
                   >
                     <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                     <button type="button" onClick={() => setCur(i)} title={done ? "Go back to this step" : "This step"} className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold transition", done ? "border-emerald-500 bg-emerald-500 text-white hover:brightness-110" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</button>

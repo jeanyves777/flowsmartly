@@ -270,10 +270,11 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
   const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
 
-  // Pointer-based drag-to-reorder the step nodes (desktop + touch). The grabbed
-  // node LIFTS and follows the cursor, then drops into the nearest slot.
+  // Drag-to-reorder tracked on the WINDOW (not pointer-capture, which is flaky on
+  // small handles) — the proven pattern from the design studio. The grabbed step
+  // lifts and follows the cursor; it drops into the nearest slot on release.
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: string; startX: number; pointerId: number; idx: number; target: number } | null>(null);
+  const dragRef = useRef<{ id: string; idx: number; target: number } | null>(null);
   const [drag, setDrag] = useState<{ idx: number; dx: number; target: number } | null>(null);
   const targetIndexAt = (clientX: number, exclude: number): number | null => {
     const cards = trackRef.current?.querySelectorAll<HTMLElement>("[data-step-idx]");
@@ -282,23 +283,23 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
     cards.forEach((card) => { const idx = Number(card.dataset.stepIdx); if (idx === exclude) return; const r = card.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) target = idx; });
     return target;
   };
-  const stepDragHandlers = (i: number) => ({
-    onPointerDown: (e: RPointerEvent<HTMLElement>) => {
-      if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      dragRef.current = { id: steps[i].id, startX: e.clientX, pointerId: e.pointerId, idx: i, target: i };
-      setDrag({ idx: i, dx: 0, target: i });
-    },
-    onPointerMove: (e: RPointerEvent<HTMLElement>) => {
+  const startDrag = (i: number) => (e: RPointerEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a")) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    dragRef.current = { id: steps[i].id, idx: i, target: i };
+    setDrag({ idx: i, dx: 0, target: i });
+    const move = (ev: PointerEvent) => {
       const d = dragRef.current; if (!d) return;
-      const t = targetIndexAt(e.clientX, d.idx);
+      const t = targetIndexAt(ev.clientX, d.idx);
       if (t !== null) d.target = t;
-      setDrag({ idx: d.idx, dx: e.clientX - d.startX, target: d.target });
-    },
-    onPointerUp: (e: RPointerEvent<HTMLElement>) => {
-      const d = dragRef.current; if (!d) return;
-      try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
-      if (d.target !== d.idx) {
+      setDrag({ idx: d.idx, dx: ev.clientX - startX, target: d.target });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const d = dragRef.current;
+      if (d && d.target !== d.idx) {
         setSteps((prev) => {
           const from = prev.findIndex((s) => s.id === d.id);
           if (from === -1 || from === d.target) return prev;
@@ -307,8 +308,10 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
       }
       dragRef.current = null;
       setDrag(null);
-    },
-  });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   // ── Live agent-fill bridge ─────────────────────────────────────────────
   // getContext serializes the open flow (tagged [FOLLOWUP]) for the agent;
@@ -442,9 +445,9 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
                 )}
               >
                 <div
-                  {...stepDragHandlers(i)}
+                  onPointerDown={startDrag(i)}
                   title="Drag to reorder"
-                  className="flex touch-none cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
+                  className="flex touch-none cursor-grab select-none items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing"
                 >
                   <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
                   <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
