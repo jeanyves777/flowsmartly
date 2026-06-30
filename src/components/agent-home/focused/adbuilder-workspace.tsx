@@ -446,6 +446,33 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
   const portfolioRoas = spentForRoas > 0 ? totalRevenue / spentForRoas : 0;
   const detailCampaign = campaigns.find((c) => c.id === detailId) || null;
 
+  // A step must be COMPLETE before Continue advances — no skipping past empty
+  // steps (or a 'product' source with no store / no product picked).
+  const stepValid = (key: StepKey): boolean => {
+    switch (key) {
+      case "source":
+        if (source === "product") return hasStore !== false && !!productId;
+        if (source === "link") return /^https?:\/\/.+/i.test(destinationUrl.trim());
+        return describeText.trim().length > 2;
+      case "creative": return headline.trim().length > 0;
+      case "placement": return selectedPlacementIds.length > 0;
+      case "budget": return budgetNum >= 1;
+      case "review": return true;
+    }
+  };
+  const stepHint = (key: StepKey): string => {
+    switch (key) {
+      case "source":
+        if (source === "product") return hasStore === false ? "Build a store, or switch to a link / description" : "Pick a product to continue";
+        if (source === "link") return "Enter a valid link (https://…)";
+        return "Describe what to advertise";
+      case "creative": return "Add a headline — type one or tap Generate with AI";
+      case "placement": return "Pick at least one placement";
+      case "budget": return "Set a budget of at least 1 credit";
+      case "review": return "";
+    }
+  };
+
   const stepBody = (key: StepKey) => {
     switch (key) {
       case "source":
@@ -603,7 +630,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
                   {isActive && (
                     <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
                       {cur > 0 && <button onClick={() => setCur((n) => Math.max(0, n - 1))} title="Back a step" className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>}
-                      <span className="text-[10.5px] text-muted-foreground">{last ? "Final step" : `Step ${i + 1} of ${order.length}`}</span>
+                      <span className={cn("min-w-0 truncate text-[10.5px]", stepValid(key) ? "text-muted-foreground" : "text-amber-500")}>{stepValid(key) ? (last ? "Final step" : `Step ${i + 1} of ${order.length}`) : stepHint(key)}</span>
                       <span className="ms-auto" />
                       {last ? (
                         <>
@@ -611,7 +638,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
                           <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build &amp; launch</button>
                         </>
                       ) : (
-                        <button onClick={() => setCur((n) => Math.min(order.length - 1, n + 1))} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white">Continue <ArrowRight className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => stepValid(key) && setCur((n) => Math.min(order.length - 1, n + 1))} disabled={!stepValid(key)} title={stepValid(key) ? "" : stepHint(key)} className={cn("inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white", !stepValid(key) && "cursor-not-allowed opacity-50")}>Continue <ArrowRight className="h-3.5 w-3.5" /></button>
                       )}
                     </div>
                   )}
