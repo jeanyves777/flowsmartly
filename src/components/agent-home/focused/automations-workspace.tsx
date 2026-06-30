@@ -1,30 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
-import { Workflow, Sparkles, Mail, MessageSquare, Power, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
+import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Wand2, Check, Target } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Follow-ups — a deep new-design automations surface (the Outreach workspace
- * canvas): the automated follow-up sequences that run on their own. Full-width
- * master/detail — a sticky left card (KPIs + section nav + "New sequence" +
- * status filter) and a right pane that shows the sequences list OR a real
- * in-surface SEQUENCE BUILDER form that creates the automation directly
- * (POST /api/automations — trigger + channel + message + timing). Toggling
- * active/paused is a do-it-in-the-UI action (PATCH /api/automations/[id]
- * { enabled }), not a chat prompt.
+ * Follow-ups — an AI FLOW PLAYGROUND (the same canvas language as the Video
+ * playground). The canvas BUILDS a campaign: name it, target a single contact /
+ * multiple selected contacts / a segment, lay out a multi-step flow (message →
+ * wait → message) with PERSONALIZED, merge-field messages, then "Build & launch
+ * with AI" hands a structured brief to the agent on the left (onAsk) — it writes
+ * & personalizes each message per contact and schedules every step.
  *
- * Click a row to open an in-surface DETAIL panel (GET /api/automations/[id])
- * with full config, delivery stats and the recent activity log; edit its
- * settings (name, subject, content, send time, days offset, timezone, audience
- * list) via PATCH, or delete it (two-step inline confirm) via DELETE. The agent
- * only helps when the user asks it via the composer. No legacy links.
- * [[surface-buttons-are-ui-actions]] [[full-width-left-menu-layout]]
+ * The right rail shows live campaigns; the toolbar "Library" opens a full
+ * gallery of every campaign with status + statistics. Clicking a campaign opens
+ * the in-surface DETAIL drawer (GET /api/automations/[id]) — full config,
+ * delivery stats, recent activity, inline edit (PATCH), pause/activate (PATCH),
+ * delete (DELETE). Audience data: GET /api/contacts, GET /api/contact-lists.
+ * [[surface-buttons-are-ui-actions]] [[agent-operates-account-full-crud]]
+ * [[new-design-no-legacy]]
  */
 
 interface ContactListRef { id: string; name: string; totalCount: number; }
 interface ContactListOption { id: string; name: string; totalCount: number; }
+interface ContactOption { id: string; name: string; email?: string | null; phone?: string | null; company?: string | null; }
 interface Automation {
   id: string;
   name: string;
@@ -85,67 +85,87 @@ const TYPE_META: Record<string, { label: string; icon: ElementType }> = {
 };
 const typeMeta = (t: string) => TYPE_META[t] ?? { label: t.replace(/_/g, " ").toLowerCase(), icon: Workflow };
 
-// Trigger types offered in the in-surface builder. HOLIDAY is intentionally
-// excluded — the API requires a specific holidayId in the trigger (a holiday
-// picker), so that richer flow stays with the agent; everything here creates a
-// valid automation directly.
-const BUILDER_TYPES: { value: string; label: string; hint: string }[] = [
-  { value: "WELCOME", label: "Welcome", hint: "New signups & subscribers" },
-  { value: "BIRTHDAY", label: "Birthday", hint: "On a contact's birthday" },
-  { value: "ANNIVERSARY", label: "Anniversary", hint: "On their anniversary date" },
-  { value: "RE_ENGAGEMENT", label: "Re-engagement", hint: "Win back quiet contacts" },
-  { value: "ABANDONED_CART", label: "Abandoned cart", hint: "Left items behind" },
-  { value: "INACTIVITY", label: "Inactivity", hint: "No activity for a while" },
-  { value: "CUSTOM", label: "Custom", hint: "A schedule you define" },
-];
-
 // Common timezones — a compact, sensible set for the editor select.
 const TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Sao_Paulo",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Africa/Abidjan",
-  "Africa/Lagos",
-  "Asia/Dubai",
-  "Asia/Kolkata",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "Australia/Sydney",
+  "UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+  "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Berlin", "Africa/Abidjan",
+  "Africa/Lagos", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney",
 ];
+
+const MERGE_FIELDS = ["first_name", "last_name", "company", "last_order", "email"];
+const WAIT_OPTIONS = [0, 1, 2, 3, 5, 7, 14];
 
 function whenLabel(iso?: string | null): string {
   if (!iso) return "Not run yet";
   try { return `Last run ${new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`; } catch { return ""; }
 }
-
 function logWhen(iso: string): string {
   try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
 }
-
 function offsetLabel(n?: number): string {
   if (typeof n !== "number" || n === 0) return "on the day";
   if (n < 0) return `${Math.abs(n)} day${Math.abs(n) === 1 ? "" : "s"} before`;
   return `${n} day${n === 1 ? "" : "s"} after`;
 }
+function waitLabel(n: number): string {
+  if (!n || n <= 0) return "No wait";
+  return `Wait ${n} day${n === 1 ? "" : "s"}`;
+}
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).map((x) => x[0]).slice(0, 2).join("").toUpperCase() || "?";
+const AVATAR_COLORS = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#06b6d4"];
 
-type StatusFilter = "all" | "active" | "paused";
+/** Render a message with {{merge_field}} tokens highlighted. */
+function Highlighted({ text }: { text: string }) {
+  if (!text) return <span className="text-muted-foreground">No message yet</span>;
+  const parts = text.split(/(\{\{.*?\}\})/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        /^\{\{.*\}\}$/.test(p)
+          ? <span key={i} className="rounded bg-violet-500/15 px-1 font-semibold text-violet-300">{p}</span>
+          : <span key={i}>{p}</span>
+      )}
+    </>
+  );
+}
 
-export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+type Channel = "EMAIL" | "SMS";
+interface FlowStep { id: string; channel: Channel; subject: string; msg: string; wait: number; personalize: boolean; }
+type AudienceMode = "single" | "multi" | "segment";
+type LibFilter = "all" | "active" | "paused";
+
+let _seq = 0;
+const stepId = () => `st-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
+
+const DEFAULT_STEPS = (): FlowStep[] => [
+  { id: stepId(), channel: "EMAIL", subject: "", msg: "Hi {{first_name}}, ", wait: 0, personalize: true },
+];
+
+export function FocusedAutomations({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [building, setBuilding] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [libOpen, setLibOpen] = useState(false);
+  const [libFilter, setLibFilter] = useState<LibFilter>("all");
+  const [working, setWorking] = useState(false);
+
+  // Audience data.
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [lists, setLists] = useState<ContactListOption[]>([]);
+
+  // Flow-builder state.
+  const [name, setName] = useState("Untitled follow-up campaign");
+  const [brief, setBrief] = useState("");
+  const [mode, setMode] = useState<AudienceMode>("multi");
+  const [single, setSingle] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [segment, setSegment] = useState<string | null>(null);
+  const [steps, setSteps] = useState<FlowStep[]>(DEFAULT_STEPS);
+  const [editingStep, setEditingStep] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -155,10 +175,10 @@ export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?:
         if (j.data.stats) setStats(j.data.stats);
         setError("");
       } else {
-        setError(j?.error?.message || "Could not load your follow-ups.");
+        setError(j?.error?.message || "Could not load your campaigns.");
       }
     } catch {
-      setError("Could not load your follow-ups.");
+      setError("Could not load your campaigns.");
     }
   }, []);
 
@@ -168,7 +188,19 @@ export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?:
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  // Toggle active/paused inline — optimistic, then reconcile from the server.
+  // Audience sources — segments (lists) + a first page of contacts for the picker.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/contact-lists").then((r) => r.json()).then((j) => {
+      if (alive && j?.success && Array.isArray(j.data?.lists)) setLists(j.data.lists as ContactListOption[]);
+    }).catch(() => {});
+    fetch("/api/contacts?limit=50").then((r) => r.json()).then((j) => {
+      if (alive && j?.success && Array.isArray(j.data?.contacts)) setContacts(j.data.contacts as ContactOption[]);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Toggle active/paused inline — optimistic, then reconcile.
   const toggle = async (a: Automation) => {
     const next = !a.enabled;
     setBusyId(a.id);
@@ -176,13 +208,10 @@ export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?:
     setStats((s) => ({ ...s, active: Math.max(0, (s.active ?? 0) + (next ? 1 : -1)) }));
     try {
       const r = await fetch(`/api/automations/${a.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: next }),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || j?.success === false) {
-        // revert on failure
         setAutomations((list) => list.map((x) => (x.id === a.id ? { ...x, enabled: a.enabled } : x)));
         setStats((s) => ({ ...s, active: Math.max(0, (s.active ?? 0) + (next ? -1 : 1)) }));
       } else {
@@ -198,166 +227,298 @@ export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?:
 
   const openAutomation = automations.find((a) => a.id === openId) || null;
 
+  const contactById = useCallback((id: string) => contacts.find((c) => c.id === id), [contacts]);
+
+  // Build the structured brief and hand it to the agent (the launch).
+  const buildWithAI = () => {
+    if (!onAsk) return;
+    let aud = "";
+    if (mode === "single") {
+      const c = single ? contactById(single) : null;
+      aud = c ? `a single contact — ${c.name}${c.email ? ` <${c.email}>` : c.phone ? ` (${c.phone})` : ""}` : "a single contact (I'll pick)";
+    } else if (mode === "segment") {
+      const s = lists.find((l) => l.id === segment);
+      aud = s ? `the segment "${s.name}" (${s.totalCount.toLocaleString()} contacts)` : "a segment of contacts";
+    } else {
+      const names = selected.map((id) => contactById(id)).filter(Boolean).map((c) => `${c!.name}${c!.email ? ` <${c!.email}>` : c!.phone ? ` (${c!.phone})` : ""}`);
+      aud = names.length ? `${names.length} selected contacts: ${names.join("; ")}` : "the contacts I select";
+    }
+    const stepLines = steps.map((s, i) => {
+      const timing = i === 0 ? (s.wait === 0 ? "send immediately" : `after ${s.wait} day${s.wait === 1 ? "" : "s"}`) : `wait ${s.wait} day${s.wait === 1 ? "" : "s"}`;
+      const subj = s.channel === "EMAIL" && s.subject.trim() ? ` — subject: ${JSON.stringify(s.subject.trim())}` : "";
+      const body = s.msg.trim() ? ` — message: ${JSON.stringify(s.msg.trim())}` : " — (write the copy)";
+      return `${i + 1}. [${s.channel}] ${timing}${subj}${body}${s.personalize ? " — personalize per contact" : ""}`;
+    });
+    const prompt = [
+      `Set up and launch a follow-up campaign called "${name.trim() || "Untitled follow-up"}".`,
+      brief.trim() ? `What I want: ${brief.trim()}` : "",
+      `Audience: ${aud}.`,
+      steps.length ? `Flow steps (in order):\n${stepLines.join("\n")}` : `Design the right sequence of steps yourself based on what I described.`,
+      `Personalize each message to the contact (use their real first name, company, and history — replace any {{merge_fields}} with their actual data). Propose the plan + the exact credit cost first; on my confirm, create and schedule the sequence so each step goes out at the right time. Tell me when it's set up.`,
+    ].filter(Boolean).join("\n");
+    onAsk(prompt);
+    setWorking(true);
+    setTimeout(() => setWorking(false), 6000);
+  };
+
+  const addStep = () => {
+    const s: FlowStep = { id: stepId(), channel: steps[steps.length - 1]?.channel ?? "EMAIL", subject: "", msg: "", wait: 2, personalize: true };
+    setSteps((prev) => [...prev, s]);
+    setEditingStep(s.id);
+  };
+  const patchStep = (id: string, patch: Partial<FlowStep>) => setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
+  const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); };
+
   if (loading) {
-    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your follow-ups…" /></div>;
+    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
   }
 
-  const totalSent = stats.totalSent ?? automations.reduce((sum, a) => sum + (a.totalSent ?? 0), 0);
   const total = stats.total ?? automations.length;
   const active = stats.active ?? automations.filter((a) => a.enabled).length;
-  const paused = Math.max(0, total - active);
-
-  const visible = automations.filter((a) =>
-    filter === "active" ? a.enabled : filter === "paused" ? !a.enabled : true
-  );
-
-  const nav: { id: StatusFilter; label: string; icon: ElementType; count: number }[] = [
-    { id: "all", label: "All sequences", icon: Workflow, count: total },
-    { id: "active", label: "Active", icon: Zap, count: active },
-    { id: "paused", label: "Paused", icon: Pause, count: paused },
-  ];
+  const totalSent = stats.totalSent ?? automations.reduce((sum, a) => sum + (a.totalSent ?? 0), 0);
+  const editing = steps.find((s) => s.id === editingStep) || null;
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
-        {/* LEFT: sticky card — new sequence + KPIs + section nav */}
-        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
-          <button
-            onClick={() => { setBuilding(true); setNotice(""); setOpenId(null); }}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
-          >
-            <Plus className="h-4 w-4" /> New sequence
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* toolbar */}
+      <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Workflow className="h-4 w-4 text-brand-500" /> Follow-ups playground</span>
+        <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
+          <Dot /> {total} campaigns <Dot /> {active} active <Dot /> {steps.length}-step draft
+        </span>
+        <div className="ms-auto flex items-center gap-2">
+          <span className="hidden items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11.5px] text-muted-foreground sm:inline-flex"><Send className="h-3.5 w-3.5" /> <b className="font-bold tabular-nums text-foreground">{totalSent.toLocaleString()}</b> sent</span>
+          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse every campaign">
+            <LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}
           </button>
-
-          <div className="rounded-2xl border border-border bg-card p-3">
-            <div className="flex items-center gap-2 px-1 pb-2"><Workflow className="h-4 w-4 text-brand-500" /><span className="text-[12.5px] font-bold">Follow-ups</span></div>
-            <div className="space-y-1.5">
-              <SummaryRow icon={Send} label="Messages sent" value={totalSent.toLocaleString()} />
-            </div>
-          </div>
-
-          {/* section menu — status filter as a vertical nav */}
-          <nav className="rounded-2xl border border-border bg-card p-1.5">
-            {nav.map((n) => {
-              const isActive = filter === n.id && !building;
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => { setBuilding(false); setFilter(n.id); }}
-                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", isActive ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
-                >
-                  <n.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-start">{n.label}</span>
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", isActive ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* RIGHT: builder OR the sequences list, full width */}
-        <div className="min-w-0 flex-1 space-y-4">
-          {building ? (
-            <SequenceBuilder
-              onCancel={() => setBuilding(false)}
-              onCreated={(msg) => { setBuilding(false); setNotice(msg); setLoading(true); load().finally(() => setLoading(false)); }}
-            />
-          ) : (
-            <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <h3 className="text-[13px] font-bold">Follow-up sequences</h3>
-                {automations.length > 0 && (
-                  <button
-                    onClick={() => { setBuilding(true); setNotice(""); }}
-                    className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> New sequence
-                  </button>
-                )}
-              </div>
-
-              {notice && (
-                <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">{notice}</p>
-              )}
-              {error && (
-                <p className="mb-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
-              )}
-
-              {automations.length ? (
-                visible.length ? (
-                  <div className="space-y-2">
-                    {visible.map((a) => {
-                      const m = typeMeta(a.type);
-                      const isEmail = (a.campaignType || "EMAIL").toUpperCase() === "EMAIL";
-                      const reach = a.contactList?.totalCount;
-                      return (
-                        <div key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", a.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}>
-                            <m.icon className="h-[18px] w-[18px]" />
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setOpenId(a.id)}
-                            className="group min-w-0 flex-1 text-left"
-                            aria-label={`Open ${a.name}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-[13px] font-semibold group-hover:text-brand-500">{a.name}</p>
-                              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
-                            </div>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-muted-foreground">
-                              <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
-                              <span>· {whenLabel(a.lastTriggered)}</span>
-                              {typeof reach === "number" ? <span>· {reach.toLocaleString()} contacts</span> : a.contactList?.name ? <span>· {a.contactList.name}</span> : null}
-                            </p>
-                          </button>
-                          <button
-                            onClick={() => toggle(a)}
-                            disabled={busyId === a.id}
-                            className={cn(
-                              "inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border px-2.5 py-1 text-[11.5px] font-semibold transition disabled:opacity-60",
-                              a.enabled ? "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" : "border-brand-500/40 bg-brand-500/5 text-brand-500 hover:bg-brand-500/10"
-                            )}
-                          >
-                            {busyId === a.id ? <FlowLoader size={13} /> : a.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                            {a.enabled ? "Pause" : "Activate"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOpenId(a.id)}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                            aria-label="View details"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-                    <p className="text-[13px] font-medium">No {filter} sequences</p>
-                    <p className="mt-1 text-[12px] text-muted-foreground">Switch the filter to see your other follow-ups.</p>
-                  </div>
-                )
-              ) : (
-                <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-                  <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Power className="h-6 w-6" /></span>
-                  <p className="mt-3 text-[13px] font-medium">No follow-ups yet</p>
-                  <p className="mx-auto mt-1 max-w-sm text-[12px] text-muted-foreground">Automated sequences send the right message at the right moment — a welcome on signup, a birthday note, a nudge for an abandoned cart.</p>
-                  <button
-                    onClick={() => { setBuilding(true); setNotice(""); }}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
-                  >
-                    <Sparkles className="h-4 w-4" /> Build a sequence
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
+          <button onClick={newFlow} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <Plus className="h-3.5 w-3.5" /> New flow
+          </button>
         </div>
       </div>
 
+      <div className="flex min-h-0 flex-1">
+        {/* canvas — the flow builder */}
+        <div className="relative min-h-0 flex-1 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+          <div className="flex min-h-full flex-col items-center px-6 py-6">
+            <div className="w-full max-w-[540px]">
+              {/* campaign name */}
+              <div className="mb-3.5 flex items-center gap-2.5">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Workflow className="h-4 w-4" /></span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="min-w-0 flex-1 rounded-[9px] border border-transparent bg-transparent px-2 py-1.5 text-[16px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-amber-500">Draft</span>
+              </div>
+
+              {/* AI hero */}
+              <div className="mb-4 rounded-2xl border border-brand-500/35 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[10.5px] font-bold text-white"><Sparkles className="h-3 w-3" /> Build with AI</span>
+                  <h3 className="text-[13px] font-bold">Describe it — the agent builds the whole flow</h3>
+                </div>
+                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2}
+                  placeholder="e.g. A 3-step win-back for my quiet customers: a friendly check-in, a 15% offer 2 days later, then a last-call SMS. Personalize each to the contact."
+                  className="mt-2.5 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+                <div className="mt-2.5 flex items-center gap-2">
+                  <span className="hidden text-[11px] text-muted-foreground sm:inline">Targets the audience below · personalizes every message · you confirm before anything sends.</span>
+                  <button onClick={buildWithAI} disabled={!onAsk} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+                    <Sparkles className="h-3.5 w-3.5" /> Build the flow
+                  </button>
+                </div>
+              </div>
+
+              {/* audience node */}
+              <div className="rounded-2xl border border-border bg-card transition hover:border-brand-500/45">
+                <div className="flex items-center gap-2.5 px-3.5 py-3">
+                  <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-brand-500/10 text-brand-500"><Users className="h-[18px] w-[18px]" /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Audience</div>
+                    <div className="text-[13px] font-bold">Who this flow targets</div>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-500">start</span>
+                </div>
+                <div className="flex gap-1.5 px-3.5 pb-2.5">
+                  {([["single", "Single", User], ["multi", "Selected", Users], ["segment", "Segment", Layers]] as const).map(([m, label, Icon]) => (
+                    <button key={m} onClick={() => setMode(m)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", mode === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
+                      <Icon className="h-3.5 w-3.5" /> {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="px-3.5 pb-3.5">
+                  {mode === "single" ? (
+                    <AudienceCard
+                      icon={single ? undefined : <User className="h-4 w-4" />}
+                      avatar={single ? contactById(single)?.name : undefined}
+                      title={single ? (contactById(single)?.name ?? "Contact") : "No contact picked"}
+                      sub={single ? (contactById(single)?.email ?? contactById(single)?.phone ?? "") : "Choose who to message"}
+                      onPick={() => setPickerOpen(true)}
+                    />
+                  ) : mode === "segment" ? (
+                    <AudienceCard
+                      icon={<Layers className="h-4 w-4" />}
+                      violet
+                      title={segment ? (lists.find((l) => l.id === segment)?.name ?? "Segment") : "No segment picked"}
+                      sub={segment ? `${(lists.find((l) => l.id === segment)?.totalCount ?? 0).toLocaleString()} contacts match` : "Choose a list/segment"}
+                      onPick={() => setPickerOpen(true)}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {selected.map((id, i) => {
+                          const c = contactById(id);
+                          return (
+                            <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted py-0.5 pe-2.5 ps-0.5 text-[11.5px] font-semibold">
+                              <span className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c?.name ?? "?")}</span>
+                              {c?.name ?? "Contact"}
+                            </span>
+                          );
+                        })}
+                        <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">
+                          <Plus className="h-3 w-3" /> {selected.length ? "Add / change" : "Select contacts"}
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[11px] text-muted-foreground">Each contact gets their own personalized copy of every message.</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* steps with wait connectors */}
+              {steps.map((s, i) => (
+                <div key={s.id}>
+                  <Connector onAdd={() => addStep()}>
+                    <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground">
+                      <Clock className="h-3.5 w-3.5" /> {i === 0 ? (s.wait === 0 ? "Start: immediately" : `Start: ${s.wait}d in`) : waitLabel(s.wait)}
+                    </button>
+                  </Connector>
+                  <div className="rounded-2xl border border-border bg-card transition hover:border-brand-500/45">
+                    <div className="flex items-center gap-2.5 px-3.5 py-3">
+                      <span className={cn("grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>
+                        {s.channel === "EMAIL" ? <Mail className="h-[18px] w-[18px]" /> : <MessageSquare className="h-[18px] w-[18px]" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div>
+                        <div className="truncate text-[13px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div>
+                      </div>
+                      <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
+                      {steps.length > 1 && <button onClick={() => removeStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
+                    </div>
+                    <div className="px-3.5 pb-3">
+                      <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
+                        {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
+                        <Highlighted text={s.msg} />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
+                      {s.personalize && <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2.5 py-1 text-[10.5px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized per contact</span>}
+                      <button onClick={() => { setEditingStep(s.id); if (onAsk && !s.msg.trim()) { /* hint only */ } }} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Wand2 className="h-3 w-3" /> Edit copy</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* add step */}
+              <Connector onAdd={() => addStep()} />
+
+              {/* launch */}
+              <div className="rounded-2xl border border-brand-500/40 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3.5 text-center">
+                <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
+                <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message to the contact</b>, and schedules the steps. You confirm the plan &amp; cost first.</p>
+                <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* rail — live campaigns */}
+        <aside className="hidden w-[266px] shrink-0 flex-col border-l border-border bg-card/40 lg:flex">
+          <div className="flex items-center gap-2 border-b border-border px-3.5 py-3 text-[12px] font-bold"><Workflow className="h-4 w-4 text-brand-500" /> Live campaigns <span className="ms-auto rounded-full bg-muted px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground">{total}</span></div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+            {error && <p className="mb-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[11.5px] text-rose-500">{error}</p>}
+            {automations.length ? automations.map((a) => {
+              const m = typeMeta(a.type);
+              const isEmail = (a.campaignType || "EMAIL").toUpperCase() === "EMAIL";
+              return (
+                <button key={a.id} onClick={() => setOpenId(a.id)} className="mb-2 block w-full rounded-xl border border-border bg-card p-2.5 text-left transition hover:border-brand-500/50">
+                  <div className="flex items-center gap-2">
+                    <m.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <b className="min-w-0 flex-1 truncate text-[12.5px]">{a.name}</b>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
+                    <Dot />
+                    <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> <b className="font-bold text-foreground">{(a.totalSent ?? 0).toLocaleString()}</b></span>
+                  </div>
+                </button>
+              );
+            }) : (
+              <div className="rounded-xl border border-dashed border-border px-3 py-6 text-center">
+                <p className="text-[12px] font-medium">No live campaigns yet</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Build a flow on the canvas and launch it — it shows up here.</p>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* step editor sheet */}
+      {editing && (
+        <StepSheet
+          step={editing}
+          index={steps.indexOf(editing) + 1}
+          isFirst={steps.indexOf(editing) === 0}
+          onPatch={(p) => patchStep(editing.id, p)}
+          onClose={() => setEditingStep(null)}
+        />
+      )}
+
+      {/* audience picker sheet */}
+      {pickerOpen && (
+        <AudiencePicker
+          mode={mode}
+          contacts={contacts}
+          lists={lists}
+          single={single}
+          selected={selected}
+          segment={segment}
+          onPickSingle={(id) => { setSingle(id); setPickerOpen(false); }}
+          onToggleContact={(id) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+          onPickSegment={(id) => setSegment(id)}
+          onSearch={async (q) => {
+            try {
+              const j = await fetch(`/api/contacts?limit=50&search=${encodeURIComponent(q)}`).then((r) => r.json());
+              if (j?.success && Array.isArray(j.data?.contacts)) setContacts((prev) => mergeContacts(prev, j.data.contacts));
+            } catch { /* keep current */ }
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {/* campaign library */}
+      {libOpen && (
+        <CampaignLibrary
+          automations={automations}
+          filter={libFilter}
+          totals={{ total, active, totalSent }}
+          busyId={busyId}
+          onFilter={setLibFilter}
+          onToggle={toggle}
+          onOpen={(id) => { setLibOpen(false); setOpenId(id); }}
+          onNew={() => { setLibOpen(false); newFlow(); }}
+          onClose={() => setLibOpen(false)}
+        />
+      )}
+
+      {/* agent working banner */}
+      {working && (
+        <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl">
+          <FlowLoader size={15} />
+          <span className="text-[12px]">The agent is building &amp; personalizing your flow — confirm the plan in the chat on the left.</span>
+        </div>
+      )}
+
+      {/* detail drawer */}
       {openAutomation && (
         <AutomationDetailDrawer
           summary={openAutomation}
@@ -370,294 +531,287 @@ export function FocusedAutomations({ refreshKey, onAsk: _onAsk }: { refreshKey?:
   );
 }
 
-function SummaryRow({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
+function mergeContacts(prev: ContactOption[], next: ContactOption[]): ContactOption[] {
+  const byId = new Map(prev.map((c) => [c.id, c]));
+  for (const c of next) byId.set(c.id, c);
+  return Array.from(byId.values());
+}
+
+function Dot() { return <span className="inline-block h-[3px] w-[3px] rounded-full bg-current opacity-50" />; }
+
+function Connector({ onAdd, children }: { onAdd: () => void; children?: ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3 py-2">
-      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">{label}</p>
-      <span className="shrink-0 text-[15px] font-extrabold tabular-nums">{value}</span>
+    <div className="flex flex-col items-center">
+      <div className="h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
+      {children ?? (
+        <button onClick={onAdd} title="Add a step" className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-border bg-background text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"><Plus className="h-3.5 w-3.5" /></button>
+      )}
+      <div className="h-4 w-0.5 bg-gradient-to-b from-violet-500/40 to-brand-500/50" />
+    </div>
+  );
+}
+
+function AudienceCard({ icon, avatar, title, sub, violet, onPick }: { icon?: ReactNode; avatar?: string; title: string; sub: string; violet?: boolean; onPick: () => void }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-[11px] border border-border bg-muted px-3 py-2.5">
+      {avatar
+        ? <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: AVATAR_COLORS[0] }}>{initials(avatar)}</span>
+        : <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px]", violet ? "bg-violet-500/10 text-violet-400" : "bg-brand-500/10 text-brand-500")}>{icon}</span>}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[12.5px] font-semibold">{title}</div>
+        <div className="truncate text-[11px] text-muted-foreground">{sub}</div>
+      </div>
+      <button onClick={onPick} className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-foreground">Change</button>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Sequence builder — a real in-surface form that creates an automation directly
-// (POST /api/automations). Collects the trigger, channel, message and timing.
-// No agent prompt. [[surface-buttons-are-ui-actions]]
+// Step editor — a bottom sheet (channel, subject, message + merge fields, wait,
+// personalize toggle). Edits the in-memory flow; the agent renders it on launch.
 // ---------------------------------------------------------------------------
 
-const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
+const SHEET_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
-interface BuilderState {
-  name: string;
-  type: string;
-  campaignType: "EMAIL" | "SMS";
-  subject: string;
-  content: string;
-  sendTime: string;
-  daysOffset: string;
-  timezone: string;
-  contactListId: string;
-  enabled: boolean;
+function StepSheet({ step, index, isFirst, onPatch, onClose }: { step: FlowStep; index: number; isFirst: boolean; onPatch: (p: Partial<FlowStep>) => void; onClose: () => void }) {
+  const insertMerge = (f: string) => onPatch({ msg: `${step.msg}${step.msg && !step.msg.endsWith(" ") ? " " : ""}{{${f}}}` });
+  return (
+    <div className="absolute inset-0 z-50 flex justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute bottom-0 flex max-h-[80%] w-full max-w-[720px] flex-col rounded-t-[18px] border border-b-0 border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
+          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Step {index}</span>
+          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto px-4 pb-4">
+          <label className="mb-1.5 mt-1 block text-[11.5px] font-semibold text-muted-foreground">Channel</label>
+          <div className="grid grid-cols-2 gap-2">
+            {(["EMAIL", "SMS"] as const).map((ch) => (
+              <button key={ch} onClick={() => onPatch({ channel: ch })} className={cn("inline-flex items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2 text-[12.5px] font-semibold transition", step.channel === ch ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
+                {ch === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />} {ch === "EMAIL" ? "Email" : "SMS"}
+              </button>
+            ))}
+          </div>
+
+          {step.channel === "EMAIL" && (
+            <>
+              <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">Subject</label>
+              <input value={step.subject} onChange={(e) => onPatch({ subject: e.target.value })} className={SHEET_FIELD} placeholder="Subject line" />
+            </>
+          )}
+
+          <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">Message <span className="font-normal text-muted-foreground/70">— use merge fields to personalize</span></label>
+          <textarea value={step.msg} onChange={(e) => onPatch({ msg: e.target.value })} rows={4} className={cn(SHEET_FIELD, "resize-y leading-relaxed")} placeholder="Write the message…" />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {MERGE_FIELDS.map((f) => (
+              <button key={f} onClick={() => insertMerge(f)} className="rounded-[7px] border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[11px] font-semibold text-violet-300 hover:bg-violet-500/15">+ {`{{${f}}}`}</button>
+            ))}
+          </div>
+
+          <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">{isFirst ? "Start the flow" : "Wait before this step"}</label>
+          <select value={step.wait} onChange={(e) => onPatch({ wait: parseInt(e.target.value, 10) || 0 })} className={SHEET_FIELD}>
+            {WAIT_OPTIONS.map((n) => <option key={n} value={n}>{n === 0 ? (isFirst ? "Send immediately" : "No wait") : `${n} day${n === 1 ? "" : "s"}${isFirst ? " after start" : ""}`}</option>)}
+          </select>
+
+          <div className="mt-3.5 flex items-center gap-2.5 rounded-[11px] border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-3 py-2.5">
+            <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px] bg-violet-500/10 text-violet-400"><Sparkles className="h-4 w-4" /></span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] font-semibold">Personalize per contact</div>
+              <div className="text-[11px] text-muted-foreground">The agent tailors this message to each contact&apos;s name, history &amp; context.</div>
+            </div>
+            <button onClick={() => onPatch({ personalize: !step.personalize })} className={cn("relative h-5 w-9 shrink-0 rounded-full border transition", step.personalize ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500" : "border-border bg-muted")}>
+              <span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all", step.personalize ? "left-[18px]" : "left-0.5")} />
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <span className="ms-auto" />
+          <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm"><Check className="h-4 w-4" /> Done</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function SequenceBuilder({ onCancel, onCreated }: { onCancel: () => void; onCreated: (msg: string) => void }) {
-  const [form, setForm] = useState<BuilderState>({
-    name: "",
-    type: "WELCOME",
-    campaignType: "EMAIL",
-    subject: "",
-    content: "",
-    sendTime: "09:00",
-    daysOffset: "0",
-    timezone: "UTC",
-    contactListId: "",
-    enabled: true,
-  });
-  const [lists, setLists] = useState<ContactListOption[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+// ---------------------------------------------------------------------------
+// Audience picker — a bottom sheet. Single contact (radio), multi (checkbox), or
+// a segment (contact list). Live search hits /api/contacts.
+// ---------------------------------------------------------------------------
 
-  const isEmail = form.campaignType === "EMAIL";
-
-  // Pull contact lists once for the audience selector.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/contact-lists")
-      .then((r) => r.json())
-      .then((j) => {
-        if (alive && j?.success && Array.isArray(j.data?.lists)) {
-          setLists(j.data.lists as ContactListOption[]);
-        }
-      })
-      .catch(() => { /* selector still works with the default "all contacts" */ });
-    return () => { alive = false; };
-  }, []);
-
-  const setField = <K extends keyof BuilderState>(key: K, value: BuilderState[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
-
-  const submit = async () => {
-    if (!form.name.trim()) { setError("Give the sequence a name."); return; }
-    if (!form.content.trim()) { setError("The message content can't be empty."); return; }
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.sendTime)) { setError("Send time must be HH:mm (e.g. 09:00)."); return; }
-    const offsetNum = Number.parseInt(form.daysOffset, 10);
-    if (!Number.isFinite(offsetNum)) { setError("Days offset must be a number."); return; }
-
-    setSubmitting(true);
-    setError("");
-    try {
-      const r = await fetch("/api/automations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          type: form.type,
-          campaignType: form.campaignType,
-          subject: isEmail ? (form.subject.trim() || null) : undefined,
-          content: form.content,
-          sendTime: form.sendTime,
-          daysOffset: Math.max(-30, Math.min(30, offsetNum)),
-          timezone: form.timezone || "UTC",
-          contactListId: form.contactListId || null,
-          enabled: form.enabled,
-        }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) {
-        setError(j?.error?.message || "Could not create the sequence.");
-      } else {
-        const label = typeMeta(form.type).label;
-        onCreated(`“${form.name.trim()}” created — your ${label.toLowerCase()} ${isEmail ? "email" : "SMS"} follow-up is ${form.enabled ? "live" : "saved as paused"}.`);
-      }
-    } catch {
-      setError("Could not create the sequence.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+function AudiencePicker({ mode, contacts, lists, single, selected, segment, onPickSingle, onToggleContact, onPickSegment, onSearch, onClose }: {
+  mode: AudienceMode;
+  contacts: ContactOption[];
+  lists: ContactListOption[];
+  single: string | null;
+  selected: string[];
+  segment: string | null;
+  onPickSingle: (id: string) => void;
+  onToggleContact: (id: string) => void;
+  onPickSegment: (id: string) => void;
+  onSearch: (q: string) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  useEffect(() => { const t = setTimeout(() => onSearch(q), 250); return () => clearTimeout(t); }, [q, onSearch]);
+  const title = mode === "segment" ? "Choose a segment" : mode === "single" ? "Choose a contact" : "Select contacts";
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex items-center gap-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Workflow className="h-[18px] w-[18px]" /></span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[14px] font-bold">New follow-up sequence</h3>
-          <p className="text-[11.5px] text-muted-foreground">It runs on its own — pick the trigger, channel and message.</p>
+    <div className="absolute inset-0 z-50 flex justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute bottom-0 flex max-h-[80%] w-full max-w-[720px] flex-col rounded-t-[18px] border border-b-0 border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
+          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold"><Target className="h-4 w-4 text-brand-500" /> {title}</span>
+          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="overflow-y-auto px-4 pb-3">
+          {mode === "segment" ? (
+            lists.length ? lists.map((l) => (
+              <button key={l.id} onClick={() => onPickSegment(l.id)} className={cn("mt-2 flex w-full items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-left", segment === l.id ? "border-brand-500/60 bg-brand-500/10" : "border-border bg-muted hover:border-brand-500/40")}>
+                <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px] bg-violet-500/10 text-violet-400"><Layers className="h-4 w-4" /></span>
+                <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{l.name}</span><span className="block text-[11px] text-muted-foreground">{l.totalCount.toLocaleString()} contacts</span></span>
+                <span className={cn("grid h-[18px] w-[18px] place-items-center rounded-[5px] border", segment === l.id ? "border-brand-500 bg-brand-500 text-white" : "border-border")}>{segment === l.id && <Check className="h-3 w-3" />}</span>
+              </button>
+            )) : <p className="py-8 text-center text-[12px] text-muted-foreground">No contact lists yet. Create a list under Contacts, or use “Selected contacts”.</p>
+          ) : (
+            <>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search contacts…" className="mt-1 w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+              {contacts.length ? contacts.map((c, i) => {
+                const sel = mode === "single" ? single === c.id : selected.includes(c.id);
+                return (
+                  <button key={c.id} onClick={() => mode === "single" ? onPickSingle(c.id) : onToggleContact(c.id)} className={cn("mt-2 flex w-full items-center gap-2.5 rounded-[10px] border px-3 py-2 text-left", sel ? "border-brand-500/60 bg-brand-500/10" : "border-border bg-muted hover:border-brand-500/40")}>
+                    <span className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border", sel ? "border-brand-500 bg-brand-500 text-white" : "border-border")}>{sel && <Check className="h-3 w-3" />}</span>
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c.name)}</span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-semibold">{c.name}</span><span className="block truncate text-[11px] text-muted-foreground">{c.email || c.phone || ""}</span></span>
+                  </button>
+                );
+              }) : <p className="py-8 text-center text-[12px] text-muted-foreground">No contacts found.</p>}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <span className="text-[11px] text-muted-foreground">{mode === "multi" ? `${selected.length} selected` : ""}</span>
+          <button onClick={onClose} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm"><Check className="h-4 w-4" /> Done</button>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {error && (
-        <p className="mb-3 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
-      )}
+// ---------------------------------------------------------------------------
+// Campaign library — a full-surface gallery of every campaign with KPIs, status
+// filter, per-campaign status + statistics, and pause/activate + open.
+// ---------------------------------------------------------------------------
 
-      <div className="space-y-3.5">
-        <Field label="Name">
-          <input
-            value={form.name}
-            onChange={(e) => setField("name", e.target.value)}
-            className={FIELD}
-            placeholder="Welcome series"
-          />
-        </Field>
-
-        {/* Trigger picker */}
-        <div>
-          <span className="mb-1.5 block text-[11.5px] font-semibold text-muted-foreground">Trigger</span>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {BUILDER_TYPES.map((t) => {
-              const Icon = typeMeta(t.value).icon;
-              const selected = form.type === t.value;
+function CampaignLibrary({ automations, filter, totals, busyId, onFilter, onToggle, onOpen, onNew, onClose }: {
+  automations: Automation[];
+  filter: LibFilter;
+  totals: { total: number; active: number; totalSent: number };
+  busyId: string | null;
+  onFilter: (f: LibFilter) => void;
+  onToggle: (a: Automation) => void;
+  onOpen: (id: string) => void;
+  onNew: () => void;
+  onClose: () => void;
+}) {
+  const counts = {
+    all: automations.length,
+    active: automations.filter((a) => a.enabled).length,
+    paused: automations.filter((a) => !a.enabled).length,
+  };
+  const list = automations.filter((a) => filter === "all" ? true : filter === "active" ? a.enabled : !a.enabled);
+  const kpis = [
+    { n: totals.total.toLocaleString(), l: "Campaigns" },
+    { n: totals.active.toLocaleString(), l: "Active" },
+    { n: totals.totalSent.toLocaleString(), l: "Messages sent" },
+    { n: counts.paused.toLocaleString(), l: "Paused" },
+  ];
+  return (
+    <div className="absolute inset-0 z-[60] flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-bold"><LayoutGrid className="h-4 w-4 text-brand-500" /> Campaign library</span>
+        <span className="hidden text-[11.5px] text-muted-foreground sm:inline">every follow-up campaign — status &amp; statistics</span>
+        <div className="ms-auto flex items-center gap-2">
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New campaign</button>
+          <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="mb-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {kpis.map((k) => (
+            <div key={k.l} className="rounded-[13px] border border-border bg-card px-3.5 py-3">
+              <div className="text-[22px] font-extrabold leading-none tabular-nums">{k.n}</div>
+              <div className="mt-1.5 text-[11px] text-muted-foreground">{k.l}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {(["all", "active", "paused"] as const).map((f) => (
+            <button key={f} onClick={() => onFilter(f)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold capitalize transition", filter === f ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
+              {f} · {counts[f]}
+            </button>
+          ))}
+        </div>
+        {list.length ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((a) => {
+              const m = typeMeta(a.type);
+              const isEmail = (a.campaignType || "EMAIL").toUpperCase() === "EMAIL";
+              const reach = a.contactList?.totalCount;
               return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setField("type", t.value)}
-                  className={cn(
-                    "flex flex-col items-start gap-1 rounded-xl border px-2.5 py-2 text-left transition",
-                    selected ? "border-brand-500/60 bg-brand-500/5 text-brand-500" : "border-border bg-muted/30 hover:border-brand-500/40 hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="text-[12px] font-semibold leading-tight">{t.label}</span>
-                  <span className="text-[10.5px] leading-tight text-muted-foreground">{t.hint}</span>
-                </button>
+                <div key={a.id} className="overflow-hidden rounded-[14px] border border-border bg-card transition hover:border-brand-500/50">
+                  <div className="flex items-center gap-2.5 px-3.5 py-3">
+                    <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-[10px]", a.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}><m.icon className="h-[18px] w-[18px]" /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-bold">{a.name}</div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
+                        {a.contactList?.name ? <><Dot /> <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{a.contactList.name}</span></> : null}
+                      </div>
+                    </div>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
+                  </div>
+                  <div className="grid grid-cols-3 border-t border-border">
+                    <LibStat value={(a.totalSent ?? 0).toLocaleString()} label="Sent" tone="emerald" />
+                    <LibStat value={typeof reach === "number" ? reach.toLocaleString() : "—"} label="Audience" border />
+                    <LibStat value={whenLabel(a.lastTriggered).replace("Last run ", "") || "—"} label={a.lastTriggered ? "Last run" : ""} small />
+                  </div>
+                  <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
+                    <button onClick={() => onToggle(a)} disabled={busyId === a.id} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1 text-[11.5px] font-semibold transition disabled:opacity-60", a.enabled ? "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" : "border-brand-500/40 bg-brand-500/5 text-brand-500 hover:bg-brand-500/10")}>
+                      {busyId === a.id ? <FlowLoader size={13} /> : a.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} {a.enabled ? "Pause" : "Activate"}
+                    </button>
+                    <button onClick={() => onOpen(a.id)} className="ms-auto inline-flex items-center gap-1 rounded-[9px] border border-border px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-brand-500">Open <ChevronRight className="h-3.5 w-3.5" /></button>
+                  </div>
+                </div>
               );
             })}
           </div>
-        </div>
-
-        {/* Channel */}
-        <div>
-          <span className="mb-1.5 block text-[11.5px] font-semibold text-muted-foreground">Channel</span>
-          <div className="grid grid-cols-2 gap-2">
-            {(["EMAIL", "SMS"] as const).map((ch) => {
-              const selected = form.campaignType === ch;
-              const Icon = ch === "EMAIL" ? Mail : MessageSquare;
-              return (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => setField("campaignType", ch)}
-                  className={cn(
-                    "inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[12.5px] font-semibold transition",
-                    selected ? "border-brand-500/60 bg-brand-500/5 text-brand-500" : "border-border bg-muted/30 hover:border-brand-500/40 hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" /> {ch === "EMAIL" ? "Email" : "SMS"}
-                </button>
-              );
-            })}
+        ) : (
+          <div className="grid place-items-center py-20 text-center">
+            <div className="max-w-xs">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Workflow className="h-6 w-6" /></span>
+              <p className="mt-3 text-[13px] font-semibold">No {filter === "all" ? "" : filter} campaigns</p>
+              <p className="mt-1 text-[12px] text-muted-foreground">Build a flow on the canvas and launch it — it shows up here.</p>
+            </div>
           </div>
-        </div>
-
-        {isEmail && (
-          <Field label="Subject">
-            <input
-              value={form.subject}
-              onChange={(e) => setField("subject", e.target.value)}
-              className={FIELD}
-              placeholder="Welcome to the family 👋"
-            />
-          </Field>
         )}
-
-        <Field label={isEmail ? "Message body" : "Message"}>
-          <textarea
-            value={form.content}
-            onChange={(e) => setField("content", e.target.value)}
-            rows={5}
-            className={cn(FIELD, "resize-y leading-relaxed")}
-            placeholder="Write the message that goes out…"
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Send time">
-            <input
-              type="time"
-              value={form.sendTime}
-              onChange={(e) => setField("sendTime", e.target.value)}
-              className={FIELD}
-            />
-          </Field>
-          <Field label="Days offset" hint="− before, + after">
-            <input
-              type="number"
-              min={-30}
-              max={30}
-              value={form.daysOffset}
-              onChange={(e) => setField("daysOffset", e.target.value)}
-              className={FIELD}
-            />
-          </Field>
-        </div>
-
-        <Field label="Timezone">
-          <select
-            value={form.timezone}
-            onChange={(e) => setField("timezone", e.target.value)}
-            className={FIELD}
-          >
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Audience list">
-          <select
-            value={form.contactListId}
-            onChange={(e) => setField("contactListId", e.target.value)}
-            className={FIELD}
-          >
-            <option value="">All eligible contacts</option>
-            {lists.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}{l.totalCount ? ` (${l.totalCount.toLocaleString()})` : ""}</option>
-            ))}
-          </select>
-        </Field>
-
-        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => setField("enabled", e.target.checked)}
-            className="h-4 w-4 accent-brand-500"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[12.5px] font-semibold">Activate immediately</span>
-            <span className="block text-[11px] text-muted-foreground">Leave off to create it paused and turn it on later.</span>
-          </span>
-        </label>
-
-        <div className="flex items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60"
-          >
-            {submitting ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />}
-            Create sequence
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="rounded-[10px] border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
-          >
-            Cancel
-          </button>
-        </div>
       </div>
-    </section>
+    </div>
+  );
+}
+
+function LibStat({ value, label, tone, border, small }: { value: string; label: string; tone?: "emerald"; border?: boolean; small?: boolean }) {
+  return (
+    <div className={cn("px-2 py-2.5 text-center", border && "border-x border-border")}>
+      <div className={cn("font-extrabold tabular-nums", small ? "text-[12px]" : "text-[16px]", tone === "emerald" && "text-emerald-500")}>{value}</div>
+      <div className="mt-0.5 text-[10px] text-muted-foreground">{label}</div>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Detail drawer — full config, stats, recent activity log, plus inline edit
-// (PATCH) and a two-step delete (DELETE). Opened from a row click.
+// (PATCH) and a two-step delete (DELETE). Opened from a campaign click.
 // ---------------------------------------------------------------------------
 
 interface EditState {
@@ -671,16 +825,9 @@ interface EditState {
 }
 
 const LOG_PAGE = 25;
-// The detail route hard-caps `logLimit` at 200 — never ask for more than it
-// will return, or "Load more" becomes a dead button that never grows the list.
 const LOG_LIMIT_MAX = 200;
 
-function AutomationDetailDrawer({
-  summary,
-  onClose,
-  onChanged,
-  onDeleted,
-}: {
+function AutomationDetailDrawer({ summary, onClose, onChanged, onDeleted }: {
   summary: Automation;
   onClose: () => void;
   onChanged: () => Promise<void> | void;
@@ -705,39 +852,26 @@ function AutomationDetailDrawer({
   const loadDetail = useCallback(async () => {
     try {
       const j = await fetch(`/api/automations/${summary.id}?logLimit=${logLimit}`).then((r) => r.json());
-      if (j?.success && j.data?.automation) {
-        setDetail(j.data.automation as AutomationDetail);
-        setError("");
-      } else {
-        setError(j?.error?.message || "Could not load this follow-up.");
-      }
+      if (j?.success && j.data?.automation) { setDetail(j.data.automation as AutomationDetail); setError(""); }
+      else setError(j?.error?.message || "Could not load this campaign.");
     } catch {
-      setError("Could not load this follow-up.");
+      setError("Could not load this campaign.");
     }
   }, [summary.id, logLimit]);
 
   useEffect(() => {
     let alive = true;
-    // Only show the full-body loader on the very first fetch — paginating the
-    // activity log (logLimit bump) should refresh in place, not flash a spinner
-    // and collapse the panel the user is reading.
     setDetail((d) => { if (!d) setLoading(true); return d; });
     loadDetail().finally(() => { if (alive) { setLoading(false); setLoadingMore(false); } });
     return () => { alive = false; };
   }, [loadDetail]);
 
-  // Pull contact lists once for the audience selector (only when editing opens).
   useEffect(() => {
     if (!editing) return;
     let alive = true;
-    fetch("/api/contact-lists")
-      .then((r) => r.json())
-      .then((j) => {
-        if (alive && j?.success && Array.isArray(j.data?.lists)) {
-          setLists(j.data.lists as ContactListOption[]);
-        }
-      })
-      .catch(() => { /* selector still works with the current value */ });
+    fetch("/api/contact-lists").then((r) => r.json()).then((j) => {
+      if (alive && j?.success && Array.isArray(j.data?.lists)) setLists(j.data.lists as ContactListOption[]);
+    }).catch(() => {});
     return () => { alive = false; };
   }, [editing]);
 
@@ -756,12 +890,11 @@ function AutomationDetailDrawer({
     setEditing(true);
   };
 
-  const setField = <K extends keyof EditState>(key: K, value: EditState[K]) =>
-    setForm((f) => (f ? { ...f, [key]: value } : f));
+  const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
 
   const save = async () => {
     if (!form) return;
-    if (!form.name.trim()) { setSaveError("Give the sequence a name."); return; }
+    if (!form.name.trim()) { setSaveError("Give the campaign a name."); return; }
     if (!form.content.trim()) { setSaveError("The message content can't be empty."); return; }
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.sendTime)) { setSaveError("Send time must be HH:mm (e.g. 09:00)."); return; }
     const offsetNum = Number.parseInt(form.daysOffset, 10);
@@ -771,8 +904,7 @@ function AutomationDetailDrawer({
     setSaveError("");
     try {
       const r = await fetch(`/api/automations/${summary.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name.trim(),
           subject: isEmail ? (form.subject || null) : undefined,
@@ -804,14 +936,14 @@ function AutomationDetailDrawer({
       const r = await fetch(`/api/automations/${summary.id}`, { method: "DELETE" });
       const j = await r.json().catch(() => null);
       if (!r.ok || j?.success === false) {
-        setSaveError(j?.error?.message || "Could not delete this follow-up.");
+        setSaveError(j?.error?.message || "Could not delete this campaign.");
         setConfirmDelete(false);
         setDeleting(false);
         return;
       }
       onDeleted();
     } catch {
-      setSaveError("Could not delete this follow-up.");
+      setSaveError("Could not delete this campaign.");
       setConfirmDelete(false);
       setDeleting(false);
     }
@@ -821,19 +953,11 @@ function AutomationDetailDrawer({
   const audienceReach = detail?.contactList?.totalCount ?? summary.contactList?.totalCount;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-      />
+    <div className="absolute inset-0 z-[70] flex justify-end">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
       <div className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
-        {/* Header */}
         <div className="flex items-start gap-3 border-b border-border px-4 py-3.5 sm:px-5">
-          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", summary.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}>
-            <m.icon className="h-[18px] w-[18px]" />
-          </span>
+          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", summary.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}><m.icon className="h-[18px] w-[18px]" /></span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-[14px] font-bold">{detail?.name ?? summary.name}</p>
@@ -844,17 +968,9 @@ function AutomationDetailDrawer({
               <span>· {isEmail ? "Email" : "SMS"}</span>
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
 
-        {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           {loading ? (
             <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading details…" /></div>
@@ -862,24 +978,15 @@ function AutomationDetailDrawer({
             <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
           ) : editing && form ? (
             <EditForm
-              form={form}
-              isEmail={isEmail}
-              lists={lists}
+              form={form} isEmail={isEmail} lists={lists}
               currentListName={audienceLabel}
               currentListId={(detail?.contactListId ?? summary.contactListId) || ""}
-              saving={saving}
-              saveError={saveError}
-              onField={setField}
-              onCancel={() => { setEditing(false); setSaveError(""); }}
-              onSave={save}
+              saving={saving} saveError={saveError}
+              onField={setField} onCancel={() => { setEditing(false); setSaveError(""); }} onSave={save}
             />
           ) : detail ? (
             <div className="space-y-4">
-              {saveError && (
-                <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>
-              )}
-
-              {/* Delivery stats */}
+              {saveError && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>}
               <div>
                 <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Delivery</h4>
                 <div className="grid grid-cols-3 gap-2">
@@ -888,14 +995,10 @@ function AutomationDetailDrawer({
                   <StatTile icon={MinusCircle} tone="amber" label="Skipped" value={detail.stats.skipped} rate={detail.stats.skipRate} />
                 </div>
               </div>
-
-              {/* Config */}
               <div className="rounded-xl border border-border bg-muted/30 p-3">
                 <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Settings</h4>
                 <dl className="space-y-1.5 text-[12px]">
-                  {isEmail && (
-                    <Row label="Subject"><span className="text-foreground">{detail.subject || <span className="text-muted-foreground">—</span>}</span></Row>
-                  )}
+                  {isEmail && <Row label="Subject"><span className="text-foreground">{detail.subject || <span className="text-muted-foreground">—</span>}</span></Row>}
                   <Row label="Timing"><span className="inline-flex items-center gap-1 text-foreground"><Clock className="h-3 w-3 text-muted-foreground" />{detail.sendTime} · {offsetLabel(detail.daysOffset)}</span></Row>
                   <Row label="Timezone"><span className="inline-flex items-center gap-1 text-foreground"><Globe className="h-3 w-3 text-muted-foreground" />{detail.timezone || "UTC"}</span></Row>
                   <Row label="Audience"><span className="inline-flex items-center gap-1 text-foreground"><Users className="h-3 w-3 text-muted-foreground" />{audienceLabel}{typeof audienceReach === "number" ? ` (${audienceReach.toLocaleString()})` : ""}</span></Row>
@@ -908,8 +1011,6 @@ function AutomationDetailDrawer({
                   </div>
                 )}
               </div>
-
-              {/* Recent activity */}
               <div>
                 <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Recent activity</h4>
                 {detail.logs.length ? (
@@ -919,24 +1020,16 @@ function AutomationDetailDrawer({
                         <LogBadge status={log.status} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[12px] font-medium">{log.contactName || log.contactEmail || log.contactPhone || "Contact"}</p>
-                          {log.error ? (
-                            <p className="truncate text-[11px] text-rose-500">{log.error}</p>
-                          ) : log.contactEmail || log.contactPhone ? (
-                            <p className="truncate text-[11px] text-muted-foreground">{log.contactEmail || log.contactPhone}</p>
-                          ) : null}
+                          {log.error ? <p className="truncate text-[11px] text-rose-500">{log.error}</p>
+                            : log.contactEmail || log.contactPhone ? <p className="truncate text-[11px] text-muted-foreground">{log.contactEmail || log.contactPhone}</p> : null}
                         </div>
                         <span className="shrink-0 text-[10.5px] text-muted-foreground">{logWhen(log.sentAt)}</span>
                       </div>
                     ))}
                     {detail.totalLogs > detail.logs.length && logLimit < LOG_LIMIT_MAX && (
-                      <button
-                        type="button"
-                        onClick={() => { setLoadingMore(true); setLogLimit((n) => Math.min(LOG_LIMIT_MAX, n + LOG_PAGE)); }}
-                        disabled={loadingMore}
-                        className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
-                      >
-                        {loadingMore && <FlowLoader size={13} />}
-                        Load more ({(detail.totalLogs - detail.logs.length).toLocaleString()} left)
+                      <button type="button" onClick={() => { setLoadingMore(true); setLogLimit((n) => Math.min(LOG_LIMIT_MAX, n + LOG_PAGE)); }} disabled={loadingMore}
+                        className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">
+                        {loadingMore && <FlowLoader size={13} />} Load more ({(detail.totalLogs - detail.logs.length).toLocaleString()} left)
                       </button>
                     )}
                   </div>
@@ -948,45 +1041,19 @@ function AutomationDetailDrawer({
           ) : null}
         </div>
 
-        {/* Footer actions */}
         {!loading && !error && !editing && (
           <div className="flex items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
             {confirmDelete ? (
               <>
-                <button
-                  type="button"
-                  onClick={doDelete}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-rose-600 disabled:opacity-60"
-                >
-                  {deleting ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  Confirm delete
+                <button type="button" onClick={doDelete} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-rose-600 disabled:opacity-60">
+                  {deleting ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Confirm delete
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(false)}
-                  disabled={deleting}
-                  className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
-                >
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">Cancel</button>
               </>
             ) : (
               <>
-                <button
-                  type="button"
-                  onClick={beginEdit}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm"
-                >
-                  <Pencil className="h-3.5 w-3.5" /> Edit settings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 px-3 py-2 text-[12px] font-semibold text-rose-500 transition hover:bg-rose-500/5"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </button>
+                <button type="button" onClick={beginEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm"><Pencil className="h-3.5 w-3.5" /> Edit settings</button>
+                <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 px-3 py-2 text-[12px] font-semibold text-rose-500 transition hover:bg-rose-500/5"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
               </>
             )}
           </div>
@@ -996,7 +1063,7 @@ function AutomationDetailDrawer({
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <dt className="shrink-0 text-muted-foreground">{label}</dt>
@@ -1023,18 +1090,7 @@ function LogBadge({ status }: { status: string }) {
   return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-amber-500/10 text-amber-500"><MinusCircle className="h-3 w-3" /></span>;
 }
 
-function EditForm({
-  form,
-  isEmail,
-  lists,
-  currentListName,
-  currentListId,
-  saving,
-  saveError,
-  onField,
-  onCancel,
-  onSave,
-}: {
+function EditForm({ form, isEmail, lists, currentListName, currentListId, saving, saveError, onField, onCancel, onSave }: {
   form: EditState;
   isEmail: boolean;
   lists: ContactListOption[];
@@ -1046,125 +1102,46 @@ function EditForm({
   onCancel: () => void;
   onSave: () => void;
 }) {
-  // If the automation's current list isn't in the fetched options yet (still
-  // loading, or scoped differently), keep it selectable so we don't lose it.
   const listOptions = useMemo(() => {
     const opts = [...lists];
-    if (currentListId && !opts.some((l) => l.id === currentListId)) {
-      opts.unshift({ id: currentListId, name: currentListName, totalCount: 0 });
-    }
+    if (currentListId && !opts.some((l) => l.id === currentListId)) opts.unshift({ id: currentListId, name: currentListName, totalCount: 0 });
     return opts;
   }, [lists, currentListId, currentListName]);
 
+  const F = "w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
   return (
     <div className="space-y-3.5">
-      {saveError && (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>
-      )}
-
-      <Field label="Name">
-        <input
-          value={form.name}
-          onChange={(e) => onField("name", e.target.value)}
-          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-          placeholder="Welcome series"
-        />
-      </Field>
-
-      {isEmail && (
-        <Field label="Subject">
-          <input
-            value={form.subject}
-            onChange={(e) => onField("subject", e.target.value)}
-            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-            placeholder="Welcome to the family 👋"
-          />
-        </Field>
-      )}
-
-      <Field label={isEmail ? "Message body" : "Message"}>
-        <textarea
-          value={form.content}
-          onChange={(e) => onField("content", e.target.value)}
-          rows={5}
-          className="w-full resize-y rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60"
-          placeholder="Write the message that goes out…"
-        />
-      </Field>
-
+      {saveError && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>}
+      <Field label="Name"><input value={form.name} onChange={(e) => onField("name", e.target.value)} className={F} placeholder="Welcome series" /></Field>
+      {isEmail && <Field label="Subject"><input value={form.subject} onChange={(e) => onField("subject", e.target.value)} className={F} placeholder="Welcome to the family 👋" /></Field>}
+      <Field label={isEmail ? "Message body" : "Message"}><textarea value={form.content} onChange={(e) => onField("content", e.target.value)} rows={5} className={cn(F, "resize-y leading-relaxed")} placeholder="Write the message that goes out…" /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Send time">
-          <input
-            type="time"
-            value={form.sendTime}
-            onChange={(e) => onField("sendTime", e.target.value)}
-            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-          />
-        </Field>
-        <Field label="Days offset" hint="− before, + after">
-          <input
-            type="number"
-            min={-30}
-            max={30}
-            value={form.daysOffset}
-            onChange={(e) => onField("daysOffset", e.target.value)}
-            className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-          />
-        </Field>
+        <Field label="Send time"><input type="time" value={form.sendTime} onChange={(e) => onField("sendTime", e.target.value)} className={F} /></Field>
+        <Field label="Days offset" hint="− before, + after"><input type="number" min={-30} max={30} value={form.daysOffset} onChange={(e) => onField("daysOffset", e.target.value)} className={F} /></Field>
       </div>
-
       <Field label="Timezone">
-        <select
-          value={TIMEZONES.includes(form.timezone) ? form.timezone : "__current"}
-          onChange={(e) => onField("timezone", e.target.value === "__current" ? form.timezone : e.target.value)}
-          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-        >
-          {!TIMEZONES.includes(form.timezone) && form.timezone && (
-            <option value="__current">{form.timezone}</option>
-          )}
-          {TIMEZONES.map((tz) => (
-            <option key={tz} value={tz}>{tz}</option>
-          ))}
+        <select value={TIMEZONES.includes(form.timezone) ? form.timezone : "__current"} onChange={(e) => onField("timezone", e.target.value === "__current" ? form.timezone : e.target.value)} className={F}>
+          {!TIMEZONES.includes(form.timezone) && form.timezone && <option value="__current">{form.timezone}</option>}
+          {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
         </select>
       </Field>
-
       <Field label="Audience list">
-        <select
-          value={form.contactListId}
-          onChange={(e) => onField("contactListId", e.target.value)}
-          className="w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60"
-        >
+        <select value={form.contactListId} onChange={(e) => onField("contactListId", e.target.value)} className={F}>
           <option value="">All eligible contacts</option>
-          {listOptions.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}{l.totalCount ? ` (${l.totalCount.toLocaleString()})` : ""}</option>
-          ))}
+          {listOptions.map((l) => <option key={l.id} value={l.id}>{l.name}{l.totalCount ? ` (${l.totalCount.toLocaleString()})` : ""}</option>)}
         </select>
       </Field>
-
       <div className="flex items-center gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60"
-        >
-          {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-4 w-4" />}
-          Save changes
+        <button type="button" onClick={onSave} disabled={saving} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60">
+          {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-4 w-4" />} Save changes
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="rounded-[10px] border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60"
-        >
-          Cancel
-        </button>
+        <button type="button" onClick={onCancel} disabled={saving} className="rounded-[10px] border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">Cancel</button>
       </div>
     </div>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1 flex items-center justify-between text-[11.5px] font-semibold text-muted-foreground">
