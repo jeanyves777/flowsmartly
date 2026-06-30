@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 import { resolveStyle, DESIGN_STYLES, STYLE_CATEGORIES, type StyleDef, type StyleFrame } from "./design-styles";
 
@@ -27,6 +28,7 @@ export interface ImageLayer { id: string; url: string; x: number; y: number; w: 
 // A colored BLOCK/panel that sits BEHIND the text — the building block of
 // designed backgrounds (accent panels, sidebars, color bands), like a brochure.
 export interface ShapeLayer { id: string; x: number; y: number; w: number; h: number; color: string; radius?: number; opacity?: number }
+export interface BackgroundAdjust { hue?: number; saturation?: number; brightness?: number; contrast?: number; tint?: string; tintOpacity?: number }
 
 // Brand contact details + social handles a user can drop onto the design.
 export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "youtube" | "tiktok";
@@ -43,6 +45,7 @@ export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number; 
 export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
+  bgAdjust?: BackgroundAdjust;
   images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[];
   imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
@@ -52,6 +55,7 @@ export interface DesignDoc {
 const DEFAULT_POS: Record<ElementKey, Pos> = { eyebrow: { x: 0.05, y: 0.05 }, headline: { x: 0.05, y: 0.56 }, sub: { x: 0.05, y: 0.77 }, cta: { x: 0.05, y: 0.88 } };
 const DEFAULT_SIZE: Record<ElementKey, number> = { eyebrow: 9, headline: 27, sub: 12, cta: 11 };
 const DEFAULT_COLOR: Record<ElementKey, string> = { eyebrow: "rgba(255,255,255,0.75)", headline: "#ffffff", sub: "rgba(255,255,255,0.85)", cta: "#06121f" };
+const DEFAULT_BG_ADJUST: Required<BackgroundAdjust> = { hue: 0, saturation: 100, brightness: 100, contrast: 100, tint: "#0ea5e9", tintOpacity: 0 };
 
 // Per-tab autosave key for the in-progress design (shared with agent-home so a
 // "new design" can clear it synchronously and a reload restores the right doc).
@@ -119,6 +123,17 @@ function FrameOverlay({ frame }: { frame: StyleFrame }) {
   );
 }
 
+function bgFilter(adjust?: BackgroundAdjust): string {
+  const a = { ...DEFAULT_BG_ADJUST, ...(adjust || {}) };
+  return `hue-rotate(${a.hue}deg) saturate(${a.saturation}%) brightness(${a.brightness}%) contrast(${a.contrast}%)`;
+}
+
+function BackgroundTint({ adjust }: { adjust?: BackgroundAdjust }) {
+  const a = { ...DEFAULT_BG_ADJUST, ...(adjust || {}) };
+  if (!a.tintOpacity) return null;
+  return <div className="pointer-events-none absolute inset-0" style={{ background: a.tint, opacity: a.tintOpacity / 100, mixBlendMode: "color" }} />;
+}
+
 // A selection points at a core element, a free-text layer, or an image.
 type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | null;
 
@@ -141,6 +156,7 @@ export function designCanvasContext(d: DesignDoc): string {
     extra.length ? `- extra text: ${extra.join("; ")}` : "",
     contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
     `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
+    d.bgAdjust ? `- background image adjustments: hue=${d.bgAdjust.hue ?? 0}, saturation=${d.bgAdjust.saturation ?? 100}, brightness=${d.bgAdjust.brightness ?? 100}, contrast=${d.bgAdjust.contrast ?? 100}, tint=${d.bgAdjust.tint || "none"} at ${d.bgAdjust.tintOpacity ?? 0}%` : "",
     `- STYLE LIBRARY (set \`style\` to any of these keys via update_canvas — each has its own background + frame; pick one that fits the brand/message): ${DESIGN_STYLES.map((s) => s.key).join(", ")}.`,
     imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
     slots.length ? `- empty PHOTO SLOTS to fill (ids): ${slots.map((i) => `"${i.id}" (${i.label || "photo"}${i.genHint ? ` — ${i.genHint}` : ""})`).join("; ")}. To fill one, generate a fitting PHOTO with add_canvas_object type "photo" passing slotId=<that id> (it drops into that exact slot). If it's unclear what a slot's photo should show, ask the user ONE quick question first.` : "",
@@ -195,6 +211,7 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
   if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
   if (Array.isArray(patch.shapes)) next.shapes = patch.shapes as ShapeLayer[];
+  if (patch.bgAdjust && typeof patch.bgAdjust === "object") next.bgAdjust = { ...DEFAULT_BG_ADJUST, ...(patch.bgAdjust as Partial<BackgroundAdjust>) };
   return next;
 }
 
@@ -210,16 +227,107 @@ async function uploadImage(file: File): Promise<string | null> {
 /** A faithful mini-poster preview of any library style (bg + frame + sample). */
 function StylePreview({ def, accent }: { def: StyleDef; accent: string }) {
   const t = resolveStyle(def.key, accent);
+  const family =
+    def.key === "photorealistic" ? "photo" :
+    def.category.includes("Editorial") || def.category.includes("Mono") || def.category.includes("Corporate") ? "editorial" :
+    def.category.includes("Luxury") || def.category.includes("Dark Premium") ? "luxury" :
+    def.category.includes("Bold") ? "bold" :
+    def.category.includes("Neon") || def.key.includes("grid") || def.key.includes("cyber") ? "cyber" :
+    def.category.includes("Retro") ? "retro" :
+    def.category.includes("Organic") ? "organic" :
+    def.category.includes("Playful") || def.category.includes("Gradient Mesh") ? "mesh" :
+    "modern";
+  const line = (cls: string, width: number, top: number, color = t.subInk) => (
+    <div className={cn("absolute h-[2px] rounded-full", cls)} style={{ top, width, background: color }} />
+  );
   return (
-    <div className="relative h-[58px] w-full overflow-hidden rounded-md" style={{ background: t.bg }}>
-      {t.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 78%, ${accent}, transparent 70%)` }} />}
+    <div className="relative h-[58px] w-full overflow-hidden rounded-md shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" style={{ background: t.bg }}>
+      {t.bgImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={t.bgImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      {!t.bgImage && def.key.includes("grid") && <div className="absolute inset-0 opacity-55" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px)", backgroundSize: "14px 14px" }} />}
+      {!t.bgImage && t.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 78%, ${accent}, transparent 70%)` }} />}
       {t.frame && (
         <div className="pointer-events-none absolute" style={{ inset: Math.min(6, (t.frame.inset ?? 0) / 2), border: t.frame.border, borderRadius: t.frame.radius ?? 0 }} />
       )}
-      <div className={cn("absolute left-2 top-2 text-[9px] font-bold leading-tight", t.serif && "font-serif")} style={{ color: t.eyeInk }}>•</div>
-      <div className={cn("absolute left-2 top-3.5 text-[11px] font-extrabold leading-tight", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
-      <div className="absolute bottom-2 left-2 h-[3px] w-6 rounded-full" style={{ background: t.eyeInk }} />
-      <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+      {!t.bgImage && family === "photo" && (
+        <>
+          <div className="absolute bottom-0 left-0 top-0 w-[44%] bg-black/28" />
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-full border border-white/35 bg-white/10 shadow-lg" />
+          {line("left-2", 32, 33, t.headInk)}
+          {line("left-2", 22, 40, t.subInk)}
+          <div className="absolute left-2 top-3 text-[10px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+        </>
+      )}
+      {!t.bgImage && family === "editorial" && (
+        <>
+          <div className="absolute left-2 top-2 h-10 w-[1px]" style={{ background: t.eyeInk }} />
+          <div className={cn("absolute left-4 top-2 text-[11px] font-black leading-none", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
+          {line("left-4", 54, 27, t.subInk)}
+          {line("left-4", 38, 34, t.subInk)}
+          <div className="absolute bottom-2 right-2 h-3 w-8 border-t" style={{ borderColor: t.eyeInk }} />
+        </>
+      )}
+      {!t.bgImage && family === "luxury" && (
+        <>
+          <div className="absolute left-1/2 top-2 h-2 w-2 -translate-x-1/2 rotate-45" style={{ background: t.eyeInk }} />
+          <div className={cn("absolute left-0 right-0 top-5 text-center text-[12px] font-black leading-none", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
+          <div className="absolute bottom-3 left-1/2 h-[1px] w-14 -translate-x-1/2" style={{ background: t.eyeInk }} />
+          <div className="absolute inset-x-5 bottom-1.5 h-[1px] bg-white/15" />
+        </>
+      )}
+      {!t.bgImage && family === "bold" && (
+        <>
+          <div className="absolute -right-4 -top-3 h-12 w-12 rotate-12" style={{ background: t.eyeInk }} />
+          <div className="absolute bottom-0 left-0 h-4 w-full bg-black/24" />
+          <div className="absolute left-2 top-2 text-[16px] font-black uppercase leading-[.8]" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 38, 38, t.headInk)}
+        </>
+      )}
+      {!t.bgImage && family === "cyber" && (
+        <>
+          <div className="absolute left-2 top-2 h-8 w-12 border-l border-t" style={{ borderColor: t.eyeInk }} />
+          <div className="absolute bottom-2 right-2 h-8 w-12 border-b border-r" style={{ borderColor: t.eyeInk }} />
+          <div className="absolute left-3 top-3 text-[11px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-3", 28, 39, t.eyeInk)}
+          <div className="absolute right-4 top-5 h-2 w-2 rounded-full" style={{ background: t.eyeInk, boxShadow: `0 0 14px ${accent}` }} />
+        </>
+      )}
+      {!t.bgImage && family === "retro" && (
+        <>
+          <div className="absolute -bottom-8 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full border-[10px] border-white/18" />
+          <div className={cn("absolute left-2 top-2 text-[12px] font-black leading-none", t.serif && "font-serif")} style={{ color: t.headInk }}>Aa</div>
+          <div className="absolute right-2 top-2 h-8 w-5 rounded-full" style={{ background: t.eyeInk }} />
+          {line("left-2", 44, 39, t.subInk)}
+        </>
+      )}
+      {!t.bgImage && family === "organic" && (
+        <>
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-[50%_35%_50%_35%]" style={{ background: t.eyeInk, opacity: .45 }} />
+          <div className="absolute right-7 top-5 h-6 w-7 rounded-[45%_55%_40%_60%] bg-white/18" />
+          <div className={cn("absolute left-2 top-3 text-[12px] font-black leading-none", t.serif && "font-serif")} style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 34, 38, t.subInk)}
+        </>
+      )}
+      {!t.bgImage && family === "mesh" && (
+        <>
+          <div className="absolute -right-3 top-1 h-10 w-10 rounded-full bg-white/18 blur-[1px]" />
+          <div className="absolute bottom-1 left-2 h-3 w-12 rounded-full bg-white/20" />
+          <div className="absolute left-2 top-2 text-[12px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 28, 36, t.eyeInk)}
+          <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+        </>
+      )}
+      {!t.bgImage && family === "modern" && (
+        <>
+          <div className="absolute right-2 top-2 h-10 w-8 rounded-md bg-white/14 backdrop-blur" />
+          <div className="absolute left-2 top-2 text-[11px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 34, 34, t.subInk)}
+          {line("left-2", 22, 43, t.eyeInk)}
+          <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+        </>
+      )}
     </div>
   );
 }
@@ -262,7 +370,9 @@ function Draggable({ pos, onMove, onSelect, posterRef, disabled, className, styl
           d.active = true;
         }
         const r = p.getBoundingClientRect();
-        onMoveRef.current({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, 0, 0.96), y: clamp(d.oy + (e.clientY - d.sy) / r.height, 0, 0.96) });
+        // Allow elements to bleed PAST the edges (design tools let you crop a photo
+        // off-canvas); the old 0..0.96 clamp trapped everything fully inside.
+        onMoveRef.current({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, -0.6, 1), y: clamp(d.oy + (e.clientY - d.sy) / r.height, -0.6, 1) });
       },
       up: () => {
         drag.current = null;
@@ -417,11 +527,15 @@ function TextControls({ style, defaultSize, brandColors, defaultBg, onChange, on
 /** Image controls (background removal / delete) for the floating toolbar. */
 type Arrange = "front" | "forward" | "backward" | "back";
 
-function ImageControls({ img, index, count, onArrange, onRemoveBg, onDelete }: { img: ImageLayer; index: number; count: number; onArrange: (where: Arrange) => void; onRemoveBg: () => void; onDelete: () => void }) {
+function ImageControls({ img, index, count, onArrange, onRemoveBg, onResize, onDelete }: { img: ImageLayer; index: number; count: number; onArrange: (where: Arrange) => void; onRemoveBg: () => void; onResize: (delta: number) => void; onDelete: () => void }) {
   const isFront = index >= count - 1;
   const isBack = index <= 0;
   return (
     <>
+      {/* Always-visible size buttons — work even when the corner pin is off-canvas. */}
+      <button onClick={() => onResize(-0.08)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.08)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
         {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Bg Removal"}
       </button>
@@ -493,13 +607,15 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
     );
   }
   const ink = (k: ElementKey) => (k === "eyebrow" ? theme.eyeInk : k === "headline" ? theme.headInk : k === "sub" ? theme.subInk : DEFAULT_COLOR.cta);
+  const bgImage = doc?.bgImageUrl || theme.bgImage;
   return (
     <div className="relative overflow-hidden" style={{ ...box, background: theme.bg }}>
-      {doc?.bgImageUrl && (
+      {bgImage && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={doc.bgImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={bgImage} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: bgFilter(doc?.bgAdjust) }} />
       )}
-      {theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
+      {bgImage && <BackgroundTint adjust={doc?.bgAdjust} />}
+      {!bgImage && theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
       {(doc?.shapes || []).map((sh) => (
         <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
       ))}
@@ -680,6 +796,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const [showGuides, setShowGuides] = useState(true);
   // Style tab search — the library is large, so let the user filter by name/vibe.
   const [styleQuery, setStyleQuery] = useState("");
+  // "Add from library" — reuse the shared media picker (browse + upload).
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [tab, setTab] = useState<"design" | "style" | "contact">("design");
   // Extra direction for the two AI generate modes (editable rebuild vs flat image).
   const [genDetails, setGenDetails] = useState("");
@@ -754,6 +872,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const baseW = ratio >= 1 ? 480 : 410;
   const height = Math.round(baseW / ratio);
   const theme = posterTheme(value.style, value.accent);
+  const canvasBgImage = value.bgImageUrl || theme.bgImage;
   void w;
 
   // Keep the design fitting the canvas unless the user has zoomed manually. In
@@ -781,6 +900,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const zoomBy = (d: number) => setManualZoom((z) => Math.max(0.25, Math.min(3, Number((((z ?? fitZoom) + d)).toFixed(2)))));
 
   const set = (patch: Partial<DesignDoc>) => onChange({ ...value, ...patch });
+  const bgAdjust = { ...DEFAULT_BG_ADJUST, ...(value.bgAdjust || {}) };
+  const setBgAdjust = (patch: Partial<BackgroundAdjust>) => set({ bgAdjust: { ...bgAdjust, ...patch } });
   const move = (k: ElementKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
   const setImages = (imgs: ImageLayer[]) => onChange({ ...value, images: imgs });
   const setTexts = (t: TextLayer[]) => onChange({ ...value, texts: t });
@@ -924,7 +1045,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     const size = clamp(startSize + (dx + dy) / 2 * 0.45, 8, 96);
     if (isCore) setCoreStyle(k as ElementKey, { size }); else patchText(k as string, { style: { ...(textsRef.current.find((t) => t.id === k)?.style), size } });
   };
-  const resizeImage = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchImage(id, { w: clamp(startW + dx / pw, 0.08, 0.96) }); };
+  // Allow images up to 3× the canvas width so a photo can fill/bleed the design
+  // (the old 0.96 cap made it impossible to size a hero photo properly).
+  const resizeImage = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchImage(id, { w: clamp(startW + dx / pw, 0.05, 3) }); };
   const resizeContact = (id: string, dx: number, dy: number, startSize: number) => { patchContact(id, { style: { ...(contactsRef.current.find((c) => c.id === id)?.style), size: clamp(startSize + (dx + dy) / 2 * 0.4, 8, 56) } }); };
 
   // Cut out the subject — POSTs the image (uploaded URL, or the original File if
@@ -971,6 +1094,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const addBrandLogo = (url: string) => {
     const id = newId("img");
     onChange({ ...value, images: [...imagesRef.current, { id, url, x: 0.06, y: 0.06, w: 0.2, kind: "logo", local: false }] });
+    setSel({ kind: "image", id });
+  };
+  // Drop a previously-uploaded media file (picked from the library) onto the canvas.
+  const addLibraryImage = (url: string) => {
+    if (!url) return;
+    const id = newId("img");
+    onChange({ ...value, images: [...imagesRef.current, { id, url, x: 0.28, y: 0.3, w: 0.46, kind: "photo", local: false }] });
     setSel({ kind: "image", id });
   };
   const saveBrandLogoNow = async () => {
@@ -1051,12 +1181,13 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
               <img src={value.imageUrl} alt="Generated design" className="absolute inset-0 h-full w-full object-cover" />
             ) : (
               <>
-                {value.bgImageUrl && (
+                {canvasBgImage && (
                   // A generated backdrop sits behind everything; the layout/text stay on top.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={value.bgImageUrl} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+                  <img src={canvasBgImage} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ filter: bgFilter(value.bgAdjust) }} />
                 )}
-                {theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
+                {canvasBgImage && <BackgroundTint adjust={value.bgAdjust} />}
+                {!canvasBgImage && theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
 
                 {/* background BLOCKS / panels — sit behind everything, drag to move, corner to resize */}
                 {shapes.map((sh) => {
@@ -1175,7 +1306,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
               {selShape ? (
                 <ShapeControls shape={selShape} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onDelete={() => removeShape(selShape.id)} />
               ) : sel.kind === "image" && selIsImage ? (
-                <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onDelete={() => removeImage(selIsImage.id)} />
+                <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onResize={(d) => patchImage(selIsImage.id, { w: clamp(selIsImage.w + d, 0.05, 3) })} onDelete={() => removeImage(selIsImage.id)} />
               ) : (
                 <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : sel.kind === "contact" ? () => removeContact(sel.id) : undefined} />
               )}
@@ -1233,6 +1364,30 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                     <input value={styleQuery} onChange={(e) => setStyleQuery(e.target.value)} placeholder="Search styles — luxury, mesh, retro…" className={cn(FIELD, "py-1.5 pl-8 pr-7")} />
                     {styleQuery && <button onClick={() => setStyleQuery("")} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                   </div>
+                  <ControlGroup title="Background edit">
+                    <div className="mt-1.5 space-y-2">
+                      {([
+                        ["hue", "Hue", -180, 180, 1],
+                        ["saturation", "Saturation", 0, 220, 1],
+                        ["brightness", "Brightness", 40, 160, 1],
+                        ["contrast", "Contrast", 40, 180, 1],
+                        ["tintOpacity", "Tint", 0, 80, 1],
+                      ] as const).map(([key, label, min, max, step]) => (
+                        <label key={key} className="grid grid-cols-[70px_1fr_34px] items-center gap-2 text-[10.5px] font-semibold text-muted-foreground">
+                          <span>{label}</span>
+                          <input type="range" min={min} max={max} step={step} value={bgAdjust[key]} onChange={(e) => setBgAdjust({ [key]: Number(e.target.value) })} />
+                          <span className="text-right tabular-nums">{bgAdjust[key]}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="flex flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-background/50 px-2 py-1.5 text-[10.5px] font-semibold text-muted-foreground">
+                        <span>Tint color</span>
+                        <ColorPicker value={bgAdjust.tint} onChange={(c) => setBgAdjust({ tint: c, tintOpacity: bgAdjust.tintOpacity || 24 })} className="h-6 w-6 rounded-md border border-border" iconClass="h-3 w-3" />
+                      </label>
+                      <button onClick={() => set({ bgAdjust: DEFAULT_BG_ADJUST })} className="rounded-lg border border-border px-2 py-1.5 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Reset</button>
+                    </div>
+                  </ControlGroup>
                   {(() => {
                     const q = styleQuery.trim().toLowerCase();
                     const card = (s: StyleDef) => { const selSt = (value.style || "modern") === s.key; return (
@@ -1269,6 +1424,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                       <button onClick={() => photoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Add photo</button>
                       <button onClick={() => (brandLogo ? addBrandLogo(brandLogo) : logoRef.current?.click())} title={brandLogo ? "Add your brand logo" : "Upload a logo"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
                     </div>
+                    <button onClick={() => setMediaPickerOpen(true)} title="Pick from your uploaded media (browse + upload)" className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FolderOpen className="h-3.5 w-3.5" /> Browse media library</button>
                     <div className="mt-1.5 flex gap-1.5">
                       <button onClick={addPhotoSlot} title="Drop an empty photo slot — fill it with AI-generate or an upload" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Photo slot</button>
                       <button onClick={addShape} title="Add a colored background block/panel (sits behind the text)" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Square className="h-3.5 w-3.5" /> Color block</button>
@@ -1325,6 +1481,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       {libOpen && (
         <DesignLibrary designs={libDesigns} loading={libLoading} currentId={designId} onClose={() => setLibOpen(false)} onLoad={loadDesign} onDelete={deleteDesign} onNew={newDesign} />
       )}
+
+      {/* Browse + upload from the user's media library (shared picker). */}
+      <MediaLibraryPicker open={mediaPickerOpen} onClose={() => setMediaPickerOpen(false)} onSelect={(url) => { addLibraryImage(url); setMediaPickerOpen(false); }} filterTypes={["image", "svg"]} title="Add from your media" />
 
       {logoSavePrompt && (
         <div className="absolute bottom-4 left-1/2 z-40 flex max-w-[92vw] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-border bg-popover px-3.5 py-2.5 shadow-2xl">
