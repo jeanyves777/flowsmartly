@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, type LucideIcon } from "lucide-react";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, Shapes, Minus, RectangleHorizontal, Star, Heart, ArrowRight, Sun, Zap, Crown, Award, ShieldCheck, Gift, ThumbsUp, Flame, Quote, Smile, type LucideIcon } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -32,6 +32,8 @@ export interface ShapeLayer { id: string; x: number; y: number; w: number; h: nu
   shape?: "rect" | "ellipse" | "line";
   /** When true the block sits IN FRONT of images (default: behind everything). */
   front?: boolean }
+/** A standalone ICON element (social or popular) the user can drop & restyle. */
+export interface IconLayer { id: string; name: string; x: number; y: number; size: number; color: string }
 export interface BackgroundAdjust { hue?: number; saturation?: number; brightness?: number; contrast?: number; tint?: string; tintOpacity?: number }
 
 // Brand contact details + social handles a user can drop onto the design.
@@ -50,7 +52,7 @@ export interface DesignDoc {
   eyebrow: string; headline: string; sub: string; cta: string;
   accent: string; size: string; style?: string;
   bgAdjust?: BackgroundAdjust;
-  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[];
+  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[]; icons?: IconLayer[];
   imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
   pos?: Partial<Record<ElementKey, Pos>>;
   styles?: Partial<Record<ElementKey, TextStyle>>;
@@ -78,6 +80,25 @@ export const DEFAULT_DESIGN: DesignDoc = {
 };
 
 const ACCENTS = ["#0ea5e9", "#8b5cf6", "#eccb93", "#10b981", "#ef4444"];
+
+// The icon library for the Elements tab — social + popular marks. `name` is the
+// stable key saved on an IconLayer; the component is looked up here for render.
+const ICON_GROUPS: { label: string; icons: { name: string; Icon: LucideIcon }[] }[] = [
+  { label: "Social", icons: [
+    { name: "instagram", Icon: Instagram }, { name: "twitter", Icon: Twitter }, { name: "linkedin", Icon: Linkedin },
+    { name: "facebook", Icon: Facebook }, { name: "youtube", Icon: Youtube }, { name: "tiktok", Icon: Music2 },
+  ] },
+  { label: "Popular", icons: [
+    { name: "star", Icon: Star }, { name: "heart", Icon: Heart }, { name: "check", Icon: Check }, { name: "badge", Icon: BadgeCheck },
+    { name: "arrow", Icon: ArrowRight }, { name: "sparkles", Icon: Sparkles }, { name: "sun", Icon: Sun }, { name: "zap", Icon: Zap },
+    { name: "crown", Icon: Crown }, { name: "award", Icon: Award }, { name: "shield", Icon: ShieldCheck }, { name: "gift", Icon: Gift },
+    { name: "thumb", Icon: ThumbsUp }, { name: "flame", Icon: Flame }, { name: "quote", Icon: Quote }, { name: "smile", Icon: Smile },
+  ] },
+  { label: "Contact", icons: [
+    { name: "phone", Icon: Phone }, { name: "mail", Icon: Mail }, { name: "globe", Icon: Globe }, { name: "pin", Icon: MapPin },
+  ] },
+];
+const ICON_BY_NAME: Record<string, LucideIcon> = Object.fromEntries(ICON_GROUPS.flatMap((g) => g.icons.map((i) => [i.name, i.Icon])));
 
 const CONTACT_TYPES: ContactType[] = ["email", "phone", "website", "address", "instagram", "twitter", "linkedin", "facebook", "youtube", "tiktok"];
 const CONTACT_META: Record<ContactType, { Icon: LucideIcon; label: string; placeholder: string; social?: boolean }> = {
@@ -139,7 +160,7 @@ function BackgroundTint({ adjust }: { adjust?: BackgroundAdjust }) {
 }
 
 // A selection points at a core element, a free-text layer, or an image.
-type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | null;
+type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | { kind: "icon"; id: string } | null;
 
 export function designCanvasContext(d: DesignDoc): string {
   const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
@@ -215,6 +236,7 @@ export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): 
   if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
   if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
   if (Array.isArray(patch.shapes)) next.shapes = patch.shapes as ShapeLayer[];
+  if (Array.isArray(patch.icons)) next.icons = patch.icons as IconLayer[];
   if (patch.bgAdjust && typeof patch.bgAdjust === "object") next.bgAdjust = { ...DEFAULT_BG_ADJUST, ...(patch.bgAdjust as Partial<BackgroundAdjust>) };
   return next;
 }
@@ -589,6 +611,22 @@ function ShapeControls({ shape, count, brandColors, onChange, onArrange, onDelet
   );
 }
 
+/** Icon-element controls (color / size / delete). */
+function IconControls({ icon, brandColors, onChange, onResize, onDelete }: { icon: IconLayer; brandColors?: string[]; onChange: (p: Partial<IconLayer>) => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  return (
+    <>
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (icon.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={icon.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onResize(-8)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(8)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete icon" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
 // A saved design as returned by the library API.
 export interface SavedDesign { id: string; name: string; size: string; style?: string | null; imageUrl?: string | null; updatedAt: string; doc: DesignDoc }
 
@@ -665,6 +703,7 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
           </div>
         );
       })}
+      {(doc?.icons || []).map((ic) => { const Icon = ICON_BY_NAME[ic.name] || Star; return <div key={ic.id} className="absolute" style={pct({ x: ic.x, y: ic.y })}><Icon style={{ width: ic.size, height: ic.size, color: ic.color }} /></div>; })}
       {theme.frame && <FrameOverlay frame={theme.frame} />}
     </div>
   );
@@ -814,7 +853,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const [styleQuery, setStyleQuery] = useState("");
   // "Add from library" — reuse the shared media picker (browse + upload).
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-  const [tab, setTab] = useState<"design" | "style" | "contact">("design");
+  const [tab, setTab] = useState<"design" | "style" | "elements" | "contact">("design");
   // Extra direction for the two AI generate modes (editable rebuild vs flat image).
   const [genDetails, setGenDetails] = useState("");
   // Multi-page: `value` is always the ACTIVE page; the other pages live in `pages`.
@@ -845,12 +884,14 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const textsRef = useRef<TextLayer[]>(value.texts || []);
   const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
   const shapesRef = useRef<ShapeLayer[]>(value.shapes || []);
+  const iconsRef = useRef<IconLayer[]>(value.icons || []);
   const valueRef = useRef(value);
   valueRef.current = value;
   useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
   useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
   useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
   useEffect(() => { shapesRef.current = value.shapes || []; }, [value.shapes]);
+  useEffect(() => { iconsRef.current = value.icons || []; }, [value.icons]);
   // Nudge the selected element with the keyboard arrows (Shift = bigger step).
   // Ignored while typing in an input / editing text in place.
   useEffect(() => {
@@ -872,6 +913,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
       else if (sel.kind === "contact") onChange({ ...v, contacts: (v.contacts || []).map((c) => (c.id === sel.id ? { ...c, x: nx(c.x), y: ny(c.y) } : c)) });
       else if (sel.kind === "image") onChange({ ...v, images: (v.images || []).map((i) => (i.id === sel.id ? { ...i, x: nx(i.x), y: ny(i.y) } : i)) });
       else if (sel.kind === "shape") onChange({ ...v, shapes: (v.shapes || []).map((sp) => (sp.id === sel.id ? { ...sp, x: nx(sp.x), y: ny(sp.y) } : sp)) });
+      else if (sel.kind === "icon") onChange({ ...v, icons: (v.icons || []).map((ic) => (ic.id === sel.id ? { ...ic, x: nx(ic.x), y: ny(ic.y) } : ic)) });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -925,7 +967,19 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const setShapes = (s: ShapeLayer[]) => onChange({ ...value, shapes: s });
   const patchShape = (id: string, patch: Partial<ShapeLayer>) => setShapes(shapesRef.current.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   const removeShape = (id: string) => { setShapes(shapesRef.current.filter((s) => s.id !== id)); setSel((p) => (p?.kind === "shape" && p.id === id ? null : p)); };
-  const addShape = () => { const id = newId("shape"); onChange({ ...value, shapes: [...shapesRef.current, { id, x: 0.06, y: 0.06, w: 0.32, h: 0.5, color: value.accent, radius: 12, opacity: 1 }] }); setSel({ kind: "shape", id }); };
+  const addShape = () => addShapeKind("rect", { w: 0.32, h: 0.5, radius: 12 });
+  // Add a shape of a given kind (Elements tab) — rect / rounded / ellipse / pill / line.
+  const addShapeKind = (shape: "rect" | "ellipse" | "line", o: { w: number; h: number; radius?: number } = { w: 0.3, h: 0.2 }) => {
+    const id = newId("shape");
+    onChange({ ...value, shapes: [...shapesRef.current, { id, x: 0.3, y: 0.34, w: o.w, h: o.h, color: value.accent, radius: o.radius ?? 0, opacity: 1, shape, front: true }] });
+    setSel({ kind: "shape", id });
+  };
+  // ── Icon elements (Elements tab) ──
+  const setIcons = (ic: IconLayer[]) => onChange({ ...value, icons: ic });
+  const patchIcon = (id: string, patch: Partial<IconLayer>) => setIcons(iconsRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const removeIcon = (id: string) => { setIcons(iconsRef.current.filter((i) => i.id !== id)); setSel((p) => (p?.kind === "icon" && p.id === id ? null : p)); };
+  const addIcon = (name: string) => { const id = newId("icon"); onChange({ ...value, icons: [...iconsRef.current, { id, name, x: 0.4, y: 0.42, size: 64, color: value.accent }] }); setSel({ kind: "icon", id }); };
+  const resizeIcon = (id: string, dx: number, dy: number, startSize: number) => patchIcon(id, { size: clamp(startSize + (dx + dy) / 2 * 0.6, 12, 480) });
   // Resize a block by the px-delta (both dimensions) relative to the poster size.
   const resizeShape = (id: string, dx: number, dy: number, startW: number, startH: number) => {
     const r = posterRef.current?.getBoundingClientRect();
@@ -1226,10 +1280,12 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const texts = value.texts || [];
   const contacts = value.contacts || [];
   const shapes = value.shapes || [];
+  const icons = value.icons || [];
   const showAiImage = !!value.imageUrl;
   const anyLocalErr = images.some((i) => i.error);
   const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
   const selShape = sel?.kind === "shape" ? shapes.find((s) => s.id === sel.id) : null;
+  const selIcon = sel?.kind === "icon" ? icons.find((i) => i.id === sel.id) : null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1373,6 +1429,20 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                     posterRef={posterRef} defaultInk={theme.subInk} />
                 ))}
 
+                {/* icon elements (social / popular) — drag, resize, recolor */}
+                {icons.map((ic) => {
+                  const Icon = ICON_BY_NAME[ic.name] || Star;
+                  const selected = sel?.kind === "icon" && sel.id === ic.id;
+                  return (
+                    <Draggable key={ic.id} pos={{ x: ic.x, y: ic.y }} onMove={(p) => patchIcon(ic.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "icon", id: ic.id })} posterRef={posterRef} className="z-[3]">
+                      <div className={cn("relative", selected && "rounded-md outline outline-2 outline-brand-400")}>
+                        <Icon style={{ width: ic.size, height: ic.size, color: ic.color }} />
+                        {selected && <ResizeHandle onStart={() => { (ic as IconLayer & { _ss?: number })._ss = ic.size; }} onResize={(dx, dy) => resizeIcon(ic.id, dx, dy, (ic as IconLayer & { _ss?: number })._ss ?? ic.size)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
                 {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
 
                 {/* print guides (bleed / safe-area / fold) — non-interactive overlay */}
@@ -1392,9 +1462,11 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
 
           {/* selection toolbar — a SIBLING of the scaled design, so it stays a
               readable size at any zoom, positioned over the top of the design */}
-          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape) && (
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape || !!selIcon) && (
             <FloatingToolbar>
-              {selShape ? (
+              {selIcon ? (
+                <IconControls icon={selIcon} brandColors={brandColors} onChange={(p) => patchIcon(selIcon.id, p)} onResize={(d) => patchIcon(selIcon.id, { size: clamp(selIcon.size + d, 12, 480) })} onDelete={() => removeIcon(selIcon.id)} />
+              ) : selShape ? (
                 <ShapeControls shape={selShape} count={shapes.length} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onArrange={(w) => arrangeShape(selShape.id, w)} onDelete={() => removeShape(selShape.id)} />
               ) : sel.kind === "image" && selIsImage ? (
                 <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onResize={(d) => patchImage(selIsImage.id, { w: clamp(selIsImage.w + d, 0.05, 3) })} onDelete={() => removeImage(selIsImage.id)} />
@@ -1426,6 +1498,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
             <div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
               <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
               <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
+              <TabBtn active={tab === "elements"} onClick={() => setTab("elements")} icon={Shapes} label="Elements" />
               <TabBtn active={tab === "contact"} onClick={() => setTab("contact")} icon={AtSign} label="Contact" />
               <button onClick={() => setToolsOpen(false)} aria-label="Close controls" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground lg:hidden"><X className="h-4 w-4" /></button>
             </div>
@@ -1499,6 +1572,33 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                       </div>
                     ));
                   })()}
+                </>
+              ) : tab === "elements" ? (
+                <>
+                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Click to drop a shape or icon — then drag, resize, recolor and reorder it like any element.</p>
+                  <ControlGroup title="Shapes">
+                    <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                      {([
+                        { label: "Rectangle", Icon: Square, on: () => addShapeKind("rect", { w: 0.3, h: 0.2, radius: 0 }) },
+                        { label: "Rounded", Icon: RectangleHorizontal, on: () => addShapeKind("rect", { w: 0.3, h: 0.2, radius: 18 }) },
+                        { label: "Circle", Icon: Circle, on: () => addShapeKind("ellipse", { w: 0.22, h: 0.22 }) },
+                        { label: "Pill", Icon: Circle, on: () => addShapeKind("rect", { w: 0.34, h: 0.08, radius: 999 }) },
+                        { label: "Line", Icon: Minus, on: () => addShapeKind("line", { w: 0.34, h: 0.008, radius: 0 }) },
+                        { label: "Block", Icon: Square, on: addShape },
+                      ] as const).map((s) => (
+                        <button key={s.label} onClick={s.on} className="inline-flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 px-1 py-2 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"><s.Icon className="h-4 w-4" /> {s.label}</button>
+                      ))}
+                    </div>
+                  </ControlGroup>
+                  {ICON_GROUPS.map((g) => (
+                    <ControlGroup key={g.label} title={`${g.label} icons`}>
+                      <div className="mt-1.5 grid grid-cols-6 gap-1.5">
+                        {g.icons.map(({ name, Icon }) => (
+                          <button key={name} onClick={() => addIcon(name)} title={name} className="grid aspect-square place-items-center rounded-lg border border-border bg-background/60 text-foreground transition hover:border-brand-500/60 hover:bg-muted/50"><Icon className="h-[18px] w-[18px]" /></button>
+                        ))}
+                      </div>
+                    </ControlGroup>
+                  ))}
                 </>
               ) : (
                 <>
