@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as RPointerEvent } from "react";
 import Image from "next/image";
-import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, ArrowLeftRight, Wand2, Trash2, Pause, Play, X, Check, GripVertical } from "lucide-react";
+import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, ArrowLeft, ArrowLeftRight, Wand2, Trash2, Pause, Play, X, Check, GripVertical } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -526,12 +526,13 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy }: { refreshKey?
                     className="flex touch-none cursor-grab items-center gap-2.5 border-b border-border px-3 py-2.5 active:cursor-grabbing"
                   >
                     <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", done ? "border-emerald-500 bg-emerald-500 text-white" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                    <button type="button" onClick={() => setCur(i)} title={done ? "Go back to this step" : "This step"} className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold transition", done ? "border-emerald-500 bg-emerald-500 text-white hover:brightness-110" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{done ? <Check className="h-3.5 w-3.5" /> : i + 1}</button>
                     <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{d.kicker}</div><div className="truncate text-[13px] font-bold">{d.title}</div></div>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto p-3">{stepBody(key)}</div>
                   {isActive && (
                     <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
+                      {cur > 0 && <button onClick={() => setCur((n) => Math.max(0, n - 1))} title="Back a step" className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>}
                       <span className="text-[10.5px] text-muted-foreground">{last ? "Final step" : `Step ${i + 1} of ${order.length}`}</span>
                       <span className="ms-auto" />
                       {last ? (
