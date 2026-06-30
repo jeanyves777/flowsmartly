@@ -27,7 +27,11 @@ export interface ImageLayer { id: string; url: string; x: number; y: number; w: 
   placeholder?: boolean; label?: string; genHint?: string; aspect?: number }
 // A colored BLOCK/panel that sits BEHIND the text — the building block of
 // designed backgrounds (accent panels, sidebars, color bands), like a brochure.
-export interface ShapeLayer { id: string; x: number; y: number; w: number; h: number; color: string; radius?: number; opacity?: number }
+export interface ShapeLayer { id: string; x: number; y: number; w: number; h: number; color: string; radius?: number; opacity?: number;
+  /** Shape kind: solid rectangle (default), ellipse, or a thin line. */
+  shape?: "rect" | "ellipse" | "line";
+  /** When true the block sits IN FRONT of images (default: behind everything). */
+  front?: boolean }
 export interface BackgroundAdjust { hue?: number; saturation?: number; brightness?: number; contrast?: number; tint?: string; tintOpacity?: number }
 
 // Brand contact details + social handles a user can drop onto the design.
@@ -555,8 +559,8 @@ function ImageControls({ img, index, count, onArrange, onRemoveBg, onResize, onD
   );
 }
 
-/** Background-block controls (fill color / opacity / corner radius / delete). */
-function ShapeControls({ shape, brandColors, onChange, onDelete }: { shape: ShapeLayer; brandColors?: string[]; onChange: (p: Partial<ShapeLayer>) => void; onDelete: () => void }) {
+/** Background-block controls (fill / opacity / radius / z-order / delete). */
+function ShapeControls({ shape, count, brandColors, onChange, onArrange, onDelete }: { shape: ShapeLayer; count: number; brandColors?: string[]; onChange: (p: Partial<ShapeLayer>) => void; onArrange: (where: Arrange) => void; onDelete: () => void }) {
   const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
   const op = Math.round((shape.opacity ?? 1) * 100);
   return (
@@ -570,6 +574,15 @@ function ShapeControls({ shape, brandColors, onChange, onDelete }: { shape: Shap
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={() => onChange({ radius: Math.max(0, (shape.radius ?? 0) - 4) })} title="Sharper corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Square className="h-3.5 w-3.5" /></button>
       <button onClick={() => onChange({ radius: Math.min(80, (shape.radius ?? 0) + 4) })} title="Rounder corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Circle className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {/* In front of / behind the images — fixes a block hiding a photo. */}
+      <button onClick={() => onChange({ front: !shape.front })} title={shape.front ? "Send behind images" : "Bring in front of images"} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", shape.front && "bg-white/20")}>{shape.front ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</button>
+      {count > 1 && (
+        <>
+          <button onClick={() => onArrange("forward")} title="Bring block forward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("backward")} title="Send block backward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronDown className="h-3.5 w-3.5" /></button>
+        </>
+      )}
       <span className="mx-0.5 h-4 w-px bg-white/20" />
       <button onClick={onDelete} title="Delete block" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
     </>
@@ -616,12 +629,15 @@ function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
       )}
       {bgImage && <BackgroundTint adjust={doc?.bgAdjust} />}
       {!bgImage && theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
-      {(doc?.shapes || []).map((sh) => (
-        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
+      {(doc?.shapes || []).filter((s) => !s.front).map((sh) => (
+        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
       ))}
       {(doc?.images || []).filter((i) => i.url && !i.placeholder).map((img) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img key={img.id} src={img.url} alt="" className="absolute" style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%`, ...(img.aspect ? { aspectRatio: String(img.aspect), objectFit: "cover" as const } : {}) }} />
+      ))}
+      {(doc?.shapes || []).filter((s) => s.front).map((sh) => (
+        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
       ))}
       {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
         const s = doc?.styles?.[k] ?? {};
@@ -930,6 +946,86 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
     next.splice(j, 0, item);
     setImages(next);
   };
+  // Restack a BLOCK among the other blocks (same array-order z-rule as images).
+  const arrangeShape = (id: string, where: Arrange) => {
+    const arr = shapesRef.current;
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = arr.slice();
+    const [item] = next.splice(i, 1);
+    const j = where === "back" ? 0 : where === "front" ? next.length : where === "backward" ? Math.max(0, i - 1) : Math.min(next.length, i + 1);
+    next.splice(j, 0, item);
+    setShapes(next);
+  };
+
+  // ── Undo / Redo ───────────────────────────────────────────────────────
+  // History of design snapshots. Rapid successive edits (a drag) coalesce into
+  // ONE step so undo doesn't crawl pixel-by-pixel. Tracks the parent `value`.
+  const histPast = useRef<DesignDoc[]>([]);
+  const histFuture = useRef<DesignDoc[]>([]);
+  const histLast = useRef<DesignDoc>(value);
+  const histNav = useRef(false);
+  const histTime = useRef(0);
+  const [, bumpHist] = useState(0);
+  useEffect(() => {
+    if (value === histLast.current) return;
+    if (histNav.current) { histNav.current = false; histLast.current = value; return; }
+    const now = Date.now();
+    if (now - histTime.current > 450) {
+      histPast.current.push(histLast.current);
+      if (histPast.current.length > 60) histPast.current.shift();
+      histFuture.current = [];
+      bumpHist((n) => n + 1);
+    }
+    histTime.current = now;
+    histLast.current = value;
+  }, [value]);
+  const undo = () => {
+    if (!histPast.current.length) return;
+    const prev = histPast.current.pop() as DesignDoc;
+    histFuture.current.push(histLast.current);
+    histNav.current = true; histLast.current = prev; histTime.current = 0;
+    onChange(prev); setSel(null); bumpHist((n) => n + 1);
+  };
+  const redo = () => {
+    if (!histFuture.current.length) return;
+    const nextDoc = histFuture.current.pop() as DesignDoc;
+    histPast.current.push(histLast.current);
+    histNav.current = true; histLast.current = nextDoc; histTime.current = 0;
+    onChange(nextDoc); setSel(null); bumpHist((n) => n + 1);
+  };
+  const canUndo = histPast.current.length > 0;
+  const canRedo = histFuture.current.length > 0;
+  // Ctrl/⌘+Z = undo, +Shift = redo (also Ctrl+Y). Ignored while typing.
+  const undoRef = useRef(undo); undoRef.current = undo;
+  const redoRef = useRef(redo); redoRef.current = redo;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== "z" && k !== "y") return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      e.preventDefault();
+      if (k === "y" || e.shiftKey) redoRef.current(); else undoRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // A draggable, resizable, selectable BLOCK (rect / ellipse / line). Rendered in
+  // two passes so blocks can sit behind OR in front of images (sh.front).
+  const renderShape = (sh: ShapeLayer) => {
+    const selected = sel?.kind === "shape" && sel.id === sh.id;
+    const radius = sh.shape === "ellipse" ? "50%" : (sh.radius ?? 0);
+    return (
+      <Draggable key={sh.id} pos={{ x: sh.x, y: sh.y }} onMove={(p) => patchShape(sh.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "shape", id: sh.id })} posterRef={posterRef} className={cn(sh.front && "z-[2]")} style={{ width: `${sh.w * 100}%`, height: `${sh.h * 100}%` }}>
+        <div className={cn("relative h-full w-full", selected && "outline outline-2 outline-brand-400")} style={{ background: sh.color, borderRadius: radius, opacity: sh.opacity ?? 1 }}>
+          {selected && <ResizeHandle onStart={() => { (sh as ShapeLayer & { _sw?: number; _sh?: number })._sw = sh.w; (sh as ShapeLayer & { _sw?: number; _sh?: number })._sh = sh.h; }} onResize={(dx, dy) => resizeShape(sh.id, dx, dy, (sh as ShapeLayer & { _sw?: number })._sw ?? sh.w, (sh as ShapeLayer & { _sh?: number })._sh ?? sh.h)} />}
+        </div>
+      </Draggable>
+    );
+  };
   const removeText = (id: string) => { setTexts(textsRef.current.filter((t) => t.id !== id)); setSel((s) => (s?.kind === "text" && s.id === id ? null : s)); };
   const removeContact = (id: string) => { setContacts(contactsRef.current.filter((c) => c.id !== id)); setSel((s) => (s?.kind === "contact" && s.id === id ? null : s)); };
   const addContact = (type: ContactType) => {
@@ -1145,8 +1241,8 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
             <span className="mx-0.5 h-5 w-px bg-border" />
           </>
         )}
-        <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Undo"><Undo2 className="h-4 w-4" /></button>
-        <button className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="Redo"><Redo2 className="h-4 w-4" /></button>
+        <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
+        <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
         <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
         <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
         <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[160px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
@@ -1189,17 +1285,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 {canvasBgImage && <BackgroundTint adjust={value.bgAdjust} />}
                 {!canvasBgImage && theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
 
-                {/* background BLOCKS / panels — sit behind everything, drag to move, corner to resize */}
-                {shapes.map((sh) => {
-                  const selected = sel?.kind === "shape" && sel.id === sh.id;
-                  return (
-                    <Draggable key={sh.id} pos={{ x: sh.x, y: sh.y }} onMove={(p) => patchShape(sh.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "shape", id: sh.id })} posterRef={posterRef} style={{ width: `${sh.w * 100}%`, height: `${sh.h * 100}%` }}>
-                      <div className={cn("relative h-full w-full", selected && "outline outline-2 outline-brand-400")} style={{ background: sh.color, borderRadius: sh.radius ?? 0, opacity: sh.opacity ?? 1 }}>
-                        {selected && <ResizeHandle onStart={() => { (sh as ShapeLayer & { _sw?: number; _sh?: number })._sw = sh.w; (sh as ShapeLayer & { _sw?: number; _sh?: number })._sh = sh.h; }} onResize={(dx, dy) => resizeShape(sh.id, dx, dy, (sh as ShapeLayer & { _sw?: number })._sw ?? sh.w, (sh as ShapeLayer & { _sh?: number })._sh ?? sh.h)} />}
-                      </div>
-                    </Draggable>
-                  );
-                })}
+                {/* background BLOCKS — drag to move, corner to resize. Default sit
+                    behind images; sh.front blocks render after images (below). */}
+                {shapes.filter((s) => !s.front).map(renderShape)}
 
                 {images.map((img) => {
                   const selected = sel?.kind === "image" && sel.id === img.id;
@@ -1253,6 +1341,9 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                 {/* Images are optional — add them from the toolbar (Add photo / Add
                     logo) or by dropping onto the canvas; no permanent placeholder. */}
 
+                {/* blocks brought IN FRONT of images (sit over photos, under text) */}
+                {shapes.filter((s) => s.front).map(renderShape)}
+
                 {/* core text */}
                 {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
                   const defColor = k === "eyebrow" ? theme.eyeInk : k === "headline" ? theme.headInk : k === "sub" ? theme.subInk : DEFAULT_COLOR.cta;
@@ -1304,7 +1395,7 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
           {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape) && (
             <FloatingToolbar>
               {selShape ? (
-                <ShapeControls shape={selShape} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onDelete={() => removeShape(selShape.id)} />
+                <ShapeControls shape={selShape} count={shapes.length} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onArrange={(w) => arrangeShape(selShape.id, w)} onDelete={() => removeShape(selShape.id)} />
               ) : sel.kind === "image" && selIsImage ? (
                 <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onResize={(d) => patchImage(selIsImage.id, { w: clamp(selIsImage.w + d, 0.05, 3) })} onDelete={() => removeImage(selIsImage.id)} />
               ) : (
@@ -1440,6 +1531,16 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
                         </button>
                       ))}</div>
                     ) : <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Add or drop photos + logo — drag each on the canvas to place it.</p>}
+                    {/* Blocks list — always selectable even when a block is hidden behind a photo. */}
+                    {shapes.length > 0 && (
+                      <div className="mt-2 space-y-1.5">{shapes.map((sh, i) => (
+                        <button key={sh.id} onClick={() => setSel({ kind: "shape", id: sh.id })} className={cn("flex w-full items-center gap-2 rounded-lg border bg-background/60 p-1.5 text-left", selShape?.id === sh.id ? "border-brand-500" : "border-border")}>
+                          <span className="h-6 w-6 shrink-0 border border-white/20" style={{ background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : 6, opacity: sh.opacity ?? 1 }} />
+                          <span className="flex-1 truncate text-[11px] text-muted-foreground">Block {i + 1}{sh.front ? " · in front" : ""}</span>
+                          <span onClick={(e) => { e.stopPropagation(); removeShape(sh.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove block"><X className="h-3.5 w-3.5" /></span>
+                        </button>
+                      ))}</div>
+                    )}
                     {anyLocalErr && <p className="mt-1.5 text-[10.5px] leading-snug text-amber-500">Some images couldn’t reach your library (storage isn’t reachable) — they show here but won’t be used by AI generation until the upload succeeds.</p>}
                     {value.bgImageUrl && (
                       <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background/60 p-1.5">
