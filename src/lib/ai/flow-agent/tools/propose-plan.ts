@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import { nextSeqForConversation } from "../conversation-seq";
 import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
+import { calculateStoryAdMovieCredits } from "@/lib/story-ad-movie";
 import type { FlowAgentTool } from "../registry";
 import type { PlanStep } from "../tool-context";
 
@@ -51,6 +52,10 @@ export const proposePlan: FlowAgentTool = {
         items: { type: "string" },
         description: "The credit-cost KEY of each PAID step (the tool sums their LIVE admin-set prices for an ACCURATE total — pass these instead of guessing totalCreditCost). Common keys: AI_VISUAL_DESIGN (a branded design via create_branded_design), AGENT_GENERATE_IMAGE_STANDARD / AGENT_GENERATE_IMAGE_PREMIUM (plain generate_image or edit_image, by tier), AGENT_SCHEDULE_POST (schedule/post a social post), AGENT_GENERATE_VIDEO_STANDARD / AGENT_GENERATE_VIDEO_PREMIUM (video). Example — a branded image post = [\"AI_VISUAL_DESIGN\", \"AGENT_SCHEDULE_POST\"]. Omit free steps (writing a caption). For a Premium branded design, list AI_VISUAL_DESIGN once per the premium multiplier if you know it; otherwise the tool uses the Standard price.",
       },
+      storyAdSeconds: {
+        type: "number",
+        description: "REQUIRED when the plan includes a Story-Ad / cinematic movie (start_story_ad_campaign): the reel duration in seconds (10, 20, 30 or 40). A Story-Ad has NO cost key — it is priced at 100 credits per 10 seconds, so propose_plan computes its live cost from this and adds it to the total (30s → 300). Omit for everything else.",
+      },
     },
     required: ["summary", "steps"],
   },
@@ -80,11 +85,21 @@ export const proposePlan: FlowAgentTool = {
           }
         }
       }
-      const totalCreditCost = haveKeys
-        ? Math.max(0, Math.round(computedFromKeys))
+      // A Story-Ad/movie has NO static cost key — it's priced per-second
+      // (100 cr / 10s). Compute its live cost server-side from the duration so
+      // the card never shows 0 for a paid video (the tool charges the same fn).
+      let storyAdCost = 0;
+      if (typeof input.storyAdSeconds === "number" && input.storyAdSeconds > 0) {
+        const secs = input.storyAdSeconds;
+        const dur = secs <= 10 ? 10 : secs <= 20 ? 20 : secs <= 30 ? 30 : 40;
+        storyAdCost = calculateStoryAdMovieCredits(dur);
+      }
+      const baseCost = haveKeys
+        ? computedFromKeys
         : typeof input.totalCreditCost === "number"
-          ? Math.max(0, Math.round(input.totalCreditCost))
+          ? input.totalCreditCost
           : 0;
+      const totalCreditCost = Math.max(0, Math.round(baseCost + storyAdCost));
       const rawSteps = Array.isArray(input.steps) ? input.steps : [];
       if (!summary || rawSteps.length === 0) {
         return {
