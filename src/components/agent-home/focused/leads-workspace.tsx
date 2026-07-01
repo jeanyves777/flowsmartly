@@ -34,6 +34,9 @@ interface SavedLead {
   id: string; name: string; address?: string | null; phone?: string | null; website?: string | null;
   rating?: number | null; reviewCount?: number | null; businessStatus?: string | null; category?: string | null;
   googleMapsUrl?: string | null; status?: string; notes?: string | null; pitchCount?: number;
+  // person-level (AI/web-found decision-makers)
+  title?: string | null; seniority?: string | null; department?: string | null;
+  email?: string | null; phones?: string | null; socials?: string | null; enrichedAt?: string | null;
 }
 
 const LEAD_STATUS = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
@@ -344,7 +347,7 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
             ) : visibleLeads.length ? (
               <div className="space-y-2">
                 {visibleLeads.map((lead) => (
-                  <LeadRow key={lead.id} lead={lead} busy={busyLead === lead.id} onStatus={(s) => setLeadStatus(lead, s)} onRemove={() => removeLead(lead)} onEdit={(f) => patchLead(lead, f)} />
+                  <LeadRow key={lead.id} lead={lead} busy={busyLead === lead.id} onStatus={(s) => setLeadStatus(lead, s)} onRemove={() => removeLead(lead)} onEdit={(f) => patchLead(lead, f)} onEnrich={() => onAsk(`Enrich the lead "${lead.name}"${lead.category ? ` at ${lead.category}` : ""} — find their work email, phone and LinkedIn, then save it.`)} />
                 ))}
               </div>
             ) : statusFilter ? (
@@ -476,7 +479,7 @@ const EDIT_FIELDS: { key: string; label: string; long?: boolean }[] = [
 ];
 
 /** A saved lead in a list, expandable to its pitches/proposals with create/email/delete. */
-function LeadRow({ lead, busy, onStatus, onRemove, onEdit }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void; onEdit: (f: { name: string; phone: string; website: string; address: string }) => Promise<boolean> }) {
+function LeadRow({ lead, busy, onStatus, onRemove, onEdit, onEnrich }: { lead: SavedLead; busy: boolean; onStatus: (s: string) => void; onRemove: () => void; onEdit: (f: { name: string; phone: string; website: string; address: string }) => Promise<boolean>; onEnrich?: () => void }) {
   const [open, setOpen] = useState(false);
   // Inline edit of the lead's own contact details (PATCH …/saved/[id]).
   const [leadEditOpen, setLeadEditOpen] = useState(false);
@@ -609,7 +612,22 @@ function LeadRow({ lead, busy, onStatus, onRemove, onEdit }: { lead: SavedLead; 
             {typeof lead.rating === "number" && <span className="inline-flex items-center gap-0.5 text-[11px] text-amber-500"><Star className="h-3 w-3 fill-current" /> {lead.rating.toFixed(1)}</span>}
             {(lead.pitchCount ?? 0) > 0 && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">{lead.pitchCount}</span>}
           </div>
-          <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.address, lead.phone].filter(Boolean).join(" · ")}</p>
+          {lead.title ? (
+            <>
+              <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.title, lead.category].filter(Boolean).join(" · ")}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+                {lead.email && <span className="inline-flex items-center gap-1 text-muted-foreground"><Mail className="h-3 w-3" /> {lead.email}</span>}
+                {lead.phone && <span className="inline-flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3" /> {lead.phone}</span>}
+                {!lead.enrichedAt && onEnrich ? (
+                  <button onClick={onEnrich} disabled={busy} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-semibold text-brand-500 hover:border-brand-500/60 disabled:opacity-60"><Search className="h-3 w-3" /> Find email &amp; phone</button>
+                ) : lead.enrichedAt ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3 w-3" /> Enriched</span>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{[lead.address, lead.phone].filter(Boolean).join(" · ")}</p>
+          )}
         </div>
         <select value={(lead.status || "NEW").toUpperCase()} onChange={(e) => onStatus(e.target.value)} disabled={busy} className={cn("shrink-0 rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold outline-none", statusCls(lead.status))}>
           {LEAD_STATUS.map((s) => <option key={s} value={s}>{s[0] + s.slice(1).toLowerCase()}</option>)}

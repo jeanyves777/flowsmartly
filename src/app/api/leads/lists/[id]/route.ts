@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       select: {
         id: true, name: true, address: true, phone: true, website: true, rating: true, reviewCount: true,
         businessStatus: true, category: true, types: true, googleMapsUrl: true, status: true, notes: true, createdAt: true,
+        title: true, seniority: true, department: true, email: true, phones: true, socials: true, enrichedAt: true,
         _count: { select: { pitches: true } },
       },
     });
