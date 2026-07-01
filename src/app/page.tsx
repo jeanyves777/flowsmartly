@@ -3,6 +3,7 @@ import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicMotionProvider } from "@/components/marketing/motion";
 import { HeroSection } from "@/components/home/hero-section";
 import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
+import { WatchItWork } from "@/components/marketing/sections/watch-it-work";
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 
 export default function HomePage() {
@@ -13,7 +14,8 @@ export default function HomePage() {
         <main>
           <HeroSection />
           <ProofMarquee />
-          {/* P2 — watch the agent work · P3 — surfaces + how it works · P4 — outcomes + pricing */}
+          <WatchItWork />
+          {/* P3 — surfaces + how it works · P4 — outcomes + pricing */}
           <FinalCta />
         </main>
         <PublicFooter />
