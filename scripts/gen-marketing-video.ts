@@ -36,7 +36,7 @@ const SIDE = "Filmed from a three-quarter SIDE angle: the person is seen from th
 const JOBS: VideoJob[] = [
   {
     name: "showcase-hero", aspect: "16:9", duration: 6,
-    prompt: `A premium 6-second product marketing montage showing a small business coming to life: quick elegant cuts of a fresh bakery storefront, appetizing autumn pastries and a latte with steam, a smartphone showing a social post, and a laptop showing an online store. Cozy warm autumn palette, shallow depth of field, satisfying and aspirational. ${CLEAN}`,
+    prompt: `A premium 6-second product marketing montage showing a small business coming to life: quick elegant cuts of a fresh bakery storefront, appetizing autumn pastries and a latte with steam, a smartphone showing a social post, and a laptop showing an online store. Cozy warm autumn palette, shallow depth of field, satisfying and aspirational. Focus on the products, spaces and screens — any people appear only from the side or from behind, absorbed in their task and NEVER facing the camera. ${CLEAN}`,
   },
   {
     name: "showcase-ad", aspect: "9:16", duration: 6,
