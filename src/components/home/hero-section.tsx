@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, CheckCircle2, Sparkles, ArrowUp } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles, ArrowUp, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuroraBackdrop, GradientText, Magnetic } from "@/components/marketing/motion";
 import { AssetPreview } from "@/components/marketing/asset-preview";
@@ -19,13 +19,15 @@ const ASSETS = [
   { label: "Ad", accent: "from-emerald-400 to-teal-500", kind: "ad" as const },
 ];
 
-/** The hero's animated "agent at work" composer — types a prompt, streams the
- * agent's steps, then pops the outputs. Static (final state) under reduced motion. */
+/** The hero's animated "agent at work" composer — a real streaming loader: types
+ * the prompt, works each step (spinner → check), then produces each asset
+ * (skeleton shimmer → the real generated image). Never shows an empty area;
+ * jumps to the finished state under reduced motion. */
 function AgentComposer() {
   const reduced = useReducedMotion();
   const [typed, setTyped] = useState(reduced ? PROMPT.length : 0);
-  const [steps, setSteps] = useState(reduced ? STEPS.length : 0);
-  const [cards, setCards] = useState(reduced ? ASSETS.length : 0);
+  const [activeStep, setActiveStep] = useState(reduced ? STEPS.length : -1);
+  const [revealed, setRevealed] = useState(reduced ? ASSETS.length : 0);
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
@@ -33,17 +35,23 @@ function AgentComposer() {
     const t = timers.current;
     let i = 0;
     const typeId = window.setInterval(() => {
-      i += 1;
-      setTyped(i);
+      setTyped((i += 1));
       if (i >= PROMPT.length) {
         window.clearInterval(typeId);
-        STEPS.forEach((_, s) => t.push(window.setTimeout(() => setSteps(s + 1), 480 + s * 620)));
-        ASSETS.forEach((_, c) => t.push(window.setTimeout(() => setCards(c + 1), 480 + STEPS.length * 620 + 260 + c * 260)));
+        setActiveStep(0);
+        STEPS.forEach((_, s) => t.push(window.setTimeout(() => setActiveStep(s + 1), 700 + s * 650)));
+        const afterSteps = 700 + STEPS.length * 650 + 300;
+        ASSETS.forEach((_, c) => t.push(window.setTimeout(() => setRevealed(c + 1), afterSteps + c * 520)));
       }
-    }, 26);
+    }, 24);
     t.push(typeId);
     return () => { t.forEach((id) => { window.clearTimeout(id); window.clearInterval(id); }); timers.current = []; };
   }, [reduced]);
+
+  const stepsShown = activeStep < 0 ? 0 : Math.min(STEPS.length, activeStep + 1);
+  const working = activeStep >= 0 && activeStep < STEPS.length;
+  const producing = activeStep >= STEPS.length && revealed < ASSETS.length;
+  const showOutputs = activeStep >= STEPS.length;
 
   return (
     <div className="relative rounded-3xl border border-border bg-card/70 p-3.5 shadow-2xl backdrop-blur-xl ring-1 ring-brand-500/10 sm:p-4">
@@ -52,6 +60,8 @@ function AgentComposer() {
         <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
         <span className="ml-2 font-medium">FlowSmartly · agent</span>
+        {(working || producing) && <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-500"><Loader2 className="h-3 w-3 animate-spin" /> working…</span>}
+        {!working && !producing && typed >= PROMPT.length && <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-500"><Check className="h-3 w-3" /> done</span>}
       </div>
 
       <div className="rounded-2xl bg-muted/40 p-4">
@@ -63,28 +73,42 @@ function AgentComposer() {
           </p>
         </div>
 
-        <div className="mt-4 space-y-2">
-          {STEPS.slice(0, steps).map((label) => (
-            <motion.div key={label} initial={reduced ? false : { opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-500/15 text-[11px] text-emerald-500">✓</span>
-              {label}
-            </motion.div>
-          ))}
-        </div>
+        {stepsShown > 0 && (
+          <div className="mt-4 space-y-2">
+            {STEPS.slice(0, stepsShown).map((label, s) => {
+              const done = s < activeStep;
+              return (
+                <motion.div key={label} initial={reduced ? false : { opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className={cn("flex items-center gap-2 text-[13px]", done ? "text-muted-foreground" : "font-medium text-foreground")}>
+                  {done ? (
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-500/15 text-emerald-500"><Check className="h-3 w-3" /></span>
+                  ) : (
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-500/15 text-brand-500"><Loader2 className="h-3 w-3 animate-spin" /></span>
+                  )}
+                  {label}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {ASSETS.slice(0, cards).map((a, i) => (
-            <motion.div
-              key={i}
-              initial={reduced ? false : { opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 260, damping: 18 }}
-            >
-              <AssetPreview kind={a.kind} accent={a.accent} className="aspect-[3/4]" />
-              <p className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">{a.label}</p>
-            </motion.div>
-          ))}
-        </div>
+        {showOutputs && (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {ASSETS.map((a, i) => (
+              <div key={a.kind}>
+                <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-border">
+                  {i < revealed ? (
+                    <motion.div initial={reduced ? false : { opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="h-full w-full">
+                      <AssetPreview kind={a.kind} className="h-full w-full rounded-none border-0" />
+                    </motion.div>
+                  ) : (
+                    <div className="grid h-full w-full animate-pulse place-items-center bg-muted"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                  )}
+                </div>
+                <p className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">{a.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/60 px-3 py-2.5">

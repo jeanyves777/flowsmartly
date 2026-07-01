@@ -36,7 +36,9 @@ export function WatchItWork() {
     const ctx = gsap.context((self) => {
       const q = self.selector!;
       gsap.set(q("[data-step]"), { opacity: 0.25, x: -8 });
-      gsap.set(q("[data-output]"), { opacity: 0, scale: 0.85, y: 24 });
+      // outputs start visible-but-"pending" (dim + greyscale) so the workspace is
+      // never empty — the scrub then colours them in as the agent "produces" them.
+      gsap.set(q("[data-output]"), { opacity: 0.5, y: 8, filter: "grayscale(0.9) brightness(0.9)" });
       gsap.set(q("[data-shipped]"), { opacity: 0, scale: 0.9 });
       gsap.set(q("[data-prompt]"), { opacity: 0, y: 10 });
 
@@ -54,7 +56,7 @@ export function WatchItWork() {
 
       tl.to(q("[data-prompt]"), { opacity: 1, y: 0, duration: 0.6 })
         .to(q("[data-step]"), { opacity: 1, x: 0, duration: 0.6, stagger: 0.5 }, 0.4)
-        .to(q("[data-output]"), { opacity: 1, scale: 1, y: 0, duration: 0.6, stagger: 0.5 }, "+=0.1")
+        .to(q("[data-output]"), { opacity: 1, y: 0, filter: "grayscale(0) brightness(1)", duration: 0.6, stagger: 0.5 }, "+=0.1")
         .to(q("[data-shipped]"), { opacity: 1, scale: 1, duration: 0.6 }, "+=0.2");
     }, root);
 

@@ -33,7 +33,7 @@ export const SURFACES: Surface[] = [
     pitch: "Describe a graphic and the agent designs it on a live canvas — brand-matched, on-message, and editable down to every layer.",
     capabilities: ["Branded social graphics & posts", "Logos and identity marks", "Short-form video & cartoons", "A full editor you (or the agent) can restyle"],
     samples: ["Instagram post", "Logo", "Story", "Promo video"],
-    image: "/marketing/transparent/flowsmartly-human-creator-clean-cutout.png",
+    image: "/marketing/generated/surface-create.webp",
   },
   {
     key: "print", label: "Print", icon: Printer, tagline: "Flyers, cards, posters, products",
@@ -42,7 +42,7 @@ export const SURFACES: Surface[] = [
     pitch: "From a one-line brief to a print-ready file — flyers, cards, brochures and product mockups with proper bleed and safe zones.",
     capabilities: ["Flyers, posters & brochures", "Business cards & table folders", "Product mockups (tee, mug, tote)", "Bleed / safe-area / fold guides built in"],
     samples: ["Flyer", "Business card", "Brochure", "T-shirt"],
-    image: "/marketing/transparent/flowsmartly-human-marketer-cutout.png",
+    image: "/marketing/generated/surface-print.webp",
   },
   {
     key: "publish", label: "Publish", icon: Megaphone, tagline: "Schedule & post across channels",
@@ -51,7 +51,7 @@ export const SURFACES: Surface[] = [
     pitch: "Plan a content calendar and let the agent write, schedule and publish across every connected account — no tab-hopping.",
     capabilities: ["Multi-account scheduling", "A living content calendar", "Captions & hashtags written for you", "Repurpose one idea across channels"],
     samples: ["Calendar", "Auto-caption", "Cross-post", "Best time"],
-    image: "/marketing/transparent/flowsmartly-home-messaging-manager.png",
+    image: "/marketing/generated/surface-publish.webp",
   },
   {
     key: "grow", label: "Grow", icon: TrendingUp, tagline: "Ads & campaigns that convert",
@@ -60,7 +60,7 @@ export const SURFACES: Surface[] = [
     pitch: "The agent builds the creative, writes the copy, sets the audience and launches the campaign — then keeps the automations running.",
     capabilities: ["Ad campaigns end-to-end", "Story-ad video pipelines", "Audience & budget suggestions", "Follow-up automations"],
     samples: ["Meta ad", "Story-ad", "Retarget", "Automation"],
-    image: "/marketing/transparent/flowsmartly-home-campaign-manager.png",
+    image: "/marketing/generated/surface-grow.webp",
   },
   {
     key: "sell", label: "Sell", icon: ShoppingBag, tagline: "AI storefront & checkout",
@@ -69,7 +69,7 @@ export const SURFACES: Surface[] = [
     pitch: "Spin up a storefront in minutes — the agent writes the product copy, sets up checkout, and helps you fulfil the orders that come in.",
     capabilities: ["AI-built storefront & themes", "Product copy & imagery", "Orders, customers & delivery", "Store analytics at a glance"],
     samples: ["Storefront", "Product page", "Checkout", "Orders"],
-    image: "/marketing/transparent/flowsmartly-home-flowshop-seller.png",
+    image: "/marketing/generated/surface-sell.webp",
   },
   {
     key: "web", label: "Web", icon: Globe, tagline: "Sites & landing pages",
@@ -78,7 +78,7 @@ export const SURFACES: Surface[] = [
     pitch: "Full websites and landing pages — the agent writes every section, wires the forms, and connects your domain.",
     capabilities: ["Multi-section websites", "High-converting landing pages", "Lead-capture forms", "Custom domains"],
     samples: ["Website", "Landing page", "Form", "Domain"],
-    image: "/marketing/transparent/flowsmartly-home-platform-operator.png",
+    image: "/marketing/generated/surface-web.webp",
   },
   {
     key: "outreach", label: "Outreach", icon: Handshake, tagline: "Email & SMS journeys",
@@ -87,7 +87,7 @@ export const SURFACES: Surface[] = [
     pitch: "Reach the right people at the right moment — the agent drafts, segments and schedules email, SMS and WhatsApp journeys.",
     capabilities: ["Email & SMS campaigns", "WhatsApp journeys", "Smart segments & timing", "Reviews & local presence"],
     samples: ["Email flow", "SMS blast", "WhatsApp", "Segment"],
-    image: "/marketing/transparent/flowsmartly-listsmartly-local-listings-cutout.png",
+    image: "/marketing/generated/surface-outreach.webp",
   },
   {
     key: "leads", label: "Leads", icon: Search, tagline: "Capture, score & follow up",
@@ -96,7 +96,7 @@ export const SURFACES: Surface[] = [
     pitch: "Find local businesses to sell to, capture inbound leads, and let the agent qualify and follow up — so nothing slips.",
     capabilities: ["Local lead finder", "Lead lists & scoring", "Capture forms & pitch decks", "Automated follow-up"],
     samples: ["Lead finder", "Lead list", "Pitch board", "Follow-up"],
-    image: "/marketing/transparent/flowsmartly-marketplace-page-agent.png",
+    image: "/marketing/generated/surface-leads.webp",
   },
   {
     key: "business", label: "Business", icon: SlidersHorizontal, tagline: "Brand, credits & analytics",
@@ -105,7 +105,7 @@ export const SURFACES: Surface[] = [
     pitch: "The control room — your brand kit, analytics, credits, team and referrals, all feeding the agent so its work stays on-brand.",
     capabilities: ["Brand kit the agent uses everywhere", "Analytics across every surface", "Credits & billing", "Teams & referrals"],
     samples: ["Brand kit", "Analytics", "Credits", "Team"],
-    image: "/marketing/transparent/flowsmartly-pricing-page-operator.png",
+    image: "/marketing/generated/surface-business.webp",
   },
 ];
 

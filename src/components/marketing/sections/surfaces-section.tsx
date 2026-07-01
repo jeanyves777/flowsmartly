@@ -2,6 +2,7 @@
 
 import { type PointerEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/motion";
 import { SURFACES, type Surface } from "@/components/marketing/surfaces";
@@ -19,16 +20,20 @@ function SurfaceCard({ surface }: { surface: Surface }) {
     <Link
       href={`/surfaces/${surface.key}`}
       onPointerMove={onMove}
-      className="group relative block overflow-hidden rounded-3xl border border-border bg-card/60 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-500/40 hover:shadow-xl"
+      className="group relative block overflow-hidden rounded-3xl border border-border bg-card/60 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-500/40 hover:shadow-xl"
     >
+      {/* photo banner — sits on the natural surface, accent lives on the icon chip */}
+      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+        <Image src={surface.image} alt="" fill unoptimized sizes="(min-width:1024px) 30vw, 90vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
+      </div>
       {/* spotlight */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={{ background: "radial-gradient(340px circle at var(--mx) var(--my), hsl(var(--foreground)/0.06), transparent 60%)" }}
       />
-      <div className="relative">
-        <span className={cn("grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-lg", surface.accent)}>
+      <div className="relative p-6">
+        <span className={cn("-mt-11 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-lg ring-4 ring-card", surface.accent)}>
           <Icon className="h-6 w-6" />
         </span>
         <h3 className="mt-4 text-lg font-bold text-foreground">{surface.label}</h3>

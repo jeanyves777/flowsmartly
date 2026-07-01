@@ -10,23 +10,18 @@ import { SURFACES, SURFACE_BY_KEY, type Surface } from "@/components/marketing/s
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 import { cn } from "@/lib/utils/cn";
 
-/** A floating, parallaxed cutout illustration on a gradient wash. */
+/** A floating, parallaxed illustration for the surface (generated art, full-bleed). */
 function FloatingArt({ surface }: { surface: Surface }) {
   const reduced = useReducedMotion();
   return (
-    <Parallax speed={0.16} className="relative">
-      <div className={cn("relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br p-6 shadow-2xl", surface.accent, "bg-opacity-10")}
-        style={{ backgroundImage: undefined }}>
-        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-20", surface.accent)} />
-        <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 35%, hsl(var(--foreground)/0.04), transparent 60%)" }} />
-        <motion.div
-          className="relative h-full w-full"
-          animate={reduced ? undefined : { y: [0, -14, 0] }}
-          transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Image src={surface.image} alt={`${surface.label} — the agent at work`} fill unoptimized sizes="440px" className="object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.35)]" priority />
-        </motion.div>
-      </div>
+    <Parallax speed={0.14} className="relative">
+      <motion.div
+        className="relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-[2rem] border border-border shadow-2xl"
+        animate={reduced ? undefined : { y: [0, -12, 0] }}
+        transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
+      </motion.div>
     </Parallax>
   );
 }
