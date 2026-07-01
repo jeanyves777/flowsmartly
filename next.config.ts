@@ -46,6 +46,12 @@ const nextConfig: NextConfig = {
         destination: "/story-ad-movie",
         permanent: true,
       },
+      // Legacy product marketing pages -> the agent-surface story they now live
+      // under (see LEGACY_SURFACE_REDIRECTS in components/marketing/surfaces.ts).
+      { source: "/flowshop", destination: "/surfaces/sell", permanent: true },
+      { source: "/listsmartly-details", destination: "/surfaces/outreach", permanent: true },
+      { source: "/view-to-earn", destination: "/surfaces/business", permanent: true },
+      { source: "/marketplace", destination: "/surfaces/leads", permanent: true },
       // Legacy: ?view=automations used to switch the Strategy page into its
       // Automations sub-view. Content automation lives at /content/campaigns
       // now — handle at the HTTP layer so no client useEffect/router.replace

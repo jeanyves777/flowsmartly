@@ -1,22 +1,25 @@
 "use client";
 
 import { type PointerEvent } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/motion";
 import { SURFACES, type Surface } from "@/components/marketing/surfaces";
 import { cn } from "@/lib/utils/cn";
 
-/** A single surface card with a pointer-following spotlight + hover lift. */
+/** A single surface card with a pointer-following spotlight + hover lift. Links to its deep-dive. */
 function SurfaceCard({ surface }: { surface: Surface }) {
   const Icon = surface.icon;
-  const onMove = (e: PointerEvent<HTMLDivElement>) => {
+  const onMove = (e: PointerEvent<HTMLAnchorElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
     e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
   };
   return (
-    <div
+    <Link
+      href={`/surfaces/${surface.key}`}
       onPointerMove={onMove}
-      className="group relative overflow-hidden rounded-3xl border border-border bg-card/60 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-500/40 hover:shadow-xl"
+      className="group relative block overflow-hidden rounded-3xl border border-border bg-card/60 p-6 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-500/40 hover:shadow-xl"
     >
       {/* spotlight */}
       <span
@@ -31,8 +34,9 @@ function SurfaceCard({ surface }: { surface: Surface }) {
         <h3 className="mt-4 text-lg font-bold text-foreground">{surface.label}</h3>
         <p className="mt-1 text-sm font-medium text-brand-600 dark:text-brand-300">{surface.tagline}</p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{surface.blurb}</p>
+        <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-300">Explore <ArrowRight className="h-4 w-4" /></span>
       </div>
-    </div>
+    </Link>
   );
 }
 

@@ -27,7 +27,7 @@ function ProductMega() {
       {SURFACES.map((s) => {
         const Icon = s.icon;
         return (
-          <Link key={s.key} href={`/#surfaces`} className="group flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-muted">
+          <Link key={s.key} href={`/surfaces/${s.key}`} className="group flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-muted">
             <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white", s.accent)}>
               <Icon className="h-[18px] w-[18px]" />
             </span>
@@ -133,7 +133,7 @@ export function PublicHeader() {
                   {SURFACES.map((s) => {
                     const Icon = s.icon;
                     return (
-                      <Link key={s.key} href="/#surfaces" onClick={() => setSheetOpen(false)} className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium hover:bg-muted">
+                      <Link key={s.key} href={`/surfaces/${s.key}`} onClick={() => setSheetOpen(false)} className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium hover:bg-muted">
                         <span className={cn("grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br text-white", s.accent)}><Icon className="h-4 w-4" /></span>
                         {s.label}
                       </Link>

@@ -1,8 +1,16 @@
 import type { MetadataRoute } from "next";
+import { SURFACES } from "@/components/marketing/surfaces";
 
 const BASE_URL = "https://flowsmartly.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const surfacePages: MetadataRoute.Sitemap = SURFACES.map((s) => ({
+    url: `${BASE_URL}/surfaces/${s.key}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.8,
+  }));
+
   return [
     {
       url: BASE_URL,
@@ -16,6 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.9,
     },
+    ...surfacePages,
     {
       url: `${BASE_URL}/book-demo`,
       lastModified: new Date(),
@@ -27,12 +36,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/view-to-earn`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.8,
     },
     {
       url: `${BASE_URL}/privacy`,
