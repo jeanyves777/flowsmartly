@@ -4,6 +4,8 @@ import { PublicMotionProvider } from "@/components/marketing/motion";
 import { HeroSection } from "@/components/home/hero-section";
 import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
 import { WatchItWork } from "@/components/marketing/sections/watch-it-work";
+import { SurfacesSection } from "@/components/marketing/sections/surfaces-section";
+import { WhyDifferent } from "@/components/marketing/sections/why-different";
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 
 export default function HomePage() {
@@ -15,7 +17,9 @@ export default function HomePage() {
           <HeroSection />
           <ProofMarquee />
           <WatchItWork />
-          {/* P3 — surfaces + how it works · P4 — outcomes + pricing */}
+          <SurfacesSection />
+          <WhyDifferent />
+          {/* P4 — outcomes + pricing */}
           <FinalCta />
         </main>
         <PublicFooter />
