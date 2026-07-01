@@ -497,9 +497,11 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const isRunning = task.status === "running" || task.status === "pending";
   const isDone = task.status === "completed";
   const isFailed = task.status === "failed" || task.status === "canceled";
+  // Accept absolute OR app-relative media (dev S3 falls back to /uploads/…, so a
+  // strict https-only check would hide the preview and show only an Open link).
   const mediaUrl =
-    typeof task.output?.url === "string" && /^https?:\/\//.test(task.output.url)
-      ? task.output.url
+    typeof task.output?.url === "string" && /^(https?:\/\/|\/)/.test(task.output.url.trim())
+      ? task.output.url.trim()
       : null;
   const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
   const isAudio = mediaUrl ? /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(mediaUrl) : false;
@@ -594,7 +596,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
               </span>
             </button>
           )}
-          <div className="px-3.5 py-2 flex items-center justify-between">
+          <div className="px-3.5 py-2 flex items-center justify-between gap-2">
             <a
               href={mediaDownloadHref(mediaUrl, `flowsmartly-${task.kind || "design"}`)}
               download
@@ -603,9 +605,19 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
               <Download className="h-3 w-3" />
               Download
             </a>
-            {typeof task.output?.tier === "string" && (
-              <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
-            )}
+            <div className="flex items-center gap-2">
+              {typeof task.output?.tier === "string" && (
+                <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
+              )}
+              {resultLink && (
+                <a
+                  href={resultLink}
+                  className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
+                >
+                  Open in studio <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -392,7 +392,30 @@ export function AgentHome() {
     return () => document.removeEventListener("mousedown", h);
   }, [userMenuOpen]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+  // Keep the chat pinned to the newest content while the agent streams — the
+  // message COUNT doesn't change as a single reply/plan/task card grows, so a
+  // ResizeObserver on the list drives the scroll. We only auto-follow when the
+  // user is already near the bottom, and a brand-new turn always re-pins.
+  const pinnedRef = useRef(true);
+  const prevLenRef = useRef(0);
+  useEffect(() => {
+    if (messages.length > prevLenRef.current) pinnedRef.current = true;
+    prevLenRef.current = messages.length;
+  }, [messages.length]);
+  useEffect(() => {
+    const anchor = bottomRef.current;
+    const content = anchor?.parentElement;
+    if (!anchor || !content) return;
+    let sc: HTMLElement | null = content;
+    while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+    const toBottom = () => anchor.scrollIntoView({ block: "end" });
+    const onScroll = () => { if (sc) pinnedRef.current = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 150; };
+    sc?.addEventListener("scroll", onScroll, { passive: true });
+    const ro = new ResizeObserver(() => { if (pinnedRef.current) toBottom(); });
+    ro.observe(content);
+    toBottom();
+    return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
+  }, [messages.length === 0, conversationId, focused]);
 
   // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
   // as the active conversation changes — so any chat is shareable / revisitable.
@@ -403,6 +426,23 @@ export function AgentHome() {
     // Open the focused surface named in the path (/home/<view>) on deep-link.
     const seg = window.location.pathname.replace(/^\/home\/?/, "").split("/")[0];
     if (seg && FOCUS_VIEWS.has(seg)) setFocused(seg);
+    // ?design=<id> — load a produced design into the Create canvas so "Open in
+    // studio" from a task card continues editing it (chat carries over via cid).
+    const designId = searchParams.get("design");
+    if (designId) {
+      fetch(`/api/designs/${designId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          const doc = j?.data?.design?.doc as DesignDoc | undefined;
+          if (!doc) return;
+          const d = { ...doc, generating: false, building: false };
+          setDesign(d);
+          savedDesignRef.current = d;
+          setActiveWs("create");
+          setFocused("create");
+        })
+        .catch(() => { /* ignore */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -278,7 +278,14 @@ export const createBrandedDesign: FlowAgentTool = {
         });
 
         return {
-          output: { url, designId, tier, link: "/home/create" },
+          // link carries the conversation (so the chat carries over when the
+          // studio opens) + the design id (to load it into the canvas).
+          output: {
+            url,
+            designId,
+            tier,
+            link: `/home/create?conversationId=${ctx.conversationId}${designId ? `&design=${designId}` : ""}`,
+          },
           resultRefType: "Design",
           resultRefId: designId,
         };
