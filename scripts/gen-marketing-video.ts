@@ -39,6 +39,24 @@ const JOBS: VideoJob[] = [
     name: "showcase-ad", aspect: "9:16", duration: 6,
     prompt: `A 6-second vertical social-media video ad for a neighborhood bakery's fall promotion: slow appetizing pans over cinnamon rolls, pumpkin muffins and pecan pie, steam rising from coffee, warm cozy morning light through a window. Mouth-watering food commercial look. ${CLEAN}`,
   },
+
+  // ── per-surface motion for the deep-dive pages (square, subtle realistic motion) ──
+  {
+    name: "surface-create", aspect: "1:1", duration: 5,
+    prompt: `A focused creative designer at a laptop, gentle natural motion — glancing at the screen that glows with a colorful social-media design, soft studio light, clean minimal desk, soft neutral light background. ${CLEAN}`,
+  },
+  {
+    name: "surface-grow", aspect: "1:1", duration: 5,
+    prompt: `A marketer at a bright desk reviewing a marketing analytics dashboard on a laptop and glancing at a smartphone, subtle confident motion, charts glowing on screen, soft neutral background. ${CLEAN}`,
+  },
+  {
+    name: "surface-publish", aspect: "1:1", duration: 5,
+    prompt: `Close-up of a hand smoothly scrolling a smartphone through a polished social-media feed of brand posts, cozy modern setting, soft neutral background, gentle motion. ${CLEAN}`,
+  },
+  {
+    name: "surface-sell", aspect: "1:1", duration: 5,
+    prompt: `A small online-store owner at a laptop showing a modern storefront, calmly packing a small parcel beside it, warm light, clean desk, soft neutral background, subtle motion. ${CLEAN}`,
+  },
 ];
 
 async function main() {

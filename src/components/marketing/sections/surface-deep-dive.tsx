@@ -20,7 +20,19 @@ function FloatingArt({ surface }: { surface: Surface }) {
         animate={reduced ? undefined : { y: [0, -12, 0] }}
         transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
+        {surface.video ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video autoPlay muted loop playsInline poster={surface.image} className="h-full w-full object-cover">
+            <source src={surface.video} type="video/mp4" />
+          </video>
+        ) : (
+          <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
+        )}
+        {surface.video && (
+          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" /> Live preview
+          </span>
+        )}
       </motion.div>
     </Parallax>
   );

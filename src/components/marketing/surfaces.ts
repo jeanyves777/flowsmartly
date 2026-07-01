@@ -21,8 +21,10 @@ export type Surface = {
   capabilities: string[];
   /** short sample tags shown as chips */
   samples: string[];
-  /** transparent cutout illustration for the deep-dive hero */
+  /** realistic illustration for the deep-dive hero (also the video poster) */
   image: string;
+  /** optional autoplaying motion clip for the deep-dive hero */
+  video?: string;
 };
 
 export const SURFACES: Surface[] = [
@@ -34,6 +36,7 @@ export const SURFACES: Surface[] = [
     capabilities: ["Branded social graphics & posts", "Logos and identity marks", "Short-form video & cartoons", "A full editor you (or the agent) can restyle"],
     samples: ["Instagram post", "Logo", "Story", "Promo video"],
     image: "/marketing/generated/surface-create.webp",
+    video: "/marketing/generated/surface-create.mp4",
   },
   {
     key: "print", label: "Print", icon: Printer, tagline: "Flyers, cards, posters, products",
@@ -52,6 +55,7 @@ export const SURFACES: Surface[] = [
     capabilities: ["Multi-account scheduling", "A living content calendar", "Captions & hashtags written for you", "Repurpose one idea across channels"],
     samples: ["Calendar", "Auto-caption", "Cross-post", "Best time"],
     image: "/marketing/generated/surface-publish.webp",
+    video: "/marketing/generated/surface-publish.mp4",
   },
   {
     key: "grow", label: "Grow", icon: TrendingUp, tagline: "Ads & campaigns that convert",
@@ -61,6 +65,7 @@ export const SURFACES: Surface[] = [
     capabilities: ["Ad campaigns end-to-end", "Story-ad video pipelines", "Audience & budget suggestions", "Follow-up automations"],
     samples: ["Meta ad", "Story-ad", "Retarget", "Automation"],
     image: "/marketing/generated/surface-grow.webp",
+    video: "/marketing/generated/surface-grow.mp4",
   },
   {
     key: "sell", label: "Sell", icon: ShoppingBag, tagline: "AI storefront & checkout",
@@ -70,6 +75,7 @@ export const SURFACES: Surface[] = [
     capabilities: ["AI-built storefront & themes", "Product copy & imagery", "Orders, customers & delivery", "Store analytics at a glance"],
     samples: ["Storefront", "Product page", "Checkout", "Orders"],
     image: "/marketing/generated/surface-sell.webp",
+    video: "/marketing/generated/surface-sell.mp4",
   },
   {
     key: "web", label: "Web", icon: Globe, tagline: "Sites & landing pages",
