@@ -28,7 +28,7 @@ const OUT_DIR = path.join(ROOT, "public/marketing/generated");
 type Aspect = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
 type VideoJob = { name: string; aspect: Aspect; duration: number; prompt: string };
 
-const CLEAN = "Cinematic, photorealistic, smooth camera motion, professional commercial quality, warm natural lighting, no on-screen text, no watermarks, no distorted faces or hands.";
+const CLEAN = "Cinematic, photorealistic, smooth camera motion, professional commercial quality, warm natural lighting, no on-screen text, no watermarks, no distorted faces or hands. IMPORTANT: any person stays naturally focused on their own screen and task for the ENTIRE clip and NEVER looks at the camera, never makes eye contact with the viewer, and never glances at the lens — candid, unaware-of-camera documentary feel.";
 
 const JOBS: VideoJob[] = [
   {
