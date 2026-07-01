@@ -114,9 +114,9 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
           <RevealGroup className="mt-8 grid gap-4 sm:grid-cols-3" stagger={0.08}>
             {gallery.map((src, i) => (
               <RevealItem key={src}>
-                <div className={cn("group relative overflow-hidden rounded-2xl border border-border bg-muted shadow-sm", i === 0 ? "aspect-[4/3] sm:aspect-[3/4]" : "aspect-[4/3]")}>
+                <div className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-muted shadow-sm">
                   <Image src={src} alt={`${surface.label} sample ${i + 1}`} fill unoptimized sizes="(min-width:1024px) 30vw, 90vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
-                  <span className={cn("absolute left-3 top-3 h-7 w-7 place-items-center rounded-lg bg-gradient-to-br text-white shadow grid", surface.accent)}><Icon className="h-4 w-4" /></span>
+                  <span className={cn("absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br text-white shadow", surface.accent)}><Icon className="h-4 w-4" /></span>
                 </div>
               </RevealItem>
             ))}

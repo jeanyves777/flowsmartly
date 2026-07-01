@@ -29,6 +29,9 @@ type Aspect = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
 type VideoJob = { name: string; aspect: Aspect; duration: number; prompt: string };
 
 const CLEAN = "Cinematic, photorealistic, smooth camera motion, professional commercial quality, warm natural lighting, no on-screen text, no watermarks, no distorted faces or hands. IMPORTANT: any person stays naturally focused on their own screen and task for the ENTIRE clip and NEVER looks at the camera, never makes eye contact with the viewer, and never glances at the lens — candid, unaware-of-camera documentary feel.";
+// Force a side/profile composition so the subject is physically turned to their
+// screen and cannot face the lens (the reliable fix for the camera-gaze artifact).
+const SIDE = "Filmed from a three-quarter SIDE angle: the person is seen from the side, turned toward their own laptop and looking DOWN at the screen — a side profile, clearly NOT facing the camera at any moment.";
 
 const JOBS: VideoJob[] = [
   {
@@ -43,11 +46,11 @@ const JOBS: VideoJob[] = [
   // ── per-surface motion for the deep-dive pages (square, subtle realistic motion) ──
   {
     name: "surface-create", aspect: "1:1", duration: 5,
-    prompt: `A focused creative designer at a laptop, gentle natural motion — glancing at the screen that glows with a colorful social-media design, soft studio light, clean minimal desk, soft neutral light background. ${CLEAN}`,
+    prompt: `A focused creative designer at a laptop, gentle natural motion — looking down at the screen that glows with a colorful social-media design, soft studio light, clean minimal desk, soft neutral light background. ${SIDE} ${CLEAN}`,
   },
   {
     name: "surface-grow", aspect: "1:1", duration: 5,
-    prompt: `A marketer at a bright desk reviewing a marketing analytics dashboard on a laptop and glancing at a smartphone, subtle confident motion, charts glowing on screen, soft neutral background. ${CLEAN}`,
+    prompt: `A marketer at a bright desk looking down at a marketing analytics dashboard on a laptop and a smartphone, subtle confident motion, charts glowing on screen, soft neutral background. ${SIDE} ${CLEAN}`,
   },
   {
     name: "surface-publish", aspect: "1:1", duration: 5,
@@ -55,7 +58,7 @@ const JOBS: VideoJob[] = [
   },
   {
     name: "surface-sell", aspect: "1:1", duration: 5,
-    prompt: `A small online-store owner at a laptop showing a modern storefront, calmly packing a small parcel beside it, warm light, clean desk, soft neutral background, subtle motion. ${CLEAN}`,
+    prompt: `A small online-store owner at a laptop showing a modern storefront, looking down while calmly packing a small parcel beside it, warm light, clean desk, soft neutral background, subtle motion. ${SIDE} ${CLEAN}`,
   },
 ];
 

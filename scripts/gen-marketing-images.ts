@@ -82,7 +82,7 @@ async function saveWebp(buf: Buffer, name: string): Promise<number> {
 
 // Per-surface sample OUTPUTS shown in each deep-dive's gallery (3 each). Designed
 // artefacts / UI mockups so every product page is visually rich and distinct.
-const GALLERY_STYLE = "Clean modern professional graphic/UI design, crisp legible text, realistic, high quality, filling the frame, soft neutral background where applicable, no watermarks.";
+const GALLERY_STYLE = "The design/screen FILLS THE ENTIRE FRAME edge to edge with NO empty background borders, margins or padding around it — a full-bleed screenshot that touches all four edges. Clean modern professional graphic/UI design, crisp legible text, realistic, high quality, no watermarks.";
 const GALLERY: Record<string, string[]> = {
   create: ["A polished Instagram post design for a coffee shop with a photo and a headline", "A bold typographic 'Weekend Sale' social media graphic", "A clean minimalist brand logo shown on a business card"],
   print: ["A printed event flyer mockup standing on a wooden desk", "A modern business card design, front and back, on a table", "An open tri-fold brochure mockup for a small business"],
