@@ -44,12 +44,15 @@ export const createOpportunity: FlowAgentTool = {
       ? (await prisma.company.findFirst({ where: { id: input.companyId, userId: ctx.userId }, select: { id: true } }))?.id ?? null
       : null;
 
+    const status = stage?.isWon ? "won" : stage?.isLost ? "lost" : "open";
     const opportunity = await prisma.opportunity.create({
       data: {
         userId: ctx.userId,
         title: title.slice(0, 200),
         value: Number.isFinite(Number(input.value)) ? Number(input.value) : 0,
         stageId: stage?.id ?? null,
+        status,
+        closedAt: status === "open" ? null : new Date(),
         probability: Math.min(100, Math.max(0, Number(input.probability) || 0)),
         source: typeof input.source === "string" ? input.source.slice(0, 40) : "manual",
         savedLeadId,

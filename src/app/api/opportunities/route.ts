@@ -39,9 +39,10 @@ export async function POST(request: NextRequest) {
     if (!title) return NextResponse.json({ success: false, error: { message: "title is required" } }, { status: 400 });
 
     const stages = await ensureDefaultStages(session.userId);
-    const stageId = typeof body.stageId === "string" && stages.some((s) => s.id === body.stageId)
-      ? body.stageId
-      : stages[0]?.id ?? null;
+    const stage = (typeof body.stageId === "string" && stages.find((s) => s.id === body.stageId)) || stages[0];
+    const stageId = stage?.id ?? null;
+    // If the deal is created directly in a Won/Lost stage, resolve it now.
+    const status = stage?.isWon ? "won" : stage?.isLost ? "lost" : "open";
 
     const opportunity = await prisma.opportunity.create({
       data: {
@@ -50,6 +51,8 @@ export async function POST(request: NextRequest) {
         value: Number.isFinite(Number(body.value)) ? Number(body.value) : 0,
         currency: typeof body.currency === "string" ? body.currency.slice(0, 8) : "USD",
         stageId,
+        status,
+        closedAt: status === "open" ? null : new Date(),
         probability: Math.min(100, Math.max(0, Number(body.probability) || 0)),
         source: typeof body.source === "string" ? body.source.slice(0, 40) : "manual",
         savedLeadId: typeof body.savedLeadId === "string" ? body.savedLeadId : null,

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ElementType } from "react";
 import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check, Sparkles, Folder, FolderPlus, ChevronLeft, ChevronDown, Trash2, ListChecks, Save, Plus, Mail, Presentation, Pencil, X, Eye, Download, BarChart3, ShieldAlert, TrendingUp, Code2, AlertTriangle, CheckCircle2, AlertCircle, ChevronUp, Zap, Trophy, Users, Clock, Target, ListTodo, UserPlus } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { PipelineBoard } from "./pipeline-board";
 import { computeDigitalScore, scoreColor, scoreBg } from "@/components/pitch/score-utils";
 import { scoreLabel } from "@/lib/pitch/scorer";
 import type { ResearchData } from "@/lib/pitch/pitch-detail-types";
@@ -43,7 +44,7 @@ const LEAD_STATUS = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
 const statusCls = (s?: string) => ({ NEW: "bg-muted text-muted-foreground", CONTACTED: "bg-brand-500/10 text-brand-500", QUALIFIED: "bg-violet-500/10 text-violet-500", WON: "bg-emerald-500/10 text-emerald-500", LOST: "bg-rose-500/10 text-rose-500" }[(s || "NEW").toUpperCase()] || "bg-muted text-muted-foreground");
 
 export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
-  const [tab, setTab] = useState<"search" | "lists">("search");
+  const [tab, setTab] = useState<"search" | "lists" | "pipeline">("search");
   // Open-list status filter (left aside) + manual "add lead" form (right pane).
   const [statusFilter, setStatusFilter] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -157,9 +158,10 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
   const visibleLeads = statusFilter ? listLeads.filter((l) => (l.status || "NEW").toUpperCase() === statusFilter) : listLeads;
 
   // Vertical section nav (left aside).
-  const nav: { id: "search" | "lists"; label: string; icon: ElementType; count?: number }[] = [
+  const nav: { id: "search" | "lists" | "pipeline"; label: string; icon: ElementType; count?: number }[] = [
     { id: "search", label: "Find leads", icon: Search },
     { id: "lists", label: "My lists", icon: Folder, count: lists.length },
+    { id: "pipeline", label: "Pipeline", icon: TrendingUp },
   ];
 
   return (
@@ -237,9 +239,11 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
           )}
         </aside>
 
-        {/* RIGHT: search results / lists grid / list detail — full width */}
+        {/* RIGHT: search results / lists grid / list detail / pipeline — full width */}
         <div className="min-w-0 flex-1 space-y-4">
-        {tab === "search" ? (
+        {tab === "pipeline" ? (
+          <PipelineBoard refreshKey={refreshKey} onAsk={onAsk} />
+        ) : tab === "search" ? (
           <>
             {/* search box */}
             <section className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/8 to-violet-500/5 p-4 sm:p-5">
