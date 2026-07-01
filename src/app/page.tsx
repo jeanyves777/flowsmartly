@@ -6,6 +6,9 @@ import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
 import { WatchItWork } from "@/components/marketing/sections/watch-it-work";
 import { SurfacesSection } from "@/components/marketing/sections/surfaces-section";
 import { WhyDifferent } from "@/components/marketing/sections/why-different";
+import { UseCasesSection } from "@/components/marketing/sections/use-cases-section";
+import { OutcomesSection } from "@/components/marketing/sections/outcomes-section";
+import { PricingPreview } from "@/components/marketing/sections/pricing-preview";
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 
 export default function HomePage() {
@@ -19,7 +22,9 @@ export default function HomePage() {
           <WatchItWork />
           <SurfacesSection />
           <WhyDifferent />
-          {/* P4 — outcomes + pricing */}
+          <UseCasesSection />
+          <OutcomesSection />
+          <PricingPreview />
           <FinalCta />
         </main>
         <PublicFooter />
