@@ -44,6 +44,7 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
   const surface = SURFACE_BY_KEY[surfaceKey];
   const others = SURFACES.filter((s) => s.key !== surface.key);
   const Icon = surface.icon;
+  const gallery = [1, 2, 3].map((n) => `/marketing/generated/gallery-${surface.key}-${n}.webp`);
 
   return (
     <>
@@ -98,6 +99,24 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
                 <div className="flex items-start gap-3 rounded-2xl border border-border bg-card/60 p-5 backdrop-blur">
                   <span className={cn("mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white", surface.accent)}><Check className="h-4 w-4" /></span>
                   <p className="text-[15px] font-medium text-foreground">{c}</p>
+                </div>
+              </RevealItem>
+            ))}
+          </RevealGroup>
+        </div>
+      </section>
+
+      {/* sample-output gallery — surface-specific, so every product page is visually distinct */}
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <Reveal><p className="text-sm font-bold uppercase tracking-[3px] text-brand-500">Sample output</p></Reveal>
+          <Reveal delay={0.06}><h2 className="mt-3 max-w-2xl text-balance font-display text-3xl font-extrabold leading-tight sm:text-4xl">A taste of what the agent ships on <span className="text-brand-600 dark:text-brand-300">{surface.label}</span>.</h2></Reveal>
+          <RevealGroup className="mt-8 grid gap-4 sm:grid-cols-3" stagger={0.08}>
+            {gallery.map((src, i) => (
+              <RevealItem key={src}>
+                <div className={cn("group relative overflow-hidden rounded-2xl border border-border bg-muted shadow-sm", i === 0 ? "aspect-[4/3] sm:aspect-[3/4]" : "aspect-[4/3]")}>
+                  <Image src={src} alt={`${surface.label} sample ${i + 1}`} fill unoptimized sizes="(min-width:1024px) 30vw, 90vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                  <span className={cn("absolute left-3 top-3 h-7 w-7 place-items-center rounded-lg bg-gradient-to-br text-white shadow grid", surface.accent)}><Icon className="h-4 w-4" /></span>
                 </div>
               </RevealItem>
             ))}

@@ -31,8 +31,9 @@ for (const f of [".env", ".env.local"]) {
 const OUT_DIR = path.join(ROOT, "public/marketing/generated");
 const NANO_BANANA = "gemini-2.5-flash-image"; // graphic-design layouts + text
 const IMAGEN = "imagen-4.0-generate-001";     // photorealism
-// asset-* mockups carry text → Nano Banana; personas/surfaces are photos → Imagen.
-const modelFor = (name: string) => (name.startsWith("asset-") ? NANO_BANANA : IMAGEN);
+// asset-* / gallery-* are designed outputs & UI (text/layout) → Nano Banana;
+// personas/surfaces are photos → Imagen.
+const modelFor = (name: string) => (name.startsWith("asset-") || name.startsWith("gallery-") ? NANO_BANANA : IMAGEN);
 
 type Aspect = "1:1" | "4:3" | "3:4" | "16:9" | "9:16";
 type Job = { name: string; aspect: Aspect; prompt: string; model?: string };
@@ -78,6 +79,25 @@ async function saveWebp(buf: Buffer, name: string): Promise<number> {
   writeFileSync(path.join(OUT_DIR, `${name}.webp`), out);
   return out.length;
 }
+
+// Per-surface sample OUTPUTS shown in each deep-dive's gallery (3 each). Designed
+// artefacts / UI mockups so every product page is visually rich and distinct.
+const GALLERY_STYLE = "Clean modern professional graphic/UI design, crisp legible text, realistic, high quality, filling the frame, soft neutral background where applicable, no watermarks.";
+const GALLERY: Record<string, string[]> = {
+  create: ["A polished Instagram post design for a coffee shop with a photo and a headline", "A bold typographic 'Weekend Sale' social media graphic", "A clean minimalist brand logo shown on a business card"],
+  print: ["A printed event flyer mockup standing on a wooden desk", "A modern business card design, front and back, on a table", "An open tri-fold brochure mockup for a small business"],
+  publish: ["A social media content calendar interface on a laptop screen", "A scheduled Instagram post preview card with caption and time", "A grid of social posts across Instagram, Facebook and TikTok"],
+  grow: ["A Facebook ad creative for a product sale with a CTA button", "A marketing analytics dashboard UI with charts and metrics", "A vertical story-ad frame with a bold offer"],
+  sell: ["A modern online store homepage UI with product cards", "A product detail page UI with an add-to-cart button", "An e-commerce orders dashboard UI with a list of orders"],
+  web: ["A modern SaaS landing page UI in a browser window", "A local business website homepage UI with a hero section", "A clean contact / lead-capture form UI"],
+  outreach: ["A branded marketing email newsletter design", "A smartphone showing an SMS marketing message from a shop", "A WhatsApp Business chat conversation UI"],
+  leads: ["A map interface with local business location pins and a sidebar list", "A CRM lead list UI with contacts and status tags", "A clean sales pitch deck title slide"],
+  business: ["A brand-kit board with a color palette, fonts and a logo", "An analytics report dashboard UI with KPI cards", "A credits and billing wallet UI with a balance"],
+};
+const GALLERY_JOBS: Job[] = Object.entries(GALLERY).flatMap(([key, items]) =>
+  items.map((desc, i) => ({ name: `gallery-${key}-${i + 1}`, aspect: "4:3" as Aspect, prompt: `${desc}. ${GALLERY_STYLE}` })),
+);
+JOBS.push(...GALLERY_JOBS);
 
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
