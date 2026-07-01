@@ -737,6 +737,17 @@ export function AgentHome() {
           <span className="font-medium">Brand Kit</span>
         </button>
 
+        {/* Escape hatch to the classic (legacy) dashboard — a small pill until it's retired. */}
+        <a
+          href="/dashboard"
+          title="Open the classic dashboard (legacy)"
+          className="ms-1.5 hidden items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[12.5px] transition hover:border-brand-500/60 hover:text-foreground lg:flex"
+        >
+          <LayoutTemplate className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="font-medium">Classic</span>
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">legacy</span>
+        </a>
+
         <div className="flex-1" />
 
         <button onClick={() => guardNav(openBilling)} title="Billing & credits" className="flex items-center gap-1 rounded-full border border-border bg-gradient-to-r from-brand-500/15 to-violet-500/15 px-2.5 py-1.5 text-[12.5px] transition hover:border-brand-500/60 sm:px-3">
@@ -783,9 +794,9 @@ export function AgentHome() {
               {/* Escape hatch to the previous (classic) dashboard while we finish
                   retiring it. Full navigation — leaves the agent shell. */}
               <a href="/dashboard" onClick={() => setUserMenuOpen(false)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
-                <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
-                <span className="flex-1">Classic dashboard</span>
-                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">legacy</span>
+                <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="whitespace-nowrap">Classic dashboard</span>
+                <span className="ms-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">legacy</span>
               </a>
               <div className="my-1 h-px bg-border" />
               <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-destructive hover:bg-destructive/10">
