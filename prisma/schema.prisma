@@ -146,6 +146,10 @@ model User {
   leadSearches          LeadSearch[]
   savedLeadLists        SavedLeadList[]
   savedLeads            SavedLead[]
+  companies             Company[]
+  pipelineStages        PipelineStage[]
+  opportunities         Opportunity[]
+  activities            Activity[]
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
@@ -4785,16 +4789,133 @@ model SavedLead {
   googleMapsUrl  String?
   status         String   @default("NEW") // NEW | CONTACTED | QUALIFIED | WON | LOST
   notes          String?
+  // ── person-level fields (AI/web-found decision-makers) ──
+  title            String? // job title, e.g. "Chief Financial Officer"
+  seniority        String? // e.g. "c_suite" | "vp" | "director" | "manager"
+  department       String? // e.g. "finance" | "marketing"
+  email            String?
+  phones           String  @default("[]") // JSON: string[] (extra phones)
+  socials          String  @default("{}") // JSON: { linkedin?, x?, facebook?, google? }
+  companyId        String? // link to the enriched Company
+  enrichedAt       DateTime? // when contact info was revealed
+  enrichmentSource String? // "web" | "manual"
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  list    SavedLeadList? @relation(fields: [listId], references: [id], onDelete: SetNull)
-  pitches Pitch[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list          SavedLeadList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  pitches       Pitch[]
+  opportunities Opportunity[]
+  activities    Activity[]
 
   @@index([userId])
   @@index([listId])
   @@index([placeId])
+  @@index([companyId])
+}
+
+// ============================================
+// CRM PIPELINE (companies, opportunities, activities)
+// ============================================
+
+// An enriched company/org (AI + web-search finding). Enrichment is cached here
+// so we don't re-research the same domain on every lead.
+model Company {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  domain       String? // primary website domain (dedup key)
+  industry     String?
+  employeeSize String? // e.g. "1-10" | "51-200" | "1001-5000"
+  revenueBand  String? // e.g. "$1M-$10M"
+  yearFounded  Int?
+  location     String?
+  techStack    String   @default("[]") // JSON: string[]
+  socials      String   @default("{}") // JSON: { linkedin?, x?, facebook?, google? }
+  enrichment   String   @default("{}") // JSON: raw enrichment payload (cache)
+  enrichedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads         SavedLead[]
+  opportunities Opportunity[]
+
+  @@index([userId])
+  @@index([domain])
+}
+
+// A configurable pipeline stage (per user). Sensible defaults are seeded on first
+// use: New → Contacted → Qualified → Proposal → Negotiation → Won / Lost.
+model PipelineStage {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  order     Int      @default(0)
+  isWon     Boolean  @default(false)
+  isLost    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([userId])
+}
+
+// A deal in the pipeline — the thing that closes. Links to the lead/company it came
+// from and (optionally) the pitch that pushed it forward.
+model Opportunity {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  value           Float     @default(0) // deal value / revenue
+  currency        String    @default("USD")
+  stageId         String? // current pipeline stage
+  probability     Int       @default(0) // 0-100
+  status          String    @default("open") // open | won | lost
+  source          String? // "lead_finder" | "form" | "manual" | "autopilot"
+  savedLeadId     String?
+  companyId       String?
+  pitchId         String? // the pitch/proposal attached to this deal
+  expectedCloseAt DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  savedLead  SavedLead?     @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  activities Activity[]
+
+  @@index([userId])
+  @@index([stageId])
+  @@index([status])
+  @@index([savedLeadId])
+  @@index([companyId])
+}
+
+// A logged touch on a lead/opportunity — note, email, call, meeting, stage change.
+// Powers the timeline + the ROI/time-saved metrics.
+model Activity {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String // note | email | sms | call | meeting | stage_change | pitch_sent
+  subject       String?
+  body          String?
+  savedLeadId   String?
+  opportunityId String?
+  at            DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead   SavedLead?   @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([savedLeadId])
+  @@index([opportunityId])
+  @@index([at])
 }
 
 // ============================================
