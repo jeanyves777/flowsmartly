@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FlowSmartly — Lead → Close CRM playground (mockup)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Inter','sans-serif']},colors:{brand:{400:'#38bdf8',500:'#0ea5e9',600:'#0284c7'},ink:'#0b0f14'}}}}</script>
+<style>
+ body{background:#0b0f14;color:#e7eef5;font-family:Inter,sans-serif}
+ .card{background:#121821;border:1px solid #1e2836;border-radius:14px}
+ .chip{background:#1a2230;border:1px solid #263242;border-radius:999px}
+ .grad{background:linear-gradient(90deg,#38bdf8,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+ .btn{background:linear-gradient(90deg,#0ea5e9,#8b5cf6)}
+ .tab.active{color:#fff;border-color:#0ea5e9}
+ .src{width:20px;height:20px;border-radius:999px;display:grid;place-items:center;font-size:10px;font-weight:700}
+ table td,table th{padding:12px 14px;border-bottom:1px solid #1a2230}
+ .masked{filter:blur(4px);user-select:none}
+ .col{background:#0f141b;border:1px solid #1a2230;border-radius:12px}
+</style>
+</head>
+<body class="antialiased">
+<!-- top bar -->
+<div class="flex items-center justify-between border-b border-[#1a2230] px-4 h-12">
+  <div class="flex items-center gap-2 font-extrabold"><span class="grid h-6 w-6 place-items-center rounded-lg btn text-ink">✦</span>Flow<span class="grad">Smartly</span></div>
+  <div class="flex items-center gap-2 text-xs"><span class="chip px-2.5 py-1">Brand Kit</span><span class="chip px-2.5 py-1 text-brand-400 font-bold">⚡ 209,888 credits</span></div>
+</div>
+
+<div class="flex" style="height:calc(100vh - 48px)">
+  <!-- rail -->
+  <div class="w-12 shrink-0 border-r border-[#1a2230] flex flex-col items-center gap-1 py-2 text-[#5b6b7d]">
+    <div class="h-8 w-8 grid place-items-center">✎</div><div class="h-8 w-8 grid place-items-center">🖨</div><div class="h-8 w-8 grid place-items-center">📣</div><div class="h-8 w-8 grid place-items-center">📈</div><div class="h-8 w-8 grid place-items-center">🛍</div><div class="h-8 w-8 grid place-items-center">🌐</div><div class="h-8 w-8 grid place-items-center">✉</div>
+    <div class="h-8 w-8 grid place-items-center rounded-lg bg-brand-500/15 text-brand-400">🎯</div>
+  </div>
+
+  <!-- agent chat -->
+  <div class="w-[300px] shrink-0 border-r border-[#1a2230] flex flex-col p-3 text-[13px]">
+    <p class="text-[10.5px] uppercase tracking-wide text-[#5b6b7d] font-semibold mb-2">Agent · Lead studio</p>
+    <div class="self-end rounded-2xl rounded-br-sm bg-brand-500 px-3 py-1.5 text-white mb-2 max-w-[85%]">Find CFOs at SaaS companies, 50–200 employees, in Texas — add them to a list and start outreach.</div>
+    <div class="flex items-start gap-2 mb-2"><span class="grid h-5 w-5 place-items-center rounded-md btn text-white text-[11px]">✦</span><div class="rounded-2xl rounded-bl-sm bg-[#1a2230] px-3 py-1.5">On it — searching the web for matching companies &amp; decision-makers…</div></div>
+    <span class="chip w-fit px-2.5 py-0.5 text-[11px] text-emerald-400 mb-2">● Propose Plan</span>
+    <div class="card p-2.5 mb-2">
+      <div class="flex justify-between"><span class="text-[11px] font-bold">Confirm action</span><span class="text-[10px] font-bold text-emerald-400">CONFIRMED</span></div>
+      <p class="mt-1 text-[11.5px] font-semibold">Find + enrich 25 CFO leads → new list "TX SaaS CFOs"</p>
+      <p class="mt-1 text-[10.5px] text-[#8ea0b3]">Estimated cost: <b class="text-white">30 credits</b> (find free · enrich 25 × ~1.2)</p>
+    </div>
+    <span class="chip w-fit px-2.5 py-1 text-[11px] text-brand-400">◐ Finding &amp; enriching…</span>
+    <div class="mt-auto flex items-center gap-2 chip px-2.5 py-2"><span class="flex-1 text-[#5b6b7d] text-[12px]">Ask FlowSmartly to do…</span><span class="grid h-6 w-6 place-items-center rounded-lg btn text-white">↑</span></div>
+  </div>
+
+  <!-- main -->
+  <div class="flex-1 min-w-0 flex flex-col">
+    <!-- header + subtabs -->
+    <div class="border-b border-[#1a2230] px-5 pt-3">
+      <div class="flex items-center gap-2 mb-3"><span class="grid h-8 w-8 place-items-center rounded-xl bg-fuchsia-500/15 text-fuchsia-400">🎯</span><div><div class="font-bold">Lead studio</div><div class="text-[11px] text-[#5b6b7d]">Find → enrich → list → outreach → pitch → close</div></div></div>
+      <div class="flex gap-5 text-[13px] text-[#7d8ea0]">
+        <button onclick="show('find')" id="t-find" class="tab active border-b-2 pb-2 font-semibold">Find</button>
+        <button onclick="show('lists')" id="t-lists" class="tab border-b-2 border-transparent pb-2">Lists</button>
+        <button onclick="show('pipe')" id="t-pipe" class="tab border-b-2 border-transparent pb-2">Pipeline</button>
+        <button onclick="show('roi')" id="t-roi" class="tab border-b-2 border-transparent pb-2">ROI</button>
+      </div>
+    </div>
+
+    <!-- FIND -->
+    <div id="v-find" class="flex-1 min-h-0 flex overflow-hidden">
+      <!-- filters -->
+      <div class="w-[240px] shrink-0 border-r border-[#1a2230] overflow-y-auto p-3">
+        <div class="flex chip p-0.5 text-[12px] mb-3"><button class="flex-1 rounded-full bg-brand-500 text-white py-1">Contacts</button><button class="flex-1 py-1 text-[#7d8ea0]">Companies</button></div>
+        <button class="w-full btn text-white text-[12px] font-semibold rounded-lg py-2 mb-3">+ Add to List ▾</button>
+        <p class="text-[10.5px] uppercase tracking-wide text-[#5b6b7d] font-semibold mb-1.5">Filters</p>
+        <div id="filters" class="space-y-1.5 text-[12.5px]"></div>
+        <button class="w-full mt-3 chip py-2 text-[12.5px]">Search</button>
+      </div>
+      <!-- results -->
+      <div class="flex-1 min-w-0 overflow-auto">
+        <div class="flex items-center justify-between px-5 py-3">
+          <div class="text-[13px] text-[#7d8ea0]">Showing 1–8 of <b class="text-white">609,888</b> matching contacts</div>
+          <div class="flex gap-2">
+            <button onclick="enrichAll()" class="chip px-3 py-1.5 text-[12.5px]">🔍 Find All</button>
+            <button class="btn text-white px-3 py-1.5 rounded-lg text-[12.5px] font-semibold">▶ Begin Autopilot</button>
+          </div>
+        </div>
+        <table class="w-full text-[13px]">
+          <thead class="text-[#7d8ea0] text-left text-[12px]"><tr><th>Name</th><th>Title</th><th>Company</th><th>Emails</th><th>Phones</th><th>Sources</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LISTS -->
+    <div id="v-lists" class="hidden flex-1 overflow-auto p-5">
+      <div class="grid grid-cols-3 gap-3">
+        <div class="card p-4"><div class="font-semibold">TX SaaS CFOs</div><div class="text-[12px] text-[#7d8ea0] mt-1">25 leads · 18 enriched</div><div class="text-[11px] text-emerald-400 mt-2">Outreach running</div></div>
+        <div class="card p-4"><div class="font-semibold">Local roofers</div><div class="text-[12px] text-[#7d8ea0] mt-1">40 leads · 40 enriched</div></div>
+        <div class="card p-4 border-dashed grid place-items-center text-[#5b6b7d]">+ New list</div>
+      </div>
+    </div>
+
+    <!-- PIPELINE -->
+    <div id="v-pipe" class="hidden flex-1 overflow-auto p-4">
+      <div class="grid grid-cols-6 gap-3 min-w-[900px]" id="kanban"></div>
+    </div>
+
+    <!-- ROI -->
+    <div id="v-roi" class="hidden flex-1 overflow-auto p-5">
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="card p-4"><div class="text-[12px] text-[#7d8ea0] mb-2">💲 Sales ROI</div><div class="flex justify-between text-[13px] py-1"><span>Leads</span><b>1,800</b></div><div class="flex justify-between text-[13px] py-1"><span>Opportunities</span><b>90</b></div><div class="flex justify-between text-[13px] py-1"><span>Revenue</span><b class="text-emerald-400">$432,000</b></div></div>
+        <div class="card p-4"><div class="text-[12px] text-[#7d8ea0] mb-2">↘ Cost Savings</div><div class="flex justify-between text-[13px] py-1"><span>Cost / Lead</span><b>$0.35</b></div><div class="flex justify-between text-[13px] py-1"><span>Cost / Opp</span><b>$28</b></div><div class="flex justify-between text-[13px] py-1"><span>Cost / Sale</span><b>$110</b></div></div>
+        <div class="card p-4"><div class="text-[12px] text-[#7d8ea0] mb-2">⏱ Time Saved</div><div class="flex justify-between text-[13px] py-1"><span>Hours Saved</span><b>80</b></div><div class="flex justify-between text-[13px] py-1"><span>Days Saved</span><b>10</b></div><div class="flex justify-between text-[13px] py-1"><span>Minutes Saved</span><b>4,800</b></div></div>
+        <div class="card p-4"><div class="text-[12px] text-[#7d8ea0] mb-2">🎯 Total Addressable Market</div><div class="flex justify-between text-[13px] py-1"><span>Leads</span><b>1,800 / 75K</b></div><div class="flex justify-between text-[13px] py-1"><span>TAM Value</span><b class="text-fuchsia-400">$18,000,000</b></div></div>
+      </div>
+      <div class="card overflow-hidden">
+        <table class="w-full text-[13px]"><thead class="text-[#7d8ea0] text-left text-[12px]"><tr><th>Company</th><th>Contact</th><th>Status</th><th>Revenue</th><th>Opp Created</th><th>Opp Closed</th></tr></thead>
+        <tbody>
+          <tr><td>Apex Mechanical Group</td><td>John Rahman</td><td>✅ Closed Won</td><td>$18,500</td><td>Oct 18</td><td>Nov 22</td></tr>
+          <tr><td>BlueLine Logistics</td><td>Amy Moreno</td><td>✅ Closed Won</td><td>$22,000</td><td>Oct 25</td><td>Dec 3</td></tr>
+          <tr><td>Vertex IT Services</td><td>Roger Worthington</td><td>💠 Interested</td><td>$14,250</td><td>Nov 5</td><td>—</td></tr>
+          <tr><td>NorthPeak Security</td><td>Joseph Greene</td><td>✅ Closed Won</td><td>$19,750</td><td>Nov 10</td><td>Dec 15</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FILTERS=["Industry","Revenue","Employee Size","Seniority","Technologies","Department","Keywords","Year Founded","Location","Title"];
+document.getElementById('filters').innerHTML=FILTERS.map(f=>`<div class="flex items-center justify-between chip px-3 py-2 mb-1.5"><span>${f}</span><span class="text-[#5b6b7d]">+</span></div>`).join('');
+const LEADS=[
+ ["John Miller","CEO","Apple","johnmiller…","(555) 49…"],
+ ["David Smith","Chief Marketing Officer","Tesla","dsmith@e…","(948) 38…"],
+ ["Sarah Johnson","Chief Executive Officer","Nike","sarah.john…","(480) 14…"],
+ ["Ryan Anderson","Chief Operating Officer","Adobe","ryan.anderson@…","(505) 64…"],
+ ["James Brown","Chief Technology Officer","Microsoft","jbrown@e…","(239) 75…"],
+ ["Emily Davis","CMO","Google","emilydavis…","(854) 771…"],
+ ["Kevin Harris","Chief Executive Officer","Toyota","kharris@…","(302) 55…"],
+ ["Ashley Brown","COO","Netflix","abrown@…","(415) 22…"],
+];
+function srcs(){return `<span class="src bg-[#0a66c2] text-white">in</span><span class="src bg-black text-white">X</span><span class="src bg-[#1877f2] text-white">f</span><span class="src bg-white text-[#4285F4]">G</span>`;}
+document.getElementById('rows').innerHTML=LEADS.map((l,i)=>`<tr>
+ <td class="font-semibold">${l[0]}</td><td class="text-[#b6c3d1]">${l[1]}</td><td>🏢 ${l[2]}</td>
+ <td><span class="masked" id="e${i}">${l[3]}</span> <span class="chip px-1.5 py-0.5 text-[10px]">+1</span></td>
+ <td><span class="masked" id="p${i}">${l[4]}</span> <span class="chip px-1.5 py-0.5 text-[10px]">+1</span></td>
+ <td><div class="flex gap-1">${srcs()}</div></td>
+ <td><button onclick="enrich(${i})" class="chip px-3 py-1 text-[12px]">🔍 Find</button></td>
+</tr>`).join('');
+function enrich(i){document.getElementById('e'+i).classList.remove('masked');document.getElementById('p'+i).classList.remove('masked');}
+function enrichAll(){LEADS.forEach((_,i)=>enrich(i));}
+const STAGES=[["New",2],["Contacted",2],["Qualified",1],["Proposal",1],["Negotiation",1],["Won",2]];
+const DEALS=["Apex Mechanical · $18.5K","BlueLine · $22K","Vertex IT · $14.2K","NorthPeak · $19.7K","Delta Foods · $9K","Orbit Media · $27K","Peak HVAC · $12K","Summit Law · $31K","Nova Retail · $8K"];
+let di=0;
+document.getElementById('kanban').innerHTML=STAGES.map(([s,n])=>`<div class="col p-2"><div class="flex justify-between text-[12px] font-semibold mb-2 px-1"><span>${s}</span><span class="text-[#5b6b7d]">${n}</span></div>${Array.from({length:n}).map(()=>`<div class="card p-2.5 mb-2 text-[12px]"><div class="font-semibold">${DEALS[di++%DEALS.length]}</div><div class="text-[#7d8ea0] text-[11px] mt-1">Opp · created 3d ago</div></div>`).join('')}</div>`).join('');
+function show(v){['find','lists','pipe','roi'].forEach(x=>{document.getElementById('v-'+x).classList.toggle('hidden',x!==v);document.getElementById('t-'+x).classList.toggle('active',x===v);document.getElementById('t-'+x).classList.toggle('border-transparent',x!==v);});}
+</script>
+</body>
+</html>
