@@ -780,6 +780,14 @@ export function AgentHome() {
                 <CreditCard className="h-4 w-4 text-muted-foreground" /> Billing &amp; credits
               </button>
               <div className="my-1 h-px bg-border" />
+              {/* Escape hatch to the previous (classic) dashboard while we finish
+                  retiring it. Full navigation — leaves the agent shell. */}
+              <a href="/dashboard" onClick={() => setUserMenuOpen(false)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-muted">
+                <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1">Classic dashboard</span>
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">legacy</span>
+              </a>
+              <div className="my-1 h-px bg-border" />
               <button onClick={handleLogout} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-destructive hover:bg-destructive/10">
                 <LogOut className="h-4 w-4" /> Log out
               </button>
