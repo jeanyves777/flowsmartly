@@ -1,33 +1,88 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Image from "next/image";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import {
-  ArrowRight,
-  CheckCircle2,
-  MessageSquare,
-  Sparkles,
-} from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowRight, CheckCircle2, Sparkles, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { illustrationImages } from "@/components/marketing/public-page-visuals";
+import { AuroraBackdrop, GradientText, Magnetic } from "@/components/marketing/motion";
+import { cn } from "@/lib/utils/cn";
 
-const proofItems = ["No credit card", "Free workspace", "Upgrade anytime"];
+const proofItems = ["No credit card", "Free workspace", "Pay per work, not seats"];
 
-function HeroImagePair() {
+const PROMPT = "Launch my bakery's fall promo — designs, a flyer, posts and an ad.";
+const STEPS = ["Planning the campaign", "Designing 3 creatives", "Writing 5 posts", "Building the flyer", "Drafting the ad"];
+const CARDS = ["from-sky-400/40 to-blue-500/25", "from-emerald-400/40 to-teal-500/25", "from-violet-400/40 to-fuchsia-500/25"];
+
+/** The hero's animated "agent at work" composer — types a prompt, streams the
+ * agent's steps, then pops the outputs. Static (final state) under reduced motion. */
+function AgentComposer() {
+  const reduced = useReducedMotion();
+  const [typed, setTyped] = useState(reduced ? PROMPT.length : 0);
+  const [steps, setSteps] = useState(reduced ? STEPS.length : 0);
+  const [cards, setCards] = useState(reduced ? CARDS.length : 0);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (reduced) return;
+    const t = timers.current;
+    let i = 0;
+    const typeId = window.setInterval(() => {
+      i += 1;
+      setTyped(i);
+      if (i >= PROMPT.length) {
+        window.clearInterval(typeId);
+        STEPS.forEach((_, s) => t.push(window.setTimeout(() => setSteps(s + 1), 480 + s * 620)));
+        CARDS.forEach((_, c) => t.push(window.setTimeout(() => setCards(c + 1), 480 + STEPS.length * 620 + 260 + c * 260)));
+      }
+    }, 26);
+    t.push(typeId);
+    return () => { t.forEach((id) => { window.clearTimeout(id); window.clearInterval(id); }); timers.current = []; };
+  }, [reduced]);
+
   return (
-    <div className="relative mx-auto h-[300px] w-full max-w-[620px] sm:h-[460px] lg:h-[560px] lg:max-w-none">
-      <div className="absolute inset-0">
-        <Image
-          src={illustrationImages.humanCreator}
-          alt="A creator operating FlowSmartly campaigns"
-          fill
-          sizes="(min-width: 1024px) 560px, 92vw"
-          unoptimized
-          className="object-contain object-bottom drop-shadow-[0_30px_60px_rgba(15,23,42,0.24)] dark:drop-shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
-          priority
-        />
+    <div className="relative rounded-3xl border border-border bg-card/70 p-3.5 shadow-2xl backdrop-blur-xl ring-1 ring-brand-500/10 sm:p-4">
+      <div className="flex items-center gap-2 px-1 pb-3 text-xs text-muted-foreground">
+        <span className="h-2.5 w-2.5 rounded-full bg-rose-400/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
+        <span className="ml-2 font-medium">FlowSmartly · agent</span>
+      </div>
+
+      <div className="rounded-2xl bg-muted/40 p-4">
+        <div className="flex items-start gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-purple text-white"><Sparkles className="h-[18px] w-[18px]" /></span>
+          <p className="pt-1 text-[15px] leading-relaxed text-foreground">
+            {PROMPT.slice(0, typed)}
+            {typed < PROMPT.length && <span className="ml-0.5 inline-block h-[1.05em] w-0.5 -translate-y-0.5 animate-pulse bg-emerald-400 align-middle" />}
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {STEPS.slice(0, steps).map((label) => (
+            <motion.div key={label} initial={reduced ? false : { opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-500/15 text-[11px] text-emerald-500">✓</span>
+              {label}
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {CARDS.slice(0, cards).map((g, i) => (
+            <motion.div
+              key={i}
+              initial={reduced ? false : { opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 18 }}
+              className={cn("aspect-[3/4] rounded-xl border border-border bg-gradient-to-br", g)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/60 px-3 py-2.5">
+        <span className="flex-1 truncate text-sm text-muted-foreground">Ask FlowSmartly to do something…</span>
+        <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-purple text-white"><ArrowUp className="h-4 w-4" /></span>
       </div>
     </div>
   );
@@ -36,78 +91,64 @@ function HeroImagePair() {
 export function HeroSection() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const reduced = useReducedMotion();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmedEmail = email.trim();
-    router.push(
-      trimmedEmail ? `/register?email=${encodeURIComponent(trimmedEmail)}` : "/register"
-    );
+    const trimmed = email.trim();
+    router.push(trimmed ? `/register?email=${encodeURIComponent(trimmed)}` : "/register");
   }
 
   return (
-    <section className="relative isolate overflow-visible bg-background px-4 pb-2 pt-20 text-foreground sm:px-6 sm:pt-24 lg:px-8 dark:bg-[#020807] dark:text-white">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(240,249,255,0.84),rgba(255,255,255,0)_56%)] dark:bg-[linear-gradient(180deg,rgba(8,47,73,0.22),rgba(2,8,7,0)_58%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background to-transparent" />
-
-      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-8 lg:min-h-[460px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-10">
+    <section className="relative isolate overflow-hidden px-4 pb-16 pt-32 sm:px-6 sm:pt-40 lg:px-8">
+      <AuroraBackdrop />
+      <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <motion.div
-          initial={{ opacity: 0, y: 22 }}
+          initial={reduced ? false : { opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
-          className="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left"
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center lg:text-left"
         >
-          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-sm font-semibold shadow-sm backdrop-blur dark:border-white/15 dark:bg-white/10">
-            <Sparkles className="h-4 w-4 text-brand-600 dark:text-emerald-300" />
-            AI-powered growth workspace
-          </div>
-          <h1 className="text-balance text-3xl font-extrabold leading-[1.08] sm:text-4xl lg:text-[2.95rem]">
-            <span className="block">Create, sell, and</span>
-            <span className="block bg-gradient-to-r from-sky-400 via-emerald-300 to-violet-300 bg-clip-text text-transparent">
-              grow with AI
-            </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_2px_rgba(16,185,129,0.7)]" />
+            Your AI marketing team — in one chat
+          </span>
+          <h1 className="mt-5 text-balance font-display text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
+            One agent runs<br /><GradientText>your whole marketing.</GradientText>
           </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-muted-foreground dark:text-slate-300 lg:mx-0">
-            Run content, commerce, local listings, customer messages, and
-            reporting from one focused workspace.
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-8 text-muted-foreground lg:mx-0">
+            Describe the outcome. The agent designs, prints, publishes, advertises, builds your store &amp; site, and chases leads — across every surface. You only pay for the work it does.
           </p>
-          <form
-            onSubmit={handleSubmit}
-            className="mx-auto mt-6 flex max-w-lg flex-col gap-3 sm:flex-row sm:items-center lg:mx-0"
-          >
-            <label className="flex min-h-14 flex-1 items-center rounded-lg border border-input bg-card px-4 text-left text-sm text-muted-foreground shadow-lg focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 dark:border-white/15 dark:bg-white dark:text-slate-500">
+          <form onSubmit={handleSubmit} className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row lg:mx-0">
+            <label className="flex min-h-14 flex-1 items-center rounded-2xl border border-input bg-card px-4 text-left text-sm shadow-lg focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
               <span className="sr-only">Email address</span>
-              <MessageSquare className="mr-3 h-5 w-5 shrink-0 text-muted-foreground dark:text-slate-400" />
               <input
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground dark:text-slate-900 dark:placeholder:text-slate-500"
+                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
               />
             </label>
-            <Button type="submit" size="lg" className="min-h-14 px-8 text-base font-bold">
-                Try free
-                <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Magnetic>
+              <Button type="submit" size="lg" className="min-h-14 gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-purple px-8 text-base font-bold text-white hover:opacity-90">
+                Try free <ArrowRight className="h-5 w-5" />
+              </Button>
+            </Magnetic>
           </form>
-          <div className="mt-5 flex flex-wrap justify-center gap-3 text-sm text-muted-foreground dark:text-slate-300 lg:justify-start">
+          <div className="mt-5 flex flex-wrap justify-center gap-4 text-sm text-muted-foreground lg:justify-start">
             {proofItems.map((item) => (
-              <span key={item} className="inline-flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-300" />
-                {item}
-              </span>
+              <span key={item} className="inline-flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" />{item}</span>
             ))}
           </div>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={reduced ? false : { opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.65, delay: 0.15 }}
-          className="relative z-20 -mb-3 sm:-mb-4 lg:-mb-5"
+          transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
         >
-          <HeroImagePair />
+          <AgentComposer />
         </motion.div>
       </div>
     </section>

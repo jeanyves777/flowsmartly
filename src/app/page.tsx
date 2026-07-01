@@ -1,31 +1,23 @@
 import { PublicHeader } from "@/components/layout/public-header";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { PublicMotionProvider } from "@/components/marketing/motion";
 import { HeroSection } from "@/components/home/hero-section";
-import { ProofStripSection } from "@/components/home/proof-strip-section";
-import { FeaturesSection } from "@/components/home/features-section";
-import { FlowShopSection } from "@/components/home/flowshop-section";
-import { ListSmartlySection } from "@/components/home/listsmartly-section";
-import { PlatformSection } from "@/components/home/platform-section";
-import { SmsBlasterSection } from "@/components/home/sms-blaster-section";
-import { MarketplaceSection } from "@/components/home/marketplace-section";
-import { PricingPreview } from "@/components/home/pricing-preview";
-import { CTASection } from "@/components/home/cta-section";
+import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
+import { FinalCta } from "@/components/marketing/sections/final-cta";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      <PublicHeader />
-      <HeroSection />
-      <ProofStripSection />
-      <FeaturesSection />
-      <FlowShopSection />
-      <ListSmartlySection />
-      <PlatformSection />
-      <SmsBlasterSection />
-      <MarketplaceSection />
-      <PricingPreview />
-      <CTASection />
-      <PublicFooter />
-    </div>
+    <PublicMotionProvider>
+      <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+        <PublicHeader />
+        <main>
+          <HeroSection />
+          <ProofMarquee />
+          {/* P2 — watch the agent work · P3 — surfaces + how it works · P4 — outcomes + pricing */}
+          <FinalCta />
+        </main>
+        <PublicFooter />
+      </div>
+    </PublicMotionProvider>
   );
 }
