@@ -6,6 +6,7 @@ import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
 import { WatchItWork } from "@/components/marketing/sections/watch-it-work";
 import { SurfacesSection } from "@/components/marketing/sections/surfaces-section";
 import { WhyDifferent } from "@/components/marketing/sections/why-different";
+import { VideoShowcase } from "@/components/marketing/sections/video-showcase";
 import { UseCasesSection } from "@/components/marketing/sections/use-cases-section";
 import { SocialProof } from "@/components/marketing/sections/social-proof";
 import { OutcomesSection } from "@/components/marketing/sections/outcomes-section";
@@ -23,6 +24,7 @@ export default function HomePage() {
           <WatchItWork />
           <SurfacesSection />
           <WhyDifferent />
+          <VideoShowcase />
           <UseCasesSection />
           <SocialProof />
           <OutcomesSection />

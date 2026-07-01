@@ -15,8 +15,8 @@ const PROMPT = "Launch my bakery's fall promo — designs, a flyer, posts and an
 const STEPS = ["Planning the campaign", "Designing 3 creatives", "Writing 5 posts", "Building the flyer", "Drafting the ad"];
 const ASSETS = [
   { label: "Design", accent: "from-sky-400 to-blue-500", kind: "design" as const },
-  { label: "5 posts", accent: "from-violet-400 to-fuchsia-500", kind: "posts" as const },
-  { label: "Ad", accent: "from-emerald-400 to-teal-500", kind: "ad" as const },
+  { label: "Video", accent: "from-rose-400 to-pink-500", kind: "video" as const },
+  { label: "Website", accent: "from-emerald-400 to-teal-500", kind: "website" as const },
 ];
 
 /** The hero's animated "agent at work" composer — a real streaming loader: types
