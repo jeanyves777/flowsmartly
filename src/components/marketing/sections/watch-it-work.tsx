@@ -5,17 +5,18 @@ import { useReducedMotion } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Sparkles, Palette, FileText, Megaphone, Printer, CheckCircle2 } from "lucide-react";
+import { AssetPreview, type AssetKind } from "@/components/marketing/asset-preview";
 import { cn } from "@/lib/utils/cn";
 
 const STAGES = ["You describe", "The agent plans", "It produces", "You approve & ship"];
 
 const AGENT_STEPS = ["Reading your brand kit", "Planning the campaign", "Assigning each surface", "Producing the assets"];
 
-const OUTPUTS = [
-  { label: "Design", icon: Palette, accent: "from-sky-400 to-blue-500" },
-  { label: "5 posts", icon: FileText, accent: "from-violet-400 to-fuchsia-500" },
-  { label: "Ad", icon: Megaphone, accent: "from-emerald-400 to-teal-500" },
-  { label: "Flyer", icon: Printer, accent: "from-amber-400 to-orange-500" },
+const OUTPUTS: { label: string; icon: typeof Palette; accent: string; kind: AssetKind }[] = [
+  { label: "Design", icon: Palette, accent: "from-sky-400 to-blue-500", kind: "design" },
+  { label: "5 posts", icon: FileText, accent: "from-violet-400 to-fuchsia-500", kind: "posts" },
+  { label: "Ad", icon: Megaphone, accent: "from-emerald-400 to-teal-500", kind: "ad" },
+  { label: "Flyer", icon: Printer, accent: "from-amber-400 to-orange-500", kind: "flyer" },
 ];
 
 /**
@@ -100,7 +101,7 @@ export function WatchItWork() {
                   <div key={o.label} data-output className="flex flex-col gap-2 rounded-2xl border border-border bg-background/50 p-3">
                     <span className={cn("grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br text-white", o.accent)}><Icon className="h-[18px] w-[18px]" /></span>
                     <span className="text-sm font-semibold text-foreground">{o.label}</span>
-                    <div className="h-16 rounded-lg bg-muted/50" />
+                    <AssetPreview kind={o.kind} accent={o.accent} className="aspect-[4/3]" />
                   </div>
                 );
               })}

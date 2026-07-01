@@ -6,13 +6,18 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, CheckCircle2, Sparkles, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuroraBackdrop, GradientText, Magnetic } from "@/components/marketing/motion";
+import { AssetPreview } from "@/components/marketing/asset-preview";
 import { cn } from "@/lib/utils/cn";
 
 const proofItems = ["No credit card", "Free workspace", "Pay per work, not seats"];
 
 const PROMPT = "Launch my bakery's fall promo — designs, a flyer, posts and an ad.";
 const STEPS = ["Planning the campaign", "Designing 3 creatives", "Writing 5 posts", "Building the flyer", "Drafting the ad"];
-const CARDS = ["from-sky-400/40 to-blue-500/25", "from-emerald-400/40 to-teal-500/25", "from-violet-400/40 to-fuchsia-500/25"];
+const ASSETS = [
+  { label: "Design", accent: "from-sky-400 to-blue-500", kind: "design" as const },
+  { label: "5 posts", accent: "from-violet-400 to-fuchsia-500", kind: "posts" as const },
+  { label: "Ad", accent: "from-emerald-400 to-teal-500", kind: "ad" as const },
+];
 
 /** The hero's animated "agent at work" composer — types a prompt, streams the
  * agent's steps, then pops the outputs. Static (final state) under reduced motion. */
@@ -20,7 +25,7 @@ function AgentComposer() {
   const reduced = useReducedMotion();
   const [typed, setTyped] = useState(reduced ? PROMPT.length : 0);
   const [steps, setSteps] = useState(reduced ? STEPS.length : 0);
-  const [cards, setCards] = useState(reduced ? CARDS.length : 0);
+  const [cards, setCards] = useState(reduced ? ASSETS.length : 0);
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
@@ -33,7 +38,7 @@ function AgentComposer() {
       if (i >= PROMPT.length) {
         window.clearInterval(typeId);
         STEPS.forEach((_, s) => t.push(window.setTimeout(() => setSteps(s + 1), 480 + s * 620)));
-        CARDS.forEach((_, c) => t.push(window.setTimeout(() => setCards(c + 1), 480 + STEPS.length * 620 + 260 + c * 260)));
+        ASSETS.forEach((_, c) => t.push(window.setTimeout(() => setCards(c + 1), 480 + STEPS.length * 620 + 260 + c * 260)));
       }
     }, 26);
     t.push(typeId);
@@ -68,14 +73,16 @@ function AgentComposer() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          {CARDS.slice(0, cards).map((g, i) => (
+          {ASSETS.slice(0, cards).map((a, i) => (
             <motion.div
               key={i}
               initial={reduced ? false : { opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 260, damping: 18 }}
-              className={cn("aspect-[3/4] rounded-xl border border-border bg-gradient-to-br", g)}
-            />
+            >
+              <AssetPreview kind={a.kind} accent={a.accent} className="aspect-[3/4]" />
+              <p className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">{a.label}</p>
+            </motion.div>
           ))}
         </div>
       </div>
