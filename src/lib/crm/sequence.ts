@@ -20,6 +20,7 @@ export interface StepCfg {
   delayDays?: number;
   subject?: string;
   body?: string;
+  pitchId?: string; // an attached proposal PDF (email steps) — build_sequence_step
   requires?: string; // for `cond`: the channel the lead must have (e.g. "whatsapp")
   status?: string;
 }
@@ -105,8 +106,26 @@ export async function runEnrollmentStep(enr: EnrollmentRow, steps: StepCfg[], si
     await prisma.sequenceEnrollment.update({ where: { id: enr.id }, data: { nextRunAt: new Date(Date.now() + DAY) } }); // retry later
     return `blocked:${channel}`;
   }
-  // (Real send happens here once the channel adapter is wired — email via
-  //  /api/campaigns send, SMS via Twilio, WhatsApp via the social adapter.)
+
+  // REAL SEND (skipped when simulating — dev/admin just logs the touch). The body
+  // is the agent-written, per-lead copy; email steps attach the proposal PDF when
+  // one is linked. A failed send parks the enrollment to retry, so nothing is
+  // silently dropped.
+  if (!simulate) {
+    const { deliverSequenceEmail, deliverSequenceSms } = await import("./send-adapters");
+    let result: { ok: boolean; error?: string } = { ok: false, error: "unsupported channel" };
+    if (channel === "email" && enr.savedLead.email) {
+      result = await deliverSequenceEmail({ userId: enr.userId, to: enr.savedLead.email, subject: step.subject || step.title, body: step.body || "", pitchId: step.pitchId });
+    } else if (channel === "sms" && enr.savedLead.phone) {
+      result = await deliverSequenceSms({ userId: enr.userId, to: enr.savedLead.phone, body: step.body || step.title });
+    }
+    if (!result.ok) {
+      await logActivity(`Send failed: ${step.title}${result.error ? ` (${result.error})` : ""}`, "note");
+      await prisma.sequenceEnrollment.update({ where: { id: enr.id }, data: { nextRunAt: new Date(Date.now() + DAY) } }); // retry later
+      return `failed:${channel}`;
+    }
+  }
+
   await logActivity(`${step.title}${simulate ? " (simulated)" : ""}`);
   await advance(enr.id, steps, enr.currentStep + 1);
   return `sent:${channel}`;
