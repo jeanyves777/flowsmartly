@@ -259,8 +259,12 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     setSteps((prev) => [...prev, { id, kind, title: n.title, when: n.when, status: n.status }]);
     setSelected(id); setAddOpen(false);
   };
-  // Channel connection state (mock — wired to MarketingConfig / social in Build C2).
-  const [connected] = useState<Record<string, boolean>>({ email: false, sms: false, whatsapp: false });
+  // Real channel-connected state (email/SMS via MarketingConfig, WhatsApp via a
+  // connected Meta account) — re-checked after each agent turn.
+  const [connected, setConnected] = useState<Record<string, boolean>>({ email: false, sms: false, whatsapp: false });
+  useEffect(() => {
+    fetch("/api/sequences/channels").then((r) => r.json()).then((j) => { if (j?.success) setConnected(j.data as Record<string, boolean>); }).catch(() => {});
+  }, [refreshKey]);
 
   const step = steps.find((s) => s.id === selected) ?? steps[0];
 

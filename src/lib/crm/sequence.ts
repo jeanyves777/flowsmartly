@@ -51,10 +51,14 @@ function leadHasChannel(lead: { email?: string | null; phone?: string | null; ph
 /** Is the user's channel connected + ready to send? (email/SMS via MarketingConfig; WhatsApp via a connected social — Build C2.) */
 export async function channelConnected(userId: string, channel: "email" | "sms" | "whatsapp"): Promise<boolean> {
   try {
+    if (channel === "whatsapp") {
+      const acct = await prisma.socialAccount.findFirst({ where: { userId, platform: "whatsapp", isActive: true, accessToken: { not: null } }, select: { id: true } });
+      return !!acct;
+    }
     const cfg = await prisma.marketingConfig.findUnique({ where: { userId }, select: { emailEnabled: true, emailVerified: true, smsEnabled: true } });
     if (channel === "email") return !!(cfg?.emailEnabled && cfg?.emailVerified);
     if (channel === "sms") return !!cfg?.smsEnabled;
-    return false; // whatsapp — wired in Build C2
+    return false;
   } catch { return false; }
 }
 
@@ -112,12 +116,14 @@ export async function runEnrollmentStep(enr: EnrollmentRow, steps: StepCfg[], si
   // one is linked. A failed send parks the enrollment to retry, so nothing is
   // silently dropped.
   if (!simulate) {
-    const { deliverSequenceEmail, deliverSequenceSms } = await import("./send-adapters");
+    const { deliverSequenceEmail, deliverSequenceSms, deliverSequenceWhatsApp } = await import("./send-adapters");
     let result: { ok: boolean; error?: string } = { ok: false, error: "unsupported channel" };
     if (channel === "email" && enr.savedLead.email) {
       result = await deliverSequenceEmail({ userId: enr.userId, to: enr.savedLead.email, subject: step.subject || step.title, body: step.body || "", pitchId: step.pitchId });
     } else if (channel === "sms" && enr.savedLead.phone) {
       result = await deliverSequenceSms({ userId: enr.userId, to: enr.savedLead.phone, body: step.body || step.title });
+    } else if (channel === "whatsapp" && enr.savedLead.phone) {
+      result = await deliverSequenceWhatsApp({ userId: enr.userId, to: enr.savedLead.phone, body: step.body || step.title });
     }
     if (!result.ok) {
       await logActivity(`Send failed: ${step.title}${result.error ? ` (${result.error})` : ""}`, "note");

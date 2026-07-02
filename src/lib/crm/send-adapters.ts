@@ -58,6 +58,24 @@ export async function deliverSequenceEmail(opts: { userId: string; to: string; s
   return { ok: !!res.success, error: res.error };
 }
 
+/** Send one outreach WhatsApp text via the user's connected Meta Cloud API account. */
+export async function deliverSequenceWhatsApp(opts: { userId: string; to: string; body: string }): Promise<{ ok: boolean; error?: string }> {
+  const to = (opts.to || "").replace(/[^\d]/g, ""); // Meta expects the number (no +)
+  if (!to) return { ok: false, error: "no phone" };
+  const acct = await prisma.socialAccount.findFirst({ where: { userId: opts.userId, platform: "whatsapp", isActive: true, accessToken: { not: null } }, select: { accessToken: true, platformUserId: true } }).catch(() => null);
+  if (!acct?.accessToken || !acct?.platformUserId) return { ok: false, error: "whatsapp not connected" };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${acct.platformUserId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${acct.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: true, body: opts.body } }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    if (!res.ok || data?.error) return { ok: false, error: data?.error?.message || `whatsapp ${res.status}` };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "whatsapp failed" }; }
+}
+
 /** Send one outreach SMS from the user's Twilio number. */
 export async function deliverSequenceSms(opts: { userId: string; to: string; body: string }): Promise<{ ok: boolean; error?: string }> {
   const to = opts.to?.trim();
