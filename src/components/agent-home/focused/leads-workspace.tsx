@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/hooks/use-toast";
 import { RoiDashboard } from "./roi-dashboard";
 import { LeadsAutomation } from "./leads-automation";
 
@@ -30,7 +31,8 @@ const COUNTS = ["25", "50", "100"];
 const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean }) {
+export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean }) {
+  const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("find");
   // The menu is controlled from the surface header toggle when `menuOpen` is
   // passed; otherwise it falls back to local state (standalone use).
@@ -44,12 +46,36 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { re
   // ── Find (agent web-search) ──
   const [briefOpen, setBriefOpen] = useState(false);
   const [findState, setFindState] = useState<"empty" | "loading" | "results">("empty");
-  const [findTab, setFindTab] = useState<"contacts" | "companies">("contacts");
   const [results, setResults] = useState<SavedLead[]>([]);
   const [resultList, setResultList] = useState<LeadList | null>(null);
   const [brief, setBrief] = useState({ industry: "", location: "", title: "", seniority: ["Owner", "C-level"] as string[], size: "Any", revenue: "Any", tech: "", keywords: "", count: "50" });
   const findingRef = useRef(false);
   const baselineRef = useRef(0);
+
+  // ── Enrich (agent operates the row, not the chat) ──
+  // Leads currently being enriched → drives the per-row / bulk loaders. The agent
+  // writes the result INTO the lead via enrich_lead; we reconcile on refreshKey.
+  const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
+  const enrichingRef = useRef<Set<string>>(new Set());
+  enrichingRef.current = enrichingIds;
+
+  const enrichLead = useCallback((l: SavedLead) => {
+    if (l.enrichedAt) return;
+    setEnrichingIds((prev) => new Set(prev).add(l.id));
+    onAsk(
+      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""} — web-search their work email, phone and LinkedIn, then call enrich_lead with leadId="${l.id}" to save it INTO their row. Do NOT print the contact details in the chat.`,
+    );
+  }, [onAsk]);
+
+  const enrichAll = useCallback((leadsToEnrich: SavedLead[], listNm: string) => {
+    const targets = leadsToEnrich.filter((l) => !l.enrichedAt);
+    if (!targets.length) return;
+    setEnrichingIds((prev) => { const n = new Set(prev); targets.forEach((l) => n.add(l.id)); return n; });
+    const idList = targets.map((l) => `${l.name} → ${l.id}`).join("; ");
+    onAsk(
+      `Enrich all ${targets.length} un-enriched leads in the list "${listNm}". FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with that lead's exact leadId so it saves INTO their row. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
+    );
+  }, [onAsk]);
 
   // ── Library upload ──
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -92,6 +118,38 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { re
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // Reconcile enrichment when the agent FINISHES (busy→idle) — not on refreshKey,
+  // because a turn that only chats (the failure we're fixing: no enrich_lead call)
+  // never bumps refreshKey and would leave a loader stuck forever. On finish we pull
+  // the fresh rows so the enriched email shows in the table, notify, and clear the
+  // per-row loaders (a row that didn't enrich reverts to its Enrich button).
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    const justFinished = wasBusyRef.current && !agentBusy;
+    wasBusyRef.current = !!agentBusy;
+    if (!justFinished || enrichingRef.current.size === 0) return;
+    (async () => {
+      const j = await fetch("/api/leads/lists").then((r) => r.json()).catch(() => null);
+      const allLists: LeadList[] = j?.data?.lists || [];
+      const chunks = await Promise.all(allLists.map((l) => fetch(`/api/leads/lists/${l.id}`).then((r) => r.json()).catch(() => null)));
+      const fresh: SavedLead[] = [];
+      chunks.forEach((c) => (c?.data?.leads || []).forEach((x: SavedLead) => fresh.push(x)));
+      setAllLeads(fresh); setLoadedLeads(true);
+      if (resultList) {
+        const rl = chunks.find((c) => c?.data?.list?.id === resultList.id);
+        if (rl?.data?.leads) setResults(rl.data.leads);
+      }
+      const done = fresh.filter((l) => enrichingRef.current.has(l.id) && l.enrichedAt);
+      if (done.length) {
+        toast(done.length === 1
+          ? { title: "Lead enriched", description: `${done[0].name}${done[0].email ? ` — ${done[0].email}` : ""} saved to their row.` }
+          : { title: `${done.length} leads enriched`, description: "Contact details saved into their rows." });
+      }
+      setEnrichingIds(new Set());
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentBusy]);
 
   const totalLeads = useMemo(() => lists.reduce((n, l) => n + (l.leadCount ?? 0), 0), [lists]);
   const companies = useMemo(() => {
@@ -152,10 +210,11 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { re
       {/* CONTENT */}
       <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-3.5 sm:px-5">
         {screen === "find" ? (
-          <FindScreen state={findState} tab={findTab} setTab={setFindTab} results={results} resultList={resultList}
-            onOpenBrief={() => setBriefOpen(true)} onBuild={() => resultList && buildAutomation(resultList)} onAsk={onAsk} />
+          <FindScreen state={findState} results={results} resultList={resultList}
+            onOpenBrief={() => setBriefOpen(true)} onBuild={() => { if (resultList) buildAutomation(resultList); }}
+            enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, resultList.name); }} />
         ) : screen === "contacts" ? (
-          <ContactsScreen leads={allLeads} loaded={loadedLeads} onAsk={onAsk} />
+          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} />
         ) : screen === "companies" ? (
           <CompaniesScreen companies={companies} loaded={loadedLeads} />
         ) : screen === "library" ? (
@@ -163,7 +222,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { re
             uploadOpen={uploadOpen} setUploadOpen={setUploadOpen} pasteRows={pasteRows} setPasteRows={setPasteRows}
             newFolderName={newFolderName} setNewFolderName={setNewFolderName} importing={importing} onImport={importPaste} />
         ) : screen === "pipeline" ? (
-          <LeadsAutomation listId={activeList?.id} listName={activeList?.name} leadCount={activeList?.leadCount} onAsk={onAsk} refreshKey={refreshKey} lists={lists} onSelectList={(l) => setActiveList(l)} />
+          <LeadsAutomation listId={activeList?.id} listName={activeList?.name} leadCount={activeList?.leadCount} onAsk={onAsk} refreshKey={refreshKey} lists={lists} onSelectList={(l) => setActiveList(l)} agentBusy={agentBusy} />
         ) : (
           <RoiDashboard refreshKey={refreshKey} />
         )}
@@ -242,10 +301,13 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /* ── Find ── */
-function FindScreen({ state, tab, setTab, results, resultList, onOpenBrief, onBuild, onAsk }: {
-  state: "empty" | "loading" | "results"; tab: "contacts" | "companies"; setTab: (t: "contacts" | "companies") => void;
-  results: SavedLead[]; resultList: LeadList | null; onOpenBrief: () => void; onBuild: () => void; onAsk: (p: string) => void;
+function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichingIds, onEnrich, onEnrichAll }: {
+  state: "empty" | "loading" | "results";
+  results: SavedLead[]; resultList: LeadList | null; onOpenBrief: () => void; onBuild: () => void;
+  enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: () => void;
 }) {
+  const unenriched = results.filter((l) => !l.enrichedAt).length;
+  const enrichBusy = results.some((l) => enrichingIds.has(l.id));
   if (state === "loading") {
     return (
       <div className="grid place-items-center py-24 text-center">
@@ -266,10 +328,17 @@ function FindScreen({ state, tab, setTab, results, resultList, onOpenBrief, onBu
         {resultList && (
           <div className="mb-3 flex flex-wrap items-center gap-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/[0.07] px-4 py-2.5 text-[12.5px] text-emerald-300">
             <CheckCircle2 className="h-4 w-4 shrink-0" /> Saved <b>{results.length} leads</b> to “{resultList.name}” in your Library.
-            <button onClick={onBuild} className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white">Build automation <ArrowRight className="h-3.5 w-3.5" /></button>
+            <div className="ms-auto flex items-center gap-2">
+              {unenriched > 0 && (
+                <button onClick={onEnrichAll} disabled={enrichBusy} title="Find email + phone for every lead so you can reach them" className="inline-flex items-center gap-1.5 rounded-[9px] border border-emerald-500/50 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-60">
+                  {enrichBusy ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Enriching…" : `Enrich all (${unenriched})`}
+                </button>
+              )}
+              <button onClick={onBuild} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white">Build automation <ArrowRight className="h-3.5 w-3.5" /></button>
+            </div>
           </div>
         )}
-        <LeadTable leads={results} onAsk={onAsk} />
+        <LeadTable leads={results} enrichingIds={enrichingIds} onEnrich={onEnrich} />
       </div>
     );
   }
@@ -285,24 +354,33 @@ function FindScreen({ state, tab, setTab, results, resultList, onOpenBrief, onBu
   );
 }
 
-function LeadTable({ leads, onAsk }: { leads: SavedLead[]; onAsk: (p: string) => void }) {
+function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void }) {
   if (!leads.length) return <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-muted-foreground">No leads yet.</p>;
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <table className="w-full text-[12.5px]">
         <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Name", "Title", "Company", "Email", ""].map((h, i) => <th key={i} className="border-b border-border px-4 py-2.5 font-medium">{h}</th>)}</tr></thead>
         <tbody>
-          {leads.map((l) => (
-            <tr key={l.id} className="border-t border-border hover:bg-muted/20">
-              <td className="px-4 py-2.5 font-semibold">{l.name}</td>
-              <td className="px-4 py-2.5 text-muted-foreground">{l.title || "—"}</td>
-              <td className="px-4 py-2.5">{l.category || "—"}</td>
-              <td className="px-4 py-2.5">{l.enrichedAt && l.email ? <span className="inline-flex items-center gap-1">{l.email} <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /></span> : <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>}</td>
-              <td className="px-4 py-2.5 text-end">
-                {l.enrichedAt ? <span className="text-[11.5px] text-emerald-500">Enriched</span> : <button onClick={() => onAsk(`Enrich the lead "${l.name}"${l.category ? ` at ${l.category}` : ""} — find their work email, phone and LinkedIn, then save it.`)} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>}
-              </td>
-            </tr>
-          ))}
+          {leads.map((l) => {
+            const enriching = enrichingIds.has(l.id);
+            return (
+              <tr key={l.id} className="border-t border-border hover:bg-muted/20">
+                <td className="px-4 py-2.5 font-semibold">{l.name}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{l.title || "—"}</td>
+                <td className="px-4 py-2.5">{l.category || "—"}</td>
+                <td className="px-4 py-2.5">{l.enrichedAt && l.email ? <span className="inline-flex items-center gap-1">{l.email} <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /></span> : enriching ? <span className="inline-flex items-center gap-1.5 text-muted-foreground"><FlowLoader size={12} /> finding…</span> : <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>}</td>
+                <td className="px-4 py-2.5 text-end">
+                  {l.enrichedAt ? (
+                    <span className="text-[11.5px] text-emerald-500">Enriched</span>
+                  ) : enriching ? (
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Enriching…</span>
+                  ) : (
+                    <button onClick={() => onEnrich(l)} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -310,12 +388,12 @@ function LeadTable({ leads, onAsk }: { leads: SavedLead[]; onAsk: (p: string) =>
 }
 
 /* ── Contacts ── */
-function ContactsScreen({ leads, loaded, onAsk }: { leads: SavedLead[]; loaded: boolean; onAsk: (p: string) => void }) {
+function ContactsScreen({ leads, loaded, enrichingIds, onEnrich }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void }) {
   if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading contacts…" /></div>;
   return (
     <>
-      <p className="mb-3 text-[12px] text-muted-foreground">Everyone you've saved across all lists — {leads.length} contacts. Enrich them or add to an automation.</p>
-      <LeadTable leads={leads} onAsk={onAsk} />
+      <p className="mb-3 text-[12px] text-muted-foreground">Everyone you've saved across all lists — {leads.length} contacts. Enrich them to reveal email + phone, or add to an automation.</p>
+      <LeadTable leads={leads} enrichingIds={enrichingIds} onEnrich={onEnrich} />
     </>
   );
 }

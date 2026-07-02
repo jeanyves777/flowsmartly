@@ -19,6 +19,7 @@ export function FocusedView({
   canvas,
   onClose,
   headerActions,
+  agentBusy,
 }: {
   title: string;
   subtitle?: string;
@@ -28,6 +29,8 @@ export function FocusedView({
   onClose: () => void;
   /** Optional controls rendered in the surface header, next to Exit. */
   headerActions?: ReactNode;
+  /** True while the agent is actively working — drives the live status indicator. */
+  agentBusy?: boolean;
 }) {
   const [chatW, setChatW] = useState(404);
   const [collapsed, setCollapsed] = useState(false);
@@ -63,8 +66,11 @@ export function FocusedView({
         )}
       >
         <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.18)]" />
-          Agent · <b className="text-foreground">working on this canvas</b>
+          {agentBusy ? (
+            <><FlowLoader size={13} /> Agent · <b className="text-foreground">working…</b></>
+          ) : (
+            <><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.18)]" /> Agent · <b className="text-foreground">ready</b></>
+          )}
           <div className="ms-auto flex items-center gap-3">
             <button onClick={() => setCollapsed(true)} className="hidden items-center gap-1 hover:text-foreground md:inline-flex" title="Collapse chat">
               <ChevronLeft className="h-4 w-4" /> collapse

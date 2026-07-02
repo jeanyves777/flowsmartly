@@ -97,7 +97,7 @@ function toCfg(s: Step) {
   };
 }
 
-export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey, lists, onSelectList }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void; refreshKey?: number; lists?: ListLite[]; onSelectList?: (l: ListLite) => void }) {
+export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey, lists, onSelectList, agentBusy }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void; refreshKey?: number; lists?: ListLite[]; onSelectList?: (l: ListLite) => void; agentBusy?: boolean }) {
   const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
@@ -105,6 +105,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   const [sequenceId, setSequenceId] = useState<string | null>(null);
   const [active, setActive] = useState(false);
   const [writingStep, setWritingStep] = useState<string | null>(null);
+  const [designing, setDesigning] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
   const loadedRef = useRef(false);
 
@@ -166,6 +167,23 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // When the agent FINISHES (busy→idle): pull the latest sequence (so a full
+  // "design" lands on every step) and clear any loaders — a chat-only turn that
+  // wrote nothing must never leave a spinner stuck.
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    const justFinished = wasBusyRef.current && !agentBusy;
+    wasBusyRef.current = !!agentBusy;
+    if (!justFinished || !listId) return;
+    (async () => {
+      const j = await fetch(`/api/sequences?listId=${listId}`).then((r) => r.json()).catch(() => null);
+      const seq = j?.data?.sequence;
+      if (seq) { try { const p = JSON.parse(seq.steps || "[]") as Step[]; if (Array.isArray(p) && p.length) setSteps(p); } catch { /* ignore */ } }
+      setDesigning(false); setWritingStep(null);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentBusy]);
 
   const toggleActive = async () => {
     if (!listId) return;
@@ -262,7 +280,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
       <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-violet-500/25 bg-gradient-to-r from-brand-500/[0.06] to-violet-500/[0.06] px-3 py-1.5 text-[11.5px] text-foreground/70">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-400" />
         <span className="min-w-0 truncate">The agent routes each lead down the best channel it has — email → WhatsApp → SMS — skipping ones they can't receive.</span>
-        <button onClick={() => onAsk("Design the best multi-channel outreach sequence for this list — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step.")} disabled={!listId} title={listId ? "" : "Select a list first"} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-3 w-3" /> Let the agent design</button>
+        <button onClick={() => { if (!listId) return; setDesigning(true); onAsk(`Design the best multi-channel outreach sequence for the "${listName || "lead"}" list${listId ? ` (listId: ${listId})` : ""} — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step — then call build_sequence_step for each step so the copy lands in the step cards (not the chat).`); }} disabled={!listId || designing} title={listId ? "" : "Select a list first"} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50">{designing ? <FlowLoader size={12} /> : <Sparkles className="h-3 w-3" />} {designing ? "Designing…" : "Let the agent design"}</button>
       </div>
 
       {/* draggable flow + step brief — stacks until there's real width (chat + menu open) */}

@@ -186,7 +186,11 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
     case "reviews":
       return `The user is on the **Reviews & local SEO** surface (ListSmartly). Help them request more reviews, claim/fix listings, or improve their local SEO/citation score.`;
     case "leads":
-      return `The user is on the **Lead finder** surface (search local businesses to pitch/propose to). A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded service deck (create_proposal) — these are DIFFERENT, pick the right one for what they ask. They can also add a lead to contacts.`;
+      return `The user is in **Lead Studio** (find → automate → close) — a hands-on surface with a Find screen, a saved-lead table, an automation flow, and ROI. OPERATE THE SURFACE, don't narrate in chat. Key rules:
+• FIND: for LOCAL / brick-and-mortar targets (a business type + a city) use find_local_leads (Google Places — verified phone/website/rating, up to 60/search); for specific PEOPLE or national/online companies use web_search + find_leads. Hit the requested count, topping up find_local_leads (≤60) with web_search when asked for more. Results save into a lead list and appear in the table automatically.
+• ENRICH: results MUST land in the lead's ROW via enrich_lead — NEVER write the found email/phone/title as a message or a table in the chat (that's the wrong place and the exact thing to avoid). The Enrich button gives you the exact leadId in the instruction — call enrich_lead with that leadId. If you ever lack the id, pass leadName (+ listId) and it resolves the row. For a whole list, call propose_plan first (one AI_WEB_SEARCH per lead) so the user approves the cost, then loop enrich_lead per lead.
+• COST: never quote 0 for a paid lead action — a local search = AI_WEB_SEARCH; each enrichment = AI_WEB_SEARCH per lead. Pass those in propose_plan's costKeys.
+A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded service deck (create_proposal) — pick the right one when asked.`;
     case "compose":
       return `The user is on the **Post composer** (write a caption, pick platforms, attach media, schedule). Help them write and schedule a post — schedule_social_post / create posts via the right tool.`;
     case "email":
@@ -837,6 +841,7 @@ export function AgentHome() {
               title={fLabel}
               subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
+              agentBusy={sending}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               headerActions={focused === "leads" ? (
                 <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
@@ -1035,7 +1040,7 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} />
+                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "email" ? (

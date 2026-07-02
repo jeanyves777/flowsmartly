@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { nextSeqForConversation } from "../conversation-seq";
 import { getDynamicCreditCost, type CreditCostKey } from "@/lib/credits/costs";
 import { calculateStoryAdMovieCredits } from "@/lib/story-ad-movie";
-import type { FlowAgentTool } from "../registry";
+import { flowAgentTools, type FlowAgentTool } from "../registry";
 import type { PlanStep } from "../tool-context";
 
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
@@ -50,7 +50,7 @@ export const proposePlan: FlowAgentTool = {
       costKeys: {
         type: "array",
         items: { type: "string" },
-        description: "The credit-cost KEY of each PAID step (the tool sums their LIVE admin-set prices for an ACCURATE total — pass these instead of guessing totalCreditCost). Common keys: AI_VISUAL_DESIGN (a branded design via create_branded_design), AGENT_GENERATE_IMAGE_STANDARD / AGENT_GENERATE_IMAGE_PREMIUM (plain generate_image or edit_image, by tier), AGENT_SCHEDULE_POST (schedule/post a social post), AGENT_GENERATE_VIDEO_STANDARD / AGENT_GENERATE_VIDEO_PREMIUM (video). Example — a branded image post = [\"AI_VISUAL_DESIGN\", \"AGENT_SCHEDULE_POST\"]. Omit free steps (writing a caption). For a Premium branded design, list AI_VISUAL_DESIGN once per the premium multiplier if you know it; otherwise the tool uses the Standard price.",
+        description: "The credit-cost KEY of each PAID step (the tool sums their LIVE admin-set prices for an ACCURATE total — pass these instead of guessing totalCreditCost). Common keys: AI_VISUAL_DESIGN (a branded design via create_branded_design), AGENT_GENERATE_IMAGE_STANDARD / AGENT_GENERATE_IMAGE_PREMIUM (plain generate_image or edit_image, by tier), AGENT_SCHEDULE_POST (schedule/post a social post), AGENT_GENERATE_VIDEO_STANDARD / AGENT_GENERATE_VIDEO_PREMIUM (video), AI_WEB_SEARCH (a local/Google Places lead search via find_local_leads, OR each lead enriched via enrich_lead — repeat it once per lead). Example — a branded image post = [\"AI_VISUAL_DESIGN\", \"AGENT_SCHEDULE_POST\"]; enriching 10 leads = ten \"AI_WEB_SEARCH\" entries. Omit free steps (writing a caption, find_leads). For a Premium branded design, list AI_VISUAL_DESIGN once per the premium multiplier if you know it; otherwise the tool uses the Standard price.",
       },
       storyAdSeconds: {
         type: "number",
@@ -94,13 +94,29 @@ export const proposePlan: FlowAgentTool = {
         const dur = secs <= 10 ? 10 : secs <= 20 ? 20 : secs <= 30 ? 30 : 40;
         storyAdCost = calculateStoryAdMovieCredits(dur);
       }
-      const baseCost = haveKeys
-        ? computedFromKeys
-        : typeof input.totalCreditCost === "number"
-          ? input.totalCreditCost
-          : 0;
-      const totalCreditCost = Math.max(0, Math.round(baseCost + storyAdCost));
       const rawSteps = Array.isArray(input.steps) ? input.steps : [];
+      // Safety floor: derive cost from the ACTUAL tools each step will call, so a
+      // paid action can never quote 0 just because the model forgot to enumerate
+      // costKeys (the #1 way the card under-quoted). One charge per tool step —
+      // finer-grained per-unit totals (e.g. 25 leads) still come from costKeys.
+      let computedFromTools = 0;
+      for (const s of rawSteps) {
+        const toolName = (s as Record<string, unknown>)?.toolName;
+        if (typeof toolName !== "string") continue;
+        const tool = flowAgentTools.get(toolName);
+        if (!tool?.costKey) continue;
+        try {
+          const c = await getDynamicCreditCost(tool.costKey);
+          if (typeof c === "number" && Number.isFinite(c) && c > 0) computedFromTools += c;
+        } catch {
+          /* unknown key — skip */
+        }
+      }
+      const agentTotal = typeof input.totalCreditCost === "number" ? input.totalCreditCost : 0;
+      // Prefer the agent's per-step costKeys (most accurate), but never fall below
+      // the tool-derived floor or the agent's own number.
+      const baseCost = Math.max(haveKeys ? computedFromKeys : 0, computedFromTools, agentTotal);
+      const totalCreditCost = Math.max(0, Math.round(baseCost + storyAdCost));
       if (!summary || rawSteps.length === 0) {
         return {
           ok: false,

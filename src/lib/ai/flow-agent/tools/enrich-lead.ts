@@ -11,11 +11,13 @@ import type { FlowAgentTool } from "../registry";
 export const enrichLead: FlowAgentTool = {
   name: "enrich_lead",
   description:
-    "Reveal & save a lead's contact details you found via web search (email, phone, LinkedIn/X/Facebook/company site). Pass the leadId plus whatever you verified — email, phones, socials, title. Costs credits per lead (billed). Only call for leads the user asked to enrich; for a whole list, propose_plan first with the count so the user sees the cost.",
+    "Reveal & SAVE a lead's contact details you found via web search (email, phone, LinkedIn/X/Facebook/company site). This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found email/phone/title as a message or a table in the chat — that does not update the row and is the wrong place. Pass leadId (the UI provides it — e.g. 'leadId: xxx') plus whatever you verified. If you somehow don't have the exact id, pass leadName (+ optional listId) and this resolves the row for you. Costs credits per lead (billed). For a whole list, propose_plan first with one AI_WEB_SEARCH per lead so the user sees the cost.",
   input_schema: {
     type: "object",
     properties: {
-      leadId: { type: "string", description: "The SavedLead id to enrich." },
+      leadId: { type: "string", description: "The SavedLead id to enrich (preferred — the Enrich button passes it in the instruction)." },
+      leadName: { type: "string", description: "Fallback when you don't have the exact leadId: the lead's name to resolve the row (optionally narrowed by listId)." },
+      listId: { type: "string", description: "Optional — the list the lead belongs to, to disambiguate a leadName lookup." },
       email: { type: "string", description: "Primary work email you verified." },
       phone: { type: "string", description: "Primary phone." },
       phones: { type: "array", items: { type: "string" }, description: "Additional phone numbers." },
@@ -26,17 +28,29 @@ export const enrichLead: FlowAgentTool = {
         properties: { linkedin: { type: "string" }, x: { type: "string" }, facebook: { type: "string" }, google: { type: "string" } },
       },
     },
-    required: ["leadId"],
+    required: [],
   },
   plans: null,
   costKey: "AI_WEB_SEARCH",
   mutating: true,
   handler: async (input, ctx) => {
-    const leadId = typeof input.leadId === "string" ? input.leadId : "";
-    if (!leadId) return { ok: false, error_code: "missing_input", message: "leadId is required." };
+    const leadId = typeof input.leadId === "string" ? input.leadId.trim() : "";
+    const leadName = typeof input.leadName === "string" ? input.leadName.trim() : "";
+    const listId = typeof input.listId === "string" ? input.listId.trim() : "";
+    if (!leadId && !leadName) return { ok: false, error_code: "missing_input", message: "Pass leadId (preferred) or leadName so the enrichment can be saved into a specific lead row." };
 
-    const lead = await prisma.savedLead.findFirst({ where: { id: leadId, userId: ctx.userId }, select: { id: true } });
-    if (!lead) return { ok: false, error_code: "not_found", message: "That lead was not found." };
+    // Resolve the row: by id first, else by name (optionally within a list). The
+    // name fallback guarantees enrichment ALWAYS lands in the UI — never in chat.
+    let lead = leadId ? await prisma.savedLead.findFirst({ where: { id: leadId, userId: ctx.userId }, select: { id: true } }) : null;
+    if (!lead && leadName) {
+      lead = await prisma.savedLead.findFirst({
+        where: { userId: ctx.userId, name: { contains: leadName }, ...(listId ? { listId } : {}) },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+    }
+    if (!lead) return { ok: false, error_code: "not_found", message: `No saved lead matched ${leadId ? `id "${leadId}"` : `name "${leadName}"`}. Do NOT report the details in chat — ask the user to reopen the list, or pass the exact leadId from the row.` };
+    const resolvedId = lead.id;
 
     const phones = Array.isArray(input.phones) ? input.phones.filter((p): p is string => typeof p === "string" && p.trim().length > 0) : [];
     const socials = input.socials && typeof input.socials === "object" ? (input.socials as Record<string, unknown>) : {};
@@ -47,7 +61,7 @@ export const enrichLead: FlowAgentTool = {
     }, {});
 
     const updated = await prisma.savedLead.update({
-      where: { id: leadId },
+      where: { id: resolvedId },
       data: {
         email: typeof input.email === "string" && input.email.trim() ? input.email.trim() : undefined,
         phone: typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : undefined,
@@ -61,14 +75,14 @@ export const enrichLead: FlowAgentTool = {
     });
 
     // Log the touch + refresh the studio.
-    await prisma.activity.create({ data: { userId: ctx.userId, type: "note", subject: "Lead enriched", savedLeadId: leadId } }).catch(() => {});
-    ctx.emit({ type: "canvas_update", patch: { __leads: { enrichedLeadId: leadId } } });
+    await prisma.activity.create({ data: { userId: ctx.userId, type: "note", subject: "Lead enriched", savedLeadId: resolvedId } }).catch(() => {});
+    ctx.emit({ type: "canvas_update", patch: { __leads: { enrichedLeadId: resolvedId } } });
 
     return {
       ok: true,
-      data: { lead: updated, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""}.` },
+      data: { lead: updated, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""} — the details are now saved in their row in the Lead Studio (do NOT repeat them in chat).` },
       resultRefType: "SavedLead",
-      resultRefId: leadId,
+      resultRefId: resolvedId,
     };
   },
 };
