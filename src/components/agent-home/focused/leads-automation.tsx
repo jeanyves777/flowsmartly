@@ -4,8 +4,13 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode, type Mouse
 import {
   Mail, MessageCircle, GitBranch, CheckSquare, CalendarDays, Sparkles,
   GripVertical, Pause, Play, Repeat, X, Plus, AlertTriangle, Zap, Printer, Clock,
+  Check, ChevronDown, Download, Folder as FolderIcon,
 } from "lucide-react";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+
+const FLD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
+interface ListLite { id: string; name: string; leadCount?: number; category?: string | null }
 
 /**
  * Lead automation flow — the approved playground: a draggable vertical step
@@ -23,6 +28,7 @@ type Status = "ready" | "blocked" | "paused" | "waiting" | "smart";
 
 interface Step {
   id: string; kind: Kind; title: string; when: string; status: Status;
+  subject?: string; body?: string; pitchId?: string;
 }
 
 const CHANNEL_OF: Partial<Record<Kind, "email" | "sms" | "whatsapp">> = { email: "email", book: "email", sms: "sms", whatsapp: "whatsapp" };
@@ -91,14 +97,28 @@ function toCfg(s: Step) {
   };
 }
 
-export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void }) {
+export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey, lists, onSelectList }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void; refreshKey?: number; lists?: ListLite[]; onSelectList?: (l: ListLite) => void }) {
   const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sequenceId, setSequenceId] = useState<string | null>(null);
   const [active, setActive] = useState(false);
+  const [writingStep, setWritingStep] = useState<string | null>(null);
+  const [listPickerOpen, setListPickerOpen] = useState(false);
   const loadedRef = useRef(false);
+
+  const updateStep = (id: string, patch: Partial<Step>) => setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
+  // "Let the agent write it": save the flow so the agent can find it, then ask the
+  // agent (hidden) to compose + call build_sequence_step, which writes the copy INTO
+  // this step's card (not the chat). A loader shows until the draft lands.
+  const write = async (s: Step) => {
+    if (listId) await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).catch(() => {});
+    setWritingStep(s.id);
+    const w = s.kind === "sms" ? "SMS" : s.kind === "whatsapp" ? "WhatsApp message" : s.kind === "book" ? "booking request" : "email";
+    onAsk(`Write the "${s.title}" ${w} for the "${listName || "lead"}" outreach automation${listId ? ` (listId: ${listId})` : ""} — personalize it for the audience's industry, in my brand voice. Then call build_sequence_step with listId="${listId || ""}", stepId="${s.id}" and the ${s.kind === "email" || s.kind === "book" ? "subject + " : ""}body so it lands in the step card. Don't paste it in the chat.`);
+  };
 
   // Load the saved sequence for this list (steps + on/off state).
   useEffect(() => {
@@ -128,6 +148,23 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId
     }, 800);
     return () => clearTimeout(t);
   }, [steps, listId, listName]);
+
+  // When we're waiting on the agent to write a step, reload after each agent turn
+  // and clear the loader once the draft has landed on that step.
+  useEffect(() => {
+    if (!writingStep || !listId) return;
+    (async () => {
+      const j = await fetch(`/api/sequences?listId=${listId}`).then((r) => r.json()).catch(() => null);
+      const seq = j?.data?.sequence;
+      if (!seq) return;
+      try {
+        const p = JSON.parse(seq.steps || "[]") as Step[];
+        const w = p.find((s) => s.id === writingStep);
+        if (w && (w.body || w.subject)) { setSteps(p); setWritingStep(null); }
+      } catch { /* ignore */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const toggleActive = async () => {
     if (!listId) return;
@@ -176,10 +213,29 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId
     >
       {/* audience + activate */}
       <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder /></span>
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold">{listName || "Select a list"}</p>
-          <p className="text-[11px] text-muted-foreground">{leadCount ?? 0} leads · pitch → follow-ups → booking</p>
+        <div className="relative">
+          <button onClick={() => setListPickerOpen((v) => !v)} className="flex items-center gap-2.5 text-start">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder /></span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1 text-[13px] font-bold"><span className="truncate">{listName || "Select a list"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /></span>
+              <span className="block text-[11px] text-muted-foreground">{leadCount ?? 0} leads · pitch → follow-ups → booking</span>
+            </span>
+          </button>
+          {listPickerOpen && (
+            <>
+              <button aria-label="Close" onClick={() => setListPickerOpen(false)} className="fixed inset-0 z-10 cursor-default" />
+              <div className="absolute left-0 top-full z-20 mt-2 max-h-72 w-64 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
+                {(lists || []).length === 0 && <p className="px-2.5 py-2 text-[12px] text-muted-foreground">No lists yet — find or upload leads first.</p>}
+                {(lists || []).map((l) => (
+                  <button key={l.id} onClick={() => { onSelectList?.(l); setListPickerOpen(false); }} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-start hover:bg-muted", l.id === listId && "text-brand-500")}>
+                    <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-semibold">{l.name}</span><span className="block text-[11px] text-muted-foreground">{l.leadCount ?? 0} leads</span></span>
+                    {l.id === listId && <Check className="h-3.5 w-3.5 text-brand-500" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
         <button onClick={toggleActive} disabled={!listId} title={listId ? "" : "Pick a list first"} className={cn("ms-auto inline-flex items-center gap-2 text-[12px] font-semibold disabled:opacity-50", active ? "text-emerald-500" : "text-muted-foreground")}>
           {active ? "Automation on" : "Automation off"}
@@ -271,7 +327,13 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId
         </div>
 
         <div className="min-w-0 flex-1">
-          <StepBrief step={step} connected={connected} onAsk={onAsk} />
+          <StepBrief step={step} connected={connected} onAsk={onAsk} onWrite={() => write(step)} />
+          {(writingStep === step.id || step.body) && (
+            <>
+              <div className="ms-6 h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
+              <ResultCard step={step} writing={writingStep === step.id} onUpdate={(patch) => updateStep(step.id, patch)} />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -305,7 +367,7 @@ const TASK_RECS: [string, string][] = [
 ];
 
 /** Per-step brief — style/type + agent-build + channel gating, or the branch/task editors. */
-function StepBrief({ step, connected, onAsk }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void }) {
+function StepBrief({ step, connected, onAsk, onWrite }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void; onWrite: () => void }) {
   const [style, setStyle] = useState(0);
   const ch = CHANNEL_OF[step.kind];
   const isMsg = step.kind === "email" || step.kind === "sms" || step.kind === "whatsapp" || step.kind === "book";
@@ -343,13 +405,68 @@ function StepBrief({ step, connected, onAsk }: { step: Step; connected: Record<s
               </div>
             )}
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <button onClick={() => onAsk(`Write the "${step.title}" ${step.kind === "whatsapp" ? "WhatsApp message" : step.kind === "sms" ? "SMS" : "email"} for my outreach automation in my brand voice, ${presets[style][0].toLowerCase()} style.`)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
-              <button className="rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold">Save step</button>
-              <span className="text-[11.5px] text-muted-foreground">The agent drafts it in your brand voice — you approve before it sends.</span>
+              <button onClick={onWrite} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
+              <span className="text-[11.5px] text-muted-foreground">The agent drafts it below — you edit + approve before it sends.</span>
             </div>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The agent-written draft — shown in the playground (never the chat), editable + savable, collapsible. */
+function ResultCard({ step, writing, onUpdate }: { step: Step; writing: boolean; onUpdate: (p: Partial<Step>) => void }) {
+  const [open, setOpen] = useState(true);
+  const [subject, setSubject] = useState(step.subject || "");
+  const [body, setBody] = useState(step.body || "");
+  const [downloading, setDownloading] = useState(false);
+  useEffect(() => { setSubject(step.subject || ""); setBody(step.body || ""); }, [step.id, step.subject, step.body]);
+  const isEmail = step.kind === "email" || step.kind === "book";
+
+  if (writing && !step.body) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="mx-auto w-fit"><FlowLoader size={30} withMark /></div>
+        <p className="mt-3 text-center text-[12.5px] text-muted-foreground">The agent is writing this step in your brand voice…</p>
+      </div>
+    );
+  }
+  const downloadPdf = async () => {
+    if (!step.pitchId) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/pitch/${step.pitchId}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true }) });
+      if (!res.ok) return;
+      const blob = await res.blob(); const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `${step.title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch { /* ignore */ } finally { setDownloading(false); }
+  };
+  return (
+    <div className="rounded-2xl border border-border bg-card">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-start">
+        <span className="grid h-6 w-6 place-items-center rounded-md bg-emerald-500/15 text-emerald-500"><Check className="h-3.5 w-3.5" /></span>
+        <b className="text-[13px]">Draft ready</b>
+        <span className="hidden text-[11.5px] text-muted-foreground sm:inline">— edit &amp; save; it personalizes per lead on send</span>
+        <ChevronDown className={cn("ms-auto h-4 w-4 text-muted-foreground transition", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="border-t border-border p-4">
+          {isEmail && (
+            <>
+              <label className="mb-1.5 block text-[11px] font-bold text-muted-foreground">Subject</label>
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} className={FLD} />
+            </>
+          )}
+          <label className="mb-1.5 mt-3 block text-[11px] font-bold text-muted-foreground">Message</label>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cn(FLD, "resize-y leading-relaxed")} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button onClick={() => onUpdate({ subject, body })} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white">Save</button>
+            {step.pitchId && <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Download className="h-4 w-4" /> {downloading ? "Preparing…" : "Download PDF"}</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

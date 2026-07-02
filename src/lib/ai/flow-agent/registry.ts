@@ -125,6 +125,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { createOpportunity } = await import("./tools/create-opportunity");
   const { advanceOpportunity } = await import("./tools/advance-opportunity");
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
+  const { buildSequenceStep } = await import("./tools/build-sequence-step");
   const { listVoicesTool } = await import("./tools/list-voices");
   const { generateNarration } = await import("./tools/generate-narration");
   const { createDocument } = await import("./tools/create-document");
@@ -202,6 +203,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(createOpportunity);
   flowAgentTools.register(advanceOpportunity);
   flowAgentTools.register(runLeadAutopilot);
+  flowAgentTools.register(buildSequenceStep);
   flowAgentTools.register(listVoicesTool);
   flowAgentTools.register(generateNarration);
   flowAgentTools.register(createDocument);
