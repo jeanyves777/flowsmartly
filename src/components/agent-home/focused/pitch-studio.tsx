@@ -27,7 +27,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [docType, setDocType] = useState<"deck" | "email">("deck");
+  const [docType, setDocType] = useState<"deck" | "visual" | "email">("deck");
   const [tab, setTab] = useState<"design" | "sections" | "type">("design");
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
@@ -175,10 +175,11 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
         </div>
       </div>
     );
-    // Loaded — the document (deck) or email preview.
-    return docType === "deck"
-      ? <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onReplaceImage={() => onAsk(`Replace/generate a section image for the "${displayName}" proposal (pitchId: ${pitch.id}) — pick something on-brand.`)} /></div>
-      : <EmailPreview content={pitch.content} theme={theme} businessName={pitch.businessName} brandName={brandName || "Your brand"} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onPunchUp={() => onAsk(`Rewrite the COLD PITCH EMAIL for "${displayName}" (pitchId: ${pitch!.id}) — make it high-energy and punchy: a bold one-line hook, 2-3 crisp benefit lines, and a confident CTA (NOT the long formal proposal summary). Keep it short. Save the new opener to the proposal's executiveSummary and the subject via edit_pitch_field (fields "subject" and "executiveSummary"). Don't paste it in chat.`)} />;
+    // Loaded — one of the three types.
+    if (docType === "email") {
+      return <EmailPreview content={pitch.content} theme={theme} businessName={pitch.businessName} brandName={brandName || "Your brand"} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onPunchUp={() => onAsk(`Rewrite the COLD PITCH EMAIL for "${displayName}" (pitchId: ${pitch!.id}) — make it high-energy and punchy: a bold one-line hook, 2-3 crisp benefit lines, and a confident CTA (NOT the long formal proposal summary). Keep it short. Save the new opener to the proposal's executiveSummary and the subject via edit_pitch_field (fields "subject" and "executiveSummary"). Don't paste it in chat.`)} />;
+    }
+    return <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} variant={docType === "visual" ? "visual" : "deck"} onChange={commit} onEditWithAI={editWithAI} onReplaceImage={(slot) => onAsk(`Replace the ${slot} image on the "${displayName}" proposal (pitchId: ${pitch!.id}) — generate or pick an on-brand ${slot} visual that fits the business type, then attach it to the proposal so it updates in the studio. Don't paste it in chat.`)} /></div>;
   })();
 
   return (
@@ -191,10 +192,11 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           <div className="truncate text-[11px] text-muted-foreground">{brandName ? `${brandName} → ` : ""}{displayName} · branded to your Brand Kit</div>
         </div>
         {pitch && (
-          <div className="ml-2 inline-flex overflow-hidden rounded-full border border-border">
-            <button onClick={() => setDocType("deck")} className={cn("px-3 py-1 text-[11.5px] font-bold", docType === "deck" ? "bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "text-muted-foreground")}>Proposal deck</button>
-            <button onClick={() => setDocType("email")} className={cn("px-3 py-1 text-[11.5px] font-bold", docType === "email" ? "bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "text-muted-foreground")}>Cold pitch email</button>
-          </div>
+          <select value={docType} onChange={(e) => setDocType(e.target.value as "deck" | "visual" | "email")} className="ml-2 rounded-[9px] border border-border bg-background px-2.5 py-1.5 text-[12px] font-bold outline-none focus:border-brand-500/60">
+            <option value="deck">📄 Proposal deck</option>
+            <option value="visual">🖼️ Visual deck (images)</option>
+            <option value="email">✉️ Cold pitch email</option>
+          </select>
         )}
         <div className="ms-auto flex items-center gap-2">
           {pitch && canGenerate && <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
@@ -284,12 +286,18 @@ function SectionsTab({ content, onChange, onAsk, pitchId }: { content: ServicePr
   );
 }
 
-function TypeTab({ docType, setDocType }: { docType: "deck" | "email"; setDocType: (t: "deck" | "email") => void }) {
+function TypeTab({ docType, setDocType }: { docType: "deck" | "visual" | "email"; setDocType: (t: "deck" | "visual" | "email") => void }) {
+  const opts: { id: "deck" | "visual" | "email"; label: string; desc: string }[] = [
+    { id: "deck", label: "📄 Proposal deck", desc: "Clean, text-forward branded proposal — PDF-ready." },
+    { id: "visual", label: "🖼️ Visual deck (images)", desc: "Image-rich style with the business-type asset images baked in — replace or regenerate any with AI." },
+    { id: "email", label: "✉️ Cold pitch email", desc: "Short, high-energy outreach email with the proposal attached." },
+  ];
   return (
     <div className="space-y-2">
       <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Pitch type</p>
-      <button onClick={() => setDocType("deck")} className={cn("w-full rounded-[10px] border p-3 text-left", docType === "deck" ? "border-brand-500 bg-brand-500/10" : "border-border")}><div className="text-[13px] font-bold">📄 Proposal deck</div><div className="text-[11px] text-muted-foreground">Full branded, PDF-ready multi-section proposal.</div></button>
-      <button onClick={() => setDocType("email")} className={cn("w-full rounded-[10px] border p-3 text-left", docType === "email" ? "border-brand-500 bg-brand-500/10" : "border-border")}><div className="text-[13px] font-bold">✉️ Cold pitch email</div><div className="text-[11px] text-muted-foreground">Short outreach email with the proposal attached.</div></button>
+      {opts.map((o) => (
+        <button key={o.id} onClick={() => setDocType(o.id)} className={cn("w-full rounded-[10px] border p-3 text-left", docType === o.id ? "border-brand-500 bg-brand-500/10" : "border-border")}><div className="text-[13px] font-bold">{o.label}</div><div className="text-[11px] text-muted-foreground">{o.desc}</div></button>
+      ))}
       <p className="text-[11px] leading-relaxed text-muted-foreground">“Use in automation” drops this into the initial-pitch email step, with the proposal PDF attached.</p>
     </div>
   );

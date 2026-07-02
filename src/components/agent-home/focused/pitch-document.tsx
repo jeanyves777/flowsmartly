@@ -23,6 +23,9 @@ interface Props {
   brandName: string;
   businessName: string;
   logoUrl?: string | null;
+  /** "deck" = clean text proposal; "visual" = the image-rich style (cover hero +
+   *  business-type asset images throughout). */
+  variant?: "deck" | "visual";
   onChange: (next: ServiceProposalContent) => void;      // updates the draft (parent autosaves)
   onEditWithAI: (label: string, current: string) => void; // hand a block to the agent
   onReplaceImage?: (slot: string) => void;
@@ -33,8 +36,9 @@ function setKey<T extends object, K extends keyof T>(obj: T, key: K, val: T[K]):
   return { ...obj, [key]: val };
 }
 
-export function PitchDocument({ content, theme, brandName, businessName, logoUrl, onChange, onEditWithAI, onReplaceImage }: Props) {
+export function PitchDocument({ content, theme, brandName, businessName, logoUrl, variant = "deck", onChange, onEditWithAI, onReplaceImage }: Props) {
   const c = content;
+  const visual = variant === "visual";
   const set = <K extends keyof ServiceProposalContent>(k: K, v: ServiceProposalContent[K]) => onChange(setKey(c, k, v));
   const str = (k: keyof ServiceProposalContent): string => (typeof c[k] === "string" ? (c[k] as string) : "");
   const deliverables = Array.isArray(c.deliverables) ? c.deliverables : [];
@@ -45,32 +49,50 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
   const nextSteps = Array.isArray(c.nextSteps) ? c.nextSteps : [];
   const pricing = (c.pricing && typeof c.pricing === "object" ? c.pricing : {}) as { name?: string; amount?: number; originalAmount?: number; interval?: string; note?: string };
   const metricColors = [theme.primary, theme.secondary, theme.accent, "#dc2626"];
+  // Business-type asset images the proposal was generated with (cover/about/impact).
+  const images = Array.isArray(c.visualAssets?.images) ? c.visualAssets!.images : [];
+  const imgUrl = (kind: "cover" | "about" | "impact") => images.find((im) => im.kind === kind)?.url;
 
   return (
     <div className="mx-auto max-w-[860px]">
       <div className="overflow-hidden rounded-2xl bg-white text-[color:var(--ink)] shadow-[0_20px_60px_rgba(0,0,0,0.45)]" style={{ ["--ink" as string]: theme.ink, fontFamily: "Georgia, 'Times New Roman', serif" }}>
 
-        {/* ── COVER ── */}
+        {/* ── COVER — text; the visual variant adds an image hero on the right ── */}
         <div className="relative px-9 pb-8 pt-8 text-white" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}>
           <span className="absolute right-0 top-0 grid h-11 w-11 place-items-center text-[13px] font-bold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>01</span>
-          {logoUrl ? <img src={logoUrl} alt={brandName} className="h-7 w-auto object-contain" /> : <div className="text-[14px] font-extrabold tracking-wide" style={{ fontFamily: "Arial, sans-serif" }}>{brandName}</div>}
-          <div className="mt-5 text-[11px] uppercase tracking-[0.14em] opacity-80" style={{ fontFamily: "Arial, sans-serif" }}>Prepared for {c.preparedFor || businessName}</div>
-          <Editable as="h1" value={str("title")} onCommit={(v) => set("title", v)} onAI={() => onEditWithAI("title", str("title"))} className="mt-1.5 max-w-[85%] text-[31px] font-bold leading-[1.12]" light />
-          <Editable as="p" value={str("subtitle")} onCommit={(v) => set("subtitle", v)} onAI={() => onEditWithAI("subtitle", str("subtitle"))} className="mt-2 max-w-[72%] text-[14px] opacity-90" style={{ fontFamily: "Arial, sans-serif" }} light />
-          <span className="mt-5 inline-block rounded-full px-3 py-1.5 text-[11px] font-extrabold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>Prepared by {c.preparedBy || brandName}</span>
+          <div className={cn(visual && "grid items-center gap-6 md:grid-cols-[1.4fr_1fr]")}>
+            <div>
+              {logoUrl ? <img src={logoUrl} alt={brandName} className="h-7 w-auto object-contain" /> : <div className="text-[14px] font-extrabold tracking-wide" style={{ fontFamily: "Arial, sans-serif" }}>{brandName}</div>}
+              <div className="mt-5 text-[11px] uppercase tracking-[0.14em] opacity-80" style={{ fontFamily: "Arial, sans-serif" }}>Prepared for {c.preparedFor || businessName}</div>
+              <Editable as="h1" value={str("title")} onCommit={(v) => set("title", v)} onAI={() => onEditWithAI("title", str("title"))} className={cn("mt-1.5 text-[31px] font-bold leading-[1.12]", !visual && "max-w-[85%]")} light />
+              <Editable as="p" value={str("subtitle")} onCommit={(v) => set("subtitle", v)} onAI={() => onEditWithAI("subtitle", str("subtitle"))} className={cn("mt-2 text-[14px] opacity-90", !visual && "max-w-[72%]")} style={{ fontFamily: "Arial, sans-serif" }} light />
+              <span className="mt-5 inline-block rounded-full px-3 py-1.5 text-[11px] font-extrabold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>Prepared by {c.preparedBy || brandName}</span>
+            </div>
+            {visual && (
+              <div className="group/img relative overflow-hidden rounded-xl bg-white/10 p-2">
+                {imgUrl("cover")
+                  ? <img src={imgUrl("cover")} alt="Cover" className="max-h-[210px] w-full object-contain" />
+                  : <div className="grid h-[180px] place-items-center text-[12px] text-white/70" style={{ fontFamily: "Arial, sans-serif" }}>Cover image</div>}
+                {onReplaceImage && <button onClick={() => onReplaceImage("cover")} className="absolute inset-0 hidden place-items-center bg-[#0b1220b3] text-[12.5px] font-semibold text-white group-hover/img:grid"><span className="inline-flex items-center gap-1.5"><ImageIcon className="h-4 w-4" /> Replace image</span></button>}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ── OVERVIEW ── */}
+        {/* ── OVERVIEW (visual variant shows the branded cover image beside it) ── */}
         <Section kicker="The opportunity" accent={theme.primary}>
           <Editable as="h2" value={str("serviceTitle") || "Overview"} onCommit={(v) => set("serviceTitle", v)} onAI={() => onEditWithAI("serviceTitle", str("serviceTitle"))} className="text-[21px] font-bold" />
           <Editable as="p" value={str("executiveSummary")} onCommit={(v) => set("executiveSummary", v)} onAI={() => onEditWithAI("executiveSummary", str("executiveSummary"))} className="mt-2 text-[14px] leading-relaxed text-[#26313f]" multiline />
           {str("clientNeed") && <Editable as="p" value={str("clientNeed")} onCommit={(v) => set("clientNeed", v)} onAI={() => onEditWithAI("clientNeed", str("clientNeed"))} className="mt-2 text-[14px] leading-relaxed text-[#26313f]" multiline />}
         </Section>
 
-        {/* ── ABOUT ── */}
+        {/* ── ABOUT (visual variant shows the 'about' image) ── */}
         {str("aboutBrand") && (
           <Section kicker={`About ${brandName}`} accent={theme.primary}>
-            <Editable as="p" value={str("aboutBrand")} onCommit={(v) => set("aboutBrand", v)} onAI={() => onEditWithAI("aboutBrand", str("aboutBrand"))} className="text-[14px] leading-relaxed text-[#26313f]" multiline />
+            <div className={cn(visual && "grid gap-4 md:grid-cols-[1fr_1.35fr] md:items-start")}>
+              {visual && <ImageSlot url={imgUrl("about")} alt="About" theme={theme} onReplace={onReplaceImage ? () => onReplaceImage("about") : undefined} />}
+              <Editable as="p" value={str("aboutBrand")} onCommit={(v) => set("aboutBrand", v)} onAI={() => onEditWithAI("aboutBrand", str("aboutBrand"))} className="text-[14px] leading-relaxed text-[#26313f]" multiline />
+            </div>
           </Section>
         )}
 
@@ -98,6 +120,9 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         {proof.length > 0 && (
           <Section kicker="Proof" accent={theme.primary} onAdd={() => set("proofPoints", [...proof, { metric: "100%", label: "New metric", note: "" }])}>
             <h2 className="text-[21px] font-bold">Results we drive</h2>
+            {visual && (imgUrl("impact") || onReplaceImage) && (
+              <div className="mt-3 max-w-[420px]"><ImageSlot url={imgUrl("impact")} alt="Impact" theme={theme} onReplace={onReplaceImage ? () => onReplaceImage("impact") : undefined} /></div>
+            )}
             <div className="mt-3 flex flex-wrap gap-5">
               {proof.map((p, i) => {
                 const bg = metricColors[i % metricColors.length];
@@ -172,6 +197,23 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 }
 
 /* ── Section shell ── */
+/* ── A branded image slot — shows the proposal's business-type asset image, or a
+ * placeholder; hover to replace (agent picks/generates an on-brand one). ── */
+function ImageSlot({ url, alt, theme, onReplace }: { url?: string; alt: string; theme: { primary: string; secondary: string }; onReplace?: () => void }) {
+  return (
+    <div className="group/img relative min-h-[150px] overflow-hidden rounded-xl" style={{ background: `linear-gradient(135deg, ${theme.primary}14, ${theme.secondary}14)` }}>
+      {url
+        ? <img src={url} alt={alt} className="h-full max-h-[260px] w-full object-contain" />
+        : <div className="grid h-full min-h-[150px] place-items-center text-[12px] text-[#8a94a2]" style={{ fontFamily: "Arial, sans-serif" }}>{alt} image</div>}
+      {onReplace && (
+        <button onClick={onReplace} className="absolute inset-0 hidden place-items-center bg-[#0b1220b3] text-white group-hover/img:grid">
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><ImageIcon className="h-4 w-4" /> Replace image</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Section({ kicker, accent, children, onAdd }: { kicker: string; accent: string; children: ReactNode; onAdd?: () => void }) {
   return (
     <div className="group/sec relative border-t border-[#eef0f3] px-9 py-6">
