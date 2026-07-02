@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { Sparkles, Pencil, Plus, X, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
+import { visibleOnWhite, textOnColor } from "@/lib/pitch/proposal-detail-helpers";
 
 /**
  * PitchDocument — the NEW branded WYSIWYG proposal, matching the approved
@@ -48,7 +49,13 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
   const timeline = Array.isArray(c.timeline) ? c.timeline : [];
   const nextSteps = Array.isArray(c.nextSteps) ? c.nextSteps : [];
   const pricing = (c.pricing && typeof c.pricing === "object" ? c.pricing : {}) as { name?: string; amount?: number; originalAmount?: number; interval?: string; note?: string };
-  const metricColors = [theme.primary, theme.secondary, theme.accent, "#dc2626"];
+  // Brand colours darkened just enough to stay visible ON THE WHITE document
+  // (as fills, borders, small text, or backgrounds hosting white text). Dark
+  // brands are untouched; a pale accent no longer disappears.
+  const primaryInk = visibleOnWhite(theme.primary);
+  const secondaryInk = visibleOnWhite(theme.secondary);
+  const accentInk = visibleOnWhite(theme.accent);
+  const metricColors = [primaryInk, secondaryInk, accentInk, "#dc2626"];
   // Business-type asset images the proposal was generated with (cover/about/impact).
   const images = Array.isArray(c.visualAssets?.images) ? c.visualAssets!.images : [];
   const imgUrl = (kind: "cover" | "about" | "impact") => images.find((im) => im.kind === kind)?.url;
@@ -57,7 +64,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
   const headings = (c.headings || {}) as Record<string, string>;
   const setHeading = (key: string, v: string) => set("headings", { ...headings, [key]: v });
   const Kick = (key: string, dflt: string) => (
-    <Editable as="span" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[10.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: theme.primary, fontFamily: "Arial, sans-serif" }} />
+    <Editable as="span" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[10.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: primaryInk, fontFamily: "Arial, sans-serif" }} />
   );
   const Head = (key: string, dflt: string) => (
     <Editable as="h2" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[21px] font-bold" />
@@ -68,15 +75,15 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
       <div className="overflow-hidden rounded-2xl bg-white text-[color:var(--ink)] shadow-[0_20px_60px_rgba(0,0,0,0.45)]" style={{ ["--ink" as string]: theme.ink, fontFamily: "Georgia, 'Times New Roman', serif" }}>
 
         {/* ── COVER — text; the visual variant adds an image hero on the right ── */}
-        <div className="relative px-9 pb-8 pt-8 text-white" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}>
-          <span className="absolute right-0 top-0 grid h-11 w-11 place-items-center text-[13px] font-bold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>01</span>
+        <div className="relative px-9 pb-8 pt-8 text-white" style={{ background: `linear-gradient(135deg, ${primaryInk}, ${secondaryInk})` }}>
+          <span className="absolute right-0 top-0 grid h-11 w-11 place-items-center text-[13px] font-bold" style={{ background: theme.accent, color: textOnColor(theme.accent, theme.ink), fontFamily: "Arial, sans-serif" }}>01</span>
           <div className={cn(visual && "grid items-center gap-6 md:grid-cols-[1.4fr_1fr]")}>
             <div>
               {logoUrl ? <img src={logoUrl} alt={brandName} className="h-7 w-auto object-contain" /> : <div className="text-[14px] font-extrabold tracking-wide" style={{ fontFamily: "Arial, sans-serif" }}>{brandName}</div>}
               <div className="mt-5 text-[11px] uppercase tracking-[0.14em] opacity-80" style={{ fontFamily: "Arial, sans-serif" }}>Prepared for {c.preparedFor || businessName}</div>
               <Editable as="h1" value={str("title")} onCommit={(v) => set("title", v)} onAI={() => onEditWithAI("title", str("title"))} className={cn("mt-1.5 text-[31px] font-bold leading-[1.12]", !visual && "max-w-[85%]")} light />
               <Editable as="p" value={str("subtitle")} onCommit={(v) => set("subtitle", v)} onAI={() => onEditWithAI("subtitle", str("subtitle"))} className={cn("mt-2 text-[14px] opacity-90", !visual && "max-w-[72%]")} style={{ fontFamily: "Arial, sans-serif" }} light />
-              <span className="mt-5 inline-block rounded-full px-3 py-1.5 text-[11px] font-extrabold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>Prepared by {c.preparedBy || brandName}</span>
+              <span className="mt-5 inline-block rounded-full px-3 py-1.5 text-[11px] font-extrabold" style={{ background: theme.accent, color: textOnColor(theme.accent, theme.ink), fontFamily: "Arial, sans-serif" }}>Prepared by {c.preparedBy || brandName}</span>
             </div>
             {visual && (
               <div className="group/img relative overflow-hidden rounded-xl bg-white/10 p-2">
@@ -114,7 +121,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
               {deliverables.map((d, i) => (
                 <div key={i} className="group/card relative rounded-xl border border-[#e7eaee] p-3.5">
                   <button onClick={() => set("deliverables", deliverables.filter((_, j) => j !== i))} className="absolute right-2 top-2 hidden rounded-md p-0.5 text-[#9aa4b0] hover:text-[#d33] group-hover/card:block"><X className="h-3.5 w-3.5" /></button>
-                  <Editable as="h4" value={d.title} onCommit={(v) => set("deliverables", deliverables.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="text-[13.5px] font-bold" style={{ color: theme.secondary, fontFamily: "Arial, sans-serif" }} />
+                  <Editable as="h4" value={d.title} onCommit={(v) => set("deliverables", deliverables.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="text-[13.5px] font-bold" style={{ color: secondaryInk, fontFamily: "Arial, sans-serif" }} />
                   <Editable as="p" value={d.description} onCommit={(v) => set("deliverables", deliverables.map((x, j) => (j === i ? { ...x, description: v } : x)))} className="mt-0.5 text-[12.5px] text-[#3a4757]" multiline />
                 </div>
               ))}
@@ -136,7 +143,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
             <div className="mt-3 flex flex-wrap gap-5">
               {proof.map((p, i) => {
                 const bg = metricColors[i % metricColors.length];
-                const fg = bg === theme.accent ? theme.ink : "#fff";
+                const fg = textOnColor(bg, theme.ink);
                 const len = (p.metric || "").length;
                 const fs = len > 7 ? "10px" : len > 5 ? "12px" : len > 3 ? "15px" : "19px";
                 return (
@@ -157,7 +164,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         {(pricing.name || typeof pricing.amount === "number") && (
           <Section kicker={Kick("pricing", "Investment")}>
             {Head("pricingTitle", "Pricing")}
-            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-white" style={{ background: theme.secondary, fontFamily: "Arial, sans-serif" }}>
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-white" style={{ background: secondaryInk, fontFamily: "Arial, sans-serif" }}>
               <div className="min-w-0">
                 <Editable as="div" value={pricing.name || "Package"} onCommit={(v) => set("pricing", { ...pricing, name: v || "Package" })} className="text-[14px] font-extrabold" light />
                 <Editable as="div" value={pricing.note || ""} onCommit={(v) => set("pricing", { ...pricing, name: pricing.name || "Package", note: v })} className="text-[12px] opacity-75" light />
@@ -179,7 +186,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
               {timeline.map((t, i) => (
                 <div key={i} className="group/tl relative rounded-xl border border-[#e7eaee] p-3">
                   <button onClick={() => set("timeline", timeline.filter((_, j) => j !== i))} className="absolute right-1.5 top-1.5 hidden rounded-md p-0.5 text-[#9aa4b0] hover:text-[#d33] group-hover/tl:block"><X className="h-3.5 w-3.5" /></button>
-                  <Editable as="div" value={t.label} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="text-[11px] font-bold uppercase tracking-wide" style={{ color: theme.primary, fontFamily: "Arial, sans-serif" }} />
+                  <Editable as="div" value={t.label} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="text-[11px] font-bold uppercase tracking-wide" style={{ color: primaryInk, fontFamily: "Arial, sans-serif" }} />
                   <Editable as="div" value={t.title} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="mt-0.5 text-[13px] font-bold" />
                   <Editable as="div" value={t.description} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, description: v } : x)))} className="mt-0.5 text-[12px] text-[#55606e]" multiline />
                 </div>
@@ -189,10 +196,10 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         )}
 
         {/* ── CTA / NEXT STEPS ── */}
-        <div className="px-9 py-7 text-center text-white" style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.primary})` }}>
+        <div className="px-9 py-7 text-center text-white" style={{ background: `linear-gradient(135deg, ${secondaryInk}, ${primaryInk})` }}>
           <Editable as="h2" value={nextSteps[0] || "Ready to get started?"} onCommit={(v) => set("nextSteps", [v, ...nextSteps.slice(1)])} onAI={() => onEditWithAI("nextSteps", nextSteps.join("\n"))} className="text-[22px] font-bold" light />
           <Editable as="div" value={nextSteps[1] || "Let's find 15 minutes this week to tailor this to you."} onCommit={(v) => set("nextSteps", [nextSteps[0] || "Ready to get started?", v, ...nextSteps.slice(2)])} className="mt-1 text-[13px] opacity-90" style={{ fontFamily: "Arial, sans-serif" }} light />
-          <span className="mt-3 inline-block rounded-full px-5 py-2.5 text-[13px] font-extrabold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>Book a call →</span>
+          <span className="mt-3 inline-block rounded-full px-5 py-2.5 text-[13px] font-extrabold" style={{ background: theme.accent, color: textOnColor(theme.accent, theme.ink), fontFamily: "Arial, sans-serif" }}>Book a call →</span>
         </div>
 
         {/* image slots note — replace hook (Phase 2b) */}
@@ -309,12 +316,16 @@ export function Editable({ as: Tag = "p", value, onCommit, onAI, className, styl
       onPaste={editing ? (e: React.ClipboardEvent) => { e.preventDefault(); const t = e.clipboardData.getData("text/plain"); document.execCommand("insertText", false, t); } : undefined}
       className={cn(
         "group/ed relative cursor-text rounded-[4px] outline-none transition-shadow",
+        // Affordance is a box-shadow ring ONLY — never an inline background. Setting
+        // an inline backgroundColor here clobbers elements that carry their own
+        // `background` (e.g. a coloured CTA pill) on the edit-state update, which
+        // made white-on-brand pills go invisible the moment they were clicked.
         editing
-          ? (light ? "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]" : "shadow-[inset_0_0_0_2px_rgba(99,102,241,0.55)]")
+          ? (light ? "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.7)]" : "shadow-[inset_0_0_0_2px_rgba(99,102,241,0.6)]")
           : (light ? "hover:shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.5)]" : "hover:shadow-[inset_0_0_0_1.5px_rgba(99,102,241,0.4)]"),
         className,
       )}
-      style={{ backgroundColor: editing ? (light ? "rgba(255,255,255,0.12)" : "rgba(99,102,241,0.06)") : undefined, ...style }}
+      style={style}
     >
       {editing ? value : (value || <span className={light ? "opacity-60" : "text-[#9aa4b0]"}>{placeholder || "Click to add…"}</span>)}
       {!editing && onAI && (

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Visibility fixes — rings on white + pill stays on edit</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;padding:26px;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#e7ebf3}
+  h1.t{font-size:15px;margin:0 0 4px}.sub{color:#8b93a4;font-size:12px;margin:0 0 18px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1040px;margin:0 auto 16px}
+  .card{background:#fff;color:#0b1220;border-radius:14px;padding:22px;box-shadow:0 20px 60px #0007}
+  .lab{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:12px}
+  .kick{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#0b1f3a;margin-bottom:8px}
+  h2{font-size:24px;font-weight:900;margin:0 0 14px}
+  .rings{display:flex;gap:22px}
+  .ring{width:104px;text-align:center}
+  .rc{height:90px;width:90px;border-radius:50%;border:7px solid;background:#fff;display:grid;place-items:center;margin:0 auto;font-size:18px;font-weight:900;color:#0b1220}
+  .ring small{display:block;margin-top:8px;font-size:11px;font-weight:600;color:#475569}
+  .note{font-size:11.5px;color:#94a3b8;margin-top:14px}
+  /* pill edit states */
+  .pill{display:inline-block;border-radius:999px;padding:11px 22px;font-size:14px;font-weight:900;color:#fff;background:#0b1f3a}
+  .pill.editing{border-radius:5px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+  .caret{display:inline-block;width:1.5px;height:1em;background:#fff;vertical-align:-2px;animation:blink 1s step-end infinite;margin-left:1px}
+  @keyframes blink{50%{opacity:0}}
+  .bad{position:relative}
+  .bad .gone{display:inline-block;border-radius:5px;padding:11px 22px;font-size:14px;font-weight:900;color:#fff;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+  .legend{color:#8b93a4;font-size:12px;max-width:1040px;margin:6px auto 0}.legend b{color:#e7ebf3}
+</style></head>
+<body>
+  <h1 class="t">Two visibility fixes — verified against the real helper output</h1>
+  <p class="sub">Brand: primary #0b1f3a (navy), secondary #7c3aed (purple), accent light. Dark brand colours pass through untouched; only the pale accent is darkened.</p>
+
+  <!-- Fix 1: metric rings on white -->
+  <div class="row">
+    <div class="card">
+      <div class="lab">Before — 3rd ring uses raw accent (near-white) → invisible</div>
+      <div class="kick">Proof</div>
+      <h2>Results we drive</h2>
+      <div class="rings">
+        <div class="ring"><div class="rc" style="border-color:#0b1f3a">24/7</div><small>AI Agent Availability</small></div>
+        <div class="ring"><div class="rc" style="border-color:#7c3aed">1 Platform</div><small>Unified Workspace</small></div>
+        <div class="ring"><div class="rc" style="border-color:#ffffff">Real-Time</div><small>Analytics &amp; Insights</small></div>
+      </div>
+      <div class="note">The accent (#ffffff) ring blends into the white page — exactly your screenshot.</div>
+    </div>
+    <div class="card">
+      <div class="lab">After — accent darkened by visibleOnWhite(#ffffff)=#ababab → visible</div>
+      <div class="kick">Proof</div>
+      <h2>Results we drive</h2>
+      <div class="rings">
+        <div class="ring"><div class="rc" style="border-color:#0b1f3a">24/7</div><small>AI Agent Availability</small></div>
+        <div class="ring"><div class="rc" style="border-color:#7c3aed">1 Platform</div><small>Unified Workspace</small></div>
+        <div class="ring"><div class="rc" style="border-color:#ababab">Real-Time</div><small>Analytics &amp; Insights</small></div>
+      </div>
+      <div class="note">Navy + purple unchanged (already dark); only the pale accent steps down until it reads on white. A pastel yellow accent #fde047 → #cfb83a, amber #fbbf24 → #ce9d1e, etc.</div>
+    </div>
+  </div>
+
+  <!-- Fix 2: pill stays visible on edit -->
+  <div class="row">
+    <div class="card bad">
+      <div class="lab">Before — pill goes invisible the moment you click to edit</div>
+      <div style="height:14px"></div>
+      <span class="gone">Get started →<span class="caret"></span></span>
+      <div class="note">Editing set an inline backgroundColor tint that overrode the pill's navy background → white text on near-white = gone (your 3rd/4th screenshot).</div>
+    </div>
+    <div class="card">
+      <div class="lab">After — ring-only affordance; pill keeps its colour + white text</div>
+      <div style="height:14px"></div>
+      <span class="pill editing">Get started →<span class="caret"></span></span>
+      <div class="note">Editing now shows only an inset ring; the element's own background is never touched, so coloured pills (and their white text) stay visible while you type.</div>
+    </div>
+  </div>
+
+  <p class="legend"><b>Same fix, applied everywhere on the white paper:</b> metric rings/circles, kickers, deliverable titles, timeline labels, the website link, the pricing band and every CTA pill now route through <b>visibleOnWhite</b> / <b>textOnColor</b>, and the seamless editor never overrides an element's background.</p>
+</body></html>

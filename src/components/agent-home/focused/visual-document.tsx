@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
+import { visibleOnWhite } from "@/lib/pitch/proposal-detail-helpers";
 import { Editable } from "./pitch-document";
 
 /**
@@ -54,7 +55,16 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
   const pricing = (c.pricing || {}) as { name?: string; amount?: number; originalAmount?: number; interval?: string; note?: string };
   const images = arr<{ kind: string; url: string }>(c.visualAssets?.images);
   const imgUrl = (kind: Slot) => images.find((im) => im.kind === kind)?.url;
-  const metricColors = [theme.primary, theme.secondary, theme.accent, "#dc2626"];
+  // Brand colours darkened enough to stay visible on the WHITE document (rings,
+  // borders, small text, pills hosting white text). Dark brands unchanged; a
+  // pale accent no longer vanishes.
+  const primaryInk = visibleOnWhite(theme.primary);
+  const secondaryInk = visibleOnWhite(theme.secondary);
+  const accentInk = visibleOnWhite(theme.accent);
+  const metricColors = [primaryInk, secondaryInk, accentInk, "#dc2626"];
+  // A theme whose brand colours are all guaranteed visible on white — used for
+  // dots, pills, icon chips and image controls that sit on the paper.
+  const inkTheme: Theme = { ...theme, primary: primaryInk, secondary: secondaryInk, accent: accentInk };
   const date = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const savePricing = (patch: Partial<typeof pricing>) => set("pricing", { name: pricing.name || "Package", ...pricing, ...patch } as ServiceProposalContent["pricing"]);
 
@@ -62,14 +72,14 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
   const headings = (c.headings || {}) as Record<string, string>;
   const setHeading = (key: string, v: string) => set("headings", { ...headings, [key]: v });
   const Kick = (key: string, dflt: string) => (
-    <Editable as="span" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: theme.primary }} />
+    <Editable as="span" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: primaryInk }} />
   );
   const Head = (key: string, dflt: string, cls = "text-[27px] font-black leading-tight") => (
     <Editable as="h2" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className={cls} />
   );
   const cta = headings["ctaLabel"] ?? "Get started →";
   const img = (slot: Slot, big?: boolean) => (
-    <VImg kind={slot} url={imgUrl(slot)} theme={theme} onGenerate={onGenerateImage} onUpload={onUploadImage} busy={!!imgBusy?.[slot]} big={big} />
+    <VImg kind={slot} url={imgUrl(slot)} theme={inkTheme} onGenerate={onGenerateImage} onUpload={onUploadImage} busy={!!imgBusy?.[slot]} big={big} />
   );
 
   return (
@@ -88,7 +98,7 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
               <p className="mt-6 text-[13px] font-semibold text-slate-500">Prepared for {c.preparedFor || businessName} · {date}</p>
               <Editable as="h1" value={str("title")} onCommit={(v) => set("title", v)} onAI={() => onEditWithAI("title", str("title"))} className="mt-4 text-[38px] font-black leading-[1.08]" multiline />
               <Editable as="p" value={str("subtitle") || str("serviceTitle")} onCommit={(v) => set("subtitle", v)} onAI={() => onEditWithAI("subtitle", str("subtitle"))} className="mt-4 text-[19px] font-bold text-slate-600" multiline />
-              <Editable as="span" value={cta} onCommit={(v) => setHeading("ctaLabel", v)} className="mt-6 inline-block rounded-full px-6 py-3 text-[15px] font-black text-white" style={{ background: theme.primary }} light />
+              <Editable as="span" value={cta} onCommit={(v) => setHeading("ctaLabel", v)} className="mt-6 inline-block rounded-full px-6 py-3 text-[15px] font-black text-white" style={{ background: primaryInk }} light />
             </div>
             {img("cover", true)}
           </div>
@@ -118,7 +128,7 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
                 {deliverables.map((d, i) => (
                   <div key={i} className="group/card relative rounded-xl border border-slate-200 p-4">
                     <button onClick={() => set("deliverables", deliverables.filter((_, j) => j !== i))} className="absolute right-2 top-2 hidden text-slate-400 hover:text-red-500 group-hover/card:block"><X className="h-3.5 w-3.5" /></button>
-                    <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: theme.primary }}><CheckCircle2 className="h-4 w-4" /></span>
+                    <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: primaryInk }}><CheckCircle2 className="h-4 w-4" /></span>
                     <Editable as="div" value={d.title} onCommit={(v) => set("deliverables", deliverables.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="mt-2 text-[14px] font-black" />
                     <Editable as="p" value={d.description} onCommit={(v) => set("deliverables", deliverables.map((x, j) => (j === i ? { ...x, description: v } : x)))} className="mt-0.5 text-[13px] text-slate-600" multiline />
                   </div>
@@ -127,8 +137,8 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
             </VSection>
           )}
 
-          {commitments.length > 0 && <BulletVSection kicker={Kick("commitments", "Our commitment")} theme={theme} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
-          {benefits.length > 0 && <BulletVSection kicker={Kick("benefits", "The impact")} theme={theme} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
+          {commitments.length > 0 && <BulletVSection kicker={Kick("commitments", "Our commitment")} theme={inkTheme} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
+          {benefits.length > 0 && <BulletVSection kicker={Kick("benefits", "The impact")} theme={inkTheme} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
 
           {/* ── PROOF: metric rings + launch timeline + impact image ── */}
           {(proof.length > 0 || timeline.length > 0) && (
@@ -156,7 +166,7 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
                         {timeline.map((t, i) => (
                           <div key={i} className="group/tl relative rounded-xl border border-slate-200 p-3">
                             <button onClick={() => set("timeline", timeline.filter((_, j) => j !== i))} className="absolute right-1.5 top-1.5 hidden text-slate-400 hover:text-red-500 group-hover/tl:block"><X className="h-3 w-3" /></button>
-                            <Editable as="div" value={t.label} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="text-[11px] font-black uppercase tracking-wide" style={{ color: theme.primary }} />
+                            <Editable as="div" value={t.label} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="text-[11px] font-black uppercase tracking-wide" style={{ color: primaryInk }} />
                             <Editable as="div" value={t.title} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="mt-1 text-[12.5px] font-bold" multiline />
                           </div>
                         ))}
@@ -172,7 +182,7 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
           {/* ── PRICING band ── */}
           {(pricing.name || typeof pricing.amount === "number") && (
             <VSection kicker={Kick("pricing", "Investment")}>
-              <div className="flex flex-wrap items-center gap-4 rounded-2xl px-6 py-5 text-white" style={{ background: theme.secondary }}>
+              <div className="flex flex-wrap items-center gap-4 rounded-2xl px-6 py-5 text-white" style={{ background: secondaryInk }}>
                 <div className="min-w-0">
                   <Editable as="div" value={pricing.name || "Package"} onCommit={(v) => savePricing({ name: v || "Package" })} className="text-[16px] font-black" light />
                   <Editable as="div" value={pricing.note || ""} onCommit={(v) => savePricing({ note: v })} className="text-[13px] opacity-80" placeholder="Add a note…" light />
@@ -210,7 +220,7 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
                     <ol className="mt-3 space-y-3">
                       {nextSteps.map((s, i) => (
                         <li key={i} className="group/li flex items-start gap-3 text-[14px] text-slate-700">
-                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-black text-white" style={{ background: theme.primary }}>{i + 1}</span>
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-black text-white" style={{ background: primaryInk }}>{i + 1}</span>
                           <Editable as="span" value={s} onCommit={(v) => set("nextSteps", nextSteps.map((x, j) => (j === i ? v : x)))} className="flex-1 font-semibold" multiline />
                           <button onClick={() => set("nextSteps", nextSteps.filter((_, j) => j !== i))} className="mt-1 hidden text-slate-400 hover:text-red-500 group-hover/li:block"><X className="h-3.5 w-3.5" /></button>
                         </li>
@@ -228,14 +238,14 @@ export function VisualDocument({ content, theme, brandName, businessName, logoUr
               <div>
                 {Head("closingTitle", "Ready to get started?")}
                 <Editable as="p" value={str("clientNeed") || str("executiveSummary").slice(0, 220)} onCommit={(v) => set("clientNeed", v)} onAI={() => onEditWithAI("clientNeed", str("clientNeed"))} className="mt-3 text-[15px] leading-8 text-slate-700" multiline />
-                <Editable as="span" value={cta} onCommit={(v) => setHeading("ctaLabel", v)} className="mt-5 inline-block rounded-full px-6 py-3 text-[15px] font-black text-white" style={{ background: theme.primary }} light />
+                <Editable as="span" value={cta} onCommit={(v) => setHeading("ctaLabel", v)} className="mt-5 inline-block rounded-full px-6 py-3 text-[15px] font-black text-white" style={{ background: primaryInk }} light />
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <Editable as="div" value={contact.name || brandName} onCommit={(v) => setContact({ name: v })} className="text-[16px] font-black" />
                 <div className="mt-2 space-y-1 text-[13px] text-slate-600">
                   <Editable as="div" value={contact.email || ""} onCommit={(v) => setContact({ email: v })} placeholder="Add email…" />
                   <Editable as="div" value={contact.phone || ""} onCommit={(v) => setContact({ phone: v })} placeholder="Add phone…" />
-                  <Editable as="div" value={contact.website || ""} onCommit={(v) => setContact({ website: v })} className="font-semibold" style={{ color: theme.primary }} placeholder="Add website…" />
+                  <Editable as="div" value={contact.website || ""} onCommit={(v) => setContact({ website: v })} className="font-semibold" style={{ color: primaryInk }} placeholder="Add website…" />
                 </div>
               </div>
             </div>
