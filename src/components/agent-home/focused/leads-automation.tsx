@@ -114,7 +114,8 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   // agent (hidden) to compose + call build_sequence_step, which writes the copy INTO
   // this step's card (not the chat). A loader shows until the draft lands.
   const write = async (s: Step) => {
-    if (listId) await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).catch(() => {});
+    if (!listId) return; // need a target list before the agent can write/personalize
+    await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).catch(() => {});
     setWritingStep(s.id);
     const w = s.kind === "sms" ? "SMS" : s.kind === "whatsapp" ? "WhatsApp message" : s.kind === "book" ? "booking request" : "email";
     onAsk(`Write the "${s.title}" ${w} for the "${listName || "lead"}" outreach automation${listId ? ` (listId: ${listId})` : ""} — personalize it for the audience's industry, in my brand voice. Then call build_sequence_step with listId="${listId || ""}", stepId="${s.id}" and the ${s.kind === "email" || s.kind === "book" ? "subject + " : ""}body so it lands in the step card. Don't paste it in the chat.`);
@@ -261,7 +262,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
       <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-violet-500/25 bg-gradient-to-r from-brand-500/[0.06] to-violet-500/[0.06] px-3 py-1.5 text-[11.5px] text-foreground/70">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-400" />
         <span className="min-w-0 truncate">The agent routes each lead down the best channel it has — email → WhatsApp → SMS — skipping ones they can't receive.</span>
-        <button onClick={() => onAsk("Design the best multi-channel outreach sequence for this list — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step.")} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/50"><Sparkles className="h-3 w-3" /> Let the agent design</button>
+        <button onClick={() => onAsk("Design the best multi-channel outreach sequence for this list — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step.")} disabled={!listId} title={listId ? "" : "Select a list first"} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-3 w-3" /> Let the agent design</button>
       </div>
 
       {/* draggable flow + step brief — stacks until there's real width (chat + menu open) */}
@@ -327,7 +328,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
         </div>
 
         <div className="min-w-0 flex-1">
-          <StepBrief step={step} connected={connected} onAsk={onAsk} onWrite={() => write(step)} />
+          <StepBrief step={step} connected={connected} onAsk={onAsk} onWrite={() => write(step)} hasList={!!listId} />
           {(writingStep === step.id || step.body) && (
             <>
               <div className="ms-6 h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
@@ -367,7 +368,7 @@ const TASK_RECS: [string, string][] = [
 ];
 
 /** Per-step brief — style/type + agent-build + channel gating, or the branch/task editors. */
-function StepBrief({ step, connected, onAsk, onWrite }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void; onWrite: () => void }) {
+function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void; onWrite: () => void; hasList: boolean }) {
   const [style, setStyle] = useState(0);
   const ch = CHANNEL_OF[step.kind];
   const isMsg = step.kind === "email" || step.kind === "sms" || step.kind === "whatsapp" || step.kind === "book";
@@ -405,8 +406,8 @@ function StepBrief({ step, connected, onAsk, onWrite }: { step: Step; connected:
               </div>
             )}
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <button onClick={onWrite} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
-              <span className="text-[11.5px] text-muted-foreground">The agent drafts it below — you edit + approve before it sends.</span>
+              <button onClick={onWrite} disabled={!hasList} title={hasList ? "" : "Select a list first"} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
+              <span className="text-[11.5px] text-muted-foreground">{hasList ? "The agent drafts it below — you edit + approve before it sends." : "Select a list first — the agent personalizes each step to it."}</span>
             </div>
           </>
         )}
