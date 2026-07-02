@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils/cn";
 import {
   MessageBlocks,
-  ToolCallChip,
+  AgentActivity,
   PlanProposalCard,
   TaskCard,
   CopyTextButton,
@@ -87,11 +87,7 @@ export function HomeMessageView({
               </div>
             )}
             {message.toolCalls && message.toolCalls.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {message.toolCalls.map((tc) => (
-                  <ToolCallChip key={tc.id} call={tc} />
-                ))}
-              </div>
+              <AgentActivity calls={message.toolCalls} />
             )}
             {message.planProposals && message.planProposals.length > 0 && (
               <div className="flex flex-col gap-2">

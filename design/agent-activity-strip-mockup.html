@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Agent activity — faded process</title>
+<style>
+  :root{--bg:#0b0d12;--card:#12151c;--border:#232833;--muted:#8b93a4;--fg:#e7ebf3;--brand:#6366f1;--violet:#8b5cf6;--emerald:#10b981}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.6 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px}
+  h1{font-size:15px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:1120px;align-items:start}
+  .cap{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;font-weight:700}
+  .pane{border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--card)}
+  .turn{display:flex;gap:10px;margin-bottom:14px}
+  .av{height:28px;width:28px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+  .me{background:linear-gradient(135deg,#ec4899,#8b5cf6)}
+  .ai{background:#fff}
+  .ai svg{filter:none}
+  .bubble{border:1px solid var(--border);border-radius:14px;padding:9px 13px;background:#0e1117;max-width:82%}
+  .me-b{border-color:#6366f140;background:#6366f11a}
+  /* chips wall (before) */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;max-width:82%}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #10b98155;background:#10b9811a;color:#6ee7b7;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600}
+  .dot{height:6px;width:6px;border-radius:50%;background:var(--emerald)}
+  .interim-old{color:var(--fg);font-size:13px}
+  /* after */
+  .strip{display:inline-flex;align-items:center;gap:7px;border:1px solid #23283380;background:#161a2240;border-radius:999px;padding:4px 10px;font-size:11px;color:#8b93a4}
+  .strip.run{color:#a9b1c2;background:#161a22aa}
+  .sp{height:11px;width:11px;border-radius:50%;border:2px solid #6366f133;border-top-color:var(--brand);display:inline-block;animation:s .8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .chev{opacity:.5}
+  .interim{color:#8b93a4b3;font-size:12.5px;font-style:italic;padding:0 2px}
+  .result{border:1px solid var(--border);border-radius:14px;padding:10px 13px;background:#0e1117}
+  .result b{color:#fff}
+  .plan{border:1px solid #6366f140;border-radius:14px;padding:12px;background:#6366f10d;max-width:88%}
+  .plan .h{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
+  .plan .t{font-weight:700;margin-bottom:8px}
+  .plan .btns{display:flex;gap:8px;margin-top:10px}
+  .cancel{border:1px solid var(--border);background:transparent;color:var(--fg);border-radius:9px;padding:6px 14px;font-weight:700;font-size:12px}
+  .go{border:0;background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff;border-radius:9px;padding:6px 16px;font-weight:700;font-size:12px}
+  .legend{color:var(--muted);font-size:12px;margin-top:16px;max-width:1120px}.legend b{color:var(--fg)}
+  .pulse{animation:p 1.6s ease-in-out infinite}@keyframes p{0%,100%{opacity:1}50%{opacity:.55}}
+</style></head>
+<body>
+  <h1>Chat — the agent's process is one calm, faded line (not a wall of backend steps)</h1>
+  <p class="sub">Tool chips + interim "thinking" collapse into a single faded activity strip; only the result, an approval, or a question stand out.</p>
+
+  <div class="grid">
+    <div>
+      <p class="cap">Before — backend logic exposed</p>
+      <div class="pane">
+        <div class="turn" style="flex-direction:row-reverse"><span class="av me">N</span><div class="bubble me-b">Enrich all 25 leads</div></div>
+        <div class="turn"><span class="av ai">✦</span><div style="min-width:0">
+          <div class="interim-old" style="margin-bottom:8px">Perfect! You've approved the plan. Now I'll web-search and enrich each lead. Let me start:</div>
+          <div class="chips">
+            <span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Web Search</span><span class="chip"><span class="dot"></span>Enrich Lead</span><span class="chip"><span class="dot"></span>Enrich Lead</span><span class="chip"><span class="dot"></span>Enrich Lead</span><span class="chip"><span class="dot"></span>Enrich Lead</span>
+          </div>
+          <div class="interim-old" style="margin-top:8px">I need to pass the planId from the confirmed proposal. Let me enrich the leads with the correct planId…</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div>
+      <p class="cap">After — one faded process line + the result</p>
+      <div class="pane">
+        <div class="turn" style="flex-direction:row-reverse"><span class="av me">N</span><div class="bubble me-b">Enrich all 25 leads</div></div>
+        <div class="turn"><span class="av ai">✦</span><div style="min-width:0">
+          <div class="plan">
+            <div class="h"><span>Confirm action</span><span>Waiting for you</span></div>
+            <div class="t">Enrich 25 leads with email, phone &amp; LinkedIn</div>
+            <div style="color:var(--muted);font-size:12px">Estimated cost: <b style="color:#fff">75 credits</b></div>
+            <div class="btns"><button class="cancel">Cancel</button><button class="go">Confirm — proceed</button></div>
+          </div>
+        </div></div>
+        <div class="turn"><span class="av ai">✦</span><div style="min-width:0">
+          <div class="strip run pulse"><span class="sp"></span> Enriching contacts… <span class="chev">▾</span></div>
+        </div></div>
+        <div class="turn"><span class="av ai">✦</span><div style="min-width:0">
+          <span class="strip">✦ 29 steps <span class="chev">▾</span></span>
+          <div class="interim" style="margin-top:8px">Working through the list in your brand voice…</div>
+          <div class="result" style="margin-top:8px"><b>Enriched 25 of 25 leads.</b> Email + phone are now on each row — 22 have a verified email, 25 have a phone. Ready to build the outreach automation whenever you are.</div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend"><b>How it works:</b> a run of tool calls collapses into one <b>AgentActivity</b> pill — pulsing "Enriching contacts…" while it runs, then a muted "29 steps" you can expand for the raw chips. Interim narration is faded; the <b>final result</b>, the <b>plan approval</b>, and any <b>question</b> stay prominent.</p>
+</body></html>

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
@@ -383,6 +383,73 @@ export function ToolCallChip({ call }: { call: AgentToolCardData }) {
 
 function humanizeToolName(name: string): string {
   return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Friendly, user-facing verbs so the activity strip reads like what the agent is
+// DOING — not the raw tool name / backend logic.
+const ACTIVITY_VERB: Record<string, string> = {
+  web_search: "Searching the web",
+  web_fetch: "Reading a page",
+  find_local_leads: "Finding local businesses",
+  find_leads: "Saving leads",
+  enrich_lead: "Enriching contacts",
+  build_sequence_step: "Writing",
+  create_branded_design: "Designing",
+  generate_image: "Creating an image",
+  edit_image: "Editing the image",
+  generate_video: "Making a video",
+  create_proposal: "Building a proposal",
+  create_pitch: "Writing a pitch",
+  schedule_social_post: "Scheduling",
+  send_email_campaign: "Sending",
+  who_am_i: "Checking your account",
+  list_my_features: "Checking costs",
+  get_brand_identity: "Reading your Brand Kit",
+};
+function activityVerb(name: string): string {
+  const key = name.replace(/_2025\d.*$/, ""); // strip Anthropic server-tool version suffix
+  return ACTIVITY_VERB[key] || ACTIVITY_VERB[name] || humanizeToolName(name);
+}
+
+/**
+ * A single faded, collapsible line that stands in for the agent's raw tool
+ * chips — so the chat shows a calm "working…" process, not the backend logic.
+ * While a step runs it pulses the current action ("Enriching contacts…"); when
+ * done it collapses to a muted "N steps" the user can expand for the detail.
+ * Approvals (plan cards) and questions are separate block types and still show.
+ */
+export function AgentActivity({ calls }: { calls: AgentToolCardData[] }) {
+  const [open, setOpen] = useState(false);
+  if (!calls.length) return null;
+  const running = calls.some((c) => c.status === "running");
+  const failed = calls.some((c) => c.status !== "running" && c.status !== "ok");
+  const lastRunning = [...calls].reverse().find((c) => c.status === "running");
+  const label = running
+    ? `${activityVerb(lastRunning?.name || calls[calls.length - 1].name)}…`
+    : `${calls.length} step${calls.length > 1 ? "s" : ""}${failed ? " · some failed" : ""}`;
+  return (
+    <div className="w-full">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+          running
+            ? "border-border/50 bg-muted/25 text-muted-foreground"
+            : "border-border/40 bg-transparent text-muted-foreground/60 hover:text-muted-foreground",
+        )}
+        title={open ? "Hide steps" : "Show steps"}
+      >
+        {running ? <AISpinner size={11} /> : <Sparkles className="h-3 w-3 opacity-60" />}
+        <span className={cn(running && "animate-pulse")}>{label}</span>
+        <ChevronDown className={cn("h-3 w-3 opacity-50 transition", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {calls.map((c) => <ToolCallChip key={c.id} call={c} />)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Plan proposal card — Confirm / Cancel ────────────────────────────
@@ -882,39 +949,49 @@ export function MessageBlocks({
     const b = blocks[i];
     if (b.type === "text") {
       const text = b.text;
+      // "Interim" narration — text the agent emits right before it runs more
+      // steps ("Now I'll search…"). Render it faded/inline (part of the working
+      // process), not as a prominent result bubble. The FINAL text (nothing more
+      // to run after it) stays a full bubble with copy/speak.
+      const nextIsTool = i + 1 < blocks.length && blocks[i + 1].type === "tool";
       if (text.trim()) {
-        rows.push(
-          <div key={`txt-${i}`} className="flex flex-col items-start gap-1">
-            <div
-              className={cn(
-                "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left border",
-                bubbleClassName ?? "bg-white dark:bg-gray-900 border-border text-foreground",
-              )}
-            >
+        if (nextIsTool) {
+          rows.push(
+            <div key={`txt-${i}`} className="px-1 text-[12.5px] italic leading-relaxed text-muted-foreground/70">
               <RichText text={text} />
-            </div>
-            <div className="pl-1 flex items-center gap-3">
-              <CopyTextButton text={text} />
-              <SpeakButton text={text} />
-            </div>
-          </div>,
-        );
+            </div>,
+          );
+        } else {
+          rows.push(
+            <div key={`txt-${i}`} className="flex flex-col items-start gap-1">
+              <div
+                className={cn(
+                  "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left border",
+                  bubbleClassName ?? "bg-white dark:bg-gray-900 border-border text-foreground",
+                )}
+              >
+                <RichText text={text} />
+              </div>
+              <div className="pl-1 flex items-center gap-3">
+                <CopyTextButton text={text} />
+                <SpeakButton text={text} />
+              </div>
+            </div>,
+          );
+        }
       }
       i += 1;
     } else if (b.type === "tool") {
-      // Group consecutive tool chips into one wrap row.
-      const chips: React.ReactNode[] = [];
+      // Collapse a run of tool calls into ONE faded, expandable "activity" strip
+      // so the chat shows a calm working process, not the raw backend steps.
+      const calls: AgentToolCardData[] = [];
       while (i < blocks.length && blocks[i].type === "tool") {
         const tc = toolMap.get((blocks[i] as { id: string }).id);
-        if (tc) chips.push(<ToolCallChip key={tc.id} call={tc} />);
+        if (tc) calls.push(tc);
         i += 1;
       }
-      if (chips.length) {
-        rows.push(
-          <div key={`tools-${i}`} className="flex flex-wrap gap-1.5">
-            {chips}
-          </div>,
-        );
+      if (calls.length) {
+        rows.push(<AgentActivity key={`tools-${i}`} calls={calls} />);
       }
     } else if (b.type === "proposal") {
       const p = propMap.get(b.id);
