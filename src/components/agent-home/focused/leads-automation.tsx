@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent, type ReactNode, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type ReactNode, type MouseEvent } from "react";
 import {
   Mail, MessageCircle, GitBranch, CheckSquare, CalendarDays, Sparkles,
   GripVertical, Pause, Play, Repeat, X, Plus, AlertTriangle, Zap, Printer, Clock,
@@ -80,11 +80,66 @@ const STATUS_PILL: Record<Status, string> = {
 };
 const STATUS_LABEL: Record<Status, string> = { ready: "Ready", blocked: "Blocked", paused: "Paused", waiting: "Waiting", smart: "Smart" };
 
-export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: string; leadCount?: number; onAsk: (p: string) => void }) {
+/** Map a UI step to the persisted step config the engine runs (delay from `when`). */
+function toCfg(s: Step) {
+  const m = /(\d+)/.exec(s.when || "");
+  return {
+    id: s.id, kind: s.kind, title: s.title, when: s.when,
+    delayDays: (s.when || "").includes("day") && m ? Number(m[0]) : 0,
+    requires: s.kind === "cond" ? "whatsapp" : undefined,
+    status: s.status,
+  };
+}
+
+export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void }) {
   const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [sequenceId, setSequenceId] = useState<string | null>(null);
+  const [active, setActive] = useState(false);
+  const loadedRef = useRef(false);
+
+  // Load the saved sequence for this list (steps + on/off state).
+  useEffect(() => {
+    loadedRef.current = false;
+    if (!listId) { loadedRef.current = true; return; }
+    let cancelled = false;
+    (async () => {
+      const j = await fetch(`/api/sequences?listId=${listId}`).then((r) => r.json()).catch(() => null);
+      if (cancelled) return;
+      const seq = j?.data?.sequence;
+      if (seq) {
+        setSequenceId(seq.id);
+        setActive(seq.status === "active");
+        try { const p = JSON.parse(seq.steps || "[]"); if (Array.isArray(p) && p.length) setSteps(p as Step[]); } catch { /* ignore */ }
+      } else { setSequenceId(null); setActive(false); }
+      loadedRef.current = true;
+    })();
+    return () => { cancelled = true; };
+  }, [listId]);
+
+  // Debounced autosave of the step list.
+  useEffect(() => {
+    if (!loadedRef.current || !listId) return;
+    const t = setTimeout(async () => {
+      const j = await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).then((r) => r.json()).catch(() => null);
+      if (j?.data?.sequence?.id) setSequenceId(j.data.sequence.id);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [steps, listId, listName]);
+
+  const toggleActive = async () => {
+    if (!listId) return;
+    let id = sequenceId;
+    if (!id) {
+      const j = await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).then((r) => r.json()).catch(() => null);
+      id = j?.data?.sequence?.id ?? null; setSequenceId(id);
+    }
+    if (!id) return;
+    const next = !active; setActive(next);
+    await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next ? {} : { paused: true }) }).catch(() => {});
+  };
   const addStep = (kind: Kind) => {
     const id = `${kind}-${Date.now().toString(36)}`;
     const n = NEW_STEP[kind];
@@ -123,10 +178,10 @@ export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: str
           <p className="truncate text-[13px] font-bold">{listName || "Select a list"}</p>
           <p className="text-[11px] text-muted-foreground">{leadCount ?? 0} leads · pitch → follow-ups → booking</p>
         </div>
-        <label className="ms-auto inline-flex cursor-pointer items-center gap-2 text-[12px] font-semibold text-emerald-500">
-          Automation on
-          <span className="relative h-[22px] w-[38px] rounded-full bg-emerald-500/25"><span className="absolute left-[18px] top-0.5 h-[18px] w-[18px] rounded-full bg-emerald-500" /></span>
-        </label>
+        <button onClick={toggleActive} disabled={!listId} title={listId ? "" : "Pick a list first"} className={cn("ms-auto inline-flex items-center gap-2 text-[12px] font-semibold disabled:opacity-50", active ? "text-emerald-500" : "text-muted-foreground")}>
+          {active ? "Automation on" : "Automation off"}
+          <span className={cn("relative h-[22px] w-[38px] rounded-full transition-colors", active ? "bg-emerald-500/25" : "bg-muted")}><span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all", active ? "left-[18px] bg-emerald-500" : "left-0.5 bg-muted-foreground")} /></span>
+        </button>
       </div>
 
       {/* channels — compact row (the Blocked pills already flag disconnected steps) */}
