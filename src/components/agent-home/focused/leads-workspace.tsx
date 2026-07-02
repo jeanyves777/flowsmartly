@@ -22,7 +22,13 @@ import { LeadsAutomation } from "./leads-automation";
 
 type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library";
 interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
-interface SavedLead { id: string; name: string; title?: string | null; category?: string | null; email?: string | null; phone?: string | null; enrichedAt?: string | null; status?: string; listName?: string; socials?: string | null }
+interface SavedLead {
+  id: string; name: string; title?: string | null; category?: string | null;
+  email?: string | null; phone?: string | null; phones?: string | null;
+  website?: string | null; address?: string | null; socials?: string | null;
+  rating?: number | null; reviewCount?: number | null; googleMapsUrl?: string | null;
+  businessStatus?: string | null; enrichedAt?: string | null; status?: string; listName?: string;
+}
 const PAGE_SIZES = [25, 50, 100];
 
 const SENIORITY = ["Owner", "C-level", "VP", "Director", "Manager"];
@@ -60,12 +66,14 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
   const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
   const enrichingRef = useRef<Set<string>>(new Set());
   enrichingRef.current = enrichingIds;
+  // The lead whose full-detail bottom sheet is open.
+  const [detailLead, setDetailLead] = useState<SavedLead | null>(null);
 
   const enrichLead = useCallback((l: SavedLead) => {
     if (l.enrichedAt) return;
     setEnrichingIds((prev) => new Set(prev).add(l.id));
     onAsk(
-      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the enrich save) so I can approve, then web-search and PRIORITIZE their WORK EMAIL and PHONE (LinkedIn alone isn't enough), and call enrich_lead with the confirmed planId, leadId="${l.id}", and every field you found (email, phone, title, linkedin) to save it INTO their row. Do NOT print the contact details in the chat.`,
+      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the enrich save) so I can approve, then web-search for the full reachable contact — WORK EMAIL, PHONE, business WEBSITE and ADDRESS/location, plus LinkedIn (LinkedIn alone isn't enough) — and call enrich_lead with the confirmed planId, leadId="${l.id}", and every field you found (email, phone, website, address, title, linkedin) to save it INTO their row. Do NOT print the contact details in the chat.`,
     );
   }, [onAsk]);
 
@@ -75,7 +83,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     setEnrichingIds((prev) => { const n = new Set(prev); targets.forEach((l) => n.add(l.id)); return n; });
     const idList = targets.map((l) => `${l.name} → ${l.id}`).join("; ");
     onAsk(
-      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (two AI_WEB_SEARCH per lead — the web search to find them + the enrich save) so I can approve the total cost. Then for EACH lead, web-search and PRIORITIZE their WORK EMAIL and a PHONE number (a LinkedIn alone isn't enough to reach them), and call enrich_lead with the SAME confirmed planId, that lead's exact leadId, and EVERY field you found (email, phone, title, linkedin) so it saves INTO their row. If you reach the per-turn web-search limit, enrich everyone you found so far, then tell me you'll continue the rest next — do NOT loop retrying the same call. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
+      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (two AI_WEB_SEARCH per lead — the web search to find them + the enrich save) so I can approve the total cost. Then for EACH lead, web-search for the full reachable contact — WORK EMAIL, PHONE, business WEBSITE and ADDRESS/location (from Google Business or their site), plus LinkedIn (a LinkedIn alone isn't enough) — and call enrich_lead with the SAME confirmed planId, that lead's exact leadId, and EVERY field you found (email, phone, website, address, title, linkedin) so it saves INTO their row. If you reach the per-turn web-search limit, enrich everyone you found so far, then tell me you'll continue the rest next — do NOT loop retrying the same call. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
     );
   }, [onAsk]);
 
@@ -215,9 +223,9 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
         {screen === "find" ? (
           <FindScreen state={findState} results={results} resultList={resultList}
             onOpenBrief={() => setBriefOpen(true)} onBuild={() => { if (resultList) buildAutomation(resultList); }}
-            enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} />
+            enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} onOpenLead={setDetailLead} />
         ) : screen === "contacts" ? (
-          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} />
+          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} />
         ) : screen === "companies" ? (
           <CompaniesScreen companies={companies} loaded={loadedLeads} />
         ) : screen === "library" ? (
@@ -283,6 +291,71 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
           </div>
         </div>
       )}
+
+      {/* LEAD DETAIL — bottom sheet with the full contact record */}
+      {detailLead && (() => {
+        const fresh = results.find((x) => x.id === detailLead.id) || allLeads.find((x) => x.id === detailLead.id) || detailLead;
+        return <LeadDetailSheet lead={fresh} enriching={enrichingIds.has(fresh.id)} onEnrich={() => enrichLead(fresh)} onClose={() => setDetailLead(null)} />;
+      })()}
+    </div>
+  );
+}
+
+/* ── Lead detail — full contact record in a bottom sheet ── */
+function LeadDetailSheet({ lead, enriching, onEnrich, onClose }: { lead: SavedLead; enriching: boolean; onEnrich: () => void; onClose: () => void }) {
+  const socials = parseSocials(lead.socials);
+  const phones = (() => { try { const p = JSON.parse(lead.phones || "[]"); return Array.isArray(p) ? (p as string[]) : []; } catch { return []; } })();
+  const rows: { label: string; value: ReactNode }[] = [];
+  if (lead.title) rows.push({ label: "Title", value: lead.title });
+  if (lead.category) rows.push({ label: "Company", value: lead.category });
+  if (lead.email) rows.push({ label: "Email", value: <a href={`mailto:${lead.email}`} className="text-brand-500 hover:underline">{lead.email}</a> });
+  if (lead.phone) rows.push({ label: "Phone", value: <a href={`tel:${lead.phone}`} className="text-brand-500 hover:underline">{lead.phone}</a> });
+  phones.filter((p) => p !== lead.phone).forEach((p) => rows.push({ label: "Phone", value: <a href={`tel:${p}`} className="text-brand-500 hover:underline">{p}</a> }));
+  if (lead.website) rows.push({ label: "Website", value: <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(lead.website)}</a> });
+  if (lead.address) rows.push({ label: "Address", value: lead.address });
+  if (typeof lead.rating === "number") rows.push({ label: "Rating", value: `★ ${lead.rating}${lead.reviewCount ? ` · ${lead.reviewCount} reviews` : ""}` });
+  Object.entries(socials).forEach(([k, v]) => rows.push({ label: k[0].toUpperCase() + k.slice(1), value: <a href={v} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(v) || v}</a> }));
+  if (lead.googleMapsUrl) rows.push({ label: "Map", value: <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Google Maps ↗</a> });
+
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[82%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="relative border-b border-border px-5 pb-3 pt-4">
+          <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Users className="h-5 w-5" /></span>
+            <div className="min-w-0">
+              <h4 className="truncate text-[15px] font-bold">{lead.name}</h4>
+              <p className="truncate text-[11.5px] text-muted-foreground">{[lead.title, lead.category].filter(Boolean).join(" · ") || "Lead"}{lead.listName ? ` · ${lead.listName}` : ""}</p>
+            </div>
+            {lead.enrichedAt ? <span className="ms-auto rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-500">Enriched</span> : <span className="ms-auto rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-500">Not enriched</span>}
+          </div>
+          <button onClick={onClose} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {rows.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — enrich this lead to find their email, phone, website and address.</p>
+          ) : (
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              {rows.map((r, idx) => (
+                <div key={idx}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">{r.label}</dt>
+                  <dd className="mt-0.5 break-words text-[13px]">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+        <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
+          {lead.enrichedAt ? (
+            <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{enriching ? <FlowLoader size={14} /> : <Sparkles className="h-4 w-4" />} Re-enrich</button>
+          ) : (
+            <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">{enriching ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-4 w-4" />} {enriching ? "Enriching…" : "Enrich this lead"}</button>
+          )}
+          <span className="text-[11.5px] text-muted-foreground">Find email, phone, website + address and save them here.</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -304,10 +377,10 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /* ── Find ── */
-function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichingIds, onEnrich, onEnrichAll }: {
+function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichingIds, onEnrich, onEnrichAll, onOpenLead }: {
   state: "empty" | "loading" | "results";
   results: SavedLead[]; resultList: LeadList | null; onOpenBrief: () => void; onBuild: () => void;
-  enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: () => void;
+  enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: () => void; onOpenLead: (l: SavedLead) => void;
 }) {
   const unenriched = results.filter((l) => !l.enrichedAt).length;
   const enrichBusy = results.some((l) => enrichingIds.has(l.id));
@@ -341,7 +414,7 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
             </div>
           </div>
         )}
-        <LeadTable leads={results} enrichingIds={enrichingIds} onEnrich={onEnrich} />
+        <LeadTable leads={results} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
       </div>
     );
   }
@@ -357,7 +430,7 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
   );
 }
 
-function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void }) {
+function LeadTable({ leads, enrichingIds, onEnrich, onOpenLead }: { leads: SavedLead[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onOpenLead: (l: SavedLead) => void }) {
   if (!leads.length) return <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-muted-foreground">No leads yet.</p>;
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -367,7 +440,7 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
           {leads.map((l) => {
             const enriching = enrichingIds.has(l.id);
             return (
-              <tr key={l.id} className="border-t border-border hover:bg-muted/20">
+              <tr key={l.id} onClick={() => onOpenLead(l)} className="cursor-pointer border-t border-border hover:bg-muted/20">
                 <td className="px-4 py-2.5 font-semibold">{l.name}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{l.title || "—"}</td>
                 <td className="px-4 py-2.5">{l.category || "—"}</td>
@@ -378,7 +451,7 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
                   ) : enriching ? (
                     <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Enriching…</span>
                   ) : (
-                    <button onClick={() => onEnrich(l)} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>
+                    <button onClick={(e) => { e.stopPropagation(); onEnrich(l); }} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>
                   )}
                 </td>
               </tr>
@@ -390,29 +463,34 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
   );
 }
 
-function parseLinkedin(s?: string | null): string | null {
-  if (!s) return null;
-  try { const o = JSON.parse(s) as Record<string, unknown>; return typeof o?.linkedin === "string" ? o.linkedin : null; } catch { return null; }
+function parseSocials(s?: string | null): Record<string, string> {
+  if (!s) return {};
+  try { const o = JSON.parse(s) as Record<string, unknown>; return Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v === "string")) as Record<string, string>; } catch { return {}; }
 }
+function hostOf(url?: string | null): string { if (!url) return ""; try { return new URL(url.startsWith("http") ? url : `https://${url}`).host.replace(/^www\./, ""); } catch { return url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]; } }
 
-/** The "Contact" cell — reveals whatever the agent actually found once enriched
- * (email, phone, or at least a LinkedIn), or says so; blurred until then. */
+/** The "Contact" cell — reveals whatever the lead actually has (email, phone,
+ * website, or a LinkedIn); blurred only when there's nothing yet. Click the row
+ * for the full detail sheet. */
 function ContactCell({ l, enriching }: { l: SavedLead; enriching: boolean }) {
   if (enriching) return <span className="inline-flex items-center gap-1.5 text-muted-foreground"><FlowLoader size={12} /> finding…</span>;
-  if (!l.enrichedAt) return <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>;
-  const linkedin = parseLinkedin(l.socials);
-  if (!l.email && !l.phone && !linkedin) return <span className="text-[11.5px] text-muted-foreground">Enriched · no email/phone found</span>;
+  const linkedin = parseSocials(l.socials).linkedin;
+  const hasAny = l.email || l.phone || l.website || linkedin;
+  if (!hasAny) return l.enrichedAt
+    ? <span className="text-[11.5px] text-muted-foreground">Enriched · no email/phone found</span>
+    : <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>;
   return (
     <div className="flex flex-col gap-0.5">
-      {l.email && <span className="inline-flex items-center gap-1">{l.email} <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /></span>}
+      {l.email && <span className="inline-flex items-center gap-1">{l.email} {l.enrichedAt && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}</span>}
       {l.phone && <span className="text-muted-foreground">{l.phone}</span>}
-      {!l.email && !l.phone && linkedin && <a href={linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-500 hover:underline">LinkedIn ↗</a>}
+      {!l.email && !l.phone && l.website && <span className="truncate text-brand-500">{hostOf(l.website)}</span>}
+      {!l.email && !l.phone && !l.website && linkedin && <span className="inline-flex items-center gap-1 text-brand-500">LinkedIn ↗</span>}
     </div>
   );
 }
 
 /* ── Contacts ── */
-function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void }) {
+function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, onOpenLead }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void; onOpenLead: (l: SavedLead) => void }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "enriched" | "new">("all");
   const [listFilter, setListFilter] = useState("all");
@@ -475,7 +553,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll }: 
       <p className="mb-3 text-[12px] text-muted-foreground">
         {filtered.length === 0 ? "No contacts match your filters." : <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}{activeFilter ? ` (filtered from ${leads.length})` : " contacts"} — enrich to reveal email + phone.</>}
       </p>
-      <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} />
+      <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
       <Pagination page={pageC} totalPages={totalPages} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
     </>
   );

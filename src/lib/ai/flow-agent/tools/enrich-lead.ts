@@ -11,7 +11,7 @@ import type { FlowAgentTool } from "../registry";
 export const enrichLead: FlowAgentTool = {
   name: "enrich_lead",
   description:
-    "Reveal & SAVE a lead's contact details you found via web search (email, phone, LinkedIn/X/Facebook/company site). This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found email/phone/title as a message or a table in the chat — that does not update the row and is the wrong place. Pass `planId` from a confirmed propose_plan, plus leadId (the UI provides it — e.g. 'leadId: xxx') and whatever you verified. If you somehow don't have the exact id, pass leadName (+ optional listId) and this resolves the row for you. Costs credits per lead (billed). For a whole list, propose_plan ONCE with one AI_WEB_SEARCH per lead so the user sees the total cost, then reuse that same planId for every enrich_lead call.",
+    "Reveal & SAVE a lead's contact details you found via web search. Capture the REACHABLE info the user needs: work email, PHONE, business WEBSITE and ADDRESS/location (from Google Business or the company site), plus LinkedIn — for a business owner the business phone + address are the primary way to reach them, so always include them, not just a LinkedIn. This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found details as a message or a table in the chat — that does not update the row and is the wrong place. Pass `planId` from a confirmed propose_plan, plus leadId (the UI provides it — e.g. 'leadId: xxx') and every field you verified. If you somehow don't have the exact id, pass leadName (+ optional listId) and this resolves the row for you. Costs credits per lead (billed). For a whole list, propose_plan ONCE with two AI_WEB_SEARCH per lead (the search + the save) so the user sees the total cost, then reuse that same planId for every enrich_lead call.",
   input_schema: {
     type: "object",
     properties: {
@@ -20,9 +20,11 @@ export const enrichLead: FlowAgentTool = {
       leadName: { type: "string", description: "Fallback when you don't have the exact leadId: the lead's name to resolve the row (optionally narrowed by listId)." },
       listId: { type: "string", description: "Optional — the list the lead belongs to, to disambiguate a leadName lookup." },
       email: { type: "string", description: "Primary work email you verified." },
-      phone: { type: "string", description: "Primary phone." },
+      phone: { type: "string", description: "Primary phone — the business phone (from Google Business / their site) if you can't find a direct one." },
       phones: { type: "array", items: { type: "string" }, description: "Additional phone numbers." },
       title: { type: "string", description: "Corrected/confirmed job title." },
+      website: { type: "string", description: "The business website URL." },
+      address: { type: "string", description: "The business street address / location (from Google Business)." },
       socials: {
         type: "object",
         description: "Public profile links you found: { linkedin?, x?, facebook?, google? }.",
@@ -68,6 +70,8 @@ export const enrichLead: FlowAgentTool = {
         phone: typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : undefined,
         phones: phones.length ? JSON.stringify(phones) : undefined,
         title: typeof input.title === "string" && input.title.trim() ? input.title.trim() : undefined,
+        website: typeof input.website === "string" && input.website.trim() ? input.website.trim() : undefined,
+        address: typeof input.address === "string" && input.address.trim() ? input.address.trim() : undefined,
         socials: Object.keys(cleanSocials).length ? JSON.stringify(cleanSocials) : undefined,
         enrichedAt: new Date(),
         enrichmentSource: "web",
