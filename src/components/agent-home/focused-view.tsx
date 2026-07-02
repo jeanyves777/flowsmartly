@@ -18,6 +18,7 @@ export function FocusedView({
   chat,
   canvas,
   onClose,
+  headerActions,
 }: {
   title: string;
   subtitle?: string;
@@ -25,6 +26,8 @@ export function FocusedView({
   chat: ReactNode;
   canvas: ReactNode;
   onClose: () => void;
+  /** Optional controls rendered in the surface header, next to Exit. */
+  headerActions?: ReactNode;
 }) {
   const [chatW, setChatW] = useState(404);
   const [collapsed, setCollapsed] = useState(false);
@@ -103,9 +106,12 @@ export function FocusedView({
             <div className="truncate text-[14px] font-bold leading-tight">{title}</div>
             {subtitle && <div className="truncate text-[11.5px] text-muted-foreground">{subtitle}</div>}
           </div>
-          <button onClick={onClose} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" /> Exit
-          </button>
+          <div className="ms-auto flex items-center gap-2">
+            <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" /> Exit
+            </button>
+            {headerActions}
+          </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       </div>

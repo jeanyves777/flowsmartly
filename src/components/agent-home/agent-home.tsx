@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -284,6 +284,7 @@ export function AgentHome() {
   const [activeWs, setActiveWs] = useState("home");
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   // The Print Studio canvas is a SEPARATE document from the Create design — they
   // must not share state or a draft key, or opening a print format would pollute
@@ -837,6 +838,11 @@ export function AgentHome() {
               subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
+              headerActions={focused === "leads" ? (
+                <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
+                  <PanelRight className="h-[18px] w-[18px]" />
+                </button>
+              ) : undefined}
               chat={
                 <>
                   <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
@@ -1029,7 +1035,7 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "email" ? (

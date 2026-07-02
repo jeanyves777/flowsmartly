@@ -150,6 +150,8 @@ model User {
   pipelineStages        PipelineStage[]
   opportunities         Opportunity[]
   activities            Activity[]
+  outreachSequences     OutreachSequence[]
+  sequenceEnrollments   SequenceEnrollment[]
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
@@ -4808,6 +4810,7 @@ model SavedLead {
   pitches       Pitch[]
   opportunities Opportunity[]
   activities    Activity[]
+  enrollments   SequenceEnrollment[]
 
   @@index([userId])
   @@index([listId])
@@ -4916,6 +4919,58 @@ model Activity {
   @@index([savedLeadId])
   @@index([opportunityId])
   @@index([at])
+}
+
+// ============================================
+// OUTREACH SEQUENCES (multi-channel automation)
+// ============================================
+
+// A saved multi-channel outreach automation that runs on a lead list: initial
+// pitch → follow-ups → agent branch → WhatsApp/SMS → manual task → request-a-time.
+// The ordered steps live as JSON; each enrolled lead advances through them on a
+// schedule via SequenceEnrollment. [[lead-studio-redesign-approved]]
+model OutreachSequence {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  listId    String? // the SavedLeadList this runs on
+  status    String   @default("draft") // draft | active | paused | archived
+  steps     String   @default("[]") // JSON: ordered step configs { id, kind, title, channel, delayDays, subject?, body?, style?, condition?, taskType?, status }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments SequenceEnrollment[]
+
+  @@index([userId])
+  @@index([listId])
+}
+
+// One lead's progress through a sequence. The scheduler fires the current step
+// when nextRunAt is due, logs an Activity, then advances currentStep + reschedules.
+// A manual-task step parks the enrollment in "waiting" until it's marked done.
+model SequenceEnrollment {
+  id            String    @id @default(cuid())
+  userId        String
+  sequenceId    String
+  savedLeadId   String
+  opportunityId String?
+  currentStep   Int       @default(0)
+  status        String    @default("active") // active | waiting | completed | stopped | replied
+  nextRunAt     DateTime?
+  lastStepAt    DateTime?
+  meta          String    @default("{}") // JSON: per-lead run notes (sends, opens, replies)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sequence  OutreachSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  savedLead SavedLead        @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sequenceId])
+  @@index([savedLeadId])
+  @@index([status, nextRunAt])
 }
 
 // ============================================

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils/cn";
  * onAsk so the agent drafts the copy in the chat.
  */
 
-type Kind = "email" | "sms" | "whatsapp" | "cond" | "task" | "book";
+type Kind = "email" | "sms" | "whatsapp" | "cond" | "task" | "book" | "wait";
 type Status = "ready" | "blocked" | "paused" | "waiting" | "smart";
 
 interface Step {
@@ -28,7 +28,25 @@ interface Step {
 const CHANNEL_OF: Partial<Record<Kind, "email" | "sms" | "whatsapp">> = { email: "email", book: "email", sms: "sms", whatsapp: "whatsapp" };
 
 const KIND_ICON: Record<Kind, typeof Mail> = {
-  email: Mail, sms: MessageCircle, whatsapp: MessageCircle, cond: GitBranch, task: CheckSquare, book: CalendarDays,
+  email: Mail, sms: MessageCircle, whatsapp: MessageCircle, cond: GitBranch, task: CheckSquare, book: CalendarDays, wait: Clock,
+};
+// Step types offered by the "Add step" menu (a real UI action, not an agent prompt).
+const ADD_TYPES: { kind: Kind; label: string; icon: typeof Mail }[] = [
+  { kind: "email", label: "Email step", icon: Mail },
+  { kind: "sms", label: "SMS step", icon: MessageCircle },
+  { kind: "whatsapp", label: "WhatsApp step", icon: MessageCircle },
+  { kind: "cond", label: "Condition / branch", icon: GitBranch },
+  { kind: "task", label: "Manual task", icon: CheckSquare },
+  { kind: "wait", label: "Wait / delay", icon: Clock },
+];
+const NEW_STEP: Record<Kind, { title: string; when: string; status: Status }> = {
+  email: { title: "New email", when: "+3 days", status: "blocked" },
+  sms: { title: "New SMS", when: "+3 days", status: "blocked" },
+  whatsapp: { title: "New WhatsApp", when: "+3 days", status: "blocked" },
+  cond: { title: "If no reply", when: "agent routes per lead", status: "smart" },
+  task: { title: "Manual task", when: "blocks until done", status: "waiting" },
+  wait: { title: "Wait", when: "delay before next step", status: "ready" },
+  book: { title: "Request a time", when: "on reply", status: "ready" },
 };
 
 const CHANNELS = [
@@ -66,6 +84,13 @@ export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: str
   const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const addStep = (kind: Kind) => {
+    const id = `${kind}-${Date.now().toString(36)}`;
+    const n = NEW_STEP[kind];
+    setSteps((prev) => [...prev, { id, kind, title: n.title, when: n.when, status: n.status }]);
+    setSelected(id); setAddOpen(false);
+  };
   // Channel connection state (mock — wired to MarketingConfig / social in Build C2).
   const [connected] = useState<Record<string, boolean>>({ email: false, sms: false, whatsapp: false });
 
@@ -104,8 +129,8 @@ export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: str
         </label>
       </div>
 
-      {/* channels */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* channels — compact row (the Blocked pills already flag disconnected steps) */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Channels</span>
         {CHANNELS.map((c) => {
           const on = connected[c.key];
@@ -116,19 +141,18 @@ export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: str
             </button>
           );
         })}
-        <span className="ms-auto text-[11.5px] text-amber-500">Steps stay blocked until their channel is connected</span>
       </div>
 
-      {/* agent intelligence */}
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-violet-500/25 bg-gradient-to-r from-brand-500/[0.06] to-violet-500/[0.06] px-3.5 py-2.5 text-[12px] leading-relaxed text-foreground/80">
-        <Sparkles className="h-4 w-4 shrink-0 text-violet-400" />
-        <span>The agent routes <b>each lead down the best channel it has</b> — if the email goes unanswered and discovery found a valid WhatsApp number, it sends a WhatsApp follow-up before moving on. Channels a lead can't receive are skipped.</span>
-        <button onClick={() => onAsk("Design the best multi-channel outreach sequence for this list — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step.")} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/50"><Sparkles className="h-3.5 w-3.5" /> Let the agent design the flow</button>
+      {/* agent intelligence — compact one-liner */}
+      <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-violet-500/25 bg-gradient-to-r from-brand-500/[0.06] to-violet-500/[0.06] px-3 py-1.5 text-[11.5px] text-foreground/70">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-400" />
+        <span className="min-w-0 truncate">The agent routes each lead down the best channel it has — email → WhatsApp → SMS — skipping ones they can't receive.</span>
+        <button onClick={() => onAsk("Design the best multi-channel outreach sequence for this list — pitch, follow-ups, WhatsApp/SMS fallbacks, and a booking step.")} className="ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/50"><Sparkles className="h-3 w-3" /> Let the agent design</button>
       </div>
 
-      {/* two columns: draggable flow + step brief */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <div className="w-full lg:w-[344px] lg:shrink-0">
+      {/* draggable flow + step brief — stacks until there's real width (chat + menu open) */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+        <div className="w-full xl:w-[330px] xl:shrink-0">
           {steps.map((s, i) => {
             const Icon = KIND_ICON[s.kind];
             return (
@@ -171,7 +195,21 @@ export function LeadsAutomation({ listName, leadCount, onAsk }: { listName?: str
               </div>
             );
           })}
-          <button onClick={() => onAsk("Add a step to my outreach automation — an email, SMS, WhatsApp message, a condition/branch, a manual task, or a wait.")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Plus className="h-4 w-4" /> Add step</button>
+          <div className="relative mt-3">
+            <button onClick={() => setAddOpen((v) => !v)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Plus className="h-4 w-4" /> Add step</button>
+            {addOpen && (
+              <>
+                <button aria-label="Close" onClick={() => setAddOpen(false)} className="fixed inset-0 z-10 cursor-default" />
+                <div className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
+                  {ADD_TYPES.map((t) => (
+                    <button key={t.kind} onClick={() => addStep(t.kind)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-[12.5px] font-semibold hover:bg-muted">
+                      <span className={cn("grid h-6 w-6 place-items-center rounded-md", tone(t.kind))}><t.icon className="h-3.5 w-3.5" /></span> {t.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="min-w-0 flex-1">
@@ -190,6 +228,7 @@ function tone(k: Kind) {
     whatsapp: "bg-emerald-500/16 text-emerald-400",
     cond: "bg-violet-500/16 text-violet-400",
     task: "bg-amber-500/14 text-amber-500",
+    wait: "bg-muted text-muted-foreground",
   }[k];
 }
 
@@ -226,10 +265,12 @@ function StepBrief({ step, connected, onAsk }: { step: Step; connected: Record<s
           <BranchEditor onAsk={onAsk} />
         ) : step.kind === "task" ? (
           <TaskEditor onAsk={onAsk} />
+        ) : step.kind === "wait" ? (
+          <WaitEditor />
         ) : (
           <>
             <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Style</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2">
               {presets.map(([t, h], i) => (
                 <button key={t} onClick={() => setStyle(i)} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === style ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
               ))}
@@ -255,13 +296,27 @@ function StepBrief({ step, connected, onAsk }: { step: Step; connected: Record<s
   );
 }
 
+function WaitEditor() {
+  return (
+    <>
+      <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Wait before the next step</p>
+      <div className="flex items-center gap-2">
+        <input type="number" defaultValue={3} min={0} className="w-20 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+        <span className="text-[12.5px] text-muted-foreground">days</span>
+      </div>
+      <p className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground"><Clock className="h-4 w-4" /> Holds each lead here, then continues the sequence.</p>
+      <div className="mt-3.5"><button className="rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white">Save</button></div>
+    </>
+  );
+}
+
 function BranchEditor({ onAsk }: { onAsk: (p: string) => void }) {
   const whens: [string, string][] = [["No reply", "to the last email"], ["Opened, no reply", "engaged"], ["Email bounced", "bad address"], ["Link clicked", "warm"]];
   const [w, setW] = useState(0);
   return (
     <>
       <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">When</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2">
         {whens.map(([t, h], i) => (
           <button key={t} onClick={() => setW(i)} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === w ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
         ))}
@@ -279,7 +334,7 @@ function TaskEditor({ onAsk }: { onAsk: (p: string) => void }) {
   return (
     <>
       <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Task type — <span className="text-brand-500">the agent suggests</span></p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2">
         {TASK_RECS.map(([t, h], i) => (
           <button key={t} onClick={() => setRec(i)} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === rec ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
         ))}

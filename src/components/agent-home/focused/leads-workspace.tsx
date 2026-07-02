@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import {
   Search, Users, Building2, BarChart3, Folder, FolderPlus, Sparkles, Upload, X,
-  CheckCircle2, PanelRightClose, PanelRightOpen, Workflow, ArrowRight, ChevronLeft,
+  CheckCircle2, Workflow, ArrowRight, ChevronLeft,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -30,9 +30,12 @@ const COUNTS = ["25", "50", "100"];
 const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk: (p: string) => void }) {
+export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean }) {
   const [screen, setScreen] = useState<Screen>("find");
-  const [menuOpen, setMenuOpen] = useState(true);
+  // The menu is controlled from the surface header toggle when `menuOpen` is
+  // passed; otherwise it falls back to local state (standalone use).
+  const [menuOpenLocal] = useState(true);
+  const menuOpen = menuOpenProp ?? menuOpenLocal;
   const [lists, setLists] = useState<LeadList[]>([]);
   const [allLeads, setAllLeads] = useState<SavedLead[]>([]);
   const [loadedLeads, setLoadedLeads] = useState(false);
@@ -141,7 +144,7 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
   return (
     <div className="relative flex min-h-0 flex-1">
       {/* CONTENT */}
-      <div className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-3.5 sm:px-5">
         {screen === "find" ? (
           <FindScreen state={findState} tab={findTab} setTab={setFindTab} results={results} resultList={resultList}
             onOpenBrief={() => setBriefOpen(true)} onBuild={() => resultList && buildAutomation(resultList)} onAsk={onAsk} />
@@ -160,15 +163,10 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
         )}
       </div>
 
-      {/* RIGHT MENU (collapsible — collapse icon lives ON the menu) */}
-      {menuOpen ? (
-        <aside className="hidden w-[248px] shrink-0 flex-col gap-3 overflow-y-auto border-s border-border bg-card/40 p-3 lg:flex">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[12.5px] font-bold">Lead Studio</span>
-            <button onClick={() => setMenuOpen(false)} title="Hide menu" className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><PanelRightClose className="h-4 w-4" /></button>
-          </div>
+      {/* RIGHT MENU (collapsible from the surface-header toggle) */}
+      {menuOpen && (
+        <aside className="hidden w-[236px] shrink-0 flex-col gap-2.5 overflow-y-auto border-s border-border bg-card/40 p-3 lg:flex">
           <button onClick={() => { setScreen("find"); setBriefOpen(true); }} className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Find leads</button>
-
           <p className="px-2 pt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70">Workspace</p>
           <nav className="flex flex-col gap-0.5">
             {NAV.map((n) => (
@@ -181,15 +179,13 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
             <NavItem active={false} icon={Users} label="All contacts" onClick={() => setScreen("contacts")} />
           </nav>
         </aside>
-      ) : (
-        <button onClick={() => setMenuOpen(true)} title="Show menu" className="absolute end-2 top-2 z-10 hidden h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground lg:grid"><PanelRightOpen className="h-4 w-4" /></button>
       )}
 
       {/* SEARCH BRIEF — bottom sheet across the content */}
       {briefOpen && (
         <div className="absolute inset-0 z-40">
           <button aria-label="Close" onClick={() => setBriefOpen(false)} className="absolute inset-0 bg-black/45" />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[82%] flex-col rounded-t-2xl border-t border-border bg-card shadow-2xl">
+          <div className="absolute inset-x-3 bottom-3 flex max-h-[82%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
             <div className="relative border-b border-border px-5 pb-3 pt-4">
               <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
               <h4 className="flex items-center gap-2 text-[15px] font-bold"><Sparkles className="h-4 w-4 text-brand-500" /> Search brief</h4>
