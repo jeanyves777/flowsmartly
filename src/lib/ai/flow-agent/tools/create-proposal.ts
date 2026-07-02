@@ -235,12 +235,12 @@ export const createProposal: FlowAgentTool = {
             kind: "create_proposal",
             ok: true,
             summary: `Your proposal for ${targetName} is ready`,
-            detail: "Open it on the Pitch Board to review, tweak, or send.",
-            deepLink: `/pitch-board?pitch=${pitch.id}`,
+            detail: "Open it in Pitch Studio to edit, brand, or attach it.",
+            deepLink: `/home/pitchstudio?pitch=${pitch.id}`,
           });
 
           return {
-            output: { pitchId: pitch.id, targetName, builderType, link: `/pitch-board?pitch=${pitch.id}` },
+            output: { pitchId: pitch.id, targetName, builderType, link: `/home/pitchstudio?pitch=${pitch.id}` },
             resultRefType: "Pitch",
             resultRefId: pitch.id,
           };
@@ -251,7 +251,7 @@ export const createProposal: FlowAgentTool = {
         type: "task_started",
         taskId,
         kind: "create_proposal",
-        summary: `Building a branded proposal for ${targetName} — a few minutes. I'll notify you when it's ready on the Pitch Board.`,
+        summary: `Building a branded proposal for ${targetName} — a few minutes. I'll notify you when it opens in Pitch Studio.`,
       });
 
       return {

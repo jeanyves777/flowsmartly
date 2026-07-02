@@ -17,7 +17,7 @@ import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
  * [[lead-studio-redesign-approved]]
  */
 
-interface PitchTarget { leadId: string; leadName: string; pitchId?: string }
+interface PitchTarget { leadId?: string; leadName?: string; pitchId?: string }
 interface PitchRecord {
   id: string; businessName: string; businessUrl?: string | null; documentType: string;
   recipientName?: string | null; recipientEmail?: string | null; content: ServiceProposalContent;
@@ -42,10 +42,16 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     return false;
   }, []);
 
-  // Find the newest proposal for this lead (used on open + to detect a new one after generate).
-  const newestForLead = useCallback(async (leadId: string): Promise<string | null> => {
-    const j = await fetch(`/api/pitch?savedLeadId=${leadId}&documentType=service_proposal&limit=1`).then((r) => r.json()).catch(() => null);
-    return j?.data?.pitches?.[0]?.id ?? null;
+  // Find the newest proposal for this lead. Prefer the savedLeadId link, but fall
+  // back to the newest proposal NAMED after this lead — so it still opens even if
+  // the proposal wasn't linked (e.g. an older create_proposal without savedLeadId).
+  const newestForLead = useCallback(async (leadId: string, leadName: string): Promise<string | null> => {
+    const byLead = await fetch(`/api/pitch?savedLeadId=${leadId}&documentType=service_proposal&limit=1`).then((r) => r.json()).catch(() => null);
+    const linked = byLead?.data?.pitches?.[0]?.id;
+    if (linked) return linked;
+    const recent = await fetch(`/api/pitch?documentType=service_proposal&limit=8`).then((r) => r.json()).catch(() => null);
+    const match = (recent?.data?.pitches || []).find((p: { id: string; businessName?: string }) => (p.businessName || "").trim().toLowerCase() === leadName.trim().toLowerCase());
+    return match?.id ?? null;
   }, []);
 
   // Resolve which pitch to show when the target changes.
@@ -54,7 +60,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     (async () => {
       if (!target) { setLoading(false); return; }
       setLoading(true); setPitch(null); setGenerating(false);
-      const id = target.pitchId || (await newestForLead(target.leadId));
+      const id = target.pitchId || (target.leadId ? await newestForLead(target.leadId, target.leadName || "") : null);
       if (cancelled) return;
       if (id) await loadById(id);
       if (!cancelled) setLoading(false);
@@ -63,14 +69,21 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   }, [target, loadById, newestForLead]);
 
   // While generating, poll for the freshly-created proposal (a background task —
-  // it lands after the agent turn, so refreshKey alone won't catch it).
+  // it lands after the agent turn, so refreshKey alone won't catch it). Only exit
+  // the "designing" state once the proposal actually LOADS (a failed load kept the
+  // empty state before). Also nudged immediately by refreshKey when a turn ends.
   useEffect(() => {
-    if (!generating || !target) return;
+    if (!generating || !target?.leadId) return;
+    const leadId = target.leadId;
+    const leadName = target.leadName || "";
     let stop = false;
     const tick = async () => {
       if (stop) return;
-      const id = await newestForLead(target.leadId);
-      if (id && id !== baselineRef.current) { await loadById(id); setGenerating(false); }
+      const id = await newestForLead(leadId, leadName);
+      if (id && id !== baselineRef.current) {
+        const ok = await loadById(id);
+        if (ok && !stop) setGenerating(false);
+      }
     };
     void tick();
     const iv = setInterval(tick, 3500);
@@ -99,8 +112,8 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   }, [pitch, toast]);
 
   const generate = async () => {
-    if (!target) return;
-    baselineRef.current = await newestForLead(target.leadId);
+    if (!target?.leadId) return;
+    baselineRef.current = await newestForLead(target.leadId, target.leadName || "");
     setGenerating(true);
     onAsk(
       `Create a branded proposal for the lead "${target.leadName}" (savedLeadId: ${target.leadId}) in Pitch Studio — draw the services + value from my Brand Kit. Call propose_plan first (AI_SERVICE_PROPOSAL) so I can approve, then call create_proposal with savedLeadId="${target.leadId}", targetName="${target.leadName}", and a fitting serviceTitle + serviceDescription. Don't paste the proposal in the chat — it opens here in the studio.`,
@@ -122,13 +135,15 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
 
   const useInAutomation = () => {
     if (!pitch || !target) return;
-    onAsk(`Attach the proposal (pitchId: ${pitch.id}) for "${target.leadName}" to the initial-pitch email step of this lead's outreach automation — call build_sequence_step with that pitchId so it's attached as the PDF. If there's no automation for the list yet, tell me to open the list's Pipeline first.`);
+    onAsk(`Attach the proposal (pitchId: ${pitch.id}) for "${target.leadName || pitch.businessName}" to the initial-pitch email step of this lead's outreach automation — call build_sequence_step with that pitchId so it's attached as the PDF. If there's no automation for the list yet, tell me to open the list's Pipeline first.`);
     toast({ title: "Attaching to automation", description: "The agent is adding this proposal to the pitch step." });
   };
 
   if (!target) {
     return <div className="grid min-h-0 flex-1 place-items-center p-8 text-center text-[13px] text-muted-foreground">Open Pitch Studio from a lead to draft a tailored proposal.</div>;
   }
+  const displayName = target.leadName || pitch?.businessName || "this lead";
+  const canGenerate = !!target.leadId;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -136,7 +151,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-4 w-4" /></span>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-bold leading-tight">Pitch for {target.leadName}</div>
+          <div className="truncate text-[13px] font-bold leading-tight">Pitch for {displayName}</div>
           <div className="truncate text-[11px] text-muted-foreground">{brandName ? `From ${brandName} · ` : ""}branded to your Brand Kit</div>
         </div>
         <div className="ms-auto flex items-center gap-2">
@@ -157,7 +172,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           <div className="grid h-full place-items-center p-8 text-center">
             <div className="max-w-sm">
               <div className="mx-auto w-fit"><FlowLoader size={40} withMark /></div>
-              <h3 className="mt-4 text-[15px] font-bold">Designing {target.leadName}’s proposal…</h3>
+              <h3 className="mt-4 text-[15px] font-bold">Designing {displayName}’s proposal…</h3>
               <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent is researching them and building a branded, PDF-ready proposal from your Brand Kit. It’ll open here when it’s ready.</p>
             </div>
           </div>
@@ -177,9 +192,18 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           <div className="grid h-full place-items-center p-8 text-center">
             <div className="max-w-md">
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-7 w-7" /></span>
-              <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {target.leadName}</h3>
-              <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. You can then edit every section here and attach it to your outreach.</p>
-              <button onClick={generate} className="mt-4 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Generate proposal</button>
+              {canGenerate ? (
+                <>
+                  <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {displayName}</h3>
+                  <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. You can then edit every section here and attach it to your outreach.</p>
+                  <button onClick={generate} className="mt-4 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Generate proposal</button>
+                </>
+              ) : (
+                <>
+                  <h3 className="mt-4 text-[15px] font-bold">Proposal not found</h3>
+                  <p className="mt-1.5 text-[12.5px] text-muted-foreground">This proposal may still be generating, or was removed. Open Pitch Studio from the lead to draft a new one.</p>
+                </>
+              )}
             </div>
           </div>
         )}

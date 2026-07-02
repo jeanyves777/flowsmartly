@@ -284,8 +284,8 @@ export function AgentHome() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
-  // The lead whose Pitch Studio is open (carried into the focused surface).
-  const [pitchTarget, setPitchTarget] = useState<{ leadId: string; leadName: string; pitchId?: string } | null>(null);
+  // The lead / pitch whose Pitch Studio is open (carried into the focused surface).
+  const [pitchTarget, setPitchTarget] = useState<{ leadId?: string; leadName?: string; pitchId?: string } | null>(null);
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   // Rail category to restore when a browse panel is closed WITHOUT navigating —
@@ -437,6 +437,10 @@ export function AgentHome() {
     // Open the focused surface named in the path (/home/<view>) on deep-link.
     const seg = window.location.pathname.replace(/^\/home\/?/, "").split("/")[0];
     if (seg && FOCUS_VIEWS.has(seg)) setFocused(seg);
+    // ?pitch=<id> — open Pitch Studio on a specific proposal (from a task card /
+    // notification's "Open", new-design only — never the legacy pitch board).
+    const openPitchId = searchParams.get("pitch");
+    if (openPitchId) { setPitchTarget({ pitchId: openPitchId }); setFocused("pitchstudio"); }
     // ?design=<id> — load a produced design into the Create canvas so "Open in
     // studio" from a task card continues editing it (chat carries over via cid).
     const designId = searchParams.get("design");
@@ -642,7 +646,7 @@ export function AgentHome() {
   const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
-  const openPitchStudio = (t: { leadId: string; leadName: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
+  const openPitchStudio = (t: { leadId?: string; leadName?: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
   // A button-driven agent action: the instruction is INTERNAL (not shown as a
   // user message) — the user just sees the agent work + respond. Carries the
   // current surface context so the agent acts in place.
