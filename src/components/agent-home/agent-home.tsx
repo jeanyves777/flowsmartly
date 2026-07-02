@@ -40,6 +40,7 @@ import { FocusedAutomations } from "./focused/automations-workspace";
 import { FocusedCustomers } from "./focused/customers-workspace";
 import { FocusedReviews } from "./focused/reviews-workspace";
 import { FocusedLeads } from "./focused/leads-workspace";
+import { FocusedPitchStudio } from "./focused/pitch-studio";
 import { FocusedCompose } from "./focused/compose-workspace";
 import { FocusedEmail } from "./focused/email-workspace";
 import { FocusedSms } from "./focused/sms-workspace";
@@ -134,6 +135,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   customers: { label: "Customers", subtitle: "Your store buyers — orders, spend, last purchase", icon: Users },
   reviews: { label: "Reviews", subtitle: "Reviews & local SEO presence", icon: Star },
   leads: { label: "Lead Studio", subtitle: "Find → automate → close", icon: Search },
+  pitchstudio: { label: "Pitch Studio", subtitle: "Branded proposal — edit & attach", icon: FileText },
   compose: { label: "Compose", subtitle: "Write, schedule & publish a post", icon: SquarePen },
   email: { label: "Email", subtitle: "Email campaigns & performance", icon: Mail },
   sms: { label: "SMS", subtitle: "SMS campaigns & delivery", icon: MessageSquare },
@@ -230,13 +232,15 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
     case "account":
     case "profile":
       return `The user is in their ${focused === "profile" ? "Profile" : "Account & settings"}. Help with account, profile, or settings changes.`;
+    case "pitchstudio":
+      return `The user is in **Pitch Studio** — a branded proposal playground for ONE lead. When they ask you to create or improve the proposal, use create_proposal (pass the lead's savedLeadId so it links to them, draw services + value from their Brand Kit) — the result opens IN the studio, NEVER as a chat dump. To rewrite a specific section, edit that section's content and save it; do not paste the proposal in chat.`;
     default:
       return undefined;
   }
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -280,6 +284,8 @@ export function AgentHome() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
+  // The lead whose Pitch Studio is open (carried into the focused surface).
+  const [pitchTarget, setPitchTarget] = useState<{ leadId: string; leadName: string; pitchId?: string } | null>(null);
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   // Rail category to restore when a browse panel is closed WITHOUT navigating —
@@ -634,6 +640,9 @@ export function AgentHome() {
   // Open a sub-surface (domains, pitch, customers, …) from within its parent
   // workspace — keeps the current rail selection. New-design only, never legacy.
   const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
+  // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
+  // child mounts with it. Keeps the current rail (Leads).
+  const openPitchStudio = (t: { leadId: string; leadName: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
   // A button-driven agent action: the instruction is INTERNAL (not shown as a
   // user message) — the user just sees the agent work + respond. Carries the
   // current surface context so the agent acts in place.
@@ -1040,7 +1049,9 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} />
+                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} />
+                ) : focused === "pitchstudio" ? (
+                  <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "email" ? (

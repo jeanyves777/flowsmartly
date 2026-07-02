@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import {
   Search, Users, Building2, BarChart3, Folder, FolderPlus, Sparkles, Upload, X,
-  CheckCircle2, Workflow, ArrowRight, ChevronLeft, ChevronRight,
+  CheckCircle2, Workflow, ArrowRight, ChevronLeft, ChevronRight, FileText,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -39,7 +39,7 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean }) {
+export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void }) {
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("find");
   // The menu is controlled from the surface header toggle when `menuOpen` is
@@ -296,14 +296,21 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
       {/* LEAD DETAIL — bottom sheet with the full contact record */}
       {detailLead && (() => {
         const fresh = results.find((x) => x.id === detailLead.id) || allLeads.find((x) => x.id === detailLead.id) || detailLead;
-        return <LeadDetailSheet lead={fresh} enriching={enrichingIds.has(fresh.id)} onEnrich={() => enrichLead(fresh)} onClose={() => setDetailLead(null)} />;
+        return <LeadDetailSheet
+          lead={fresh}
+          enriching={enrichingIds.has(fresh.id)}
+          onEnrich={() => enrichLead(fresh)}
+          onClose={() => setDetailLead(null)}
+          onPitch={onPitchLead ? () => { setDetailLead(null); onPitchLead(fresh); } : undefined}
+          onCreateAutomation={() => { const list = lists.find((x) => x.name === fresh.listName); if (list) setActiveList(list); setScreen("pipeline"); setDetailLead(null); }}
+        />;
       })()}
     </div>
   );
 }
 
 /* ── Lead detail — full contact record in a bottom sheet ── */
-function LeadDetailSheet({ lead, enriching, onEnrich, onClose }: { lead: SavedLead; enriching: boolean; onEnrich: () => void; onClose: () => void }) {
+function LeadDetailSheet({ lead, enriching, onEnrich, onClose, onPitch, onCreateAutomation }: { lead: SavedLead; enriching: boolean; onEnrich: () => void; onClose: () => void; onPitch?: () => void; onCreateAutomation?: () => void }) {
   const socials = parseSocials(lead.socials);
   const phones = (() => { try { const p = JSON.parse(lead.phones || "[]"); return Array.isArray(p) ? (p as string[]) : []; } catch { return []; } })();
   const rows: { label: string; value: ReactNode }[] = [];
@@ -348,13 +355,10 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onClose }: { lead: SavedLe
             </dl>
           )}
         </div>
-        <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
-          {lead.enrichedAt ? (
-            <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{enriching ? <FlowLoader size={14} /> : <Sparkles className="h-4 w-4" />} Re-enrich</button>
-          ) : (
-            <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">{enriching ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-4 w-4" />} {enriching ? "Enriching…" : "Enrich this lead"}</button>
-          )}
-          <span className="text-[11.5px] text-muted-foreground">Find email, phone, website + address and save them here.</span>
+        <div className="flex flex-wrap items-center gap-2.5 border-t border-border px-5 py-3.5">
+          {onPitch && <button onClick={onPitch} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><FileText className="h-4 w-4" /> Pitch this lead</button>}
+          {onCreateAutomation && <button onClick={onCreateAutomation} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60"><Workflow className="h-4 w-4" /> Create automation</button>}
+          <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-3.5 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">{enriching ? <FlowLoader size={14} /> : <Sparkles className="h-4 w-4" />} {lead.enrichedAt ? "Re-enrich" : enriching ? "Enriching…" : "Enrich"}</button>
         </div>
       </div>
     </div>

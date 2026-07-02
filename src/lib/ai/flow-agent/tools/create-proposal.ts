@@ -53,6 +53,7 @@ export const createProposal: FlowAgentTool = {
       recipientName: { type: "string", description: "Optional — person to address it to." },
       recipientEmail: { type: "string", description: "Optional recipient email." },
       opportunityId: { type: "string", description: "Optional — link this proposal to a deal in the pipeline. When set, the proposal is attached to the deal and logged on its activity timeline." },
+      savedLeadId: { type: "string", description: "Optional — the SavedLead id this proposal is FOR (from the Lead Studio / Pitch Studio context). Pass it so the proposal is linked to the lead and shows up in their Pitch Studio." },
     },
     required: ["planId", "targetName", "serviceTitle", "serviceDescription"],
   },
@@ -102,6 +103,12 @@ export const createProposal: FlowAgentTool = {
       const linkedOpp = typeof input.opportunityId === "string" && input.opportunityId
         ? await prisma.opportunity.findFirst({ where: { id: input.opportunityId, userId: ctx.userId }, select: { id: true, savedLeadId: true } })
         : null;
+      // Link to the SavedLead this proposal is for (so Pitch Studio can find it).
+      const passedLeadId = typeof input.savedLeadId === "string" && input.savedLeadId ? input.savedLeadId : null;
+      const ownedLeadId = passedLeadId
+        ? (await prisma.savedLead.findFirst({ where: { id: passedLeadId, userId: ctx.userId }, select: { id: true } }))?.id ?? null
+        : null;
+      const linkedLeadId = ownedLeadId ?? linkedOpp?.savedLeadId ?? null;
 
       const cost = await getDynamicCreditCost("AI_SERVICE_PROPOSAL");
       if (!ctx.isAdmin) {
@@ -179,6 +186,7 @@ export const createProposal: FlowAgentTool = {
               recipientEmail: proposalReq.recipientEmail ?? null,
               recipientName: proposalReq.recipientName ?? null,
               documentType: "service_proposal",
+              savedLeadId: linkedLeadId,
               status: "READY",
               research: JSON.stringify({
                 documentType: "service_proposal",
