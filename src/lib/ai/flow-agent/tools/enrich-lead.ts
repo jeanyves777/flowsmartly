@@ -11,10 +11,11 @@ import type { FlowAgentTool } from "../registry";
 export const enrichLead: FlowAgentTool = {
   name: "enrich_lead",
   description:
-    "Reveal & SAVE a lead's contact details you found via web search (email, phone, LinkedIn/X/Facebook/company site). This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found email/phone/title as a message or a table in the chat — that does not update the row and is the wrong place. Pass leadId (the UI provides it — e.g. 'leadId: xxx') plus whatever you verified. If you somehow don't have the exact id, pass leadName (+ optional listId) and this resolves the row for you. Costs credits per lead (billed). For a whole list, propose_plan first with one AI_WEB_SEARCH per lead so the user sees the cost.",
+    "Reveal & SAVE a lead's contact details you found via web search (email, phone, LinkedIn/X/Facebook/company site). This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found email/phone/title as a message or a table in the chat — that does not update the row and is the wrong place. Pass `planId` from a confirmed propose_plan, plus leadId (the UI provides it — e.g. 'leadId: xxx') and whatever you verified. If you somehow don't have the exact id, pass leadName (+ optional listId) and this resolves the row for you. Costs credits per lead (billed). For a whole list, propose_plan ONCE with one AI_WEB_SEARCH per lead so the user sees the total cost, then reuse that same planId for every enrich_lead call.",
   input_schema: {
     type: "object",
     properties: {
+      planId: { type: "string", description: "REQUIRED — the planId from a confirmed propose_plan. For a bulk enrich, pass the SAME planId to every enrich_lead call." },
       leadId: { type: "string", description: "The SavedLead id to enrich (preferred — the Enrich button passes it in the instruction)." },
       leadName: { type: "string", description: "Fallback when you don't have the exact leadId: the lead's name to resolve the row (optionally narrowed by listId)." },
       listId: { type: "string", description: "Optional — the list the lead belongs to, to disambiguate a leadName lookup." },
@@ -28,7 +29,7 @@ export const enrichLead: FlowAgentTool = {
         properties: { linkedin: { type: "string" }, x: { type: "string" }, facebook: { type: "string" }, google: { type: "string" } },
       },
     },
-    required: [],
+    required: ["planId"],
   },
   plans: null,
   costKey: "AI_WEB_SEARCH",

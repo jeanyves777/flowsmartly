@@ -65,7 +65,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     if (l.enrichedAt) return;
     setEnrichingIds((prev) => new Set(prev).add(l.id));
     onAsk(
-      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""} — web-search their work email, phone and LinkedIn, then call enrich_lead with leadId="${l.id}" to save it INTO their row. Do NOT print the contact details in the chat.`,
+      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (1 lead × AI_WEB_SEARCH) so I can approve, then web-search their work email, phone and LinkedIn and call enrich_lead with the confirmed planId and leadId="${l.id}" to save it INTO their row. Do NOT print the contact details in the chat.`,
     );
   }, [onAsk]);
 
@@ -75,7 +75,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     setEnrichingIds((prev) => { const n = new Set(prev); targets.forEach((l) => n.add(l.id)); return n; });
     const idList = targets.map((l) => `${l.name} → ${l.id}`).join("; ");
     onAsk(
-      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with that lead's exact leadId so it saves INTO their row. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
+      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with the SAME confirmed planId and that lead's exact leadId so it saves INTO their row. If you reach the per-turn web-search limit, enrich everyone you found so far, then tell me you'll continue the rest next — do NOT loop retrying the same call. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
     );
   }, [onAsk]);
 
@@ -176,6 +176,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     const target = Number(b.count) || 50;
     onAsk(
       `Find ${parts.join(", ")}. Target ${target} real leads and keep going until you reach it. ` +
+      `Call propose_plan first (a local search via find_local_leads = AI_WEB_SEARCH; web searches are billed too) so I can approve the cost, then reuse that confirmed planId for find_local_leads / find_leads. ` +
       `For LOCAL / brick-and-mortar targets (a business type + a city), start with find_local_leads (Google Places — verified phone + website + rating, up to 60 per search) and, if ${target} is more than it returns, top up the SAME list with web_search + find_leads. ` +
       `For specific people or national/online companies, use web_search + find_leads. ` +
       `Save everything into one new lead list.`,

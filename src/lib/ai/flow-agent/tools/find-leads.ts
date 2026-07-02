@@ -15,6 +15,7 @@ export const findLeads: FlowAgentTool = {
   input_schema: {
     type: "object",
     properties: {
+      planId: { type: "string", description: "REQUIRED — the planId from a confirmed propose_plan (reuse the same plan you used for the search)." },
       listName: { type: "string", description: "Name for a NEW list to hold these leads (e.g. 'TX SaaS CFOs'). Omit if using listId." },
       listId: { type: "string", description: "Existing lead list id to append to. Omit to create a new list via listName." },
       mode: { type: "string", description: "'contacts' (people, default) or 'companies'." },
@@ -37,7 +38,7 @@ export const findLeads: FlowAgentTool = {
         },
       },
     },
-    required: ["leads"],
+    required: ["planId", "leads"],
   },
   plans: null,
   costKey: "AGENT_TOOL_CALL_BASE",

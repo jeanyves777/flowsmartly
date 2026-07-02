@@ -18,13 +18,14 @@ export const findLocalLeads: FlowAgentTool = {
   input_schema: {
     type: "object",
     properties: {
+      planId: { type: "string", description: "REQUIRED — the planId from a confirmed propose_plan (a local search costs AI_WEB_SEARCH)." },
       query: { type: "string", description: "Business type to search, e.g. 'dentists', 'coffee shops', 'HVAC contractors'." },
       location: { type: "string", description: "City / area, e.g. 'Austin, TX' or 'Manchester UK'." },
       listName: { type: "string", description: "Name for a NEW list to hold these leads. Omit if using listId." },
       listId: { type: "string", description: "Existing lead list id to append to. Omit to create a new list via listName." },
       limit: { type: "number", description: "Max leads to save (default 20)." },
     },
-    required: ["query"],
+    required: ["planId", "query"],
   },
   plans: null,
   costKey: "AI_WEB_SEARCH",

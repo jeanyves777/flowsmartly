@@ -28,7 +28,10 @@ export const buildSequenceStep: FlowAgentTool = {
   },
   plans: null,
   costKey: "AGENT_TOOL_CALL_BASE",
-  mutating: true,
+  // Not gated behind propose_plan: this just delivers copy / attaches a pitch the
+  // user explicitly asked for into the builder card (cheap base cost, no media
+  // spend). Forcing a confirm card here is friction and blocks the write flow.
+  mutating: false,
   handler: async (input, ctx) => {
     const stepId = typeof input.stepId === "string" ? input.stepId : "";
     const body = typeof input.body === "string" ? input.body.trim() : "";
