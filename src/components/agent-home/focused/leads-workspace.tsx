@@ -5,6 +5,7 @@ import { Search, MapPin, Star, Phone, Globe, ExternalLink, FileText, Send, Check
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { PipelineBoard } from "./pipeline-board";
+import { RoiDashboard } from "./roi-dashboard";
 import { computeDigitalScore, scoreColor, scoreBg } from "@/components/pitch/score-utils";
 import { scoreLabel } from "@/lib/pitch/scorer";
 import type { ResearchData } from "@/lib/pitch/pitch-detail-types";
@@ -44,7 +45,7 @@ const LEAD_STATUS = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
 const statusCls = (s?: string) => ({ NEW: "bg-muted text-muted-foreground", CONTACTED: "bg-brand-500/10 text-brand-500", QUALIFIED: "bg-violet-500/10 text-violet-500", WON: "bg-emerald-500/10 text-emerald-500", LOST: "bg-rose-500/10 text-rose-500" }[(s || "NEW").toUpperCase()] || "bg-muted text-muted-foreground");
 
 export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
-  const [tab, setTab] = useState<"search" | "lists" | "pipeline">("search");
+  const [tab, setTab] = useState<"search" | "lists" | "pipeline" | "roi">("search");
   // Open-list status filter (left aside) + manual "add lead" form (right pane).
   const [statusFilter, setStatusFilter] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -158,10 +159,11 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
   const visibleLeads = statusFilter ? listLeads.filter((l) => (l.status || "NEW").toUpperCase() === statusFilter) : listLeads;
 
   // Vertical section nav (left aside).
-  const nav: { id: "search" | "lists" | "pipeline"; label: string; icon: ElementType; count?: number }[] = [
+  const nav: { id: "search" | "lists" | "pipeline" | "roi"; label: string; icon: ElementType; count?: number }[] = [
     { id: "search", label: "Find leads", icon: Search },
     { id: "lists", label: "My lists", icon: Folder, count: lists.length },
     { id: "pipeline", label: "Pipeline", icon: TrendingUp },
+    { id: "roi", label: "ROI", icon: BarChart3 },
   ];
 
   return (
@@ -241,7 +243,9 @@ export function FocusedLeads({ onAsk, refreshKey }: { refreshKey?: number; onAsk
 
         {/* RIGHT: search results / lists grid / list detail / pipeline — full width */}
         <div className="min-w-0 flex-1 space-y-4">
-        {tab === "pipeline" ? (
+        {tab === "roi" ? (
+          <RoiDashboard refreshKey={refreshKey} />
+        ) : tab === "pipeline" ? (
           <PipelineBoard refreshKey={refreshKey} onAsk={onAsk} />
         ) : tab === "search" ? (
           <>
