@@ -96,15 +96,24 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 
         {/* ── PROOF metrics ── */}
         {proof.length > 0 && (
-          <Section kicker="Proof" accent={theme.primary}>
+          <Section kicker="Proof" accent={theme.primary} onAdd={() => set("proofPoints", [...proof, { metric: "100%", label: "New metric", note: "" }])}>
             <h2 className="text-[21px] font-bold">Results we drive</h2>
-            <div className="mt-3 flex flex-wrap gap-6">
-              {proof.map((p, i) => (
-                <div key={i} className="text-center">
-                  <div className="mx-auto grid h-[78px] w-[78px] place-items-center rounded-full text-[19px] font-extrabold text-white" style={{ background: metricColors[i % metricColors.length], color: metricColors[i % metricColors.length] === theme.accent ? theme.ink : "#fff", fontFamily: "Arial, sans-serif" }}>{p.metric}</div>
-                  <div className="mt-1.5 text-[11px] text-[#55606e]" style={{ fontFamily: "Arial, sans-serif" }}>{p.label}</div>
-                </div>
-              ))}
+            <div className="mt-3 flex flex-wrap gap-5">
+              {proof.map((p, i) => {
+                const bg = metricColors[i % metricColors.length];
+                const fg = bg === theme.accent ? theme.ink : "#fff";
+                const len = (p.metric || "").length;
+                const fs = len > 7 ? "10px" : len > 5 ? "12px" : len > 3 ? "15px" : "19px";
+                return (
+                  <div key={i} className="group/m relative w-[92px] text-center">
+                    <button onClick={() => set("proofPoints", proof.filter((_, j) => j !== i))} className="absolute -right-1 -top-1 z-10 hidden rounded-full bg-white p-0.5 text-[#9aa4b0] shadow hover:text-[#d33] group-hover/m:block"><X className="h-3 w-3" /></button>
+                    <div className="mx-auto grid h-[84px] w-[84px] place-items-center overflow-hidden rounded-full px-2 text-center font-extrabold" style={{ background: bg, fontFamily: "Arial, sans-serif" }}>
+                      <Editable as="span" value={p.metric} onCommit={(v) => set("proofPoints", proof.map((x, j) => (j === i ? { ...x, metric: v } : x)))} className="leading-[1.05] break-words" style={{ fontSize: fs, color: fg }} light />
+                    </div>
+                    <Editable as="div" value={p.label} onCommit={(v) => set("proofPoints", proof.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="mt-1.5 text-[11px] text-[#55606e]" style={{ fontFamily: "Arial, sans-serif" }} />
+                  </div>
+                );
+              })}
             </div>
           </Section>
         )}
@@ -113,31 +122,31 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         {(pricing.name || typeof pricing.amount === "number") && (
           <Section kicker="Investment" accent={theme.primary}>
             <h2 className="text-[21px] font-bold">Pricing</h2>
-            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-white" style={{ background: theme.secondary }}>
-              <div>
-                <div className="text-[14px] font-extrabold" style={{ fontFamily: "Arial, sans-serif" }}>{pricing.name || "Package"}</div>
-                {pricing.note && <div className="text-[12px] opacity-75" style={{ fontFamily: "Arial, sans-serif" }}>{pricing.note}</div>}
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-white" style={{ background: theme.secondary, fontFamily: "Arial, sans-serif" }}>
+              <div className="min-w-0">
+                <Editable as="div" value={pricing.name || "Package"} onCommit={(v) => set("pricing", { ...pricing, name: v || "Package" })} className="text-[14px] font-extrabold" light />
+                <Editable as="div" value={pricing.note || ""} onCommit={(v) => set("pricing", { ...pricing, name: pricing.name || "Package", note: v })} className="text-[12px] opacity-75" light />
               </div>
-              {typeof pricing.amount === "number" && (
-                <div className="ms-auto text-[26px] font-extrabold" style={{ fontFamily: "Arial, sans-serif" }}>
-                  {typeof pricing.originalAmount === "number" && <s className="me-2 text-[16px] font-semibold opacity-50">${pricing.originalAmount.toLocaleString()}</s>}
-                  ${pricing.amount.toLocaleString()}{pricing.interval && <span className="text-[13px] font-semibold">/{pricing.interval}</span>}
-                </div>
-              )}
+              <div className="ms-auto flex items-baseline gap-1 text-[26px] font-extrabold">
+                {typeof pricing.originalAmount === "number" && <s className="text-[16px] font-semibold opacity-50">${pricing.originalAmount.toLocaleString()}</s>}
+                $<Editable as="span" value={typeof pricing.amount === "number" ? pricing.amount.toLocaleString() : ""} onCommit={(v) => { const n = Number(v.replace(/[^0-9.]/g, "")); set("pricing", { ...pricing, name: pricing.name || "Package", amount: Number.isFinite(n) && n > 0 ? n : pricing.amount }); }} className="" light />
+                {pricing.interval && <span className="text-[13px] font-semibold">/{pricing.interval}</span>}
+              </div>
             </div>
           </Section>
         )}
 
         {/* ── TIMELINE ── */}
         {timeline.length > 0 && (
-          <Section kicker="Timeline" accent={theme.primary}>
+          <Section kicker="Timeline" accent={theme.primary} onAdd={() => set("timeline", [...timeline, { label: "Phase", title: "New phase", description: "What happens…" }])}>
             <h2 className="text-[21px] font-bold">How we'll roll it out</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {timeline.map((t, i) => (
-                <div key={i} className="rounded-xl border border-[#e7eaee] p-3">
-                  <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: theme.primary, fontFamily: "Arial, sans-serif" }}>{t.label}</div>
-                  <div className="mt-0.5 text-[13px] font-bold">{t.title}</div>
-                  <div className="mt-0.5 text-[12px] text-[#55606e]">{t.description}</div>
+                <div key={i} className="group/tl relative rounded-xl border border-[#e7eaee] p-3">
+                  <button onClick={() => set("timeline", timeline.filter((_, j) => j !== i))} className="absolute right-1.5 top-1.5 hidden rounded-md p-0.5 text-[#9aa4b0] hover:text-[#d33] group-hover/tl:block"><X className="h-3.5 w-3.5" /></button>
+                  <Editable as="div" value={t.label} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, label: v } : x)))} className="text-[11px] font-bold uppercase tracking-wide" style={{ color: theme.primary, fontFamily: "Arial, sans-serif" }} />
+                  <Editable as="div" value={t.title} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, title: v } : x)))} className="mt-0.5 text-[13px] font-bold" />
+                  <Editable as="div" value={t.description} onCommit={(v) => set("timeline", timeline.map((x, j) => (j === i ? { ...x, description: v } : x)))} className="mt-0.5 text-[12px] text-[#55606e]" multiline />
                 </div>
               ))}
             </div>
@@ -193,8 +202,8 @@ function BulletSection({ kicker, accent, items, onChange, onAI }: { kicker: stri
 }
 
 /* ── Editable text block: click to edit inline; hover shows AI + edit chips ── */
-function Editable({ as: Tag = "p", value, onCommit, onAI, className, style, light, multiline }: {
-  as?: "h1" | "h2" | "h4" | "p" | "span"; value: string; onCommit: (v: string) => void; onAI?: () => void;
+export function Editable({ as: Tag = "p", value, onCommit, onAI, className, style, light, multiline }: {
+  as?: "h1" | "h2" | "h4" | "p" | "span" | "div"; value: string; onCommit: (v: string) => void; onAI?: () => void;
   className?: string; style?: React.CSSProperties; light?: boolean; multiline?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
