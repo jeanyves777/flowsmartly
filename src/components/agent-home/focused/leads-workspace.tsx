@@ -20,7 +20,7 @@ import { LeadsAutomation } from "./leads-automation";
  * Library (folders + CSV upload). [[lead-studio-redesign-approved]]
  */
 
-type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library";
+type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library" | "pitches";
 interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
 interface SavedLead {
   id: string; name: string; title?: string | null; category?: string | null;
@@ -39,7 +39,7 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void }) {
+export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("find");
   // The menu is controlled from the surface header toggle when `menuOpen` is
@@ -68,6 +68,8 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
   enrichingRef.current = enrichingIds;
   // The lead whose full-detail bottom sheet is open.
   const [detailLead, setDetailLead] = useState<SavedLead | null>(null);
+  // The open folder that scopes the Contacts view (null = all contacts).
+  const [contactScope, setContactScope] = useState<LeadList | null>(null);
 
   const enrichLead = useCallback((l: SavedLead) => {
     // No early-return on already-enriched: the detail sheet's "Re-enrich" runs it
@@ -226,11 +228,13 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
             onOpenBrief={() => setBriefOpen(true)} onBuild={() => { if (resultList) buildAutomation(resultList); }}
             enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} onOpenLead={setDetailLead} />
         ) : screen === "contacts" ? (
-          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} />
+          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} scope={contactScope} onClearScope={() => setContactScope(null)} />
         ) : screen === "companies" ? (
           <CompaniesScreen companies={companies} loaded={loadedLeads} />
+        ) : screen === "pitches" ? (
+          <PitchesScreen refreshKey={refreshKey} onOpenPitch={onOpenPitch} />
         ) : screen === "library" ? (
-          <LibraryScreen lists={lists} onBuild={buildAutomation} onOpen={(l) => { setActiveList(l); setScreen("contacts"); }}
+          <LibraryScreen lists={lists} onBuild={buildAutomation} onOpen={(l) => { setActiveList(l); setContactScope(l); setScreen("contacts"); }}
             uploadOpen={uploadOpen} setUploadOpen={setUploadOpen} pasteRows={pasteRows} setPasteRows={setPasteRows}
             newFolderName={newFolderName} setNewFolderName={setNewFolderName} importing={importing} onImport={importPaste} />
         ) : screen === "pipeline" ? (
@@ -247,13 +251,14 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
           <p className="px-2 pt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70">Workspace</p>
           <nav className="flex flex-col gap-0.5">
             {NAV.map((n) => (
-              <NavItem key={n.id} active={screen === n.id} icon={n.icon} label={n.label} count={n.count} onClick={() => setScreen(n.id)} />
+              <NavItem key={n.id} active={screen === n.id} icon={n.icon} label={n.label} count={n.count} onClick={() => { if (n.id === "contacts") setContactScope(null); setScreen(n.id); }} />
             ))}
           </nav>
           <p className="px-2 pt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70">Saved</p>
           <nav className="flex flex-col gap-0.5">
             <NavItem active={screen === "library"} icon={Folder} label="Library" count={lists.length || undefined} onClick={() => setScreen("library")} />
-            <NavItem active={false} icon={Users} label="All contacts" onClick={() => setScreen("contacts")} />
+            <NavItem active={screen === "pitches"} icon={FileText} label="Pitches" onClick={() => setScreen("pitches")} />
+            <NavItem active={screen === "contacts" && !contactScope} icon={Users} label="All contacts" onClick={() => { setContactScope(null); setScreen("contacts"); }} />
           </nav>
         </aside>
       )}
@@ -495,7 +500,7 @@ function ContactCell({ l, enriching }: { l: SavedLead; enriching: boolean }) {
 }
 
 /* ── Contacts ── */
-function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, onOpenLead }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void; onOpenLead: (l: SavedLead) => void }) {
+function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, onOpenLead, scope, onClearScope }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void; onOpenLead: (l: SavedLead) => void; scope?: LeadList | null; onClearScope?: () => void }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "enriched" | "new">("all");
   const [listFilter, setListFilter] = useState("all");
@@ -503,42 +508,51 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
   const [pageSize, setPageSize] = useState(25);
 
   const listOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.listName).filter((n): n is string => !!n))).sort(), [leads]);
+  // A scoped view (opened from a folder) hard-filters to that folder's leads.
+  const scoped = useMemo(() => (scope ? leads.filter((l) => l.listName === scope.name) : leads), [leads, scope]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return leads.filter((l) => {
+    return scoped.filter((l) => {
       if (status === "enriched" && !l.enrichedAt) return false;
       if (status === "new" && l.enrichedAt) return false;
-      if (listFilter !== "all" && l.listName !== listFilter) return false;
+      if (!scope && listFilter !== "all" && l.listName !== listFilter) return false;
       if (!q) return true;
       return [l.name, l.title, l.category, l.email, l.listName].some((s) => (s || "").toLowerCase().includes(q));
     });
-  }, [leads, query, status, listFilter]);
+  }, [scoped, query, status, listFilter, scope]);
 
-  useEffect(() => { setPage(1); }, [query, status, listFilter, pageSize]);
+  useEffect(() => { setPage(1); }, [query, status, listFilter, pageSize, scope]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageC = Math.min(page, totalPages);
   const paged = filtered.slice((pageC - 1) * pageSize, pageC * pageSize);
   const start = filtered.length ? (pageC - 1) * pageSize + 1 : 0;
   const end = Math.min(pageC * pageSize, filtered.length);
-  const activeFilter = query.trim() !== "" || status !== "all" || listFilter !== "all";
+  const activeFilter = query.trim() !== "" || status !== "all" || (!scope && listFilter !== "all");
   const unenriched = filtered.filter((l) => !l.enrichedAt).length;
   const enrichBusy = filtered.some((l) => enrichingIds.has(l.id));
 
   if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading contacts…" /></div>;
   return (
     <>
+      {scope && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-2.5 rounded-xl border border-brand-500/30 bg-brand-500/[0.06] px-3.5 py-2 text-[12.5px]">
+          <Folder className="h-4 w-4 shrink-0 text-brand-500" />
+          <span>Folder: <b>{scope.name}</b> · {scoped.length} lead{scoped.length === 1 ? "" : "s"}</span>
+          <button onClick={onClearScope} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground"><Users className="h-3.5 w-3.5" /> View all contacts</button>
+        </div>
+      )}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, company, email…" className="w-full rounded-[9px] border border-input bg-background py-2 pe-3 ps-8 text-[12.5px] outline-none focus:border-brand-500/60" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={scope ? `Search in ${scope.name}…` : "Search name, company, email…"} className="w-full rounded-[9px] border border-input bg-background py-2 pe-3 ps-8 text-[12.5px] outline-none focus:border-brand-500/60" />
         </div>
         <select value={status} onChange={(e) => setStatus(e.target.value as "all" | "enriched" | "new")} className={SEL}>
           <option value="all">All statuses</option>
           <option value="enriched">Enriched</option>
           <option value="new">Not enriched</option>
         </select>
-        {listOptions.length > 1 && (
+        {!scope && listOptions.length > 1 && (
           <select value={listFilter} onChange={(e) => setListFilter(e.target.value)} className={SEL}>
             <option value="all">All lists</option>
             {listOptions.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -546,7 +560,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
         )}
         {unenriched > 0 && (
           <button
-            onClick={() => onEnrichAll(filtered, activeFilter ? "matching your current filter" : "across your saved lists")}
+            onClick={() => onEnrichAll(filtered, scope ? `in the "${scope.name}" list` : activeFilter ? "matching your current filter" : "across your saved lists")}
             disabled={enrichBusy}
             title="Find email + phone for every un-enriched contact shown"
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-brand-500/25 disabled:opacity-60"
@@ -556,7 +570,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
         )}
       </div>
       <p className="mb-3 text-[12px] text-muted-foreground">
-        {filtered.length === 0 ? "No contacts match your filters." : <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}{activeFilter ? ` (filtered from ${leads.length})` : " contacts"} — enrich to reveal email + phone.</>}
+        {filtered.length === 0 ? "No contacts match your filters." : <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}{activeFilter ? ` (filtered from ${scoped.length})` : scope ? ` in ${scope.name}` : " contacts"} — enrich to reveal email + phone.</>}
       </p>
       <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
       <Pagination page={pageC} totalPages={totalPages} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
@@ -579,6 +593,45 @@ function Pagination({ page, totalPages, pageSize, onPage, onPageSize }: { page: 
         <button onClick={() => onPage(page + 1)} disabled={page >= totalPages} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 font-semibold hover:text-foreground disabled:opacity-40">Next <ChevronRight className="h-3.5 w-3.5" /></button>
       </div>
     </div>
+  );
+}
+
+/* ── Pitch library — every generated proposal/pitch, reopen in Pitch Studio ── */
+interface PitchRow { id: string; businessName: string; documentType: string; status: string; recipientName?: string | null; createdAt: string; updatedAt: string }
+function PitchesScreen({ refreshKey, onOpenPitch }: { refreshKey?: number; onOpenPitch?: (id: string) => void }) {
+  const [pitches, setPitches] = useState<PitchRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    (async () => { const j = await fetch("/api/pitch?limit=100").then((r) => r.json()).catch(() => null); setPitches(j?.data?.pitches || []); setLoaded(true); })();
+  }, [refreshKey]);
+  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return q ? pitches.filter((p) => (p.businessName || "").toLowerCase().includes(q)) : pitches; }, [pitches, query]);
+
+  if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading pitches…" /></div>;
+  return (
+    <>
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pitches…" className="w-full rounded-[9px] border border-input bg-background py-2 pe-3 ps-8 text-[12.5px] outline-none focus:border-brand-500/60" />
+        </div>
+        <span className="text-[12px] text-muted-foreground">{filtered.length} pitch{filtered.length === 1 ? "" : "es"}</span>
+      </div>
+      {filtered.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-muted-foreground">No pitches yet — open a lead and click <b>Pitch this lead</b> to draft one in Pitch Studio.</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((p) => (
+            <button key={p.id} onClick={() => onOpenPitch?.(p.id)} className="rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-brand-500/50">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-5 w-5" /></span>
+              <p className="mt-2.5 truncate text-[13.5px] font-semibold">{p.businessName}</p>
+              <p className="truncate text-[11.5px] text-muted-foreground">{p.documentType === "service_proposal" ? "Proposal" : "Pitch"}{p.status === "SENT" ? " · Sent" : p.status === "READY" ? " · Ready" : ""} · {(() => { try { return new Date(p.updatedAt || p.createdAt).toLocaleDateString(); } catch { return ""; } })()}</p>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-500">Open in Studio <ArrowRight className="h-3.5 w-3.5" /></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

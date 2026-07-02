@@ -1053,7 +1053,7 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} />
+                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "compose" ? (
