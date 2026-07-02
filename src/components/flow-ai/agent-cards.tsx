@@ -573,9 +573,13 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
   const isAudio = mediaUrl ? /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(mediaUrl) : false;
   // In-app deep link to the produced result (proposal, pitch, website,
-  // store, etc.) — tools put it on output.link. Lets the user open it.
-  const resultLink =
-    typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
+  // store, etc.) — tools put it on output.link. Lets the user open it. Rewrite
+  // any legacy pitch-board links (incl. in OLD saved conversations) to the new
+  // Pitch Studio surface — never send the user to the legacy dashboard.
+  const rawLink = typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
+  const resultLink = rawLink
+    ? rawLink.replace(/^\/pitch-board(?:\/[^?]*)?\?pitch=([^&]+).*$/, "/home/pitchstudio?pitch=$1")
+    : null;
   // A canvas object/background is INSERTED into the open design — show a preview
   // and an "added" note, never an "Open" link (which would navigate away).
   const isCanvasObject = task.kind === "canvas_object";
