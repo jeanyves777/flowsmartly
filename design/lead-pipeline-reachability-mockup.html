@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Pipeline reachability guard</title>
+<style>
+  :root{--bg:#0b0d12;--card:#12151c;--border:#232833;--muted:#8b93a4;--fg:#e7ebf3;--brand:#6366f1;--violet:#8b5cf6;--emerald:#10b981;--amber:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px}
+  h1{font-size:15px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1080px}
+  .pane{border:1px solid var(--border);border-radius:16px;padding:16px;background:radial-gradient(circle,rgba(140,140,160,.10) 1px,transparent 1px);background-size:22px 22px}
+  .cap{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;font-weight:700}
+  .aud{display:flex;align-items:center;gap:12px;border:1px solid var(--border);background:var(--card);border-radius:16px;padding:12px}
+  .ic{display:grid;place-items:center;height:32px;width:32px;border-radius:9px;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .nm{font-weight:800;font-size:13px;display:flex;align-items:center;gap:5px}
+  .mut{color:var(--muted);font-size:11px}
+  .toggle{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700}
+  .sw{position:relative;height:22px;width:38px;border-radius:999px;background:#232833}
+  .sw i{position:absolute;top:2px;left:2px;height:18px;width:18px;border-radius:50%;background:var(--muted)}
+  .off{color:var(--muted)}
+  .warn{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-radius:12px;padding:8px 12px;font-size:12px;margin-top:12px}
+  .warn.zero{border:1px solid #f59e0b80;background:#f59e0b1a;color:#fcd9a0}
+  .warn.part{border:1px solid var(--border);background:var(--card);color:var(--muted)}
+  .warn b{color:var(--fg)}
+  .tri{color:var(--amber)}
+  .enrich{margin-left:auto;display:inline-flex;align-items:center;gap:6px;border:1px solid #f59e0b80;color:#fde3b3;background:transparent;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+  .toastwrap{margin-top:14px;border:1px solid var(--border);background:var(--card);border-radius:12px;padding:10px 12px;max-width:340px}
+  .toastwrap b{display:block;margin-bottom:2px}.toastwrap .d{color:var(--muted);font-size:12px}
+  .legend{color:var(--muted);font-size:12px;margin-top:16px;max-width:1080px}
+  .legend b{color:var(--fg)}
+</style></head>
+<body>
+  <h1>Pipeline reachability guard — email or phone required</h1>
+  <p class="sub">Build automation on a list where leads have no contact info no longer breaks the pipeline: unreachable leads are excluded, and activation is refused when no one is reachable.</p>
+
+  <div class="grid">
+    <div class="pane">
+      <p class="cap">None reachable → activation blocked</p>
+      <div class="aud">
+        <span class="ic">🗂</span>
+        <div><div class="nm">MA Restaurant Owners ▾</div><div class="mut">0/25 reachable · pitch → follow-ups → booking</div></div>
+        <div class="toggle off">Automation off <span class="sw"><i></i></span></div>
+      </div>
+      <div class="warn zero">
+        <span class="tri">⚠</span>
+        <span>None of these <b>25</b> leads have an email or phone — the automation can’t reach anyone yet.</span>
+        <button class="enrich">✦ Enrich list</button>
+      </div>
+      <div class="toastwrap"><b>No one to reach yet</b><div class="d">None of these 25 leads have an email or phone. Enrich the list first, then turn it on.</div></div>
+    </div>
+
+    <div class="pane">
+      <p class="cap">Some reachable → the rest are skipped</p>
+      <div class="aud">
+        <span class="ic">🗂</span>
+        <div><div class="nm">MA Restaurant Owners ▾</div><div class="mut">18/25 reachable · pitch → follow-ups → booking</div></div>
+        <div class="toggle" style="color:var(--emerald)">Automation on <span class="sw" style="background:#10b98140"><i style="left:18px;background:var(--emerald)"></i></span></div>
+      </div>
+      <div class="warn part">
+        <span class="tri">⚠</span>
+        <span><b>7</b> of 25 leads have no email or phone and will be <b>skipped</b>. Enrich them to reach everyone.</span>
+        <button class="enrich">✦ Enrich list</button>
+      </div>
+      <div class="toastwrap"><b>Automation on</b><div class="d">18 leads enrolled · 7 skipped (no email or phone).</div></div>
+    </div>
+  </div>
+
+  <p class="legend"><b>Server:</b> the activate route only enrolls leads with an email OR phone; if zero are reachable it refuses (422) and stays off. <b>UI:</b> the audience bar shows <b>reachable/total</b>, the Activate toggle is gated, and an <b>Enrich list</b> shortcut fires a propose_plan-gated bulk enrichment that lifts the count live.</p>
+</body></html>

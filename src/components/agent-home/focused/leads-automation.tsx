@@ -7,6 +7,7 @@ import {
   Check, ChevronDown, Download, Folder as FolderIcon,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 
 const FLD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
@@ -107,7 +108,11 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   const [writingStep, setWritingStep] = useState<string | null>(null);
   const [designing, setDesigning] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
+  // Reachability — how many leads have an email OR phone (the pipeline can only
+  // run on those; the rest are excluded so it never sends into the void).
+  const [reach, setReach] = useState<{ total: number; reachable: number } | null>(null);
   const loadedRef = useRef(false);
+  const { toast } = useToast();
 
   const updateStep = (id: string, patch: Partial<Step>) => setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
 
@@ -140,6 +145,21 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     })();
     return () => { cancelled = true; };
   }, [listId]);
+
+  // How many leads are reachable (email OR phone). Re-checked after each agent
+  // turn (refreshKey) so enrichment lifts the count live.
+  useEffect(() => {
+    if (!listId) { setReach(null); return; }
+    let cancelled = false;
+    (async () => {
+      const d = await fetch(`/api/leads/lists/${listId}`).then((r) => r.json()).catch(() => null);
+      if (cancelled) return;
+      const leads: { email?: string | null; phone?: string | null }[] = d?.data?.leads || [];
+      const reachable = leads.filter((l) => (l.email && String(l.email).trim()) || (l.phone && String(l.phone).trim())).length;
+      setReach({ total: leads.length, reachable });
+    })();
+    return () => { cancelled = true; };
+  }, [listId, refreshKey]);
 
   // Debounced autosave of the step list.
   useEffect(() => {
@@ -187,6 +207,11 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
 
   const toggleActive = async () => {
     if (!listId) return;
+    // Guard: don't even try to turn it on when no lead can be reached.
+    if (!active && reach && reach.reachable === 0) {
+      toast({ title: "No one to reach yet", description: `None of these ${reach.total} leads have an email or phone. Enrich the list first, then turn it on.` });
+      return;
+    }
     let id = sequenceId;
     if (!id) {
       const j = await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).then((r) => r.json()).catch(() => null);
@@ -194,7 +219,18 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     }
     if (!id) return;
     const next = !active; setActive(next);
-    await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next ? {} : { paused: true }) }).catch(() => {});
+    const res = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next ? {} : { paused: true }) }).then((r) => r.json()).catch(() => null);
+    if (next) {
+      // Server excludes unreachable leads — reflect the real outcome.
+      if (res && res.success === false) {
+        setActive(false);
+        toast({ title: "Can't turn on yet", description: res.error?.message || "None of these leads have contact info." });
+        return;
+      }
+      const sk = Number(res?.data?.skipped) || 0;
+      const en = Number(res?.data?.enrolled) || 0;
+      if (sk > 0) toast({ title: "Automation on", description: `${en} lead${en === 1 ? "" : "s"} enrolled · ${sk} skipped (no email or phone).` });
+    }
   };
   const addStep = (kind: Kind) => {
     const id = `${kind}-${Date.now().toString(36)}`;
@@ -237,7 +273,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder /></span>
             <span className="min-w-0">
               <span className="flex items-center gap-1 text-[13px] font-bold"><span className="truncate">{listName || "Select a list"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /></span>
-              <span className="block text-[11px] text-muted-foreground">{leadCount ?? 0} leads · pitch → follow-ups → booking</span>
+              <span className="block text-[11px] text-muted-foreground">{reach ? `${reach.reachable}/${reach.total} reachable` : `${leadCount ?? 0} leads`} · pitch → follow-ups → booking</span>
             </span>
           </button>
           {listPickerOpen && (
@@ -261,6 +297,17 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
           <span className={cn("relative h-[22px] w-[38px] rounded-full transition-colors", active ? "bg-emerald-500/25" : "bg-muted")}><span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all", active ? "left-[18px] bg-emerald-500" : "left-0.5 bg-muted-foreground")} /></span>
         </button>
       </div>
+
+      {/* reachability guard — a lead needs an email OR phone or the pipeline skips it */}
+      {reach && reach.total > 0 && reach.reachable < reach.total && (
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2.5 rounded-xl border px-3 py-2 text-[12px]", reach.reachable === 0 ? "border-amber-500/50 bg-amber-500/10 text-amber-200" : "border-border bg-card text-muted-foreground")}>
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+          {reach.reachable === 0
+            ? <span>None of these <b className="text-foreground">{reach.total}</b> leads have an email or phone — the automation can’t reach anyone yet.</span>
+            : <span><b className="text-foreground">{reach.total - reach.reachable}</b> of {reach.total} leads have no email or phone and will be <b className="text-foreground">skipped</b>. Enrich them to reach everyone.</span>}
+          <button onClick={() => onAsk(`Enrich every lead in the "${listName || "list"}" list${listId ? ` (listId: ${listId})` : ""} that has no email or phone — web-search each one's work email + phone and save it with enrich_lead so the outreach automation can reach them. Call propose_plan first (one AI_WEB_SEARCH per lead) so I can approve the cost. Do not paste the details in chat — they must land in each lead's row.`)} className="ms-auto inline-flex items-center gap-1.5 rounded-[8px] border border-amber-500/50 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/15"><Sparkles className="h-3 w-3" /> Enrich list</button>
+        </div>
+      )}
 
       {/* channels — compact row (the Blocked pills already flag disconnected steps) */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
