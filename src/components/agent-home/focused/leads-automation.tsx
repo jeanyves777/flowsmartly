@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode, type Mouse
 import {
   Mail, MessageCircle, GitBranch, CheckSquare, CalendarDays, Sparkles,
   GripVertical, Pause, Play, Repeat, X, Plus, AlertTriangle, Zap, Printer, Clock,
-  Check, ChevronDown, Download, Folder as FolderIcon, FileText,
+  Check, ChevronDown, Download, Folder as FolderIcon, FileText, Users2,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils/cn";
 
 const FLD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 interface ListLite { id: string; name: string; leadCount?: number; category?: string | null }
+interface AudienceLead { id: string; name: string; email?: string | null; phone?: string | null; category?: string | null }
 
 /**
  * Lead automation flow — the approved playground: a draggable vertical step
@@ -101,7 +102,7 @@ function toCfg(s: Step) {
   };
 }
 
-export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey, lists, onSelectList, agentBusy }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void; refreshKey?: number; lists?: ListLite[]; onSelectList?: (l: ListLite) => void; agentBusy?: boolean }) {
+export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey, lists, onSelectList, agentBusy, onPitchLead }: { listId?: string; listName?: string; leadCount?: number; onAsk: (p: string) => void; refreshKey?: number; lists?: ListLite[]; onSelectList?: (l: ListLite) => void; agentBusy?: boolean; onPitchLead?: (lead: { id: string; name: string }) => void }) {
   const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
@@ -114,6 +115,13 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   // Reachability — how many leads have an email OR phone (the pipeline can only
   // run on those). Split by channel: email steps need an email, SMS/WhatsApp a phone.
   const [reach, setReach] = useState<{ total: number; reachable: number; withEmail: number; withPhone: number } | null>(null);
+  // Contact selection — who the automation runs for (default: all reachable).
+  const [contacts, setContacts] = useState<AudienceLead[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selOpen, setSelOpen] = useState(false);
+  const [contactQuery, setContactQuery] = useState("");
+  const [runMode, setRunMode] = useState<"group" | "stagger" | "single">("group");
+  const lastListRef = useRef<string | undefined>(undefined);
   const loadedRef = useRef(false);
   const { toast } = useToast();
 
@@ -149,22 +157,29 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     return () => { cancelled = true; };
   }, [listId]);
 
-  // How many leads are reachable (email OR phone). Re-checked after each agent
-  // turn (refreshKey) so enrichment lifts the count live.
+  // Load the list's contacts (for selection) + reachability. Re-checked after
+  // each agent turn (refreshKey) so enrichment lifts the count live. Selection is
+  // (re)initialised to all-reachable only when the LIST changes, not on refresh —
+  // so a user's include/exclude choices survive.
   useEffect(() => {
-    if (!listId) { setReach(null); return; }
+    if (!listId) { setReach(null); setContacts([]); return; }
     let cancelled = false;
     (async () => {
       const d = await fetch(`/api/leads/lists/${listId}`).then((r) => r.json()).catch(() => null);
       if (cancelled) return;
-      const leads: { email?: string | null; phone?: string | null }[] = d?.data?.leads || [];
-      const withEmail = leads.filter((l) => l.email && String(l.email).trim()).length;
-      const withPhone = leads.filter((l) => l.phone && String(l.phone).trim()).length;
-      const reachable = leads.filter((l) => (l.email && String(l.email).trim()) || (l.phone && String(l.phone).trim())).length;
-      setReach({ total: leads.length, reachable, withEmail, withPhone });
+      const rows: AudienceLead[] = (d?.data?.leads || []).map((l: AudienceLead) => ({ id: l.id, name: l.name, email: l.email, phone: l.phone, category: l.category }));
+      setContacts(rows);
+      const reachableIds = rows.filter((l) => (l.email && String(l.email).trim()) || (l.phone && String(l.phone).trim())).map((l) => l.id);
+      setReach({ total: rows.length, reachable: reachableIds.length, withEmail: rows.filter((l) => l.email && String(l.email).trim()).length, withPhone: rows.filter((l) => l.phone && String(l.phone).trim()).length });
+      if (lastListRef.current !== listId) { lastListRef.current = listId; setSelectedIds(new Set(reachableIds)); }
     })();
     return () => { cancelled = true; };
   }, [listId, refreshKey]);
+
+  const isReachable = (l: AudienceLead) => !!((l.email && String(l.email).trim()) || (l.phone && String(l.phone).trim()));
+  const selectedCount = contacts.filter((l) => selectedIds.has(l.id) && isReachable(l)).length;
+  const toggleContact = (id: string) => setSelectedIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const selectAll = (on: boolean) => setSelectedIds(on ? new Set(contacts.filter(isReachable).map((l) => l.id)) : new Set());
 
   // Debounced autosave of the step list.
   useEffect(() => {
@@ -212,9 +227,9 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
 
   const toggleActive = async () => {
     if (!listId) return;
-    // Guard: don't even try to turn it on when no lead can be reached.
-    if (!active && reach && reach.reachable === 0) {
-      toast({ title: "No one to reach yet", description: `None of these ${reach.total} leads have an email or phone. Enrich the list first, then turn it on.` });
+    // Guard: don't try to turn it on when no SELECTED lead can be reached.
+    if (!active && selectedCount === 0) {
+      toast({ title: "No one selected to reach", description: reach && reach.reachable === 0 ? `None of these leads have an email or phone. Enrich the list first.` : "Select at least one reachable contact to run the automation." });
       return;
     }
     let id = sequenceId;
@@ -224,17 +239,18 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
     }
     if (!id) return;
     const next = !active; setActive(next);
-    const res = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next ? {} : { paused: true }) }).then((r) => r.json()).catch(() => null);
+    // Enroll only the selected contacts (the server still skips any unreachable).
+    const body = next ? { leadIds: Array.from(selectedIds), mode: runMode } : { paused: true };
+    const res = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()).catch(() => null);
     if (next) {
-      // Server excludes unreachable leads — reflect the real outcome.
       if (res && res.success === false) {
         setActive(false);
-        toast({ title: "Can't turn on yet", description: res.error?.message || "None of these leads have contact info." });
+        toast({ title: "Can't turn on yet", description: res.error?.message || "None of the selected leads have contact info." });
         return;
       }
       const sk = Number(res?.data?.skipped) || 0;
       const en = Number(res?.data?.enrolled) || 0;
-      if (sk > 0) toast({ title: "Automation on", description: `${en} lead${en === 1 ? "" : "s"} enrolled · ${sk} skipped (no email or phone).` });
+      toast({ title: "Automation on", description: `${en} contact${en === 1 ? "" : "s"} enrolled${sk > 0 ? ` · ${sk} skipped (no email/phone)` : ""}.` });
     }
   };
   const addStep = (kind: Kind) => {
@@ -297,11 +313,54 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
             </>
           )}
         </div>
-        <button onClick={toggleActive} disabled={!listId} title={listId ? "" : "Pick a list first"} className={cn("ms-auto inline-flex items-center gap-2 text-[12px] font-semibold disabled:opacity-50", active ? "text-emerald-500" : "text-muted-foreground")}>
+        {listId && contacts.length > 0 && (
+          <button onClick={() => setSelOpen((v) => !v)} className={cn("ms-auto inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold", selOpen ? "border-brand-500/50 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")}>
+            <Users2 className="h-3.5 w-3.5" /> {selectedCount}/{contacts.length} selected <ChevronDown className={cn("h-3.5 w-3.5 transition", selOpen && "rotate-180")} />
+          </button>
+        )}
+        <button onClick={toggleActive} disabled={!listId} title={listId ? "" : "Pick a list first"} className={cn("inline-flex items-center gap-2 text-[12px] font-semibold disabled:opacity-50", contacts.length > 0 ? "" : "ms-auto", active ? "text-emerald-500" : "text-muted-foreground")}>
           {active ? "Automation on" : "Automation off"}
           <span className={cn("relative h-[22px] w-[38px] rounded-full transition-colors", active ? "bg-emerald-500/25" : "bg-muted")}><span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all", active ? "left-[18px] bg-emerald-500" : "left-0.5 bg-muted-foreground")} /></span>
         </button>
       </div>
+
+      {/* contact selection — pick exactly who the automation runs for */}
+      {selOpen && listId && (
+        <div className="mb-3 overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+            <button onClick={() => selectAll(selectedCount < contacts.filter(isReachable).length)} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground">
+              <span className={cn("grid h-4 w-4 place-items-center rounded border", selectedCount === 0 ? "border-[#3a4150]" : "border-brand-500 bg-brand-500 text-white")}>{selectedCount > 0 && (selectedCount === contacts.filter(isReachable).length ? <Check className="h-3 w-3" /> : <span className="h-0.5 w-2 bg-white" />)}</span>
+              {selectedCount} selected
+            </button>
+            <div className="relative min-w-[140px] flex-1">
+              <input value={contactQuery} onChange={(e) => setContactQuery(e.target.value)} placeholder="Search this list…" className="w-full rounded-[8px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Untick to exclude</span>
+          </div>
+          <div className="max-h-[240px] overflow-y-auto">
+            {contacts.filter((l) => !contactQuery.trim() || [l.name, l.category, l.email].some((s) => (s || "").toLowerCase().includes(contactQuery.trim().toLowerCase()))).map((l) => {
+              const reachable = isReachable(l);
+              const on = selectedIds.has(l.id) && reachable;
+              return (
+                <div key={l.id} className={cn("flex items-center gap-2.5 border-t border-border px-3 py-2 text-[12.5px]", !reachable && "opacity-50")}>
+                  <button disabled={!reachable} onClick={() => toggleContact(l.id)} className={cn("grid h-4 w-4 shrink-0 place-items-center rounded border", on ? "border-brand-500 bg-brand-500 text-white" : "border-[#3a4150]", !reachable && "cursor-not-allowed")}>{on && <Check className="h-3 w-3" />}</button>
+                  <div className="min-w-0"><span className="block truncate font-semibold">{l.name}</span><span className="block truncate text-[11px] text-muted-foreground">{l.category || "—"}</span></div>
+                  <span className="ms-auto truncate text-[11.5px] text-muted-foreground">{l.email || l.phone || (reachable ? "" : "no email/phone")}</span>
+                  {onPitchLead && <button onClick={() => onPitchLead({ id: l.id, name: l.name })} title="Full-edit this contact's pitch in Pitch Studio" className="shrink-0 rounded-[7px] border border-border px-2 py-0.5 text-[11px] font-semibold text-brand-400 hover:border-brand-500/50">Customize</button>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border bg-[#0e1117] px-3 py-2">
+            <span className="text-[12px] text-muted-foreground"><b className="text-foreground">{selectedCount}</b> will be enrolled</span>
+            <div className="ms-auto inline-flex overflow-hidden rounded-[8px] border border-border">
+              {([["group", "Group"], ["stagger", "One at a time"]] as const).map(([m, label]) => (
+                <button key={m} onClick={() => setRunMode(m)} className={cn("px-2.5 py-1 text-[11px] font-bold", runMode === m ? "bg-brand-500/15 text-brand-400" : "text-muted-foreground")}>{label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* reachability guard — the pitch step is EMAIL, so email coverage matters most;
           phone-only leads can still be reached on the SMS/WhatsApp branch. */}

@@ -238,7 +238,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
             uploadOpen={uploadOpen} setUploadOpen={setUploadOpen} pasteRows={pasteRows} setPasteRows={setPasteRows}
             newFolderName={newFolderName} setNewFolderName={setNewFolderName} importing={importing} onImport={importPaste} />
         ) : screen === "pipeline" ? (
-          <LeadsAutomation listId={activeList?.id} listName={activeList?.name} leadCount={activeList?.leadCount} onAsk={onAsk} refreshKey={refreshKey} lists={lists} onSelectList={(l) => setActiveList(l)} agentBusy={agentBusy} />
+          <LeadsAutomation listId={activeList?.id} listName={activeList?.name} leadCount={activeList?.leadCount} onAsk={onAsk} refreshKey={refreshKey} lists={lists} onSelectList={(l) => setActiveList(l)} agentBusy={agentBusy} onPitchLead={onPitchLead ? (lead) => onPitchLead({ id: lead.id, name: lead.name } as SavedLead) : undefined} />
         ) : (
           <RoiDashboard refreshKey={refreshKey} />
         )}

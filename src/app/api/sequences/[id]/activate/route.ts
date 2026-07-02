@@ -22,11 +22,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ success: true, data: { status: "paused" } });
     }
 
+    // Optional subset of contacts to enroll (from the pipeline's contact
+    // selection) — enroll only these; omit to enroll the whole list.
+    const chosen: string[] | null = Array.isArray(body?.leadIds) ? body.leadIds.filter((x: unknown): x is string => typeof x === "string") : null;
+
     let enrolled = 0;
     let skipped = 0;
     let total = 0;
     if (seq.listId) {
-      const leads = await prisma.savedLead.findMany({ where: { userId: session.userId, listId: seq.listId }, select: { id: true, email: true, phone: true } });
+      const allLeads = await prisma.savedLead.findMany({ where: { userId: session.userId, listId: seq.listId }, select: { id: true, email: true, phone: true } });
+      const leads = chosen ? allLeads.filter((l) => chosen.includes(l.id)) : allLeads;
       total = leads.length;
       // Only enroll leads we can actually REACH — an email OR a phone. Leads with
       // neither are excluded so the sequence never tries to send into the void
@@ -51,9 +56,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Attach the lead's open opportunity to the enrollment when there is one.
       const opps = await prisma.opportunity.findMany({ where: { userId: session.userId, savedLeadId: { in: fresh.map((l) => l.id) } }, select: { id: true, savedLeadId: true } });
       const oppByLead = new Map(opps.map((o) => [o.savedLeadId, o.id]));
-      const now = new Date();
-      for (const l of fresh) {
-        await prisma.sequenceEnrollment.create({ data: { userId: session.userId, sequenceId: id, savedLeadId: l.id, opportunityId: oppByLead.get(l.id) ?? null, currentStep: 0, status: "active", nextRunAt: now } });
+      // "stagger" (one at a time) spaces the starts an hour apart; "group" starts
+      // everyone now.
+      const stagger = body?.mode === "stagger";
+      const now = Date.now();
+      for (let i = 0; i < fresh.length; i++) {
+        const l = fresh[i];
+        const nextRunAt = new Date(now + (stagger ? i * 60 * 60 * 1000 : 0));
+        await prisma.sequenceEnrollment.create({ data: { userId: session.userId, sequenceId: id, savedLeadId: l.id, opportunityId: oppByLead.get(l.id) ?? null, currentStep: 0, status: "active", nextRunAt } });
         enrolled += 1;
       }
     } else {
