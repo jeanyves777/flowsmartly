@@ -69,13 +69,13 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     );
   }, [onAsk]);
 
-  const enrichAll = useCallback((leadsToEnrich: SavedLead[], listNm: string) => {
-    const targets = leadsToEnrich.filter((l) => !l.enrichedAt);
+  const enrichAll = useCallback((leadsToEnrich: SavedLead[], label: string) => {
+    const targets = leadsToEnrich.filter((l) => !l.enrichedAt).slice(0, 100); // cap one batch
     if (!targets.length) return;
     setEnrichingIds((prev) => { const n = new Set(prev); targets.forEach((l) => n.add(l.id)); return n; });
     const idList = targets.map((l) => `${l.name} → ${l.id}`).join("; ");
     onAsk(
-      `Enrich all ${targets.length} un-enriched leads in the list "${listNm}". FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with that lead's exact leadId so it saves INTO their row. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
+      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with that lead's exact leadId so it saves INTO their row. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
     );
   }, [onAsk]);
 
@@ -214,9 +214,9 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
         {screen === "find" ? (
           <FindScreen state={findState} results={results} resultList={resultList}
             onOpenBrief={() => setBriefOpen(true)} onBuild={() => { if (resultList) buildAutomation(resultList); }}
-            enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, resultList.name); }} />
+            enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} />
         ) : screen === "contacts" ? (
-          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} />
+          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} />
         ) : screen === "companies" ? (
           <CompaniesScreen companies={companies} loaded={loadedLeads} />
         ) : screen === "library" ? (
@@ -390,7 +390,7 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
 }
 
 /* ── Contacts ── */
-function ContactsScreen({ leads, loaded, enrichingIds, onEnrich }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void }) {
+function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "enriched" | "new">("all");
   const [listFilter, setListFilter] = useState("all");
@@ -417,6 +417,8 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich }: { leads: Save
   const start = filtered.length ? (pageC - 1) * pageSize + 1 : 0;
   const end = Math.min(pageC * pageSize, filtered.length);
   const activeFilter = query.trim() !== "" || status !== "all" || listFilter !== "all";
+  const unenriched = filtered.filter((l) => !l.enrichedAt).length;
+  const enrichBusy = filtered.some((l) => enrichingIds.has(l.id));
 
   if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading contacts…" /></div>;
   return (
@@ -436,6 +438,16 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich }: { leads: Save
             <option value="all">All lists</option>
             {listOptions.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
+        )}
+        {unenriched > 0 && (
+          <button
+            onClick={() => onEnrichAll(filtered, activeFilter ? "matching your current filter" : "across your saved lists")}
+            disabled={enrichBusy}
+            title="Find email + phone for every un-enriched contact shown"
+            className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-brand-500/25 disabled:opacity-60"
+          >
+            {enrichBusy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Enriching…" : `Enrich all (${unenriched})`}
+          </button>
         )}
       </div>
       <p className="mb-3 text-[12px] text-muted-foreground">
