@@ -112,8 +112,8 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   const [designing, setDesigning] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
   // Reachability — how many leads have an email OR phone (the pipeline can only
-  // run on those; the rest are excluded so it never sends into the void).
-  const [reach, setReach] = useState<{ total: number; reachable: number } | null>(null);
+  // run on those). Split by channel: email steps need an email, SMS/WhatsApp a phone.
+  const [reach, setReach] = useState<{ total: number; reachable: number; withEmail: number; withPhone: number } | null>(null);
   const loadedRef = useRef(false);
   const { toast } = useToast();
 
@@ -158,8 +158,10 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
       const d = await fetch(`/api/leads/lists/${listId}`).then((r) => r.json()).catch(() => null);
       if (cancelled) return;
       const leads: { email?: string | null; phone?: string | null }[] = d?.data?.leads || [];
+      const withEmail = leads.filter((l) => l.email && String(l.email).trim()).length;
+      const withPhone = leads.filter((l) => l.phone && String(l.phone).trim()).length;
       const reachable = leads.filter((l) => (l.email && String(l.email).trim()) || (l.phone && String(l.phone).trim())).length;
-      setReach({ total: leads.length, reachable });
+      setReach({ total: leads.length, reachable, withEmail, withPhone });
     })();
     return () => { cancelled = true; };
   }, [listId, refreshKey]);
@@ -276,7 +278,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder /></span>
             <span className="min-w-0">
               <span className="flex items-center gap-1 text-[13px] font-bold"><span className="truncate">{listName || "Select a list"}</span><ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /></span>
-              <span className="block text-[11px] text-muted-foreground">{reach ? `${reach.reachable}/${reach.total} reachable` : `${leadCount ?? 0} leads`} · pitch → follow-ups → booking</span>
+              <span className="block text-[11px] text-muted-foreground">{reach ? `${reach.withEmail} with email · ${reach.withPhone} with phone · ${reach.total} total` : `${leadCount ?? 0} leads`}</span>
             </span>
           </button>
           {listPickerOpen && (
@@ -301,14 +303,17 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
         </button>
       </div>
 
-      {/* reachability guard — a lead needs an email OR phone or the pipeline skips it */}
-      {reach && reach.total > 0 && reach.reachable < reach.total && (
-        <div className={cn("mb-3 flex flex-wrap items-center gap-2.5 rounded-xl border px-3 py-2 text-[12px]", reach.reachable === 0 ? "border-amber-500/50 bg-amber-500/10 text-amber-200" : "border-border bg-card text-muted-foreground")}>
+      {/* reachability guard — the pitch step is EMAIL, so email coverage matters most;
+          phone-only leads can still be reached on the SMS/WhatsApp branch. */}
+      {reach && reach.total > 0 && (reach.reachable < reach.total || reach.withEmail < reach.total) && (
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2.5 rounded-xl border px-3 py-2 text-[12px]", reach.reachable === 0 || reach.withEmail === 0 ? "border-amber-500/50 bg-amber-500/10 text-amber-200" : "border-border bg-card text-muted-foreground")}>
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
           {reach.reachable === 0
             ? <span>None of these <b className="text-foreground">{reach.total}</b> leads have an email or phone — the automation can’t reach anyone yet.</span>
-            : <span><b className="text-foreground">{reach.total - reach.reachable}</b> of {reach.total} leads have no email or phone and will be <b className="text-foreground">skipped</b>. Enrich them to reach everyone.</span>}
-          <button onClick={() => onAsk(`Enrich every lead in the "${listName || "list"}" list${listId ? ` (listId: ${listId})` : ""} that has no email or phone. Call propose_plan first (two AI_WEB_SEARCH per lead — the search + the save) so I can approve the cost, then web-search each one for a WORK EMAIL and PHONE (that's what the automation needs to reach them), plus the business website + address, calling enrich_lead with the SAME confirmed planId and every field you found (email, phone, website, address, linkedin). If you hit the per-turn search limit, enrich the ones you found and tell me you'll continue the rest. Do not paste the details in chat — they must land in each lead's row.`)} className="ms-auto inline-flex items-center gap-1.5 rounded-[8px] border border-amber-500/50 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/15"><Sparkles className="h-3 w-3" /> Enrich list</button>
+            : reach.withEmail === 0
+              ? <span>None have an <b className="text-foreground">email</b> yet, so the email pitch can’t send — {reach.withPhone} have a phone (SMS/WhatsApp only). Enrich to find emails.</span>
+              : <span>Only <b className="text-foreground">{reach.withEmail}</b> of {reach.total} have an <b className="text-foreground">email</b> for the pitch{reach.total - reach.reachable > 0 ? `; ${reach.total - reach.reachable} have neither and are skipped` : `; the other ${reach.total - reach.withEmail} are phone-only (SMS/WhatsApp)`}. Enrich for emails to pitch everyone.</span>}
+          <button onClick={() => onAsk(`Enrich every lead in the "${listName || "list"}" list${listId ? ` (listId: ${listId})` : ""} that has no email or phone. Call propose_plan first (two AI_WEB_SEARCH per lead — the search + the save) so I can approve the cost, then find each one's WORK EMAIL (the priority — the email pitch needs it) and PHONE, plus website + address. The email is rarely in search results — web_fetch their WEBSITE + its /contact page and read it out (info@ / bookings@ / the owner's). Call enrich_lead with the SAME confirmed planId and every field you found (email, phone, website, address, linkedin). If you hit the per-turn search limit, enrich the ones you found and tell me you'll continue the rest. Do not paste the details in chat — they must land in each lead's row.`)} className="ms-auto inline-flex items-center gap-1.5 rounded-[8px] border border-amber-500/50 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/15"><Sparkles className="h-3 w-3" /> Enrich list</button>
         </div>
       )}
 
