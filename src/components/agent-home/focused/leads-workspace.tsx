@@ -113,7 +113,13 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp }: { re
     if (b.keywords) parts.push(`(${b.keywords})`);
     findingRef.current = true; baselineRef.current = lists.length;
     setBriefOpen(false); setScreen("find"); setFindState("loading");
-    onAsk(`Find ${parts.join(", ")}. Search the web for real decision-makers matching this, then save them to a new lead list.`);
+    const target = Number(b.count) || 50;
+    onAsk(
+      `Find ${parts.join(", ")}. Target ${target} real leads and keep going until you reach it. ` +
+      `For LOCAL / brick-and-mortar targets (a business type + a city), start with find_local_leads (Google Places — verified phone + website + rating, up to 60 per search) and, if ${target} is more than it returns, top up the SAME list with web_search + find_leads. ` +
+      `For specific people or national/online companies, use web_search + find_leads. ` +
+      `Save everything into one new lead list.`,
+    );
   };
   const toggleSeniority = (s: string) => setBrief((b) => ({ ...b, seniority: b.seniority.includes(s) ? b.seniority.filter((x) => x !== s) : [...b.seniority, s] }));
 
