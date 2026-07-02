@@ -170,7 +170,10 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk }: { listId
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
 
   return (
-    <div>
+    <div
+      className="-mx-4 -mt-3.5 -mb-6 min-h-full px-4 pb-6 pt-3.5 sm:-mx-5 sm:px-5"
+      style={{ backgroundImage: "radial-gradient(circle, rgba(140,140,160,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+    >
       {/* audience + activate */}
       <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Folder /></span>
