@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import { getProposalTheme, isServiceProposalContent } from "@/lib/pitch/proposal-detail-helpers";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
+import { ProposalDeckPreview } from "@/components/pitch/proposal-deck-preview";
 
 /**
  * Pitch Studio — the branded proposal PLAYGROUND for one lead (per the approved
@@ -179,7 +180,20 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     if (docType === "email") {
       return <EmailPreview content={pitch.content} theme={theme} businessName={pitch.businessName} brandName={brandName || "Your brand"} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onPunchUp={() => onAsk(`Rewrite the COLD PITCH EMAIL for "${displayName}" (pitchId: ${pitch!.id}) — make it high-energy and punchy: a bold one-line hook, 2-3 crisp benefit lines, and a confident CTA (NOT the long formal proposal summary). Keep it short. Save the new opener to the proposal's executiveSummary and the subject via edit_pitch_field (fields "subject" and "executiveSummary"). Don't paste it in chat.`)} />;
     }
-    return <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} variant={docType === "visual" ? "visual" : "deck"} onChange={commit} onEditWithAI={editWithAI} onReplaceImage={(slot) => onAsk(`Replace the ${slot} image on the "${displayName}" proposal (pitchId: ${pitch!.id}) — generate or pick an on-brand ${slot} visual that fits the business type, then attach it to the proposal so it updates in the studio. Don't paste it in chat.`)} /></div>;
+    if (docType === "visual") {
+      // The image-rich 16:9 slide deck — the on-screen twin of the PDF. Read-only
+      // here; edit the copy on the Proposal-deck tab (it shares the same content).
+      return (
+        <div className="min-h-full overflow-x-auto bg-[#0b0d12] px-4 py-6">
+          <div className="mx-auto flex max-w-[1180px] items-center justify-between pb-3">
+            <span className="text-[11.5px] text-muted-foreground">The branded visual deck (matches the PDF). Edit the copy on the Proposal-deck tab — it updates here.</span>
+            <button onClick={() => onAsk(`Regenerate the branded VISUAL assets (cover/about/impact images) for the "${displayName}" proposal (pitchId: ${pitch!.id}) — pick on-brand images that fit the business type and attach them so the visual deck refreshes. Don't paste in chat.`)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-violet-500/40 px-2.5 py-1.5 text-[11.5px] font-semibold text-violet-300 hover:bg-violet-500/10"><Sparkles className="h-3.5 w-3.5" /> Regenerate visuals</button>
+          </div>
+          <ProposalDeckPreview proposal={pitch.content} brandName={brandName || "Your brand"} businessUrl={pitch.businessUrl || undefined} theme={theme} />
+        </div>
+      );
+    }
+    return <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} /></div>;
   })();
 
   return (
