@@ -70,7 +70,8 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
   const [detailLead, setDetailLead] = useState<SavedLead | null>(null);
 
   const enrichLead = useCallback((l: SavedLead) => {
-    if (l.enrichedAt) return;
+    // No early-return on already-enriched: the detail sheet's "Re-enrich" runs it
+    // again to fill in missing email/phone/website/address.
     setEnrichingIds((prev) => new Set(prev).add(l.id));
     onAsk(
       `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the enrich save) so I can approve, then web-search for the full reachable contact — WORK EMAIL, PHONE, business WEBSITE and ADDRESS/location, plus LinkedIn (LinkedIn alone isn't enough) — and call enrich_lead with the confirmed planId, leadId="${l.id}", and every field you found (email, phone, website, address, title, linkedin) to save it INTO their row. Do NOT print the contact details in the chat.`,
@@ -446,10 +447,10 @@ function LeadTable({ leads, enrichingIds, onEnrich, onOpenLead }: { leads: Saved
                 <td className="px-4 py-2.5">{l.category || "—"}</td>
                 <td className="px-4 py-2.5"><ContactCell l={l} enriching={enriching} /></td>
                 <td className="px-4 py-2.5 text-end">
-                  {l.enrichedAt ? (
-                    <span className="text-[11.5px] text-emerald-500">Enriched</span>
-                  ) : enriching ? (
+                  {enriching ? (
                     <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Enriching…</span>
+                  ) : l.enrichedAt ? (
+                    <span className="text-[11.5px] text-emerald-500">Enriched</span>
                   ) : (
                     <button onClick={(e) => { e.stopPropagation(); onEnrich(l); }} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>
                   )}
