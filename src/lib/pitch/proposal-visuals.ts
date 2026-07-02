@@ -213,6 +213,45 @@ function buildVisualSpecs(input: GenerateProposalVisualAssetsInput): Array<{
   ];
 }
 
+/**
+ * Generate ONE on-brand proposal visual for a single slot (cover/about/impact)
+ * and return the ready-to-store asset (URL resolved — a public S3 URL in prod, a
+ * local /uploads path in dev — so it renders in both). Powers the in-place
+ * "Regenerate with AI" action in Pitch Studio. `promptOverride` lets the caller
+ * (or the agent) steer the look; otherwise the section's on-brand prompt is used.
+ */
+export async function generateOneProposalVisual(
+  input: GenerateProposalVisualAssetsInput & { kind: ProposalVisualAsset["kind"]; promptOverride?: string },
+): Promise<ProposalVisualAsset | null> {
+  const specs = buildVisualSpecs(input);
+  const spec = specs.find((s) => s.kind === input.kind) || specs[0];
+  const prompt = input.promptOverride?.trim()
+    ? `${cleanPrompt(input.promptOverride, spec.prompt)} Render as an isolated 3D illustration object cluster, not a background. ${visualStyleGuard(input)}`
+    : spec.prompt;
+  try {
+    const generated = await generateImageXaiFirst(prompt, spec.width, spec.height, { quality: "high" });
+    if (!generated.base64) return null;
+    const png = await toTransparentPngCutout(generated.base64);
+    const key = `pitch-proposals/${input.userId}/${Date.now()}-${spec.kind}.png`;
+    // Store the resolved URL (not the bare key) so it renders straight away in
+    // dev (/uploads/…) and prod (public S3 URL).
+    const url = await uploadToS3(key, png.buffer, "image/png");
+    return {
+      kind: spec.kind,
+      url,
+      alt: spec.alt,
+      provider: generated.provider,
+      model: generated.model,
+      prompt,
+      width: png.width || spec.width,
+      height: png.height || spec.height,
+    };
+  } catch (error) {
+    console.warn(`[ProposalVisuals] single ${input.kind} image generation failed:`, error);
+    return null;
+  }
+}
+
 export async function generateProposalVisualAssets(
   input: GenerateProposalVisualAssetsInput,
 ): Promise<ServiceProposalContent> {

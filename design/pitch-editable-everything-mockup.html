@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Full control — seamless edit · editable labels · in-place images</title>
+<style>
+  :root{--p:#7c3aed;--s:#0b1f3a;--a:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;padding:26px;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#e7ebf3}
+  h1.t{font-size:15px;margin:0 0 4px}.sub{color:#8b93a4;font-size:12px;margin:0 0 18px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1040px;margin:0 auto 16px}
+  .card{background:#fff;color:#0b1220;border-radius:14px;padding:22px;box-shadow:0 20px 60px #0007}
+  .lab{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:10px}
+  /* OLD jarring box */
+  .old textarea{width:100%;border:2px solid #6366f1;border-radius:8px;background:#fff;padding:6px 8px;font:inherit;resize:vertical;color:#0b1220}
+  .oldkick{display:inline-block;border:2px solid #6366f1;border-radius:6px;padding:2px 6px;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--p);background:#fff}
+  /* NEW seamless: same text, subtle inset ring + faint tint */
+  .kick{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--p)}
+  .ed{border-radius:4px;outline:none;transition:box-shadow .12s}
+  .ed.hov{box-shadow:inset 0 0 0 1.5px rgba(99,102,241,.4)}
+  .ed.act{box-shadow:inset 0 0 0 2px rgba(99,102,241,.55);background:rgba(99,102,241,.06)}
+  h2{font-size:26px;font-weight:900;margin:8px 0 0;line-height:1.1}
+  p.body{font-size:15px;line-height:1.8;color:#334155;margin:10px 0 0}
+  .caret{display:inline-block;width:1.5px;height:1em;background:#6366f1;vertical-align:-2px;animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  /* image tiles */
+  .tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .tile{position:relative;min-height:190px;border-radius:12px;display:grid;place-items:center;overflow:hidden}
+  .empty{background:rgba(124,58,237,.05);border:1px dashed rgba(124,58,237,.4);gap:12px;padding:16px;text-align:center}
+  .empty .hint{font-size:12px;font-weight:600;color:#94a3b8;display:flex;align-items:center;gap:6px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .bg{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:800;color:#fff;background:var(--p);box-shadow:0 8px 20px rgba(124,58,237,.35)}
+  .bu{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;border:1px solid #cbd5e1;background:#fff;color:#334155}
+  .hasimg img{width:100%;height:100%;object-fit:cover}
+  .overlay{position:absolute;inset:0;display:grid;place-items:center;background:#0b1220cc}
+  .overlay .bu{background:rgba(255,255,255,.92);border:none;color:#1e293b}
+  .load{position:absolute;inset:0;display:grid;place-items:center;background:#0b1220cc;color:#fff}
+  .spin{height:26px;width:26px;border-radius:50%;border:3px solid #ffffff40;border-top-color:#fff;animation:sp .8s linear infinite;margin:0 auto}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .load .cap{margin-top:8px;font-size:12.5px;font-weight:700;text-align:center}
+  .legend{color:#8b93a4;font-size:12px;max-width:1040px;margin:6px auto 0}.legend b{color:#e7ebf3}
+  .ico{width:15px;height:15px;display:inline-block;vertical-align:-2px}
+</style></head>
+<body>
+  <h1 class="t">Full control of every element — the three fixes</h1>
+  <p class="sub">1 · Seamless inline editing (no jarring box). 2 · Every label editable, including the subtle kickers. 3 · Images generate/upload in place, with a loader.</p>
+
+  <!-- 1 & 2: edit experience -->
+  <div class="row">
+    <div class="card old">
+      <div class="lab">Before — jarring box, truncates</div>
+      <span class="oldkick">Investment</span>
+      <h2 style="margin-top:12px">AI-Powered Growth Package</h2>
+      <textarea rows="1">Includes all services listed above: content creation</textarea>
+      <p style="font-size:11.5px;color:#94a3b8;margin-top:8px">Kicker not editable · text pops a bordered box · one line, rest hidden.</p>
+    </div>
+    <div class="card">
+      <div class="lab">After — seamless, in place, editable labels</div>
+      <span class="kick ed hov">Investment</span>
+      <h2 class="ed hov" style="margin-top:12px">AI-Powered Growth Package</h2>
+      <p class="body ed act" style="margin-top:8px">Includes all services listed above: content creation and scheduling, ecommerce, customer contact management, email &amp; SMS campaigns, marketing automations, and analytics.<span class="caret"></span></p>
+      <p style="font-size:11.5px;color:#94a3b8;margin-top:10px">Kicker + heading show a subtle ring on hover (editable) · the paragraph is in edit mode — same font/size/colour, grows to fit, faint tint + inset ring.</p>
+    </div>
+  </div>
+
+  <!-- 3: image tiles -->
+  <div class="row" style="grid-template-columns:1fr">
+    <div class="card">
+      <div class="lab">In-place images — Generate with AI, or Upload — with a loader while it works</div>
+      <div class="tiles">
+        <div class="tile empty">
+          <span class="hint"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg> cover image</span>
+          <div class="btns">
+            <span class="bg"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg> Generate with AI</span>
+            <span class="bu"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2"><path d="M12 15V3m0 0 4 4m-4-4L8 7"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Upload</span>
+          </div>
+        </div>
+        <div class="tile hasimg">
+          <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=400&q=60" alt=""/>
+          <div class="overlay"><div class="btns">
+            <span class="bg"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg> Regenerate with AI</span>
+            <span class="bu"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="2"><path d="M12 15V3m0 0 4 4m-4-4L8 7"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Upload</span>
+          </div></div>
+        </div>
+        <div class="tile hasimg">
+          <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&q=60" alt=""/>
+          <div class="load"><div><div class="spin"></div><div class="cap">Creating impact visual…</div></div></div>
+        </div>
+      </div>
+      <p style="font-size:11.5px;color:#94a3b8;margin-top:12px">Empty slot shows the buttons directly · an existing image reveals them on hover · while generating/uploading, a branded loader sits on the tile and the new image snaps in when it's ready.</p>
+    </div>
+  </div>
+
+  <p class="legend"><b>Same philosophy end to end:</b> click any bit of text — headings, subtle kickers, prices, contact lines — and edit it in place; hit “Generate/Regenerate with AI” on any image and the agent renders a fresh on-brand visual that snaps into the exact slot, or upload your own.</p>
+</body></html>

@@ -119,6 +119,10 @@ export interface ServiceProposalContent {
   };
   design: ProposalDesignDirection;
   visualAssets?: ProposalVisualAssets;
+  /** User-overridden section labels (kickers + headings), keyed by a stable slot
+   *  id (e.g. "overview", "deliverablesTitle"). Lets the client rename every
+   *  section label in Pitch Studio while the renderers fall back to defaults. */
+  headings?: Record<string, string>;
   deckPlan?: ProposalDeckPlan;
   clientProfile?: ProposalClientProfile;
   proposalTypes?: ProposalPreset[];

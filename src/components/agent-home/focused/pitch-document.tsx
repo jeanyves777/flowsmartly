@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Sparkles, Pencil, Plus, X, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
@@ -52,6 +52,16 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
   // Business-type asset images the proposal was generated with (cover/about/impact).
   const images = Array.isArray(c.visualAssets?.images) ? c.visualAssets!.images : [];
   const imgUrl = (kind: "cover" | "about" | "impact") => images.find((im) => im.kind === kind)?.url;
+  // Every section label (kicker + heading) is user-editable — overrides live on
+  // content.headings, keyed by a stable slot id, and fall back to the defaults.
+  const headings = (c.headings || {}) as Record<string, string>;
+  const setHeading = (key: string, v: string) => set("headings", { ...headings, [key]: v });
+  const Kick = (key: string, dflt: string) => (
+    <Editable as="span" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[10.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: theme.primary, fontFamily: "Arial, sans-serif" }} />
+  );
+  const Head = (key: string, dflt: string) => (
+    <Editable as="h2" value={headings[key] ?? dflt} onCommit={(v) => setHeading(key, v)} className="text-[21px] font-bold" />
+  );
 
   return (
     <div className="mx-auto max-w-[860px]">
@@ -80,7 +90,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         </div>
 
         {/* ── OVERVIEW (visual variant shows the branded cover image beside it) ── */}
-        <Section kicker="The opportunity" accent={theme.primary}>
+        <Section kicker={Kick("overview", "The opportunity")}>
           <Editable as="h2" value={str("serviceTitle") || "Overview"} onCommit={(v) => set("serviceTitle", v)} onAI={() => onEditWithAI("serviceTitle", str("serviceTitle"))} className="text-[21px] font-bold" />
           <Editable as="p" value={str("executiveSummary")} onCommit={(v) => set("executiveSummary", v)} onAI={() => onEditWithAI("executiveSummary", str("executiveSummary"))} className="mt-2 text-[14px] leading-relaxed text-[#26313f]" multiline />
           {str("clientNeed") && <Editable as="p" value={str("clientNeed")} onCommit={(v) => set("clientNeed", v)} onAI={() => onEditWithAI("clientNeed", str("clientNeed"))} className="mt-2 text-[14px] leading-relaxed text-[#26313f]" multiline />}
@@ -88,7 +98,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 
         {/* ── ABOUT (visual variant shows the 'about' image) ── */}
         {str("aboutBrand") && (
-          <Section kicker={`About ${brandName}`} accent={theme.primary}>
+          <Section kicker={Kick("about", `About ${brandName}`)}>
             <div className={cn(visual && "grid gap-4 md:grid-cols-[1fr_1.35fr] md:items-start")}>
               {visual && <ImageSlot url={imgUrl("about")} alt="About" theme={theme} onReplace={onReplaceImage ? () => onReplaceImage("about") : undefined} />}
               <Editable as="p" value={str("aboutBrand")} onCommit={(v) => set("aboutBrand", v)} onAI={() => onEditWithAI("aboutBrand", str("aboutBrand"))} className="text-[14px] leading-relaxed text-[#26313f]" multiline />
@@ -98,8 +108,8 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 
         {/* ── DELIVERABLES ── */}
         {deliverables.length > 0 && (
-          <Section kicker="What you'll get" accent={theme.primary} onAdd={() => set("deliverables", [...deliverables, { title: "New deliverable", description: "Describe it…" }])}>
-            <h2 className="text-[21px] font-bold">Deliverables</h2>
+          <Section kicker={Kick("deliverables", "What you'll get")} onAdd={() => set("deliverables", [...deliverables, { title: "New deliverable", description: "Describe it…" }])}>
+            {Head("deliverablesTitle", "Deliverables")}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {deliverables.map((d, i) => (
                 <div key={i} className="group/card relative rounded-xl border border-[#e7eaee] p-3.5">
@@ -113,13 +123,13 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         )}
 
         {/* ── COMMITMENTS / BENEFITS (bullets) ── */}
-        {commitments.length > 0 && <BulletSection kicker="Our commitment" accent={theme.primary} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
-        {benefits.length > 0 && <BulletSection kicker="The impact" accent={theme.primary} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
+        {commitments.length > 0 && <BulletSection kicker={Kick("commitments", "Our commitment")} accent={theme.primary} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
+        {benefits.length > 0 && <BulletSection kicker={Kick("benefits", "The impact")} accent={theme.primary} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
 
         {/* ── PROOF metrics ── */}
         {proof.length > 0 && (
-          <Section kicker="Proof" accent={theme.primary} onAdd={() => set("proofPoints", [...proof, { metric: "100%", label: "New metric", note: "" }])}>
-            <h2 className="text-[21px] font-bold">Results we drive</h2>
+          <Section kicker={Kick("proof", "Proof")} onAdd={() => set("proofPoints", [...proof, { metric: "100%", label: "New metric", note: "" }])}>
+            {Head("proofTitle", "Results we drive")}
             {visual && (imgUrl("impact") || onReplaceImage) && (
               <div className="mt-3 max-w-[420px]"><ImageSlot url={imgUrl("impact")} alt="Impact" theme={theme} onReplace={onReplaceImage ? () => onReplaceImage("impact") : undefined} /></div>
             )}
@@ -145,8 +155,8 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 
         {/* ── PRICING ── */}
         {(pricing.name || typeof pricing.amount === "number") && (
-          <Section kicker="Investment" accent={theme.primary}>
-            <h2 className="text-[21px] font-bold">Pricing</h2>
+          <Section kicker={Kick("pricing", "Investment")}>
+            {Head("pricingTitle", "Pricing")}
             <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 text-white" style={{ background: theme.secondary, fontFamily: "Arial, sans-serif" }}>
               <div className="min-w-0">
                 <Editable as="div" value={pricing.name || "Package"} onCommit={(v) => set("pricing", { ...pricing, name: v || "Package" })} className="text-[14px] font-extrabold" light />
@@ -163,8 +173,8 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 
         {/* ── TIMELINE ── */}
         {timeline.length > 0 && (
-          <Section kicker="Timeline" accent={theme.primary} onAdd={() => set("timeline", [...timeline, { label: "Phase", title: "New phase", description: "What happens…" }])}>
-            <h2 className="text-[21px] font-bold">How we'll roll it out</h2>
+          <Section kicker={Kick("timeline", "Timeline")} onAdd={() => set("timeline", [...timeline, { label: "Phase", title: "New phase", description: "What happens…" }])}>
+            {Head("timelineTitle", "How we'll roll it out")}
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {timeline.map((t, i) => (
                 <div key={i} className="group/tl relative rounded-xl border border-[#e7eaee] p-3">
@@ -181,7 +191,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         {/* ── CTA / NEXT STEPS ── */}
         <div className="px-9 py-7 text-center text-white" style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.primary})` }}>
           <Editable as="h2" value={nextSteps[0] || "Ready to get started?"} onCommit={(v) => set("nextSteps", [v, ...nextSteps.slice(1)])} onAI={() => onEditWithAI("nextSteps", nextSteps.join("\n"))} className="text-[22px] font-bold" light />
-          <div className="mt-1 text-[13px] opacity-90" style={{ fontFamily: "Arial, sans-serif" }}>{nextSteps[1] || "Let's find 15 minutes this week to tailor this to you."}</div>
+          <Editable as="div" value={nextSteps[1] || "Let's find 15 minutes this week to tailor this to you."} onCommit={(v) => set("nextSteps", [nextSteps[0] || "Ready to get started?", v, ...nextSteps.slice(2)])} className="mt-1 text-[13px] opacity-90" style={{ fontFamily: "Arial, sans-serif" }} light />
           <span className="mt-3 inline-block rounded-full px-5 py-2.5 text-[13px] font-extrabold" style={{ background: theme.accent, color: theme.ink, fontFamily: "Arial, sans-serif" }}>Book a call →</span>
         </div>
 
@@ -214,11 +224,11 @@ export function ImageSlot({ url, alt, theme, onReplace }: { url?: string; alt: s
   );
 }
 
-function Section({ kicker, accent, children, onAdd }: { kicker: string; accent: string; children: ReactNode; onAdd?: () => void }) {
+function Section({ kicker, children, onAdd }: { kicker: ReactNode; children: ReactNode; onAdd?: () => void }) {
   return (
     <div className="group/sec relative border-t border-[#eef0f3] px-9 py-6">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: accent, fontFamily: "Arial, sans-serif" }}>{kicker}</span>
+        {kicker}
         {onAdd && <button onClick={onAdd} className="hidden items-center gap-1 rounded-full border border-[#dfe4ea] px-2 py-0.5 text-[10.5px] font-bold text-[#6a7684] group-hover/sec:inline-flex" style={{ fontFamily: "Arial, sans-serif" }}><Plus className="h-3 w-3" /> Add</button>}
       </div>
       {children}
@@ -227,9 +237,9 @@ function Section({ kicker, accent, children, onAdd }: { kicker: string; accent: 
 }
 
 /* ── Bullet-list section ── */
-function BulletSection({ kicker, accent, items, onChange, onAI }: { kicker: string; accent: string; items: string[]; onChange: (v: string[]) => void; onAI: (text: string) => void }) {
+function BulletSection({ kicker, accent, items, onChange, onAI }: { kicker: ReactNode; accent: string; items: string[]; onChange: (v: string[]) => void; onAI: (text: string) => void }) {
   return (
-    <Section kicker={kicker} accent={accent} onAdd={() => onChange([...items, "New point…"])}>
+    <Section kicker={kicker} onAdd={() => onChange([...items, "New point…"])}>
       <ul className="space-y-1.5">
         {items.map((it, i) => (
           <li key={i} className="group/li flex items-start gap-2 text-[14px] text-[#26313f]">
@@ -243,44 +253,76 @@ function BulletSection({ kicker, accent, items, onChange, onAI }: { kicker: stri
   );
 }
 
-/* ── Editable text block: click to edit inline; hover shows AI + edit chips ── */
-export function Editable({ as: Tag = "p", value, onCommit, onAI, className, style, light, multiline }: {
-  as?: "h1" | "h2" | "h4" | "p" | "span" | "div"; value: string; onCommit: (v: string) => void; onAI?: () => void;
-  className?: string; style?: React.CSSProperties; light?: boolean; multiline?: boolean;
+/* ── Editable text block: SEAMLESS inline editing ──────────────────────────
+ * We make the SAME rendered element `contentEditable` on click, so the caret
+ * lands in text that keeps its exact font, size, weight, colour and spacing —
+ * no jarring bordered box, no truncation, it grows naturally with the content.
+ * A subtle inset ring signals "click to edit"; the hover chip hands the block
+ * to the agent. Works for any label, however small (kickers included).
+ * [[agent-writes-into-ui-element-not-chat]] */
+export function Editable({ as: Tag = "p", value, onCommit, onAI, className, style, light, multiline, placeholder }: {
+  as?: "h1" | "h2" | "h3" | "h4" | "p" | "span" | "div"; value: string; onCommit: (v: string) => void; onAI?: () => void;
+  className?: string; style?: React.CSSProperties; light?: boolean; multiline?: boolean; placeholder?: string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { setDraft(value); }, [value]);
-  useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.selectionStart = ref.current.value.length; } }, [editing]);
+  const ref = useRef<HTMLElement>(null);
+  // Render as a loose element type so the same ref works for any tag (h1…span).
+  const Comp = Tag as React.ElementType;
 
-  const commit = () => { setEditing(false); if (draft !== value) onCommit(draft); };
+  const start = () => {
+    if (editing) return;
+    setEditing(true);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false); // caret at end
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    });
+  };
+  const commit = () => {
+    setEditing(false);
+    const next = (ref.current?.innerText ?? value).replace(/\n+$/, "");
+    if (next !== value) onCommit(next);
+  };
+  const cancel = () => { if (ref.current) ref.current.innerText = value; setEditing(false); };
 
-  if (editing) {
-    return (
-      <textarea
-        ref={ref}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter" && !multiline && !e.shiftKey) { e.preventDefault(); commit(); } if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
-        rows={multiline ? 3 : 1}
-        className={cn("w-full resize-y rounded-md border-2 bg-white/95 px-1.5 py-0.5 text-inherit outline-none", className)}
-        style={{ borderColor: "#6366f1", color: light ? "#0b1220" : undefined, fontFamily: "inherit", ...style }}
-      />
-    );
-  }
   return (
-    <Tag
-      className={cn("group/ed relative cursor-text rounded-md transition-shadow hover:shadow-[0_0_0_2px_rgba(99,102,241,0.7)]", className)}
-      style={style}
-      onClick={() => setEditing(true)}
+    <Comp
+      ref={ref}
+      contentEditable={editing}
+      suppressContentEditableWarning
+      spellCheck={editing}
+      role={!editing ? "button" : undefined}
+      tabIndex={!editing ? 0 : undefined}
+      onClick={start}
+      onKeyDown={(e: React.KeyboardEvent) => {
+        if (!editing) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); start(); } return; }
+        if (e.key === "Enter" && !multiline && !e.shiftKey) { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); }
+        if (e.key === "Escape") { e.preventDefault(); cancel(); }
+      }}
+      onBlur={editing ? commit : undefined}
+      onPaste={editing ? (e: React.ClipboardEvent) => { e.preventDefault(); const t = e.clipboardData.getData("text/plain"); document.execCommand("insertText", false, t); } : undefined}
+      className={cn(
+        "group/ed relative cursor-text rounded-[4px] outline-none transition-shadow",
+        editing
+          ? (light ? "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]" : "shadow-[inset_0_0_0_2px_rgba(99,102,241,0.55)]")
+          : (light ? "hover:shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.5)]" : "hover:shadow-[inset_0_0_0_1.5px_rgba(99,102,241,0.4)]"),
+        className,
+      )}
+      style={{ backgroundColor: editing ? (light ? "rgba(255,255,255,0.12)" : "rgba(99,102,241,0.06)") : undefined, ...style }}
     >
-      {value || <span className={light ? "opacity-60" : "text-[#9aa4b0]"}>Click to add…</span>}
-      <span className="absolute -top-3.5 right-1 hidden gap-0.5 rounded-md border border-border bg-[#12151c] p-0.5 shadow-lg group-hover/ed:flex" onClick={(e) => e.stopPropagation()}>
-        {onAI && <button onClick={onAI} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#c4b5fd] hover:bg-[#20263180]" style={{ fontFamily: "Arial, sans-serif" }}><Sparkles className="h-3 w-3" /> Edit with AI</button>}
-        <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#c9cfda] hover:bg-[#20263180]" style={{ fontFamily: "Arial, sans-serif" }}><Pencil className="h-3 w-3" /> Edit</button>
-      </span>
-    </Tag>
+      {editing ? value : (value || <span className={light ? "opacity-60" : "text-[#9aa4b0]"}>{placeholder || "Click to add…"}</span>)}
+      {!editing && onAI && (
+        <span contentEditable={false} className="absolute -top-3.5 right-1 z-10 hidden gap-0.5 rounded-md border border-border bg-[#12151c] p-0.5 shadow-lg group-hover/ed:flex" onClick={(e) => e.stopPropagation()}>
+          <button onMouseDown={(e) => { e.preventDefault(); onAI(); }} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#c4b5fd] hover:bg-[#20263180]" style={{ fontFamily: "Arial, sans-serif" }}><Sparkles className="h-3 w-3" /> Edit with AI</button>
+          <button onMouseDown={(e) => { e.preventDefault(); start(); }} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-[#c9cfda] hover:bg-[#20263180]" style={{ fontFamily: "Arial, sans-serif" }}><Pencil className="h-3 w-3" /> Edit</button>
+        </span>
+      )}
+    </Comp>
   );
 }

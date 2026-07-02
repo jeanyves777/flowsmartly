@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, Check, Images, Mail } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
@@ -39,9 +39,12 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [tab, setTab] = useState<"design" | "sections" | "type">("design");
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
+  const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
   const baselineRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadSlotRef = useRef<"cover" | "about" | "impact" | null>(null);
 
   const loadById = useCallback(async (id: string): Promise<boolean> => {
     const d = await fetch(`/api/pitch/${id}`).then((r) => r.json()).catch(() => null);
@@ -128,6 +131,39 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     toast({ title: "On it", description: `The agent is rewriting the ${ai.field}.` });
   };
 
+  // ── In-place proposal images: generate with the agent, or upload your own ──
+  const setSlotBusy = (slot: string, v: boolean) => setImgBusy((m) => ({ ...m, [slot]: v }));
+  // The agent's regenerate turn ends → refreshKey bumps → the reloaded pitch
+  // carries the new image, and we clear the per-slot loader.
+  useEffect(() => { setImgBusy({}); }, [refreshKey]);
+
+  const genImage = (slot: "cover" | "about" | "impact") => {
+    if (!pitch) return;
+    const who = target?.leadName || pitch.businessName || "this lead";
+    setSlotBusy(slot, true);
+    onAsk(`In Pitch Studio, generate a fresh on-brand ${slot} image for the "${who}" proposal (pitchId: ${pitch.id}) and attach it — call regenerate_proposal_visual with pitchId="${pitch.id}" and slot="${slot}". Make it fit the business type and my Brand Kit. Don't paste anything in chat; it updates in place here.`);
+    toast({ title: "Generating visual", description: `The agent is creating a new ${slot} image.` });
+  };
+  const pickUpload = (slot: "cover" | "about" | "impact") => { uploadSlotRef.current = slot; fileInputRef.current?.click(); };
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const slot = uploadSlotRef.current;
+    e.target.value = "";
+    if (!file || !slot || !pitch) return;
+    setSlotBusy(slot, true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "proposal-visual");
+      const res = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json()).catch(() => null);
+      const url = res?.data?.url as string | undefined;
+      if (url) {
+        const prev = (pitch.content.visualAssets?.images || []).filter((im) => im.kind !== slot);
+        commit({ ...pitch.content, visualAssets: { generatedAt: new Date().toISOString(), images: [...prev, { kind: slot, url, alt: `${slot} image` }] } });
+        toast({ title: "Image updated", description: `Your ${slot} image is in.` });
+      } else toast({ title: "Upload failed", description: "Try another image." });
+    } catch { toast({ title: "Upload failed", description: "Please try again." }); }
+    finally { setSlotBusy(slot, false); }
+  };
+
   const generate = async () => {
     if (!target?.leadId) return;
     baselineRef.current = await newestForLead(target.leadId, target.leadName || "");
@@ -189,14 +225,16 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     }
     if (docType === "visual") {
       // The image-rich, FULLY-EDITABLE, flowing visual document (no page breaks —
-      // only the exported PDF paginates). Same branded content, image-forward.
-      return <div className="px-4 py-6 sm:px-6"><VisualDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onReplaceImage={(slot) => onAsk(`Replace the ${slot} image on the "${displayName}" proposal (pitchId: ${pitch!.id}) — generate or pick an on-brand ${slot} visual that fits the business type, then attach it to the proposal so it updates here. Don't paste it in chat.`)} /></div>;
+      // only the exported PDF paginates). Same branded content, image-forward;
+      // every label editable + images generate/upload in place.
+      return <div className="px-4 py-6 sm:px-6"><VisualDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onGenerateImage={genImage} onUploadImage={pickUpload} imgBusy={imgBusy} /></div>;
     }
     return <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} /></div>;
   })();
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFile} />
       {/* action bar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-4 w-4" /></span>

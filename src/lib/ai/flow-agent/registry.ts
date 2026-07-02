@@ -128,6 +128,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
   const { buildSequenceStep } = await import("./tools/build-sequence-step");
   const { editPitchField } = await import("./tools/edit-pitch-field");
+  const { regenerateProposalVisual } = await import("./tools/regenerate-proposal-visual");
   const { listVoicesTool } = await import("./tools/list-voices");
   const { generateNarration } = await import("./tools/generate-narration");
   const { createDocument } = await import("./tools/create-document");
@@ -208,6 +209,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(runLeadAutopilot);
   flowAgentTools.register(buildSequenceStep);
   flowAgentTools.register(editPitchField);
+  flowAgentTools.register(regenerateProposalVisual);
   flowAgentTools.register(listVoicesTool);
   flowAgentTools.register(generateNarration);
   flowAgentTools.register(createDocument);
